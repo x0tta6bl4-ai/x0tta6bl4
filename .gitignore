@@ -1,0 +1,38 @@
+# x0tta6bl4 root .gitignore
+# Python
+.venv*/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.coverage
+build/
+dist/
+
+# Archives & Artifacts
+archive/artifacts/
+archive/legacy/
+archive/snapshots/
+*.tar.gz
+*.zip
+*.snapshot
+*.bak
+*.log
+*.tmp
+
+# Large assets
+assets/media/photos/
+assets/media/videos/
+Camera/
+15.09/
+фрезер/
+
+# Node / JS
+node_modules/
+
+# Terraform
+.terraform/
+
+# Misc
+.DS_Store
