@@ -1,0 +1,32 @@
+{
+  "name": "x0tta6bl4 Badge: Signal Bearer",
+  "description": "Spreads awareness & uplifts outreach.",
+  "image": "ipfs://CID/sig.png",
+  "external_url": "https://example.com/x0tta6bl4/badges",
+  "attributes": [
+    {
+      "trait_type": "Code",
+      "value": "SIG"
+    },
+    {
+      "trait_type": "Tier",
+      "value": 1
+    },
+    {
+      "trait_type": "Governance Weight",
+      "value": 1.0
+    },
+    {
+      "trait_type": "Domain",
+      "value": "advocacy"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "common"
+    },
+    {
+      "trait_type": "Generated At",
+      "value": "2025-11-01T22:20:56.322156Z"
+    }
+  ]
+}

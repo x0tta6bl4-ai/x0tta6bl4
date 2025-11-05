@@ -1,0 +1,322 @@
+[
+  {
+    "name": "x0tta6bl4 Badge: Node Supporter",
+    "description": "Early supporter ensuring base mesh stability.",
+    "image": "ipfs://CID/node.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "NODE"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 1
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "infrastructure"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "common"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Mesh Architect",
+    "description": "Contributor to mesh topology & design patterns.",
+    "image": "ipfs://CID/arch.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "ARCH"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 2
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.5
+      },
+      {
+        "trait_type": "Domain",
+        "value": "architecture"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "uncommon"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Resilience Guardian",
+    "description": "High-tier guardian supporting audits & resilience.",
+    "image": "ipfs://CID/guard.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "GUARD"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 3
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 2.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "security"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "rare"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Policy Sentinel",
+    "description": "Focus on Zero-Trust policies & enforcement.",
+    "image": "ipfs://CID/pol.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "POL"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 2
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.5
+      },
+      {
+        "trait_type": "Domain",
+        "value": "policy"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "uncommon"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Quantum Pioneer",
+    "description": "Advocate for post-quantum readiness.",
+    "image": "ipfs://CID/qnt.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "QNT"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 3
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 2.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "cryptography"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "rare"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Accessibility Champion",
+    "description": "Ensures inclusive participation & localization.",
+    "image": "ipfs://CID/acc.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "ACC"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 2
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.5
+      },
+      {
+        "trait_type": "Domain",
+        "value": "inclusion"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "uncommon"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Routing Alchemist",
+    "description": "Improves ML routing & adaptive heuristics.",
+    "image": "ipfs://CID/rtg.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "RTG"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 3
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 2.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "optimization"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "rare"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Disaster Response Ally",
+    "description": "Supports real-world deployment in crisis zones.",
+    "image": "ipfs://CID/drp.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "DRP"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 2
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.5
+      },
+      {
+        "trait_type": "Domain",
+        "value": "field"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "uncommon"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: DAO Steward",
+    "description": "Enhances decentralized decision processes.",
+    "image": "ipfs://CID/dao.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "DAO"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 3
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 2.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "governance"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "rare"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  },
+  {
+    "name": "x0tta6bl4 Badge: Signal Bearer",
+    "description": "Spreads awareness & uplifts outreach.",
+    "image": "ipfs://CID/sig.png",
+    "external_url": "https://example.com/x0tta6bl4/badges",
+    "attributes": [
+      {
+        "trait_type": "Code",
+        "value": "SIG"
+      },
+      {
+        "trait_type": "Tier",
+        "value": 1
+      },
+      {
+        "trait_type": "Governance Weight",
+        "value": 1.0
+      },
+      {
+        "trait_type": "Domain",
+        "value": "advocacy"
+      },
+      {
+        "trait_type": "Rarity",
+        "value": "common"
+      },
+      {
+        "trait_type": "Generated At",
+        "value": "2025-11-01T22:20:56.322156Z"
+      }
+    ]
+  }
+]
