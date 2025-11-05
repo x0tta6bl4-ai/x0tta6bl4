@@ -1,0 +1,12 @@
+# This file is maintained for backward compatibility only.
+# Modern dependency management uses pyproject.toml.
+# 
+# To install:
+#   Core only:     pip install -e .
+#   With ML:       pip install -e ".[ml]"
+#   With dev:      pip install -e ".[dev]"
+#   Everything:    pip install -e ".[all]"
+#
+# See pyproject.toml for full dependency specification.
+
+-e .
