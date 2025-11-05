@@ -1,0 +1,20 @@
+apiVersion: v2
+name: cilium-ebpf-optimization
+description: Оптимизированный Cilium eBPF с consistency checks и сниженными ложными срабатываниями
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - cilium
+  - ebpf
+  - network-policy
+  - zero-trust
+  - consistency-checks
+  - performance
+home: https://github.com/x0tta6bl4/infrastructure-optimizations
+maintainers:
+  - name: x0tta6bl4
+dependencies:
+  - name: cilium
+    version: "1.15.0"
+    repository: "https://helm.cilium.io/"

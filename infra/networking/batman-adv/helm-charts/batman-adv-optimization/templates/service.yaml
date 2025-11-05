@@ -1,0 +1,43 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "batman-adv-optimization.fullname" . }}
+  labels:
+    {{- include "batman-adv-optimization.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    {{- range .Values.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+    {{- end }}
+  selector:
+    {{- include "batman-adv-optimization.selectorLabels" . | nindent 4 }}
+
+---
+{{- if .Values.batmanAdv.monitoring.enabled }}
+# Service для Prometheus метрик
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "batman-adv-optimization.fullname" . }}-monitor
+  labels:
+    {{- include "batman-adv-optimization.labels" . | nindent 4 }}
+    prometheus: batman-adv-monitoring
+spec:
+  selector:
+    matchLabels:
+      {{- include "batman-adv-optimization.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: metrics
+    interval: {{ .Values.batmanAdv.monitoring.prometheus.scrapeInterval }}
+    path: /metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: spire-optimization
+description: Оптимизированный SPIFFE/SPIRE с многорегиональным failover и токен кешированием
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - spiffe
+  - spire
+  - zero-trust
+  - security
+  - identity
+  - multi-region
+home: https://github.com/x0tta6bl4/infrastructure-optimizations
+maintainers:
+  - name: x0tta6bl4
+dependencies:
+  - name: spire
+    version: "0.13.0"
+    repository: "https://spiffe.github.io/helm-charts"

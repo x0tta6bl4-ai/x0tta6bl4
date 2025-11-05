@@ -1,0 +1,246 @@
+# RBAC конфигурация для x0tta6bl4 multi-region инфраструктуры
+
+---
+# ServiceAccount для CI/CD
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cicd-service-account
+  namespace: x0tta6bl4
+  labels:
+    app.kubernetes.io/name: cicd-service-account
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# ClusterRole для администраторов
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x0tta6bl4-admin
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-admin
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+# ClusterRole для разработчиков
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x0tta6bl4-developer
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-developer
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["servicemonitors", "podmonitors"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ClusterRole для просмотра только
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x0tta6bl4-viewer
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-viewer
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["servicemonitors", "podmonitors"]
+  verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding для администраторов
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x0tta6bl4-admin-binding
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-admin-binding
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x0tta6bl4-admin
+subjects:
+- kind: ServiceAccount
+  name: cicd-service-account
+  namespace: x0tta6bl4
+- kind: User
+  name: admin@x0tta6bl4.com
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRoleBinding для разработчиков
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x0tta6bl4-developer-binding
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-developer-binding
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x0tta6bl4-developer
+subjects:
+- kind: Group
+  name: developers@x0tta6bl4.com
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRoleBinding для просмотра
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x0tta6bl4-viewer-binding
+  labels:
+    app.kubernetes.io/name: x0tta6bl4-viewer-binding
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x0tta6bl4-viewer
+subjects:
+- kind: Group
+  name: viewers@x0tta6bl4.com
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role для мониторинга в namespace monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitoring-role
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: monitoring-role
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["servicemonitors", "podmonitors", "prometheusrules"]
+  verbs: ["*"]
+
+---
+# RoleBinding для мониторинга
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: monitoring-binding
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: monitoring-binding
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitoring-role
+subjects:
+- kind: ServiceAccount
+  name: prometheus-k8s
+  namespace: monitoring
+- kind: ServiceAccount
+  name: grafana
+  namespace: monitoring
+
+---
+# ServiceAccount для Prometheus
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-k8s
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-k8s
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# ServiceAccount для Grafana
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# ServiceAccount для ALB Ingress Controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aws-load-balancer-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: aws-load-balancer-controller
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# ClusterRole для ALB Ingress Controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aws-load-balancer-controller
+  labels:
+    app.kubernetes.io/name: aws-load-balancer-controller
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "ingressclasses"]
+  verbs: ["*"]
+- apiGroups: ["elbv2.k8s.aws"]
+  resources: ["targetgroupbindings"]
+  verbs: ["*"]
+
+---
+# ClusterRoleBinding для ALB Ingress Controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aws-load-balancer-controller-binding
+  labels:
+    app.kubernetes.io/name: aws-load-balancer-controller-binding
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aws-load-balancer-controller
+subjects:
+- kind: ServiceAccount
+  name: aws-load-balancer-controller
+  namespace: kube-system
