@@ -1,0 +1,107 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue. Please fill out the sections below to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear and concise description of the bug
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to trigger the issue
+      placeholder: |
+        1. Install with `pip install -e ".[ml]"`
+        2. Run `uvicorn src.core.app:app`
+        3. Send GET /health
+        4. Observe error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? (Include error messages, stack traces)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Which domain is impacted?
+      options:
+        - Core (MAPE-K, orchestration)
+        - Security (SPIFFE/SPIRE, mTLS)
+        - Network (batman-adv, eBPF)
+        - ML (RAG, LoRA, embeddings)
+        - Monitoring (Prometheus, OpenTelemetry)
+        - Infrastructure (k8s, terraform)
+        - CI/CD (GitHub Actions)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: x0tta6bl4 version (tag or commit)
+      placeholder: "1.0.0-restructured"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, key dependencies
+      placeholder: |
+        - OS: Ubuntu 22.04
+        - Python: 3.12.1
+        - PyTorch: 2.9.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Attach logs, stack traces, or debug output
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I can reproduce this consistently
+          required: false
+        - label: I have logs or a minimal reproducer
+          required: false
