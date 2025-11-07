@@ -36,3 +36,13 @@ node_modules/
 
 # Misc
 .DS_Store
+
+# Test & Coverage Artifacts
+junit.xml
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Security scan reports
+selfscan_*.txt
+x0tta6bl4_selfscan_report.txt

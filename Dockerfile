@@ -14,12 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Yggdrasil from official repository
-RUN curl -fsSL https://neilalexander.s3.eu-west-2.amazonaws.com/deb/key.txt | apt-key add - \
-    && echo "deb http://neilalexander.s3.eu-west-2.amazonaws.com/deb/ debian yggdrasil" > /etc/apt/sources.list.d/yggdrasil.list \
-    && apt-get update \
-    && apt-get install -y yggdrasil \
-    && rm -rf /var/lib/apt/lists/*
+# Install Yggdrasil from GitHub releases (.deb package)
+RUN YGGDRASIL_VERSION=0.5.5 \
+    && curl -fsSL -o /tmp/yggdrasil.deb "https://github.com/yggdrasil-network/yggdrasil-go/releases/download/v${YGGDRASIL_VERSION}/yggdrasil-${YGGDRASIL_VERSION}-amd64.deb" \
+    && dpkg -i /tmp/yggdrasil.deb \
+    && rm /tmp/yggdrasil.deb
 
 # Create app user (non-root for security)
 RUN useradd -m -s /bin/bash x0tta6bl4 && \
