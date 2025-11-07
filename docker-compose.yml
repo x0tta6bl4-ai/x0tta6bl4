@@ -1,0 +1,176 @@
+version: '3.9'
+
+# x0tta6bl4 Multi-Node Mesh Deployment
+# Architecture: 3 nodes (node-a, node-b, node-c) forming Yggdrasil mesh
+# Self-healing: MAPE-K loops monitor and respond to failures
+# Observability: Prometheus metrics, OpenTelemetry tracing
+
+services:
+  # Node A: Primary mesh node
+  node-a:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x0tta6bl4-node-a
+    hostname: node-a
+    environment:
+      - NODE_ID=node-a
+      - LISTEN_HOST=0.0.0.0
+      - LISTEN_PORT=8000
+      - LOG_LEVEL=info
+      # Peer connections: node-a initiates connections to node-b and node-c
+      - YGGDRASIL_PEERS=tcp://node-b:9001,tcp://node-c:9001
+    ports:
+      - "8000:8000"  # FastAPI server
+      - "9090:9090"  # Prometheus metrics
+    networks:
+      - mesh
+    cap_add:
+      - NET_ADMIN     # Required for TUN interface
+      - NET_RAW       # Required for eBPF/XDP
+    privileged: false  # Use minimal privileges
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - node-a-data:/app/data
+      - node-a-logs:/var/log/yggdrasil
+
+  # Node B: Secondary mesh node
+  node-b:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x0tta6bl4-node-b
+    hostname: node-b
+    environment:
+      - NODE_ID=node-b
+      - LISTEN_HOST=0.0.0.0
+      - LISTEN_PORT=8000
+      - LOG_LEVEL=info
+      # Peer connections: node-b connects to node-a and node-c
+      - YGGDRASIL_PEERS=tcp://node-a:9001,tcp://node-c:9001
+    ports:
+      - "8001:8000"  # FastAPI server (exposed on host:8001)
+      - "9091:9090"  # Prometheus metrics
+    networks:
+      - mesh
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - node-b-data:/app/data
+      - node-b-logs:/var/log/yggdrasil
+    depends_on:
+      - node-a
+
+  # Node C: Tertiary mesh node
+  node-c:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x0tta6bl4-node-c
+    hostname: node-c
+    environment:
+      - NODE_ID=node-c
+      - LISTEN_HOST=0.0.0.0
+      - LISTEN_PORT=8000
+      - LOG_LEVEL=info
+      # Peer connections: node-c connects to node-a and node-b
+      - YGGDRASIL_PEERS=tcp://node-a:9001,tcp://node-b:9001
+    ports:
+      - "8002:8000"  # FastAPI server (exposed on host:8002)
+      - "9092:9090"  # Prometheus metrics
+    networks:
+      - mesh
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - node-c-data:/app/data
+      - node-c-logs:/var/log/yggdrasil
+    depends_on:
+      - node-a
+      - node-b
+
+  # Prometheus: Metrics collection from all nodes
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: x0tta6bl4-prometheus
+    hostname: prometheus
+    ports:
+      - "9093:9090"
+    networks:
+      - mesh
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    depends_on:
+      - node-a
+      - node-b
+      - node-c
+
+  # Grafana: Visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: x0tta6bl4-grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - mesh
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+networks:
+  mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  node-a-data:
+  node-a-logs:
+  node-b-data:
+  node-b-logs:
+  node-c-data:
+  node-c-logs:
+  prometheus-data:
+  grafana-data:

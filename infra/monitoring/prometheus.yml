@@ -1,0 +1,73 @@
+# Prometheus configuration for x0tta6bl4 mesh monitoring
+# Scrapes metrics from all 3 mesh nodes + Prometheus self-monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'x0tta6bl4-mesh'
+    environment: 'development'
+
+# Alerting configuration (placeholder for future alertmanager)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # x0tta6bl4 mesh nodes
+  - job_name: 'x0tta6bl4-mesh'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'node-a:9090'
+          - 'node-b:9090'
+          - 'node-c:9090'
+        labels:
+          mesh_cluster: 'primary'
+          project: 'x0tta6bl4'
+
+  # Per-node monitoring with custom labels
+  - job_name: 'x0tta6bl4-node-a'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['node-a:9090']
+        labels:
+          node_id: 'node-a'
+          node_role: 'primary'
+
+  - job_name: 'x0tta6bl4-node-b'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['node-b:9090']
+        labels:
+          node_id: 'node-b'
+          node_role: 'secondary'
+
+  - job_name: 'x0tta6bl4-node-c'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['node-c:9090']
+        labels:
+          node_id: 'node-c'
+          node_role: 'tertiary'
+
+  # Health checks (FastAPI /health endpoints)
+  - job_name: 'x0tta6bl4-health'
+    scrape_interval: 30s
+    metrics_path: '/health'
+    static_configs:
+      - targets:
+          - 'node-a:8000'
+          - 'node-b:8000'
+          - 'node-c:8000'
