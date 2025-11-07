@@ -110,9 +110,9 @@ all = [
 ]
 
 [project.scripts]
-x0tta6bl4 = "x0tta6bl4.cli:main"
-x0tta6bl4-server = "x0tta6bl4.server:run"
-x0tta6bl4-health = "x0tta6bl4.health:check"
+x0tta6bl4 = "src.cli:main"
+x0tta6bl4-server = "src.core.app:main"
+x0tta6bl4-health = "src.core.health:check_cli"
 
 [project.urls]
 Homepage = "https://github.com/x0tta6bl4/x0tta6bl4"
@@ -121,10 +121,10 @@ Repository = "https://github.com/x0tta6bl4/x0tta6bl4"
 Changelog = "https://github.com/x0tta6bl4/x0tta6bl4/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["x0tta6bl4"]
+packages = {find = {where = ["."], include = ["src*"]}}
 
 [tool.setuptools.package-data]
-x0tta6bl4 = ["py.typed", "*.yaml", "*.json"]
+"*" = ["py.typed", "*.yaml", "*.json"]
 
 [tool.black]
 line-length = 100
