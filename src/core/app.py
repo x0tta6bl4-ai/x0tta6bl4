@@ -41,6 +41,20 @@ async def mesh_routes():
         return {"status": "error", "error": "Yggdrasil client not available", "routing_table_size": 0}
 
 
+@app.get("/metrics", summary="Prometheus metrics endpoint")
+async def metrics():
+    """Expose Prometheus metrics for monitoring."""
+    try:
+        from src.monitoring.metrics import get_metrics
+        return get_metrics()
+    except ImportError:
+        from fastapi import Response
+        return Response(
+            content="# Prometheus metrics not available\n",
+            media_type="text/plain",
+        )
+
+
 def create_app() -> FastAPI:
     """Factory for ASGI servers / testing frameworks.
 
@@ -49,6 +63,13 @@ def create_app() -> FastAPI:
       - middleware (tracing, metrics, auth)
       - startup/shutdown hooks
     """
+    # Add metrics middleware
+    try:
+        from src.monitoring.metrics import MetricsMiddleware
+        app.add_middleware(MetricsMiddleware)
+    except ImportError:
+        pass  # Metrics middleware optional
+
     return app
 
 
@@ -61,4 +82,10 @@ if __name__ == "__main__":  # pragma: no cover
 def main():
     """CLI entry point for x0tta6bl4-server command."""
     import uvicorn
-    uvicorn.run("src.core.app:app", host="0.0.0.0", port=8000, reload=True)
+    import os
+    
+    # Get host/port from environment (set by docker-entrypoint.sh)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+    
+    uvicorn.run("src.core.app:app", host=host, port=port, reload=False)
