@@ -1,0 +1,33 @@
+# Ignore everything by default
+*
+
+# Allow only necessary files for Docker build
+!src/
+!tests/
+!infra/monitoring/
+!requirements.txt
+!requirements.consolidated.txt
+!pyproject.toml
+!pytest.ini
+!README.md
+!LICENSE
+!docker-entrypoint.sh
+
+# Exclude test artifacts and caches
+src/**/__pycache__/
+src/**/*.pyc
+src/**/*.pyo
+tests/**/__pycache__/
+tests/**/*.pyc
+tests/**/*.pyo
+.pytest_cache/
+htmlcov/
+.coverage
+junit.xml
+
+# Exclude development files
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store

@@ -27,13 +27,15 @@ RUN useradd -m -s /bin/bash x0tta6bl4 && \
 
 WORKDIR /app
 
+# Copy project metadata first (for editable install)
+COPY pyproject.toml pytest.ini README.md LICENSE* ./
+
 # Copy Python dependencies and install (caching layer)
 COPY requirements.txt requirements.consolidated.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY src/ ./src/
-COPY pyproject.toml pytest.ini README.md LICENSE* ./
 
 # Install package in editable mode
 RUN pip install -e .
