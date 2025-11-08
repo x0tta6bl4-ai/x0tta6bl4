@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1-integration] - 2025-11-08
+
+### 🔧 Docker Recovery & Integration Testing
+
+This release documents the recovery of Docker infrastructure and the implementation of minimal multi-node integration tests.
+
+### Fixed
+
+#### Docker Infrastructure Recovery
+- **Docker daemon failure resolved** — Restored Docker Engine 28.5.2 after service crash
+- **Buildx upgrade**: 0.12.1 → 0.17.1 (required for `docker compose build` compatibility)
+- **Containerd**: v1.7.29, runc 1.3.3, docker-init 0.19.0
+- **Storage driver**: overlay2 with BuildKit features enabled
+- **Log rotation**: Configured max-size=10m, max-file=3 in daemon.json
+
+#### Dependency Updates
+- **web3.py**: 6.11.1 → 7.14.0 (fixed `ImportError: cannot import name 'ContractName' from 'eth_typing'`)
+- **eth-account**: 0.11.3 → 0.13.7
+- **ckzg**: 1.0.2 → 2.1.5 (EIP-4844 KZG commitments)
+- **hexbytes**: 0.3.1 → 1.3.1
+- **eth-rlp**: 1.0.1 → 2.2.0
+
+### Added
+
+#### Minimal Multi-Node Setup (`docker-compose.minimal.yml`)
+- **3-node FastAPI mesh** without Yggdrasil dependencies
+- **Port mapping**: node-a:8000, node-b:8001, node-c:8002
+- **Health checks**: curl-based readiness probes (interval=10s, timeout=5s, retries=3)
+- **Bridge network**: `mesh-minimal` driver for inter-container communication
+
+#### Integration Tests (`tests/integration/test_mesh_basic.py`)
+- **4 passing tests** in 16.26s:
+  1. `test_all_nodes_healthy` — Verify /health endpoints return 200 OK
+  2. `test_api_endpoints_available` — Validate JSON responses
+  3. `test_node_restart_recovery` — Stop node-b → verify down → restart → verify healthy
+  4. `test_concurrent_requests` — 30 parallel requests (10× per node)
+- **No dependencies** on sudo, Yggdrasil, or Prometheus (minimal setup)
+- **Docker Compose integration**: Automated start/stop of test containers
+
+### Changed
+
+#### Test Coverage
+- **Unit tests**: 111 passed (↑ from 66)
+- **Coverage**: 74% (↑ from 57%)
+- **Missed lines**: 398/1551 statements
+- **Integration coverage**: Pending (tests run in isolated containers)
+
+#### Build System
+- **Image build time**: ~350s for 3 nodes (parallelized)
+- **Base image**: python:3.12-slim with curl, ca-certificates
+- **Layer caching**: Optimized dependency installation order
+
+### Technical Details
+
+#### Docker Compose Build Output
+```
+[+] Building 350.8s (23/23) FINISHED
+ => [node-a] exporting to docker image format  151.7s
+ => [node-b] exporting to docker image format   95.7s
+ => [node-c] exporting to docker image format  151.5s
+```
+
+#### Container Health Status
+```
+node-a running Up 36 seconds (healthy)
+node-b running Up 36 seconds (healthy)
+node-c running Up 36 seconds (healthy)
+```
+
+#### Test Execution
+```bash
+pytest tests/integration/test_mesh_basic.py -v --cov=src --cov-report=html -n auto
+# 4 passed in 16.26s
+```
+
+### Commits
+- `86329cc` — feat(integration): добавлен test_mesh_basic (4 passed/16s)
+
+### Next Steps (Week 1-2)
+- [ ] Create production `Dockerfile` with Yggdrasil mesh integration
+- [ ] Implement `docker-compose.yml` for full 3-node mesh with monitoring
+- [ ] Add Prometheus metrics exporter (/metrics endpoint)
+- [ ] Configure Grafana dashboard for mesh topology visualization
+- [ ] Implement basic self-healing (MAPE-K loop, MTTR <10s target)
+- [ ] Write resilience integration tests (node failure, network partition)
+
+### Known Issues
+- Integration tests do not increase coverage (run in containers, not instrumented)
+- `docker-compose.minimal.yml` has obsolete `version: '3.8'` attribute (warning only)
+- Full Yggdrasil mesh testing requires `docker-compose.yml` (not minimal setup)
+
+
 ## [1.0.0-restructured] - 2025-11-06
 
 ### 🎉 Major Restructuring Release
