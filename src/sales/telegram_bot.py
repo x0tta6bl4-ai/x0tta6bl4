@@ -43,14 +43,15 @@ class Config:
     # Telegram
     BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
     
-    # Crypto wallets
-    USDT_TRC20_WALLET: str = "TYourWalletAddressHere"  # Tron USDT
-    TON_WALLET: str = "UQYourTonWalletAddressHere"     # TON
+    # Crypto wallets (from environment or defaults)
+    USDT_TRC20_WALLET: str = os.getenv("USDT_TRC20_WALLET", "TYourWalletAddressHere")  # Tron USDT
+    TON_WALLET: str = os.getenv("TON_WALLET", "UQYourTonWalletAddressHere")     # TON
     
-    # Prices (in USD equivalent)
-    PRICE_BASIC: int = 49
-    PRICE_PRO: int = 149
-    PRICE_ENTERPRISE: int = 499
+    # Prices (in RUB)
+    PRICE_SOLO: int = 100
+    PRICE_FAMILY: int = 50
+    PRICE_APARTMENT: int = 30
+    PRICE_NEIGHBORHOOD: int = 20
     
     # Download links (IPFS or S3)
     DOWNLOAD_URL: str = "https://download.x0tta6bl4.io/kit"
@@ -67,90 +68,79 @@ config = Config()
 # ═══════════════════════════════════════════════════════════════
 
 MANIFESTO = """
-🔥 *DIGITAL SURVIVAL KIT*
+🔥 *YOUTUBE БЕЗ VPN*
 
-_Мир катится в цифровую диктатуру._
-
-Твой интернет могут выключить одной кнопкой.
-Твои сообщения читают.
-Твоя локация отслеживается.
-
-*Этот Kit делает тебя невидимым и независимым.*
+Надоело:
+→ YouTube в 240p?
+→ Инстаграм не открывается?
+→ VPN падает каждый день?
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚡ *ЧТО ЭТО?*
+*Вот решение:*
 
-Персональный mesh-узел с:
-• 🔐 Квантово-устойчивым шифрованием (NTRU + ECDSA)
-• 🌐 Децентрализованной связью (работает БЕЗ провайдера)
-• 🤖 AI-защитой от атак (96% предсказание угроз)
-• 🛡️ Self-healing за 0.75мс (быстрее чем ты моргнёшь)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🏆 *ПОЧЕМУ ЭТО РАБОТАЕТ?*
-
-```
-Обычный VPN     →  Один сервер = одна точка отказа
-Tor             →  Медленный, логируется
-Наш Kit         →  Mesh из тысяч узлов = НЕВОЗМОЖНО заблокировать
-```
-
-*Протестировано:*
-• MTTD: 0.75мс (в 2541× быстрее конкурентов)
-• MTTR: 2.8с (цель была 5с)
-• 2,681 запросов — 0 ошибок
-• 3 независимых сервера — все прошли
+⚡ YouTube 1080p
+📱 Instagram работает
+🚀 Телеграм быстрый
+💰 Месяц бесплатно
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 *ДЛЯ КОГО?*
+*Почему лучше VPN:*
 
-• Журналисты в опасных зонах
-• Криптаны и трейдеры
-• Разработчики и сисадмины
-• Все, кто ценит СВОБОДУ
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💎 *ЗАЩИТА ОТ ПИРАТСТВА*
-
-Каждый Kit привязан к твоему железу.
-Скопировать файл можно. Запустить на другом компе — нельзя.
-Если кто-то украдёт твой токен — сеть забанит обоих.
-
-*Zero-Trust Licensing* — кради сколько хочешь, работать не будет.
+✅ Быстрее (50-100 МБ/с вместо 1-5)
+✅ Надёжнее (не падает)
+✅ Дешевле (с соседями в 2 раза)
+✅ Проще (установка 1 минута)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Выбери тариф: 👇
+*Как это работает:*
+
+1️⃣ Скачиваешь приложение
+2️⃣ Вводишь код
+3️⃣ Нажимаешь "Включить"
+4️⃣ Всё работает!
+
+*Первый месяц: БЕСПЛАТНО* 🆓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Выбери действие: 👇
 """
 
 PRICE_TEXT = """
-💰 *ТАРИФЫ*
+💰 *ЦЕНЫ*
 
-🥉 *BASIC* — $49
-• 1 нода
-• Базовая защита
-• Telegram-поддержка
+🆓 *ПЕРВЫЙ МЕСЯЦ: 0₽*
 
-🥈 *PRO* — $149
-• 3 ноды
-• AI мониторинг
-• Приоритетная поддержка
-• Обновления 1 год
+После:
 
-🥇 *ENTERPRISE* — $499
-• Unlimited ноды
-• Полный стек (DAO, AI, PQ)
-• Личный менеджер
-• Кастомизация
-• Lifetime обновления
+🥉 *SOLO* — 100₽/мес
+• YouTube, Инстаграм, Телеграм
+• Один человек
+
+🥉 *FAMILY* — 50₽/чел за 2+
+• Если 2-3 человека в семье
+• Дешевле чем VPN!
+
+🥉 *APARTMENT* — 30₽/чел за 4+
+• Если 4+ соседей объединили
+• Очень выгодно!
+
+🥉 *NEIGHBORHOOD* — 20₽/чел за 8+
+• Если весь подъезд
+• Почти бесплатно!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-*Оплата:* USDT (TRC-20), TON, XMR
+*Реферальная бонус:*
+→ Привел соседа: +месяц бесплатно
+→ Привел 3: платишь в половину цены
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Оплата:* USDT (TRC-20), TON, наличные
 """
 
 
@@ -210,8 +200,9 @@ class PaymentVerifier:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     keyboard = [
-        [InlineKeyboardButton("💎 Смотреть тарифы", callback_data="show_prices")],
-        [InlineKeyboardButton("❓ FAQ", callback_data="faq")],
+        [InlineKeyboardButton("🚀 Попробовать (месяц бесплатно)", callback_data="try_free")],
+        [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
+        [InlineKeyboardButton("❓ Как это работает", callback_data="how_it_works")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -228,9 +219,9 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("🥉 BASIC — $49", callback_data="buy_basic")],
-        [InlineKeyboardButton("🥈 PRO — $149", callback_data="buy_pro")],
-        [InlineKeyboardButton("🥇 ENTERPRISE — $499", callback_data="buy_enterprise")],
+        [InlineKeyboardButton("🥉 SOLO — 100₽/мес", callback_data="buy_solo")],
+        [InlineKeyboardButton("🥉 FAMILY — 50₽/чел", callback_data="buy_family")],
+        [InlineKeyboardButton("🥉 APARTMENT — 30₽/чел", callback_data="buy_apartment")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -242,21 +233,155 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def try_free(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle free trial request."""
+    query = update.callback_query
+    await query.answer()
+    
+    trial_token = f"TRIAL-{secrets.token_hex(4).upper()}"
+    
+    trial_text = f"""
+🚀 *ПОПРОБОВАТЬ БЕСПЛАТНО*
+
+✅ Скачиваешь приложение
+✅ Вводишь код
+✅ Нажимаешь "Включить"
+✅ Всё работает!
+
+*Первый месяц: БЕСПЛАТНО* 🆓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📥 *СКАЧАТЬ:*
+{config.DOWNLOAD_URL}
+
+🔑 *КОД ДЛЯ АКТИВАЦИИ:*
+`{trial_token}`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*После месяца:*
+🥉 SOLO: 100₽/мес
+🥉 FAMILY: 50₽/чел (если 2+)
+🥉 APARTMENT: 30₽/чел (если 4+)
+
+*Или отключи — без обязательств!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 *Совет:*
+Приведи соседей → всем дешевле!
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("📥 Скачать", url=config.DOWNLOAD_URL)],
+        [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        trial_text,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+
+async def how_it_works(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Explain how it works."""
+    query = update.callback_query
+    await query.answer()
+    
+    how_text = """
+❓ *КАК ЭТО РАБОТАЕТ?*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ *БЫСТРО*
+Установка за 1 минуту
+Не нужны никакие настройки
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2️⃣ *ПРОСТО*
+Одна кнопка "Включить"
+Больше ничего не трогаешь
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3️⃣ *ДЕШЕВО*
+Месяц бесплатно
+Потом дешевле чем VPN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4️⃣ *ВМЕСТЕ*
+Может подключить соседа
+Вы платите в 2 раза меньше
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Почему быстрее VPN?*
+
+VPN: твой трафик идёт за границу
+x0tta6bl4: твой трафик идёт к соседям
+
+→ Ближе = быстрее
+→ YouTube в 1080p вместо 240p
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Почему надёжнее?*
+
+VPN: один сервер упал = нет интернета
+x0tta6bl4: один маршрут упал = переключился на другой
+
+→ Ты даже не заметишь
+→ Интернет всегда работает
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🚀 Попробовать бесплатно", callback_data="try_free")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        how_text,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+
 async def buy_tier(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle purchase request."""
     query = update.callback_query
     await query.answer()
     
     tier = query.data.replace("buy_", "")
-    price = {"basic": 49, "pro": 149, "enterprise": 499}.get(tier, 49)
+    price_map = {
+        "solo": 100,
+        "family": 50,
+        "apartment": 30,
+        "neighborhood": 20
+    }
+    price = price_map.get(tier, 100)
     
     order_id = TokenGenerator.generate_order_id()
+    
+    tier_names = {
+        "solo": "SOLO (1 человек)",
+        "family": "FAMILY (2-3 человека)",
+        "apartment": "APARTMENT (4+ человек)",
+        "neighborhood": "NEIGHBORHOOD (8+ человек)"
+    }
+    tier_name = tier_names.get(tier, tier.upper())
     
     payment_text = f"""
 🛒 *ЗАКАЗ #{order_id}*
 
-Тариф: *{tier.upper()}*
-Сумма: *${price}*
+Тариф: *{tier_name}*
+Сумма: *{price}₽/мес*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -270,18 +395,26 @@ async def buy_tier(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {config.TON_WALLET}
 ```
 
+💵 *ОПЛАТА НАЛИЧНЫМИ:*
+Напиши в поддержку для встречи
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ⚠️ *ВАЖНО:*
-1. Отправь ровно ${price} USDT или эквивалент в TON
+1. Отправь {price}₽ (или эквивалент в USDT/TON)
 2. В комментарии укажи: `{order_id}`
 3. После оплаты нажми "Я оплатил"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Ссылка на оплату через Cryptomus (скоро)
+💡 *Помни:*
+Первый месяц БЕСПЛАТНО!
+Оплата со второго месяца.
 """
     
     keyboard = [
         [InlineKeyboardButton("✅ Я оплатил", callback_data=f"paid_{tier}_{order_id}")],
+        [InlineKeyboardButton("🆓 Сначала попробовать бесплатно", callback_data="try_free")],
         [InlineKeyboardButton("❌ Отмена", callback_data="show_prices")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -306,17 +439,25 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Generate activation token
     token = TokenGenerator.generate(tier)
     
+    tier_names = {
+        "solo": "SOLO",
+        "family": "FAMILY",
+        "apartment": "APARTMENT",
+        "neighborhood": "NEIGHBORHOOD"
+    }
+    tier_display = tier_names.get(tier, tier.upper())
+    
     success_text = f"""
-🎉 *СПАСИБО ЗА ПОКУПКУ!*
+🎉 *СПАСИБО!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📦 *Ваш заказ:* #{order_id}
-🎫 *Тариф:* {tier.upper()}
+🎫 *Тариф:* {tier_display}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔑 *ACTIVATION TOKEN:*
+🔑 *КОД ДЛЯ АКТИВАЦИИ:*
 ```
 {token}
 ```
@@ -328,27 +469,34 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📖 *ИНСТРУКЦИЯ:*
 
-1. Скачай архив
-2. Распакуй
-3. Запусти: `./install.sh`
-4. Введи токен когда попросят
-5. Готово! Ты в mesh-сети
+1. Скачай приложение
+2. Открой
+3. Введи код: `{token}`
+4. Нажми "Включить"
+5. Готово! YouTube работает
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 *СОВЕТ:*
+Приведи соседей → всем дешевле!
+Дай им этот код: `{token}`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ *ВАЖНО:*
-• Токен привязывается к твоему железу
-• Нельзя использовать на двух компах
-• Если проблемы — пиши в поддержку
+• Первый месяц БЕСПЛАТНО
+• Оплата со второго месяца
+• Можешь отключить в любой момент
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Добро пожаловать в свободный интернет! 🌐
+Добро пожаловать! 🚀
 """
     
     keyboard = [
-        [InlineKeyboardButton("📖 Документация", url="https://docs.x0tta6bl4.io")],
+        [InlineKeyboardButton("📥 Скачать приложение", url=config.DOWNLOAD_URL)],
         [InlineKeyboardButton("💬 Поддержка", url="https://t.me/x0tta6bl4_support")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -371,25 +519,28 @@ async def faq_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ❓ *FAQ*
 
 *Q: Это VPN?*
-A: Нет. Это mesh-сеть. VPN = один сервер. Mesh = тысячи узлов.
+A: Нет. Это лучше чем VPN. Быстрее, дешевле, надёжнее.
 
-*Q: Законно ли это?*
-A: Kit — это инструмент. Как нож. Зависит от использования.
+*Q: YouTube будет работать?*
+A: Да. В 1080p. Проверено.
 
-*Q: Что если меня забанят?*
-A: Нельзя забанить то, что не имеет центра. Mesh = децентрализация.
+*Q: Инстаграм откроется?*
+A: Да. Быстро. Без лагов.
 
-*Q: Работает в Китае/Иране/России?*
-A: Да. Трафик выглядит как обычный HTTPS.
+*Q: Первый месяц точно бесплатно?*
+A: Да. Без скрытых платежей. Можешь отключить в любой момент.
 
-*Q: Можно ли взломать?*
-A: Используем NTRU (квантово-устойчивый). Даже квантовый комп не взломает.
+*Q: Что если не понравится?*
+A: Отключи. Никаких обязательств. Первый месяц бесплатно.
 
-*Q: Что если потеряю токен?*
-A: Пиши в поддержку. Восстановим по email покупки.
+*Q: Как подключить соседей?*
+A: Дай им свой код. Они подключатся. Всем дешевле.
+
+*Q: Работает в Крыму?*
+A: Да. Работает везде. Проверено.
 
 *Q: Возврат?*
-A: 7 дней money-back если не заработало.
+A: Первый месяц бесплатно. Если не понравится — просто отключи.
 """
     
     keyboard = [
@@ -410,8 +561,9 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("💎 Смотреть тарифы", callback_data="show_prices")],
-        [InlineKeyboardButton("❓ FAQ", callback_data="faq")],
+        [InlineKeyboardButton("🚀 Попробовать (месяц бесплатно)", callback_data="try_free")],
+        [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
+        [InlineKeyboardButton("❓ Как это работает", callback_data="how_it_works")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -449,6 +601,8 @@ def main():
     
     # Callbacks
     app.add_handler(CallbackQueryHandler(show_prices, pattern="^show_prices$"))
+    app.add_handler(CallbackQueryHandler(try_free, pattern="^try_free$"))
+    app.add_handler(CallbackQueryHandler(how_it_works, pattern="^how_it_works$"))
     app.add_handler(CallbackQueryHandler(buy_tier, pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(confirm_payment, pattern="^paid_"))
     app.add_handler(CallbackQueryHandler(faq_handler, pattern="^faq$"))
