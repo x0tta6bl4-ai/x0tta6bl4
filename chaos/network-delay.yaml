@@ -1,0 +1,46 @@
+# Chaos Mesh: Network Delay (latency injection)
+# Tests: System handles 100-500ms latency gracefully
+#
+# Simulates: WAN conditions, mobile networks, satellite links
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay-100ms
+  namespace: mesh-system
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - mesh-system
+    labelSelectors:
+      app.kubernetes.io/component: mesh-node
+  delay:
+    latency: "100ms"
+    correlation: "50"
+    jitter: "20ms"
+  duration: "120s"
+  direction: both
+---
+# Severe delay test (500ms)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay-500ms
+  namespace: mesh-system
+spec:
+  action: delay
+  mode: fixed-percent
+  value: "30"  # 30% of connections
+  selector:
+    namespaces:
+      - mesh-system
+    labelSelectors:
+      app.kubernetes.io/component: mesh-node
+  delay:
+    latency: "500ms"
+    correlation: "75"
+    jitter: "100ms"
+  duration: "60s"
+  direction: both
