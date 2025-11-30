@@ -1,0 +1,62 @@
+# Production values override
+# Deploy with: helm install x0tta6bl4 ./helm/x0tta6bl4 -f values-prod.yaml
+
+replicaCount: 5
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+mesh:
+  slotSync:
+    beaconInterval: "3s"      # More frequent
+  topology:
+    maxNodes: 10000           # Production scale
+
+security:
+  postQuantum:
+    keyRotationDays: 30       # More frequent in prod
+  zeroTrust:
+    continuousVerification: true
+
+ai:
+  graphsage:
+    targetRecall: 0.98        # Higher target for prod
+    federatedLearning:
+      aggregationInterval: "30m"
+
+monitoring:
+  prometheus:
+    retention: "90d"
+  alerts:
+    enabled: true
+    pagerduty:
+      enabled: true
+      # serviceKey from secret
+
+chaosEngineering:
+  enabled: true
+  scenarios:
+    podKill:
+      schedule: "0 */6 * * *" # Every 6 hours
+
+autoscaling:
+  minReplicas: 5
+  maxReplicas: 50
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+persistence:
+  storageClass: "fast-ssd"
+  dao:
+    size: 20Gi
+  graphsage:
+    size: 100Gi

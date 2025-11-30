@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "x0tta6bl4.fullname" . }}
+  labels:
+    {{- include "x0tta6bl4.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # x0tta6bl4 Mesh Configuration
+    # Auto-generated from Helm values
+    
+    mesh:
+      slot_sync:
+        enabled: {{ .Values.mesh.slotSync.enabled }}
+        beacon_interval: {{ .Values.mesh.slotSync.beaconInterval }}
+        mttd_target: {{ .Values.mesh.slotSync.mttdTarget }}
+        jitter_max: {{ .Values.mesh.slotSync.jitterMax }}
+        adaptive_timer: {{ .Values.mesh.slotSync.adaptiveTimer }}
+        collision_detection: {{ .Values.mesh.slotSync.collisionDetection }}
+      
+      topology:
+        max_nodes: {{ .Values.mesh.topology.maxNodes }}
+        target_throughput: {{ .Values.mesh.topology.targetThroughput }}
+        k_disjoint_paths: {{ .Values.mesh.topology.kDisjointPaths }}
+      
+      self_healing:
+        enabled: {{ .Values.mesh.selfHealing.enabled }}
+        mttr_target: {{ .Values.mesh.selfHealing.mttrTarget }}
+        recovery_strategy: {{ .Values.mesh.selfHealing.recoveryStrategy }}
+    
+    security:
+      post_quantum:
+        enabled: {{ .Values.security.postQuantum.enabled }}
+        algorithm: {{ .Values.security.postQuantum.algorithm }}
+        key_rotation_days: {{ .Values.security.postQuantum.keyRotationDays }}
+        nist_level: {{ .Values.security.postQuantum.nistLevel }}
+      
+      zero_trust:
+        enabled: {{ .Values.security.zeroTrust.enabled }}
+        mtls: {{ .Values.security.zeroTrust.mTLS }}
+        continuous_verification: {{ .Values.security.zeroTrust.continuousVerification }}
+      
+      spiffe:
+        enabled: {{ .Values.security.spiffe.enabled }}
+        trust_domain: {{ .Values.security.spiffe.trustDomain }}
+    
+    ai:
+      graphsage:
+        enabled: {{ .Values.ai.graphsage.enabled }}
+        version: {{ .Values.ai.graphsage.version }}
+        target_recall: {{ .Values.ai.graphsage.targetRecall }}
+        false_positive_rate: {{ .Values.ai.graphsage.falsePositiveRate }}
+        quantization: {{ .Values.ai.graphsage.quantization }}
+        model_path: {{ .Values.ai.graphsage.modelPath }}
+        
+        federated_learning:
+          enabled: {{ .Values.ai.graphsage.federatedLearning.enabled }}
+          min_nodes: {{ .Values.ai.graphsage.federatedLearning.minNodes }}
+          aggregation_interval: {{ .Values.ai.graphsage.federatedLearning.aggregationInterval }}
+          privacy_preserving: {{ .Values.ai.graphsage.federatedLearning.privacyPreserving }}
+      
+      anomaly_detection:
+        isolation_forest: {{ .Values.ai.anomalyDetection.isolationForest }}
+        gnn_powered: {{ .Values.ai.anomalyDetection.gnnPowered }}
+        inference_latency: {{ .Values.ai.anomalyDetection.inferenceLatency }}
+    
+    dao:
+      enabled: {{ .Values.dao.enabled }}
+      
+      voting:
+        type: {{ .Values.dao.voting.type }}
+        quorum_percent: {{ .Values.dao.voting.quorumPercent }}
+        supermajority_percent: {{ .Values.dao.voting.supermajorityPercent }}
+        timelock_days: {{ .Values.dao.voting.timelockDays }}
+        proposal_duration_days: {{ .Values.dao.voting.proposalDurationDays }}
+      
+      treasury:
+        multi_sig: {{ .Values.dao.treasury.multiSig }}
+        required_signatures: {{ .Values.dao.treasury.requiredSignatures }}
+      
+      snapshot:
+        enabled: {{ .Values.dao.snapshot.enabled }}
+        space_id: {{ .Values.dao.snapshot.spaceId }}
+    
+    privacy:
+      mode: {{ .Values.cicd.privacyMode }}
+      telemetry_disabled: {{ .Values.cicd.telemetryDisabled }}

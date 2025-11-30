@@ -1,0 +1,337 @@
+# x0tta6bl4 Helm Chart Values
+# Self-healing mesh with PQ crypto, DAO governance & GraphSAGE AI
+
+## Global settings
+global:
+  imagePullPolicy: IfNotPresent
+  storageClass: standard
+
+## Image configuration
+image:
+  repository: ghcr.io/x0tta6bl4/mesh-core
+  tag: "v3.0.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+## Replica configuration
+replicaCount: 3
+
+## Resource limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+## Node selector
+nodeSelector: {}
+
+## Tolerations
+tolerations: []
+
+## Affinity
+affinity: {}
+
+# ═══════════════════════════════════════════════════════════════
+# MESH CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+mesh:
+  ## Slot-Based Sync (GPS-independent)
+  slotSync:
+    enabled: true
+    beaconInterval: "5s"
+    mttdTarget: "1900ms"      # Your result: 0.75ms ✅
+    jitterMax: "5ms"
+    adaptiveTimer: true
+    collisionDetection: true
+  
+  ## Topology settings
+  topology:
+    maxNodes: 1000
+    targetThroughput: "10Mbps"
+    kDisjointPaths: 3         # Multi-path redundancy
+    
+  ## Self-healing
+  selfHealing:
+    enabled: true
+    mttrTarget: "5s"
+    recoveryStrategy: "k-disjoint"
+
+# ═══════════════════════════════════════════════════════════════
+# SECURITY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+security:
+  ## Post-Quantum Crypto
+  postQuantum:
+    enabled: true
+    algorithm: "hybrid"       # NTRU + ECDSA
+    keyRotationDays: 90
+    nistLevel: 3
+  
+  ## Zero Trust
+  zeroTrust:
+    enabled: true
+    mTLS: true
+    continuousVerification: true
+  
+  ## SPIFFE/SPIRE
+  spiffe:
+    enabled: true
+    trustDomain: "x0tta6bl4.mesh"
+    serverAddress: "spire-server.spire:8081"
+
+# ═══════════════════════════════════════════════════════════════
+# AI CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+ai:
+  ## GraphSAGE Anomaly Detection
+  graphsage:
+    enabled: true
+    version: "v2"
+    targetRecall: 0.96        # Target (current: 92%)
+    falsePositiveRate: 0.05
+    quantization: "INT8"      # Edge optimization
+    modelPath: "/data/models/graphsage_v2.pt"
+    
+    ## Federated Learning
+    federatedLearning:
+      enabled: true
+      minNodes: 10
+      aggregationInterval: "1h"
+      privacyPreserving: true
+  
+  ## Additional ML
+  anomalyDetection:
+    isolationForest: true
+    gnnPowered: true
+    inferenceLatency: "50ms"
+
+# ═══════════════════════════════════════════════════════════════
+# DAO GOVERNANCE
+# ═══════════════════════════════════════════════════════════════
+
+dao:
+  enabled: true
+  
+  ## Voting configuration
+  voting:
+    type: "quadratic"         # sqrt(tokens) = votes
+    quorumPercent: 33
+    supermajorityPercent: 66
+    timelockDays: 7
+    proposalDurationDays: 14
+  
+  ## Treasury
+  treasury:
+    multiSig: true
+    requiredSignatures: 3
+    totalSigners: 5
+  
+  ## Snapshot integration
+  snapshot:
+    enabled: true
+    spaceId: "x0tta6bl4.eth"
+    gasless: true
+
+# ═══════════════════════════════════════════════════════════════
+# MONITORING & OBSERVABILITY
+# ═══════════════════════════════════════════════════════════════
+
+monitoring:
+  ## Prometheus
+  prometheus:
+    enabled: true
+    retention: "30d"
+    scrapeInterval: "15s"
+    
+    ## Custom metrics
+    metrics:
+      - mesh_mttr_seconds
+      - mesh_mttd_seconds
+      - mesh_beacon_jitter_ms
+      - gnn_recall_score
+      - gnn_inference_latency_ms
+      - dao_participation_rate
+      - dao_proposals_total
+      - pq_crypto_handshakes_total
+      - pq_key_rotations_total
+  
+  ## Grafana
+  grafana:
+    enabled: true
+    adminPassword: ""         # Auto-generated if empty
+    dashboards:
+      - mesh-health
+      - gnn-performance
+      - dao-governance
+      - security-overview
+      - chaos-resilience
+  
+  ## Alerts
+  alerts:
+    enabled: true
+    rules:
+      - name: HighMTTR
+        expr: "mesh_mttr_p95 > 5"
+        threshold: "5s"
+        severity: critical
+      - name: LowGNNRecall
+        expr: "gnn_recall_score < 0.92"
+        threshold: "0.92"
+        severity: warning
+      - name: HighBeaconJitter
+        expr: "mesh_beacon_jitter_ms > 5"
+        threshold: "5ms"
+        severity: warning
+      - name: LowDAOParticipation
+        expr: "dao_participation_rate < 0.30"
+        threshold: "30%"
+        severity: info
+
+# ═══════════════════════════════════════════════════════════════
+# CHAOS ENGINEERING
+# ═══════════════════════════════════════════════════════════════
+
+chaosEngineering:
+  enabled: false              # Enable in staging/prod
+  
+  scenarios:
+    podKill:
+      enabled: true
+      percentage: 25
+      duration: "60s"
+      schedule: "0 2 * * *"   # 2 AM daily
+    
+    networkDelay:
+      enabled: true
+      latency: "100ms"
+      jitter: "20ms"
+      correlation: "50"
+      duration: "120s"
+    
+    partition:
+      enabled: true
+      percentage: 50
+      duration: "30s"
+    
+    packetLoss:
+      enabled: true
+      percentage: 20
+      duration: "60s"
+
+# ═══════════════════════════════════════════════════════════════
+# AUTOSCALING
+# ═══════════════════════════════════════════════════════════════
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  
+  ## Custom metrics scaling
+  customMetrics:
+    enabled: false
+    metrics:
+      - type: Pods
+        pods:
+          metric:
+            name: mesh_connections_active
+          target:
+            type: AverageValue
+            averageValue: 100
+
+# ═══════════════════════════════════════════════════════════════
+# POD DISRUPTION BUDGET
+# ═══════════════════════════════════════════════════════════════
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2             # Minimum 2 pods for HA
+
+# ═══════════════════════════════════════════════════════════════
+# SERVICE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+service:
+  type: ClusterIP
+  port: 8080
+  meshPort: 9090
+  metricsPort: 9091
+  
+  annotations: {}
+
+# ═══════════════════════════════════════════════════════════════
+# INGRESS CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: mesh.x0tta6bl4.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mesh-tls
+      hosts:
+        - mesh.x0tta6bl4.io
+
+# ═══════════════════════════════════════════════════════════════
+# PERSISTENCE
+# ═══════════════════════════════════════════════════════════════
+
+persistence:
+  enabled: true
+  storageClass: ""            # Uses default if empty
+  accessMode: ReadWriteOnce
+  
+  ## DAO state storage
+  dao:
+    size: 5Gi
+    mountPath: /data/dao
+  
+  ## GraphSAGE models storage
+  graphsage:
+    size: 20Gi
+    mountPath: /data/models
+
+# ═══════════════════════════════════════════════════════════════
+# SERVICE ACCOUNT
+# ═══════════════════════════════════════════════════════════════
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ═══════════════════════════════════════════════════════════════
+# RBAC
+# ═══════════════════════════════════════════════════════════════
+
+rbac:
+  create: true
+
+# ═══════════════════════════════════════════════════════════════
+# CI/CD INTEGRATION
+# ═══════════════════════════════════════════════════════════════
+
+cicd:
+  privacyMode: maximum
+  anonymousBuilds: true
+  telemetryDisabled: true
+  targetBuildTime: "10m"
+  targetSecurityScore: 9.5

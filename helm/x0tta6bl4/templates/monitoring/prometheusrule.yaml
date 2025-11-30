@@ -1,0 +1,112 @@
+{{- if .Values.monitoring.alerts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "x0tta6bl4.fullname" . }}
+  labels:
+    {{- include "x0tta6bl4.labels" . | nindent 4 }}
+    release: prometheus
+spec:
+  groups:
+  - name: x0tta6bl4.mesh
+    interval: 30s
+    rules:
+    # MTTR Alert (target: ≤5s)
+    - alert: HighMTTR
+      expr: histogram_quantile(0.95, rate(mesh_mttr_seconds_bucket[5m])) > 5
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MTTR exceeded 5 seconds"
+        description: "MTTR p95 = {{ "{{ $value }}" }}s (target: ≤5s)"
+    
+    # MTTD Alert (target: ≤1900ms)
+    - alert: HighMTTD
+      expr: histogram_quantile(0.95, rate(mesh_mttd_seconds_bucket[5m])) > 1.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MTTD exceeded 1900ms"
+        description: "MTTD p95 = {{ "{{ $value }}" }}s"
+    
+    # Beacon Jitter Alert (target: ≤5ms)
+    - alert: HighBeaconJitter
+      expr: mesh_beacon_jitter_ms > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Beacon jitter exceeded 5ms"
+        description: "Jitter = {{ "{{ $value }}" }}ms"
+
+  - name: x0tta6bl4.ai
+    interval: 30s
+    rules:
+    # GNN Recall Alert (target: ≥92%)
+    - alert: LowGNNRecall
+      expr: gnn_recall_score < 0.92
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "GraphSAGE recall dropped below 92%"
+        description: "Recall = {{ "{{ $value }}" }} (target: ≥0.92)"
+    
+    # GNN Inference Latency (target: <50ms)
+    - alert: HighGNNLatency
+      expr: gnn_inference_latency_ms > 50
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "GNN inference latency exceeded 50ms"
+        description: "Latency = {{ "{{ $value }}" }}ms"
+
+  - name: x0tta6bl4.dao
+    interval: 60s
+    rules:
+    # DAO Participation Alert
+    - alert: LowDAOParticipation
+      expr: dao_participation_rate < 0.30
+      for: 1h
+      labels:
+        severity: info
+      annotations:
+        summary: "DAO participation dropped below 30%"
+        description: "Participation = {{ "{{ $value }}" }}"
+    
+    # Proposal Quorum Not Met
+    - alert: ProposalQuorumNotMet
+      expr: dao_proposal_quorum_reached == 0
+      for: 6d
+      labels:
+        severity: warning
+      annotations:
+        summary: "DAO proposal may not reach quorum"
+        description: "Proposal {{ "{{ $labels.proposal_id }}" }} has low participation"
+
+  - name: x0tta6bl4.security
+    interval: 30s
+    rules:
+    # PQ Crypto Key Rotation
+    - alert: PQKeyRotationOverdue
+      expr: (time() - pq_last_key_rotation_timestamp) > 86400 * 90
+      for: 1d
+      labels:
+        severity: warning
+      annotations:
+        summary: "Post-quantum key rotation overdue"
+        description: "Keys haven't been rotated in 90+ days"
+    
+    # SPIFFE Attestation Failures
+    - alert: SPIFFEAttestationFailures
+      expr: rate(spiffe_attestation_failures_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "SPIFFE attestation failures detected"
+        description: "Zero Trust verification failing"
+{{- end }}
