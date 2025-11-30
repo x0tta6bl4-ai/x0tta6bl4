@@ -1,0 +1,108 @@
+# x0tta6bl4 EKS Deployment Workflow
+# Manual trigger for production deployment
+
+name: Deploy to EKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.7.0"
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Terraform Init
+        working-directory: terraform/eks
+        run: terraform init
+      
+      - name: Terraform Plan
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        working-directory: terraform/eks
+        run: |
+          terraform plan \
+            -var="environment=${{ inputs.environment }}" \
+            -out=tfplan
+      
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        working-directory: terraform/eks
+        run: terraform apply -auto-approve tfplan
+      
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        working-directory: terraform/eks
+        run: |
+          terraform destroy \
+            -var="environment=${{ inputs.environment }}" \
+            -auto-approve
+      
+      - name: Get kubeconfig
+        if: inputs.action == 'apply'
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name x0tta6bl4-${{ inputs.environment }}
+      
+      - name: Deploy SPIRE
+        if: inputs.action == 'apply'
+        run: |
+          kubectl create namespace spire --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f infra/k8s/kind-local/spire-server.yaml
+          kubectl apply -f infra/k8s/kind-local/spire-agent.yaml
+          kubectl wait --for=condition=Ready pod -l app=spire-server -n spire --timeout=300s
+      
+      - name: Deploy ArgoCD Applications
+        if: inputs.action == 'apply'
+        run: |
+          kubectl apply -f argocd/applications/spire.yaml || true
+          kubectl apply -f argocd/applications/monitoring.yaml || true
+      
+      - name: Output cluster info
+        if: inputs.action == 'apply'
+        run: |
+          echo "=== CLUSTER INFO ===" 
+          kubectl cluster-info
+          echo ""
+          echo "=== NODES ==="
+          kubectl get nodes
+          echo ""
+          echo "=== PODS ==="
+          kubectl get pods -A
