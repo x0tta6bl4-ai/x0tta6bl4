@@ -1,0 +1,49 @@
+site_name: x0tta6bl4 Documentation
+site_description: Self-healing mesh network with AI and quantum-resistant security
+site_url: https://x0tta6bl4.github.io/
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: cyan
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quickstart.md
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Self-Healing: architecture/self-healing.md
+    - Post-Quantum Crypto: architecture/pq-crypto.md
+    - GraphSAGE AI: architecture/graphsage.md
+    - DAO Governance: architecture/dao.md
+  - Deployment:
+    - Kubernetes: deployment/kubernetes.md
+    - Helm Chart: deployment/helm.md
+    - Docker: deployment/docker.md
+  - Operations:
+    - Monitoring: operations/monitoring.md
+    - Chaos Testing: operations/chaos.md
+    - Troubleshooting: operations/troubleshooting.md
+  - API Reference: api.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/x0tta6bl4
