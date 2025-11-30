@@ -1,0 +1,175 @@
+# Prometheus Alerting Rules for Chaos Testing & MTTR Monitoring
+groups:
+  - name: mesh_resilience
+    interval: 15s
+    rules:
+      # MTTR SLO Alerts
+      - alert: HighMTTR
+        expr: |
+          quantile_over_time(0.95, mesh_recovery_time_seconds[30m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "High MTTR detected"
+          description: "P95 MTTR is {{ $value }}s, exceeding 10s threshold"
+          runbook_url: "https://docs.x0tta6bl4.io/runbooks/high-mttr"
+
+      - alert: CriticalMTTR
+        expr: |
+          quantile_over_time(0.95, mesh_recovery_time_seconds[15m]) > 30
+        for: 2m
+        labels:
+          severity: critical
+          component: mesh
+        annotations:
+          summary: "Critical MTTR - immediate action required"
+          description: "P95 MTTR is {{ $value }}s, system may be unable to self-heal"
+          runbook_url: "https://docs.x0tta6bl4.io/runbooks/critical-mttr"
+
+      # Node Health Alerts
+      - alert: MeshNodeDown
+        expr: |
+          up{job="mesh-nodes"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "Mesh node is down"
+          description: "Node {{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: MeshNodeHighCPU
+        expr: |
+          mesh_node_cpu_usage > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "High CPU usage on mesh node"
+          description: "Node {{ $labels.node_id }} CPU usage is {{ $value }}%"
+
+      - alert: MeshNodeHighMemory
+        expr: |
+          mesh_node_memory_usage > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "High memory usage on mesh node"
+          description: "Node {{ $labels.node_id }} memory usage is {{ $value }}%"
+
+      # Link Health Alerts
+      - alert: MeshLinkHighLatency
+        expr: |
+          mesh_link_latency_ms > 200
+        for: 3m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "High latency on mesh link"
+          description: "Link {{ $labels.source }} -> {{ $labels.target }} latency is {{ $value }}ms"
+
+      - alert: MeshLinkPacketLoss
+        expr: |
+          mesh_link_packet_loss > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "Packet loss on mesh link"
+          description: "Link {{ $labels.source }} -> {{ $labels.target }} has {{ $value | humanizePercentage }} packet loss"
+
+      # Connectivity Alerts
+      - alert: MeshConnectivityDegraded
+        expr: |
+          mesh_connectivity_ratio < 0.8
+        for: 2m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "Mesh connectivity degraded"
+          description: "Only {{ $value | humanizePercentage }} of nodes are connected"
+
+      - alert: MeshConnectivityCritical
+        expr: |
+          mesh_connectivity_ratio < 0.5
+        for: 1m
+        labels:
+          severity: critical
+          component: mesh
+        annotations:
+          summary: "Critical mesh connectivity loss"
+          description: "Only {{ $value | humanizePercentage }} of nodes are connected - network partition likely"
+
+      # Chaos Testing Specific
+      - alert: ChaosTestFailure
+        expr: |
+          increase(chaos_test_failures_total[1h]) > 0
+        labels:
+          severity: info
+          component: chaos-testing
+        annotations:
+          summary: "Chaos test revealed resilience issue"
+          description: "{{ $value }} chaos tests failed in the last hour"
+
+      # Zero Trust Alerts
+      - alert: HighVerificationFailureRate
+        expr: |
+          rate(mesh_verification_failures_total[5m]) / rate(mesh_verification_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High verification failure rate"
+          description: "{{ $value | humanizePercentage }} of verifications failing"
+
+      - alert: ThreatIndicatorDetected
+        expr: |
+          increase(mesh_threat_indicators_total[5m]) > 5
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Multiple threat indicators detected"
+          description: "{{ $value }} new threat indicators in last 5 minutes"
+
+  - name: mesh_recording_rules
+    interval: 30s
+    rules:
+      # MTTR Calculations
+      - record: mesh:mttr:p50
+        expr: histogram_quantile(0.5, sum(rate(mesh_recovery_time_seconds_bucket[5m])) by (le))
+
+      - record: mesh:mttr:p95
+        expr: histogram_quantile(0.95, sum(rate(mesh_recovery_time_seconds_bucket[5m])) by (le))
+
+      - record: mesh:mttr:p99
+        expr: histogram_quantile(0.99, sum(rate(mesh_recovery_time_seconds_bucket[5m])) by (le))
+
+      # Connectivity
+      - record: mesh:connectivity:ratio
+        expr: |
+          sum(mesh_node_state{state="healthy"}) / count(mesh_node_state)
+
+      # Throughput
+      - record: mesh:throughput:total
+        expr: |
+          sum(rate(mesh_bytes_transmitted_total[5m]))
+
+      # Error Rates
+      - record: mesh:errors:rate
+        expr: |
+          sum(rate(mesh_errors_total[5m]))
+
+      # Average Link Quality
+      - record: mesh:link_quality:avg
+        expr: |
+          avg(mesh_link_quality_score)

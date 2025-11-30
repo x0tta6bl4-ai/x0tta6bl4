@@ -22,7 +22,7 @@ const BASE_URL = __ENV.MESH_URL || 'http://localhost:8080';
 
 export default function () {
   const payload = JSON.stringify({
-    proposal_id: 1,
+    proposal_id: "1",
     voter_id: `voter-${__VU}`,
     tokens: Math.floor(Math.random() * 10000) + 100,
     vote: true,

@@ -86,6 +86,11 @@ monitoring = [
     "influxdb-client>=1.40.0"
 ]
 
+security = [
+    # SPIFFE / SPIRE integration SDK (optional)
+    "spiffe>=0.2.2",
+]
+
 dev = [
     # Testing
     "pytest>=8.3.4",
@@ -106,7 +111,7 @@ dev = [
 ]
 
 all = [
-    "x0tta6bl4[ml,quantum,monitoring,dev]"
+    "x0tta6bl4[ml,quantum,monitoring,security,dev]"
 ]
 
 [project.scripts]

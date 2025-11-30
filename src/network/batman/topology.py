@@ -77,12 +77,17 @@ class MeshTopology:
     - Topology changes
     """
     
-    def __init__(self, mesh_id: str, local_node_id: str):
+    def __init__(self, mesh_id: str, local_node_id: str, k_disjoint: int = 3):
         self.mesh_id = mesh_id
         self.local_node_id = local_node_id
+        self.k_disjoint = k_disjoint
         self.nodes: Dict[str, MeshNode] = {}
         self.links: Dict[Tuple[str, str], MeshLink] = {}
         self.routing_table: Dict[str, str] = {}  # destination -> next_hop
+        # Cache for k-disjoint paths: destination -> List[paths]
+        self.path_cache: Dict[str, List[List[str]]] = {}
+        self.cache_timestamp: Dict[str, datetime] = {}
+        self.cache_ttl: int = 300  # 5 minutes cache TTL
         
     def add_node(self, node: MeshNode) -> bool:
         """Register a new node in the mesh"""
@@ -92,6 +97,14 @@ class MeshTopology:
         
         self.nodes[node.node_id] = node
         logger.info(f"Added node {node.node_id} ({node.ip_address})")
+        
+        # Export topology change metric
+        try:
+            from src.monitoring.metrics import record_topology_change
+            record_topology_change(self.local_node_id, "node_added")
+        except ImportError:
+            pass
+        
         return True
     
     def add_link(self, link: MeshLink) -> bool:
@@ -163,11 +176,181 @@ class MeshTopology:
         
         return []  # No path found
     
-    def update_routing_table(self) -> int:
-        """Rebuild routing table from local node"""
+    def compute_k_disjoint_paths(self, source: str, destination: str, k: int = 3) -> List[List[str]]:
+        """
+        Compute k disjoint shortest paths using modified Dijkstra algorithm.
+        
+        Algorithm:
+        1. Find shortest path using Dijkstra
+        2. Remove used edges from graph
+        3. Repeat k-1 times
+        4. Rank paths by link quality score
+        5. Cache pre-computed paths for fast failover
+        
+        Args:
+            source: Source node ID
+            destination: Destination node ID
+            k: Number of disjoint paths to find (default: 3)
+            
+        Returns:
+            List of k disjoint paths, each path is a list of node IDs
+        """
+        if source not in self.nodes or destination not in self.nodes:
+            return []
+        
+        if source == destination:
+            return [[source]]
+        
+        paths = []
+        used_edges: Set[Tuple[str, str]] = set()
+        
+        for i in range(k):
+            # Find shortest path avoiding used edges
+            path = self._find_shortest_path_avoiding_edges(source, destination, used_edges)
+            
+            if not path:
+                break  # No more paths available
+            
+            paths.append(path)
+            
+            # Mark edges as used (both directions for undirected graph)
+            for j in range(len(path) - 1):
+                used_edges.add((path[j], path[j + 1]))
+                used_edges.add((path[j + 1], path[j]))  # Bidirectional
+            
+            logger.debug(f"Found disjoint path {i+1}/{k}: {path}")
+        
+        # Rank paths by quality score (best first)
+        ranked_paths = self._rank_paths_by_quality(paths)
+        
+        logger.info(f"Computed {len(ranked_paths)} disjoint paths from {source} to {destination}")
+        return ranked_paths
+    
+    def _find_shortest_path_avoiding_edges(
+        self, 
+        source: str, 
+        destination: str, 
+        used_edges: Set[Tuple[str, str]]
+    ) -> List[str]:
+        """
+        Find shortest path avoiding specified edges.
+        
+        Args:
+            source: Source node ID
+            destination: Destination node ID
+            used_edges: Set of edges to avoid (as (node1, node2) tuples)
+            
+        Returns:
+            List of node IDs representing the path, or empty list if no path found
+        """
+        # Initialize distances
+        distances = {node_id: float('inf') for node_id in self.nodes}
+        distances[source] = 0
+        previous = {node_id: None for node_id in self.nodes}
+        unvisited = set(self.nodes.keys())
+        
+        while unvisited:
+            # Find unvisited node with minimum distance
+            current = min(unvisited, key=lambda n: distances[n])
+            
+            if distances[current] == float('inf'):
+                break  # Unreachable nodes
+            
+            if current == destination:
+                # Reconstruct path
+                path = []
+                node = destination
+                while node is not None:
+                    path.append(node)
+                    node = previous[node]
+                return list(reversed(path))
+            
+            # Check neighbors (avoiding used edges)
+            for neighbor in self.get_neighbors(current):
+                if neighbor in unvisited:
+                    # Skip if edge is in used_edges
+                    if (current, neighbor) in used_edges or (neighbor, current) in used_edges:
+                        continue
+                    
+                    link = self.links.get((current, neighbor))
+                    if link:
+                        # Edge weight is inverse of link quality (lower is better)
+                        weight = 100 / (link.quality_score() + 1)
+                        new_distance = distances[current] + weight
+                        
+                        if new_distance < distances[neighbor]:
+                            distances[neighbor] = new_distance
+                            previous[neighbor] = current
+            
+            unvisited.remove(current)
+        
+        return []  # No path found
+    
+    def _rank_paths_by_quality(self, paths: List[List[str]]) -> List[List[str]]:
+        """
+        Rank paths by overall quality score.
+        
+        Quality score = average link quality score along the path.
+        Higher score = better path.
+        
+        Args:
+            paths: List of paths to rank
+            
+        Returns:
+            List of paths sorted by quality (best first)
+        """
+        path_scores = []
+        
+        for path in paths:
+            if len(path) < 2:
+                path_scores.append((path, 0.0))
+                continue
+            
+            # Calculate average link quality score
+            total_score = 0.0
+            link_count = 0
+            
+            for i in range(len(path) - 1):
+                link = self.links.get((path[i], path[i + 1]))
+                if link:
+                    total_score += link.quality_score()
+                    link_count += 1
+            
+            avg_score = total_score / link_count if link_count > 0 else 0.0
+            path_scores.append((path, avg_score))
+        
+        # Sort by score (descending) and return paths only
+        path_scores.sort(key=lambda x: x[1], reverse=True)
+        return [path for path, _ in path_scores]
+    
+    def update_routing_table(self, use_k_disjoint: bool = True) -> int:
+        """
+        Rebuild routing table from local node.
+        
+        Args:
+            use_k_disjoint: If True, use k-disjoint paths for failover routing
+            
+        Returns:
+            Number of routing table entries updated
+        """
         updated = 0
+        
         for dest_id in self.nodes:
-            if dest_id != self.local_node_id:
+            if dest_id == self.local_node_id:
+                continue
+            
+            if use_k_disjoint:
+                # Use k-disjoint paths: primary path goes to routing table
+                paths = self.get_cached_k_disjoint_paths(self.local_node_id, dest_id)
+                if paths and len(paths) > 0:
+                    primary_path = paths[0]  # Best quality path
+                    if len(primary_path) > 1:
+                        next_hop = primary_path[1]
+                        if self.routing_table.get(dest_id) != next_hop:
+                            self.routing_table[dest_id] = next_hop
+                            updated += 1
+            else:
+                # Fallback to single shortest path
                 path = self.compute_shortest_path(self.local_node_id, dest_id)
                 if path and len(path) > 1:
                     next_hop = path[1]
@@ -176,6 +359,113 @@ class MeshTopology:
                         updated += 1
         
         return updated
+    
+    def get_cached_k_disjoint_paths(self, source: str, destination: str) -> List[List[str]]:
+        """
+        Get k-disjoint paths with caching for fast failover.
+        
+        Cache is invalidated after TTL or when topology changes.
+        
+        Args:
+            source: Source node ID
+            destination: Destination node ID
+            
+        Returns:
+            List of k disjoint paths (best quality first)
+        """
+        cache_key = f"{source}->{destination}"
+        now = datetime.now()
+        
+        # Check cache validity
+        if cache_key in self.path_cache:
+            cache_age = (now - self.cache_timestamp.get(cache_key, datetime.min)).total_seconds()
+            if cache_age < self.cache_ttl:
+                logger.debug(f"Cache hit for {cache_key} (age: {cache_age:.1f}s)")
+                # Export cache hit metric
+                try:
+                    from src.monitoring.metrics import record_k_disjoint_cache_hit
+                    record_k_disjoint_cache_hit(self.local_node_id)
+                except ImportError:
+                    pass
+                return self.path_cache[cache_key]
+        
+        # Compute new paths
+        paths = self.compute_k_disjoint_paths(source, destination, k=self.k_disjoint)
+        
+        # Update cache
+        self.path_cache[cache_key] = paths
+        self.cache_timestamp[cache_key] = now
+        
+        # Export metrics
+        try:
+            from src.monitoring.metrics import (
+                set_k_disjoint_paths_count,
+                record_k_disjoint_cache_miss
+            )
+            set_k_disjoint_paths_count(self.local_node_id, destination, len(paths))
+            record_k_disjoint_cache_miss(self.local_node_id)
+        except ImportError:
+            pass  # Metrics optional
+        
+        return paths
+    
+    def get_failover_path(self, destination: str, failed_path: List[str]) -> Optional[List[str]]:
+        """
+        Get alternative path when primary path fails.
+        
+        Args:
+            destination: Destination node ID
+            failed_path: The path that failed
+            
+        Returns:
+            Alternative path or None if no alternative available
+        """
+        paths = self.get_cached_k_disjoint_paths(self.local_node_id, destination)
+        
+        # Find first path that doesn't overlap with failed path
+        for path in paths:
+            # Check if paths share any edges
+            failed_edges = set()
+            for i in range(len(failed_path) - 1):
+                failed_edges.add((failed_path[i], failed_path[i + 1]))
+                failed_edges.add((failed_path[i + 1], failed_path[i]))
+            
+            path_edges = set()
+            for i in range(len(path) - 1):
+                path_edges.add((path[i], path[i + 1]))
+                path_edges.add((path[i + 1], path[i]))
+            
+            # If no common edges, this is a valid failover path
+            if not failed_edges.intersection(path_edges):
+                logger.info(f"Found failover path for {destination}: {path}")
+                return path
+        
+        logger.warning(f"No failover path available for {destination}")
+        return None
+    
+    def invalidate_cache(self, destination: Optional[str] = None):
+        """
+        Invalidate path cache.
+        
+        Args:
+            destination: If specified, invalidate only paths to this destination.
+                        If None, invalidate all caches.
+        """
+        if destination:
+            # Invalidate all paths to/from this destination
+            keys_to_remove = [
+                key for key in self.path_cache.keys()
+                if destination in key
+            ]
+            for key in keys_to_remove:
+                del self.path_cache[key]
+                del self.cache_timestamp[key]
+            logger.debug(f"Invalidated cache for destination {destination}")
+        else:
+            # Invalidate all caches
+            self.path_cache.clear()
+            self.cache_timestamp.clear()
+            logger.debug("Invalidated all path caches")
     
     def prune_dead_nodes(self, timeout: int = 300) -> int:
         """Remove nodes that haven't been seen (timeout in seconds)"""
@@ -190,6 +480,13 @@ class MeshTopology:
             self.links = {k: v for k, v in self.links.items() 
                          if k[0] != node_id and k[1] != node_id}
             logger.info(f"Pruned dead node: {node_id}")
+            
+            # Export topology change metric
+            try:
+                from src.monitoring.metrics import record_topology_change
+                record_topology_change(self.local_node_id, "node_removed")
+            except ImportError:
+                pass
         
         return len(dead_nodes)
     

@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "x0tta6bl4.fullname" . }}
+  labels:
+    {{- include "x0tta6bl4.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.mesh.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "x0tta6bl4.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "x0tta6bl4.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "x0tta6bl4.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.mesh.image.repository }}:{{ .Values.mesh.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.mesh.image.pullPolicy }}
+          ports:
+            - name: mesh
+              containerPort: {{ .Values.mesh.config.meshPort }}
+              protocol: TCP
+            - name: api
+              containerPort: {{ .Values.mesh.config.apiPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.mesh.config.metricsPort }}
+              protocol: TCP
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MESH_PORT
+              value: "{{ .Values.mesh.config.meshPort }}"
+            - name: API_PORT
+              value: "{{ .Values.mesh.config.apiPort }}"
+            - name: METRICS_PORT
+              value: "{{ .Values.mesh.config.metricsPort }}"
+            # Zero Trust Configuration
+            - name: ZERO_TRUST_ENABLED
+              value: "{{ .Values.zeroTrust.enabled }}"
+            - name: ZKP_ENABLED
+              value: "{{ .Values.zeroTrust.zkp.enabled }}"
+            - name: POST_QUANTUM_ENABLED
+              value: "{{ .Values.zeroTrust.postQuantum.enabled }}"
+            - name: DID_ENABLED
+              value: "{{ .Values.zeroTrust.did.enabled }}"
+            - name: CONTINUOUS_VERIFICATION_ENABLED
+              value: "{{ .Values.zeroTrust.continuousVerification.enabled }}"
+            # SPIFFE
+            {{- if .Values.spiffe.enabled }}
+            - name: SPIFFE_ENDPOINT_SOCKET
+              value: "unix:///run/spire/sockets/agent.sock"
+            - name: SPIFFE_TRUST_DOMAIN
+              value: {{ include "x0tta6bl4.trustDomain" . }}
+            {{- end }}
+            # Obfuscation
+            - name: OBFUSCATION_ENABLED
+              value: "{{ .Values.obfuscation.enabled }}"
+            - name: OBFUSCATION_TRANSPORT
+              value: "{{ .Values.obfuscation.defaultTransport }}"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.mesh.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/x0tta6bl4
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/x0tta6bl4
+            {{- if .Values.spiffe.enabled }}
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "x0tta6bl4.fullname" . }}-config
+        - name: data
+          {{- if .Values.mesh.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "x0tta6bl4.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.spiffe.enabled }}
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

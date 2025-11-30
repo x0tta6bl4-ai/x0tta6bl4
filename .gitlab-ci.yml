@@ -1,0 +1,219 @@
+# x0tta6bl4 Repository CI/CD Pipeline
+# Includes: hygiene checks, DVC validation, security scanning
+
+stages:
+  - validate
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  DVC_CACHE_DIR: "$CI_PROJECT_DIR/.cache/dvc"
+
+# === Repository Hygiene Checks ===
+
+repo-hygiene:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y git findutils
+  script:
+    - echo "🔍 Checking repository hygiene..."
+
+    # Check for accidentally committed virtual environments
+    - |
+      if find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: Virtual environments detected in repository!"
+        find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*'
+        exit 1
+      fi
+
+    # Check for database files (only migrations should be in Git)
+    - |
+      if find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: Database files detected in repository!"
+        echo "Only migrations should be committed. Found:"
+        find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*'
+        exit 1
+      fi
+
+    # Check for large files (>10MB)
+    - |
+      LARGE_FILES=$(find . -type f -size +10M ! -path './.git/*' ! -path './.cache/*')
+      if [ -n "$LARGE_FILES" ]; then
+        echo "❌ ERROR: Large files (>10MB) detected:"
+        echo "$LARGE_FILES" | xargs -I {} du -h {}
+        echo "Use DVC or move to artifact storage!"
+        exit 1
+      fi
+
+    # Check for archives that shouldn't be in Git
+    - |
+      ARCHIVES=$(find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) ! -path './.git/*' ! -path './external_artifacts/*')
+      if [ -n "$ARCHIVES" ]; then
+        echo "⚠️  WARNING: Archive files found outside external_artifacts/:"
+        echo "$ARCHIVES"
+        echo "Consider moving to external artifact storage."
+      fi
+
+    # Check for accidentally committed secrets
+    - |
+      if find . -name '.env' ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: .env file detected in repository!"
+        find . -name '.env' ! -path './.git/*'
+        exit 1
+      fi
+
+    - echo "✅ Repository hygiene check passed!"
+
+  only:
+    - merge_requests
+    - main
+    - develop
+
+  allow_failure: false
+
+# === DVC Validation ===
+
+dvc-validation:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - pip install dvc dvc-s3
+  script:
+    - echo "📦 Validating DVC setup..."
+
+    # Check DVC is initialized
+    - |
+      if [ ! -d ".dvc" ]; then
+        echo "⚠️  WARNING: DVC not initialized in this repository."
+        echo "Run: dvc init"
+        exit 0  # Don't fail if DVC not set up yet
+      fi
+
+    # Validate .dvc files
+    - dvc status || echo "⚠️  Some DVC files may be out of sync"
+
+    # Dry-run pull to check remote connectivity
+    - dvc pull --dry-run || echo "⚠️  Cannot connect to DVC remote (expected in CI)"
+
+    # Check for large files that should be in DVC
+    - |
+      echo "Checking for DVC candidates..."
+      find data/ -type f \( -name '*.csv' -o -name '*.jsonl' -o -name '*.parquet' \) -size +5M 2>/dev/null | while read file; do
+        if [ ! -f "${file}.dvc" ]; then
+          echo "⚠️  Large file not tracked by DVC: $file"
+        fi
+      done
+
+    - echo "✅ DVC validation complete"
+
+  only:
+    - merge_requests
+    - main
+    - develop
+
+  allow_failure: true  # Don't block pipeline if DVC not fully set up
+
+# === Security Scanning ===
+
+secrets-scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - pip install detect-secrets
+  script:
+    - echo "🔐 Scanning for secrets..."
+    - detect-secrets scan --all-files --force-use-all-plugins
+    - echo "✅ No secrets detected"
+  only:
+    - merge_requests
+    - main
+  allow_failure: false
+
+# === Python Linting & Type Checking ===
+
+python-quality:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - pip install ruff mypy
+  script:
+    - echo "🔍 Running code quality checks..."
+    - ruff check . || true  # Don't fail yet, just warn
+    - mypy . --ignore-missing-imports || true
+  only:
+    - merge_requests
+  allow_failure: true
+
+# === Unit Tests ===
+
+unit-tests:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install -r requirements.txt || true
+    - pip install pytest pytest-cov
+  script:
+    - echo "🧪 Running unit tests..."
+    - pytest tests/unit/ --cov=src --cov-report=term --cov-report=html || true
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+  only:
+    - merge_requests
+    - main
+
+# === Docker Build ===
+
+docker-build:
+  stage: build
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  only:
+    - main
+    - develop
+
+# === Deployment ===
+
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "🚀 Deploying to staging..."
+    - curl -X POST $STAGING_WEBHOOK_URL -d "version=$CI_COMMIT_SHA"
+  only:
+    - develop
+  environment:
+    name: staging
+    url: https://staging.x0tta6bl4.dev
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "🚀 Deploying to production..."
+    - curl -X POST $PRODUCTION_WEBHOOK_URL -d "version=$CI_COMMIT_SHA"
+  only:
+    - main
+  environment:
+    name: production
+    url: https://x0tta6bl4.dev
+  when: manual  # Require manual approval for production

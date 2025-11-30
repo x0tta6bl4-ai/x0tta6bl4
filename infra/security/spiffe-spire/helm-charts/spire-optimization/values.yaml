@@ -189,7 +189,13 @@ spire:
   awsPCA:
     enabled: true
     region: "us-east-1"
-    caArn: "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/12345678-1234-1234-1234-123456789012"
+    # Externalized via External Secrets Operator
+    caArnFromSecret:
+      enabled: true
+      secretName: spire-aws-pca-secret
+      key: ca-arn
+    credentials:
+      secretName: spire-aws-pca-secret
 
   # Мониторинг и алертинг
   monitoring:

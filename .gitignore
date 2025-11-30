@@ -1,6 +1,11 @@
 # x0tta6bl4 root .gitignore
 # Python
 .venv*/
+venv/
+ENV/
+env/
+test_venv/
+rate_limiting_venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -46,3 +51,130 @@ htmlcov/
 # Security scan reports
 selfscan_*.txt
 x0tta6bl4_selfscan_report.txt
+secrets_scan_*.txt
+project_files_list.txt
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Large design/source assets
+*.cdr
+
+# === x0tta6bl4 Repository Hygiene Rules (extended) ===
+
+# Virtual environments
+**/venv/
+**/venv*/
+**/.venv/
+**/ENV/
+**/virtualenv/
+**/.virtualenv/
+**/python-*/
+**/site-packages/
+
+# Databases (only migrations in Git)
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.db-shm
+**/*.db-wal
+**/*.db-journal
+
+# Vector indexes (store in S3/MinIO)
+**/*.faiss
+**/*.hnsw
+**/*.ivf
+**/*.pq
+**/*.idx
+**/*.index
+**/chroma/
+**/.chroma/
+
+# Archives (keep manifests only)
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+**/*.tar.xz
+**/*.tar.bz2
+**/*.zip
+**/*.rar
+**/*.7z
+**/*.gz
+**/*.xz
+**/*.bz2
+
+# Pickle / serialization
+**/*.pkl
+**/*.pickle
+**/*.joblib
+**/*.npy
+**/*.npz
+
+# Node.js
+**/.npm/
+**/.yarn/
+**/.pnp.*
+**/yarn.lock
+**/package-lock.json
+
+# Python extras
+**/.mypy_cache/
+**/.ruff_cache/
+**/.ipynb_checkpoints/
+
+# IDE
+**/.idea/
+**/.windsurf/
+**/*.swp
+**/*.swo
+**/*~
+**/.DS_Store
+
+# Logs / dumps
+**/*.pcap
+**/*.pcapng
+**/*.cap
+**/core.*
+**/*.dump
+**/*.mem
+
+# Temp
+**/tmp/
+**/temp/
+**/.temp/
+**/.tmp/
+
+# DVC tracked data (keep .gitkeep)
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/data/embeddings/*
+!/data/embeddings/.gitkeep
+
+# Caches
+.cache/
+**/.cache/
+*.cache
+
+# Secrets
+.env
+.env.local
+.env.*.local
+**/*.secret
+**/*.key
+**/secrets/
+
+# External artifacts
+/external_artifacts/releases/*
+!/external_artifacts/releases/.gitkeep
+/external_artifacts/snapshots/*
+!/external_artifacts/snapshots/.gitkeep
+/external_artifacts/backups/*
+!/external_artifacts/backups/.gitkeep
+
+# Helm chart packages
+**/charts/*.tgz
+!**/charts/Chart.yaml

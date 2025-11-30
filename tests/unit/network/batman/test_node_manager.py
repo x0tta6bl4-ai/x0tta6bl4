@@ -40,3 +40,13 @@ def test_get_online_nodes():
     nm.update_metrics('b', bad)
     online = nm.get_online_nodes()
     assert 'a' in online and 'b' not in online
+
+
+def test_register_with_cert_integration():
+    """Test registration with optional certificate"""
+    nm = NodeManager(mesh_id='m', local_node_id='n-local')
+    # Passing a dummy cert should not crash the system, and since parsing fails, 
+    # it should fallback to basic checks which pass if spiffe_id matches
+    assert nm.register_node('n3', 'aa:dd', '10.0.0.3', 
+                           spiffe_id='spiffe://mesh/node/n3',
+                           cert_pem=b"-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----") is True

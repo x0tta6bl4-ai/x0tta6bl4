@@ -21,9 +21,9 @@ RUN YGGDRASIL_VERSION=0.5.5 \
     && rm /tmp/yggdrasil.deb
 
 # Create app user (non-root for security)
-RUN useradd -m -s /bin/bash x0tta6bl4 && \
-    usermod -aG sudo x0tta6bl4 && \
-    echo "x0tta6bl4 ALL=(ALL) NOPASSWD: /usr/bin/yggdrasilctl" > /etc/sudoers.d/x0tta6bl4
+# (Temporarily) run container as root to simplify Yggdrasil TUN setup.
+# TODO: Reintroduce non-root runtime with capabilities or setcap after mesh stabilizes.
+RUN useradd -m -s /bin/bash x0tta6bl4
 
 WORKDIR /app
 
@@ -44,8 +44,8 @@ RUN pip install -e .
 RUN mkdir -p /etc/yggdrasil /var/run/yggdrasil /var/log/yggdrasil && \
     chown -R x0tta6bl4:x0tta6bl4 /etc/yggdrasil /var/run/yggdrasil /var/log/yggdrasil
 
-# Switch to app user
-USER x0tta6bl4
+# Run as root for Yggdrasil (drops postponed). Security hardening pending.
+# USER x0tta6bl4
 
 # Expose ports: 8000 (API), 9090 (Prometheus metrics)
 EXPOSE 8000 9090
@@ -60,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # 3. Launch FastAPI server
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["x0tta6bl4-server"]
+CMD ["python", "-m", "src.core.app"]

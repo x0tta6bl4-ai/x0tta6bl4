@@ -1,5 +1,3 @@
-version: '3.9'
-
 # x0tta6bl4 Multi-Node Mesh Deployment
 # Architecture: 3 nodes (node-a, node-b, node-c) forming Yggdrasil mesh
 # Self-healing: MAPE-K loops monitor and respond to failures
@@ -18,6 +16,7 @@ services:
       - LISTEN_HOST=0.0.0.0
       - LISTEN_PORT=8000
       - LOG_LEVEL=info
+      - YGGDRASIL_MOCK=true
       # Peer connections: node-a initiates connections to node-b and node-c
       - YGGDRASIL_PEERS=tcp://node-b:9001,tcp://node-c:9001
     ports:
@@ -25,6 +24,8 @@ services:
       - "9090:9090"  # Prometheus metrics
     networks:
       - mesh
+    devices:
+      - /dev/net/tun:/dev/net/tun  # Required for Yggdrasil TUN interface
     cap_add:
       - NET_ADMIN     # Required for TUN interface
       - NET_RAW       # Required for eBPF/XDP
@@ -52,6 +53,7 @@ services:
       - LISTEN_HOST=0.0.0.0
       - LISTEN_PORT=8000
       - LOG_LEVEL=info
+      - YGGDRASIL_MOCK=true
       # Peer connections: node-b connects to node-a and node-c
       - YGGDRASIL_PEERS=tcp://node-a:9001,tcp://node-c:9001
     ports:
@@ -59,6 +61,8 @@ services:
       - "9091:9090"  # Prometheus metrics
     networks:
       - mesh
+    devices:
+      - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -88,6 +92,7 @@ services:
       - LISTEN_HOST=0.0.0.0
       - LISTEN_PORT=8000
       - LOG_LEVEL=info
+      - YGGDRASIL_MOCK=true
       # Peer connections: node-c connects to node-a and node-b
       - YGGDRASIL_PEERS=tcp://node-a:9001,tcp://node-b:9001
     ports:
@@ -95,6 +100,8 @@ services:
       - "9092:9090"  # Prometheus metrics
     networks:
       - mesh
+    devices:
+      - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -136,6 +143,24 @@ services:
       - node-a
       - node-b
       - node-c
+
+  # AlertManager: Alert handling
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: x0tta6bl4-alertmanager
+    hostname: alertmanager
+    ports:
+      - "9094:9093"
+    networks:
+      - mesh
+    volumes:
+      - ./infra/monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
+    depends_on:
+      - prometheus
 
   # Grafana: Visualization and dashboards
   grafana:

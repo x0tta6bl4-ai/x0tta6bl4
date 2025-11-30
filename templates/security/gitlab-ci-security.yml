@@ -1,0 +1,24 @@
+stages:
+  - security_scan
+
+security_scan:
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - apk add --no-cache bash curl npm python3 py3-pip git
+    - npm install -g snyk-to-html
+    - pip3 install trivy-html-report
+    - curl -sL https://github.com/aquasecurity/trivy/releases/latest/download/trivy_$(uname -s)_$(uname -m).tar.gz | tar zx -C /usr/local/bin
+    - curl -sL https://github.com/snyk/snyk/releases/latest/download/snyk-linux.tar.gz | tar zx -C /usr/local/bin
+    - snyk auth "$SNYK_TOKEN"
+  script:
+    - chmod +x templates/security/security-scan.sh
+    - templates/security/security-scan.sh --snyk --trivy --severity HIGH --image "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" --output security-report.html
+  artifacts:
+    paths:
+      - scan-results/security-report.html
+      - scan-results/*.json
+    expire_in: 1 week

@@ -1,7 +1,7 @@
 """Integration tests for x0tta6bl4 multi-node mesh self-healing.
 
 These tests require the mesh to be running:
-    docker-compose up -d
+    docker compose up -d
 
 Tests verify:
 - Mesh formation and peer connectivity
@@ -38,7 +38,7 @@ def mesh_running():
             pytest.skip(f"Mesh not running: {node_id} unreachable ({e})")
     yield
     # Cleanup: ensure all nodes are running after tests
-    subprocess.run(["docker-compose", "start", "node-a", "node-b", "node-c"], check=False)
+    subprocess.run(["docker", "compose", "start", "node-a", "node-b", "node-c"], check=False)
 
 
 @pytest.fixture
@@ -119,7 +119,7 @@ def test_node_failure_recovery(mesh_running, wait_for_convergence):
     
     # Simulate failure: stop node-b
     print("\n[TEST] Stopping node-b to simulate failure...")
-    subprocess.run(["docker-compose", "stop", "node-b"], check=True)
+    subprocess.run(["docker", "compose", "stop", "node-b"], check=True)
     time.sleep(5)  # Allow MAPE-K to detect failure
     
     # Verify node-a and node-c detect the failure
@@ -141,7 +141,7 @@ def test_node_failure_recovery(mesh_running, wait_for_convergence):
     
     # Recovery: restart node-b
     print("[TEST] Restarting node-b...")
-    subprocess.run(["docker-compose", "start", "node-b"], check=True)
+    subprocess.run(["docker", "compose", "start", "node-b"], check=True)
     time.sleep(10)  # Allow node to initialize Yggdrasil
     
     # Verify mesh reconverges to full 3-node topology
@@ -224,10 +224,8 @@ def test_self_healing_metrics(mesh_running):
     """Test: Prometheus metrics expose MAPE-K cycle duration and self-healing events."""
     # Query metrics endpoint from each node
     for node_id, base_url in NODES.items():
-        # Prometheus metrics are on port 9090, but exposed differently in docker-compose
-        # node-a: localhost:9090, node-b: localhost:9091, node-c: localhost:9092
-        metrics_ports = {"node-a": 9090, "node-b": 9091, "node-c": 9092}
-        metrics_url = f"http://localhost:{metrics_ports[node_id]}/metrics"
+        # Metrics are exposed on each node HTTP server on /metrics
+        metrics_url = f"{base_url}/metrics"
         
         response = requests.get(metrics_url, timeout=5)
         assert response.status_code == 200, f"{node_id} metrics endpoint failed"

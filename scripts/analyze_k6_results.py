@@ -18,20 +18,28 @@ def analyze_results(result_file):
     
     # HTTP metrics
     if 'http_req_duration' in metrics:
-        duration = metrics['http_req_duration']['values']
+        duration = metrics['http_req_duration']
+        # Check if 'values' exists (older k6) or if it's direct (newer k6 summary)
+        if 'values' in duration:
+            duration = duration['values']
+            
         print(f"📊 HTTP Request Duration:")
         print(f"   P95: {duration.get('p(95)', 0):.2f}ms")
         print(f"   Max: {duration.get('max', 0):.2f}ms\n")
     
     # Request rate
     if 'http_reqs' in metrics:
-        reqs = metrics['http_reqs']['values']
+        reqs = metrics['http_reqs']
+        if 'values' in reqs:
+            reqs = reqs['values']
         rate = reqs.get('rate', 0)
         print(f"🚀 Throughput: {rate:.2f} req/s\n")
     
     # Failure rate
     if 'failed_requests' in metrics:
-        failures = metrics['failed_requests']['values']
+        failures = metrics['failed_requests']
+        if 'values' in failures:
+            failures = failures['values']
         fail_rate = failures.get('rate', 0)
         print(f"❌ Failure Rate: {fail_rate*100:.2f}%\n")
 

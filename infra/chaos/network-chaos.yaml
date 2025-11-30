@@ -1,0 +1,96 @@
+# Network Delay Injection
+# Тестирование поведения mesh при высокой латентности
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-network-delay
+  namespace: x0tta6bl4
+  labels:
+    scenario: network-latency
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  delay:
+    latency: "100ms"
+    correlation: "50"
+    jitter: "20ms"
+  duration: "300s"
+  scheduler:
+    cron: "30 2 * * *"  # Daily at 2:30 AM
+---
+# Network Partition (Split-Brain)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-network-partition
+  namespace: x0tta6bl4
+  labels:
+    scenario: split-brain
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+      partition: "group-a"
+  direction: both
+  target:
+    selector:
+      namespaces:
+        - x0tta6bl4
+      labelSelectors:
+        app.kubernetes.io/name: x0tta6bl4
+        partition: "group-b"
+    mode: all
+  duration: "120s"
+---
+# Packet Loss
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-packet-loss
+  namespace: x0tta6bl4
+  labels:
+    scenario: packet-loss
+spec:
+  action: loss
+  mode: fixed-percent
+  value: "30"
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  loss:
+    loss: "15"
+    correlation: "50"
+  duration: "180s"
+---
+# Bandwidth Limitation
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-bandwidth-limit
+  namespace: x0tta6bl4
+  labels:
+    scenario: bandwidth-stress
+spec:
+  action: bandwidth
+  mode: all
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app.kubernetes.io/name: x0tta6bl4
+  bandwidth:
+    rate: "1mbps"
+    limit: 100
+    buffer: 10000
+  duration: "120s"

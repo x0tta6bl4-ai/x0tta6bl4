@@ -1,0 +1,41 @@
+name: Security Scan
+
+on:
+  push:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node for snyk-to-html
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install -g snyk-to-html
+
+      - name: Install trivy-html-report
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install trivy-html-report
+
+      - name: Install Trivy
+        run: |
+          curl -sL https://github.com/aquasecurity/trivy/releases/latest/download/trivy_$(uname -s)_$(uname -m).tar.gz | sudo tar zx -C /usr/local/bin
+
+      - name: Install Snyk CLI
+        run: |
+          curl -sL https://github.com/snyk/snyk/releases/latest/download/snyk-linux.tar.gz | sudo tar zx -C /usr/local/bin
+          snyk auth ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run security scan
+        run: |
+          chmod +x templates/security/security-scan.sh
+          IMAGE_TAG=${{ github.repository }}:${{ github.sha }} templates/security/security-scan.sh --snyk --trivy --severity HIGH --image $IMAGE_TAG --output security-report.html
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: scan-results/

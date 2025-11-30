@@ -8,11 +8,11 @@ global:
     cluster: 'x0tta6bl4-mesh'
     environment: 'development'
 
-# Alerting configuration (placeholder for future alertmanager)
+# Alerting configuration
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ['alertmanager:9093']
 
 # Scrape configurations
 scrape_configs:
@@ -27,9 +27,9 @@ scrape_configs:
     metrics_path: '/metrics'
     static_configs:
       - targets:
-          - 'node-a:9090'
-          - 'node-b:9090'
-          - 'node-c:9090'
+          - 'node-a:8000'
+          - 'node-b:8000'
+          - 'node-c:8000'
         labels:
           mesh_cluster: 'primary'
           project: 'x0tta6bl4'
@@ -39,7 +39,7 @@ scrape_configs:
     scrape_interval: 10s
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['node-a:9090']
+      - targets: ['node-a:8000']
         labels:
           node_id: 'node-a'
           node_role: 'primary'
@@ -48,7 +48,7 @@ scrape_configs:
     scrape_interval: 10s
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['node-b:9090']
+      - targets: ['node-b:8000']
         labels:
           node_id: 'node-b'
           node_role: 'secondary'
@@ -57,17 +57,25 @@ scrape_configs:
     scrape_interval: 10s
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['node-c:9090']
+      - targets: ['node-c:8000']
         labels:
           node_id: 'node-c'
           node_role: 'tertiary'
 
-  # Health checks (FastAPI /health endpoints)
-  - job_name: 'x0tta6bl4-health'
-    scrape_interval: 30s
-    metrics_path: '/health'
+  # eBPF telemetry metrics (if eBPF exporter is available)
+  - job_name: 'ebpf-telemetry'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
     static_configs:
       - targets:
-          - 'node-a:8000'
-          - 'node-b:8000'
-          - 'node-c:8000'
+          - 'node-a:9091'  # eBPF exporter port (if deployed)
+          - 'node-b:9091'
+          - 'node-c:9091'
+        labels:
+          component: 'ebpf'
+          mesh_cluster: 'primary'
+
+# Recording rules for aggregated metrics
+rule_files:
+  - 'recording-rules.yml'
+  - 'alerting-rules.yml'

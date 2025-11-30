@@ -1,0 +1,124 @@
+# Prometheus Alerting Rules for x0tta6bl4 Mesh Network
+# Alerts for critical SLO violations
+
+groups:
+  - name: mesh_network_alerts
+    interval: 30s
+    rules:
+      # MTTR alerts
+      - alert: HighMTTR
+        expr: mesh:mttr_p95 > 7
+        for: 5m
+        labels:
+          severity: warning
+          component: self-healing
+        annotations:
+          summary: "MTTR p95 exceeds target ({{ $value }}s > 7s)"
+          description: "Mean Time To Recovery p95 is {{ $value }}s, target is <7s"
+      
+      - alert: CriticalMTTR
+        expr: mesh:mttr_p95 > 10
+        for: 2m
+        labels:
+          severity: critical
+          component: self-healing
+        annotations:
+          summary: "CRITICAL: MTTR p95 very high ({{ $value }}s)"
+          description: "MTTR p95 is {{ $value }}s, significantly above target of 7s"
+      
+      # Latency alerts
+      - alert: HighMeshLatency
+        expr: mesh:latency_p95 > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: networking
+        annotations:
+          summary: "Mesh latency p95 exceeds target ({{ $value }}s > 100ms)"
+          description: "Mesh latency p95 is {{ $value }}s, target is <100ms"
+      
+      # Slot sync alerts
+      - alert: SlotSyncDegraded
+        expr: mesh:slot_sync_success_rate_avg < 0.95
+        for: 3m
+        labels:
+          severity: warning
+          component: synchronization
+        annotations:
+          summary: "Slot synchronization success rate below target ({{ $value | humanizePercentage }} < 95%)"
+          description: "Slot sync success rate is {{ $value | humanizePercentage }}, target is >95%"
+      
+      - alert: SlotSyncCritical
+        expr: mesh:slot_sync_success_rate_avg < 0.90
+        for: 2m
+        labels:
+          severity: critical
+          component: synchronization
+        annotations:
+          summary: "CRITICAL: Slot synchronization failing ({{ $value | humanizePercentage }})"
+          description: "Slot sync success rate is {{ $value | humanizePercentage }}, critical threshold is 90%"
+      
+      # eBPF overhead alerts
+      - alert: HighEBPFOverhead
+        expr: ebpf:cpu_overhead_avg > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: observability
+        annotations:
+          summary: "eBPF CPU overhead exceeds target ({{ $value }}% > 2%)"
+          description: "eBPF telemetry CPU overhead is {{ $value }}%, target is <2%"
+      
+      # Node health alerts
+      - alert: NodeUnhealthy
+        expr: node_health_status == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: node
+        annotations:
+          summary: "Node {{ $labels.node_id }} is unhealthy"
+          description: "Node {{ $labels.node_id }} health status is 0 (unhealthy)"
+      
+      - alert: NodeNotAttested
+        expr: node_spiffe_attested == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "SECURITY: Node {{ $labels.node_id }} failed SPIFFE attestation"
+          description: "Node {{ $labels.node_id }} is running but not attested. Zero Trust violation."
+
+      - alert: MultipleNodesUnhealthy
+        expr: sum(node_health_status == 0) > 2
+        for: 2m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Multiple nodes unhealthy ({{ $value }} nodes)"
+          description: "{{ $value }} nodes are unhealthy, cluster stability at risk"
+      
+      # k-disjoint paths alerts
+      - alert: InsufficientDisjointPaths
+        expr: mesh:k_disjoint_paths_avg < 2
+        for: 5m
+        labels:
+          severity: warning
+          component: routing
+        annotations:
+          summary: "Insufficient k-disjoint paths ({{ $value }} < 2)"
+          description: "Average k-disjoint paths available is {{ $value }}, target is ≥2"
+      
+      # Topology stability alerts
+      - alert: HighTopologyChurn
+        expr: sum(mesh:topology_changes_rate) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: topology
+        annotations:
+          summary: "High topology churn ({{ $value }} changes/min)"
+          description: "Topology changing at {{ $value }} changes/min, may indicate instability"
+

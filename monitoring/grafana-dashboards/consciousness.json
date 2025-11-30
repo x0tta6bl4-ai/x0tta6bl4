@@ -1,0 +1,342 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Consciousness Dashboard",
+    "uid": "x0tta6bl4-phi",
+    "tags": ["consciousness", "phi", "mesh"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "10s",
+    
+    "panels": [
+      {
+        "id": 1,
+        "title": "φ-Ratio Timeline (Golden Harmony)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "consciousness_phi_ratio",
+            "legendFormat": "φ-ratio: {{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 0.8, "color": "orange"},
+                {"value": 1.0, "color": "yellow"},
+                {"value": 1.4, "color": "green"}
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Golden Ratio"},
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {"dash": [10, 10], "fill": "dash"}
+                },
+                {
+                  "id": "color",
+                  "value": {"mode": "fixed", "fixedColor": "gold"}
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom"}
+        }
+      },
+      
+      {
+        "id": 2,
+        "title": "Consciousness State Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "count by (state) (consciousness_state)",
+            "legendFormat": "{{state}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "donut",
+          "legend": {"displayMode": "table", "placement": "right"}
+        },
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "EUPHORIC"},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "HARMONIC"},
+              "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "CONTEMPLATIVE"},
+              "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "MYSTICAL"},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            }
+          ]
+        }
+      },
+      
+      {
+        "id": 3,
+        "title": "Sacred Frequency Alignment (108 Hz)",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "avg(consciousness_frequency_alignment)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.7, "color": "yellow"},
+                {"value": 0.9, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      
+      {
+        "id": 4,
+        "title": "Mesh Health vs φ-Ratio Correlation",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "mesh:health:composite",
+            "legendFormat": "Mesh Health",
+            "refId": "A"
+          },
+          {
+            "expr": "consciousness_harmony_index",
+            "legendFormat": "Harmony Index",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"axisPlacement": "left"},
+            "min": 0,
+            "max": 1
+          }
+        }
+      },
+      
+      {
+        "id": 5,
+        "title": "MTTR vs Target (π ≈ 3.14 min)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "mesh:mttr:p95",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "textMode": "value_and_name",
+          "colorMode": "background",
+          "graphMode": "area"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "m",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 3.5, "color": "yellow"},
+                {"value": 3.8, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      
+      {
+        "id": 6,
+        "title": "Latency p95 (Target: 82-87ms)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+        "targets": [
+          {
+            "expr": "mesh:latency:p95",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 90, "color": "yellow"},
+                {"value": 100, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      
+      {
+        "id": 7,
+        "title": "Consciousness State Transitions",
+        "type": "state-timeline",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "consciousness_state",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "mergeValues": false,
+          "showValue": "never"
+        },
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byValue", "options": {"reducer": "lastNotNull", "value": 4}},
+              "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byValue", "options": {"reducer": "lastNotNull", "value": 3}},
+              "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byValue", "options": {"reducer": "lastNotNull", "value": 2}},
+              "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]
+            },
+            {
+              "matcher": {"id": "byValue", "options": {"reducer": "lastNotNull", "value": 1}},
+              "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+            }
+          ]
+        }
+      },
+      
+      {
+        "id": 8,
+        "title": "Entropy & System Chaos",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 22},
+        "targets": [
+          {
+            "expr": "consciousness_entropy",
+            "legendFormat": "System Entropy",
+            "refId": "A"
+          },
+          {
+            "expr": "consciousness:state:volatility",
+            "legendFormat": "State Volatility",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "bars"}
+          }
+        }
+      },
+      
+      {
+        "id": 9,
+        "title": "Digital Inclusion Score",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 22},
+        "targets": [
+          {
+            "expr": "avg(mesh_digital_inclusion_score)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "vertical",
+          "showThresholdLabels": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 88, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      
+      {
+        "id": 10,
+        "title": "DAO Governance Activity",
+        "type": "timeseries",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 22},
+        "targets": [
+          {
+            "expr": "rate(dao_proposals_total[1h])",
+            "legendFormat": "Proposals/hr",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(dao_votes_total[1h])",
+            "legendFormat": "Votes/hr",
+            "refId": "B"
+          }
+        ]
+      }
+    ],
+    
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "ALERTS{alertname=~\"Consciousness.*|MTTR.*\"}",
+          "iconColor": "red",
+          "name": "Consciousness Alerts",
+          "tagKeys": "phi_state,severity",
+          "titleFormat": "{{alertname}}"
+        }
+      ]
+    }
+  }
+}
+

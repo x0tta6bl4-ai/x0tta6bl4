@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spire-bundle-rotation
+  namespace: spire-system
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: spire-bundle-rotator
+          restartPolicy: OnFailure
+          containers:
+          - name: bundle-sync
+            image: ghcr.io/spiffe/spire-server:1.8.5
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              spire-server bundle show -registrationUDSPath /tmp/spire-register.sock | tee /data/current-bundle.json
+              if ! diff -q /data/current-bundle.json /data/last-bundle.json >/dev/null 2>&1; then
+                echo "Bundle changed, syncing..."
+                spire-server bundle set -id spiffe://trust-domain.local -data @/data/current-bundle.json -registrationUDSPath /tmp/spire-register.sock
+                cp /data/current-bundle.json /data/last-bundle.json
+              else
+                echo "Bundle unchanged"
+              fi
+            volumeMounts:
+            - name: bundle-storage
+              mountPath: /data
+          volumes:
+          - name: bundle-storage
+            emptyDir: {}

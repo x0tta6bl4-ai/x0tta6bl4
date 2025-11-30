@@ -1,0 +1,49 @@
+══════════════════════════════════════════════════════════
+РАБОЧИЙ VPN - XRAY REALITY VLESS
+══════════════════════════════════════════════════════════
+
+Сервер: 89.125.1.107
+Порт: 39829
+
+══════════════════════════════════════════════════════════
+VLESS ССЫЛКА (для клиентов):
+══════════════════════════════════════════════════════════
+
+vless://f56fb669-32ec-4142-b2fe-8b65c4321102@89.125.1.107:39829?type=tcp&encryption=none&security=reality&pbk=xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww&fp=chrome&sni=google.com&sid=6b&spx=%2Fwatch%3Fv%3DdQw4w9WgXcQ&flow=xtls-rprx-vision#x0tta6bl4_VPN
+
+══════════════════════════════════════════════════════════
+ПАРАМЕТРЫ ДЛЯ РУЧНОЙ НАСТРОЙКИ:
+══════════════════════════════════════════════════════════
+
+Protocol: VLESS
+Address: 89.125.1.107
+Port: 39829
+UUID: f56fb669-32ec-4142-b2fe-8b65c4321102
+Flow: xtls-rprx-vision
+Encryption: none
+Network: TCP
+Security: reality
+Reality Public Key: xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww
+Fingerprint: chrome
+SNI: google.com
+Short ID: 6b
+SpiderX: /watch?v=dQw4w9WgXcQ
+
+══════════════════════════════════════════════════════════
+КЛИЕНТЫ:
+══════════════════════════════════════════════════════════
+
+Windows/Mac/Linux: v2rayN, v2rayA, Qv2ray
+Android: v2rayNG, Clash for Android
+iOS: Shadowrocket, Quantumult X
+
+══════════════════════════════════════════════════════════
+ПРОВЕРКА РАБОТЫ:
+══════════════════════════════════════════════════════════
+
+1. Импортируйте VLESS ссылку в клиент
+2. Подключитесь к серверу
+3. Проверьте доступ к заблокированным сайтам
+
+══════════════════════════════════════════════════════════
+

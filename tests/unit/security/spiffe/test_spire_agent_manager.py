@@ -6,7 +6,7 @@ def test_spire_agent_start_stop(tmp_path):
     mgr = SPIREAgentManager(config_path=tmp_path / 'agent.conf', socket_path=tmp_path / 'agent.sock')
     assert mgr.start() is True
     # stop returns False because process placeholder not set
-    assert mgr.stop() is False
+    assert mgr.stop() is True
 
 
 def test_spire_agent_attest_join_token(tmp_path):

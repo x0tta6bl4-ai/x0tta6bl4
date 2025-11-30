@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import subprocess
 import json
+import os
 from typing import Dict, Any, List, Optional
+import urllib.request
+import urllib.error
 
 
 def get_yggdrasil_status() -> Dict[str, Any]:
@@ -11,6 +14,20 @@ def get_yggdrasil_status() -> Dict[str, Any]:
     
     Returns dict with node information or error if yggdrasil is not running.
     """
+    # Mocked path for tests and local runs without sudo/network
+    if os.environ.get("YGGDRASIL_MOCK", "").lower() in {"1", "true", "yes"}:
+        node_id = os.environ.get("NODE_ID", "node-a")
+        address_map = {
+            "node-a": "fd00::a",
+            "node-b": "fd00::b",
+            "node-c": "fd00::c",
+        }
+        return {
+            "address": address_map.get(node_id, "fd00::ff"),
+            "subnet": "fd00::/8",
+            "status": "mock",
+        }
+
     try:
         result = subprocess.run(
             ["sudo", "yggdrasilctl", "getSelf"],
@@ -55,6 +72,27 @@ def get_yggdrasil_peers() -> Dict[str, Any]:
     
     Returns dict with peer information.
     """
+    # Mocked peers based on reachable health endpoints in the mesh network
+    if os.environ.get("YGGDRASIL_MOCK", "").lower() in {"1", "true", "yes"}:
+        node_id = os.environ.get("NODE_ID", "node-a")
+        all_nodes = ["node-a", "node-b", "node-c"]
+        peers: List[Dict[str, Any]] = []
+        for nid in all_nodes:
+            if nid == node_id:
+                continue
+            url = f"http://{nid}:8000/health"
+            try:
+                with urllib.request.urlopen(url, timeout=0.8) as resp:
+                    if resp.status == 200:
+                        peers.append({
+                            "port": "9001",
+                            "protocol": "tcp",
+                            "remote": nid,
+                        })
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
+                continue
+        return {"status": "ok", "peers": peers, "count": len(peers)}
+
     try:
         result = subprocess.run(
             ["sudo", "yggdrasilctl", "getPeers"],
@@ -108,6 +146,12 @@ def get_yggdrasil_routes() -> Dict[str, Any]:
     
     Returns dict with routing information.
     """
+    # Mocked route info
+    if os.environ.get("YGGDRASIL_MOCK", "").lower() in {"1", "true", "yes"}:
+        # Approximate routing size as number of peers (dynamic) * 1
+        peers = get_yggdrasil_peers()
+        return {"status": "ok", "routing_table_size": peers.get("count", 0)}
+
     try:
         result = subprocess.run(
             ["sudo", "yggdrasilctl", "getSelf"],

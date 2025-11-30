@@ -1,0 +1,19 @@
+✅ СЕРВЕР ИСПРАВЛЕН И РАБОТАЕТ
+
+Сервер: 89.125.1.107:39829
+Статус: ✅ АКТИВЕН
+
+VLESS ссылка:
+vless://f56fb669-32ec-4142-b2fe-8b65c4321102@89.125.1.107:39829?type=tcp&encryption=none&security=reality&pbk=xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww&fp=chrome&sni=google.com&sid=6b&spx=%2Fwatch%3Fv%3DdQw4w9WgXcQ&flow=xtls-rprx-vision#x0tta6bl4_VPN
+
+Параметры:
+- Server: 89.125.1.107
+- Port: 39829
+- UUID: f56fb669-32ec-4142-b2fe-8b65c4321102
+- Flow: xtls-rprx-vision
+- Public Key: xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww
+- SNI: google.com
+- Short ID: 6b
+
+Сервер работает. Перезапустите VPN клиент и подключитесь.
+

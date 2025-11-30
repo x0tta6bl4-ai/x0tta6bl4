@@ -1,0 +1,27 @@
+# Production hardening overrides for batman-adv-optimization
+
+nodeSelector:
+  node.kubernetes.io/role: mesh-network-node
+  batman-adv-capable: "true"
+
+tolerations:
+- key: "mesh-networking"
+  operator: "Equal"
+  value: "true"
+  effect: "NoSchedule"
+
+# AppArmor annotation is set in the DaemonSet template via annotations
+podAnnotations:
+  container.apparmor.security.beta.kubernetes.io/batman-adv: localhost/batman-adv-profile
+
+# Optional: restrict to dedicated nodes by topology labels
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: batman-adv-capable
+          operator: In
+          values: ["true"]
+
+# Keep monitoring enabled; no changes

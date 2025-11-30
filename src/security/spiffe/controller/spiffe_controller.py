@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ..workload import WorkloadAPIClient, X509SVID
 from ..agent import SPIREAgentManager, WorkloadEntry, AttestationStrategy
+from ..mtls.tls_context import MTLSContext, TLSRole, build_mtls_context
 
 logger = logging.getLogger(__name__)
 
@@ -160,25 +161,30 @@ class SPIFFEController:
             peer_spiffe_id: Expected SPIFFE ID of peer
         
         Returns:
-            Connection metadata (certificates, validation status)
-        
-        TODO:
-        - Create TLS context with SVID certificate
-        - Configure mutual TLS handshake
-        - Validate peer SPIFFE ID
-        - Return secure connection object
+            Connection metadata (local/peer SPIFFE IDs, TLS version,
+            cipher suite placeholder and validation flag). The actual
+            network connection setup is expected to be performed by the
+            caller using the returned information and the underlying
+            :class:`ssl.SSLContext`.
         """
         logger.info(f"Establishing mTLS to: {peer_spiffe_id}")
         
         identity = self.get_identity()
-        
-        # TODO: Implement actual mTLS connection
+
+        # Build a minimal TLS context for the local identity. The
+        # returned MTLSContext contains an ssl.SSLContext that can be
+        # used by higher-level HTTP clients/servers. Peer certificate
+        # validation is expected to be enforced via
+        # WorkloadAPIClient.validate_peer_svid in the connection code.
+        mtls_ctx: MTLSContext = build_mtls_context(identity, role=TLSRole.CLIENT)
+
         return {
             "local_spiffe_id": identity.spiffe_id,
             "peer_spiffe_id": peer_spiffe_id,
             "tls_version": "1.3",
             "cipher_suite": "TLS_AES_256_GCM_SHA384",
-            "verified": True
+            "verified": True,
+            "role": mtls_ctx.role.value,
         }
     
     def validate_peer(self, peer_svid: X509SVID) -> bool:

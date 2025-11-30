@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: x0tta6bl4-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: x0tta6bl4
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-x0tta6bl4SecurePass123!}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio-data:/data
+      - ./minio-config:/root/.minio
+    networks:
+      - x0tta6bl4-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: x0tta6bl4-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      mc alias set x0tta6bl4 http://minio:9000 x0tta6bl4 ${MINIO_ROOT_PASSWORD:-x0tta6bl4SecurePass123!};
+      mc mb x0tta6bl4/vector-indexes --ignore-existing;
+      mc mb x0tta6bl4/model-cache --ignore-existing;
+      mc mb x0tta6bl4/dvc-storage --ignore-existing;
+      mc mb x0tta6bl4/releases --ignore-existing;
+      mc policy set download x0tta6bl4/releases;
+      echo 'MinIO buckets created successfully';
+      "
+    networks:
+      - x0tta6bl4-net
+
+volumes:
+  minio-data:
+    driver: local
+
+networks:
+  x0tta6bl4-net:
+    driver: bridge

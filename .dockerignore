@@ -4,7 +4,9 @@
 # Allow only necessary files for Docker build
 !src/
 !tests/
+!scripts/
 !infra/monitoring/
+!docker/
 !requirements.txt
 !requirements.consolidated.txt
 !pyproject.toml

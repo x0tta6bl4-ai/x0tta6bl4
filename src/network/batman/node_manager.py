@@ -8,6 +8,35 @@ from datetime import datetime, timedelta
 from enum import Enum
 import logging
 import asyncio
+import json
+
+# Security Integration
+try:
+    from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID
+    SPIFFE_AVAILABLE = True
+except ImportError:
+    SPIFFE_AVAILABLE = False
+
+# Obfuscation Integration
+try:
+    from src.network.obfuscation import TransportManager, ObfuscationTransport
+    OBFUSCATION_AVAILABLE = True
+except ImportError:
+    OBFUSCATION_AVAILABLE = False
+
+# DAO Integration
+try:
+    from src.dao.governance import GovernanceEngine, VoteType
+    DAO_AVAILABLE = True
+except ImportError:
+    DAO_AVAILABLE = False
+
+# Traffic Shaping Integration
+try:
+    from src.network.obfuscation.traffic_shaping import TrafficShaper, TrafficProfile
+    TRAFFIC_SHAPING_AVAILABLE = True
+except ImportError:
+    TRAFFIC_SHAPING_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -52,26 +81,170 @@ class NodeManager:
     - Heartbeat monitoring
     """
     
-    def __init__(self, mesh_id: str, local_node_id: str):
+    def __init__(self, mesh_id: str, local_node_id: str, 
+                 obfuscation_transport: Optional['ObfuscationTransport'] = None,
+                 traffic_profile: str = "none"):
         self.mesh_id = mesh_id
         self.local_node_id = local_node_id
         self.nodes: Dict[str, Dict] = {}
         self.attestation_strategy = AttestationStrategy.SPIFFE
         self.bootstrap_nodes: List[str] = []
+        self.obfuscation_transport = obfuscation_transport
         
+        # Traffic Shaping
+        self.traffic_shaper = None
+        if TRAFFIC_SHAPING_AVAILABLE and traffic_profile != "none":
+            try:
+                profile = TrafficProfile(traffic_profile)
+                self.traffic_shaper = TrafficShaper(profile)
+                logger.info(f"Traffic shaping enabled with profile: {traffic_profile}")
+                self._record_traffic_profile_active(traffic_profile)
+            except ValueError:
+                logger.warning(f"Unknown traffic profile: {traffic_profile}, shaping disabled")
+        
+        # DAO Governance
+        self.governance = None
+        if DAO_AVAILABLE:
+            self.governance = GovernanceEngine(node_id=local_node_id)
+            logger.info(f"DAO Governance initialized for {local_node_id}")
+
+    def propose_network_update(self, title: str, action: Dict) -> Optional[str]:
+        """Propose a network configuration update via DAO."""
+        if not self.governance:
+            logger.warning("Governance not available")
+            return None
+            
+        proposal = self.governance.create_proposal(
+            title=title,
+            description=f"Network update: {action}",
+            actions=[action]
+        )
+        return proposal.id
+
+    def vote_on_proposal(self, proposal_id: str, vote_str: str) -> bool:
+        """Vote on an existing proposal."""
+        if not self.governance:
+            return False
+            
+        try:
+            vote = VoteType[vote_str.upper()]
+            return self.governance.cast_vote(proposal_id, self.local_node_id, vote)
+        except KeyError:
+            logger.error(f"Invalid vote type: {vote_str}")
+            return False
+
+    def check_governance(self):
+        """Periodic governance check (tally votes, execute)."""
+        if self.governance:
+            self.governance.check_proposals()
+            # In a real loop, we would check for PASSED proposals and execute actions here
+            # self._execute_passed_proposals()
+
+    def _record_traffic_profile_active(self, profile: str):
+        """Record active traffic profile metric."""
+        try:
+            from src.monitoring.metrics import traffic_profile_active
+            traffic_profile_active.labels(node_id=self.local_node_id, profile=profile).set(1)
+        except ImportError:
+            pass
+
+    def _record_traffic_shaping_metrics(self, original_len: int, shaped_len: int, delay: float, profile: str):
+        """Record traffic shaping metrics."""
+        try:
+            from src.monitoring.metrics import (
+                traffic_shaped_packets_total,
+                traffic_shaping_bytes_total,
+                traffic_shaping_padding_bytes_total,
+                traffic_shaping_delay_seconds
+            )
+            traffic_shaped_packets_total.labels(node_id=self.local_node_id, profile=profile).inc()
+            traffic_shaping_bytes_total.labels(node_id=self.local_node_id, profile=profile).inc(shaped_len)
+            padding = shaped_len - original_len - 2  # -2 for length prefix
+            if padding > 0:
+                traffic_shaping_padding_bytes_total.labels(node_id=self.local_node_id, profile=profile).inc(padding)
+            if delay > 0:
+                traffic_shaping_delay_seconds.labels(node_id=self.local_node_id, profile=profile).observe(delay)
+        except ImportError:
+            pass
+
+    def send_heartbeat(self, target_node: str) -> bool:
+        """Send heartbeat to a target node (with obfuscation and traffic shaping)."""
+        payload = {
+            "type": "heartbeat",
+            "node_id": self.local_node_id,
+            "timestamp": datetime.now().isoformat()
+        }
+        data = json.dumps(payload).encode('utf-8')
+        original_len = len(data)
+        
+        # Apply obfuscation first
+        if self.obfuscation_transport:
+            try:
+                data = self.obfuscation_transport.obfuscate(data)
+                try:
+                    from src.monitoring.metrics import heartbeat_obfuscated_total
+                    heartbeat_obfuscated_total.inc()
+                except ImportError:
+                    pass
+            except Exception as e:
+                logger.error(f"Obfuscation failed for heartbeat: {e}")
+                return False
+        
+        # Apply traffic shaping
+        delay = 0.0
+        if self.traffic_shaper:
+            shaped_data = self.traffic_shaper.shape_packet(data)
+            delay = self.traffic_shaper.get_send_delay()
+            profile = self.traffic_shaper.profile.value
+            self._record_traffic_shaping_metrics(len(data), len(shaped_data), delay, profile)
+            data = shaped_data
+                
+        # In a real system, we would apply delay and send 'data' over the network.
+        # logger.debug(f"Sent heartbeat to {target_node} ({len(data)} bytes, delay={delay:.3f}s)")
+        return True
+
+    def send_topology_update(self, target_node: str, topology_data: Dict) -> bool:
+        """Send topology update to a target node (with obfuscation and traffic shaping)."""
+        payload = {
+            "type": "topology_update",
+            "node_id": self.local_node_id,
+            "data": topology_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        data = json.dumps(payload).encode('utf-8')
+        
+        if self.obfuscation_transport:
+            try:
+                data = self.obfuscation_transport.obfuscate(data)
+            except Exception as e:
+                logger.error(f"Obfuscation failed for topology update: {e}")
+                return False
+        
+        # Apply traffic shaping
+        if self.traffic_shaper:
+            shaped_data = self.traffic_shaper.shape_packet(data)
+            delay = self.traffic_shaper.get_send_delay()
+            profile = self.traffic_shaper.profile.value
+            self._record_traffic_shaping_metrics(len(data), len(shaped_data), delay, profile)
+            data = shaped_data
+                
+        # In a real system, we would apply delay and send 'data' over the network.
+        return True
+
     def register_node(self, 
                      node_id: str,
                      mac_address: str,
                      ip_address: str,
                      spiffe_id: Optional[str] = None,
-                     join_token: Optional[str] = None) -> bool:
+                     join_token: Optional[str] = None,
+                     cert_pem: Optional[bytes] = None) -> bool:
         """Register a new node with the mesh"""
         if node_id in self.nodes:
             logger.warning(f"Node {node_id} already registered")
             return False
         
         # Attestation
-        if not self._attest_node(node_id, spiffe_id, join_token):
+        if not self._attest_node(node_id, spiffe_id, join_token, cert_pem):
             logger.error(f"Node attestation failed: {node_id}")
             return False
         
@@ -88,12 +261,47 @@ class NodeManager:
         logger.info(f"Registered node: {node_id} ({ip_address})")
         return True
     
-    def _attest_node(self, node_id: str, spiffe_id: Optional[str], join_token: Optional[str]) -> bool:
+    def _attest_node(self, node_id: str, spiffe_id: Optional[str], join_token: Optional[str], cert_pem: Optional[bytes] = None) -> bool:
         """Verify node identity before registration"""
         if self.attestation_strategy == AttestationStrategy.SPIFFE:
             if not spiffe_id or not spiffe_id.startswith("spiffe://"):
                 return False
-            logger.debug(f"SPIFFE attestation: {spiffe_id}")
+            
+            # Enhanced Validation if module available and cert provided
+            if SPIFFE_AVAILABLE and cert_pem:
+                try:
+                    # Construct SVID object for validation
+                    # Note: In a real scenario, we would parse the cert to get expiry/chain
+                    # For now, we create a wrapper to use the validation logic
+                    svid = X509SVID(
+                        spiffe_id=spiffe_id,
+                        cert_chain=[cert_pem],
+                        private_key=b"",  # Not needed for public validation
+                        expiry=datetime.utcnow() + timedelta(hours=1) # Mock expiry for now as we don't parse yet
+                    )
+                    
+                    # Use the WorkloadAPIClient logic (even if mocked)
+                    # We instantiate client with default/dummy path as we only need logic
+                    client = WorkloadAPIClient()
+                    if not client.validate_peer_svid(svid, expected_id=spiffe_id):
+                        logger.error(f"SPIFFE SVID validation failed for {node_id}")
+                        return False
+                        
+                    logger.info(f"SPIFFE Strong Attestation success: {spiffe_id}")
+                    
+                    # Record metric
+                    try:
+                        from src.monitoring.metrics import set_node_spiffe_attested
+                        set_node_spiffe_attested(node_id, spiffe_id, True)
+                    except ImportError:
+                        pass
+                        
+                except Exception as e:
+                    logger.error(f"SPIFFE validation error: {e}")
+                    return False
+
+            logger.debug(f"SPIFFE attestation passed: {spiffe_id}")
+
         elif self.attestation_strategy == AttestationStrategy.TOKEN_BASED:
             if not join_token:
                 return False
