@@ -230,6 +230,23 @@
             ]
           }
         }
+      },
+      {
+        "id": 11,
+        "title": "DAO Incident Executions",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(rate(dao_incident_executed_total[5m])) by (incident_type, severity)",
+            "legendFormat": "{{incident_type}} | {{severity}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Incidents/sec"},
+          {"format": "short"}
+        ]
       }
     ]
   }

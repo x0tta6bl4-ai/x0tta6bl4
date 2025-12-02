@@ -1,0 +1,22 @@
+# Requirements for Digital Survival Kit Sales Bot
+# Date: 2025-11-30
+
+# Telegram Bot
+python-telegram-bot>=20.0
+
+# Cryptography
+cryptography>=41.0.0
+
+# HTTP requests (for payment verification)
+requests>=2.31.0
+
+# FastAPI (for License Server, optional)
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Database (optional)
+sqlite3  # Built-in
+
+# Environment variables
+python-dotenv>=1.0.0
+
