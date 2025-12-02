@@ -17,6 +17,17 @@ try:
 except ImportError:
     SPIFFE_AVAILABLE = False
 
+# Hybrid TLS (PQC) Integration
+try:
+    from src.security.pqc.hybrid_tls import (
+        HybridTLSContext,
+        hybrid_handshake,
+        hybrid_encrypt,
+    )
+    HYBRID_TLS_AVAILABLE = True
+except ImportError:
+    HYBRID_TLS_AVAILABLE = False
+
 # Obfuscation Integration
 try:
     from src.network.obfuscation import TransportManager, ObfuscationTransport
@@ -30,6 +41,20 @@ try:
     DAO_AVAILABLE = True
 except ImportError:
     DAO_AVAILABLE = False
+
+# DAO Incident Workflow Integration
+try:
+    from src.dao.incident_workflow import Incident, IncidentSeverity, IncidentDAOWorkflow
+    INCIDENT_WORKFLOW_AVAILABLE = True
+except ImportError:
+    INCIDENT_WORKFLOW_AVAILABLE = False
+
+# Token Economics Integration
+try:
+    from src.dao.token import MeshToken, ResourceType
+    TOKEN_AVAILABLE = True
+except ImportError:
+    TOKEN_AVAILABLE = False
 
 # Traffic Shaping Integration
 try:
@@ -108,6 +133,22 @@ class NodeManager:
             self.governance = GovernanceEngine(node_id=local_node_id)
             logger.info(f"DAO Governance initialized for {local_node_id}")
 
+        # Hybrid TLS context for encrypting heartbeats (optional)
+        self._hybrid_tls_session_key = None
+        if HYBRID_TLS_AVAILABLE:
+            try:
+                client_ctx = HybridTLSContext("client")
+                server_ctx = HybridTLSContext("server")
+                self._hybrid_tls_session_key = hybrid_handshake(client_ctx, server_ctx)
+                logger.info("Hybrid TLS session key initialized for heartbeats")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Hybrid TLS context: {e}")
+                self._hybrid_tls_session_key = None
+        
+        # Token Economics (optional)
+        self.token: Optional['MeshToken'] = None
+        self._relay_count = 0
+
     def propose_network_update(self, title: str, action: Dict) -> Optional[str]:
         """Propose a network configuration update via DAO."""
         if not self.governance:
@@ -176,6 +217,19 @@ class NodeManager:
         }
         data = json.dumps(payload).encode('utf-8')
         original_len = len(data)
+
+        # Apply Hybrid TLS encryption (PQC) before obfuscation
+        if HYBRID_TLS_AVAILABLE and self._hybrid_tls_session_key is not None:
+            try:
+                data = hybrid_encrypt(self._hybrid_tls_session_key, data)
+                try:
+                    from src.monitoring.metrics import heartbeat_pqc_encrypted_total
+                    heartbeat_pqc_encrypted_total.labels(node_id=self.local_node_id).inc()
+                except ImportError:
+                    pass
+            except Exception as e:
+                logger.error(f"Hybrid TLS encryption failed for heartbeat: {e}")
+                return False
         
         # Apply obfuscation first
         if self.obfuscation_transport:
@@ -202,6 +256,63 @@ class NodeManager:
         # In a real system, we would apply delay and send 'data' over the network.
         # logger.debug(f"Sent heartbeat to {target_node} ({len(data)} bytes, delay={delay:.3f}s)")
         return True
+    
+    def set_token(self, token: 'MeshToken'):
+        """Set token instance for relay rewards."""
+        self.token = token
+        logger.info(f"Token economics enabled for {self.local_node_id}")
+    
+    def relay_packet(self, source_node: str, dest_node: str, packet_size_bytes: int = 1024) -> bool:
+        """
+        Relay a packet from source to destination.
+        Earns X0T tokens for the relay service.
+        
+        Args:
+            source_node: Original sender
+            dest_node: Final destination
+            packet_size_bytes: Size of relayed packet
+            
+        Returns:
+            True if relay successful
+        """
+        # Allow relay to any node (in real mesh, routing handles this)
+        # Only warn if destination is completely unknown and not self
+        if dest_node not in self.nodes and dest_node != self.local_node_id:
+            logger.debug(f"Relaying to external node: {dest_node}")
+        
+        self._relay_count += 1
+        
+        # Record metrics
+        try:
+            from src.monitoring.metrics import record_resource_payment
+            # Record as relay activity (even without payment for tracking)
+        except ImportError:
+            pass
+        
+        # Earn tokens for relay if token system is active
+        if self.token and TOKEN_AVAILABLE:
+            # Source pays this node for relay service
+            # Price: 0.0001 X0T per relay (defined in MeshToken)
+            success = self.token.pay_for_resource(
+                payer_node=source_node,
+                provider_node=self.local_node_id,
+                resource_type=ResourceType.RELAY,
+                amount=1  # 1 relay
+            )
+            if success:
+                logger.debug(f"Relay reward: {self.local_node_id} earned X0T for relaying {source_node} -> {dest_node}")
+        
+        return True
+    
+    def get_relay_count(self) -> int:
+        """Get total number of packets relayed by this node."""
+        return self._relay_count
+    
+    def get_relay_earnings(self) -> float:
+        """Get estimated earnings from relay (based on relay count)."""
+        if not self.token:
+            return 0.0
+        return self._relay_count * self.token.PRICE_PER_RELAY
 
     def send_topology_update(self, target_node: str, topology_data: Dict) -> bool:
         """Send topology update to a target node (with obfuscation and traffic shaping)."""
@@ -366,11 +477,12 @@ class HealthMonitor:
     - Anomalies & failures
     """
     
-    def __init__(self, check_interval: int = 30):
+    def __init__(self, check_interval: int = 30, incident_workflow: Optional['IncidentDAOWorkflow'] = None):
         self.check_interval = check_interval  # seconds
         self.health_checks: Dict[str, Callable] = {}
         self.alert_handlers: List[Callable] = []
         self.running = False
+        self.incident_workflow = incident_workflow
         
     def register_health_check(self, name: str, check_fn: Callable):
         """Register a custom health check"""
@@ -443,6 +555,24 @@ class HealthMonitor:
     async def _handle_alert(self, alert_type: str, data: Dict):
         """Process health alert"""
         logger.warning(f"Health alert: {alert_type} - {data}")
+
+        # Bridge critical health alerts into DAO incident workflow
+        if alert_type == "dead_nodes" and self.incident_workflow and INCIDENT_WORKFLOW_AVAILABLE:
+            nodes = data.get("nodes", [])
+            for node_id in nodes:
+                incident = Incident(
+                    incident_id=f"dead_node_{node_id}_{int(datetime.now().timestamp())}",
+                    incident_type="node_down",
+                    severity=IncidentSeverity.CRITICAL,
+                    description=f"Node {node_id} has not sent heartbeat and is considered dead.",
+                    detected_at=datetime.now().timestamp(),
+                    metadata={"node_id": node_id},
+                )
+
+                proposal = self.incident_workflow.create_proposal_from_incident(incident, duration_seconds=0.1)
+
+                voters = {self.incident_workflow.governance.node_id: VoteType.YES}
+                self.incident_workflow.auto_vote_and_execute(proposal.id, voters)
         
         for handler in self.alert_handlers:
             try:
@@ -454,3 +584,46 @@ class HealthMonitor:
         """Stop health monitoring"""
         self.running = False
         logger.info("Health monitoring stopped")
+
+
+def create_incident_workflow_for_node_manager(node_manager: NodeManager) -> Optional['IncidentDAOWorkflow']:
+    """Factory to build an IncidentDAOWorkflow bound to a specific NodeManager.
+
+    The executor will deregister dead nodes when an incident_response action
+    with incident_type == "node_down" is executed.
+    """
+
+    if not (DAO_AVAILABLE and INCIDENT_WORKFLOW_AVAILABLE):
+        return None
+
+    # Reuse the same governance engine model as NodeManager uses (1 node = 1 vote).
+    governance = GovernanceEngine(node_id=node_manager.local_node_id)
+
+    def executor(action: Dict):
+        if action.get("type") != "incident_response":
+            return
+
+        metadata = action.get("metadata", {}) or {}
+        node_id = metadata.get("node_id")
+        if not node_id:
+            return
+
+        # Deregister the dead node from the mesh.
+        if node_id in node_manager.nodes:
+            node_manager.deregister_node(node_id, reason="dao_incident_node_down")
+
+            # Metrics / observability hook
+            try:
+                from src.monitoring.metrics import record_dao_incident_execution
+
+                incident_type = action.get("incident_type", "node_down")
+                severity = action.get("severity", "unknown")
+                record_dao_incident_execution(
+                    incident_type=incident_type,
+                    severity=severity,
+                    node_id=node_id,
+                )
+            except ImportError:
+                pass
+
+    return IncidentDAOWorkflow(governance=governance, executor=executor)

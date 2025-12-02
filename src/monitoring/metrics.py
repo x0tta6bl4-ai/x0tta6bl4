@@ -61,6 +61,44 @@ self_healing_mttr_seconds = Histogram(
     buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 300.0),
 )
 
+# DAO incident metrics
+dao_incident_executed_total = Counter(
+    "dao_incident_executed_total",
+    "Total number of executed DAO-driven incident responses",
+    ["incident_type", "severity", "node_id"],
+)
+
+# Token economics metrics
+token_balance = Gauge(
+    "x0t_token_balance",
+    "Token balance per node",
+    ["node_id"],
+)
+
+token_staked = Gauge(
+    "x0t_token_staked",
+    "Staked tokens per node",
+    ["node_id"],
+)
+
+token_transfers_total = Counter(
+    "x0t_token_transfers_total",
+    "Total token transfers",
+    ["from_node", "to_node"],
+)
+
+token_rewards_distributed = Counter(
+    "x0t_token_rewards_distributed_total",
+    "Total rewards distributed",
+    ["node_id", "epoch"],
+)
+
+resource_payments_total = Counter(
+    "x0t_resource_payments_total",
+    "Total resource payments",
+    ["payer", "provider", "resource_type"],
+)
+
 # Node health metrics
 node_health_status = Gauge(
     "node_health_status",
@@ -264,6 +302,41 @@ def record_self_healing_event(event_type: str, node_id: str):
 def record_mttr(recovery_type: str, mttr: float):
     """Record Mean Time To Recovery."""
     self_healing_mttr_seconds.labels(recovery_type=recovery_type).observe(mttr)
+
+
+def record_dao_incident_execution(incident_type: str, severity: str, node_id: str):
+    """Record execution of DAO-governed incident response."""
+    dao_incident_executed_total.labels(
+        incident_type=incident_type,
+        severity=severity,
+        node_id=node_id,
+    ).inc()
+
+
+# Token economics metric helpers
+def set_token_balance(node_id: str, balance: float):
+    """Set token balance for a node."""
+    token_balance.labels(node_id=node_id).set(balance)
+
+
+def set_token_staked(node_id: str, amount: float):
+    """Set staked token amount for a node."""
+    token_staked.labels(node_id=node_id).set(amount)
+
+
+def record_token_transfer(from_node: str, to_node: str):
+    """Record a token transfer."""
+    token_transfers_total.labels(from_node=from_node, to_node=to_node).inc()
+
+
+def record_token_reward(node_id: str, epoch: int, amount: float):
+    """Record reward distribution."""
+    token_rewards_distributed.labels(node_id=node_id, epoch=str(epoch)).inc(amount)
+
+
+def record_resource_payment(payer: str, provider: str, resource_type: str):
+    """Record resource payment."""
+    resource_payments_total.labels(payer=payer, provider=provider, resource_type=resource_type).inc()
 
 
 def set_node_health(node_id: str, is_healthy: bool):
