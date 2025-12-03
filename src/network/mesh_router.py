@@ -23,6 +23,13 @@ except ImportError:
     PQCTunnelManager = None
     PQC_AVAILABLE = False
 
+try:
+    from .mesh_shield import MeshShield, NodeStatus
+    SHIELD_AVAILABLE = True
+except ImportError:
+    MeshShield = None
+    SHIELD_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -75,6 +82,13 @@ class MeshRouter:
         else:
             self.pqc = None
         
+        # Initialize MeshShield for self-healing
+        if SHIELD_AVAILABLE and MeshShield:
+            self.shield = MeshShield(node_id)
+            logger.info("🛡️ MeshShield self-healing enabled")
+        else:
+            self.shield = None
+        
         # Add bootstrap nodes
         for peer in self.BOOTSTRAP_NODES:
             if peer.node_id != node_id:  # Don't add self
@@ -85,6 +99,13 @@ class MeshRouter:
         self._running = True
         logger.info(f"🌐 Mesh Router started for {self.node_id}")
         logger.info(f"   Known peers: {len(self.peers)}")
+        
+        # Start MeshShield
+        if self.shield:
+            await self.shield.start()
+            # Register all peers with shield
+            for peer_id in self.peers:
+                self.shield.register_node(peer_id)
         
         # Start background tasks
         asyncio.create_task(self._health_check_loop())
@@ -103,12 +124,15 @@ class MeshRouter:
                     if latency >= 0:
                         peer.latency = latency
                         peer.last_seen = time.time()
+                        # Notify MeshShield of successful beacon
+                        if self.shield:
+                            self.shield.receive_beacon(peer_id, latency * 1000)  # Convert to ms
                     else:
                         logger.warning(f"Peer {peer_id} unreachable")
                 except Exception as e:
                     logger.debug(f"Health check failed for {peer_id}: {e}")
             
-            await asyncio.sleep(30)  # Check every 30 seconds
+            await asyncio.sleep(5)  # Check every 5 seconds (faster for self-healing)
     
     async def _peer_discovery_loop(self):
         """Discover new peers from existing peers."""
@@ -207,11 +231,13 @@ class MeshRouter:
     def get_stats(self) -> dict:
         """Get router statistics."""
         alive = sum(1 for p in self.peers.values() if p.is_alive())
-        return {
+        stats = {
             'node_id': self.node_id,
             'total_peers': len(self.peers),
             'alive_peers': alive,
             'routes_cached': len(self.routes_cache),
+            'pqc_enabled': self.pqc is not None,
+            'shield_enabled': self.shield is not None,
             'peers': [
                 {
                     'id': p.node_id,
@@ -222,6 +248,18 @@ class MeshRouter:
                 for p in self.peers.values()
             ]
         }
+        
+        # Add shield metrics if available
+        if self.shield:
+            shield_metrics = self.shield.get_metrics()
+            stats['shield'] = {
+                'mttr_avg': round(shield_metrics['mttr_avg'], 3),
+                'mttd_avg': round(shield_metrics['mttd_avg'], 3),
+                'failures_detected': shield_metrics['failures_detected'],
+                'recovery_rate': round(shield_metrics['recovery_rate'], 3),
+            }
+        
+        return stats
 
 
 class MeshConnection:
