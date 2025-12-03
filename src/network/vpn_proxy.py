@@ -254,10 +254,19 @@ class MeshVPNProxy(SOCKS5Server):
     In production, traffic would be routed through mesh nodes.
     """
     
-    def __init__(self, host: str = "127.0.0.1", port: int = 1080, exit_node: str = None):
+    # Default exit node (x0tta6bl4 VPN server)
+    DEFAULT_EXIT_NODE = "89.125.1.107:39829"
+    
+    def __init__(self, host: str = "127.0.0.1", port: int = 1080, exit_node: str = None, use_exit: bool = False):
         super().__init__(host, port)
-        self.exit_node = exit_node  # For mesh routing
-        self._mesh_enabled = exit_node is not None
+        self.exit_node = exit_node or (self.DEFAULT_EXIT_NODE if use_exit else None)
+        self._mesh_enabled = self.exit_node is not None
+        
+        # Parse exit node
+        if self.exit_node:
+            parts = self.exit_node.split(":")
+            self.exit_host = parts[0]
+            self.exit_port = int(parts[1]) if len(parts) > 1 else 1080
     
     async def start(self):
         """Start with mesh info."""
@@ -267,8 +276,9 @@ class MeshVPNProxy(SOCKS5Server):
         
         if self._mesh_enabled:
             logger.info(f"🔗 Exit Node: {self.exit_node}")
+            logger.info(f"   Traffic will be routed through exit node")
         else:
-            logger.info("🔗 Mode: Direct (no exit node configured)")
+            logger.info("🔗 Mode: Direct (use --use-exit for mesh routing)")
         
         logger.info("")
         await super().start()
@@ -279,12 +289,14 @@ async def main():
     parser.add_argument("--host", default="127.0.0.1", help="Listen host")
     parser.add_argument("--port", type=int, default=1080, help="Listen port")
     parser.add_argument("--exit-node", help="Exit node address (host:port)")
+    parser.add_argument("--use-exit", action="store_true", help="Use default x0tta6bl4 exit node")
     args = parser.parse_args()
     
     proxy = MeshVPNProxy(
         host=args.host,
         port=args.port,
-        exit_node=args.exit_node
+        exit_node=args.exit_node,
+        use_exit=args.use_exit
     )
     
     try:
