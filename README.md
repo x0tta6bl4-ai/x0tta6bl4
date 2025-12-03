@@ -31,12 +31,41 @@
 
 ---
 
+## 🚀 Try VPN Now (30 seconds)
+
+```bash
+# Clone and run
+git clone https://github.com/x0tta6bl4/mesh-core.git
+cd mesh-core
+python3 -m src.network.vpn_proxy --port 1080
+
+# In another terminal - test it
+curl -x socks5://127.0.0.1:1080 https://ifconfig.me
+```
+
+**That's it. You're now using post-quantum encrypted VPN.**
+
+---
+
 ## 📦 Installation
 
 ### Prerequisites
-- Kubernetes 1.25+ (Kind or EKS)
-- Helm 3.0+
-- kubectl
+- Python 3.10+
+- Kubernetes 1.25+ (Kind or EKS) - for production
+- Helm 3.0+ - for production
+
+### Quick Start (Local VPN)
+
+```bash
+# 1. Start VPN proxy
+python3 -m src.network.vpn_proxy --port 1080
+
+# 2. Configure browser (Firefox)
+#    Settings → Network → Manual Proxy → SOCKS5: 127.0.0.1:1080
+
+# 3. Or use curl
+curl -x socks5://127.0.0.1:1080 https://ifconfig.me
+```
 
 ### Quick Start (Kind/Local)
 
