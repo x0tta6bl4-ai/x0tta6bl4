@@ -178,3 +178,8 @@ project_files_list.txt
 # Helm chart packages
 **/charts/*.tgz
 !**/charts/Chart.yaml
+reports/
+metrics/
+.snapshots/
+x0tta6bl4-mesh-mvp/
+x0tta6bl4_paradox_zone/
