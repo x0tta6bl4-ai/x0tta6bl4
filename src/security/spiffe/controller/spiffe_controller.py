@@ -11,8 +11,11 @@ Integrates with x0tta6bl4 mesh control plane.
 """
 
 import logging
-from typing import Optional, Dict, List
+from contextlib import contextmanager
+from typing import Optional, Dict, Iterator
 from pathlib import Path
+
+import httpx
 
 from ..workload import WorkloadAPIClient, X509SVID
 from ..agent import SPIREAgentManager, WorkloadEntry, AttestationStrategy
@@ -34,8 +37,8 @@ class SPIFFEController:
     Example:
         >>> controller = SPIFFEController()
         >>> controller.initialize()
-        >>> svid = controller.get_identity()
-        >>> controller.establish_mtls_connection("spiffe://x0tta6bl4.mesh/service/api")
+        >>> with controller.get_mtls_http_client() as client:
+        ...     response = client.get("https://peer.service.mesh")
     """
     
     def __init__(
@@ -153,39 +156,37 @@ class SPIFFEController:
         
         return self.agent.register_workload(entry)
     
-    def establish_mtls_connection(self, peer_spiffe_id: str) -> Dict[str, any]:
+    @contextmanager
+    def get_mtls_http_client(self, **kwargs) -> Iterator[httpx.Client]:
         """
-        Establish mTLS connection to peer with SPIFFE authentication.
+        Provides a configured httpx.Client for mTLS communication.
         
-        Args:
-            peer_spiffe_id: Expected SPIFFE ID of peer
-        
-        Returns:
-            Connection metadata (local/peer SPIFFE IDs, TLS version,
-            cipher suite placeholder and validation flag). The actual
-            network connection setup is expected to be performed by the
-            caller using the returned information and the underlying
-            :class:`ssl.SSLContext`.
+        This is a context manager that handles the creation and cleanup
+        of the SSL context and its temporary certificate files.
+
+        Yields:
+            A configured `httpx.Client` instance ready for mTLS.
         """
-        logger.info(f"Establishing mTLS to: {peer_spiffe_id}")
-        
         identity = self.get_identity()
+        mtls_ctx: Optional[MTLSContext] = None
+        try:
+            mtls_ctx = build_mtls_context(identity, role=TLSRole.CLIENT)
+            
+            # If a trust bundle is available, load it for peer verification
+            if self.workload_api.trust_bundle_path:
+                logger.info(
+                    "Loading trust bundle for peer verification from %s",
+                    self.workload_api.trust_bundle_path
+                )
+                mtls_ctx.ssl_context.load_verify_locations(
+                    cafile=str(self.workload_api.trust_bundle_path)
+                )
 
-        # Build a minimal TLS context for the local identity. The
-        # returned MTLSContext contains an ssl.SSLContext that can be
-        # used by higher-level HTTP clients/servers. Peer certificate
-        # validation is expected to be enforced via
-        # WorkloadAPIClient.validate_peer_svid in the connection code.
-        mtls_ctx: MTLSContext = build_mtls_context(identity, role=TLSRole.CLIENT)
-
-        return {
-            "local_spiffe_id": identity.spiffe_id,
-            "peer_spiffe_id": peer_spiffe_id,
-            "tls_version": "1.3",
-            "cipher_suite": "TLS_AES_256_GCM_SHA384",
-            "verified": True,
-            "role": mtls_ctx.role.value,
-        }
+            with httpx.Client(verify=mtls_ctx.ssl_context, **kwargs) as client:
+                yield client
+        finally:
+            if mtls_ctx:
+                mtls_ctx.cleanup()
     
     def validate_peer(self, peer_svid: X509SVID) -> bool:
         """

@@ -15,6 +15,16 @@
 !LICENSE
 !docker-entrypoint.sh
 
+# Allow landing page files
+!index.html
+!style.css
+!script.js
+!logo.svg
+!hero-mesh-network.svg
+!Dockerfile.app
+!Dockerfile.landing
+!docker-compose.yml
+
 # Exclude test artifacts and caches
 src/**/__pycache__/
 src/**/*.pyc

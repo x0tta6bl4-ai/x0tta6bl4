@@ -1,0 +1,30 @@
+# .pre-commit-config.yaml
+#
+# To use:
+# 1. pip install pre-commit
+# 2. pre-commit install
+#
+# Now, git commit will run these checks.
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
+
+-   repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+    -   id: gitleaks
+        name: Detect hardcoded secrets (gitleaks)
+        description: "Scans for hardcoded secrets like passwords, API keys, and tokens."
+
+-   repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+    -   id: bandit
+        name: Run bandit security scanner
+        args: ["-r", "src/"]
+        description: "Bandit is a tool designed to find common security issues in Python code."

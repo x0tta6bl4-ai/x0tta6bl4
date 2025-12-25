@@ -1,0 +1,25 @@
+# Dockerfile for x0tta6bl4 Landing Page
+
+# Stage 1: Use a standard Nginx image
+FROM nginx:alpine
+
+# Maintainer Info
+LABEL maintainer="x0tta6bl4-dev-team"
+LABEL project="x0tta6bl4-landing-page"
+
+# Remove the default nginx static assets
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy our static files (html, css, js) to the nginx html directory
+COPY index.html /usr/share/nginx/html/
+COPY style.css /usr/share/nginx/html/
+COPY script.js /usr/share/nginx/html/
+COPY logo.svg /usr/share/nginx/html/
+COPY hero-mesh-network.svg /usr/share/nginx/html/
+
+# Expose port 80 for the web server
+EXPOSE 80
+
+# The container will run nginx and serve the files by default.
+# The default nginx command is `nginx -g 'daemon off;'` which is what we want.
+CMD ["nginx", "-g", "daemon off;"]

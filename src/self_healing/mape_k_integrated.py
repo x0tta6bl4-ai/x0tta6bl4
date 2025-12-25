@@ -12,8 +12,7 @@ from src.self_healing.mape_k import (
     MAPEKAnalyzer,
     MAPEKPlanner,
     MAPEKExecutor,
-    MAPEKKnowledge,
-    MAPEKCycle
+    MAPEKKnowledge
 )
 
 # Новые компоненты
@@ -60,17 +59,17 @@ class IntegratedMAPEKCycle:
         # Базовый MAPE-K цикл
         self.knowledge = MAPEKKnowledge()
         self.monitor = MAPEKMonitor(knowledge=self.knowledge)
-        self.analyzer = MAPEKAnalyzer(knowledge=self.knowledge)
+        self.analyzer = MAPEKAnalyzer()
         self.planner = MAPEKPlanner(knowledge=self.knowledge)
-        self.executor = MAPEKExecutor(knowledge=self.knowledge)
+        self.executor = MAPEKExecutor()
         
-        self.cycle = MAPEKCycle(
-            monitor=self.monitor,
-            analyzer=self.analyzer,
-            planner=self.planner,
-            executor=self.executor,
-            knowledge=self.knowledge
-        )
+        # self.cycle = MAPEKCycle(
+        #     monitor=self.monitor,
+        #     analyzer=self.analyzer,
+        #     planner=self.planner,
+        #     executor=self.executor,
+        #     knowledge=self.knowledge
+        # )
         
         # Интеграция GraphSAGE Observe Mode
         self.observe_detector = None
@@ -122,11 +121,11 @@ class IntegratedMAPEKCycle:
             return result
         
         # 2. Analyze: Root cause analysis
-        analysis = self.analyzer.analyze(metrics)
+        analysis_issue = self.analyzer.analyze(metrics)
         result['analyzer_results'] = {
-            'root_cause': analysis.get('root_cause'),
-            'confidence': analysis.get('confidence', 0.0),
-            'affected_nodes': analysis.get('affected_nodes', [])
+            'root_cause': analysis_issue,
+            'confidence': 1.0 if analysis_issue != 'Healthy' else 0.0,
+            'affected_nodes': [metrics.get('node_id')] if analysis_issue != 'Healthy' else []
         }
         
         # 3. GraphSAGE Observe Mode: Дополнительная валидация
@@ -149,19 +148,19 @@ class IntegratedMAPEKCycle:
                 )
         
         # 4. Plan: Recovery strategy
-        plan = self.planner.plan(analysis)
+        strategy = self.planner.plan(analysis_issue)
         result['planner_results'] = {
-            'strategy': plan.get('strategy'),
-            'actions': plan.get('actions', []),
-            'estimated_recovery_time': plan.get('estimated_recovery_time', 0.0)
+            'strategy': strategy,
+            'actions': [strategy],
+            'estimated_recovery_time': 5.0  # Mock value
         }
         
         # 5. Execute: Recovery actions
-        execution = self.executor.execute(plan)
+        execution_success = self.executor.execute(strategy)
         result['executor_results'] = {
-            'success': execution.get('success', False),
-            'actions_executed': execution.get('actions_executed', []),
-            'recovery_time': execution.get('recovery_time', 0.0)
+            'success': execution_success,
+            'actions_executed': [strategy] if execution_success else [],
+            'recovery_time': 5.0  # Mock value
         }
         
         # 6. eBPF Explainer: Объяснение network events
@@ -181,11 +180,11 @@ class IntegratedMAPEKCycle:
             result['explanations']['ebpf'] = ebpf_explanations
         
         # 7. Knowledge: Сохранение опыта
-        self.knowledge.record_incident(
+        self.knowledge.record(
             metrics=metrics,
-            analysis=analysis,
-            plan=plan,
-            execution=execution
+            analysis=analysis_issue,
+            plan=result['planner_results'],
+            execution=result['executor_results']
         )
         
         return result
@@ -201,7 +200,7 @@ class IntegratedMAPEKCycle:
             'latency_ms': metrics.get('latency_ms', 0.0),
         }
     
-    def run_chaos_experiment(self, experiment_type: str, duration: int = 10) -> Dict[str, Any]:
+    async def run_chaos_experiment(self, experiment_type: str, duration: int = 10) -> Dict[str, Any]:
         """
         Запустить chaos experiment для демонстрации resilience
         
@@ -211,7 +210,6 @@ class IntegratedMAPEKCycle:
         if not self.chaos_controller:
             return {'error': 'Chaos Controller not available'}
         
-        import asyncio
         from src.chaos.controller import ChaosExperiment, ExperimentType
         
         # Создать experiment
@@ -224,10 +222,7 @@ class IntegratedMAPEKCycle:
         )
         
         # Запустить
-        loop = asyncio.get_event_loop()
-        metrics = loop.run_until_complete(
-            self.chaos_controller.run_experiment(experiment)
-        )
+        metrics = await self.chaos_controller.run_experiment(experiment)
         
         return {
             'experiment_type': experiment_type,
@@ -242,7 +237,7 @@ class IntegratedMAPEKCycle:
         status = {
             'mape_k_cycle': {
                 'active': True,
-                'last_cycle': self.cycle.last_cycle_time.isoformat() if hasattr(self.cycle, 'last_cycle_time') else None
+                'last_cycle': None
             },
             'observe_mode': {
                 'enabled': self.observe_detector is not None,

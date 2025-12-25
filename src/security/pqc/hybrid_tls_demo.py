@@ -3,70 +3,69 @@
 x0tta6bl4 Hybrid TLS Proof of Concept
 ======================================
 
-Демонстрирует гибридный ECDHE + PQC-симуляция для mesh heartbeats.
-Не использует external dependencies (чистый Python).
+Демонстрирует гибридный ECDHE + PQC (Kyber/Dilithium) для mesh heartbeats.
+Использует библиотеку OQS.
 """
 
 import json
 import time
 from datetime import datetime
-from .hybrid_tls import HybridTLSContext, hybrid_handshake, hybrid_encrypt, hybrid_decrypt, measure_handshake_overhead
+from .hybrid_tls import HybridTLSContext, hybrid_handshake, hybrid_encrypt, hybrid_decrypt, hybrid_sign, hybrid_verify, measure_handshake_overhead
 
 
 def demo_mesh_handshake_and_encryption():
     print("\n" + "=" * 70)
-    print("x0tta6bl4 Hybrid TLS (ECDHE + Kyber) - Mesh Heartbeat Encryption")
+    print("x0tta6bl4 Hybrid TLS (ECDHE + Kyber + Dilithium) - Full Demo")
     print("=" * 70)
 
-    print("\n[1] Initialize nodes")
-    node1 = HybridTLSContext("node-1")
-    node2 = HybridTLSContext("node-2")
+    # 1. Инициализация узлов
+    print("\n[1] Initialize nodes (client and server)")
+    client = HybridTLSContext("client")
+    server = HybridTLSContext("server")
+    print("    ✓ Client and Server contexts created.")
 
-    print("\n[2] Exchange public keys & establish session")
-    node1_pubkeys = node1.get_public_keys_pem()
-    node2_pubkeys = node2.get_public_keys_pem()
-    node1.set_peer_public_keys(node2_pubkeys["ecc_public"], node2_pubkeys["kyber_public"])
-    node2.set_peer_public_keys(node1_pubkeys["ecc_public"], node1_pubkeys["kyber_public"])
+    # 2. Рукопожатие
+    print("\n[2] Perform hybrid handshake")
+    start_handshake = time.time()
+    client_key, server_key = hybrid_handshake(client, server)
+    handshake_elapsed = (time.time() - start_handshake) * 1000
+    print(f"    ✓ Handshake complete in {handshake_elapsed:.2f} ms")
+    print(f"    ✓ Client session key: {client_key.hex()[:32]}...")
+    print(f"    ✓ Server session key: {server_key.hex()[:32]}...")
+    if client_key != server_key:
+        raise RuntimeError("Session keys do not match!")
+    print("    ✓ Session keys match.")
 
-    start = time.time()
-    key1 = node1.compute_session_key()
-    key2 = node2.compute_session_key()
-    elapsed = (time.time() - start) * 1000
+    # 3. Подпись и верификация сообщения
+    print("\n[3] Sign and verify a message with Dilithium")
+    message = b"This is a test heartbeat message for x0tta6bl4"
+    print(f"    - Original message: '{message.decode()}'")
+    signature = hybrid_sign(client, message)
+    print(f"    - Signature created (length: {len(signature)} bytes)")
+    is_valid = hybrid_verify(server, message, signature)
+    if not is_valid:
+        raise RuntimeError("Signature verification failed!")
+    print("    ✓ Signature verified successfully.")
 
-    print(f"    ✓ Node-1 session_key: {key1.hex()[:32]}...")
-    print(f"    ✓ Node-2 session_key: {key2.hex()[:32]}...")
-
-    if key1 != key2:
-        raise RuntimeError("Session keys do not match in demo")
-
-    print("\n[3] Node-1 sends encrypted heartbeat to Node-2")
-    heartbeat = {
-        "from": "node-1",
-        "to": "node-2",
-        "timestamp": datetime.now().isoformat(),
-        "rssi": -72,
-        "snr": 12,
-        "battery": 95,
-    }
-
-    plaintext = json.dumps(heartbeat).encode()
-    encrypted = hybrid_encrypt(key1, plaintext)
-    decrypted = hybrid_decrypt(key2, encrypted)
-    decoded = json.loads(decrypted.decode())
-
-    if decoded != heartbeat:
-        raise RuntimeError("Heartbeat mismatch after decrypt")
-
-    print("    ✓ Encryption/Decryption SUCCESS")
-
-    print("\n[4] Performance Metrics")
+    # 4. Шифрование и дешифрование
+    print("\n[4] Encrypt and decrypt message with session key")
+    encrypted_data = hybrid_encrypt(client_key, message)
+    print(f"    - Encrypted data length: {len(encrypted_data)} bytes")
+    decrypted_data = hybrid_decrypt(server_key, encrypted_data)
+    print(f"    - Decrypted message: '{decrypted_data.decode()}'")
+    if message != decrypted_data:
+        raise RuntimeError("Decrypted data does not match original message!")
+    print("    ✓ Encryption/Decryption successful.")
+    
+    print("\n[5] Performance Metrics")
     overhead_ms = measure_handshake_overhead()
-    print(f"    • Handshake time: {overhead_ms:.2f}ms (target <100ms)")
+    print(f"    • Average handshake time: {overhead_ms:.2f}ms (target <100ms)")
 
     return {
         "status": "SUCCESS",
         "handshake_ms": overhead_ms,
-        "keys_match": key1 == key2,
+        "keys_match": client_key == server_key,
+        "signature_valid": is_valid,
     }
 
 
@@ -74,14 +73,17 @@ def generate_report(path: str = "reports/pqc/hybrid_tls_report.json"):
     result = demo_mesh_handshake_and_encryption()
     report = {
         "test_date": datetime.now().isoformat(),
-        "test": "Hybrid TLS (ECDHE + Kyber)",
+        "test": "Hybrid TLS (ECDHE + Kyber + Dilithium)",
         "results": {
-            "handshake": "✓ PASS",
-            "keys_match": result["keys_match"],
+            "handshake": "✓ PASS" if result["keys_match"] else "✗ FAIL",
+            "signature_verification": "✓ PASS" if result["signature_valid"] else "✗ FAIL",
             "handshake_ms": result["handshake_ms"],
         },
     }
 
+    print("\n" + "=" * 70)
+    print("Test Report")
+    print("=" * 70)
     print(json.dumps(report, indent=2))
 
     import os

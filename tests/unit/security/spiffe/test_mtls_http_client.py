@@ -10,9 +10,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from src.security.spiffe.mtls.http_client import SPIFFEHttpClient
-from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID
+from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID, SPIFFE_SDK_AVAILABLE # Import SPIFFE_SDK_AVAILABLE
 
 
+@pytest.mark.skipif(SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests")
 @pytest.mark.asyncio
 async def test_client_fetches_svid_and_performs_get_post(tmp_path):
     """Client fetches an SVID and can perform basic GET/POST requests."""

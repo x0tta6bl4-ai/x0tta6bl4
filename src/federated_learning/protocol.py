@@ -19,22 +19,17 @@ import struct
 logger = logging.getLogger(__name__)
 
 # Try to import cryptography for Ed25519
-try:
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-        Ed25519PrivateKey,
-        Ed25519PublicKey
-    )
-    from cryptography.hazmat.primitives.serialization import (
-        Encoding,
-        PublicFormat,
-        PrivateFormat,
-        NoEncryption
-    )
-    HAS_CRYPTO = True
-except ImportError:
-    HAS_CRYPTO = False
-    logger.warning("cryptography not available, using fallback signatures")
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
+    PrivateFormat,
+    NoEncryption
+)
 
 # Try to import msgpack
 try:
@@ -296,13 +291,6 @@ class SignedMessage:
     
     def sign(self, private_key_bytes: bytes) -> None:
         """Sign the message with Ed25519 private key."""
-        if not HAS_CRYPTO:
-            # Fallback: simple HMAC-like signature
-            self.signature = hashlib.sha256(
-                self.compute_message_hash() + private_key_bytes
-            ).digest()
-            return
-        
         private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
         message_hash = self.compute_message_hash()
         self.signature = private_key.sign(message_hash)
@@ -315,11 +303,6 @@ class SignedMessage:
         pk_bytes = public_key_bytes or self.public_key
         if not pk_bytes:
             return False
-        
-        if not HAS_CRYPTO:
-            # Cannot verify without cryptography library
-            logger.warning("Cannot verify signature without cryptography")
-            return True  # Accept in fallback mode
         
         try:
             public_key = Ed25519PublicKey.from_public_bytes(pk_bytes)
@@ -428,13 +411,6 @@ class FLMessage:
 
 def generate_keypair() -> Tuple[bytes, bytes]:
     """Generate Ed25519 keypair for message signing."""
-    if not HAS_CRYPTO:
-        # Fallback: random bytes (not secure!)
-        import secrets
-        private = secrets.token_bytes(32)
-        public = hashlib.sha256(private).digest()
-        return private, public
-    
     private_key = Ed25519PrivateKey.generate()
     private_bytes = private_key.private_bytes(
         Encoding.Raw, PrivateFormat.Raw, NoEncryption()

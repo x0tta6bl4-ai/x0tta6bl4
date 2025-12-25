@@ -147,7 +147,7 @@ class ShapedUDPTransport:
         
         # Sequence numbers
         self._sequence = 0
-        self._pending_acks: Dict[int, UDPPacket] = {}
+        self._pending_acks: Dict[int, Tuple[UDPPacket, Tuple[str, int]]] = {}
         
         # Пиры
         self._peers: Dict[Tuple[str, int], PeerInfo] = {}
@@ -254,6 +254,9 @@ class ShapedUDPTransport:
         
         raw = packet.to_bytes()
         
+        if packet.requires_ack:
+            self._pending_acks[packet.sequence] = (packet, address)
+
         # Обфускация
         if self._transport:
             raw = self._transport.obfuscate(raw)
@@ -456,12 +459,26 @@ class ShapedUDPTransport:
                         await self.send_ping(address)
                 
                 # Retry для reliable пакетов
-                for seq, packet in list(self._pending_acks.items()):
-                    packet.retries += 1
-                    if packet.retries > self.MAX_RETRIES:
-                        del self._pending_acks[seq]
-                        # Увеличиваем счётчик потерь
-                    # TODO: реальный retry
+                for seq, (packet, address) in list(self._pending_acks.items()):
+                    if now - (packet.timestamp_ms / 1000.0) > self.ACK_TIMEOUT * (packet.retries + 1):
+                        if packet.retries < self.MAX_RETRIES:
+                            packet.retries += 1
+                            logger.warning(f"Retrying packet {seq} to {address} (attempt {packet.retries})")
+                            
+                            raw_data = packet.to_bytes()
+                            if self._transport:
+                                raw_data = self._transport.obfuscate(raw_data)
+                            
+                            loop = asyncio.get_event_loop()
+                            await loop.run_in_executor(
+                                None,
+                                lambda: self._socket.sendto(raw_data, address)
+                            )
+                        else:
+                            logger.error(f"Packet {seq} to {address} lost after {self.MAX_RETRIES} retries")
+                            del self._pending_acks[seq]
+                            if address in self._peers:
+                                self._peers[address].packets_lost += 1
                 
             except Exception as e:
                 logger.error(f"Maintenance error: {e}")

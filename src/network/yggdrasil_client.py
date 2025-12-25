@@ -7,6 +7,7 @@ import os
 from typing import Dict, Any, List, Optional
 import urllib.request
 import urllib.error
+import random
 
 
 def get_yggdrasil_status() -> Dict[str, Any]:
@@ -30,7 +31,7 @@ def get_yggdrasil_status() -> Dict[str, Any]:
 
     try:
         result = subprocess.run(
-            ["sudo", "yggdrasilctl", "getSelf"],
+            ["yggdrasilctl", "getSelf"],
             capture_output=True,
             text=True,
             check=True,
@@ -74,28 +75,19 @@ def get_yggdrasil_peers() -> Dict[str, Any]:
     """
     # Mocked peers based on reachable health endpoints in the mesh network
     if os.environ.get("YGGDRASIL_MOCK", "").lower() in {"1", "true", "yes"}:
-        node_id = os.environ.get("NODE_ID", "node-a")
-        all_nodes = ["node-a", "node-b", "node-c"]
+        num_peers = random.randint(2, 5)
         peers: List[Dict[str, Any]] = []
-        for nid in all_nodes:
-            if nid == node_id:
-                continue
-            url = f"http://{nid}:8000/health"
-            try:
-                with urllib.request.urlopen(url, timeout=0.8) as resp:
-                    if resp.status == 200:
-                        peers.append({
-                            "port": "9001",
-                            "protocol": "tcp",
-                            "remote": nid,
-                        })
-            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
-                continue
+        for i in range(num_peers):
+            peers.append({
+                "port": str(random.randint(10000, 65535)),
+                "protocol": "tcp",
+                "remote": f"node-{random.choice(['a', 'b', 'c', 'd', 'e'])}",
+            })
         return {"status": "ok", "peers": peers, "count": len(peers)}
 
     try:
         result = subprocess.run(
-            ["sudo", "yggdrasilctl", "getPeers"],
+            ["yggdrasilctl", "getPeers"],
             capture_output=True,
             text=True,
             check=True,
@@ -154,7 +146,7 @@ def get_yggdrasil_routes() -> Dict[str, Any]:
 
     try:
         result = subprocess.run(
-            ["sudo", "yggdrasilctl", "getSelf"],
+            ["yggdrasilctl", "getSelf"],
             capture_output=True,
             text=True,
             check=True,

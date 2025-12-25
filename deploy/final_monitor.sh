@@ -14,7 +14,7 @@ while true; do
     # Check if endpoints are up
     running_nodes=0
     
-    for port in 8001 8002 8003; do
+    for port in 8000 8001 8002; do
         # Fetch metrics with timeout
         metrics=$(curl -s --max-time 2 http://localhost:$port/metrics)
         

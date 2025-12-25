@@ -60,7 +60,7 @@ def test_ebpf_integration():
 async def test_full_cycle_with_chaos(integrated_cycle):
     """Test полный цикл с chaos experiment"""
     # Запустить chaos experiment
-    result = integrated_cycle.run_chaos_experiment("node_failure", 5)
+    result = await integrated_cycle.run_chaos_experiment("node_failure", 5)
     
     assert 'mttr' in result
     assert 'recovery_success' in result

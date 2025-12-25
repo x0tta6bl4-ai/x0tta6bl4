@@ -8,9 +8,11 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID
+import pytest # Import pytest
 
+from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID, SPIFFE_SDK_AVAILABLE # Import SPIFFE_SDK_AVAILABLE
 
+@pytest.mark.skipif(SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests")
 def _create_test_certificate(
     spiffe_id: str,
     *,

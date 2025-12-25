@@ -8,6 +8,7 @@ import json
 from typing import Dict, List, Optional
 import re
 import logging
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -324,10 +325,12 @@ class MockMeshAdapter:
     Mock adapter for simulation
     """
     async def get_statistics(self) -> Dict[str, float]:
-        return {
-            'active_peers': 5,
-            'avg_latency_ms': 85.0,
-            'packet_loss_percent': 1.0,
-            'mttr_minutes': 3.14
+        stats = {
+            'active_peers': random.randint(3, 15),
+            'avg_latency_ms': random.uniform(20.0, 150.0),
+            'packet_loss_percent': random.uniform(0.0, 5.0),
+            'mttr_minutes': random.uniform(2.0, 15.0),
+            'avg_throughput_mbps': random.uniform(5.0, 50.0),
         }
+        return {k: round(v, 4) for k, v in stats.items()}
 

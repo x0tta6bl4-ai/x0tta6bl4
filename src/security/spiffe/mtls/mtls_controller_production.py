@@ -5,10 +5,12 @@ Replaces TODO in spiffe_controller.py line 175.
 import ssl
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import tempfile # Import tempfile
+import os # Import os
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ class MTLSControllerProduction:
         self.rotation_interval = rotation_interval
         self.current_context: Optional[ssl.SSLContext] = None
         self._rotation_task: Optional[asyncio.Task] = None
+        self._temp_files: List[tempfile.NamedTemporaryFile] = []
     
     async def setup_mtls_context(self) -> ssl.SSLContext:
         """
@@ -104,24 +107,38 @@ class MTLSControllerProduction:
             raise
     
     def _write_temp_cert(self, cert_pem: bytes) -> str:
-        """Write certificate to temp file"""
-        # In production, use tempfile.NamedTemporaryFile
-        cert_path = Path("/tmp/spiffe-cert.pem")
-        cert_path.write_bytes(cert_pem)
-        return str(cert_path)
+        """Write certificate to temp file securely using NamedTemporaryFile."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='wb', prefix="spiffe-cert-", suffix=".pem")
+        temp_file.write(cert_pem)
+        temp_file.flush()
+        temp_file.close() # Close the file handle, but keep the file on disk (due to delete=False)
+        self._temp_files.append(temp_file) # Store reference to the tempfile object
+        
+        logger.debug(f"Wrote temp cert to: {temp_file.name}")
+        return temp_file.name
     
     def _write_temp_key(self, key_pem: bytes) -> str:
-        """Write private key to temp file"""
-        key_path = Path("/tmp/spiffe-key.pem")
-        key_path.write_bytes(key_pem)
-        key_path.chmod(0o600)  # Secure permissions
-        return str(key_path)
+        """Write private key to temp file securely using NamedTemporaryFile."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='wb', prefix="spiffe-key-", suffix=".pem")
+        temp_file.write(key_pem)
+        temp_file.flush()
+        temp_file.close() # Close the file handle, but keep the file on disk (due to delete=False)
+        os.chmod(temp_file.name, 0o600) # Secure permissions
+        self._temp_files.append(temp_file) # Store reference to the tempfile object
+
+        logger.debug(f"Wrote temp key to: {temp_file.name}")
+        return temp_file.name
     
     def _write_temp_ca(self, ca_pem: bytes) -> str:
-        """Write CA bundle to temp file"""
-        ca_path = Path("/tmp/spiffe-ca.pem")
-        ca_path.write_bytes(ca_pem)
-        return str(ca_path)
+        """Write CA bundle to temp file securely using NamedTemporaryFile."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='wb', prefix="spiffe-ca-", suffix=".pem")
+        temp_file.write(ca_pem)
+        temp_file.flush()
+        temp_file.close() # Close the file handle, but keep the file on disk (due to delete=False)
+        self._temp_files.append(temp_file) # Store reference to the tempfile object
+
+        logger.debug(f"Wrote temp CA to: {temp_file.name}")
+        return temp_file.name
     
     async def verify_peer_spiffe_id(
         self,
@@ -213,7 +230,7 @@ class MTLSControllerProduction:
         logger.info("✅ mTLS Controller started")
     
     async def stop(self) -> None:
-        """Stop mTLS controller"""
+        """Stop mTLS controller and clean up temporary files."""
         if self._rotation_task:
             self._rotation_task.cancel()
             try:
@@ -221,6 +238,15 @@ class MTLSControllerProduction:
             except asyncio.CancelledError:
                 pass
         
+        # Clean up temporary files
+        for temp_file_obj in self._temp_files:
+            try:
+                os.unlink(temp_file_obj.name)
+                logger.debug(f"Cleaned up temporary file: {temp_file_obj.name}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {temp_file_obj.name}: {e}")
+        self._temp_files.clear() # Clear the list after cleanup
+
         logger.info("🛑 mTLS Controller stopped")
     
     def get_tls_config(self) -> TLSConfig:

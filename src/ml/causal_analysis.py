@@ -22,12 +22,7 @@ import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-try:
-    import numpy as np
-    _NUMPY_AVAILABLE = True
-except ImportError:
-    _NUMPY_AVAILABLE = False
-    logger.warning("NumPy not available, using fallback mode")
+import numpy as np
 
 
 class IncidentSeverity(Enum):

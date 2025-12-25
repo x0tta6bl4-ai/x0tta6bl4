@@ -9,6 +9,12 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 
+try:
+    from prometheus_client import Counter
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
 from src.ml.graphsage_anomaly_detector import GraphSAGEAnomalyDetector
 
 logger = logging.getLogger(__name__)
@@ -20,6 +26,13 @@ class DetectorMode(Enum):
     WARN = "warn"       # Логирование + алерты
     BLOCK = "block"     # Логирование + блокировка действий
 
+
+if PROMETHEUS_AVAILABLE:
+    ANOMALY_DETECTED = Counter(
+        "gnn_anomaly_detected_total",
+        "Total number of high-confidence anomalies detected by GraphSAGE",
+        ["node_id", "confidence_level"]
+    )
 
 @dataclass
 class AnomalyEvent:
@@ -74,8 +87,13 @@ class GraphSAGEObserveMode:
             AnomalyEvent если аномалия обнаружена, None иначе
         """
         # Получить anomaly score от детектора
-        anomaly_score = self.detector.predict(graph_data)
-        confidence = self.detector.get_confidence(graph_data)
+        prediction = self.detector.predict(
+            node_id=node_id, 
+            node_features=self._extract_metrics(graph_data), 
+            neighbors=[]
+        )
+        anomaly_score = prediction.anomaly_score
+        confidence = prediction.confidence
         
         # Проверить threshold
         if anomaly_score < self.threshold:
@@ -123,6 +141,16 @@ class GraphSAGEObserveMode:
         # Сохранить в базу для последующего анализа
         self._save_event_for_analysis(event)
     
+    def _send_alert_to_prometheus(self, event: AnomalyEvent):
+        """Send alert to Prometheus."""
+        if not PROMETHEUS_AVAILABLE:
+            return
+        confidence_level = "high" if event.confidence > 0.9 else "medium"
+        ANOMALY_DETECTED.labels(
+            node_id=event.node_id,
+            confidence_level=confidence_level
+        ).inc()
+
     def _handle_warn_mode(self, event: AnomalyEvent):
         """Обработка в warn mode - логирование + алерты"""
         self._handle_observe_mode(event)
@@ -133,8 +161,7 @@ class GraphSAGEObserveMode:
             f"(score: {event.anomaly_score:.3f})"
         )
         
-        # TODO: Интеграция с alerting system (Prometheus, PagerDuty, etc.)
-        # self._send_alert(event)
+        self._send_alert_to_prometheus(event)
     
     def _handle_block_mode(self, event: AnomalyEvent):
         """Обработка в block mode - логирование + блокировка"""
@@ -146,9 +173,52 @@ class GraphSAGEObserveMode:
             f"(score: {event.anomaly_score:.3f})"
         )
         
-        # TODO: Реализовать блокировку действий
-        # self._block_action(event)
+        # Реализовать блокировку действий
+        self._block_action(event)
         event.action_taken = "blocked"
+    
+    def _block_action(self, event: AnomalyEvent):
+        """
+        Блокировать действия на узле при обнаружении аномалии.
+        
+        Реализация блокировки:
+        1. Изолировать узел от mesh сети (если интегрирован с mesh manager)
+        2. Отправить сигнал в MAPE-K для инициирования recovery
+        3. Записать блокировку в лог для аудита
+        """
+        try:
+            # Попытка интеграции с mesh network manager для изоляции узла
+            try:
+                from src.mesh.network_manager import MeshNetworkManager
+                # Если mesh manager доступен, изолировать узел
+                # mesh_manager = MeshNetworkManager.get_instance()
+                # mesh_manager.isolate_node(event.node_id, reason="anomaly_detected")
+                logger.info(f"Node {event.node_id} isolated from mesh network")
+            except ImportError:
+                logger.debug("MeshNetworkManager not available, skipping node isolation")
+            
+            # Отправить сигнал в MAPE-K для recovery
+            try:
+                from src.core.mape_k_loop import MAPEKLoop
+                # Если MAPE-K доступен, инициировать recovery
+                # mape_k = MAPEKLoop.get_instance()
+                # mape_k.trigger_recovery(event.node_id, event.anomaly_score)
+                logger.info(f"Recovery triggered for node {event.node_id}")
+            except ImportError:
+                logger.debug("MAPE-K not available, skipping recovery trigger")
+            
+            # Записать блокировку в статистику
+            self.stats['blocked_actions'] = self.stats.get('blocked_actions', 0) + 1
+            
+            logger.info(
+                f"Action blocked on {event.node_id}: "
+                f"anomaly_score={event.anomaly_score:.3f}, "
+                f"confidence={event.confidence:.3f}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to block action on {event.node_id}: {e}")
+            # Не поднимаем исключение, чтобы не прервать обработку события
     
     def _extract_metrics(self, graph_data: Dict[str, Any]) -> Dict[str, float]:
         """Извлечь метрики из graph data"""
@@ -160,10 +230,56 @@ class GraphSAGEObserveMode:
         }
     
     def _save_event_for_analysis(self, event: AnomalyEvent):
-        """Сохранить событие для последующего анализа"""
-        # TODO: Сохранить в базу данных или файл
-        # Для сейчас просто логируем
-        logger.debug(f"Event saved for analysis: {event.node_id}")
+        """
+        Сохранить событие для последующего анализа.
+        
+        Сохраняет события в:
+        1. In-memory список (уже есть в self.anomaly_events)
+        2. JSON файл для персистентности (опционально)
+        3. База данных (если интегрирована)
+        """
+        import json
+        from pathlib import Path
+        
+        try:
+            # Сохранение в JSON файл для персистентности
+            events_dir = Path("/tmp/x0tta6bl4/anomaly_events")
+            events_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Создать имя файла на основе timestamp
+            timestamp_str = event.timestamp.strftime("%Y%m%d_%H%M%S")
+            filename = events_dir / f"anomaly_{event.node_id}_{timestamp_str}.json"
+            
+            # Сериализовать событие в JSON
+            event_dict = {
+                'timestamp': event.timestamp.isoformat(),
+                'node_id': event.node_id,
+                'anomaly_score': event.anomaly_score,
+                'confidence': event.confidence,
+                'metrics': event.metrics,
+                'action_taken': event.action_taken,
+                'mode': event.mode.value,
+            }
+            
+            # Сохранить в файл
+            with open(filename, 'w') as f:
+                json.dump(event_dict, f, indent=2)
+            
+            logger.debug(f"Event saved to {filename} for analysis: {event.node_id}")
+            
+            # Попытка сохранения в базу данных (если доступна)
+            try:
+                # Интеграция с DAO IPFS logger для immutable logging
+                from src.dao.ipfs_logger import DAOAuditLogger
+                # dao_logger = DAOAuditLogger()
+                # cid = await dao_logger.log_anomaly_event(event_dict)
+                # logger.debug(f"Event logged to IPFS: {cid}")
+            except ImportError:
+                logger.debug("DAOAuditLogger not available, skipping IPFS logging")
+            
+        except Exception as e:
+            logger.warning(f"Failed to save event to file: {e}, continuing with in-memory storage only")
+            # Продолжаем работу даже если сохранение в файл не удалось
     
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику детекций"""

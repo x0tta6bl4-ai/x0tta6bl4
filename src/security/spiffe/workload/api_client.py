@@ -69,8 +69,11 @@ class WorkloadAPIClient:
     Connects to SPIRE Agent Unix socket to fetch SVIDs for workload identity.
     Handles automatic credential rotation and validation.
     
+    This client requires the `spiffe` SDK to be installed and the
+    `SPIFFE_ENDPOINT_SOCKET` environment variable to be set.
+    
     Example:
-        >>> client = WorkloadAPIClient("/run/spire/sockets/agent.sock")
+        >>> client = WorkloadAPIClient()
         >>> svid = client.fetch_x509_svid()
         >>> print(svid.spiffe_id)
         spiffe://x0tta6bl4.mesh/node/worker-1
@@ -78,170 +81,140 @@ class WorkloadAPIClient:
     
     def __init__(
         self,
-        socket_path: Path = Path("/run/spire/sockets/agent.sock"),
+        socket_path: Optional[Path] = None,
         trust_bundle_path: Optional[Path] = None,
     ):
         """Initialize Workload API client.
 
         Args:
-            socket_path: Path to SPIRE Agent Unix socket used as a
-                liveness/availability check for the underlying SPIRE
-                Agent or its mock.
+            socket_path: Path to SPIRE Agent Unix socket. If not provided,
+                the `SPIFFE_ENDPOINT_SOCKET` environment variable is used.
             trust_bundle_path: Optional path to a PEM-encoded trust
                 bundle containing one or more CA certificates used for
                 X.509 chain validation. If not provided, the
                 ``SPIFFE_TRUST_BUNDLE_PATH`` environment variable is
                 consulted. When no bundle is configured, certificate
                 chain verification is skipped.
+
+        Raises:
+            ImportError: If the `spiffe` SDK is not installed.
+            ValueError: If the SPIFFE endpoint socket is not configured.
         """
-        self.socket_path = socket_path
-        self.current_svid: Optional[X509SVID] = None
-        # Simple in-memory cache for JWT SVIDs keyed by audience set.
-        self._jwt_cache: Dict[Tuple[str, ...], JWTSVID] = {}
+        self._force_mock_spiffe = os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
 
-        # Decide whether to use the real SPIFFE Workload API client. We
-        # only enable it when the optional SDK is available, a SPIFFE
-        # endpoint is configured, and the caller did not explicitly
-        # force mock mode.
-        self._spiffe_endpoint = os.getenv("SPIFFE_ENDPOINT_SOCKET")
-        self._use_real_spiffe = bool(
-            SPIFFE_SDK_AVAILABLE
-            and self._spiffe_endpoint
-            and os.getenv("FORCE_MOCK_SPIFFE") != "1"
-        )
-
-        if self._use_real_spiffe:
-            logger.info(
-                "Workload API client using SPIFFE SDK with endpoint %s",
-                self._spiffe_endpoint,
+        if not SPIFFE_SDK_AVAILABLE and not self._force_mock_spiffe:
+            raise ImportError(
+                "The 'spiffe' SDK is required for the Workload API client. "
+                "Please install 'py-spiffe'."
             )
+
+        self._spiffe_endpoint = socket_path or os.getenv("SPIFFE_ENDPOINT_SOCKET")
+        if not self._spiffe_endpoint and not self._force_mock_spiffe:
+            raise ValueError(
+                "SPIFFE endpoint socket must be provided via socket_path "
+                "or SPIFFE_ENDPOINT_SOCKET environment variable."
+            )
+        
+        if self._force_mock_spiffe:
+            logger.info("Workload API client initialized in forced mock mode.")
         else:
             logger.info(
-                "Workload API client using mock implementation (socket=%s)",
-                socket_path,
+                "Workload API client initialized with endpoint %s",
+                self._spiffe_endpoint,
             )
 
-        # Optional trust bundle configuration for certificate chain
-        # validation. When not explicitly provided, fall back to the
-        # SPIFFE_TRUST_BUNDLE_PATH environment variable.
+        self.current_svid: Optional[X509SVID] = None
+        self._jwt_cache: Dict[Tuple[str, ...], JWTSVID] = {}
+
         self.trust_bundle_path: Optional[Path] = trust_bundle_path
         if self.trust_bundle_path is None:
             env_bundle = os.getenv("SPIFFE_TRUST_BUNDLE_PATH")
             if env_bundle:
                 self.trust_bundle_path = Path(env_bundle)
 
-        # Cache for parsed CA certificates from the trust bundle.
         self._trust_bundle_cas: Optional[List[x509.Certificate]] = None
     
+    def _mock_fetch_x509_svid(self) -> X509SVID:
+        # Simple mock X509SVID for testing
+        return X509SVID(
+            spiffe_id="spiffe://mock.domain/workload/mock-app",
+            cert_chain=[b"MOCK_CERT_CHAIN"],
+            private_key=b"MOCK_PRIVATE_KEY",
+            expiry=datetime.utcnow() + timedelta(days=1)
+        )
+
+    def _mock_fetch_jwt_svid(self, audience: List[str]) -> JWTSVID:
+        # Simple mock JWTSVID for testing
+        return JWTSVID(
+            spiffe_id="spiffe://mock.domain/workload/mock-app",
+            token="MOCK_JWT_TOKEN",
+            expiry=datetime.utcnow() + timedelta(hours=1),
+            audience=audience
+        )
+
     def fetch_x509_svid(self) -> X509SVID:
         """
-        Fetch an X.509 SVID for the current workload.
-
-        The current implementation operates in a "mock" mode:
-
-        - it treats the presence of the configured Unix socket as a
-          liveness check for the SPIRE Agent (or its test double);
-        - it returns an in-memory :class:`X509SVID` with a predictable
-          SPIFFE ID and mock certificate material;
-        - it reuses a non-expired SVID from ``self.current_svid`` to
-          emulate basic credential rotation semantics.
+        Fetch an X.509 SVID for the current workload via the SPIFFE Workload API.
 
         Returns:
-            X509SVID with certificate chain and private key fields
-            populated for in-memory use.
+            X509SVID with certificate chain and private key.
 
         Raises:
-            ConnectionError: If the configured SPIRE Agent socket does
-                not exist or the SPIFFE Workload API call fails.
+            ConnectionError: If the SPIFFE Workload API call fails.
         """
-        # Reuse a non-expired SVID if we already fetched one.
+        if self._force_mock_spiffe:
+            return self._mock_fetch_x509_svid()
+
         if self.current_svid and not self.current_svid.is_expired():
             logger.debug("Reusing cached X.509 SVID for workload")
             return self.current_svid
 
-        # Real SPIFFE Workload API mode, if configured.
-        if self._use_real_spiffe and SpiffeWorkloadApiClient is not None:
-            logger.info("Fetching X.509 SVID via SPIFFE Workload API")
-            try:
-                with SpiffeWorkloadApiClient() as client:  # type: ignore[call-arg]
-                    sdk_svid = client.fetch_x509_svid()
-            except Exception as exc:  # pragma: no cover - depends on external SDK/runtime
-                logger.error("Failed to fetch X.509 SVID via SPIFFE SDK: %s", exc)
-                raise ConnectionError("SPIFFE Workload API call failed") from exc
+        logger.info("Fetching X.509 SVID via SPIFFE Workload API")
+        try:
+            with SpiffeWorkloadApiClient() as client:
+                sdk_svid = client.fetch_x509_svid()
+        except Exception as exc:
+            logger.error("Failed to fetch X.509 SVID via SPIFFE SDK: %s", exc)
+            raise ConnectionError("SPIFFE Workload API call failed") from exc
 
-            svid = self._convert_sdk_x509_svid(sdk_svid)
-            self.current_svid = svid
-            return svid
-
-        # Fallback mock implementation.
-        if not self.socket_path.exists():
-            raise ConnectionError(f"SPIRE Agent socket not found: {self.socket_path}")
-
-        logger.info("Fetching X.509 SVID for workload (mock implementation)")
-
-        svid = X509SVID(
-            spiffe_id="spiffe://x0tta6bl4.mesh/node/mock",
-            cert_chain=[b"MOCK_CERT"],
-            private_key=b"MOCK_KEY",
-            expiry=datetime.utcnow(),
-        )
-
+        svid = self._convert_sdk_x509_svid(sdk_svid)
         self.current_svid = svid
         return svid
     
     def fetch_jwt_svid(self, audience: List[str]) -> JWTSVID:
         """
-        Fetch a JWT SVID for a specific audience.
-
-        The current implementation validates only the presence of the
-        configured socket and then returns an in-memory JWT SVID
-        instance. A very simple in-memory cache is used to avoid
-        regenerating tokens for the same audience set.
+        Fetch a JWT SVID for a specific audience via the SPIFFE Workload API.
 
         Args:
             audience: List of intended JWT audiences.
 
         Returns:
             JWTSVID token for authentication.
+            
+        Raises:
+            ConnectionError: If the SPIFFE Workload API call fails.
         """
-        # Real SPIFFE Workload API mode, if configured.
-        if self._use_real_spiffe and SpiffeWorkloadApiClient is not None:
-            logger.info(
-                "Fetching JWT SVID via SPIFFE Workload API for audience: %s",
-                audience,
-            )
-            try:
-                with SpiffeWorkloadApiClient() as client:  # type: ignore[call-arg]
-                    sdk_jwt = client.fetch_jwt_svid(audience=set(audience))
-            except Exception as exc:  # pragma: no cover - depends on external SDK/runtime
-                logger.error("Failed to fetch JWT SVID via SPIFFE SDK: %s", exc)
-                raise ConnectionError("SPIFFE JWT Workload API call failed") from exc
-
-            jwt_svid = self._convert_sdk_jwt_svid(sdk_jwt)
-            cache_key = tuple(sorted(audience))
-            self._jwt_cache[cache_key] = jwt_svid
-            return jwt_svid
-
-        # Fallback mock implementation.
-        if not self.socket_path.exists():
-            raise ConnectionError(f"SPIRE Agent socket not found: {self.socket_path}")
-
-        # Normalize audience to a deterministic cache key.
+        if self._force_mock_spiffe:
+            return self._mock_fetch_jwt_svid(audience)
+        
         cache_key = tuple(sorted(audience))
         cached = self._jwt_cache.get(cache_key)
         if cached and not cached.is_expired():
             logger.debug("Reusing cached JWT SVID for audience %s", audience)
             return cached
-
-        logger.info("Fetching JWT SVID for audience: %s (mock implementation)", audience)
-
-        jwt_svid = JWTSVID(
-            spiffe_id="spiffe://x0tta6bl4.mesh/node/mock",
-            token="MOCK_JWT_TOKEN",
-            expiry=datetime.utcnow(),
-            audience=audience,
+            
+        logger.info(
+            "Fetching JWT SVID via SPIFFE Workload API for audience: %s",
+            audience,
         )
+        try:
+            with SpiffeWorkloadApiClient() as client:
+                sdk_jwt = client.fetch_jwt_svid(audience=set(audience))
+        except Exception as exc:
+            logger.error("Failed to fetch JWT SVID via SPIFFE SDK: %s", exc)
+            raise ConnectionError("SPIFFE JWT Workload API call failed") from exc
 
+        jwt_svid = self._convert_sdk_jwt_svid(sdk_jwt)
         self._jwt_cache[cache_key] = jwt_svid
         return jwt_svid
 

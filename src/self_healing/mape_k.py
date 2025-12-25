@@ -42,22 +42,18 @@ class MAPEKMonitor:
         Args:
             detector: Optional GraphSAGE detector instance (created if None)
         """
-        try:
-            from src.ml.graphsage_anomaly_detector import (
-                GraphSAGEAnomalyDetector,
-                create_graphsage_detector_for_mapek
-            )
-            
-            if detector is None:
-                self.graphsage_detector = create_graphsage_detector_for_mapek()
-            else:
-                self.graphsage_detector = detector
-            
-            self.use_graphsage = True
-            logger.info("GraphSAGE v2 detector enabled for Monitor phase")
-        except ImportError:
-            logger.warning("GraphSAGE detector not available, using fallback")
-            self.use_graphsage = False
+        from src.ml.graphsage_anomaly_detector import (
+            GraphSAGEAnomalyDetector,
+            create_graphsage_detector_for_mapek
+        )
+        
+        if detector is None:
+            self.graphsage_detector = create_graphsage_detector_for_mapek()
+        else:
+            self.graphsage_detector = detector
+        
+        self.use_graphsage = True
+        logger.info("GraphSAGE v2 detector enabled for Monitor phase")
     
     def check(self, metrics: Dict) -> bool:
         """
@@ -152,24 +148,20 @@ class MAPEKAnalyzer:
         Args:
             analyzer: Optional CausalAnalysisEngine instance (created if None)
         """
-        try:
-            from src.ml.causal_analysis import (
-                CausalAnalysisEngine,
-                create_causal_analyzer_for_mapek,
-                IncidentEvent,
-                IncidentSeverity
-            )
-            
-            if analyzer is None:
-                self.causal_analyzer = create_causal_analyzer_for_mapek()
-            else:
-                self.causal_analyzer = analyzer
-            
-            self.use_causal_analysis = True
-            logger.info("Causal Analysis enabled for Analyzer phase")
-        except ImportError:
-            logger.warning("Causal Analysis not available, using fallback")
-            self.use_causal_analysis = False
+        from src.ml.causal_analysis import (
+            CausalAnalysisEngine,
+            create_causal_analyzer_for_mapek,
+            IncidentEvent,
+            IncidentSeverity
+        )
+        
+        if analyzer is None:
+            self.causal_analyzer = create_causal_analyzer_for_mapek()
+        else:
+            self.causal_analyzer = analyzer
+        
+        self.use_causal_analysis = True
+        logger.info("Causal Analysis enabled for Analyzer phase")
     
     def analyze(self, metrics: Dict, node_id: str = "unknown", event_id: Optional[str] = None) -> str:
         """

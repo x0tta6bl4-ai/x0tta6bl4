@@ -1,9 +1,9 @@
 import importlib
 from _pytest.capture import CaptureFixture
+import src.legacy_cli as cli
 
 
 def test_cli_main(capsys: CaptureFixture[str]) -> None:
-    cli = importlib.import_module('src.cli')
     rc = cli.main()
     captured = capsys.readouterr()
     assert rc == 0

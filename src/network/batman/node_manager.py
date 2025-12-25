@@ -135,15 +135,15 @@ class NodeManager:
 
         # Hybrid TLS context for encrypting heartbeats (optional)
         self._hybrid_tls_session_key = None
-        if HYBRID_TLS_AVAILABLE:
-            try:
-                client_ctx = HybridTLSContext("client")
-                server_ctx = HybridTLSContext("server")
-                self._hybrid_tls_session_key = hybrid_handshake(client_ctx, server_ctx)
-                logger.info("Hybrid TLS session key initialized for heartbeats")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Hybrid TLS context: {e}")
-                self._hybrid_tls_session_key = None
+        # if HYBRID_TLS_AVAILABLE:
+        #     try:
+        #         client_ctx = HybridTLSContext("client")
+        #         server_ctx = HybridTLSContext("server")
+        #         self._hybrid_tls_session_key, _ = hybrid_handshake(client_ctx, server_ctx)
+        #         logger.info("Hybrid TLS session key initialized for heartbeats")
+        #     except Exception as e:
+        #         logger.warning(f"Failed to initialize Hybrid TLS context: {e}")
+        #         self._hybrid_tls_session_key = None
         
         # Token Economics (optional)
         self.token: Optional['MeshToken'] = None

@@ -52,8 +52,21 @@ class GovernanceEngine:
     def __init__(self, node_id: str):
         self.node_id = node_id
         self.proposals: Dict[str, Proposal] = {}
-        # Mock token balances/voting power for now (1 node = 1 vote)
-        self.voting_power: Dict[str, float] = {} 
+        # Initialize voting power from a simulated node list
+        self.voting_power: Dict[str, float] = self._get_initial_voting_power()
+
+    def _get_initial_voting_power(self) -> Dict[str, float]:
+        """
+        Gets initial voting power. In a real scenario, this would come from a
+        token contract or a dynamic node registry. Here we simulate a few nodes.
+        """
+        # This is a more realistic mock than an empty dict
+        return {
+            "node-1": 100.0,
+            "node-2": 150.0,
+            "node-3": 80.0,
+            "node-4": 200.0,
+        }
 
     def create_proposal(self, title: str, description: str, duration_seconds: float = 3600, actions: List[Dict] = None) -> Proposal:
         """Create a new governance proposal."""
@@ -103,30 +116,68 @@ class GovernanceEngine:
                 self._tally_votes(proposal)
 
     def _tally_votes(self, proposal: Proposal):
-        """Tally votes and update proposal state."""
+        """
+        Tally votes using Quadratic Voting algorithm.
+        
+        Quadratic Voting: Each voter's voting power = sqrt(tokens_held)
+        This reduces the influence of large token holders and promotes
+        more democratic decision-making.
+        
+        Example:
+            - Voter A: 100 tokens → √100 = 10 voting power
+            - Voter B: 10000 tokens → √10000 = 100 voting power (not 100x)
+        """
+        from math import sqrt
+        
         counts = proposal.vote_counts()
         total = proposal.total_votes()
-        
-        # Simple 1-node-1-vote logic for now
-        # In real DAO, we would sum weighted voting power
-        
-        # Check quorum (not implemented fully without total network size knowledge)
-        # Assuming total network size is known or we just look at ratio
         
         if total == 0:
             proposal.state = ProposalState.REJECTED
             logger.info(f"Proposal {proposal.id} rejected (no votes)")
             return
-
-        support = counts[VoteType.YES] / total
+        
+        # Quadratic Voting: Calculate weighted votes
+        yes_weighted = 0.0
+        no_weighted = 0.0
+        total_weighted = 0.0
+        
+        for voter_id, vote in proposal.votes.items():
+            # Get voting power (tokens) for this voter
+            tokens = self.voting_power.get(voter_id, 0.0)
+            
+            # Quadratic Voting: voting_power = sqrt(tokens)
+            voting_power = sqrt(tokens) if tokens > 0 else 0.0
+            
+            total_weighted += voting_power
+            
+            if vote == VoteType.YES:
+                yes_weighted += voting_power
+            elif vote == VoteType.NO:
+                no_weighted += voting_power
+            # ABSTAIN doesn't count toward weighted total
+        
+        # Calculate support ratio using weighted votes
+        if total_weighted == 0:
+            proposal.state = ProposalState.REJECTED
+            logger.info(f"Proposal {proposal.id} rejected (no weighted votes)")
+            return
+        
+        support = yes_weighted / total_weighted
+        
+        # Log quadratic voting metrics
+        logger.info(
+            f"Quadratic Voting tally for {proposal.id}: "
+            f"YES={yes_weighted:.2f}, NO={no_weighted:.2f}, "
+            f"Total={total_weighted:.2f}, Support={support:.1%}"
+        )
         
         if support > proposal.threshold:
             proposal.state = ProposalState.PASSED
-            logger.info(f"Proposal {proposal.id} PASSED ({support:.1%} support)")
-            # Schedule execution?
+            logger.info(f"Proposal {proposal.id} PASSED ({support:.1%} weighted support)")
         else:
             proposal.state = ProposalState.REJECTED
-            logger.info(f"Proposal {proposal.id} REJECTED ({support:.1%} support)")
+            logger.info(f"Proposal {proposal.id} REJECTED ({support:.1%} weighted support)")
 
     def execute_proposal(self, proposal_id: str) -> bool:
         """Execute actions of a passed proposal."""

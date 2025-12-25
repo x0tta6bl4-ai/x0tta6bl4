@@ -1,0 +1,3 @@
+# НАЧНИ_СЕГОДНЯ.txt
+This file contains the detailed step-by-step actions for DAY 1 of the 90-day battle plan.
+It includes instructions for integrating Prometheus, creating demo videos, and launching the landing page.

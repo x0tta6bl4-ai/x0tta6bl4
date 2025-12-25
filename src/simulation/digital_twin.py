@@ -25,12 +25,7 @@ import json
 logger = logging.getLogger(__name__)
 
 # Try to import optional dependencies
-try:
-    import networkx as nx
-    HAS_NETWORKX = True
-except ImportError:
-    HAS_NETWORKX = False
-    logger.warning("networkx not available, using fallback graph")
+import networkx as nx
 
 try:
     from prometheus_api_client import PrometheusConnect
@@ -160,71 +155,7 @@ class SimulationResult:
         }
 
 
-class SimpleGraph:
-    """Fallback graph implementation when networkx is not available."""
-    
-    def __init__(self):
-        self.nodes: Dict[str, Dict] = {}
-        self.edges: Dict[Tuple[str, str], Dict] = {}
-    
-    def add_node(self, node_id: str, **attrs) -> None:
-        # Filter out node_id from attrs if present (avoid duplicate)
-        attrs = {k: v for k, v in attrs.items() if k != 'node_id'}
-        self.nodes[node_id] = attrs
-    
-    def remove_node(self, node_id: str) -> None:
-        if node_id in self.nodes:
-            del self.nodes[node_id]
-            # Remove connected edges
-            self.edges = {
-                k: v for k, v in self.edges.items()
-                if k[0] != node_id and k[1] != node_id
-            }
-    
-    def add_edge(self, source: str, target: str, **attrs) -> None:
-        self.edges[(source, target)] = attrs
-        self.edges[(target, source)] = attrs  # Undirected
-    
-    def remove_edge(self, source: str, target: str) -> None:
-        self.edges.pop((source, target), None)
-        self.edges.pop((target, source), None)
-    
-    def has_node(self, node_id: str) -> bool:
-        return node_id in self.nodes
-    
-    def has_edge(self, source: str, target: str) -> bool:
-        return (source, target) in self.edges
-    
-    def neighbors(self, node_id: str) -> List[str]:
-        return [
-            t if s == node_id else s
-            for (s, t) in self.edges.keys()
-            if s == node_id or t == node_id
-        ]
-    
-    def number_of_nodes(self) -> int:
-        return len(self.nodes)
-    
-    def number_of_edges(self) -> int:
-        return len(self.edges) // 2  # Undirected
-    
-    def is_connected(self) -> bool:
-        """Check if graph is connected using BFS."""
-        if not self.nodes:
-            return True
-        
-        start = next(iter(self.nodes))
-        visited = {start}
-        queue = [start]
-        
-        while queue:
-            node = queue.pop(0)
-            for neighbor in self.neighbors(node):
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-        
-        return len(visited) == len(self.nodes)
+
 
 
 class MeshDigitalTwin:
@@ -247,10 +178,7 @@ class MeshDigitalTwin:
         self.prometheus_url = prometheus_url
         
         # Initialize graph
-        if HAS_NETWORKX:
-            self.graph = nx.Graph()
-        else:
-            self.graph = SimpleGraph()
+        self.graph = nx.Graph()
         
         # Node and link storage
         self.nodes: Dict[str, TwinNode] = {}
@@ -283,11 +211,7 @@ class MeshDigitalTwin:
             self.nodes[node.node_id] = node
             # Exclude node_id from attrs to avoid duplicate argument
             attrs = {k: v for k, v in node.to_dict().items() if k != 'node_id'}
-            if HAS_NETWORKX:
-                self.graph.add_node(node.node_id, **attrs)
-            else:
-                self.graph.add_node(node.node_id, **attrs)
-    
+                    self.graph.add_node(node.node_id, **attrs)    
     def add_link(self, link: TwinLink) -> None:
         """Add a link to the digital twin."""
         with self._lock:
@@ -295,19 +219,11 @@ class MeshDigitalTwin:
             # Exclude source/target/link_id from attrs to avoid duplicate arguments
             exclude_keys = {'source', 'target', 'link_id'}
             attrs = {k: v for k, v in link.to_dict().items() if k not in exclude_keys}
-            if HAS_NETWORKX:
-                self.graph.add_edge(
-                    link.source, link.target,
-                    weight=link.latency_ms,
-                    **attrs
-                )
-            else:
-                self.graph.add_edge(
-                    link.source, link.target,
-                    weight=link.latency_ms,
-                    **attrs
-                )
-    
+                    self.graph.add_edge(
+                        link.source, link.target,
+                        weight=link.latency_ms,
+                        **attrs
+                    )    
     def remove_node(self, node_id: str) -> None:
         """Remove a node and all its links."""
         with self._lock:
@@ -641,11 +557,7 @@ class MeshDigitalTwin:
             new_failures = set()
             
             for node_id in failed_nodes:
-                if HAS_NETWORKX:
-                    neighbors = list(self.graph.neighbors(node_id))
-                else:
-                    neighbors = self.graph.neighbors(node_id)
-                
+                            neighbors = list(self.graph.neighbors(node_id))                
                 for neighbor in neighbors:
                     if (neighbor not in failed_nodes and
                         neighbor not in new_failures and
@@ -714,26 +626,13 @@ class MeshDigitalTwin:
         """Plan recovery routes around failed node."""
         routes = []
         
-        if HAS_NETWORKX:
-            # Find alternative paths
-            for source in self.nodes:
-                for target in self.nodes:
-                    if source != target and source != failed_node and target != failed_node:
-                        try:
-                            # Check if path exists without failed node
-                            temp_graph = self.graph.copy()
-                            if temp_graph.has_node(failed_node):
-                                temp_graph.remove_node(failed_node)
-                            
-                            if nx.has_path(temp_graph, source, target):
-                                path = nx.shortest_path(temp_graph, source, target)
-                                routes.append({
-                                    "source": source,
-                                    "target": target,
-                                    "path": path
-                                })
-                        except nx.NetworkXNoPath:
-                            pass
+        if nx.has_path(temp_graph, source, target):
+            path = nx.shortest_path(temp_graph, source, target)
+            routes.append({
+                "source": source,
+                "target": target,
+                "path": path
+            })
         
         return routes[:10]  # Limit to 10 alternative routes
     

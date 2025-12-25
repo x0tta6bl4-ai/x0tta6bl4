@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 import logging
 import heapq
+from ...core.thread_safe_stats import MeshTopologyStats
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,9 @@ class MeshTopology:
         self.path_cache: Dict[str, List[List[str]]] = {}
         self.cache_timestamp: Dict[str, datetime] = {}
         self.cache_ttl: int = 300  # 5 minutes cache TTL
+        
+        # Thread-safe statistics
+        self._stats = MeshTopologyStats(local_node_id)
         
     def add_node(self, node: MeshNode) -> bool:
         """Register a new node in the mesh"""
@@ -374,38 +378,25 @@ class MeshTopology:
             List of k disjoint paths (best quality first)
         """
         cache_key = f"{source}->{destination}"
-        now = datetime.now()
         
         # Check cache validity
-        if cache_key in self.path_cache:
-            cache_age = (now - self.cache_timestamp.get(cache_key, datetime.min)).total_seconds()
-            if cache_age < self.cache_ttl:
-                logger.debug(f"Cache hit for {cache_key} (age: {cache_age:.1f}s)")
-                # Export cache hit metric
-                try:
-                    from src.monitoring.metrics import record_k_disjoint_cache_hit
-                    record_k_disjoint_cache_hit(self.local_node_id)
-                except ImportError:
-                    pass
+        if cache_key in self.path_cache and cache_key in self.cache_timestamp:
+            age = (datetime.now() - self.cache_timestamp[cache_key]).total_seconds()
+            if age < self.cache_ttl:
+                # Record cache hit
+                self._stats.record_cache_hit()
                 return self.path_cache[cache_key]
         
-        # Compute new paths
-        paths = self.compute_k_disjoint_paths(source, destination, k=self.k_disjoint)
+        # Cache miss - compute paths
+        self._stats.record_cache_miss()
+        paths = self.compute_k_disjoint_paths(source, destination, self.k_disjoint)
         
         # Update cache
         self.path_cache[cache_key] = paths
-        self.cache_timestamp[cache_key] = now
+        self.cache_timestamp[cache_key] = datetime.now()
         
-        # Export metrics
-        try:
-            from src.monitoring.metrics import (
-                set_k_disjoint_paths_count,
-                record_k_disjoint_cache_miss
-            )
-            set_k_disjoint_paths_count(self.local_node_id, destination, len(paths))
-            record_k_disjoint_cache_miss(self.local_node_id)
-        except ImportError:
-            pass  # Metrics optional
+        # Update cache size in stats
+        self._stats.update_cache_size(len(self.path_cache))
         
         return paths
     
@@ -438,6 +429,8 @@ class MeshTopology:
             # If no common edges, this is a valid failover path
             if not failed_edges.intersection(path_edges):
                 logger.info(f"Found failover path for {destination}: {path}")
+                # Record failover event
+                self._stats.record_failover()
                 return path
         
         logger.warning(f"No failover path available for {destination}")
@@ -492,18 +485,27 @@ class MeshTopology:
     
     def get_topology_stats(self) -> Dict:
         """Get current topology statistics"""
+        # Update thread-safe stats
+        self._stats.update_topology_counts(len(self.nodes), len(self.links))
+        
+        # Get base stats from thread-safe collector
+        stats = self._stats.get_stats()
+        
+        # Add computed topology metrics
         good_links = sum(1 for link in self.links.values() 
                         if link.quality.value >= LinkQuality.GOOD.value)
         avg_latency = sum(link.latency_ms for link in self.links.values()) / (len(self.links) or 1)
         
-        return {
-            "total_nodes": len(self.nodes),
-            "online_nodes": sum(1 for n in self.nodes.values() if n.state == NodeState.ONLINE),
-            "total_links": len(self.links),
-            "good_links": good_links,
-            "avg_latency_ms": avg_latency,
-            "mesh_diameter": self._compute_diameter(),
-        }
+        stats.update({
+            'mesh_id': self.mesh_id,
+            'local_node_id': self.local_node_id,
+            'good_links': good_links,
+            'avg_latency_ms': avg_latency,
+            'k_disjoint': self.k_disjoint,
+            'cache_ttl': self.cache_ttl
+        })
+        
+        return stats
     
     def _compute_diameter(self) -> int:
         """Compute mesh diameter (longest shortest path)"""
@@ -514,4 +516,4 @@ class MeshTopology:
                     path = self.compute_shortest_path(source, dest)
                     if path:
                         max_distance = max(max_distance, len(path) - 1)
-        return max_distance
+

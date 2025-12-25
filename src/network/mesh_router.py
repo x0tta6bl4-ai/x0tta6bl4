@@ -16,6 +16,7 @@ import time
 import hashlib
 from dataclasses import dataclass
 from typing import List, Optional, Dict
+from ..core.thread_safe_stats import MeshRouterStats
 
 try:
     from .pqc_tunnel import PQCTunnelManager, PQC_AVAILABLE
@@ -75,6 +76,9 @@ class MeshRouter:
         self.routes_cache: Dict[str, List[MeshPeer]] = {}
         self._running = False
         
+        # Thread-safe statistics
+        self._stats = MeshRouterStats(node_id)
+        
         # Initialize PQC tunnel manager
         if PQCTunnelManager:
             self.pqc = PQCTunnelManager(node_id)
@@ -124,13 +128,20 @@ class MeshRouter:
                     if latency >= 0:
                         peer.latency = latency
                         peer.last_seen = time.time()
+                        # Update peer latency in stats
+                        self._stats.update_peer_latency(peer_id, latency)
                         # Notify MeshShield of successful beacon
                         if self.shield:
                             self.shield.receive_beacon(peer_id, latency * 1000)  # Convert to ms
+                        # Record successful health check
+                        self._stats.record_connection_established()
                     else:
                         logger.warning(f"Peer {peer_id} unreachable")
+                        # Record failed health check
+                        self._stats.record_connection_failed()
                 except Exception as e:
                     logger.debug(f"Health check failed for {peer_id}: {e}")
+                    self._stats.record_connection_failed()
             
             await asyncio.sleep(5)  # Check every 5 seconds (faster for self-healing)
     
@@ -212,6 +223,9 @@ class MeshRouter:
         route_key = hashlib.md5(destination.encode()).hexdigest()[:8]
         self.routes_cache[route_key] = route
         
+        # Record route selection
+        self._stats.record_packet_routed()
+        
         return route
     
     def get_best_exit(self) -> Optional[MeshPeer]:
@@ -230,12 +244,17 @@ class MeshRouter:
     
     def get_stats(self) -> dict:
         """Get router statistics."""
+        # Update thread-safe stats
         alive = sum(1 for p in self.peers.values() if p.is_alive())
-        stats = {
+        self._stats.update_peer_count(len(self.peers), alive)
+        self._stats.update_route_cache(len(self.routes_cache))
+        
+        # Get base stats from thread-safe collector
+        stats = self._stats.get_stats()
+        
+        # Add static info and peer details
+        stats.update({
             'node_id': self.node_id,
-            'total_peers': len(self.peers),
-            'alive_peers': alive,
-            'routes_cached': len(self.routes_cache),
             'pqc_enabled': self.pqc is not None,
             'shield_enabled': self.shield is not None,
             'peers': [
@@ -247,7 +266,7 @@ class MeshRouter:
                 }
                 for p in self.peers.values()
             ]
-        }
+        })
         
         # Add shield metrics if available
         if self.shield:
