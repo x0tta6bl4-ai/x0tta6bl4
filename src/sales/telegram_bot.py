@@ -575,6 +575,164 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════════
+# MESH NODE COMMANDS (Scenario 2)
+# ═══════════════════════════════════════════════════════════════
+
+async def cmd_launch(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /launch command - запустить узел."""
+    user_id = update.message.from_user.id
+    
+    try:
+        from src.services.node_manager_service import get_node_manager
+        
+        node_manager = await get_node_manager()
+        result = await node_manager.launch_node(user_id)
+        
+        if result.get("success"):
+            response = f"""
+🚀 *Узел запущен!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ *Node ID:* `{result['node_id']}`
+🔌 *Port:* `{result['port']}`
+👥 *Peers:* {result['peers_count']}
+📊 *Status:* {result['status']}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Используй `/status` для проверки сети
+Используй `/close` для закрытия соединения
+"""
+        else:
+            response = f"❌ *Ошибка:* {result.get('error', 'Неизвестная ошибка')}"
+        
+        await update.message.reply_text(
+            response,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Error in /launch: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при запуске узла: {str(e)}"
+        )
+
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /status command - получить статус сети."""
+    user_id = update.message.from_user.id
+    
+    try:
+        from src.services.node_manager_service import get_node_manager
+        
+        node_manager = await get_node_manager()
+        result = await node_manager.get_network_status(user_id)
+        
+        if result.get("success"):
+            peers = result.get("peers", {})
+            routes = result.get("routes", {})
+            connections = result.get("connections", {})
+            
+            response = f"""
+📊 *Статус сети*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆔 *Node ID:* `{result['node_id']}`
+🔌 *Port:* {result['port']}
+🟢 *Running:* {'Да' if result['running'] else 'Нет'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👥 *Peers:*
+• Всего: {peers.get('count', 0)}
+• Список: {', '.join(peers.get('list', [])[:5]) or 'нет'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛣️ *Routes:*
+• Всего: {routes.get('count', 0)}
+• Destinations: {', '.join(routes.get('destinations', [])[:5]) or 'нет'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 *Connections:*
+• Активных: {connections.get('active', 0)}
+• Всего: {connections.get('total', 0)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Используй `/close` для закрытия соединения
+"""
+        else:
+            response = f"❌ *{result.get('error', 'Неизвестная ошибка')}*\n\nИспользуй `/launch` для запуска узла"
+        
+        await update.message.reply_text(
+            response,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Error in /status: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении статуса: {str(e)}"
+        )
+
+
+async def cmd_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /close command - закрыть соединение (Tor-like)."""
+    user_id = update.message.from_user.id
+    
+    # Проверяем, есть ли аргумент (connection_id)
+    args = context.args
+    connection_id = args[0] if args else None
+    
+    try:
+        from src.services.node_manager_service import get_node_manager
+        
+        node_manager = await get_node_manager()
+        result = await node_manager.close_connection(user_id, connection_id)
+        
+        if result.get("success"):
+            closed = result.get("closed", [])
+            count = result.get("count", 0)
+            
+            if connection_id:
+                response = f"""
+✅ *Соединение закрыто*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 *Connection ID:* `{connection_id}`
+📊 *Закрыто:* {count} соединение(й)
+"""
+            else:
+                response = f"""
+✅ *Все соединения закрыты*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 *Закрыто:* {count} соединение(й)
+🔗 *IDs:* {', '.join(closed[:5]) or 'нет'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Используй `/status` для проверки сети
+"""
+        else:
+            response = f"❌ *{result.get('error', 'Неизвестная ошибка')}*"
+        
+        await update.message.reply_text(
+            response,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Error in /close: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при закрытии соединения: {str(e)}"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
@@ -598,6 +756,9 @@ def main():
     
     # Commands
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("launch", cmd_launch))
+    app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("close", cmd_close))
     
     # Callbacks
     app.add_handler(CallbackQueryHandler(show_prices, pattern="^show_prices$"))

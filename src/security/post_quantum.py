@@ -2,21 +2,38 @@
 Post-Quantum Cryptography Module.
 Квантово-устойчивые криптографические примитивы.
 
-Implements:
-- NTRU-like Key Encapsulation
-- Lattice-based signatures (simplified)
-- Hybrid classical + PQ encryption
-- Quantum-safe key exchange
+⚠️ DEPRECATED: SimplifiedNTRU небезопасен! Используйте post_quantum_liboqs.py
+
+Этот модуль содержит устаревшую mock реализацию для обратной совместимости.
+Для production используйте:
+- src/security/post_quantum_liboqs.py (реальная PQC на liboqs)
+- LibOQSBackend, HybridPQEncryption, PQMeshSecurityLibOQS
+
+Implements (DEPRECATED):
+- SimplifiedNTRU (⚠️ INSECURE - только для тестов)
+- HybridEncryption (использует SimplifiedNTRU)
+- QuantumSafeKeyExchange (использует SimplifiedNTRU)
 """
 import hashlib
 import secrets
 import logging
+import os
 from typing import Tuple, Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 import struct
 
 logger = logging.getLogger(__name__)
+
+# 🔴 PRODUCTION GUARD: Запретить SimplifiedNTRU в production
+PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+ALLOW_MOCK_PQC = os.getenv("X0TTA6BL4_ALLOW_MOCK_PQC", "false").lower() == "true"
+
+if PRODUCTION_MODE and not ALLOW_MOCK_PQC:
+    logger.critical(
+        "🔴 PRODUCTION MODE: SimplifiedNTRU запрещён! "
+        "Используйте LibOQSBackend из post_quantum_liboqs.py"
+    )
 
 
 class PQAlgorithm(Enum):
@@ -61,11 +78,41 @@ class SimplifiedNTRU:
     """
     Упрощённая NTRU-подобная реализация.
     
-    ВНИМАНИЕ: Это демонстрационная реализация.
-    Для продакшена использовать проверенные библиотеки (liboqs).
+    ⚠️ DEPRECATED / INSECURE ⚠️
+    
+    ВНИМАНИЕ: Эта реализация НЕ безопасна и НЕ обеспечивает post-quantum защиту!
+    Это просто XOR + хэши, которые легко взламываются.
+    
+    🔴 НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION!
+    
+    Для production используйте:
+    - src/security/post_quantum_liboqs.py (реальная PQC на liboqs)
+    - LibOQSBackend с Kyber/Dilithium
+    
+    Эта реализация оставлена только для:
+    - Обратной совместимости
+    - Unit тестов (где не нужна реальная безопасность)
+    - Демонстрации архитектуры
+    
+    См. AUDIT_PQC.md для детального анализа уязвимостей.
     """
     
     def __init__(self, params: NTRUParameters = None):
+        # 🔴 PRODUCTION GUARD: Запретить в production
+        if PRODUCTION_MODE and not ALLOW_MOCK_PQC:
+            raise RuntimeError(
+                "🔴 SimplifiedNTRU ЗАПРЕЩЁН В PRODUCTION!\n"
+                "Эта реализация небезопасна (XOR + хэши, не настоящая PQC).\n"
+                "Используйте LibOQSBackend из src/security/post_quantum_liboqs.py\n"
+                "Для тестов установите X0TTA6BL4_ALLOW_MOCK_PQC=true"
+            )
+        
+        if PRODUCTION_MODE:
+            logger.warning(
+                "⚠️ SimplifiedNTRU используется в production с ALLOW_MOCK_PQC=true. "
+                "Это НЕБЕЗОПАСНО! Используйте только для тестирования."
+            )
+        
         self.params = params or NTRUParameters()
     
     def generate_keypair(self) -> PQKeyPair:
@@ -156,13 +203,25 @@ class HybridEncryption:
     """
     Hybrid Classical + Post-Quantum Encryption.
     
+    ⚠️ DEPRECATED: Использует SimplifiedNTRU (небезопасно!)
+    
+    Для production используйте:
+    - HybridPQEncryption из post_quantum_liboqs.py
+    
     Комбинирует классическое шифрование (для текущей безопасности)
     с post-quantum (для защиты от будущих квантовых атак).
     
-    Безопасность = MAX(classical, post-quantum)
+    ⚠️ ВНИМАНИЕ: Текущая реализация НЕ безопасна, т.к. использует SimplifiedNTRU.
     """
     
     def __init__(self):
+        import warnings
+        warnings.warn(
+            "HybridEncryption использует SimplifiedNTRU (небезопасно!). "
+            "Используйте HybridPQEncryption из post_quantum_liboqs.py",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.pq = SimplifiedNTRU()
     
     def generate_hybrid_keypair(self) -> Dict[str, Any]:

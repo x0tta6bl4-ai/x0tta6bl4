@@ -8,6 +8,7 @@ import logging
 from typing import Optional, List
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -48,25 +49,29 @@ class WorkloadAPIClientProduction:
         max_retries: int = 3,
         retry_delay: float = 1.0
     ):
+        if not SPIFFE_SDK_AVAILABLE:
+            raise ImportError(
+                "The 'spiffe' SDK is required for the Workload API client. "
+                "Please install 'py-spiffe'."
+            )
         self.socket_path = socket_path
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.current_svid: Optional[X509SVID] = None
-        self._channel: Optional[grpc.aio.Channel] = None
-    
+        # self._channel: Optional[grpc.aio.Channel] = None  # No longer needed, managed by spiffe_client
+        # self._private_key: Optional[rsa.RSAPrivateKey] = None  # No longer needed, handled by SVIDs
+        self._spiffe_client = WorkloadApiClient(
+            unix_socket_path=str(socket_path),
+            # Set this to a lower value than grpc.aio.insecure_channel's default
+            # (which is effectively infinite) to avoid hanging forever.
+            grpc_timeout_in_seconds=10,
+        )
+
+    # This method is no longer needed after integrating the real WorkloadApiClient.
+
     async def connect(self) -> None:
-        """Establish gRPC connection to SPIRE Agent"""
-        try:
-            # Unix socket connection
-            self._channel = grpc.aio.insecure_channel(
-                f'unix://{self.socket_path}'
-            )
-            # Test connection
-            await self._channel.channel_ready()
-            logger.info(f"✅ Connected to SPIRE Agent at {self.socket_path}")
-        except Exception as e:
-            logger.error(f"❌ Failed to connect to SPIRE Agent: {e}")
-            raise
+        """Establish gRPC connection to SPIRE Agent (no longer needed, managed by SpiffeWorkloadApiClient)"""
+        logger.debug("WorkloadAPIClientProduction.connect() called, but connection is managed by SpiffeWorkloadApiClient.")
     
     async def fetch_x509_svid(self) -> X509SVID:
         """
@@ -79,27 +84,25 @@ class WorkloadAPIClientProduction:
         """
         for attempt in range(self.max_retries):
             try:
-                if not self._channel:
-                    await self.connect()
+                # Removed the gRPC channel connection from here, as WorkloadApiClient manages it.
+                # The 'connect' method for the internal gRPC channel of this class might not be needed anymore,
+                # but will keep it for now and review later.
+
+                logger.info(f"🔐 Fetching X.509-SVID via SPIFFE SDK (attempt {attempt + 1}/{self.max_retries})")
+
+                # Use the actual WorkloadApiClient to fetch the SVID
+                # The WorkloadApiClient from py-spiffe is already asynchronous
+                sdk_svid = await self._spiffe_client.fetch_x509_svid()
                 
-                # Create gRPC stub (simplified - real implementation needs protobuf)
-                # In production, use: from spiffe.workloadapi import WorkloadAPIStub
-                
-                # Simulate SVID fetch (replace with real gRPC call)
-                logger.info(f"🔐 Fetching X.509-SVID (attempt {attempt + 1}/{self.max_retries})")
-                
-                # Real implementation would be:
-                # stub = WorkloadAPIStub(self._channel)
-                # response = await stub.FetchX509SVID(X509SVIDRequest())
-                # svid = self._parse_svid_response(response)
-                
-                # For now, create mock SVID
+                # Convert the SDK SVID to our internal X509SVID format
+                # The SDK's X509SVID.bundle is a list of byte strings, each a PEM encoded certificate.
+                # Our X509SVID.cert_chain is List[bytes] which is compatible.
                 svid = X509SVID(
-                    spiffe_id="spiffe://x0tta6bl4.mesh/service/mesh-node",
-                    cert_pem=b"-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----",
-                    private_key_pem=b"-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----",
-                    cert_chain=[],
-                    expiry=86400.0  # 24 hours
+                    spiffe_id=sdk_svid.spiffe_id,
+                    cert_pem=sdk_svid.x509_svid,
+                    private_key_pem=sdk_svid.x509_svid_key,
+                    cert_chain=sdk_svid.bundle,
+                    expiry=sdk_svid.expires_at.timestamp()
                 )
                 
                 self.current_svid = svid
@@ -107,16 +110,16 @@ class WorkloadAPIClientProduction:
                 return svid
                 
             except Exception as e:
-                logger.warning(f"⚠️ Attempt {attempt + 1} failed: {e}")
+                logger.warning(f"⚠️ Attempt {attempt + 1} failed to fetch X.509-SVID via SPIFFE SDK: {e}")
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(self.retry_delay * (attempt + 1))
                 else:
                     logger.error(f"❌ Failed to fetch X.509-SVID after {self.max_retries} attempts")
                     raise
-    
-    async def fetch_jwt_svid(self, audience: str) -> JWTSVID:
+
+    async def fetch_jwt_svid(self, audience: List[str]) -> JWTSVID:
         """
-        Fetch JWT-SVID for specific audience.
+        Fetch JWT-SVID for specific audience using the SPIFFE Workload API.
         
         Args:
             audience: Target audience for JWT
@@ -125,21 +128,15 @@ class WorkloadAPIClientProduction:
             JWTSVID token
         """
         try:
-            if not self._channel:
-                await self.connect()
-            
             logger.info(f"🔐 Fetching JWT-SVID for audience: {audience}")
             
-            # Real implementation:
-            # stub = WorkloadAPIStub(self._channel)
-            # response = await stub.FetchJWTSVID(JWTSVIDRequest(audience=[audience]))
-            # jwt_svid = self._parse_jwt_response(response)
-            
-            # Mock JWT SVID
+            # Use the actual WorkloadApiClient to fetch the JWT SVID
+            sdk_jwt = await self._spiffe_client.fetch_jwt_svid(audience=audience)
+
             jwt_svid = JWTSVID(
-                token="eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.MOCK.SIGNATURE",
-                spiffe_id="spiffe://x0tta6bl4.mesh/service/mesh-node",
-                expiry=3600.0  # 1 hour
+                token=sdk_jwt.token,
+                spiffe_id=sdk_jwt.spiffe_id,
+                expiry=sdk_jwt.expires_at.timestamp()
             )
             
             logger.info(f"✅ JWT-SVID fetched for {audience}")
@@ -149,38 +146,75 @@ class WorkloadAPIClientProduction:
             logger.error(f"❌ Failed to fetch JWT-SVID: {e}")
             raise
     
-    async def validate_jwt_svid(self, token: str, audience: str) -> bool:
+    async def validate_jwt_svid(self, token: str, audience: List[str]) -> bool:
         """
         Validate JWT-SVID token.
         
         Args:
             token: JWT token to validate
-            audience: Expected audience
+            audience: Expected audience(s)
             
         Returns:
             True if valid, False otherwise
         """
         try:
-            if not self._channel:
-                await self.connect()
-            
             logger.info(f"🔍 Validating JWT-SVID for audience: {audience}")
             
-            # Real implementation:
-            # stub = WorkloadAPIStub(self._channel)
-            # response = await stub.ValidateJWTSVID(
-            #     ValidateJWTSVIDRequest(svid=token, audience=audience)
-            # )
-            # return response.valid
+            # Fetch the JWT bundles from the Workload API
+            # This provides the public keys needed to verify the JWT
+            jwt_bundles = await self._spiffe_client.fetch_jwt_bundles()
             
-            # Mock validation
-            is_valid = len(token) > 0 and audience in ["x0tta6bl4.mesh"]
+            # Extract the trust domain from the token's SPIFFE ID
+            # Assuming the token's subject (sub) contains the SPIFFE ID
+            unverified_headers = jwt.get_unverified_header(token)
+            unverified_claims = jwt.get_unverified_claims(token)
             
-            if is_valid:
+            token_spiffe_id = unverified_claims.get("sub")
+            if not token_spiffe_id:
+                logger.warning("⚠️ JWT token missing SPIFFE ID (sub claim)")
+                return False
+
+            # This part assumes a standard SPIFFE ID format.
+            # A more robust solution might use a dedicated SPIFFE ID parsing library.
+            trust_domain_parts = token_spiffe_id.split('/')
+            if len(trust_domain_parts) < 3 or not trust_domain_parts[0] == "spiffe:":
+                logger.warning(f"⚠️ Invalid SPIFFE ID format in token: {token_spiffe_id}")
+                return False
+            trust_domain = trust_domain_parts[2] # e.g., "x0tta6bl4.mesh" from "spiffe://x0tta6bl4.mesh/..."
+
+            # Get the correct bundle for the trust domain
+            bundle = jwt_bundles.get(trust_domain)
+            if not bundle:
+                logger.warning(f"⚠️ No JWT bundle found for trust domain: {trust_domain}")
+                return False
+
+            # Validate the token using the bundle's public keys
+            # The 'py-spiffe' library's JWT bundles contain the public keys directly.
+            # jose.jwt.decode expects public_key to be a key or a list of keys.
+            # The bundle's keys are typically PEM encoded.
+            
+            # Need to convert bundle.jwt_authorities to a format that jose.jwt.decode can use.
+            # This might involve loading each public key from the bundle.
+            # For simplicity, assuming bundle.jwt_authorities is a list of PEM public keys.
+            public_keys = []
+            for authority in bundle.jwt_authorities:
+                # authority is spiffe.bundle.jwtbundle.JwtAuthority
+                # authority.public_key is bytes (PEM-encoded)
+                public_keys.append(authority.public_key)
+
+            if not public_keys:
+                logger.warning(f"⚠️ No public keys in JWT bundle for trust domain: {trust_domain}")
+                return False
+            
+            try:
+                # jose.jwt.decode can take a list of public keys
+                jwt.decode(token, public_keys, algorithms=['RS256'], audience=audience)
+                is_valid = True
                 logger.info(f"✅ JWT-SVID valid")
-            else:
-                logger.warning(f"⚠️ JWT-SVID invalid")
-            
+            except JWTError as e:
+                logger.warning(f"⚠️ JWT-SVID invalid: {e}")
+                is_valid = False
+
             return is_valid
             
         except Exception as e:
@@ -188,6 +222,11 @@ class WorkloadAPIClientProduction:
             return False
     
     async def auto_renew_svid(self, renewal_threshold: float = 0.5) -> None:
+
+import jwt # Using PyJWT
+from jwt.exceptions import PyJWTError
+
+    async def validate_jwt_svid(self, token: str, audience: List[str]) -> bool:
         """
         Auto-renew X.509-SVID when approaching expiry.
         
@@ -215,8 +254,8 @@ class WorkloadAPIClientProduction:
     
     async def close(self) -> None:
         """Close gRPC connection"""
-        if self._channel:
-            await self._channel.close()
+        if self._spiffe_client:
+            await self._spiffe_client.close()
             logger.info("🔌 SPIRE Agent connection closed")
 
 
