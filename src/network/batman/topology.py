@@ -388,7 +388,9 @@ class MeshTopology:
                 return self.path_cache[cache_key]
         
         # Cache miss - compute paths
-        self._stats.record_cache_miss()
+        # Note: MeshTopologyStats doesn't have record_cache_miss, only record_cache_hit
+        # We can track cache misses via path_computation instead
+        self._stats.record_path_computation()
         paths = self.compute_k_disjoint_paths(source, destination, self.k_disjoint)
         
         # Update cache
@@ -483,6 +485,23 @@ class MeshTopology:
         
         return len(dead_nodes)
     
+    def _compute_diameter(self) -> int:
+        """Compute mesh diameter (longest shortest path)"""
+        if len(self.nodes) < 2:
+            return 0
+        
+        max_distance = 0
+        for source in self.nodes:
+            for dest in self.nodes:
+                if source != dest:
+                    path = self.compute_shortest_path(source, dest)
+                    if path and len(path) > 1:
+                        # Distance is number of edges, not nodes
+                        distance = len(path) - 1
+                        max_distance = max(max_distance, distance)
+        
+        return max_distance
+    
     def get_topology_stats(self) -> Dict:
         """Get current topology statistics"""
         # Update thread-safe stats
@@ -491,29 +510,52 @@ class MeshTopology:
         # Get base stats from thread-safe collector
         stats = self._stats.get_stats()
         
+        # Extract values from nested structure
+        total_nodes = stats.get('gauges', {}).get('total_nodes', len(self.nodes))
+        total_links = stats.get('gauges', {}).get('total_links', len(self.links))
+        
         # Add computed topology metrics
         good_links = sum(1 for link in self.links.values() 
                         if link.quality.value >= LinkQuality.GOOD.value)
         avg_latency = sum(link.latency_ms for link in self.links.values()) / (len(self.links) or 1)
         
-        stats.update({
+        # Compute diameter
+        try:
+            mesh_diameter = self._compute_diameter()
+        except Exception:
+            mesh_diameter = 0
+        
+        # Flatten stats for easier access
+        flat_stats = {
             'mesh_id': self.mesh_id,
             'local_node_id': self.local_node_id,
+            'total_nodes': int(total_nodes),
+            'total_links': int(total_links),
             'good_links': good_links,
             'avg_latency_ms': avg_latency,
             'k_disjoint': self.k_disjoint,
-            'cache_ttl': self.cache_ttl
-        })
+            'cache_ttl': self.cache_ttl,
+            'mesh_diameter': mesh_diameter
+        }
         
-        return stats
+        # Merge with nested stats for backward compatibility
+        flat_stats.update(stats)
+        
+        return flat_stats
     
     def _compute_diameter(self) -> int:
         """Compute mesh diameter (longest shortest path)"""
+        if len(self.nodes) < 2:
+            return 0
+        
         max_distance = 0
         for source in self.nodes:
             for dest in self.nodes:
                 if source != dest:
                     path = self.compute_shortest_path(source, dest)
-                    if path:
-                        max_distance = max(max_distance, len(path) - 1)
-
+                    if path and len(path) > 1:
+                        # Distance is number of edges, not nodes
+                        distance = len(path) - 1
+                        max_distance = max(max_distance, distance)
+        
+        return max_distance

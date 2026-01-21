@@ -1,45 +1,17 @@
 apiVersion: v2
 name: x0tta6bl4
-description: Self-healing mesh network with PQ crypto, DAO governance & AI
+description: Self-healing mesh network with post-quantum cryptography
 type: application
-version: 3.0.0
-appVersion: "3.0.0"
-
+version: 3.4.0
+appVersion: "3.4.0"
 keywords:
-  - mesh-networking
+  - mesh
+  - networking
   - post-quantum
-  - dao
-  - graphsage
-  - zero-trust
+  - cryptography
   - self-healing
-
-home: https://github.com/x0tta6bl4/mesh-core
-icon: https://raw.githubusercontent.com/x0tta6bl4/mesh-core/main/docs/logo.png
-
-maintainers:
-  - name: x0tta6bl4-team
-    email: team@x0tta6bl4.io
-    url: https://github.com/x0tta6bl4
-
+home: https://github.com/x0tta6bl4/x0tta6bl4
 sources:
-  - https://github.com/x0tta6bl4/mesh-core
-  - https://github.com/x0tta6bl4/graphsage-models
-
-annotations:
-  artifacthub.io/license: Apache-2.0
-  artifacthub.io/signKey: |
-    fingerprint: TODO
-    url: https://x0tta6bl4.io/pgp-key.asc
-
-# dependencies:
-#   - name: prometheus
-#     version: "25.8.0"
-#     repository: https://prometheus-community.github.io/helm-charts
-#     condition: monitoring.prometheus.enabled
-#     alias: prometheus
-#   
-#   - name: grafana
-#     version: "7.0.0"
-#     repository: https://grafana.github.io/helm-charts
-#     condition: monitoring.grafana.enabled
-#     alias: grafana
+  - https://github.com/x0tta6bl4/x0tta6bl4
+maintainers:
+  - name: x0tta6bl4 Team

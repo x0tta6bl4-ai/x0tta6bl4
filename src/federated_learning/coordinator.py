@@ -145,6 +145,11 @@ class CoordinatorConfig:
     aggregation_method: str = "krum"
     byzantine_tolerance: int = 1
     
+    # Privacy
+    enable_privacy: bool = True
+    privacy_epsilon: float = 1.0
+    privacy_delta: float = 1e-5
+    
     # Node management
     heartbeat_interval: float = 10.0
     heartbeat_timeout: float = 30.0
@@ -184,16 +189,35 @@ class FederatedCoordinator:
         self.round_history: List[TrainingRound] = []
         self.global_model: Optional[GlobalModel] = None
         
-        # Aggregator - only pass f for Krum
-        if self.config.aggregation_method == "krum":
-            self.aggregator: Aggregator = get_aggregator(
-                self.config.aggregation_method,
-                f=self.config.byzantine_tolerance
-            )
-        else:
-            self.aggregator: Aggregator = get_aggregator(
-                self.config.aggregation_method
-            )
+        # Aggregator - use enhanced if available
+        try:
+            from .aggregators_enhanced import get_enhanced_aggregator, EnhancedAggregator
+            # Try enhanced aggregators first
+            if self.config.aggregation_method in ["enhanced_fedavg", "adaptive"]:
+                self.aggregator: Aggregator = get_enhanced_aggregator(
+                    self.config.aggregation_method
+                )
+            elif self.config.aggregation_method == "krum":
+                self.aggregator: Aggregator = get_aggregator(
+                    self.config.aggregation_method,
+                    f=self.config.byzantine_tolerance
+                )
+            else:
+                # Use enhanced wrapper for standard aggregators
+                self.aggregator: Aggregator = get_aggregator(
+                    self.config.aggregation_method
+                )
+        except ImportError:
+            # Fallback to standard aggregators
+            if self.config.aggregation_method == "krum":
+                self.aggregator: Aggregator = get_aggregator(
+                    self.config.aggregation_method,
+                    f=self.config.byzantine_tolerance
+                )
+            else:
+                self.aggregator: Aggregator = get_aggregator(
+                    self.config.aggregation_method
+                )
         
         # Callbacks
         self._on_round_complete: List[Callable] = []

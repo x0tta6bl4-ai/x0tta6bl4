@@ -1,418 +1,756 @@
-"""Prometheus metrics exporter for x0tta6bl4 mesh.
+"""
+Prometheus метрики для x0tta6bl4
 
-Exports key metrics:
-- mesh_peers_count: Number of connected mesh peers
-- mesh_latency_seconds: Latency to mesh peers (histogram)
-- mape_k_cycle_duration_seconds: MAPE-K self-healing loop duration
-- http_requests_total: HTTP request counter
-- http_request_duration_seconds: HTTP request duration histogram
+Полный набор метрик для мониторинга всех компонентов системы:
+- MAPE-K цикл
+- ML компоненты (GraphSAGE, RAG)
+- Distributed Ledger
+- Consensus
+- Security (SPIFFE/SPIRE, mTLS)
+- Federated Learning
+- DAO Governance
 """
 
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from fastapi import Response
-import time
-from typing import Optional
+from prometheus_client import Counter, Gauge, Histogram, Summary
+from typing import Dict, Any
+import prometheus_client
 
-# HTTP metrics
-http_requests_total = Counter(
-    "http_requests_total",
-    "Total HTTP requests",
-    ["method", "endpoint", "status"],
-)
 
-http_request_duration_seconds = Histogram(
-    "http_request_duration_seconds",
-    "HTTP request duration in seconds",
-    ["method", "endpoint"],
-)
+# Создаем собственный реестр для избежания конфликтов
+_metrics_registry = prometheus_client.CollectorRegistry()
 
-# Mesh metrics
-mesh_peers_count = Gauge(
-    "mesh_peers_count",
-    "Number of connected mesh peers",
-    ["node_id"],
-)
 
-mesh_latency_seconds = Histogram(
-    "mesh_latency_seconds",
-    "Latency to mesh peers in seconds",
-    ["node_id", "peer_id"],
-    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
-)
+class MetricsRegistry:
+    """Реестр всех метрик приложения"""
+    
+    # ============================================================================
+    # HTTP API метрики
+    # ============================================================================
+    
+    request_count = Counter(
+        'x0tta6bl4_requests_total',
+        'Всего HTTP запросов',
+        ['method', 'endpoint', 'status'],
+        registry=_metrics_registry
+    )
+    
+    request_duration = Histogram(
+        'x0tta6bl4_request_duration_seconds',
+        'Задержка HTTP запроса в секундах',
+        ['method', 'endpoint'],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # MAPE-K Цикл метрики
+    # ============================================================================
+    
+    mapek_cycle_duration = Histogram(
+        'x0tta6bl4_mapek_cycle_duration_seconds',
+        'Длительность одного MAPE-K цикла в секундах',
+        ['phase'],  # monitor, analyze, plan, execute
+        buckets=(0.01, 0.05, 0.1, 0.2, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    mapek_cycles_total = Counter(
+        'x0tta6bl4_mapek_cycles_total',
+        'Всего выполненных MAPE-K циклов',
+        ['status'],  # success, failed, partial
+        registry=_metrics_registry
+    )
+    
+    mapek_anomalies_detected = Counter(
+        'x0tta6bl4_mapek_anomalies_detected_total',
+        'Всего обнаруженных аномалий',
+        ['anomaly_type', 'severity'],  # cpu_usage, memory_usage, latency, packet_loss...
+        registry=_metrics_registry
+    )
+    
+    mapek_recovery_actions = Counter(
+        'x0tta6bl4_mapek_recovery_actions_total',
+        'Всего выполненных действий восстановления',
+        ['action_type', 'status'],  # restart, scale, isolate...
+        registry=_metrics_registry
+    )
+    
+    mapek_knowledge_base_size = Gauge(
+        'x0tta6bl4_mapek_knowledge_base_size_entries',
+        'Размер knowledge base в записях',
+        registry=_metrics_registry
+    )
+    
+    mapek_metrics_cache_size = Gauge(
+        'x0tta6bl4_mapek_metrics_cache_size_bytes',
+        'Размер кэша метрик в байтах',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # GraphSAGE ML метрики
+    # ============================================================================
+    
+    graphsage_inference_duration = Histogram(
+        'x0tta6bl4_graphsage_inference_duration_seconds',
+        'Длительность GraphSAGE инференса в секундах',
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    graphsage_predictions_total = Counter(
+        'x0tta6bl4_graphsage_predictions_total',
+        'Всего предсказаний от GraphSAGE',
+        ['prediction_type'],  # anomaly, normal, suspicious
+        registry=_metrics_registry
+    )
+    
+    graphsage_anomaly_score = Gauge(
+        'x0tta6bl4_graphsage_anomaly_score',
+        'Текущий score аномалии от GraphSAGE',
+        ['node_id'],
+        registry=_metrics_registry
+    )
+    
+    graphsage_model_accuracy = Gauge(
+        'x0tta6bl4_graphsage_model_accuracy',
+        'Точность модели GraphSAGE на валидационном наборе',
+        registry=_metrics_registry
+    )
+    
+    graphsage_training_duration = Histogram(
+        'x0tta6bl4_graphsage_training_duration_seconds',
+        'Длительность обучения GraphSAGE в секундах',
+        buckets=(1.0, 5.0, 10.0, 30.0, 60.0),
+        registry=_metrics_registry
+    )
+    
+    graphsage_training_loss = Gauge(
+        'x0tta6bl4_graphsage_training_loss',
+        'Последняя loss из обучения GraphSAGE',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # RAG метрики
+    # ============================================================================
+    
+    rag_retrieval_duration = Histogram(
+        'x0tta6bl4_rag_retrieval_duration_seconds',
+        'Длительность RAG retrieval в секундах',
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    rag_retrieval_results = Counter(
+        'x0tta6bl4_rag_retrieval_results_total',
+        'Всего RAG retrieval результатов',
+        ['query_type', 'hit'],  # network_health, anomaly, unknown; hit/miss
+        registry=_metrics_registry
+    )
+    
+    rag_vector_similarity = Gauge(
+        'x0tta6bl4_rag_vector_similarity',
+        'Среднее сходство вектора в RAG retrieval',
+        registry=_metrics_registry
+    )
+    
+    rag_index_size = Gauge(
+        'x0tta6bl4_rag_index_size_vectors',
+        'Размер RAG индекса в векторах',
+        registry=_metrics_registry
+    )
+    
+    rag_generation_duration = Histogram(
+        'x0tta6bl4_rag_generation_duration_seconds',
+        'Длительность генерации RAG в секундах',
+        buckets=(0.1, 0.5, 1.0, 2.0, 5.0),
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Distributed Ledger метрики
+    # ============================================================================
+    
+    ledger_entries_total = Counter(
+        'x0tta6bl4_ledger_entries_total',
+        'Всего записей в distributed ledger',
+        ['entry_type'],  # transaction, state, event
+        registry=_metrics_registry
+    )
+    
+    ledger_chain_length = Gauge(
+        'x0tta6bl4_ledger_chain_length',
+        'Текущая длина цепи ledger',
+        registry=_metrics_registry
+    )
+    
+    ledger_sync_duration = Histogram(
+        'x0tta6bl4_ledger_sync_duration_seconds',
+        'Длительность синхронизации ledger в секундах',
+        buckets=(0.1, 0.5, 1.0, 2.0, 5.0),
+        registry=_metrics_registry
+    )
+    
+    ledger_consistency_failures = Counter(
+        'x0tta6bl4_ledger_consistency_failures_total',
+        'Всего сбоев консистентности ledger',
+        ['failure_type'],  # conflict, timeout, corruption
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # CRDT синхронизация метрики
+    # ============================================================================
+    
+    crdt_sync_operations = Counter(
+        'x0tta6bl4_crdt_sync_operations_total',
+        'Всего операций CRDT синхронизации',
+        ['operation_type', 'status'],  # merge, add, remove; success, conflict
+        registry=_metrics_registry
+    )
+    
+    crdt_sync_duration = Histogram(
+        'x0tta6bl4_crdt_sync_duration_seconds',
+        'Длительность CRDT синхронизации в секундах',
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5),
+        registry=_metrics_registry
+    )
+    
+    crdt_state_size = Gauge(
+        'x0tta6bl4_crdt_state_size_bytes',
+        'Размер CRDT состояния в байтах',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Consensus (Raft) метрики
+    # ============================================================================
+    
+    raft_leader_changes = Counter(
+        'x0tta6bl4_raft_leader_changes_total',
+        'Всего смен лидера Raft',
+        registry=_metrics_registry
+    )
+    
+    raft_log_replication_duration = Histogram(
+        'x0tta6bl4_raft_log_replication_duration_seconds',
+        'Длительность репликации Raft log в секундах',
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5),
+        registry=_metrics_registry
+    )
+    
+    raft_followers_count = Gauge(
+        'x0tta6bl4_raft_followers_count',
+        'Количество активных Raft followers',
+        registry=_metrics_registry
+    )
+    
+    raft_term_gauge = Gauge(
+        'x0tta6bl4_raft_term',
+        'Текущий term в Raft',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Mesh сетевые метрики
+    # ============================================================================
+    
+    mesh_nodes_active = Gauge(
+        'x0tta6bl4_mesh_nodes_active',
+        'Количество активных mesh узлов',
+        registry=_metrics_registry
+    )
+    
+    mesh_connections_total = Counter(
+        'x0tta6bl4_mesh_connections_total',
+        'Всего mesh соединений установлено',
+        ['connection_type'],  # direct, relayed, batman-adv
+        registry=_metrics_registry
+    )
+    
+    mesh_packet_loss_ratio = Gauge(
+        'x0tta6bl4_mesh_packet_loss_ratio',
+        'Коэффициент потери пакетов в mesh',
+        registry=_metrics_registry
+    )
+    
+    mesh_hop_count = Histogram(
+        'x0tta6bl4_mesh_hop_count',
+        'Распределение количества хопов в mesh',
+        registry=_metrics_registry
+    )
+    
+    mesh_bandwidth_bytes = Counter(
+        'x0tta6bl4_mesh_bandwidth_bytes_total',
+        'Всего байтов передано через mesh',
+        ['direction'],  # inbound, outbound
+        registry=_metrics_registry
+    )
+    
+    mesh_latency = Histogram(
+        'x0tta6bl4_mesh_latency_seconds',
+        'Латентность в mesh сети',
+        ['node_id', 'peer_id'],
+        buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    mesh_peers_count = Gauge(
+        'x0tta6bl4_mesh_peers_count',
+        'Количество пиров для узла',
+        ['node_id'],
+        registry=_metrics_registry
+    )
+    
+    node_health_status = Gauge(
+        'x0tta6bl4_node_health_status',
+        'Статус здоровья узла (1=healthy, 0=unhealthy)',
+        ['node_id'],
+        registry=_metrics_registry
+    )
+    
+    node_uptime_seconds = Gauge(
+        'x0tta6bl4_node_uptime_seconds',
+        'Время работы узла в секундах',
+        ['node_id'],
+        registry=_metrics_registry
+    )
+    
+    self_healing_mttr_seconds = Histogram(
+        'x0tta6bl4_self_healing_mttr_seconds',
+        'Mean Time To Recovery для self-healing событий',
+        ['recovery_type'],
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # mTLS / SPIFFE метрики
+    # ============================================================================
+    
+    mtls_certificate_rotations_total = Counter(
+        'x0tta6bl4_mtls_certificate_rotations_total',
+        'Всего ротаций mTLS сертификатов',
+        registry=_metrics_registry
+    )
+    
+    mtls_certificate_expiry_seconds = Gauge(
+        'x0tta6bl4_mtls_certificate_expiry_seconds',
+        'Секунд до истечения текущего mTLS сертификата',
+        registry=_metrics_registry
+    )
+    
+    mtls_certificate_age_seconds = Gauge(
+        'x0tta6bl4_mtls_certificate_age_seconds',
+        'Возраст текущего mTLS сертификата в секундах',
+        registry=_metrics_registry
+    )
+    
+    mtls_validation_failures = Counter(
+        'x0tta6bl4_mtls_validation_failures_total',
+        'Всего сбоев валидации mTLS',
+        ['failure_type'],  # expiry, invalid_signature, revoked
+        registry=_metrics_registry
+    )
+    
+    spiffe_svid_issuance = Counter(
+        'x0tta6bl4_spiffe_svid_issuance_total',
+        'Всего выданных SPIFFE SVIDs',
+        registry=_metrics_registry
+    )
+    
+    spiffe_svid_renewal = Counter(
+        'x0tta6bl4_spiffe_svid_renewal_total',
+        'Всего обновлений SPIFFE SVID',
+        registry=_metrics_registry
+    )
+    
+    spire_server_latency = Histogram(
+        'x0tta6bl4_spire_server_latency_seconds',
+        'Латентность SPIRE server в секундах',
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Federated Learning метрики
+    # ============================================================================
+    
+    fl_round_duration = Histogram(
+        'x0tta6bl4_fl_round_duration_seconds',
+        'Длительность раунда federated learning в секундах',
+        buckets=(1.0, 5.0, 10.0, 30.0, 60.0),
+        registry=_metrics_registry
+    )
+    
+    fl_global_model_loss = Gauge(
+        'x0tta6bl4_fl_global_model_loss',
+        'Loss глобальной модели FL',
+        registry=_metrics_registry
+    )
+    
+    fl_local_updates = Counter(
+        'x0tta6bl4_fl_local_updates_total',
+        'Всего локальных обновлений в FL',
+        ['node_id'],
+        registry=_metrics_registry
+    )
+    
+    fl_communication_bytes = Counter(
+        'x0tta6bl4_fl_communication_bytes_total',
+        'Всего байтов коммуникации в FL',
+        ['direction'],  # upload, download
+        registry=_metrics_registry
+    )
+    
+    fl_participant_count = Gauge(
+        'x0tta6bl4_fl_participant_count',
+        'Количество активных участников FL',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # DAO Governance метрики
+    # ============================================================================
+    
+    dao_proposals_total = Counter(
+        'x0tta6bl4_dao_proposals_total',
+        'Всего DAO предложений',
+        ['status'],  # active, passed, rejected, executed
+        registry=_metrics_registry
+    )
+    
+    dao_voting_power = Gauge(
+        'x0tta6bl4_dao_voting_power_total',
+        'Общая voting power в DAO',
+        registry=_metrics_registry
+    )
+    
+    dao_treasury_balance = Gauge(
+        'x0tta6bl4_dao_treasury_balance',
+        'Баланс DAO казны',
+        registry=_metrics_registry
+    )
+    
+    dao_vote_participation = Gauge(
+        'x0tta6bl4_dao_vote_participation_ratio',
+        'Соотношение участия в голосовании DAO',
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Smart Contract метрики
+    # ============================================================================
+    
+    contract_calls_total = Counter(
+        'x0tta6bl4_contract_calls_total',
+        'Всего вызовов smart contract',
+        ['contract', 'function', 'status'],
+        registry=_metrics_registry
+    )
+    
+    contract_execution_duration = Histogram(
+        'x0tta6bl4_contract_execution_duration_seconds',
+        'Длительность выполнения contract в секундах',
+        ['contract', 'function'],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+        registry=_metrics_registry
+    )
+    
+    contract_gas_used = Histogram(
+        'x0tta6bl4_contract_gas_used',
+        'Количество gas использованного в contract',
+        ['contract', 'function'],
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Storage / KV метрики
+    # ============================================================================
+    
+    storage_operations = Counter(
+        'x0tta6bl4_storage_operations_total',
+        'Всего storage операций',
+        ['operation', 'status'],  # get, put, delete; success, fail
+        registry=_metrics_registry
+    )
+    
+    storage_operation_duration = Histogram(
+        'x0tta6bl4_storage_operation_duration_seconds',
+        'Длительность storage операции в секундах',
+        ['operation'],
+        buckets=(0.001, 0.01, 0.05, 0.1, 0.5),
+        registry=_metrics_registry
+    )
+    
+    storage_size_bytes = Gauge(
+        'x0tta6bl4_storage_size_bytes',
+        'Размер хранилища в байтах',
+        ['store_type'],  # kv, ledger, index
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Инфраструктура метрики
+    # ============================================================================
+    
+    memory_usage_bytes = Gauge(
+        'x0tta6bl4_memory_usage_bytes',
+        'Использование памяти в байтах',
+        ['component'],
+        registry=_metrics_registry
+    )
+    
+    cpu_usage_percent = Gauge(
+        'x0tta6bl4_cpu_usage_percent',
+        'Использование CPU в процентах',
+        ['component'],
+        registry=_metrics_registry
+    )
+    
+    goroutines_count = Gauge(
+        'x0tta6bl4_goroutines_count',
+        'Количество активных goroutines',
+        registry=_metrics_registry
+    )
+    
+    gc_pause_duration = Histogram(
+        'x0tta6bl4_gc_pause_duration_seconds',
+        'Длительность GC паузы в секундах',
+        buckets=(0.001, 0.005, 0.01, 0.05, 0.1),
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Security & Threat detection метрики
+    # ============================================================================
+    
+    threat_alerts_total = Counter(
+        'x0tta6bl4_threat_alerts_total',
+        'Всего alert о угрозе',
+        ['threat_type', 'severity'],  # dos, unauthorized, unusual_behavior...
+        registry=_metrics_registry
+    )
+    
+    suspect_nodes_count = Gauge(
+        'x0tta6bl4_suspect_nodes_count',
+        'Количество подозреваемых узлов',
+        registry=_metrics_registry
+    )
+    
+    byzantine_detections = Counter(
+        'x0tta6bl4_byzantine_detections_total',
+        'Всего обнаружений Byzantine поведения',
+        ['behavior_type'],
+        registry=_metrics_registry
+    )
+    
+    # ============================================================================
+    # Performance метрики
+    # ============================================================================
+    
+    operation_throughput = Counter(
+        'x0tta6bl4_operation_throughput_total',
+        'Всего операций обработано',
+        ['operation_type'],
+        registry=_metrics_registry
+    )
+    
+    p99_latency_seconds = Gauge(
+        'x0tta6bl4_p99_latency_seconds',
+        'P99 латентность в секундах',
+        ['operation'],
+        registry=_metrics_registry
+    )
+    
+    error_rate = Gauge(
+        'x0tta6bl4_error_rate_ratio',
+        'Коэффициент ошибок',
+        registry=_metrics_registry
+    )
+    
+    self_healing_events = Counter(
+        'x0tta6bl4_self_healing_events_total',
+        'Всего событий самовосстановления',
+        ['event_type', 'node_id'],
+        registry=_metrics_registry
+    )
 
-# Self-healing metrics
-mape_k_cycle_duration_seconds = Histogram(
-    "mape_k_cycle_duration_seconds",
-    "Duration of MAPE-K self-healing cycle",
-    ["phase"],  # monitor, analyze, plan, execute, knowledge
-    buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0, 10.0),
-)
 
-self_healing_events_total = Counter(
-    "self_healing_events_total",
-    "Total self-healing events triggered",
-    ["event_type", "node_id"],  # node_failure, network_partition, high_latency, etc.
-)
+_metrics_registry_instance = None
 
-self_healing_mttr_seconds = Histogram(
-    "self_healing_mttr_seconds",
-    "Mean Time To Recovery (MTTR) in seconds",
-    ["recovery_type"],
-    buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 300.0),
-)
+def get_metrics_registry() -> MetricsRegistry:
+    """Получить реестр метрик (singleton)"""
+    global _metrics_registry_instance
+    if _metrics_registry_instance is None:
+        _metrics_registry_instance = MetricsRegistry()
+    return _metrics_registry_instance
 
-# DAO incident metrics
-dao_incident_executed_total = Counter(
-    "dao_incident_executed_total",
-    "Total number of executed DAO-driven incident responses",
-    ["incident_type", "severity", "node_id"],
-)
 
-# Token economics metrics
-token_balance = Gauge(
-    "x0t_token_balance",
-    "Token balance per node",
-    ["node_id"],
-)
+class MetricsResponse:
+    """Wrapper for Prometheus metrics exposition response"""
+    def __init__(self, body: bytes):
+        self.body = body
+        self.media_type = "text/plain; version=0.0.4; charset=utf-8"
 
-token_staked = Gauge(
-    "x0t_token_staked",
-    "Staked tokens per node",
-    ["node_id"],
-)
 
-token_transfers_total = Counter(
-    "x0t_token_transfers_total",
-    "Total token transfers",
-    ["from_node", "to_node"],
-)
+def get_metrics() -> MetricsResponse:
+    """Получить метрики в формате Prometheus"""
+    body = prometheus_client.generate_latest(_metrics_registry)
+    return MetricsResponse(body)
 
-token_rewards_distributed = Counter(
-    "x0t_token_rewards_distributed_total",
-    "Total rewards distributed",
-    ["node_id", "epoch"],
-)
 
-resource_payments_total = Counter(
-    "x0t_resource_payments_total",
-    "Total resource payments",
-    ["payer", "provider", "resource_type"],
-)
+def record_self_healing_event(event_type: str, node_id: str) -> None:
+    """Записать событие самовосстановления"""
+    metrics = get_metrics_registry()
+    metrics.self_healing_events.labels(
+        event_type=event_type,
+        node_id=node_id
+    ).inc()
 
-# Node health metrics
-node_health_status = Gauge(
-    "node_health_status",
-    "Node health status (1=healthy, 0=unhealthy)",
-    ["node_id"],
-)
 
-node_uptime_seconds = Gauge(
-    "node_uptime_seconds",
-    "Node uptime in seconds",
-    ["node_id"],
-)
+def record_mttr(recovery_type: str, duration_seconds: float) -> None:
+    """Записать MTTR (Mean Time To Recovery)"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'self_healing_mttr_seconds'):
+        metrics.self_healing_mttr_seconds.labels(
+            recovery_type=recovery_type
+        ).observe(duration_seconds)
 
-node_spiffe_attested = Gauge(
-    "node_spiffe_attested",
-    "Node SPIFFE attestation status (1=attested, 0=unattested)",
-    ["node_id", "spiffe_id"],
-)
 
-# Obfuscation metrics
-heartbeat_obfuscated_total = Counter(
-    "heartbeat_obfuscated_total",
-    "Total obfuscated heartbeats sent"
-)
+def record_mape_k_cycle(phase: str, duration_seconds: float) -> None:
+    """Записать MAPE-K цикл метрику"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'mapek_cycle_duration'):
+        metrics.mapek_cycle_duration.labels(phase=phase).observe(duration_seconds)
 
-# Traffic shaping metrics
-traffic_shaped_packets_total = Counter(
-    "traffic_shaped_packets_total",
-    "Total packets shaped by traffic shaper",
-    ["node_id", "profile"],
-)
 
-traffic_shaping_bytes_total = Counter(
-    "traffic_shaping_bytes_total",
-    "Total bytes of shaped traffic",
-    ["node_id", "profile"],
-)
+def update_mesh_peer_count(node_id: str, count: int) -> None:
+    """Update mesh peer count for a node"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'mesh_peers_count'):
+        metrics.mesh_peers_count.labels(node_id=node_id).set(count)
 
-traffic_shaping_padding_bytes_total = Counter(
-    "traffic_shaping_padding_bytes_total",
-    "Total padding bytes added by traffic shaper",
-    ["node_id", "profile"],
-)
 
-traffic_shaping_delay_seconds = Histogram(
-    "traffic_shaping_delay_seconds",
-    "Delay added by traffic shaper in seconds",
-    ["node_id", "profile"],
-    buckets=(0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5),
-)
+def record_mesh_latency(node_id: str, peer_id: str, latency: float) -> None:
+    """Record mesh latency between nodes"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'mesh_latency'):
+        metrics.mesh_latency.labels(node_id=node_id, peer_id=peer_id).observe(latency)
 
-traffic_profile_active = Gauge(
-    "traffic_profile_active",
-    "Currently active traffic profile (1=active)",
-    ["node_id", "profile"],
-)
 
-# eBPF telemetry metrics
-ebpf_cpu_overhead_percent = Gauge(
-    "ebpf_cpu_overhead_percent",
-    "eBPF telemetry CPU overhead percentage",
-    ["node_id", "program_type"],
-)
+def set_node_health(node_id: str, is_healthy: bool) -> None:
+    """Set node health status"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'node_health_status'):
+        metrics.node_health_status.labels(node_id=node_id).set(1 if is_healthy else 0)
 
-ebpf_memory_bytes = Gauge(
-    "ebpf_memory_bytes",
-    "eBPF program memory usage in bytes",
-    ["node_id", "program_id"],
-)
 
-ebpf_packets_processed_total = Counter(
-    "ebpf_packets_processed_total",
-    "Total packets processed by eBPF programs",
-    ["node_id", "program_id", "direction"],
-)
+def set_node_uptime(node_id: str, uptime_seconds: float) -> None:
+    """Set node uptime"""
+    metrics = get_metrics_registry()
+    if hasattr(metrics, 'node_uptime_seconds'):
+        metrics.node_uptime_seconds.labels(node_id=node_id).set(uptime_seconds)
 
-ebpf_packet_drops_total = Counter(
-    "ebpf_packet_drops_total",
-    "Total packets dropped by eBPF programs",
-    ["node_id", "program_id", "reason"],
-)
 
-ebpf_program_load_time_seconds = Histogram(
-    "ebpf_program_load_time_seconds",
-    "Time to load eBPF program",
-    ["node_id", "program_type"],
-    buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0),
-)
+_metrics_registry_instance = None
 
-# Slot-based synchronization metrics
-slot_sync_beacon_collisions_total = Counter(
-    "slot_sync_beacon_collisions_total",
-    "Total beacon collisions in slot-based synchronization",
-    ["node_id"],
-)
 
-slot_sync_resync_time_seconds = Histogram(
-    "slot_sync_resync_time_seconds",
-    "Time to resynchronize slot after collision",
-    ["node_id"],
-    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0),
-)
+def _get_singleton_metrics() -> MetricsRegistry:
+    """Get singleton metrics registry instance"""
+    global _metrics_registry_instance
+    if _metrics_registry_instance is None:
+        _metrics_registry_instance = get_metrics_registry()
+    return _metrics_registry_instance
 
-slot_sync_success_rate = Gauge(
-    "slot_sync_success_rate",
-    "Slot synchronization success rate (0-1)",
-    ["node_id"],
-)
 
-mesh_topology_changes_total = Counter(
-    "mesh_topology_changes_total",
-    "Total mesh topology changes",
-    ["node_id", "change_type"],  # node_added, node_removed, link_added, link_removed
-)
+http_requests_total = None
+http_request_duration_seconds = None
+mesh_peers_count = None
+mesh_latency_seconds = None
+mape_k_cycle_duration_seconds = None
+self_healing_events_total = None
+self_healing_mttr_seconds = None
+node_health_status = None
+node_uptime_seconds = None
 
-k_disjoint_paths_count = Gauge(
-    "k_disjoint_paths_count",
-    "Number of k-disjoint paths available",
-    ["node_id", "destination"],
-)
 
-k_disjoint_path_cache_hits_total = Counter(
-    "k_disjoint_path_cache_hits_total",
-    "Total k-disjoint path cache hits",
-    ["node_id"],
-)
+def _initialize_module_level_metrics():
+    """Initialize module-level metric references"""
+    global http_requests_total, http_request_duration_seconds
+    global mesh_peers_count, mesh_latency_seconds, mape_k_cycle_duration_seconds
+    global self_healing_events_total, self_healing_mttr_seconds
+    global node_health_status, node_uptime_seconds
+    
+    registry = _get_singleton_metrics()
+    
+    http_requests_total = registry.request_count
+    http_request_duration_seconds = registry.request_duration
+    mesh_peers_count = registry.mesh_peers_count
+    mesh_latency_seconds = registry.mesh_latency
+    mape_k_cycle_duration_seconds = registry.mapek_cycle_duration
+    self_healing_events_total = registry.self_healing_events
+    self_healing_mttr_seconds = registry.self_healing_mttr_seconds
+    node_health_status = registry.node_health_status
+    node_uptime_seconds = registry.node_uptime_seconds
 
-k_disjoint_path_cache_misses_total = Counter(
-    "k_disjoint_path_cache_misses_total",
-    "Total k-disjoint path cache misses",
-    ["node_id"],
-)
+
+_initialize_module_level_metrics()
 
 
 class MetricsMiddleware:
-    """FastAPI middleware for automatic HTTP metrics collection."""
-
+    """Middleware for recording HTTP metrics in FastAPI"""
+    
     def __init__(self, app):
         self.app = app
-
+    
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-
-        method = scope["method"]
-        path = scope["path"]
-
-        # Skip metrics endpoint to avoid recursion
+        
+        method = scope.get("method", "unknown")
+        path = scope.get("path", "unknown")
+        
         if path == "/metrics":
             await self.app(scope, receive, send)
             return
-
+        
+        import time
         start_time = time.time()
-        status_code = 500  # Default to 500 in case of unhandled exception
-
+        status = 500
+        
         async def send_wrapper(message):
-            nonlocal status_code
+            nonlocal status
             if message["type"] == "http.response.start":
-                status_code = message["status"]
+                status = message.get("status", 500)
+            
             await send(message)
-
+        
         try:
             await self.app(scope, receive, send_wrapper)
-        finally:
+        except Exception:
             duration = time.time() - start_time
-            http_requests_total.labels(method=method, endpoint=path, status=status_code).inc()
-            http_request_duration_seconds.labels(method=method, endpoint=path).observe(duration)
-
-
-def get_metrics() -> Response:
-    """FastAPI endpoint to expose Prometheus metrics.
-
-    Returns:
-        Response with Prometheus exposition format
-    """
-    metrics_data = generate_latest()
-    return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
-
-
-def update_mesh_peer_count(node_id: str, count: int):
-    """Update mesh peer count metric."""
-    mesh_peers_count.labels(node_id=node_id).set(count)
-
-
-def record_mesh_latency(node_id: str, peer_id: str, latency: float):
-    """Record mesh peer latency."""
-    mesh_latency_seconds.labels(node_id=node_id, peer_id=peer_id).observe(latency)
-
-
-def record_mape_k_cycle(phase: str, duration: float):
-    """Record MAPE-K cycle duration."""
-    mape_k_cycle_duration_seconds.labels(phase=phase).observe(duration)
-
-
-def record_self_healing_event(event_type: str, node_id: str):
-    """Increment self-healing event counter."""
-    self_healing_events_total.labels(event_type=event_type, node_id=node_id).inc()
-
-
-def record_mttr(recovery_type: str, mttr: float):
-    """Record Mean Time To Recovery."""
-    self_healing_mttr_seconds.labels(recovery_type=recovery_type).observe(mttr)
-
-
-def record_dao_incident_execution(incident_type: str, severity: str, node_id: str):
-    """Record execution of DAO-governed incident response."""
-    dao_incident_executed_total.labels(
-        incident_type=incident_type,
-        severity=severity,
-        node_id=node_id,
-    ).inc()
-
-
-# Token economics metric helpers
-def set_token_balance(node_id: str, balance: float):
-    """Set token balance for a node."""
-    token_balance.labels(node_id=node_id).set(balance)
-
-
-def set_token_staked(node_id: str, amount: float):
-    """Set staked token amount for a node."""
-    token_staked.labels(node_id=node_id).set(amount)
-
-
-def record_token_transfer(from_node: str, to_node: str):
-    """Record a token transfer."""
-    token_transfers_total.labels(from_node=from_node, to_node=to_node).inc()
-
-
-def record_token_reward(node_id: str, epoch: int, amount: float):
-    """Record reward distribution."""
-    token_rewards_distributed.labels(node_id=node_id, epoch=str(epoch)).inc(amount)
-
-
-def record_resource_payment(payer: str, provider: str, resource_type: str):
-    """Record resource payment."""
-    resource_payments_total.labels(payer=payer, provider=provider, resource_type=resource_type).inc()
-
-
-def set_node_health(node_id: str, is_healthy: bool):
-    """Set node health status (1=healthy, 0=unhealthy)."""
-    node_health_status.labels(node_id=node_id).set(1 if is_healthy else 0)
-
-
-def set_node_uptime(node_id: str, uptime_seconds: float):
-    """Set node uptime in seconds."""
-    node_uptime_seconds.labels(node_id=node_id).set(uptime_seconds)
-
-
-def set_node_spiffe_attested(node_id: str, spiffe_id: str, is_attested: bool):
-    """Set node SPIFFE attestation status."""
-    node_spiffe_attested.labels(node_id=node_id, spiffe_id=spiffe_id).set(1 if is_attested else 0)
-
-
-# eBPF telemetry metric helpers
-def record_ebpf_cpu_overhead(node_id: str, program_type: str, overhead_percent: float):
-    """Record eBPF CPU overhead."""
-    ebpf_cpu_overhead_percent.labels(node_id=node_id, program_type=program_type).set(overhead_percent)
-
-
-def record_ebpf_memory(node_id: str, program_id: str, memory_bytes: int):
-    """Record eBPF program memory usage."""
-    ebpf_memory_bytes.labels(node_id=node_id, program_id=program_id).set(memory_bytes)
-
-
-def record_ebpf_packets(node_id: str, program_id: str, direction: str, count: int = 1):
-    """Record eBPF packets processed."""
-    ebpf_packets_processed_total.labels(node_id=node_id, program_id=program_id, direction=direction).inc(count)
-
-
-def record_ebpf_drops(node_id: str, program_id: str, reason: str, count: int = 1):
-    """Record eBPF packet drops."""
-    ebpf_packet_drops_total.labels(node_id=node_id, program_id=program_id, reason=reason).inc(count)
-
-
-def record_ebpf_load_time(node_id: str, program_type: str, load_time: float):
-    """Record eBPF program load time."""
-    ebpf_program_load_time_seconds.labels(node_id=node_id, program_type=program_type).observe(load_time)
-
-
-# Slot-based synchronization metric helpers
-def record_slot_sync_collision(node_id: str):
-    """Record slot synchronization beacon collision."""
-    slot_sync_beacon_collisions_total.labels(node_id=node_id).inc()
-
-
-def record_slot_sync_resync_time(node_id: str, resync_time: float):
-    """Record slot resynchronization time."""
-    slot_sync_resync_time_seconds.labels(node_id=node_id).observe(resync_time)
-
-
-def set_slot_sync_success_rate(node_id: str, success_rate: float):
-    """Set slot synchronization success rate (0-1)."""
-    slot_sync_success_rate.labels(node_id=node_id).set(success_rate)
-
-
-# Mesh topology metric helpers
-def record_topology_change(node_id: str, change_type: str):
-    """Record mesh topology change."""
-    mesh_topology_changes_total.labels(node_id=node_id, change_type=change_type).inc()
-
-
-# k-disjoint paths metric helpers
-def set_k_disjoint_paths_count(node_id: str, destination: str, count: int):
-    """Set number of k-disjoint paths available."""
-    k_disjoint_paths_count.labels(node_id=node_id, destination=destination).set(count)
-
-
-def record_k_disjoint_cache_hit(node_id: str):
-    """Record k-disjoint path cache hit."""
-    k_disjoint_path_cache_hits_total.labels(node_id=node_id).inc()
-
-
-def record_k_disjoint_cache_miss(node_id: str):
-    """Record k-disjoint path cache miss."""
-    k_disjoint_path_cache_misses_total.labels(node_id=node_id).inc()
+            metrics = _get_singleton_metrics()
+            metrics.request_count.labels(
+                method=method,
+                endpoint=path,
+                status=status
+            ).inc()
+            metrics.request_duration.labels(
+                method=method,
+                endpoint=path
+            ).observe(duration)
+            raise
+        
+        duration = time.time() - start_time
+        metrics = _get_singleton_metrics()
+        metrics.request_count.labels(
+            method=method,
+            endpoint=path,
+            status=status
+        ).inc()
+        metrics.request_duration.labels(
+            method=method,
+            endpoint=path
+        ).observe(duration)

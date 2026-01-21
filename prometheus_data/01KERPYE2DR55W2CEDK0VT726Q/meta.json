@@ -1,0 +1,17 @@
+{
+	"ulid": "01KERPYE2DR55W2CEDK0VT726Q",
+	"minTime": 1768197609486,
+	"maxTime": 1768204800000,
+	"stats": {
+		"numSamples": 246720,
+		"numSeries": 514,
+		"numChunks": 2056
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01KERPYE2DR55W2CEDK0VT726Q"
+		]
+	},
+	"version": 1
+}

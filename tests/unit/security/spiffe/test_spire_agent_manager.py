@@ -8,8 +8,8 @@ import pytest
 
 from src.security.spiffe.agent.manager import SPIREAgentManager, WorkloadEntry, AttestationStrategy
 
-MOCK_AGENT_BIN = "/usr/bin/spire-agent"
-MOCK_SERVER_BIN = "/usr/bin/spire-server"
+MOCK_AGENT_BIN = "/usr/local/bin/spire-agent"  # Match conftest.py
+MOCK_SERVER_BIN = "/usr/local/bin/spire-server"  # Match conftest.py
 
 
 @pytest.fixture
@@ -19,7 +19,8 @@ def mock_spire_env():
          patch('subprocess.Popen') as mock_popen, \
          patch('subprocess.run') as mock_run, \
          patch('os.getpgid') as mock_getpgid, \
-         patch('os.killpg') as mock_killpg:
+         patch('os.killpg') as mock_killpg, \
+         patch('src.security.spiffe.agent.manager.SPIREAgentManager._find_spire_binary') as mock_find_binary:
 
         def which_side_effect(binary_name):
             if binary_name == 'spire-agent':
@@ -28,7 +29,15 @@ def mock_spire_env():
                 return MOCK_SERVER_BIN
             return None
         
+        def find_binary_side_effect(binary_name):
+            if binary_name == 'spire-agent':
+                return MOCK_AGENT_BIN
+            if binary_name == 'spire-server':
+                return MOCK_SERVER_BIN
+            raise FileNotFoundError(f"{binary_name} not found")
+        
         mock_which.side_effect = which_side_effect
+        mock_find_binary.side_effect = find_binary_side_effect
         
         # Mock Popen process
         mock_process = MagicMock()
@@ -52,11 +61,14 @@ def mock_spire_env():
             "getpgid": mock_getpgid,
             "killpg": mock_killpg,
             "process": mock_process,
+            "find_binary": mock_find_binary,
         }
 
-def test_init_fails_if_binary_not_found():
+def test_init_fails_if_binary_not_found(monkeypatch):
     """Test that SPIREAgentManager fails to initialize if binaries are missing."""
-    with patch('shutil.which', return_value=None):
+    # Disable conftest autouse fixture for this test
+    # We need to test the actual error case
+    with patch('src.security.spiffe.agent.manager.SPIREAgentManager._find_spire_binary', side_effect=FileNotFoundError("spire-agent not found")):
         with pytest.raises(FileNotFoundError, match="spire-agent not found"):
             SPIREAgentManager()
 
@@ -75,13 +87,15 @@ def test_start_agent_success(mock_spire_env, tmp_path):
     mgr = SPIREAgentManager(socket_path=socket_path)
     assert mgr.start() is True
     
-    mock_spire_env["popen"].assert_called_once_with(
-        [MOCK_AGENT_BIN, "run", "-config", ANY],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=ANY,
-        preexec_fn=os.setsid,
-    )
+    # Use ANY for the binary path since conftest returns /usr/local/bin/spire-agent
+    mock_spire_env["popen"].assert_called_once()
+    call_args = mock_spire_env["popen"].call_args
+    assert call_args[0][0][0].endswith("spire-agent")  # Check binary name
+    assert call_args[0][0][1] == "run"
+    assert call_args[0][0][2] == "-config"
+    assert call_args[1]["stdout"] == subprocess.PIPE
+    assert call_args[1]["stderr"] == subprocess.PIPE
+    assert call_args[1]["preexec_fn"] == os.setsid
 
 def test_start_agent_timeout(mock_spire_env, tmp_path):
     """Test that starting the agent fails if the socket does not appear."""

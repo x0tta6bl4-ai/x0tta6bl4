@@ -101,7 +101,12 @@ class SignedGossip:
             raise ImportError("liboqs-python required for signed gossip")
         
         self.node_id = node_id
-        self._sig = Signature("Dilithium3")
+        # Use NIST name, fallback to legacy if needed
+        try:
+            self._sig = Signature("ML-DSA-65")  # NIST FIPS 204 Level 3
+        except Exception:
+            # Fallback to legacy name if NIST name not supported
+            self._sig = Signature("Dilithium3")
         
         # Generate or use provided keys
         if private_key and public_key:

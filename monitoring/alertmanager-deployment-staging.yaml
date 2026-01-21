@@ -1,0 +1,156 @@
+# Alertmanager Deployment for Staging/Beta
+# Дата: 2026-01-08
+# Версия: 3.4.0-fixed2
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-telegram
+  namespace: monitoring
+type: Opaque
+stringData:
+  TELEGRAM_BOT_TOKEN: "7671485111:AAGFIIdWnXzKmNBjW_i5sVUKeqohA39KJEM"
+  TELEGRAM_CHAT_ID: "PLACEHOLDER_CHAT_ID"  # Will be updated after getting chat_id
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    # Route configuration
+    route:
+      receiver: 'default'
+      group_by: ['alertname', 'severity']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      
+      routes:
+        # Critical alerts - immediate notification
+        - match:
+            severity: critical
+          receiver: 'telegram-critical'
+          continue: false
+          group_wait: 0s
+          repeat_interval: 1h
+        
+        # Warning alerts - grouped notification
+        - match:
+            severity: warning
+          receiver: 'telegram-warning'
+          group_wait: 30s
+          repeat_interval: 6h
+
+    # Receivers
+    receivers:
+      # Default receiver (fallback to Telegram)
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://telegram-webhook.monitoring.svc.cluster.local:8080/'
+            send_resolved: true
+      
+      # Critical alerts - Telegram (via webhook)
+      - name: 'telegram-critical'
+        webhook_configs:
+          - url: 'http://telegram-webhook.monitoring.svc.cluster.local:8080/'
+            send_resolved: true
+      
+      # Warning alerts - Telegram (via webhook)
+      - name: 'telegram-warning'
+        webhook_configs:
+          - url: 'http://telegram-webhook.monitoring.svc.cluster.local:8080/'
+            send_resolved: true
+
+    # Inhibition rules (suppress alerts)
+    inhibit_rules:
+      # Suppress warning if critical alert is firing
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname']
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.27.0
+        args:
+          - '--config.file=/etc/alertmanager/alertmanager.yml'
+          - '--storage.path=/alertmanager'
+          - '--web.external-url=http://alertmanager.monitoring.svc.cluster.local'
+        ports:
+        - name: web
+          containerPort: 9093
+        env:
+          - name: TELEGRAM_BOT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: alertmanager-telegram
+                key: TELEGRAM_BOT_TOKEN
+          - name: TELEGRAM_CHAT_ID
+            valueFrom:
+              secretKeyRef:
+                name: alertmanager-telegram
+                key: TELEGRAM_CHAT_ID
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: storage
+          mountPath: /alertmanager
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9093
+    targetPort: 9093
+    name: web
+  selector:
+    app: alertmanager
+

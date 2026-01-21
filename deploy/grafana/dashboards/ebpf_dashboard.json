@@ -1,0 +1,611 @@
+{
+  "dashboard": {
+    "id": 123456,
+    "title": "x0tta6bl4 eBPF Performance Dashboard",
+    "tags": ["eBPF", "Performance", "Mesh Network"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "10s",
+    "editable": true,
+    "panels": [
+      {
+        "id": 1,
+        "title": "eBPF Programs Loaded",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "count(ebpf_health_loader{status=\"healthy\"})",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 0.5
+            },
+            {
+              "color": "red",
+              "value": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total eBPF Packets",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "sum(ebpf_xdp_counter_tcp_packets + ebpf_xdp_counter_udp_packets + ebpf_xdp_counter_icmp_packets + ebpf_xdp_counter_other_packets)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 100000
+            },
+            {
+              "color": "red",
+              "value": 1000000
+            }
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "title": "eBPF Health Status",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "ebpf_health_total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 3
+            },
+            {
+              "color": "red",
+              "value": 6
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "title": "eBPF Errors",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "sum(ebpf_health_unhealthy)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 0.1
+            },
+            {
+              "color": "red",
+              "value": 0.3
+            }
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "Packets by Protocol",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 4
+        },
+        "targets": [
+          {
+            "expr": "ebpf_xdp_counter_tcp_packets",
+            "legendFormat": "TCP",
+            "refId": "A"
+          },
+          {
+            "expr": "ebpf_xdp_counter_udp_packets",
+            "legendFormat": "UDP",
+            "refId": "B"
+          },
+          {
+            "expr": "ebpf_xdp_counter_icmp_packets",
+            "legendFormat": "ICMP",
+            "refId": "C"
+          },
+          {
+            "expr": "ebpf_xdp_counter_other_packets",
+            "legendFormat": "Other",
+            "refId": "D"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Packets",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "showLegend": true
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Interface Health",
+        "type": "gauge",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 4
+        },
+        "targets": [
+          {
+            "expr": "sum(ebpf_interface_health{status=\"healthy\"}) / count(ebpf_interface_health)",
+            "refId": "A"
+          }
+        ],
+        "maxValue": 1,
+        "minValue": 0,
+        "thresholds": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 0.8
+          },
+          {
+            "color": "red",
+            "value": 0.5
+          }
+        ],
+        "unit": "percent"
+      },
+      {
+        "id": 7,
+        "title": "Flow Statistics",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "sum(ebpf_flow_bytes)",
+            "legendFormat": "Total Bytes",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(ebpf_flow_packets)",
+            "legendFormat": "Total Packets",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(ebpf_flow_duration)",
+            "legendFormat": "Avg Duration",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "bytes",
+            "label": "Bytes",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          },
+          {
+            "format": "short",
+            "label": "Packets",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "showLegend": true
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Metrics Export Performance",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "ebpf_health_metrics",
+            "legendFormat": "Metric Exporter",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(ebpf_metrics_healthy)",
+            "legendFormat": "Healthy Metrics",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Metrics",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          },
+          {
+            "format": "short",
+            "label": "Count",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "showLegend": true
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Degradation Level",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "ebpf_degradation_level",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 1
+            },
+            {
+              "color": "red",
+              "value": 2
+            }
+          ]
+        }
+      },
+      {
+        "id": 10,
+        "title": "Consecutive Failures",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "ebpf_consecutive_failures",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 3
+            },
+            {
+              "color": "red",
+              "value": 5
+            }
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "title": "Bpftool Availability",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "ebpf_bpftool_available",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 0.5
+            },
+            {
+              "color": "red",
+              "value": 0
+            }
+          ]
+        }
+      },
+      {
+        "id": 12,
+        "title": "Prometheus Availability",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "ebpf_prometheus_available",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        },
+        "thresholds": {
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 0.5
+            },
+            {
+              "color": "red",
+              "value": 0
+            }
+          ]
+        }
+      },
+      {
+        "id": 13,
+        "title": "Map Read Time",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "ebpf_map_read_time",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Time (ms)",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "showLegend": true
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "Parse Time",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "ebpf_parse_time",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Time (ms)",
+            "logBase": 1,
+            "max": null,
+            "min": 0
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "showLegend": true
+          }
+        }
+      }
+    ],
+    "timepicker": {
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"],
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "status": "Stable",
+      "type": "timepicker"
+    },
+    "timezone": "browser",
+    "annotations": {
+      "list": [
+        {
+          "datasource": "$datasource",
+          "enable": true,
+          "name": "Errors",
+          "iconColor": "#C4162A",
+          "query": "ALERTS{severity=\"critical\"}"
+        }
+      ]
+    },
+    "links": [
+      {
+        "title": "eBPF Overview",
+        "url": "https://ebpf.io/",
+        "targetBlank": true
+      },
+      {
+        "title": "x0tta6bl4 Documentation",
+        "url": "https://github.com/x0tta6bl4/documentation",
+        "targetBlank": true
+      }
+    ],
+    "schemaVersion": 25,
+    "version": 1,
+    "refresh": "10s"
+  },
+  "folderUid": "general",
+  "overwrite": false
+}

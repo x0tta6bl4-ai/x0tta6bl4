@@ -65,6 +65,15 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Batman-adv Optimizations
+try:
+    from .optimizations import BatmanAdvOptimizations, BatmanAdvConfig
+    BATMAN_OPTIMIZATIONS_AVAILABLE = True
+except ImportError:
+    BATMAN_OPTIMIZATIONS_AVAILABLE = False
+    BatmanAdvOptimizations = None  # type: ignore
+    BatmanAdvConfig = None  # type: ignore
+
 
 class AttestationStrategy(Enum):
     """Node attestation strategies"""
@@ -108,13 +117,32 @@ class NodeManager:
     
     def __init__(self, mesh_id: str, local_node_id: str, 
                  obfuscation_transport: Optional['ObfuscationTransport'] = None,
-                 traffic_profile: str = "none"):
+                 traffic_profile: str = "none",
+                 enable_optimizations: bool = True):
         self.mesh_id = mesh_id
         self.local_node_id = local_node_id
         self.nodes: Dict[str, Dict] = {}
         self.attestation_strategy = AttestationStrategy.SPIFFE
         self.bootstrap_nodes: List[str] = []
         self.obfuscation_transport = obfuscation_transport
+        
+        # Initialize Batman-adv optimizations from Paradox Zone
+        self.optimizations: Optional['BatmanAdvOptimizations'] = None
+        if enable_optimizations and BATMAN_OPTIMIZATIONS_AVAILABLE:
+            try:
+                import os
+                config = BatmanAdvConfig(
+                    multipath_enabled=os.getenv("BATMAN_MULTIPATH_ENABLED", "true").lower() == "true",
+                    multipath_max_paths=int(os.getenv("BATMAN_MULTIPATH_MAX_PATHS", "3")),
+                    aodv_enabled=os.getenv("BATMAN_AODV_ENABLED", "true").lower() == "true",
+                    originator_interval=os.getenv("BATMAN_ORIGINATOR_INTERVAL", "1s"),
+                    echo_interval=os.getenv("BATMAN_ECHO_INTERVAL", "500ms"),
+                    max_queue_length=int(os.getenv("BATMAN_MAX_QUEUE_LENGTH", "1000")),
+                )
+                self.optimizations = BatmanAdvOptimizations(config)
+                logger.info("✅ Batman-adv optimizations enabled (Paradox Zone)")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to initialize Batman-adv optimizations: {e}")
         
         # Traffic Shaping
         self.traffic_shaper = None
@@ -382,13 +410,24 @@ class NodeManager:
             if SPIFFE_AVAILABLE and cert_pem:
                 try:
                     # Construct SVID object for validation
-                    # Note: In a real scenario, we would parse the cert to get expiry/chain
-                    # For now, we create a wrapper to use the validation logic
+                    # Parse certificate to get actual expiry
+                    expiry = datetime.utcnow() + timedelta(hours=1)  # Default fallback
+                    try:
+                        from cryptography import x509
+                        from cryptography.hazmat.backends import default_backend
+                        # Parse PEM certificate
+                        cert_bytes = cert_pem.encode() if isinstance(cert_pem, str) else cert_pem
+                        cert = x509.load_pem_x509_certificate(cert_bytes, default_backend())
+                        expiry = cert.not_valid_after.replace(tzinfo=None)  # Remove timezone for compatibility
+                        logger.debug(f"Parsed certificate expiry: {expiry} for node {node_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse certificate expiry for {node_id}: {e}, using default 1h expiry")
+                    
                     svid = X509SVID(
                         spiffe_id=spiffe_id,
                         cert_chain=[cert_pem],
                         private_key=b"",  # Not needed for public validation
-                        expiry=datetime.utcnow() + timedelta(hours=1) # Mock expiry for now as we don't parse yet
+                        expiry=expiry  # Real parsed expiry or fallback
                     )
                     
                     # Use the WorkloadAPIClient logic (even if mocked)

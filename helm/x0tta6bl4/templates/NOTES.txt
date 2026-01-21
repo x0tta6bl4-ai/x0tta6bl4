@@ -40,7 +40,7 @@ Thank you for installing {{ .Chart.Name }} v{{ .Chart.Version }}!
   kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "x0tta6bl4.fullname" . }} -- \
     curl -s localhost:{{ .Values.service.port }}/dao/status
 
-{{- if .Values.chaosEngineering.enabled }}
+{{- if and (hasKey .Values "chaosEngineering") .Values.chaosEngineering.enabled }}
 🔥 CHAOS ENGINEERING ENABLED:
   Scenarios: pod-kill ({{ .Values.chaosEngineering.scenarios.podKill.percentage }}%), 
              network-delay ({{ .Values.chaosEngineering.scenarios.networkDelay.latency }}),

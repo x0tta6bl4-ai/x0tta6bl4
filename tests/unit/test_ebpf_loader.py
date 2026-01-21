@@ -10,6 +10,7 @@ Tests the core eBPF program lifecycle:
 
 import pytest
 from pathlib import Path
+from unittest.mock import patch, Mock
 from src.network.ebpf.loader import (
     EBPFLoader,
     EBPFProgramType,
@@ -51,16 +52,20 @@ class TestEBPFLoader:
         """Test successful program loading"""
         loader = EBPFLoader(programs_dir=tmp_path)
         
-        # Create a dummy .o file
+        # Create a minimal ELF header
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)  # 64 bytes of dummy data
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
         
-        program_id = loader.load_program("test_xdp.o", EBPFProgramType.XDP)
-        
-        assert program_id is not None
-        assert program_id in loader.loaded_programs
-        assert loader.loaded_programs[program_id]["type"] == EBPFProgramType.XDP
-        assert loader.loaded_programs[program_id]["loaded"] is True
+        # Mock _load_via_bpftool to avoid actual bpftool call
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o", EBPFProgramType.XDP)
+            
+            assert program_id is not None
+            assert program_id in loader.loaded_programs
+            assert loader.loaded_programs[program_id]["type"] == EBPFProgramType.XDP
+            assert loader.loaded_programs[program_id]["loaded"] is True
     
     def test_attach_to_interface_program_not_loaded(self):
         """Test attaching non-existent program raises error"""
@@ -75,47 +80,74 @@ class TestEBPFLoader:
         
         # Load a program first
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool to avoid actual bpftool call
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
         
-        # Attach to interface
-        result = loader.attach_to_interface(
-            program_id, 
-            "eth0", 
-            EBPFAttachMode.SKB
-        )
-        
-        assert result is True
-        assert "eth0" in loader.attached_interfaces
-        assert program_id in loader.attached_interfaces["eth0"]
-        assert loader.loaded_programs[program_id]["attached_to"] == "eth0"
+        # Attach to interface - mock interface check
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.read_text', return_value="up"), \
+             patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            result = loader.attach_to_interface(
+                program_id, 
+                "eth0", 
+                EBPFAttachMode.SKB
+            )
+            
+            assert result is True
+            assert "eth0" in loader.attached_interfaces
+            assert program_id in loader.attached_interfaces["eth0"]
+            assert loader.loaded_programs[program_id]["attached_to"] == "eth0"
     
     def test_attach_twice_same_interface(self, tmp_path):
         """Test attaching same program twice returns success but doesn't duplicate"""
         loader = EBPFLoader(programs_dir=tmp_path)
         
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
         
-        # Attach twice
-        loader.attach_to_interface(program_id, "eth0")
-        result = loader.attach_to_interface(program_id, "eth0")
-        
-        assert result is True
-        assert len(loader.attached_interfaces["eth0"]) == 1
+        # Attach twice - mock interface check
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.read_text', return_value="up"), \
+             patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            loader.attach_to_interface(program_id, "eth0")
+            result = loader.attach_to_interface(program_id, "eth0")
+            
+            assert result is True
+            assert len(loader.attached_interfaces["eth0"]) == 1
     
     def test_detach_from_interface_success(self, tmp_path):
         """Test successful detachment"""
         loader = EBPFLoader(programs_dir=tmp_path)
         
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
-        loader.attach_to_interface(program_id, "eth0")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
         
-        # Detach
-        result = loader.detach_from_interface(program_id, "eth0")
+        # Mock interface check for attach
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.read_text', return_value="up"), \
+             patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            loader.attach_to_interface(program_id, "eth0")
+        
+        # Detach - mock subprocess
+        with patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            result = loader.detach_from_interface(program_id, "eth0")
         
         assert result is True
         assert program_id not in loader.attached_interfaces.get("eth0", [])
@@ -126,8 +158,13 @@ class TestEBPFLoader:
         loader = EBPFLoader(programs_dir=tmp_path)
         
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
         
         result = loader.unload_program(program_id)
         
@@ -139,16 +176,27 @@ class TestEBPFLoader:
         loader = EBPFLoader(programs_dir=tmp_path)
         
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
-        loader.attach_to_interface(program_id, "eth0")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
         
-        # Unload should auto-detach
-        result = loader.unload_program(program_id)
+        # Mock interface check for attach
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.read_text', return_value="up"), \
+             patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            loader.attach_to_interface(program_id, "eth0")
         
-        assert result is True
-        assert program_id not in loader.loaded_programs
-        assert program_id not in loader.attached_interfaces.get("eth0", [])
+        # Unload should auto-detach - mock subprocess
+        with patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            result = loader.unload_program(program_id)
+            
+            assert result is True
+            assert program_id not in loader.loaded_programs
+            assert program_id not in loader.attached_interfaces.get("eth0", [])
     
     def test_list_loaded_programs(self, tmp_path):
         """Test listing all loaded programs"""
@@ -157,8 +205,13 @@ class TestEBPFLoader:
         # Load two programs
         for i in range(2):
             program_file = tmp_path / f"test_{i}.o"
-            program_file.write_bytes(b"\x00" * 64)
-            loader.load_program(f"test_{i}.o")
+            # Create minimal ELF header
+            elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+            program_file.write_bytes(elf_header)
+            # Mock _load_via_bpftool to avoid actual bpftool call
+            with patch.object(loader, '_load_via_bpftool') as mock_load:
+                mock_load.return_value = (123 + i, f"/sys/fs/bpf/test_{i}")
+                loader.load_program(f"test_{i}.o")
         
         programs = loader.list_loaded_programs()
         
@@ -170,9 +223,19 @@ class TestEBPFLoader:
         loader = EBPFLoader(programs_dir=tmp_path)
         
         program_file = tmp_path / "test_xdp.o"
-        program_file.write_bytes(b"\x00" * 64)
-        program_id = loader.load_program("test_xdp.o")
-        loader.attach_to_interface(program_id, "eth0")
+        # Create minimal ELF header
+        elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
+        program_file.write_bytes(elf_header)
+        # Mock _load_via_bpftool
+        with patch.object(loader, '_load_via_bpftool') as mock_load:
+            mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
+            program_id = loader.load_program("test_xdp.o")
+        
+        # Mock interface check for attach
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('pathlib.Path.read_text', return_value="up"), \
+             patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+            loader.attach_to_interface(program_id, "eth0")
         
         programs = loader.get_interface_programs("eth0")
         

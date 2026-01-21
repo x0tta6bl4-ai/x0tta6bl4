@@ -1,0 +1,412 @@
+# GitLab CI/CD Pipeline for eBPF Compilation and Integration
+# 
+# Stages:
+# 1. build-ebpf       - Compile C programs to eBPF bytecode
+# 2. verify-ebpf      - Verify program structure and security
+# 3. test-ebpf        - Integration and unit tests
+# 4. benchmark        - Performance benchmarks
+# 5. deploy           - Deploy artifacts to repository
+
+stages:
+  - build-ebpf
+  - verify-ebpf
+  - test-ebpf
+  - benchmark
+  - deploy
+
+variables:
+  LLVM_VERSION: "14"
+  BPF_DIR: "src/network/ebpf"
+  ARTIFACTS_DIR: "build/ebpf-artifacts"
+  DOCKER_IMAGE: "ubuntu:22.04"
+
+# ============================================================================
+# Base configuration for eBPF jobs
+# ============================================================================
+.ebpf_base:
+  image: ${DOCKER_IMAGE}
+  before_script:
+    - apt-get update && apt-get install -y
+      clang-${LLVM_VERSION}
+      llvm-${LLVM_VERSION}
+      libelf-dev
+      libpcap-dev
+      pkg-config
+      build-essential
+      git
+      linux-headers-$(uname -r)
+      python3-dev
+      python3-pip
+
+# ============================================================================
+# Stage 1: Build eBPF Programs
+# ============================================================================
+
+build:ebpf:programs:
+  extends: .ebpf_base
+  stage: build-ebpf
+  script:
+    - mkdir -p ${ARTIFACTS_DIR}
+    - |
+      echo "🔨 Compiling eBPF programs..."
+      cd ${BPF_DIR}
+      
+      for ebpf_file in programs/*.c; do
+        if [ -f "$ebpf_file" ]; then
+          prog_name=$(basename "$ebpf_file" .c)
+          echo "  → Compiling $prog_name..."
+          
+          clang-${LLVM_VERSION} \
+            -O2 \
+            -target bpf \
+            -D__KERNEL__ \
+            -D__BPF_TRACING__ \
+            -I./headers \
+            -c "$ebpf_file" \
+            -o "../../${ARTIFACTS_DIR}/${prog_name}.o"
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to compile $prog_name"
+            exit 1
+          fi
+          
+          llvm-objdump-${LLVM_VERSION} \
+            -S "../../${ARTIFACTS_DIR}/${prog_name}.o" \
+            > "../../${ARTIFACTS_DIR}/${prog_name}.dis"
+          
+          size=$(stat -c%s ${ARTIFACTS_DIR}/${prog_name}.o)
+          echo "  ✅ ${prog_name}.o ($size bytes)"
+        fi
+      done
+    - |
+      echo "📋 Compiled eBPF programs:"
+      ls -lh ${ARTIFACTS_DIR}/*.o | awk '{print "  " $9 " (" $5 ")"}'
+  artifacts:
+    paths:
+      - ${ARTIFACTS_DIR}/*.o
+      - ${ARTIFACTS_DIR}/*.dis
+    expire_in: 30 days
+  retry:
+    max: 2
+    when: runner_system_failure
+
+build:ebpf:headers:
+  extends: .ebpf_base
+  stage: build-ebpf
+  script:
+    - mkdir -p ${ARTIFACTS_DIR}/headers
+    - |
+      echo "📋 Packaging eBPF headers..."
+      cp ${BPF_DIR}/headers/* ${ARTIFACTS_DIR}/headers/
+      
+      # Generate header documentation
+      python3 << 'PYTHON_EOF'
+      import os
+      import re
+      
+      headers_dir = "${ARTIFACTS_DIR}/headers"
+      doc = "# eBPF Headers Documentation\n\n"
+      
+      for header_file in os.listdir(headers_dir):
+          if header_file.endswith('.h'):
+              with open(os.path.join(headers_dir, header_file), 'r') as f:
+                  content = f.read()
+                  # Extract comments
+                  comments = re.findall(r'\/\*[\s\S]*?\*\/', content)
+                  
+                  doc += f"## {header_file}\n"
+                  for comment in comments[:3]:
+                      doc += f"{comment}\n\n"
+      
+      with open("${ARTIFACTS_DIR}/headers-documentation.md", 'w') as f:
+          f.write(doc)
+      PYTHON_EOF
+    - |
+      echo "✅ Headers packaged"
+      ls -lh ${ARTIFACTS_DIR}/headers/
+  artifacts:
+    paths:
+      - ${ARTIFACTS_DIR}/headers/
+      - ${ARTIFACTS_DIR}/headers-documentation.md
+    expire_in: 30 days
+
+# ============================================================================
+# Stage 2: Verify eBPF Programs
+# ============================================================================
+
+verify:ebpf:structure:
+  extends: .ebpf_base
+  stage: verify-ebpf
+  needs: ["build:ebpf:programs"]
+  script:
+    - |
+      echo "🔍 Verifying eBPF program structure..."
+      
+      for prog in ${ARTIFACTS_DIR}/*.o; do
+        echo ""
+        echo "Program: $(basename $prog)"
+        
+        # Check file type
+        file "$prog"
+        
+        # Check sections
+        echo "Sections:"
+        llvm-objdump-${LLVM_VERSION} -h "$prog" | grep -E "\.text|\.maps|\.rodata" || echo "  (none)"
+        
+        # Check for symbols
+        echo "Symbols:"
+        llvm-nm-${LLVM_VERSION} "$prog" | head -5 || echo "  (none)"
+      done
+  allow_failure: false
+
+verify:ebpf:security:
+  extends: .ebpf_base
+  stage: verify-ebpf
+  needs: ["build:ebpf:programs"]
+  script:
+    - |
+      echo "🔒 Running security checks on eBPF programs..."
+      
+      dangerous_patterns=("bpf_probe_write_user" "bpf_get_current_pid_tgid" "bpf_access_probe_read")
+      
+      for prog in ${ARTIFACTS_DIR}/*.o; do
+        prog_name=$(basename "$prog" .o)
+        echo "Checking $prog_name..."
+        
+        found_dangerous=false
+        for pattern in "${dangerous_patterns[@]}"; do
+          if llvm-objdump-${LLVM_VERSION} -d "$prog" | grep -q "$pattern"; then
+            echo "  ⚠️  Found potentially unsafe operation: $pattern"
+            found_dangerous=true
+          fi
+        done
+        
+        if [ "$found_dangerous" = false ]; then
+          echo "  ✅ No dangerous operations detected"
+        fi
+      done
+  allow_failure: true  # Warning only
+
+# ============================================================================
+# Stage 3: eBPF Integration Tests
+# ============================================================================
+
+test:ebpf:unit:
+  image: python:3.10
+  stage: test-ebpf
+  needs: ["build:ebpf:programs"]
+  script:
+    - pip install -r requirements.txt
+    - pip install -r requirements-dev.txt
+    - |
+      echo "🧪 Running eBPF unit tests..."
+      pytest tests/test_ebpf_loader.py -v --tb=short --junit-xml=test-results-loader.xml
+      pytest tests/test_ebpf_orchestrator.py -v --tb=short --junit-xml=test-results-orchestrator.xml
+  artifacts:
+    reports:
+      junit: test-results-*.xml
+    expire_in: 30 days
+  allow_failure: true
+
+test:ebpf:integration:
+  image: python:3.10
+  stage: test-ebpf
+  needs: ["build:ebpf:programs"]
+  script:
+    - pip install -r requirements.txt
+    - pip install -r requirements-dev.txt
+    - |
+      echo "🧪 Running eBPF integration tests..."
+      pytest tests/integration/test_ebpf_integration.py -v --tb=short --junit-xml=test-results-integration.xml
+  artifacts:
+    reports:
+      junit: test-results-integration.xml
+    expire_in: 30 days
+  allow_failure: true
+
+# ============================================================================
+# Stage 4: Performance Benchmarks
+# ============================================================================
+
+benchmark:ebpf:performance:
+  image: python:3.10
+  stage: benchmark
+  needs: ["build:ebpf:programs"]
+  script:
+    - pip install -r requirements.txt
+    - |
+      echo "⏱️  Running eBPF performance benchmarks..."
+      python benchmarks/benchmark_ebpf_performance.py | tee benchmark-results.txt
+  artifacts:
+    paths:
+      - benchmark-results.txt
+    expire_in: 30 days
+  allow_failure: true
+
+benchmark:ebpf:size:
+  extends: .ebpf_base
+  stage: benchmark
+  needs: ["build:ebpf:programs"]
+  script:
+    - |
+      echo "📊 Analyzing eBPF program sizes..."
+      
+      python3 << 'PYTHON_EOF'
+      import os
+      import json
+      
+      artifacts_dir = "${ARTIFACTS_DIR}"
+      size_report = {"programs": []}
+      total_size = 0
+      
+      for prog in sorted(os.listdir(artifacts_dir)):
+          if prog.endswith('.o'):
+              path = os.path.join(artifacts_dir, prog)
+              size = os.path.getsize(path)
+              total_size += size
+              
+              size_report["programs"].append({
+                  "name": prog,
+                  "size_bytes": size,
+                  "size_kb": round(size / 1024, 2)
+              })
+              
+              print(f"  {prog}: {size} bytes ({size/1024:.2f} KB)")
+      
+      size_report["total_bytes"] = total_size
+      size_report["total_kb"] = round(total_size / 1024, 2)
+      size_report["total_mb"] = round(total_size / (1024*1024), 3)
+      
+      with open("ebpf-size-report.json", 'w') as f:
+          json.dump(size_report, f, indent=2)
+      
+      print(f"\nTotal: {total_size} bytes ({total_size/1024:.2f} KB)")
+      PYTHON_EOF
+  artifacts:
+    paths:
+      - ebpf-size-report.json
+    expire_in: 30 days
+
+# ============================================================================
+# Stage 5: Deploy Artifacts
+# ============================================================================
+
+deploy:ebpf:staging:
+  extends: .ebpf_base
+  stage: deploy
+  needs: ["build:ebpf:programs", "verify:ebpf:structure", "test:ebpf:unit"]
+  environment:
+    name: staging
+    action: prepare
+  script:
+    - |
+      echo "📦 Preparing eBPF artifacts for staging deployment..."
+      
+      mkdir -p deploy/ebpf-staging
+      cp ${ARTIFACTS_DIR}/*.o deploy/ebpf-staging/
+      
+      # Create manifest
+      cat > deploy/ebpf-staging/MANIFEST.txt << EOF
+      x0tta6bl4 eBPF Programs Release
+      ================================
+      Build Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+      Git Commit: ${CI_COMMIT_SHA:0:8}
+      Pipeline ID: ${CI_PIPELINE_ID}
+      Job ID: ${CI_JOB_ID}
+      
+      Programs:
+      EOF
+      
+      ls -1 deploy/ebpf-staging/*.o | while read prog; do
+        size=$(stat -c%s "$prog")
+        echo "  - $(basename $prog) ($size bytes)" >> deploy/ebpf-staging/MANIFEST.txt
+      done
+  artifacts:
+    paths:
+      - deploy/ebpf-staging/
+    expire_in: 90 days
+  only:
+    - develop
+
+deploy:ebpf:production:
+  extends: .ebpf_base
+  stage: deploy
+  needs: ["build:ebpf:programs", "verify:ebpf:structure", "test:ebpf:unit", "benchmark:ebpf:performance"]
+  environment:
+    name: production
+    action: prepare
+  script:
+    - |
+      echo "🚀 Preparing eBPF artifacts for production deployment..."
+      
+      mkdir -p deploy/ebpf-production
+      cp ${ARTIFACTS_DIR}/*.o deploy/ebpf-production/
+      
+      # Create signed manifest
+      cat > deploy/ebpf-production/MANIFEST.txt << EOF
+      x0tta6bl4 eBPF Programs - Production Release
+      =============================================
+      Build Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+      Git Commit: ${CI_COMMIT_SHA}
+      Git Tag: ${CI_COMMIT_TAG}
+      Pipeline ID: ${CI_PIPELINE_ID}
+      
+      Programs:
+      EOF
+      
+      ls -1 deploy/ebpf-production/*.o | while read prog; do
+        size=$(stat -c%s "$prog")
+        md5=$(md5sum "$prog" | cut -d' ' -f1)
+        echo "  - $(basename $prog)" >> deploy/ebpf-production/MANIFEST.txt
+        echo "    Size: $size bytes" >> deploy/ebpf-production/MANIFEST.txt
+        echo "    MD5: $md5" >> deploy/ebpf-production/MANIFEST.txt
+      done
+  artifacts:
+    paths:
+      - deploy/ebpf-production/
+    expire_in: 365 days
+  only:
+    - tags
+    - main
+
+# ============================================================================
+# Schedule: Nightly eBPF Build
+# ============================================================================
+schedule:ebpf:nightly:
+  extends: build:ebpf:programs
+  only:
+    - schedules
+  script:
+    - echo "🌙 Running nightly eBPF build..."
+    - !reference [build:ebpf:programs, script]
+    - |
+      # Generate detailed report
+      python3 << 'PYTHON_EOF'
+      import datetime
+      import os
+      
+      report = f"""
+      # Nightly eBPF Build Report
+      Generated: {datetime.datetime.now()}
+      
+      ## Summary
+      - Artifacts: {len(os.listdir('${ARTIFACTS_DIR}'))}
+      - Total Size: {sum(os.path.getsize(os.path.join('${ARTIFACTS_DIR}', f)) for f in os.listdir('${ARTIFACTS_DIR}'))} bytes
+      
+      ## Details
+      """
+      
+      for f in sorted(os.listdir('${ARTIFACTS_DIR}')):
+          if f.endswith('.o'):
+              size = os.path.getsize(os.path.join('${ARTIFACTS_DIR}', f))
+              report += f"- {f}: {size} bytes\n"
+      
+      with open("nightly-report.md", 'w') as f:
+          f.write(report)
+      PYTHON_EOF
+      - cat nightly-report.md
+  artifacts:
+    paths:
+      - nightly-report.md
+      - ${ARTIFACTS_DIR}/*.o
+    expire_in: 30 days

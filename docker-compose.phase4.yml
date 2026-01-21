@@ -1,0 +1,198 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Primary data store
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: x0tta6bl4
+      POSTGRES_PASSWORD: secure_phase4_password_change_in_production
+      POSTGRES_DB: x0tta6bl4_phase4
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - phase4-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x0tta6bl4"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching and session store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_phase4_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - phase4-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus-phase4.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - phase4-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # AlertManager - Alert routing
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - phase4-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Jaeger - Distributed tracing (OpenTelemetry collector)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "4317:4317"
+      - "16686:16686"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - phase4-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:16686/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # x0tta6bl4 Main Application
+  app:
+    image: x0tta6bl4:phase4-production
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      # Core settings
+      X0TTA6BL4_ENVIRONMENT: staging
+      X0TTA6BL4_VERSION: 3.4.0
+      LOG_LEVEL: INFO
+      
+      # Database
+      DATABASE_URL: postgresql://x0tta6bl4:secure_phase4_password_change_in_production@postgres:5432/x0tta6bl4_phase4
+      
+      # Redis
+      REDIS_URL: redis://:redis_phase4_password@redis:6379/0
+      
+      # Monitoring
+      PROMETHEUS_ENABLED: "true"
+      PROMETHEUS_PORT: 8001
+      OPENTELEMETRY_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      
+      # Security
+      X0TTA6BL4_PRODUCTION: "true"
+      SPIFFE_ENABLED: "false"
+      PQC_ENABLED: "true"
+      
+      # MAPE-K orchestration
+      MAPE_K_ENABLED: "true"
+      MAPE_K_MONITOR_INTERVAL: 30
+      MAPE_K_ANALYSIS_THRESHOLD: 0.7
+      
+      # Uvicorn
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8000
+      UVICORN_WORKERS: 4
+      
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - phase4-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Grafana - Visualization dashboard
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - phase4-network
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  phase4-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  grafana_data:
+    driver: local

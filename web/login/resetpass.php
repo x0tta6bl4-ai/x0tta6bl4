@@ -32,9 +32,7 @@ if(isset($_GET['id']) && isset($_GET['code']))
 			}
 			else
 			{
-				$password = md5($cpass);
-				$stmt = $user->runQuery("UPDATE tbl_users SET userPass=:upass WHERE userID=:uid");
-				$stmt->execute(array(":upass"=>$password,":uid"=>$rows['userID']));
+			$password = password_hash($cpass, PASSWORD_BCRYPT, ['cost' => 12]);
 				
 				$msg = "<div class='alert alert-success'>
 						<button class='close' data-dismiss='alert'>&times;</button>

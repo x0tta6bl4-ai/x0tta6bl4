@@ -1,0 +1,47 @@
+{
+  "name": "базис-веб",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^6.32.1",
+    "@babylonjs/inspector": "^6.32.1",
+    "@babylonjs/loaders": "^6.32.1",
+    "@google/generative-ai": "latest",
+    "dxf-writer": "^1.18.4",
+    "lodash": "4.17.21",
+    "lucide-react": "latest",
+    "numeric": "^1.2.6",
+    "pdfkit": "^0.17.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-unity-webgl": "9.4.2",
+    "recharts": "^3.6.0",
+    "three": "latest",
+    "three-stl-loader": "^1.0.6",
+    "uuid": "^13.0.0",
+    "xml2js": "^0.4.23",
+    "zustand": "5.0.10"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.14.0",
+    "@types/numeric": "^1.2.2",
+    "@types/three": "latest",
+    "@vitejs/plugin-react": "^5.0.0",
+    "jest": "^30.2.0",
+    "three-devtools": "^0.1.0-alpha.4",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.0",
+    "vite": "^6.2.0"
+  }
+}

@@ -40,19 +40,21 @@ def send_email(subject: str, body: str, to: List[str], smtp_host: str, smtp_port
     msg['To'] = ', '.join(to)
     try:
         if use_tls:
-            context = ssl.create_default_context()
-            with socket.create_connection((smtp_host, smtp_port), timeout=5) as raw_sock:
-                with context.wrap_socket(raw_sock, server_hostname=smtp_host) as tls_sock:
-                    import smtplib
-                    s = smtplib.SMTP()
-                    s.sock = tls_sock  # hack - direct assignment
-                    s.file = tls_sock.makefile('rb')
-                    s._host = smtp_host
-                    s.connect(host=smtp_host, port=smtp_port)
+            import smtplib
+            # Use proper SMTP_SSL or starttls() instead of direct socket assignment
+            # Try SMTP_SSL first (for ports like 465)
+            try:
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=5) as s:
                     if smtp_user and smtp_pass:
                         s.login(smtp_user, smtp_pass)
                     s.send_message(msg)
-                    s.quit()
+            except (ssl.SSLError, OSError):
+                # Fallback to STARTTLS (for ports like 587)
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as s:
+                    s.starttls()
+                    if smtp_user and smtp_pass:
+                        s.login(smtp_user, smtp_pass)
+                    s.send_message(msg)
         else:
             import smtplib
             with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as s:

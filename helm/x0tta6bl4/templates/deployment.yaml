@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "x0tta6bl4.fullname" . }}
+  name: {{ include "x0tta6bl4.fullname" . }}-{{ include "x0tta6bl4.releaseType" . }}
   labels:
     {{- include "x0tta6bl4.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ if eq (include "x0tta6bl4.releaseType" .) "canary" }}{{ .Values.canary.replicaCount }}{{ else }}{{ .Values.replicaCount }}{{ end }}
   {{- end }}
   selector:
     matchLabels:
@@ -14,10 +14,13 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "{{ .Values.service.metricsPort }}"
-        prometheus.io/path: "/metrics"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if eq (include "x0tta6bl4.releaseType" .) "canary" }}
+        nginx.ingress.kubernetes.io/canary: "true"
+        nginx.ingress.kubernetes.io/canary-weight: "{{ .Values.canary.weight }}"
+        {{- end }}
       labels:
         {{- include "x0tta6bl4.selectorLabels" . | nindent 8 }}
     spec:
@@ -27,159 +30,51 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "x0tta6bl4.serviceAccountName" . }}
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
-      
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-      - name: mesh-core
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        
-        ports:
-        - name: http
-          containerPort: {{ .Values.service.port }}
-          protocol: TCP
-        - name: mesh
-          containerPort: {{ .Values.service.meshPort }}
-          protocol: TCP
-        - name: metrics
-          containerPort: {{ .Values.service.metricsPort }}
-          protocol: TCP
-        
-        env:
-        # Mesh Configuration
-        - name: MESH_NODE_ID
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: MESH_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        
-        # Slot-Based Sync
-        - name: MESH_SLOT_SYNC_ENABLED
-          value: {{ .Values.mesh.slotSync.enabled | quote }}
-        - name: MESH_BEACON_INTERVAL
-          value: {{ .Values.mesh.slotSync.beaconInterval | quote }}
-        - name: MESH_MTTD_TARGET
-          value: {{ .Values.mesh.slotSync.mttdTarget | quote }}
-        - name: MESH_JITTER_MAX
-          value: {{ .Values.mesh.slotSync.jitterMax | quote }}
-        
-        # Post-Quantum Crypto
-        - name: PQ_CRYPTO_ENABLED
-          value: {{ .Values.security.postQuantum.enabled | quote }}
-        - name: PQ_ALGORITHM
-          value: {{ .Values.security.postQuantum.algorithm | quote }}
-        - name: PQ_NIST_LEVEL
-          value: {{ .Values.security.postQuantum.nistLevel | quote }}
-        
-        # Zero Trust
-        - name: ZERO_TRUST_ENABLED
-          value: {{ .Values.security.zeroTrust.enabled | quote }}
-        - name: MTLS_ENABLED
-          value: {{ .Values.security.zeroTrust.mTLS | quote }}
-        
-        # SPIFFE/SPIRE
-        {{- if .Values.security.spiffe.enabled }}
-        - name: SPIFFE_ENABLED
-          value: "true"
-        - name: SPIFFE_TRUST_DOMAIN
-          value: {{ .Values.security.spiffe.trustDomain | quote }}
-        - name: SPIRE_SERVER_ADDRESS
-          value: {{ .Values.security.spiffe.serverAddress | quote }}
-        {{- end }}
-        
-        # GraphSAGE AI
-        - name: GRAPHSAGE_ENABLED
-          value: {{ .Values.ai.graphsage.enabled | quote }}
-        - name: GRAPHSAGE_TARGET_RECALL
-          value: {{ .Values.ai.graphsage.targetRecall | quote }}
-        - name: GRAPHSAGE_QUANTIZATION
-          value: {{ .Values.ai.graphsage.quantization | quote }}
-        - name: GRAPHSAGE_MODEL_PATH
-          value: {{ .Values.ai.graphsage.modelPath | quote }}
-        
-        # Federated Learning
-        - name: FL_ENABLED
-          value: {{ .Values.ai.graphsage.federatedLearning.enabled | quote }}
-        - name: FL_MIN_NODES
-          value: {{ .Values.ai.graphsage.federatedLearning.minNodes | quote }}
-        
-        # DAO Governance
-        - name: DAO_ENABLED
-          value: {{ .Values.dao.enabled | quote }}
-        - name: DAO_VOTING_TYPE
-          value: {{ .Values.dao.voting.type | quote }}
-        - name: DAO_QUORUM_PERCENT
-          value: {{ .Values.dao.voting.quorumPercent | quote }}
-        - name: DAO_TIMELOCK_DAYS
-          value: {{ .Values.dao.voting.timelockDays | quote }}
-        
-        # Privacy Mode
-        - name: PRIVACY_MODE
-          value: {{ .Values.cicd.privacyMode | quote }}
-        - name: TELEMETRY_DISABLED
-          value: {{ .Values.cicd.telemetryDisabled | quote }}
-        
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: http
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        
-        resources:
-          {{- toYaml .Values.resources | nindent 10 }}
-        
-        volumeMounts:
-        - name: config
-          mountPath: /etc/x0tta6bl4
-          readOnly: true
-        {{- if .Values.persistence.enabled }}
-        - name: dao-storage
-          mountPath: {{ .Values.persistence.dao.mountPath }}
-        - name: graphsage-models
-          mountPath: {{ .Values.persistence.graphsage.mountPath }}
-        {{- end }}
-        {{- if .Values.security.spiffe.enabled }}
-        - name: spiffe-workload-api
-          mountPath: /run/spire/sockets
-          readOnly: true
-        {{- end }}
-      
-      volumes:
-      - name: config
-        configMap:
-          name: {{ include "x0tta6bl4.fullname" . }}
-      {{- if .Values.persistence.enabled }}
-      - name: dao-storage
-        persistentVolumeClaim:
-          claimName: {{ include "x0tta6bl4.fullname" . }}-dao
-      - name: graphsage-models
-        persistentVolumeClaim:
-          claimName: {{ include "x0tta6bl4.fullname" . }}-models
-      {{- end }}
-      {{- if .Values.security.spiffe.enabled }}
-      - name: spiffe-workload-api
-        csi:
-          driver: "csi.spiffe.io"
-          readOnly: true
-      {{- end }}
-      
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ if eq (include "x0tta6bl4.releaseType" .) "canary" }}{{ .Values.canary.image.tag | default .Values.image.tag }}{{ else }}{{ .Values.image.tag | default .Chart.AppVersion }}{{ end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: X0TTA6BL4_VERSION
+              value: {{ .Values.env.X0TTA6BL4_VERSION | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.env.LOG_LEVEL | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.env.ENVIRONMENT | quote }}
+            - name: OQS_DISABLE_AUTO_INSTALL
+              value: "1"
+            {{- if .Values.production.enabled }}
+            - name: X0TTA6BL4_PRODUCTION
+              value: "true"
+            {{- else }}
+            - name: X0TTA6BL4_PRODUCTION
+              value: "false"
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

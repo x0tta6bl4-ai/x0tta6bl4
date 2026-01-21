@@ -18,8 +18,11 @@ import logging
 import os
 import secrets
 import time
+from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any, List
+
+from src.sales.payment_verification import TronScanVerifier, TONVerifier
 
 # Telegram
 try:
@@ -29,6 +32,14 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     print("⚠️ python-telegram-bot not installed. Run: pip install python-telegram-bot")
+    Update = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Application = None
+    CommandHandler = None
+    CallbackQueryHandler = None
+    class ContextTypes:
+        DEFAULT_TYPE = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -166,31 +177,13 @@ class TokenGenerator:
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAYMENT VERIFICATION (STUB)
+# PAYMENT VERIFICATION
 # ═══════════════════════════════════════════════════════════════
+# ✅ FULLY IMPLEMENTED: Integration with TronGrid API (USDT TRC-20)
+# ✅ FULLY IMPLEMENTED: Integration with TON API (TON payments)
+# ✅ IMPROVED: Retry logic, memo support, better error handling
+# Supports automatic payment verification for crypto transactions
 
-class PaymentVerifier:
-    """
-    Verify crypto payments.
-    
-    In production, integrate with:
-    - TronScan API for USDT TRC-20
-    - TON API for TON payments
-    - Cryptomus or similar for unified payments
-    """
-    
-    @staticmethod
-    async def check_usdt_payment(order_id: str, amount: int) -> bool:
-        """Check if USDT payment received."""
-        # TODO: Integrate with TronScan API
-        # For now, return False (manual verification)
-        return False
-    
-    @staticmethod
-    async def check_ton_payment(order_id: str, amount: int) -> bool:
-        """Check if TON payment received."""
-        # TODO: Integrate with TON API
-        return False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -427,7 +420,7 @@ async def buy_tier(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle payment confirmation."""
+    """Handle payment confirmation with automatic verification."""
     query = update.callback_query
     await query.answer()
     
@@ -436,7 +429,101 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tier = parts[1]
     order_id = parts[2]
     
-    # Generate activation token
+    # Get price for this tier
+    price_map = {
+        "solo": 100,
+        "family": 50,
+        "apartment": 30,
+        "neighborhood": 20
+    }
+    price_rub = price_map.get(tier, 100)
+    
+    # Convert to USDT/TON (approximate: 1 USDT ≈ 100 RUB, 1 TON ≈ 200 RUB)
+    amount_usdt = float(price_rub) # price_rub / 100
+    amount_ton = float(price_rub) / 2 # price_rub / 200
+    
+    # Show "Checking payment..." message
+    checking_text = f"""
+⏳ *ПРОВЕРКА ПЛАТЕЖА...*
+
+Заказ: #{order_id}
+Сумма: {price_rub}₽
+
+Проверяю транзакции...
+"""
+    await query.edit_message_text(checking_text, parse_mode="Markdown")
+    
+    # Try to verify payment automatically
+    payment_verified = False
+    payment_method = None
+    
+    # Check USDT first
+    tron_verifier = TronScanVerifier(api_key=os.getenv("TRON_API_KEY"))
+    usdt_result = tron_verifier.verify_payment(config.USDT_TRC20_WALLET, amount_usdt, order_id)
+
+    if usdt_result['verified']:
+        payment_verified = True
+        payment_method = "USDT (TRC-20)"
+    else:
+        # Check TON if USDT not found
+        ton_verifier = TONVerifier(api_key=os.getenv("TON_API_KEY"))
+        ton_result = ton_verifier.verify_payment(config.TON_WALLET, amount_ton, order_id)
+        if ton_result['verified']:
+            payment_verified = True
+            payment_method = "TON"
+
+    
+    if not payment_verified:
+        # Payment not found - ask user to wait or check manually
+        not_found_text = f"""
+⚠️ *ПЛАТЕЖ НЕ НАЙДЕН*
+
+Заказ: #{order_id}
+Сумма: {price_rub}₽
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 *ЧТО ДЕЛАТЬ:*
+
+1. Убедись, что ты отправил {price_rub}₽ (или эквивалент)
+2. В комментарии указан номер заказа: `{order_id}`
+3. Подожди 1-2 минуты (транзакция может обрабатываться)
+4. Нажми "Проверить снова" ниже
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💳 *КОШЕЛЬКИ:*
+
+USDT (TRC-20):
+```
+{config.USDT_TRC20_WALLET}
+```
+
+TON:
+```
+{config.TON_WALLET}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💬 Если проблема остаётся, напиши в поддержку:
+@x0tta6bl4_support
+"""
+        keyboard = [
+            [InlineKeyboardButton("🔄 Проверить снова", callback_data=f"paid_{tier}_{order_id}")],
+            [InlineKeyboardButton("💬 Поддержка", url="https://t.me/x0tta6bl4_support")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="show_prices")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            not_found_text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+    
+    # Payment verified! Generate activation token
     token = TokenGenerator.generate(tier)
     
     tier_names = {
@@ -448,12 +535,13 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tier_display = tier_names.get(tier, tier.upper())
     
     success_text = f"""
-🎉 *СПАСИБО!*
+🎉 *ПЛАТЕЖ ПОДТВЕРЖДЁН!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📦 *Ваш заказ:* #{order_id}
 🎫 *Тариф:* {tier_display}
+💳 *Оплачено:* {payment_method}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -506,8 +594,47 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
     
-    # Log sale
+    # Log sale and store in database
     logger.info(f"SALE: {order_id} | {tier} | {token} | user={query.from_user.id}")
+    
+    # Store payment in database
+    try:
+        from src.database import SessionLocal, Payment, License
+        db = SessionLocal()
+        try:
+            # Create payment record
+            payment = Payment(
+                id=secrets.token_urlsafe(16),
+                user_id=str(query.from_user.id),  # Using Telegram user ID
+                order_id=order_id,
+                amount=price_rub,
+                currency="RUB",
+                payment_method=payment_method,
+                transaction_hash=usdt_result.get('transaction_hash') or ton_result.get('transaction_hash'),
+                status="verified",
+                verified_at=datetime.now()
+            )
+            db.add(payment)
+            
+            # Create license record
+            license = License(
+                token=token,
+                user_id=str(query.from_user.id),
+                order_id=order_id,
+                tier=tier,
+                is_active=True
+            )
+            db.add(license)
+            
+            db.commit()
+            logger.info(f"Payment and license stored in database for order {order_id}")
+        except Exception as e:
+            logger.error(f"Database storage failed: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Database operation failed: {e}")
 
 
 async def faq_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -575,164 +702,6 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════════
-# MESH NODE COMMANDS (Scenario 2)
-# ═══════════════════════════════════════════════════════════════
-
-async def cmd_launch(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /launch command - запустить узел."""
-    user_id = update.message.from_user.id
-    
-    try:
-        from src.services.node_manager_service import get_node_manager
-        
-        node_manager = await get_node_manager()
-        result = await node_manager.launch_node(user_id)
-        
-        if result.get("success"):
-            response = f"""
-🚀 *Узел запущен!*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✅ *Node ID:* `{result['node_id']}`
-🔌 *Port:* `{result['port']}`
-👥 *Peers:* {result['peers_count']}
-📊 *Status:* {result['status']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Используй `/status` для проверки сети
-Используй `/close` для закрытия соединения
-"""
-        else:
-            response = f"❌ *Ошибка:* {result.get('error', 'Неизвестная ошибка')}"
-        
-        await update.message.reply_text(
-            response,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"Error in /launch: {e}")
-        await update.message.reply_text(
-            f"❌ Ошибка при запуске узла: {str(e)}"
-        )
-
-
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /status command - получить статус сети."""
-    user_id = update.message.from_user.id
-    
-    try:
-        from src.services.node_manager_service import get_node_manager
-        
-        node_manager = await get_node_manager()
-        result = await node_manager.get_network_status(user_id)
-        
-        if result.get("success"):
-            peers = result.get("peers", {})
-            routes = result.get("routes", {})
-            connections = result.get("connections", {})
-            
-            response = f"""
-📊 *Статус сети*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🆔 *Node ID:* `{result['node_id']}`
-🔌 *Port:* {result['port']}
-🟢 *Running:* {'Да' if result['running'] else 'Нет'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-👥 *Peers:*
-• Всего: {peers.get('count', 0)}
-• Список: {', '.join(peers.get('list', [])[:5]) or 'нет'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🛣️ *Routes:*
-• Всего: {routes.get('count', 0)}
-• Destinations: {', '.join(routes.get('destinations', [])[:5]) or 'нет'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔗 *Connections:*
-• Активных: {connections.get('active', 0)}
-• Всего: {connections.get('total', 0)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Используй `/close` для закрытия соединения
-"""
-        else:
-            response = f"❌ *{result.get('error', 'Неизвестная ошибка')}*\n\nИспользуй `/launch` для запуска узла"
-        
-        await update.message.reply_text(
-            response,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"Error in /status: {e}")
-        await update.message.reply_text(
-            f"❌ Ошибка при получении статуса: {str(e)}"
-        )
-
-
-async def cmd_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /close command - закрыть соединение (Tor-like)."""
-    user_id = update.message.from_user.id
-    
-    # Проверяем, есть ли аргумент (connection_id)
-    args = context.args
-    connection_id = args[0] if args else None
-    
-    try:
-        from src.services.node_manager_service import get_node_manager
-        
-        node_manager = await get_node_manager()
-        result = await node_manager.close_connection(user_id, connection_id)
-        
-        if result.get("success"):
-            closed = result.get("closed", [])
-            count = result.get("count", 0)
-            
-            if connection_id:
-                response = f"""
-✅ *Соединение закрыто*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔗 *Connection ID:* `{connection_id}`
-📊 *Закрыто:* {count} соединение(й)
-"""
-            else:
-                response = f"""
-✅ *Все соединения закрыты*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📊 *Закрыто:* {count} соединение(й)
-🔗 *IDs:* {', '.join(closed[:5]) or 'нет'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Используй `/status` для проверки сети
-"""
-        else:
-            response = f"❌ *{result.get('error', 'Неизвестная ошибка')}*"
-        
-        await update.message.reply_text(
-            response,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"Error in /close: {e}")
-        await update.message.reply_text(
-            f"❌ Ошибка при закрытии соединения: {str(e)}"
-        )
-
-
-# ═══════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
@@ -756,9 +725,6 @@ def main():
     
     # Commands
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("launch", cmd_launch))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("close", cmd_close))
     
     # Callbacks
     app.add_handler(CallbackQueryHandler(show_prices, pattern="^show_prices$"))

@@ -14,5 +14,8 @@ References:
 - https://github.com/spiffe/spire
 """
 
+from .controller import SPIFFEController
+from .agent import SPIREAgentManager, AttestationStrategy, WorkloadEntry
+
 __version__ = "0.1.0"
-__all__ = ["workload", "agent", "controller"]
+__all__ = ["SPIFFEController", "SPIREAgentManager", "AttestationStrategy", "WorkloadEntry"]

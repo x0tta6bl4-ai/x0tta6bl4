@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-01-11T00:00:00Z",
+  "mode": "lightweight_simulation",
+  "iterations": 100,
+  "target_cycle_ms": 300,
+  "components": [
+    {
+      "component": "Monitor",
+      "mean_ms": 1.4730028802296147,
+      "median_ms": 1.2204334998386912,
+      "p95_ms": 2.747717997408472,
+      "p99_ms": 3.122369002085179,
+      "min_ms": 1.1256970028625801,
+      "max_ms": 3.4134589950554073,
+      "iterations": 100
+    },
+    {
+      "component": "Analyzer",
+      "mean_ms": 2.6938820608484093,
+      "median_ms": 2.2615624984609894,
+      "p95_ms": 4.389415000332519,
+      "p99_ms": 8.291237987577915,
+      "min_ms": 2.1329150040401146,
+      "max_ms": 10.412257004645653,
+      "iterations": 100
+    },
+    {
+      "component": "Planner",
+      "mean_ms": 1.6552061104448512,
+      "median_ms": 1.262465499166865,
+      "p95_ms": 3.4461430041119456,
+      "p99_ms": 4.347519992734306,
+      "min_ms": 1.1257269943598658,
+      "max_ms": 4.4771929970011115,
+      "iterations": 100
+    },
+    {
+      "component": "Executor",
+      "mean_ms": 1.4557148290623445,
+      "median_ms": 1.2527165017672814,
+      "p95_ms": 2.3200450086733326,
+      "p99_ms": 4.026629991130903,
+      "min_ms": 1.1358599876984954,
+      "max_ms": 4.117742006201297,
+      "iterations": 100
+    },
+    {
+      "component": "Knowledge",
+      "mean_ms": 1.3883262997842394,
+      "median_ms": 1.1856625060318038,
+      "p95_ms": 2.479818998835981,
+      "p99_ms": 3.279349999502301,
+      "min_ms": 1.079445006325841,
+      "max_ms": 3.3386189898010343,
+      "iterations": 100
+    },
+    {
+      "component": "FullCycle",
+      "mean_ms": 5.331943280471023,
+      "median_ms": 5.182532004255336,
+      "p95_ms": 5.978523011435755,
+      "p99_ms": 7.131274993298575,
+      "min_ms": 5.131419005920179,
+      "max_ms": 7.576971998787485,
+      "iterations": 100
+    }
+  ],
+  "notes": "Baseline profiling for MAPE-K cycle components with realistic timings"
+}

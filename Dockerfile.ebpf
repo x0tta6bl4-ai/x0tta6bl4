@@ -1,0 +1,88 @@
+# Dockerfile for building x0tta6bl4 with eBPF support
+# Multi-stage build: compile eBPF programs, then build runtime
+
+FROM ubuntu:22.04 as ebpf-builder
+
+LABEL maintainer="x0tta6bl4 Team"
+LABEL description="eBPF Programs Builder for x0tta6bl4"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CLANG_VERSION=14
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    clang-${CLANG_VERSION} \
+    llvm-${CLANG_VERSION} \
+    linux-headers-generic \
+    libbpf-dev \
+    libelf-dev \
+    build-essential \
+    git \
+    curl \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up clang/llc alternatives
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${CLANG_VERSION} 100 && \
+    update-alternatives --install /usr/bin/llc llc /usr/bin/llc-${CLANG_VERSION} 100
+
+WORKDIR /build
+
+# Copy source code
+COPY src/network/ebpf/programs /build/programs
+COPY src/network/ebpf /build/ebpf
+
+# Compile eBPF programs
+WORKDIR /build/programs
+RUN echo "Building eBPF programs..." && \
+    make clean && \
+    make all && \
+    echo "✅ eBPF programs compiled successfully" && \
+    ls -lh *.o
+
+
+FROM python:3.10-slim as runtime
+
+LABEL maintainer="x0tta6bl4 Team"
+LABEL description="x0tta6bl4 with eBPF Support"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libbpf0 \
+    libelf1 \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy eBPF compiled objects from builder
+COPY --from=ebpf-builder /build/programs/*.o /app/ebpf/programs/
+
+# Copy application code
+COPY . /app/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir -e .[ml,monitoring]
+
+# Create non-root user
+RUN useradd -m -u 1000 x0tta6bl4 && \
+    chown -R x0tta6bl4:x0tta6bl4 /app
+
+USER x0tta6bl4
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Set proper permissions for eBPF
+RUN chmod 755 /app/ebpf/programs/*.o
+
+EXPOSE 8000
+
+ENTRYPOINT ["python", "-m", "src.core.app"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]

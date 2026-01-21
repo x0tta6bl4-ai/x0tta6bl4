@@ -4,6 +4,7 @@ MAPE-K Cycle с интеграцией всех новых компоненто�
 """
 
 import logging
+import time
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -104,63 +105,143 @@ class IntegratedMAPEKCycle:
         Returns:
             Результаты цикла с объяснениями от всех компонентов
         """
-        # 1. Monitor: Обнаружение аномалий
-        anomaly_detected = self.monitor.check(metrics)
+        cycle_id = f"cycle_{int(time.time() * 1000)}"
+        node_id = metrics.get('node_id', 'unknown')
         
-        result = {
-            'timestamp': datetime.now().isoformat(),
-            'anomaly_detected': anomaly_detected,
-            'monitor_results': {},
-            'analyzer_results': {},
-            'planner_results': {},
-            'executor_results': {},
-            'explanations': {}
-        }
+        # 0. Tracing: Start full cycle trace with distributed tracing
+        tracing = None
+        try:
+            from src.monitoring.tracing import get_tracing_manager
+            tracing = get_tracing_manager()
+        except Exception:
+            pass
         
-        if not anomaly_detected:
-            return result
+        # Use improved tracing with full cycle context
+        cycle_trace = None
+        if tracing:
+            cycle_trace = tracing.trace_full_mape_k_cycle(cycle_id, node_id)
+        else:
+            from contextlib import nullcontext
+            cycle_trace = nullcontext()
         
-        # 2. Analyze: Root cause analysis
-        analysis_issue = self.analyzer.analyze(metrics)
-        result['analyzer_results'] = {
-            'root_cause': analysis_issue,
-            'confidence': 1.0 if analysis_issue != 'Healthy' else 0.0,
-            'affected_nodes': [metrics.get('node_id')] if analysis_issue != 'Healthy' else []
-        }
-        
-        # 3. GraphSAGE Observe Mode: Дополнительная валидация
-        if self.observe_detector:
-            graph_data = self._prepare_graph_data(metrics)
-            event = self.observe_detector.detect(graph_data, metrics.get('node_id', 'unknown'))
+        with cycle_trace:
+            # 1. Monitor: Обнаружение аномалий with tracing
+            monitor_trace = None
+            if tracing:
+                monitor_trace = tracing.trace_mape_k_cycle("monitor", {
+                    "cycle_id": cycle_id,
+                    "node_id": node_id,
+                    **metrics
+                })
+            else:
+                from contextlib import nullcontext
+                monitor_trace = nullcontext()
             
-            if event:
-                result['observe_mode'] = {
-                    'anomaly_score': event.anomaly_score,
-                    'confidence': event.confidence,
-                    'mode': event.mode.value,
-                    'action_taken': event.action_taken
-                }
-                
-                # Добавить объяснение
-                result['explanations']['observe_mode'] = (
-                    f"GraphSAGE detected anomaly with {event.confidence:.1%} confidence. "
-                    f"Mode: {event.mode.value} (no action taken in observe mode)"
-                )
+            with monitor_trace:
+                anomaly_detected = self.monitor.check(metrics)
+            
+            result = {
+                'timestamp': datetime.now().isoformat(),
+                'cycle_id': cycle_id,
+                'anomaly_detected': anomaly_detected,
+                'monitor_results': {},
+                'analyzer_results': {},
+                'planner_results': {},
+                'executor_results': {},
+                'explanations': {}
+            }
+            
+            if not anomaly_detected:
+                return result
+            
+            # 2. Analyze: Root cause analysis with tracing
+            analyze_trace = None
+            if tracing:
+                analyze_trace = tracing.trace_mape_k_cycle("analyze", {
+                    "cycle_id": cycle_id,
+                    "node_id": node_id,
+                    "anomaly_detected": True
+                })
+            else:
+                from contextlib import nullcontext
+                analyze_trace = nullcontext()
+            
+            with analyze_trace:
         
-        # 4. Plan: Recovery strategy
-        strategy = self.planner.plan(analysis_issue)
+                analysis_issue = self.analyzer.analyze(metrics)
+                result['analyzer_results'] = {
+                    'root_cause': analysis_issue,
+                    'confidence': 1.0 if analysis_issue != 'Healthy' else 0.0,
+                    'affected_nodes': [metrics.get('node_id')] if analysis_issue != 'Healthy' else []
+                }
+            
+                # 3. GraphSAGE Observe Mode: Дополнительная валидация
+                if self.observe_detector:
+                    graph_data = self._prepare_graph_data(metrics)
+                    event = self.observe_detector.detect(graph_data, metrics.get('node_id', 'unknown'))
+                    
+                    if event:
+                        result['observe_mode'] = {
+                            'anomaly_score': event.anomaly_score,
+                            'confidence': event.confidence,
+                            'mode': event.mode.value,
+                            'action_taken': event.action_taken
+                        }
+                        
+                        # Добавить объяснение
+                        result['explanations']['observe_mode'] = (
+                            f"GraphSAGE detected anomaly with {event.confidence:.1%} confidence. "
+                            f"Mode: {event.mode.value} (no action taken in observe mode)"
+                        )
+            
+            # 4. Plan: Recovery strategy with tracing
+            plan_trace = None
+            if tracing:
+                plan_trace = tracing.trace_mape_k_cycle("plan", {
+                    "cycle_id": cycle_id,
+                    "node_id": node_id,
+                    "issue": analysis_issue
+                })
+            else:
+                from contextlib import nullcontext
+                plan_trace = nullcontext()
+            
+            with plan_trace:
+                plan_start_time = time.time()
+                strategy = self.planner.plan(analysis_issue)
+        
+        # Estimate recovery time based on strategy type and historical data
+        estimated_recovery_time = self._estimate_recovery_time(strategy, analysis_issue)
+        
         result['planner_results'] = {
             'strategy': strategy,
             'actions': [strategy],
-            'estimated_recovery_time': 5.0  # Mock value
+            'estimated_recovery_time': estimated_recovery_time
         }
         
         # 5. Execute: Recovery actions
-        execution_success = self.executor.execute(strategy)
+        try:
+            from src.monitoring.tracing import get_tracing_manager
+            tracing = get_tracing_manager()
+            if tracing:
+                tracing.trace_mape_k_cycle("execute", {"strategy": strategy})
+        except Exception:
+            pass
+        
+        execution_start_time = time.time()
+        # Pass context for better recovery actions
+        execution_context = {
+            "node_id": metrics.get("node_id", "unknown"),
+            "service_name": metrics.get("service_name", "x0tta6bl4"),
+            "issue": analysis_issue
+        }
+        execution_success = self.executor.execute(strategy, context=execution_context)
+        execution_duration = time.time() - execution_start_time
+        
         result['executor_results'] = {
             'success': execution_success,
             'actions_executed': [strategy] if execution_success else [],
-            'recovery_time': 5.0  # Mock value
+            'recovery_time': execution_duration  # Real measured recovery time
         }
         
         # 6. eBPF Explainer: Объяснение network events
@@ -254,4 +335,59 @@ class IntegratedMAPEKCycle:
         }
         
         return status
+    
+    def _estimate_recovery_time(self, strategy: str, issue: str) -> float:
+        """
+        Estimate recovery time based on strategy type and historical data.
+        
+        Args:
+            strategy: Recovery strategy name
+            issue: Issue type/root cause
+            
+        Returns:
+            Estimated recovery time in seconds
+        """
+        # Base recovery times by strategy type (in seconds)
+        base_times = {
+            'Restart service': 5.0,
+            'Switch route': 2.0,
+            'Clear cache': 1.0,
+            'Scale up': 10.0,
+            'Scale down': 3.0,
+            'Failover': 3.0,
+            'Quarantine node': 1.0,
+            'No action needed': 0.0
+        }
+        
+        # Get base time for strategy
+        base_time = base_times.get(strategy, 5.0)  # Default 5 seconds
+        
+        # Adjust based on issue severity
+        severity_multipliers = {
+            'High CPU': 1.0,
+            'High Memory': 1.2,
+            'Network Loss': 0.8,
+            'Node Down': 1.5,
+            'Link Failure': 1.0,
+            'Congestion': 0.9,
+            'Byzantine Attack': 2.0,
+            'Resource Exhaustion': 1.3
+        }
+        
+        multiplier = severity_multipliers.get(issue, 1.0)
+        
+        # Try to get historical MTTR from knowledge base
+        if self.knowledge:
+            try:
+                # Get average MTTR for this issue type from knowledge
+                historical_mttr = self.knowledge.get_average_mttr(issue)
+                if historical_mttr and historical_mttr > 0:
+                    # Use historical data if available (weighted average: 70% historical, 30% estimated)
+                    estimated = (historical_mttr * 0.7) + (base_time * multiplier * 0.3)
+                    return estimated
+            except Exception:
+                pass  # Fall back to base calculation
+        
+        # Return estimated time
+        return base_time * multiplier
 

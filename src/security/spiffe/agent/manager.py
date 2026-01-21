@@ -270,13 +270,100 @@ class SPIREAgentManager:
     
     def list_workloads(self) -> List[WorkloadEntry]:
         """
-        List all registered workloads.
+        List all registered workloads from SPIRE Server.
+        
+        Uses `spire-server entry show` to fetch all registered entries.
         
         Returns:
-            List of workload entries (empty in current implementation).
+            List of workload entries.
         """
-        logger.warning("list_workloads is not implemented yet.")
-        return []
+        if not self._spire_server_bin:
+            logger.warning("spire-server binary not found, cannot list workloads")
+            return []
+        
+        try:
+            # Execute: spire-server entry show
+            cmd = [self._spire_server_bin, "entry", "show"]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                logger.warning(f"Failed to list workloads: {result.stderr.strip()}")
+                return []
+            
+            # Parse output: each entry is separated by blank lines
+            # Format: Entry ID: <id>
+            #         SPIFFE ID: <spiffe_id>
+            #         Parent ID: <parent_id>
+            #         TTL: <ttl>
+            #         Selector: <type>:<value>
+            #         ...
+            workloads = []
+            current_entry = {}
+            lines = result.stdout.strip().split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    # Empty line - end of entry, create WorkloadEntry if valid
+                    if current_entry.get('spiffe_id') and current_entry.get('parent_id'):
+                        workloads.append(WorkloadEntry(
+                            spiffe_id=current_entry['spiffe_id'],
+                            parent_id=current_entry['parent_id'],
+                            selectors=current_entry.get('selectors', {}),
+                            ttl=int(current_entry.get('ttl', 3600))
+                        ))
+                    current_entry = {}
+                    continue
+                
+                # Parse key-value pairs
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip().lower()
+                    value = value.strip()
+                    
+                    if key == 'spiffe id':
+                        current_entry['spiffe_id'] = value
+                    elif key == 'parent id':
+                        current_entry['parent_id'] = value
+                    elif key == 'ttl':
+                        current_entry['ttl'] = value.replace('s', '').strip()
+                    elif key == 'selector':
+                        if 'selectors' not in current_entry:
+                            current_entry['selectors'] = {}
+                        # Format: "k8s:pod-name:web-server" or "unix:uid:1000"
+                        if ':' in value:
+                            parts = value.split(':', 2)
+                            if len(parts) >= 2:
+                                selector_type = parts[0]
+                                selector_value = parts[1] if len(parts) == 2 else ':'.join(parts[1:])
+                                current_entry['selectors'][f"{selector_type}:{selector_value.split(':')[0]}"] = selector_value.split(':')[-1] if ':' in selector_value else selector_value
+            
+            # Handle last entry if file doesn't end with blank line
+            if current_entry.get('spiffe_id') and current_entry.get('parent_id'):
+                workloads.append(WorkloadEntry(
+                    spiffe_id=current_entry['spiffe_id'],
+                    parent_id=current_entry['parent_id'],
+                    selectors=current_entry.get('selectors', {}),
+                    ttl=int(current_entry.get('ttl', 3600))
+                ))
+            
+            logger.info(f"Listed {len(workloads)} registered workloads")
+            return workloads
+            
+        except FileNotFoundError:
+            logger.warning("spire-server binary not found, cannot list workloads")
+            return []
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout while listing workloads")
+            return []
+        except Exception as e:
+            logger.exception(f"Error listing workloads: {e}")
+            return []
     
     def health_check(self) -> bool:
         """

@@ -1,0 +1,38 @@
+# Ingress для Beta Customer Access
+# Внешний доступ к x0tta6bl4-staging для beta customers
+# Дата: 2026-01-08
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: x0tta6bl4-staging-beta
+  namespace: x0tta6bl4-staging
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Rate limiting для beta
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    # Basic auth (опционально, если нужна дополнительная защита)
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: beta-customer-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Beta Access'
+spec:
+  ingressClassName: nginx  # или другой ingress controller
+  rules:
+  - host: beta.x0tta6bl4.local  # Замени на реальный домен
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: x0tta6bl4
+            port:
+              number: 8080
+  # TLS (опционально, если есть сертификат)
+  # tls:
+  # - hosts:
+  #   - beta.x0tta6bl4.local
+  #   secretName: beta-tls-secret
+
+

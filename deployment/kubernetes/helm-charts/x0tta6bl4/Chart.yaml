@@ -1,0 +1,17 @@
+apiVersion: v2
+name: x0tta6bl4
+description: A Helm chart for x0tta6bl4 mesh network platform
+type: application
+version: 3.0.0
+appVersion: "3.0.0"
+keywords:
+  - mesh-network
+  - self-healing
+  - post-quantum
+  - federated-learning
+home: https://x0tta6bl4.dev
+sources:
+  - https://gitlab.com/x0tta6bl4/x0tta6bl4
+maintainers:
+  - name: x0tta6bl4 Team
+

@@ -4,24 +4,12 @@ metadata:
   name: {{ include "x0tta6bl4.fullname" . }}
   labels:
     {{- include "x0tta6bl4.labels" . | nindent 4 }}
-  {{- with .Values.service.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:
-  - port: {{ .Values.service.port }}
-    targetPort: http
-    protocol: TCP
-    name: http
-  - port: {{ .Values.service.meshPort }}
-    targetPort: mesh
-    protocol: TCP
-    name: mesh
-  - port: {{ .Values.service.metricsPort }}
-    targetPort: metrics
-    protocol: TCP
-    name: metrics
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
   selector:
     {{- include "x0tta6bl4.selectorLabels" . | nindent 4 }}

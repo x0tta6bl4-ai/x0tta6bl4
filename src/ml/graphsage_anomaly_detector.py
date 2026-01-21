@@ -15,24 +15,65 @@ import logging
 import time
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
+from datetime import datetime
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Optional PyTorch imports for GNN
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv
-from torch_geometric.data import Data
-
-# Optional quantization imports
+# Monitoring metrics
 try:
-    import torch.quantization as quantization
-    from torch.quantization import QuantStub, DeQuantStub
-    _QUANTIZATION_AVAILABLE = _TORCH_AVAILABLE
+    from src.monitoring import record_graphsage_inference
+    MONITORING_AVAILABLE = True
 except ImportError:
+    MONITORING_AVAILABLE = False
+    def record_graphsage_inference(*args, **kwargs): pass
+
+# Optional causal analysis imports
+try:
+    from src.ml.causal_analysis import (
+        CausalAnalysisEngine,
+        CausalAnalysisResult,
+        IncidentEvent,
+        IncidentSeverity
+    )
+    CAUSAL_ANALYSIS_AVAILABLE = True
+except ImportError:
+    CAUSAL_ANALYSIS_AVAILABLE = False
+    logger.warning("⚠️ Causal analysis not available. Install dependencies if needed.")
+
+# Optional SHAP imports for explainability
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+    logger.warning("⚠️ SHAP not available. Install with: pip install shap")
+
+# Optional PyTorch imports for GNN
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch_geometric.nn import SAGEConv
+    from torch_geometric.data import Data
+    _TORCH_AVAILABLE = True
+    
+    # Optional quantization imports
+    try:
+        import torch.quantization as quantization
+        from torch.quantization import QuantStub, DeQuantStub
+        _QUANTIZATION_AVAILABLE = True
+    except ImportError:
+        _QUANTIZATION_AVAILABLE = False
+except ImportError:
+    _TORCH_AVAILABLE = False
     _QUANTIZATION_AVAILABLE = False
+    # Create dummy classes for type hints
+    torch = None
+    nn = None
+    F = None
+    SAGEConv = None
+    Data = None
 
 
 @dataclass
@@ -184,6 +225,12 @@ class GraphSAGEAnomalyDetector:
         self.recall = 0.96  # Default recall for validation
         self.precision = 0.98  # Default precision for validation
         
+        if not _TORCH_AVAILABLE:
+            logger.warning("⚠️ GraphSAGE: torch not available, using rule-based fallback")
+            self.device = None
+            self.model = None
+            return
+        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = GraphSAGEAnomalyDetectorV2(
             input_dim=input_dim,
@@ -197,6 +244,19 @@ class GraphSAGEAnomalyDetector:
             logger.info("Model prepared for INT8 quantization")
         
         self.is_trained = False
+        
+        # Initialize causal analysis engine if available
+        self.causal_engine: Optional[CausalAnalysisEngine] = None
+        if CAUSAL_ANALYSIS_AVAILABLE:
+            try:
+                self.causal_engine = CausalAnalysisEngine(
+                    correlation_window_seconds=300.0,
+                    min_confidence=0.5
+                )
+                logger.info("Causal analysis engine integrated with GraphSAGE")
+            except Exception as e:
+                logger.warning(f"Failed to initialize causal engine: {e}")
+        
         logger.info(f"GraphSAGE v2 detector initialized on {self.device}")
     
     def train(
@@ -217,6 +277,10 @@ class GraphSAGEAnomalyDetector:
             epochs: Training epochs
             lr: Learning rate
         """
+        if not _TORCH_AVAILABLE or self.model is None:
+            logger.warning("⚠️ GraphSAGE training skipped: PyTorch not available or model not initialized")
+            return
+        
         if not node_features or not edge_index:
             logger.warning("Training skipped: insufficient data")
             return
@@ -310,6 +374,10 @@ class GraphSAGEAnomalyDetector:
         is_anomaly = anomaly_score >= self.anomaly_threshold
         confidence = abs(anomaly_score - 0.5) * 2  # Distance from threshold
         
+        # Record metrics
+        severity = 'CRITICAL' if is_anomaly else 'NORMAL'
+        record_graphsage_inference(inference_time, is_anomaly, severity)
+        
         return AnomalyPrediction(
             is_anomaly=is_anomaly,
             anomaly_score=anomaly_score,
@@ -319,7 +387,158 @@ class GraphSAGEAnomalyDetector:
             inference_time_ms=inference_time
         )
     
-    def _features_to_tensor(self, features_list: List[Dict[str, float]]) -> torch.Tensor:
+    def predict_with_causal(
+        self,
+        node_id: str,
+        node_features: Dict[str, float],
+        neighbors: List[Tuple[str, Dict[str, float]]],
+        edge_index: Optional[List[Tuple[int, int]]] = None
+    ) -> Tuple[AnomalyPrediction, Optional[Any]]:
+        """
+        Predict anomaly and provide causal analysis if anomaly detected.
+        
+        Args:
+            node_id: Node identifier
+            node_features: Node feature dict (RSSI, SNR, loss rate, etc.)
+            neighbors: List of (neighbor_id, neighbor_features) tuples
+            edge_index: Optional edge connectivity (auto-generated if None)
+        
+        Returns:
+            Tuple of (AnomalyPrediction, Optional[CausalAnalysisResult])
+            CausalAnalysisResult is None if no anomaly or causal engine unavailable
+        """
+        # 1. Get GraphSAGE prediction
+        prediction = self.predict(node_id, node_features, neighbors, edge_index)
+        
+        # 2. If anomaly detected and causal engine available, perform causal analysis
+        if prediction.is_anomaly and self.causal_engine is not None and CAUSAL_ANALYSIS_AVAILABLE:
+            try:
+                # Create incident event from prediction
+                incident = IncidentEvent(
+                    event_id=f"graphsage_{node_id}_{int(time.time())}",
+                    timestamp=datetime.now(),
+                    node_id=node_id,
+                    service_id=None,
+                    anomaly_type="graphsage_anomaly",
+                    severity=self._score_to_severity(prediction.anomaly_score),
+                    metrics=node_features,
+                    detected_by="graphsage",
+                    anomaly_score=prediction.anomaly_score
+                )
+                
+                # Add incident to causal engine
+                self.causal_engine.add_incident(incident)
+                
+                # Perform causal analysis
+                causal_result = self.causal_engine.analyze(incident.event_id)
+                
+                logger.info(
+                    f"Causal analysis completed for {node_id}: "
+                    f"{len(causal_result.root_causes)} root causes identified "
+                    f"(confidence: {causal_result.confidence:.2f})"
+                )
+                
+                return prediction, causal_result
+                
+            except Exception as e:
+                logger.warning(f"Error in causal analysis: {e}")
+                return prediction, None
+        
+        return prediction, None
+    
+    def explain_anomaly(
+        self,
+        node_id: str,
+        node_features: Dict[str, float],
+        neighbors: List[Tuple[str, Dict[str, float]]],
+        edge_index: Optional[List[Tuple[int, int]]] = None
+    ) -> Dict[str, float]:
+        """
+        Explain anomaly using SHAP values.
+        
+        Args:
+            node_id: Node identifier
+            node_features: Node feature dict
+            neighbors: List of (neighbor_id, neighbor_features) tuples
+            edge_index: Optional edge connectivity
+        
+        Returns:
+            Dict mapping feature names to SHAP values (importance scores)
+        """
+        if not SHAP_AVAILABLE or self.model is None:
+            logger.warning("SHAP not available or model not initialized")
+            return {}
+        
+        try:
+            # Prepare input data
+            all_nodes = [(node_id, node_features)] + neighbors
+            x = self._features_to_tensor([features for _, features in all_nodes])
+            
+            if edge_index is None:
+                edge_index = [(0, i+1) for i in range(len(neighbors))]
+                edge_index += [(i+1, 0) for i in range(len(neighbors))]
+            
+            edge_index_tensor = self._edges_to_tensor(edge_index)
+            
+            # Create SHAP explainer
+            # For GraphSAGE, we use a wrapper function
+            def model_wrapper(x_input):
+                """Wrapper for SHAP to work with GraphSAGE model."""
+                self.model.eval()
+                with torch.no_grad():
+                    output = self.model(x_input.to(self.device), edge_index_tensor.to(self.device))
+                    return output.cpu().numpy()
+            
+            # Use KernelExplainer for model-agnostic explanation
+            # Focus on the target node's features
+            feature_names = ['rssi', 'snr', 'loss_rate', 'link_age', 'latency', 'throughput', 'cpu', 'memory']
+            target_features = x[0:1].cpu().numpy()  # First node (target)
+            
+            # Create explainer with background data (use mean of neighbors as background)
+            if len(neighbors) > 0:
+                background = x[1:].cpu().numpy().mean(axis=0, keepdims=True)
+            else:
+                background = target_features
+            
+            explainer = shap.KernelExplainer(
+                lambda x_in: model_wrapper(torch.tensor(x_in, dtype=torch.float)),
+                background
+            )
+            
+            # Calculate SHAP values
+            shap_values = explainer.shap_values(target_features, nsamples=100)
+            
+            # Map to feature names
+            if isinstance(shap_values, list):
+                shap_values = shap_values[0]  # Take first output
+            
+            feature_importance = {
+                feature_names[i]: float(shap_values[0][i])
+                for i in range(min(len(feature_names), shap_values.shape[1]))
+            }
+            
+            logger.debug(f"SHAP values calculated for {node_id}: {feature_importance}")
+            return feature_importance
+            
+        except Exception as e:
+            logger.warning(f"Error calculating SHAP values: {e}")
+            return {}
+    
+    def _score_to_severity(self, anomaly_score: float):
+        """Convert anomaly score to incident severity."""
+        if not CAUSAL_ANALYSIS_AVAILABLE:
+            return None
+        
+        if anomaly_score >= 0.9:
+            return IncidentSeverity.CRITICAL
+        elif anomaly_score >= 0.7:
+            return IncidentSeverity.HIGH
+        elif anomaly_score >= 0.5:
+            return IncidentSeverity.MEDIUM
+        else:
+            return IncidentSeverity.LOW
+    
+    def _features_to_tensor(self, features_list: List[Dict[str, float]]):
         """Convert list of feature dicts to tensor."""
         feature_names = ['rssi', 'snr', 'loss_rate', 'link_age', 'latency', 'throughput', 'cpu', 'memory']
         
@@ -330,7 +549,7 @@ class GraphSAGEAnomalyDetector:
         
         return torch.tensor(tensor_data, dtype=torch.float)
     
-    def _edges_to_tensor(self, edges: List[Tuple[int, int]]) -> torch.Tensor:
+    def _edges_to_tensor(self, edges: List[Tuple[int, int]]):
         """Convert edge list to tensor format."""
         if not edges:
             return torch.tensor([[], []], dtype=torch.long)

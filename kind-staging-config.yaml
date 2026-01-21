@@ -1,0 +1,37 @@
+# kind cluster configuration for staging deployment
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: x0tta6bl4-staging-deploy
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "node-role=control-plane"
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 8080
+    protocol: TCP
+  - containerPort: 30090
+    hostPort: 9090
+    protocol: TCP
+  - containerPort: 30300
+    hostPort: 3000
+    protocol: TCP
+- role: worker
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "node-role=worker"
+- role: worker
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "node-role=worker"
+

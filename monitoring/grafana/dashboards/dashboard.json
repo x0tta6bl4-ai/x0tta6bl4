@@ -1,0 +1,62 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Monitoring",
+    "tags": ["x0tta6bl4", "mesh", "self-healing"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Mesh Network Health",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_mesh_nodes_total",
+            "legendFormat": "Total Nodes"
+          },
+          {
+            "expr": "x0tta6bl4_mesh_connections_active",
+            "legendFormat": "Active Connections"
+          }
+        ]
+      },
+      {
+        "title": "PQC Handshake Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_pqc_handshake_duration_seconds",
+            "legendFormat": "Handshake Duration"
+          }
+        ]
+      },
+      {
+        "title": "MAPE-K Cycle Metrics",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_mapek_cycle_duration_seconds",
+            "legendFormat": "Cycle Duration"
+          },
+          {
+            "expr": "x0tta6bl4_mapek_incidents_detected_total",
+            "legendFormat": "Incidents Detected"
+          }
+        ]
+      },
+      {
+        "title": "System Resources",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_cpu_percent",
+            "legendFormat": "CPU %"
+          },
+          {
+            "expr": "x0tta6bl4_memory_percent",
+            "legendFormat": "Memory %"
+          }
+        ]
+      }
+    ]
+  }
+}
+

@@ -92,8 +92,11 @@ class MeshVPNBridge:
                     'active_connections': 0,
                     'mesh': self.router.get_stats()
                 }
-                with open(self.stats_file, 'w') as f:
-                    json.dump(stats, f)
+                # Fix async bottleneck: wrap file I/O in thread pool
+                def _write_stats():
+                    with open(self.stats_file, 'w') as f:
+                        json.dump(stats, f)
+                await asyncio.to_thread(_write_stats)
             except Exception as e:
                 logger.error(f"Stats save error: {e}")
 

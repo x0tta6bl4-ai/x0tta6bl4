@@ -82,7 +82,7 @@ class MeshRouter:
         # Initialize PQC tunnel manager
         if PQCTunnelManager:
             self.pqc = PQCTunnelManager(node_id)
-            logger.info(f"🔐 PQC encryption enabled ({'Kyber768' if PQC_AVAILABLE else 'simulated'})")
+            logger.info(f"🔐 PQC encryption enabled ({'ML-KEM-768 (NIST FIPS 203)' if PQC_AVAILABLE else 'simulated'})")
         else:
             self.pqc = None
         
@@ -177,9 +177,58 @@ class MeshRouter:
             return -1
     
     async def _get_peers_from(self, peer: MeshPeer) -> List[MeshPeer]:
-        """Get peer list from another node (placeholder for real implementation)."""
-        # In production, this would query the peer's /api/peers endpoint
-        return []
+        """
+        Get peer list from another node via API.
+        
+        Args:
+            peer: MeshPeer to query for peer list
+            
+        Returns:
+            List of MeshPeer objects discovered from the remote node
+        """
+        if not peer.is_alive():
+            logger.warning(f"Peer {peer.node_id} is not alive, cannot query peers")
+            return []
+        
+        try:
+            import httpx
+            import asyncio
+            
+            # Query peer's API endpoint for peer list
+            api_url = f"http://{peer.host}:{peer.port}/api/peers"
+            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(api_url)
+                if response.status_code == 200:
+                    data = response.json()
+                    peers_list = []
+                    
+                    # Parse peer data from response
+                    for peer_data in data.get('peers', []):
+                        try:
+                            new_peer = MeshPeer(
+                                node_id=peer_data.get('id', ''),
+                                host=peer_data.get('address', '').split(':')[0] if ':' in peer_data.get('address', '') else peer_data.get('host', ''),
+                                port=int(peer_data.get('address', '').split(':')[1]) if ':' in peer_data.get('address', '') else peer_data.get('port', 0),
+                                is_exit=peer_data.get('is_exit', False)
+                            )
+                            new_peer.latency = peer_data.get('latency', -1)
+                            new_peer.last_seen = time.time()
+                            peers_list.append(new_peer)
+                        except Exception as e:
+                            logger.warning(f"Failed to parse peer data: {e}")
+                    
+                    logger.info(f"Discovered {len(peers_list)} peers from {peer.node_id}")
+                    return peers_list
+                else:
+                    logger.warning(f"Failed to get peers from {peer.node_id}: HTTP {response.status_code}")
+                    return []
+        except ImportError:
+            logger.warning("httpx not available, cannot query peer API")
+            return []
+        except Exception as e:
+            logger.warning(f"Error querying peers from {peer.node_id}: {e}")
+            return []
     
     def get_route(self, destination: str, hops: int = 2) -> List[MeshPeer]:
         """

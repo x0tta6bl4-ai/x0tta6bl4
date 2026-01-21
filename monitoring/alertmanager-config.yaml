@@ -1,0 +1,130 @@
+# Alertmanager Configuration for x0tta6bl4
+# Production-ready alert routing and notification
+
+global:
+  resolve_timeout: 5m
+  # Slack webhook URL (set via environment variable)
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  
+  # Email configuration (set via environment variables)
+  smtp_smarthost: '${SMTP_HOST}:587'
+  smtp_from: 'alerts@x0tta6bl4.com'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+# Route configuration
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: false
+      group_wait: 0s
+      repeat_interval: 1h
+    
+    # Warning alerts - grouped notification
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 6h
+    
+    # Info alerts - daily summary
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 5m
+      repeat_interval: 24h
+
+# Receivers
+receivers:
+  # Default receiver (fallback)
+  - name: 'default'
+    slack_configs:
+      - channel: '#x0tta6bl4-alerts'
+        title: 'x0tta6bl4 Alert'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+
+  # Critical alerts - immediate notification
+  - name: 'critical-alerts'
+    slack_configs:
+      - channel: '#x0tta6bl4-critical'
+        title: '🚨 CRITICAL: x0tta6bl4 Production Alert'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          *Runbook:* https://docs.x0tta6bl4.com/runbooks/{{ .Labels.alertname }}
+          {{ end }}
+        send_resolved: true
+    
+    email_configs:
+      - to: 'oncall@x0tta6bl4.com'
+        headers:
+          Subject: '🚨 CRITICAL: x0tta6bl4 Production Alert'
+        html: |
+          <h2>Critical Alert: x0tta6bl4</h2>
+          {{ range .Alerts }}
+          <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+          <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+          <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          <p><a href="https://docs.x0tta6bl4.com/runbooks/{{ .Labels.alertname }}">Runbook</a></p>
+          {{ end }}
+        send_resolved: true
+    
+    # PagerDuty integration (if available)
+    # pagerduty_configs:
+    #   - service_key: '${PAGERDUTY_SERVICE_KEY}'
+    #     description: '{{ .Annotations.summary }}'
+
+  # Warning alerts - grouped notification
+  - name: 'warning-alerts'
+    slack_configs:
+      - channel: '#x0tta6bl4-alerts'
+        title: '⚠️ WARNING: x0tta6bl4'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+        send_resolved: true
+
+  # Info alerts - daily summary
+  - name: 'info-alerts'
+    slack_configs:
+      - channel: '#x0tta6bl4-info'
+        title: 'ℹ️ INFO: x0tta6bl4'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+
+# Inhibition rules (suppress alerts)
+inhibit_rules:
+  # Suppress warning if critical alert is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+

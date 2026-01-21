@@ -59,18 +59,43 @@ class RingBufferReader:
         Read ring buffer events using bpftool.
         
         Note: bpftool doesn't directly support ring buffer reading,
-        this is a placeholder for future implementation.
+        but we can use it to inspect maps and use alternative methods.
         
         Returns:
             Event data or None
         """
         # Ring buffers are typically read via:
-        # 1. libbpf ring buffer API (C)
-        # 2. bcc Python bindings
-        # 3. Custom userspace reader
+        # 1. libbpf ring buffer API (C) - recommended for production
+        # 2. bcc Python bindings - use read_via_bcc() instead
+        # 3. Custom userspace reader via libbpf-rs or similar
         
-        logger.debug("Ring buffer reading via bpftool not fully implemented")
-        return None
+        # For bpftool, we can at least verify the map exists
+        try:
+            import subprocess
+            # Check if map exists: bpftool map show name <map_name>
+            result = subprocess.run(
+                ["bpftool", "map", "show", "name", self.map_name],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                logger.debug(f"Ring buffer map '{self.map_name}' exists (use read_via_bcc() for actual reading)")
+                # Return metadata about the map
+                return {
+                    "map_name": self.map_name,
+                    "exists": True,
+                    "note": "Use read_via_bcc() for actual event reading"
+                }
+            else:
+                logger.debug(f"Ring buffer map '{self.map_name}' not found")
+                return None
+        except FileNotFoundError:
+            logger.debug("bpftool not available")
+            return None
+        except Exception as e:
+            logger.debug(f"Error checking ring buffer map: {e}")
+            return None
     
     def read_via_bcc(self, bpf_program) -> None:
         """

@@ -1,0 +1,34 @@
+# Configuration for beta-customer-1
+# Дата: 2026-01-08
+
+customer:
+  name: beta-customer-1
+  namespace: x0tta6bl4-staging
+  environment: staging
+  created: 2026-01-08T01:46:48Z
+
+access:
+  service_url: http://x0tta6bl4-staging.x0tta6bl4-staging.svc.cluster.local:8080
+  health_endpoint: /health
+  metrics_endpoint: /metrics
+  api_token: 640fe5829388d2c497988a6605aa612bb8e488f8d97b49d095eb501345375371
+
+monitoring:
+  prometheus_url: http://prometheus.monitoring.svc.cluster.local:9090
+  alertmanager_url: http://alertmanager.monitoring.svc.cluster.local:9093
+
+support:
+  telegram: @x0tta6bl4_allert_bot
+  email: support@x0tta6bl4.com
+  response_time_sev1: 5min
+  response_time_sev2: 15min
+
+# Access Methods
+access_methods:
+  port_forward:
+    command: "kubectl port-forward -n x0tta6bl4-staging svc/x0tta6bl4-staging 8080:8080"
+    url: "http://localhost:8080"
+  ingress:
+    url: "Not configured"
+  internal:
+    url: "http://x0tta6bl4-staging.x0tta6bl4-staging.svc.cluster.local:8080"

@@ -16,19 +16,26 @@ Build a production-grade, self-healing, decentralized mesh intelligence platform
 
 | # | Title | Area | Status | Target |
 |---|-------|------|--------|--------|
-| 1 | Implement eBPF networking layer | Network | 🔴 Not Started | Q1 2025 |
+| 1 | Implement eBPF networking layer | Network | � Completed | Q1 2025 |
 | 2 | Integrate SPIFFE/SPIRE identity | Security | 🔴 Not Started | Q1 2025 |
 | 3 | Automate security scanning in CI | CI/CD | 🔴 Not Started | Q4 2024 |
 | 4 | Add mTLS handshake validation | Security | 🔴 Not Started | Q1 2025 |
 | 5 | Deploy staging environment (k8s) | Infrastructure | 🔴 Not Started | Q1 2025 |
+| 6 | Implement eBPF self-healing with MAPE-K | Self-Healing | 🟢 Completed | Q1 2025 |
 
 ### Details
 
-**#1: eBPF Networking Layer**
+**#1: eBPF Networking Layer** ✅ COMPLETED
 - XDP program for packet filtering at NIC level
 - BCC/bpftrace probes for latency & congestion metrics
 - Integration with batman-adv mesh routing decisions
 - Metrics: packet drop rate, path switch frequency, TQ scores
+
+**#6: eBPF Self-Healing with MAPE-K** ✅ COMPLETED
+- eBPF anomaly detector integrated with MAPE-K monitor
+- Automatic recovery actions for network issues
+- Feedback loop for improving detection thresholds
+- Prometheus metrics for monitoring effectiveness
 
 **#2: SPIFFE/SPIRE Integration**
 - Deploy SPIRE server (k8s or VM-based)

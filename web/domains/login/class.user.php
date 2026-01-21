@@ -1,6 +1,7 @@
 <?php
 
 require_once 'dbconfig.php';
+require_once __DIR__ . '/../../lib/SecurityUtils.php';
 
 class USER
 {	
@@ -30,7 +31,10 @@ class USER
 	{
 		try
 		{							
-			$password = md5($upass);
+			$password = SecurityUtils::hashPassword($upass);
+			if ($password === false) {
+				throw new Exception('Failed to hash password');
+			}
 			$stmt = $this->conn->prepare("INSERT INTO tbl_users(userName,userEmail,userPass,tokenCode) 
 			                                             VALUES(:user_name, :user_mail, :user_pass, :active_code)");
 			$stmt->bindparam(":user_name",$uname);
@@ -58,7 +62,7 @@ class USER
 			{
 				if($userRow['userStatus']=="Y")
 				{
-					if($userRow['userPass']==md5($upass))
+					if(SecurityUtils::verifyPassword($upass, $userRow['userPass']))
 					{
 						$_SESSION['userSession'] = $userRow['userID'];
 						return true;
