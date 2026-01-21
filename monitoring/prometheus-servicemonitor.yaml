@@ -1,0 +1,33 @@
+# Prometheus ServiceMonitor for x0tta6bl4
+# Automatically discovers and scrapes x0tta6bl4 pods
+# Дата: 2026-01-08
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: x0tta6bl4-staging
+  namespace: monitoring
+  labels:
+    app: x0tta6bl4
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: x0tta6bl4
+  namespaceSelector:
+    matchNames:
+      - x0tta6bl4-staging
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: service
+

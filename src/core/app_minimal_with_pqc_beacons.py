@@ -50,9 +50,20 @@ _peer_public_keys: Dict[str, bytes] = {}  # peer_id -> public_key
 # Initialize PQC signature if available
 if LIBOQS_AVAILABLE:
     try:
-        sig = Signature("Dilithium3")
-        _sig_public_key, _sig_private_key = sig.generate_keypair()
-        logger.info("✅ PQC signature keypair generated (Dilithium3)")
+        # Use NIST name, fallback to legacy if needed
+        try:
+            sig = Signature("ML-DSA-65")  # NIST FIPS 204 Level 3
+            _sig_public_key, _sig_private_key = sig.generate_keypair()
+            logger.info("✅ PQC signature keypair generated (ML-DSA-65, NIST FIPS 204)")
+        except Exception:
+            # Fallback to legacy name if NIST name not supported
+            pass
+        try:
+            sig = Signature("ML-DSA-65")  # NIST FIPS 204 Level 3
+        except Exception:
+            sig = Signature("Dilithium3")  # Legacy fallback
+            _sig_public_key, _sig_private_key = sig.generate_keypair()
+            logger.info("✅ PQC signature keypair generated (Dilithium3, legacy)")
     except Exception as e:
         logger.error(f"Failed to generate PQC keys: {e}")
         LIBOQS_AVAILABLE = False
@@ -77,7 +88,11 @@ def sign_beacon(beacon_data: bytes) -> bytes:
         return b""  # No signature if PQC not available
     
     try:
-        sig = Signature("Dilithium3")
+        # Use NIST name, fallback to legacy if needed
+        try:
+            sig = Signature("ML-DSA-65")  # NIST FIPS 204 Level 3
+        except Exception:
+            sig = Signature("Dilithium3")  # Legacy fallback
         sig.set_secret_key(_sig_private_key)
         signature = sig.sign(beacon_data)
         return signature
@@ -95,7 +110,11 @@ def verify_beacon(beacon_data: bytes, signature: bytes, public_key: bytes) -> bo
         return False
     
     try:
-        sig = Signature("Dilithium3")
+        # Use NIST name, fallback to legacy if needed
+        try:
+            sig = Signature("ML-DSA-65")  # NIST FIPS 204 Level 3
+        except Exception:
+            sig = Signature("Dilithium3")  # Legacy fallback
         sig.set_public_key(public_key)
         is_valid = sig.verify(beacon_data, signature)
         return is_valid

@@ -1,0 +1,397 @@
+# Prometheus Configuration for x0tta6bl4
+# Production SLA Monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'x0tta6bl4-prod'
+    environment: 'production'
+    version: 'v1.0'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'localhost:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/rules/sla_rules.yml'
+  - '/etc/prometheus/rules/alert_rules.yml'
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # === MESH NETWORK LAYER ===
+  
+  # Beacon processing metrics
+  - job_name: 'mesh-beacons'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+    metric_path: '/metrics/mesh/beacons'
+    scrape_timeout: 10s
+
+  # Mesh network topology
+  - job_name: 'mesh-topology'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/mesh/topology'
+    params:
+      collect:
+        - 'node_count'
+        - 'link_quality'
+        - 'shortest_paths'
+
+  # Mesh synchronization metrics
+  - job_name: 'mesh-sync'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/mesh/sync'
+    params:
+      collect:
+        - 'slot_drift'
+        - 'sync_accuracy'
+        - 'beacon_latency'
+
+  # === PQC CRYPTOGRAPHY LAYER ===
+  
+  # ML-KEM-768 (Encapsulation) metrics
+  - job_name: 'pqc-kem'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/pqc/kem'
+    params:
+      collect:
+        - 'encapsulation_latency'
+        - 'decapsulation_latency'
+        - 'operation_count'
+        - 'error_rate'
+
+  # ML-DSA-65 (Signature) metrics
+  - job_name: 'pqc-dsa'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/pqc/dsa'
+    params:
+      collect:
+        - 'signature_latency'
+        - 'verification_latency'
+        - 'operation_count'
+        - 'error_rate'
+
+  # PQC Key generation
+  - job_name: 'pqc-keygen'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/pqc/keygen'
+    params:
+      collect:
+        - 'keygen_latency'
+        - 'key_count'
+        - 'error_rate'
+
+  # === SPIFFE IDENTITY LAYER ===
+  
+  # SVID issuance metrics
+  - job_name: 'spiffe-svid'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8000']
+    metric_path: '/metrics/spiffe/svid'
+    params:
+      collect:
+        - 'issuance_latency'
+        - 'rotation_success_rate'
+        - 'issuance_count'
+        - 'rotation_count'
+
+  # Identity attestation
+  - job_name: 'spiffe-attestation'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:8000']
+    metric_path: '/metrics/spiffe/attestation'
+    params:
+      collect:
+        - 'attestation_success_rate'
+        - 'attestation_latency'
+        - 'attestation_count'
+        - 'attestation_errors'
+
+  # Workload API metrics
+  - job_name: 'spiffe-workload'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8001']
+    metric_path: '/metrics/spiffe/workload'
+    params:
+      collect:
+        - 'connection_count'
+        - 'request_latency'
+        - 'error_rate'
+        - 'subscription_count'
+
+  # === FEDERATED LEARNING LAYER ===
+  
+  # Model aggregation metrics
+  - job_name: 'fl-aggregation'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/fl/aggregation'
+    params:
+      collect:
+        - 'aggregation_latency'
+        - 'update_count'
+        - 'byzantine_detected'
+        - 'aggregation_error_rate'
+
+  # Training convergence metrics
+  - job_name: 'fl-training'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/fl/training'
+    params:
+      collect:
+        - 'loss'
+        - 'accuracy'
+        - 'validation_loss'
+        - 'validation_accuracy'
+        - 'round_number'
+        - 'convergence_status'
+
+  # Gradient update tracking
+  - job_name: 'fl-updates'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/fl/updates'
+    params:
+      collect:
+        - 'update_latency'
+        - 'update_size'
+        - 'staleness'
+        - 'rejection_rate'
+
+  # === SYSTEM METRICS ===
+  
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}:9100'
+        target_label: __address__
+    metric_relabeling:
+      - source_labels: [__name__]
+        regex: 'node_(cpu|memory|disk|network).*'
+        action: keep
+
+  # CPU metrics
+  - job_name: 'system-cpu'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/system/cpu'
+    params:
+      collect:
+        - 'cpu_usage_percent'
+        - 'cpu_cores'
+        - 'load_average'
+
+  # Memory metrics
+  - job_name: 'system-memory'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/system/memory'
+    params:
+      collect:
+        - 'memory_usage_bytes'
+        - 'memory_available_bytes'
+        - 'swap_usage_bytes'
+        - 'memory_usage_percent'
+
+  # Network metrics
+  - job_name: 'system-network'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/system/network'
+    params:
+      collect:
+        - 'network_in_bytes'
+        - 'network_out_bytes'
+        - 'network_drop_in'
+        - 'network_drop_out'
+        - 'network_errors_in'
+        - 'network_errors_out'
+
+  # Disk I/O metrics
+  - job_name: 'system-disk'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/system/disk'
+    params:
+      collect:
+        - 'disk_io_reads'
+        - 'disk_io_writes'
+        - 'disk_space_used'
+        - 'disk_space_available'
+        - 'disk_space_percent'
+
+  # === SELF-HEALING (MAPE-K) LAYER ===
+  
+  # MAPE-K loop metrics
+  - job_name: 'mapek-loop'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/mapek/loop'
+    params:
+      collect:
+        - 'monitor_latency'
+        - 'analyze_latency'
+        - 'plan_latency'
+        - 'execute_latency'
+        - 'loop_completion_rate'
+
+  # Adaptive actions
+  - job_name: 'mapek-actions'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/mapek/actions'
+    params:
+      collect:
+        - 'action_executed'
+        - 'action_success_rate'
+        - 'action_latency'
+        - 'rollback_count'
+
+  # === CHAOS ENGINEERING (PRODUCTION VALIDATION) ===
+  
+  # Failure injection metrics
+  - job_name: 'chaos-injection'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/chaos/injection'
+    params:
+      collect:
+        - 'active_scenarios'
+        - 'partitioned_nodes'
+        - 'failed_nodes'
+        - 'byzantine_nodes'
+        - 'latency_injected'
+
+  # Recovery metrics
+  - job_name: 'chaos-recovery'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/chaos/recovery'
+    params:
+      collect:
+        - 'detection_time'
+        - 'recovery_time'
+        - 'data_loss'
+        - 'cascade_depth'
+        - 'recovery_success_rate'
+
+  # === LOAD TESTING METRICS ===
+  
+  # Load generator performance
+  - job_name: 'load-testing'
+    scrape_interval: 15s
+    scrape_timeout: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+    metric_path: '/metrics/load/testing'
+    params:
+      collect:
+        - 'virtual_nodes'
+        - 'beacon_throughput'
+        - 'pqc_throughput'
+        - 'latency_p50'
+        - 'latency_p95'
+        - 'latency_p99'
+
+  # === SERVICE DISCOVERY (if using Kubernetes) ===
+  
+  # Kubernetes nodes
+  - job_name: 'kubernetes-nodes'
+    scrape_interval: 30s
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+        target_label: __metrics_path__
+
+  # Kubernetes pods
+  - job_name: 'kubernetes-pods'
+    scrape_interval: 30s
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: 'true'
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+
+# === REMOTE STORAGE (optional, for long-term storage) ===
+
+# remote_write:
+#   - url: "http://localhost:9009/api/v1/push"
+#     write_relabel_configs:
+#       - source_labels: [__name__]
+#         regex: '(sla_.*|alert_.*)'
+#         action: keep
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+#       max_samples_per_send: 500
+#       batch_send_wait: 5s
+#       min_backoff: 30ms
+#       max_backoff: 100ms
+
+# remote_read:
+#   - url: "http://localhost:9009/api/v1/read"
+#     read_recent: true

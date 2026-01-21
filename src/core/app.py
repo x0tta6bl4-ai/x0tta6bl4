@@ -457,6 +457,14 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ VPN endpoints not available: {e}")
 
+# Experimental VPN API endpoints
+try:
+    from src.api.vpn_experimental import router as vpn_experimental_router
+    app.include_router(vpn_experimental_router)
+    logger.info("✅ Experimental VPN API endpoints включены")
+except ImportError as e:
+    logger.warning(f"⚠️ Experimental VPN endpoints not available: {e}")
+
 # Billing (Stripe) API endpoints
 try:
     from src.api.billing import router as billing_router

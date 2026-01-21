@@ -1,0 +1,17 @@
+{
+	"ulid": "01KES4NWK4NP6QVFYR9FRPAEHR",
+	"minTime": 1768212009486,
+	"maxTime": 1768219200000,
+	"stats": {
+		"numSamples": 246720,
+		"numSeries": 514,
+		"numChunks": 2056
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01KES4NWK4NP6QVFYR9FRPAEHR"
+		]
+	},
+	"version": 1
+}

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'class.user.php';
+require_once __DIR__ . '/../lib/SecurityUtils.php';
 $user = new USER();
 
 if($user->is_logged_in()!="")
@@ -18,7 +19,7 @@ if(isset($_POST['btn-submit']))
 	if($stmt->rowCount() == 1)
 	{
 		$id = base64_encode($row['userID']);
-		$code = md5(uniqid(rand()));
+		$code = SecurityUtils::generateSecureToken(32);
 		
 		$stmt = $user->runQuery("UPDATE tbl_users SET tokenCode=:token WHERE userEmail=:email");
 		$stmt->execute(array(":token"=>$code,"email"=>$email));

@@ -453,19 +453,270 @@ class MAPEKQualityMonitor:
             return False
     
     async def _suggest_security_fix(self, improvement: QualityImprovement) -> bool:
-        """Suggest security fix (placeholder for implementation)."""
-        # This would integrate with security analysis tools
-        logger.info(f"Security fix suggestion for {improvement.file_path}: {improvement.description}")
-        return True  # Placeholder
+        """
+        Suggest and apply security fix using CodeQualityAnalyzer.
+        
+        Args:
+            improvement: Quality improvement with security issue details
+            
+        Returns:
+            True if fix was suggested/applied successfully
+        """
+        try:
+            file_path = Path(improvement.file_path)
+            if not file_path.exists():
+                logger.warning(f"File not found: {improvement.file_path}")
+                return False
+            
+            # Analyze file for security issues
+            metrics = self.analyzer.analyze_file(str(file_path))
+            
+            if metrics.security_issues == 0:
+                logger.info(f"No security issues found in {improvement.file_path}")
+                return True
+            
+            # Generate security fix suggestions based on detected issues
+            suggestions = []
+            
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Check for common security patterns and suggest fixes
+            from src.quality.code_quality_analyzer import CodeQualityAnalyzer
+            
+            # Detect hardcoded secrets
+            if 'HARDCODED_SECRET' in improvement.description or 'password' in content.lower() or 'api_key' in content.lower():
+                suggestions.append({
+                    'type': 'HARDCODED_SECRET',
+                    'fix': 'Replace hardcoded secrets with environment variables or secure vault',
+                    'example': 'password = os.getenv("PASSWORD") or use keyring library'
+                })
+            
+            # Detect SQL injection
+            if 'SQL_INJECTION' in improvement.description or 'execute(' in content:
+                suggestions.append({
+                    'type': 'SQL_INJECTION',
+                    'fix': 'Use parameterized queries instead of string concatenation',
+                    'example': 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
+                })
+            
+            # Detect weak crypto
+            if 'WEAK_CRYPTO' in improvement.description or 'md5(' in content.lower() or 'sha1(' in content.lower():
+                suggestions.append({
+                    'type': 'WEAK_CRYPTO',
+                    'fix': 'Replace MD5/SHA1 with SHA-256 or stronger hashing algorithms',
+                    'example': 'import hashlib; hashlib.sha256(data).hexdigest()'
+                })
+            
+            # Log suggestions
+            logger.info(f"Security fix suggestions for {improvement.file_path}:")
+            for suggestion in suggestions:
+                logger.info(f"  - {suggestion['type']}: {suggestion['fix']}")
+                logger.info(f"    Example: {suggestion['example']}")
+            
+            # Store suggestions for manual review or automated fixing
+            suggestion_file = file_path.parent / f"{file_path.stem}_security_fixes.json"
+            with open(suggestion_file, 'w') as f:
+                json.dump({
+                    'file': str(file_path),
+                    'timestamp': datetime.now().isoformat(),
+                    'suggestions': suggestions,
+                    'original_issue': improvement.description
+                }, f, indent=2)
+            
+            logger.info(f"✅ Security fix suggestions saved to {suggestion_file}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error suggesting security fix: {e}", exc_info=True)
+            return False
     
     async def _suggest_test_addition(self, improvement: QualityImprovement) -> bool:
-        """Suggest test addition (placeholder for implementation)."""
-        # This would integrate with test generation tools
-        logger.info(f"Test addition suggestion for {improvement.file_path}: {improvement.description}")
-        return True  # Placeholder
+        """
+        Suggest test addition using code analysis.
+        
+        Args:
+            improvement: Quality improvement with test coverage details
+            
+        Returns:
+            True if test suggestions were generated successfully
+        """
+        try:
+            file_path = Path(improvement.file_path)
+            if not file_path.exists():
+                logger.warning(f"File not found: {improvement.file_path}")
+                return False
+            
+            # Analyze file to identify functions/classes that need tests
+            import ast
+            with open(file_path, 'r', encoding='utf-8') as f:
+                try:
+                    tree = ast.parse(f.read())
+                except SyntaxError:
+                    logger.warning(f"Syntax error in {file_path}, cannot generate test suggestions")
+                    return False
+            
+            # Find functions and classes
+            functions = []
+            classes = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    functions.append(node.name)
+                elif isinstance(node, ast.ClassDef):
+                    classes.append(node.name)
+            
+            # Generate test file path
+            test_dir = file_path.parent / 'tests'
+            test_dir.mkdir(exist_ok=True)
+            test_file = test_dir / f"test_{file_path.stem}.py"
+            
+            # Check if test file already exists
+            if test_file.exists():
+                logger.info(f"Test file already exists: {test_file}")
+                return True
+            
+            # Generate basic test template
+            test_content = f'''"""
+Test file for {file_path.name}
+Generated by MAPE-K Quality Monitor
+"""
+import pytest
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from {file_path.stem} import {', '.join(classes + functions[:3]) if classes or functions else '*'}
+
+
+class Test{file_path.stem.capitalize()}:
+    """Test cases for {file_path.name}"""
+    
+'''
+            
+            # Add test methods for each function
+            for func_name in functions[:5]:  # Limit to first 5 functions
+                test_content += f'''    def test_{func_name}(self):
+        """Test {func_name} function"""
+        # Test implementation should be added here
+        # Example:
+        # result = {func_name}(...)
+        # assert result is not None
+        pass
+
+'''
+            
+            # Write test file
+            with open(test_file, 'w') as f:
+                f.write(test_content)
+            
+            logger.info(f"✅ Test file generated: {test_file}")
+            logger.info(f"   Suggested tests for {len(functions)} functions and {len(classes)} classes")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error suggesting test addition: {e}", exc_info=True)
+            return False
     
     async def _suggest_refactoring(self, improvement: QualityImprovement) -> bool:
-        """Suggest refactoring (placeholder for implementation)."""
-        # This would integrate with refactoring tools
-        logger.info(f"Refactoring suggestion for {improvement.file_path}: {improvement.description}")
-        return True  # Placeholder
+        """
+        Suggest refactoring based on complexity and code quality metrics.
+        
+        Args:
+            improvement: Quality improvement with refactoring details
+            
+        Returns:
+            True if refactoring suggestions were generated successfully
+        """
+        try:
+            file_path = Path(improvement.file_path)
+            if not file_path.exists():
+                logger.warning(f"File not found: {improvement.file_path}")
+                return False
+            
+            # Analyze file for complexity and quality issues
+            metrics = self.analyzer.analyze_file(str(file_path))
+            
+            suggestions = []
+            
+            # High complexity - suggest breaking into smaller functions
+            if metrics.complexity_score > 15:
+                suggestions.append({
+                    'type': 'HIGH_COMPLEXITY',
+                    'severity': 'HIGH',
+                    'suggestion': f'Complexity score is {metrics.complexity_score:.1f} (threshold: 15). Consider breaking large functions into smaller, focused functions.',
+                    'action': 'Extract methods, reduce nesting, simplify control flow'
+                })
+            
+            # Low maintainability - suggest improvements
+            if metrics.maintainability_index < 60:
+                suggestions.append({
+                    'type': 'LOW_MAINTAINABILITY',
+                    'severity': 'MEDIUM',
+                    'suggestion': f'Maintainability index is {metrics.maintainability_index:.1f} (threshold: 60). Improve code readability and structure.',
+                    'action': 'Add docstrings, improve naming, reduce duplication'
+                })
+            
+            # High duplication - suggest DRY principles
+            if metrics.duplicate_code > 10:
+                suggestions.append({
+                    'type': 'CODE_DUPLICATION',
+                    'severity': 'MEDIUM',
+                    'suggestion': f'Duplicate code detected ({metrics.duplicate_code:.1f}%). Extract common patterns into reusable functions.',
+                    'action': 'Create utility functions, use inheritance/composition'
+                })
+            
+            # Read file to analyze structure
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                lines = content.split('\n')
+            
+            # Detect long functions (more than 50 lines)
+            import ast
+            try:
+                tree = ast.parse(content)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef):
+                        func_lines = node.end_lineno - node.lineno if hasattr(node, 'end_lineno') else len([l for l in lines[node.lineno-1:] if l.strip()])
+                        if func_lines > 50:
+                            suggestions.append({
+                                'type': 'LONG_FUNCTION',
+                                'severity': 'MEDIUM',
+                                'suggestion': f'Function {node.name} is {func_lines} lines long. Consider splitting into smaller functions.',
+                                'action': f'Extract logic from {node.name} into helper functions'
+                            })
+            except SyntaxError:
+                pass
+            
+            if not suggestions:
+                logger.info(f"No refactoring suggestions for {improvement.file_path}")
+                return True
+            
+            # Log suggestions
+            logger.info(f"Refactoring suggestions for {improvement.file_path}:")
+            for suggestion in suggestions:
+                logger.info(f"  [{suggestion['severity']}] {suggestion['type']}: {suggestion['suggestion']}")
+                logger.info(f"    Action: {suggestion['action']}")
+            
+            # Store suggestions
+            suggestion_file = file_path.parent / f"{file_path.stem}_refactoring_suggestions.json"
+            with open(suggestion_file, 'w') as f:
+                json.dump({
+                    'file': str(file_path),
+                    'timestamp': datetime.now().isoformat(),
+                    'metrics': {
+                        'complexity': metrics.complexity_score,
+                        'maintainability': metrics.maintainability_index,
+                        'duplication': metrics.duplicate_code
+                    },
+                    'suggestions': suggestions
+                }, f, indent=2)
+            
+            logger.info(f"✅ Refactoring suggestions saved to {suggestion_file}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error suggesting refactoring: {e}", exc_info=True)
+            return False

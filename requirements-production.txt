@@ -1,0 +1,9 @@
+# Production Required Dependencies
+# These are MANDATORY in production mode (X0TTA6BL4_PRODUCTION=true)
+
+# Post-Quantum Cryptography (REQUIRED in production)
+liboqs-python==0.14.1
+
+# Zero Trust Identity (RECOMMENDED in production)
+spiffe>=0.2.0
+

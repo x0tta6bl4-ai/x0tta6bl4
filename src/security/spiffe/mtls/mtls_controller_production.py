@@ -9,8 +9,14 @@ from typing import Optional, List
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import tempfile # Import tempfile
-import os # Import os
+import tempfile
+import os
+
+try:
+    from prometheus_client import Counter, Gauge
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +46,30 @@ class MTLSControllerProduction:
     def __init__(
         self,
         workload_api_client,
-        rotation_interval: int = 3600  # 1 hour
+        rotation_interval: int = 3600,  # 1 hour
+        enable_optimizations: bool = True
     ):
         self.workload_api = workload_api_client
         self.rotation_interval = rotation_interval
         self.current_context: Optional[ssl.SSLContext] = None
         self._rotation_task: Optional[asyncio.Task] = None
         self._temp_files: List[tempfile.NamedTemporaryFile] = []
+        self.enable_optimizations = enable_optimizations
+        
+        # Try to import optimizations
+        if enable_optimizations:
+            try:
+                from ..optimizations import SPIREOptimizations, TokenCache
+                self.optimizations = SPIREOptimizations()
+                self.token_cache = self.optimizations.get_token_cache() if self.optimizations else None
+                logger.info("✅ mTLS optimizations enabled")
+            except ImportError:
+                self.optimizations = None
+                self.token_cache = None
+                logger.warning("⚠️ mTLS optimizations not available")
+        else:
+            self.optimizations = None
+            self.token_cache = None
     
     async def setup_mtls_context(self) -> ssl.SSLContext:
         """
@@ -60,8 +83,23 @@ class MTLSControllerProduction:
         try:
             logger.info("🔐 Setting up mTLS context...")
             
-            # Fetch X.509-SVID from SPIRE
-            svid = await self.workload_api.fetch_x509_svid()
+            # Track certificate age and expiry for metrics
+            setup_time = datetime.utcnow()
+            
+            # Fetch X.509-SVID from SPIRE (with token caching if enabled)
+            if self.token_cache:
+                cache_key = "mtls_svid"
+                cached_token = self.token_cache.get(cache_key)
+                if cached_token and not self.token_cache.needs_refresh(cache_key):
+                    logger.debug("Using cached SVID for mTLS")
+                    # Still need to fetch for actual certificate, but cache reduces API calls
+                    svid = await self.workload_api.fetch_x509_svid()
+                else:
+                    svid = await self.workload_api.fetch_x509_svid()
+                    if svid:
+                        self.token_cache.set(cache_key, b"cached")  # Placeholder
+            else:
+                svid = await self.workload_api.fetch_x509_svid()
             
             # Create SSL context
             context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -99,6 +137,27 @@ class MTLSControllerProduction:
             
             self.current_context = context
             logger.info("✅ mTLS context setup complete (TLS 1.3)")
+            
+            # Update metrics if Prometheus is available
+            if PROMETHEUS_AVAILABLE:
+                try:
+                    from src.core.app import mtls_certificate_expiry_seconds, mtls_certificate_age_seconds
+                    
+                    # Extract SVID expiry if available
+                    if hasattr(svid, 'expiry'):
+                        now = datetime.utcnow()
+                        expiry_seconds = (svid.expiry - now).total_seconds()
+                        age_seconds = (now - setup_time).total_seconds()
+                        
+                        mtls_certificate_expiry_seconds.set(max(0, expiry_seconds))
+                        mtls_certificate_age_seconds.set(max(0, age_seconds))
+                        
+                        logger.debug(
+                            f"📊 mTLS Metrics updated: "
+                            f"expiry_in={expiry_seconds:.0f}s, age={age_seconds:.0f}s"
+                        )
+                except Exception as e:
+                    logger.debug(f"Failed to update metrics: {e}")
             
             return context
             
@@ -212,6 +271,16 @@ class MTLSControllerProduction:
                 
                 logger.info("🔄 Rotating mTLS certificates...")
                 await self.setup_mtls_context()
+                
+                # Update metrics if Prometheus is available
+                if PROMETHEUS_AVAILABLE:
+                    try:
+                        from src.core.app import mtls_certificate_rotations_total
+                        mtls_certificate_rotations_total.inc()
+                        logger.debug("📊 Certificate rotation metric incremented")
+                    except Exception as e:
+                        logger.debug(f"Failed to update rotation metric: {e}")
+                
                 logger.info("✅ Certificate rotation complete")
                 
             except Exception as e:

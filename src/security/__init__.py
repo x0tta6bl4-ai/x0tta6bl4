@@ -30,11 +30,12 @@ from .device_attestation import (
     AttestationType
 )
 from .post_quantum import (
-    SimplifiedNTRU,
-    HybridEncryption,
-    QuantumSafeKeyExchange,
-    PQMeshSecurity,
-    PQAlgorithm
+    HybridPQEncryption,
+    PQMeshSecurityLibOQS,
+    PQAlgorithm,
+    PQKeyPair,
+    PQCiphertext,
+    LibOQSBackend
 )
 from .decentralized_identity import (
     DIDManager,
@@ -80,6 +81,8 @@ from .continuous_verification import (
     RiskLevel,
     BehaviorProfile
 )
+from .spiffe.controller import SPIFFEController
+from .spiffe.agent import AttestationStrategy
 
 __all__ = [
     # Core
@@ -100,12 +103,17 @@ __all__ = [
     "TrustScore",
     "AttestationType",
     
-    # Post-Quantum
-    "SimplifiedNTRU",
-    "HybridEncryption",
-    "QuantumSafeKeyExchange",
-    "PQMeshSecurity",
+    # Post-Quantum (LibOQS - Production Ready)
+    "HybridPQEncryption",
+    "PQMeshSecurityLibOQS",
     "PQAlgorithm",
+    "PQKeyPair",
+    "PQCiphertext",
+    "LibOQSBackend",
+    
+    # SPIFFE/SPIRE Identity (NEW)
+    "SPIFFEController",
+    "AttestationStrategy",
     
     # Decentralized Identity (NEW)
     "DIDManager",

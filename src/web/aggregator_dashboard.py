@@ -1,16 +1,18 @@
 import requests
 from flask import Flask, jsonify
 from concurrent.futures import ThreadPoolExecutor
+import os
 
 app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY') or os.urandom(32)
 
-NODES = [
+NODES: List[Dict[str, str]] = [
     {"name": "Local (Germany)", "url": "http://127.0.0.1:8080"},
     {"name": "VPS 1 (Netherlands)", "url": "http://89.125.1.107:8081"},
     {"name": "VPS 2 (Russia)", "url": "http://62.133.60.252:8081"}
 ]
 
-def check_node(node):
+def check_node(node: Dict[str, str]) -> Optional[Dict[str, Any]]:
     try:
         r = requests.get(f"{node['url']}/api/stats", timeout=2)
         data = r.json()

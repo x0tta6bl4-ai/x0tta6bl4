@@ -15,9 +15,10 @@ class TestGovernance(unittest.TestCase):
     def test_voting_logic(self):
         prop = self.gov.create_proposal("Test Vote", "Desc")
         
-        self.gov.cast_vote(prop.id, "node-2", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-3", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-4", VoteType.NO)
+        # Cast votes with tokens (quadratic voting)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-3", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-4", VoteType.NO, tokens=100.0)
         
         counts = prop.vote_counts()
         self.assertEqual(counts[VoteType.YES], 2)
@@ -26,7 +27,7 @@ class TestGovernance(unittest.TestCase):
     def test_tally_passing(self):
         # Create short lived proposal
         prop = self.gov.create_proposal("Fast Vote", "Desc", duration_seconds=0.1)
-        self.gov.cast_vote(prop.id, "node-2", VoteType.YES)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
         
         time.sleep(0.2)
         self.gov.check_proposals()
@@ -37,11 +38,11 @@ class TestGovernance(unittest.TestCase):
         """Несколько нод голосуют, большинство YES → PASSED."""
         prop = self.gov.create_proposal("Multi-node Pass", "Desc", duration_seconds=0.1)
 
-        # 3 YES, 1 NO
-        self.gov.cast_vote(prop.id, "node-2", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-3", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-4", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-5", VoteType.NO)
+        # 3 YES, 1 NO (all with equal tokens for simple majority test)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-3", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-4", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-5", VoteType.NO, tokens=100.0)
 
         time.sleep(0.2)
         self.gov.check_proposals()
@@ -52,11 +53,11 @@ class TestGovernance(unittest.TestCase):
         """Несколько нод, большинство NO → REJECTED."""
         prop = self.gov.create_proposal("Multi-node Reject", "Desc", duration_seconds=0.1)
 
-        # 1 YES, 3 NO
-        self.gov.cast_vote(prop.id, "node-2", VoteType.YES)
-        self.gov.cast_vote(prop.id, "node-3", VoteType.NO)
-        self.gov.cast_vote(prop.id, "node-4", VoteType.NO)
-        self.gov.cast_vote(prop.id, "node-5", VoteType.NO)
+        # 1 YES, 3 NO (all with equal tokens)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-3", VoteType.NO, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-4", VoteType.NO, tokens=100.0)
+        self.gov.cast_vote(prop.id, "node-5", VoteType.NO, tokens=100.0)
 
         time.sleep(0.2)
         self.gov.check_proposals()
@@ -67,9 +68,9 @@ class TestGovernance(unittest.TestCase):
         """Повторное голосование тем же узлом перезаписывает его голос, а не добавляет новый."""
         prop = self.gov.create_proposal("Overwrite Vote", "Desc", duration_seconds=0.1)
 
-        self.gov.cast_vote(prop.id, "node-2", VoteType.NO)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.NO, tokens=100.0)
         # Тот же узел меняет мнение на YES
-        self.gov.cast_vote(prop.id, "node-2", VoteType.YES)
+        self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
 
         counts = prop.vote_counts()
         self.assertEqual(counts[VoteType.YES], 1)

@@ -18,7 +18,7 @@ import logging
 import os
 from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from cryptography import x509
@@ -100,26 +100,54 @@ class WorkloadAPIClient:
             ImportError: If the `spiffe` SDK is not installed.
             ValueError: If the SPIFFE endpoint socket is not configured.
         """
+        # Check production mode
+        PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
         self._force_mock_spiffe = os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
-
-        if not SPIFFE_SDK_AVAILABLE and not self._force_mock_spiffe:
-            raise ImportError(
-                "The 'spiffe' SDK is required for the Workload API client. "
-                "Please install 'py-spiffe'."
+        
+        # In production, mock mode is not allowed
+        if PRODUCTION_MODE and self._force_mock_spiffe:
+            raise RuntimeError(
+                "🔴 CRITICAL SECURITY ERROR: Mock SPIFFE mode is FORBIDDEN in production!\n"
+                "SPIFFE/SPIRE identity is REQUIRED for Zero-Trust security.\n"
+                "Set X0TTA6BL4_FORCE_MOCK_SPIFFE=false and ensure:\n"
+                "  1. SPIFFE SDK is installed: pip install py-spiffe\n"
+                "  2. SPIRE Agent is running and accessible\n"
+                "  3. SPIFFE_ENDPOINT_SOCKET is configured\n"
+                "For development/staging only, set X0TTA6BL4_PRODUCTION=false"
             )
+
+        if not SPIFFE_SDK_AVAILABLE:
+            if PRODUCTION_MODE:
+                raise ImportError(
+                    "🔴 The 'spiffe' SDK is REQUIRED in production. "
+                    "Install with: pip install py-spiffe"
+                )
+            elif not self._force_mock_spiffe:
+                logger.warning(
+                    "⚠️ SPIFFE SDK not available. Install 'py-spiffe' for real SPIFFE support. "
+                    "Using mock mode (set X0TTA6BL4_FORCE_MOCK_SPIFFE=true to suppress this warning)."
+                )
+                self._force_mock_spiffe = True
 
         self._spiffe_endpoint = socket_path or os.getenv("SPIFFE_ENDPOINT_SOCKET")
-        if not self._spiffe_endpoint and not self._force_mock_spiffe:
-            raise ValueError(
-                "SPIFFE endpoint socket must be provided via socket_path "
-                "or SPIFFE_ENDPOINT_SOCKET environment variable."
-            )
+        if not self._spiffe_endpoint:
+            if PRODUCTION_MODE:
+                raise ValueError(
+                    "🔴 SPIFFE endpoint socket is REQUIRED in production. "
+                    "Set SPIFFE_ENDPOINT_SOCKET environment variable or provide socket_path."
+                )
+            elif not self._force_mock_spiffe:
+                logger.warning(
+                    "⚠️ SPIFFE endpoint socket not configured. Using mock mode. "
+                    "Set SPIFFE_ENDPOINT_SOCKET or X0TTA6BL4_FORCE_MOCK_SPIFFE=true"
+                )
+                self._force_mock_spiffe = True
         
         if self._force_mock_spiffe:
-            logger.info("Workload API client initialized in forced mock mode.")
+            logger.warning("⚠️ Workload API client initialized in MOCK mode (not for production)")
         else:
             logger.info(
-                "Workload API client initialized with endpoint %s",
+                "✅ Workload API client initialized with endpoint %s",
                 self._spiffe_endpoint,
             )
 
@@ -504,4 +532,46 @@ class WorkloadAPIClient:
                 callback(self.current_svid)
             except Exception:
                 logger.exception("SVID update callback raised an exception")
+    
+    def enable_auto_renew(self, renewal_threshold: float = 0.5, check_interval: float = 300.0):
+        """
+        Enable automatic credential renewal.
+        
+        This is a convenience method that creates and starts an auto-renewal
+        service. For more control, use SPIFFEAutoRenew directly.
+        
+        Args:
+            renewal_threshold: Renew at this fraction of TTL (default: 0.5 = 50%)
+            check_interval: Check interval in seconds (default: 300 = 5 minutes)
+        
+        Returns:
+            SPIFFEAutoRenew instance (already started)
+        """
+        try:
+            from src.security.spiffe.workload.auto_renew import create_auto_renew
+            import asyncio
+            
+            auto_renew = create_auto_renew(
+                self,
+                renewal_threshold=renewal_threshold,
+                check_interval=check_interval
+            )
+            
+            # Start in background if event loop is running
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(auto_renew.start())
+                else:
+                    loop.run_until_complete(auto_renew.start())
+            except RuntimeError:
+                # No event loop, will need to start manually
+                logger.warning("No event loop available, auto-renew will need to be started manually")
+            
+            logger.info("✅ Auto-renewal enabled for WorkloadAPIClient")
+            return auto_renew
+            
+        except ImportError as e:
+            logger.warning(f"Auto-renewal not available: {e}")
+            return None
 

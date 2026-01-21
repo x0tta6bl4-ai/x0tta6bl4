@@ -157,15 +157,24 @@ controller.federate_trust_domain(
 ## Status
 
 **P0.2 Implementation Status:**
-- ✅ Workload API Client skeleton
-- ✅ SPIRE Agent Manager skeleton
-- ✅ SPIFFE Controller skeleton
-- ⏳ gRPC integration (TODO)
-- ⏳ Actual process management (TODO)
-- ⏳ Certificate validation (TODO)
-- ⏳ Unit tests (TODO)
+- ✅ Workload API Client (production-ready with gRPC)
+- ✅ SPIRE Agent Manager (process management implemented)
+- ✅ SPIFFE Controller (full orchestration)
+- ✅ gRPC integration (via spiffe-python SDK)
+- ✅ Process management (start/stop/health check)
+- ✅ Certificate validation (X.509 and JWT SVID validation)
+- ✅ Auto-renewal (SVID rotation with threshold)
+- ✅ Unit tests (test_spiffe_auto_renew.py exists, see tests/README.md)
 
-This is a **foundational skeleton** for P0.2. Actual SPIRE integration requires:
-1. SPIRE binaries installed
-2. gRPC Python library
-3. SPIFFE Python SDK (optional)
+**Production Features:**
+- ✅ Real gRPC connection to SPIRE Agent
+- ✅ Automatic SVID renewal (50% TTL threshold)
+- ✅ mTLS context building
+- ✅ Peer certificate validation
+- ✅ Process lifecycle management
+- ✅ Health monitoring
+
+**Requirements:**
+1. SPIRE binaries installed (`spire-agent`, `spire-server`)
+2. gRPC Python library (`grpcio`)
+3. spiffe-python SDK (optional, but recommended)

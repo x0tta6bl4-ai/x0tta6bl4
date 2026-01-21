@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x0tta6bl4-config
+  namespace: default
+data:
+  # Feature flags
+  FL_ENABLED: "true"
+  GRAPHSAGE_ENABLED: "true"
+  SPIFFE_ENABLED: "true"
+  
+  # Mesh configuration
+  MESH_NODE_COUNT: "10"
+  MESH_HEARTBEAT_INTERVAL: "30"
+  
+  # Performance tuning
+  WORKER_THREADS: "4"
+  MAX_CONNECTIONS: "1000"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+

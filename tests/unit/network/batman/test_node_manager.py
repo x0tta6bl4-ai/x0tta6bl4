@@ -42,8 +42,11 @@ def test_get_online_nodes():
     assert 'a' in online and 'b' not in online
 
 
-def test_register_with_cert_integration():
+def test_register_with_cert_integration(monkeypatch):
     """Test registration with optional certificate"""
+    # Force mock SPIFFE mode
+    monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
+    
     nm = NodeManager(mesh_id='m', local_node_id='n-local')
     # Passing a dummy cert should not crash the system, and since parsing fails, 
     # it should fallback to basic checks which pass if spiffe_id matches

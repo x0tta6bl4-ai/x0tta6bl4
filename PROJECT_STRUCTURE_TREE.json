@@ -1,0 +1,1959 @@
+{
+  "name": "AC74CC2974CBF3DC",
+  "type": "directory",
+  "path": ".",
+  "children": [
+    {
+      "name": "ROADMAP_legacy",
+      "type": "directory",
+      "path": "ROADMAP_legacy",
+      "children": [
+        {
+          "name": "README.md",
+          "type": "file",
+          "path": "ROADMAP_legacy/README.md",
+          "size": 4576
+        }
+      ]
+    },
+    {
+      "name": "System Volume Information",
+      "type": "directory",
+      "path": "System Volume Information",
+      "children": [
+        {
+          "name": "IndexerVolumeGuid",
+          "type": "file",
+          "path": "System Volume Information/IndexerVolumeGuid",
+          "size": 76
+        },
+        {
+          "name": "MountPointManagerRemoteDatabase",
+          "type": "file",
+          "path": "System Volume Information/MountPointManagerRemoteDatabase",
+          "size": 0
+        },
+        {
+          "name": "WPSettings.dat",
+          "type": "file",
+          "path": "System Volume Information/WPSettings.dat",
+          "size": 12
+        },
+        {
+          "name": "tracking.log",
+          "type": "file",
+          "path": "System Volume Information/tracking.log",
+          "size": 20480
+        }
+      ]
+    },
+    {
+      "name": "WEB3_GO_TO_MARKET",
+      "type": "directory",
+      "path": "WEB3_GO_TO_MARKET",
+      "children": [
+        {
+          "name": "00_ACTION_TODAY.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/00_ACTION_TODAY.md",
+          "size": 7909
+        },
+        {
+          "name": "01_TARGET_LIST.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/01_TARGET_LIST.md",
+          "size": 7191
+        },
+        {
+          "name": "02_EMAIL_TEMPLATES.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/02_EMAIL_TEMPLATES.md",
+          "size": 7409
+        },
+        {
+          "name": "03_CRM_TRACKER.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/03_CRM_TRACKER.md",
+          "size": 6838
+        },
+        {
+          "name": "04_DEMO_SCRIPT.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/04_DEMO_SCRIPT.md",
+          "size": 7657
+        },
+        {
+          "name": "05_LINKEDIN_OUTREACH.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/05_LINKEDIN_OUTREACH.md",
+          "size": 6784
+        },
+        {
+          "name": "06_EMAIL_TRACKER.csv",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/06_EMAIL_TRACKER.csv",
+          "size": 788
+        },
+        {
+          "name": "07_DEMO_ENVIRONMENT.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/07_DEMO_ENVIRONMENT.md",
+          "size": 1870
+        },
+        {
+          "name": "08_AUTOMATION_SCRIPTS.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/08_AUTOMATION_SCRIPTS.md",
+          "size": 2589
+        },
+        {
+          "name": "09_READY_CHECKLIST.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/09_READY_CHECKLIST.md",
+          "size": 3690
+        },
+        {
+          "name": "LINUX_DOCS_INDEX.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/LINUX_DOCS_INDEX.md",
+          "size": 7201
+        },
+        {
+          "name": "LINUX_DOCS_SUMMARY.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/LINUX_DOCS_SUMMARY.md",
+          "size": 6564
+        },
+        {
+          "name": "LINUX_FAQ.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/LINUX_FAQ.md",
+          "size": 9109
+        },
+        {
+          "name": "LINUX_ONE_PAGER.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/LINUX_ONE_PAGER.md",
+          "size": 1740
+        },
+        {
+          "name": "LINUX_QUICK_REFERENCE.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/LINUX_QUICK_REFERENCE.md",
+          "size": 2817
+        },
+        {
+          "name": "READY_TO_SEND_EMAILS.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/READY_TO_SEND_EMAILS.md",
+          "size": 13656
+        },
+        {
+          "name": "UNIQUE_VALUE_PROPOSITION_LINUX.md",
+          "type": "file",
+          "path": "WEB3_GO_TO_MARKET/UNIQUE_VALUE_PROPOSITION_LINUX.md",
+          "size": 7924
+        }
+      ]
+    },
+    {
+      "name": "alertmanager",
+      "type": "directory",
+      "path": "alertmanager",
+      "children": [
+        {
+          "name": "config-test.yml",
+          "type": "file",
+          "path": "alertmanager/config-test.yml",
+          "size": 1609
+        },
+        {
+          "name": "config.yml",
+          "type": "file",
+          "path": "alertmanager/config.yml",
+          "size": 4767
+        }
+      ]
+    },
+    {
+      "name": "alertmanager_data",
+      "type": "directory",
+      "path": "alertmanager_data",
+      "children": [
+        {
+          "name": "nflog",
+          "type": "file",
+          "path": "alertmanager_data/nflog",
+          "size": 0
+        },
+        {
+          "name": "silences",
+          "type": "file",
+          "path": "alertmanager_data/silences",
+          "size": 0
+        }
+      ]
+    },
+    {
+      "name": "archive",
+      "type": "directory",
+      "path": "archive",
+      "children": [
+        {
+          "name": "artifacts",
+          "type": "directory",
+          "path": "archive/artifacts",
+          "children": []
+        },
+        {
+          "name": "docs_2025_and_earlier",
+          "type": "directory",
+          "path": "archive/docs_2025_and_earlier",
+          "children": [
+            {
+              "name": "ALL_MOCKS_REPORT.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/ALL_MOCKS_REPORT.md",
+              "size": 9351
+            },
+            {
+              "name": "ALL_SCENARIOS_FINAL_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/ALL_SCENARIOS_FINAL_STATUS.md",
+              "size": 6421
+            },
+            {
+              "name": "BLOCKCHAIN_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/BLOCKCHAIN_STATUS.md",
+              "size": 5863
+            },
+            {
+              "name": "BUILD_PROGRESS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/BUILD_PROGRESS.md",
+              "size": 3605
+            },
+            {
+              "name": "COMPLETE_PROJECT_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPLETE_PROJECT_STATUS.md",
+              "size": 6089
+            },
+            {
+              "name": "COMPLETE_SYSTEM_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPLETE_SYSTEM_STATUS.md",
+              "size": 7215
+            },
+            {
+              "name": "COMPLIANCE_PROGRESS_REPORT.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPLIANCE_PROGRESS_REPORT.md",
+              "size": 4896
+            },
+            {
+              "name": "COMPREHENSIVE_FINAL_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPREHENSIVE_FINAL_STATUS.md",
+              "size": 3463
+            },
+            {
+              "name": "COMPREHENSIVE_STATUS_2025-01-27.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPREHENSIVE_STATUS_2025-01-27.md",
+              "size": 10521
+            },
+            {
+              "name": "COMPREHENSIVE_STATUS_REPORT_JAN_2026.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COMPREHENSIVE_STATUS_REPORT_JAN_2026.md",
+              "size": 10123
+            },
+            {
+              "name": "CORRECTION_REALISTIC_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/CORRECTION_REALISTIC_STATUS.md",
+              "size": 4874
+            },
+            {
+              "name": "COVERAGE_PROGRESS_DEC_29_2025.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/COVERAGE_PROGRESS_DEC_29_2025.md",
+              "size": 9280
+            },
+            {
+              "name": "CURRENT_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/CURRENT_STATUS.md",
+              "size": 6206
+            },
+            {
+              "name": "CURRENT_STATUS_SNAPSHOT_2026_01_07.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/CURRENT_STATUS_SNAPSHOT_2026_01_07.md",
+              "size": 6174
+            },
+            {
+              "name": "CURRENT_TODOS_STATUS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/CURRENT_TODOS_STATUS.md",
+              "size": 2168
+            },
+            {
+              "name": "DEC_29_CONTINUED_PROGRESS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/DEC_29_CONTINUED_PROGRESS.md",
+              "size": 2226
+            },
+            {
+              "name": "DEC_29_FINAL_PROGRESS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/DEC_29_FINAL_PROGRESS.md",
+              "size": 3617
+            },
+            {
+              "name": "DEC_29_FINAL_SUMMARY.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/DEC_29_FINAL_SUMMARY.md",
+              "size": 3397
+            },
+            {
+              "name": "DEC_29_MAJOR_ACHIEVEMENTS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/DEC_29_MAJOR_ACHIEVEMENTS.md",
+              "size": 2489
+            },
+            {
+              "name": "DEC_29_MAJOR_PROGRESS.md",
+              "type": "file",
+              "path": "archive/docs_2025_and_earlier/DEC_29_MAJOR_PROGRESS.md",
+              "size": 2563
+            }
+          ]
+        },
+        {
+          "name": "docs_old",
+          "type": "directory",
+          "path": "archive/docs_old",
+          "children": [
+            {
+              "name": "architecture",
+              "type": "directory",
+              "path": "archive/docs_old/architecture",
+              "children": [
+                {
+                  "name": "dao.md",
+                  "type": "file",
+                  "path": "archive/docs_old/architecture/dao.md",
+                  "size": 59
+                },
+                {
+                  "name": "graphsage.md",
+                  "type": "file",
+                  "path": "archive/docs_old/architecture/graphsage.md",
+                  "size": 65
+                },
+                {
+                  "name": "overview.md",
+                  "type": "file",
+                  "path": "archive/docs_old/architecture/overview.md",
+                  "size": 2699
+                },
+                {
+                  "name": "pq-crypto.md",
+                  "type": "file",
+                  "path": "archive/docs_old/architecture/pq-crypto.md",
+                  "size": 83
+                },
+                {
+                  "name": "self-healing.md",
+                  "type": "file",
+                  "path": "archive/docs_old/architecture/self-healing.md",
+                  "size": 78
+                }
+              ]
+            },
+            {
+              "name": "deployment",
+              "type": "directory",
+              "path": "archive/docs_old/deployment",
+              "children": [
+                {
+                  "name": "docker.md",
+                  "type": "file",
+                  "path": "archive/docs_old/deployment/docker.md",
+                  "size": 53
+                },
+                {
+                  "name": "helm.md",
+                  "type": "file",
+                  "path": "archive/docs_old/deployment/helm.md",
+                  "size": 48
+                },
+                {
+                  "name": "kubernetes.md",
+                  "type": "file",
+                  "path": "archive/docs_old/deployment/kubernetes.md",
+                  "size": 890
+                }
+              ]
+            },
+            {
+              "name": "getting-started",
+              "type": "directory",
+              "path": "archive/docs_old/getting-started",
+              "children": [
+                {
+                  "name": "configuration.md",
+                  "type": "file",
+                  "path": "archive/docs_old/getting-started/configuration.md",
+                  "size": 78
+                },
+                {
+                  "name": "installation.md",
+                  "type": "file",
+                  "path": "archive/docs_old/getting-started/installation.md",
+                  "size": 79
+                },
+                {
+                  "name": "quickstart.md",
+                  "type": "file",
+                  "path": "archive/docs_old/getting-started/quickstart.md",
+                  "size": 984
+                }
+              ]
+            },
+            {
+              "name": "operations",
+              "type": "directory",
+              "path": "archive/docs_old/operations",
+              "children": [
+                {
+                  "name": "chaos.md",
+                  "type": "file",
+                  "path": "archive/docs_old/operations/chaos.md",
+                  "size": 920
+                },
+                {
+                  "name": "monitoring.md",
+                  "type": "file",
+                  "path": "archive/docs_old/operations/monitoring.md",
+                  "size": 55
+                },
+                {
+                  "name": "troubleshooting.md",
+                  "type": "file",
+                  "path": "archive/docs_old/operations/troubleshooting.md",
+                  "size": 47
+                }
+              ]
+            },
+            {
+              "name": "windsurf",
+              "type": "directory",
+              "path": "archive/docs_old/windsurf",
+              "children": [
+                {
+                  "name": "README.md",
+                  "type": "file",
+                  "path": "archive/docs_old/windsurf/README.md",
+                  "size": 754
+                },
+                {
+                  "name": "cleanup-workflow.yaml",
+                  "type": "file",
+                  "path": "archive/docs_old/windsurf/cleanup-workflow.yaml",
+                  "size": 1977
+                },
+                {
+                  "name": "project-structure.md",
+                  "type": "file",
+                  "path": "archive/docs_old/windsurf/project-structure.md",
+                  "size": 1684
+                },
+                {
+                  "name": "usage-guide.md",
+                  "type": "file",
+                  "path": "archive/docs_old/windsurf/usage-guide.md",
+                  "size": 995
+                }
+              ]
+            },
+            {
+              "name": "COPILOT_PROMPTS.md",
+              "type": "file",
+              "path": "archive/docs_old/COPILOT_PROMPTS.md",
+              "size": 7846
+            },
+            {
+              "name": "IMPLEMENTATION_ROADMAP_Q4_2025.md",
+              "type": "file",
+              "path": "archive/docs_old/IMPLEMENTATION_ROADMAP_Q4_2025.md",
+              "size": 7037
+            },
+            {
+              "name": "MESH_NETWORK.md",
+              "type": "file",
+              "path": "archive/docs_old/MESH_NETWORK.md",
+              "size": 7136
+            },
+            {
+              "name": "ZERO_TRUST_VALIDATION_REPORT.md",
+              "type": "file",
+              "path": "archive/docs_old/ZERO_TRUST_VALIDATION_REPORT.md",
+              "size": 11907
+            },
+            {
+              "name": "api.md",
+              "type": "file",
+              "path": "archive/docs_old/api.md",
+              "size": 810
+            },
+            {
+              "name": "contributing.md",
+              "type": "file",
+              "path": "archive/docs_old/contributing.md",
+              "size": 5804
+            },
+            {
+              "name": "index.md",
+              "type": "file",
+              "path": "archive/docs_old/index.md",
+              "size": 1337
+            }
+          ]
+        },
+        {
+          "name": "legacy",
+          "type": "directory",
+          "path": "archive/legacy",
+          "children": [
+            {
+              "name": "infrastructure_old",
+              "type": "directory",
+              "path": "archive/legacy/infrastructure_old",
+              "children": []
+            },
+            {
+              "name": "requirements_old",
+              "type": "directory",
+              "path": "archive/legacy/requirements_old",
+              "children": [
+                {
+                  "name": "requirements-ai.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-ai.txt",
+                  "size": 417
+                },
+                {
+                  "name": "requirements-blockchain.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-blockchain.txt",
+                  "size": 166
+                },
+                {
+                  "name": "requirements-chaos.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-chaos.txt",
+                  "size": 1689
+                },
+                {
+                  "name": "requirements-common.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-common.txt",
+                  "size": 917
+                },
+                {
+                  "name": "requirements-dev.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-dev.txt",
+                  "size": 1447
+                },
+                {
+                  "name": "requirements-edge.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-edge.txt",
+                  "size": 492
+                },
+                {
+                  "name": "requirements-hrm.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-hrm.txt",
+                  "size": 1129
+                },
+                {
+                  "name": "requirements-loadtest.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-loadtest.txt",
+                  "size": 879
+                },
+                {
+                  "name": "requirements-mesh.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-mesh.txt",
+                  "size": 491
+                },
+                {
+                  "name": "requirements-min.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-min.txt",
+                  "size": 488
+                },
+                {
+                  "name": "requirements-minimal.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-minimal.txt",
+                  "size": 89
+                },
+                {
+                  "name": "requirements-monitoring.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-monitoring.txt",
+                  "size": 204
+                },
+                {
+                  "name": "requirements-prod.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-prod.txt",
+                  "size": 1796
+                },
+                {
+                  "name": "requirements-quantum.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-quantum.txt",
+                  "size": 289
+                },
+                {
+                  "name": "requirements-rag.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-rag.txt",
+                  "size": 44
+                },
+                {
+                  "name": "requirements-saas.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-saas.txt",
+                  "size": 285
+                },
+                {
+                  "name": "requirements-security.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-security.txt",
+                  "size": 174
+                },
+                {
+                  "name": "requirements-staging.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-staging.txt",
+                  "size": 329
+                },
+                {
+                  "name": "requirements-test.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-test.txt",
+                  "size": 361
+                },
+                {
+                  "name": "requirements-validation.txt",
+                  "type": "file",
+                  "path": "archive/legacy/requirements_old/requirements-validation.txt",
+                  "size": 1141
+                }
+              ]
+            },
+            {
+              "name": "x0tta6bl4_backup_20250913_204248",
+              "type": "directory",
+              "path": "archive/legacy/x0tta6bl4_backup_20250913_204248",
+              "children": [
+                {
+                  "name": "=0.32.0",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=0.32.0",
+                  "size": 8563
+                },
+                {
+                  "name": "=0.45.0",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=0.45.0",
+                  "size": 0
+                },
+                {
+                  "name": "=1.2.0",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=1.2.0",
+                  "size": 0
+                },
+                {
+                  "name": "=3.1.6",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=3.1.6",
+                  "size": 993
+                },
+                {
+                  "name": "=4.5.0",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=4.5.0",
+                  "size": 199
+                },
+                {
+                  "name": "=78.1.1",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/=78.1.1",
+                  "size": 0
+                },
+                {
+                  "name": "ABSOLUTE_EVOLUTION_ACHIEVED.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ABSOLUTE_EVOLUTION_ACHIEVED.md",
+                  "size": 9829
+                },
+                {
+                  "name": "ABSOLUTE_TRANSCENDENCE_COMPLETE_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ABSOLUTE_TRANSCENDENCE_COMPLETE_REPORT.md",
+                  "size": 14612
+                },
+                {
+                  "name": "ABSOLUTE_TRANSCENDENCE_PLAN.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ABSOLUTE_TRANSCENDENCE_PLAN.md",
+                  "size": 10553
+                },
+                {
+                  "name": "ACTIVATION_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ACTIVATION_REPORT.md",
+                  "size": 5034
+                },
+                {
+                  "name": "ADDITIONAL_TASKS_COMPLETION_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ADDITIONAL_TASKS_COMPLETION_REPORT.md",
+                  "size": 12662
+                },
+                {
+                  "name": "ADVANCED_STUB_DETECTION_SYSTEM.py",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ADVANCED_STUB_DETECTION_SYSTEM.py",
+                  "size": 18460
+                },
+                {
+                  "name": "API_EXAMPLES.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/API_EXAMPLES.md",
+                  "size": 15627
+                },
+                {
+                  "name": "ARCHITECTURE_COMPARISON_DIAGRAM.txt",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/ARCHITECTURE_COMPARISON_DIAGRAM.txt",
+                  "size": 18237
+                },
+                {
+                  "name": "BEYOND_LIMITS_COMPLETE_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/BEYOND_LIMITS_COMPLETE_REPORT.md",
+                  "size": 16052
+                },
+                {
+                  "name": "BEYOND_LIMITS_PLAN.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/BEYOND_LIMITS_PLAN.md",
+                  "size": 11843
+                },
+                {
+                  "name": "CITATION.cff",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/CITATION.cff",
+                  "size": 929
+                },
+                {
+                  "name": "COMPLETION_PLAN.py",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/COMPLETION_PLAN.py",
+                  "size": 26552
+                },
+                {
+                  "name": "COMPLETION_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/COMPLETION_REPORT.md",
+                  "size": 11016
+                },
+                {
+                  "name": "COMPREHENSIVE_EXECUTION_REPORT.md",
+                  "type": "file",
+                  "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/COMPREHENSIVE_EXECUTION_REPORT.md",
+                  "size": 11226
+                }
+              ]
+            },
+            {
+              "name": "DNS_AND_PING_FIXED.md",
+              "type": "file",
+              "path": "archive/legacy/DNS_AND_PING_FIXED.md",
+              "size": 3887
+            },
+            {
+              "name": "DNS_OPTIMIZATION_COMPLETE.md",
+              "type": "file",
+              "path": "archive/legacy/DNS_OPTIMIZATION_COMPLETE.md",
+              "size": 4129
+            },
+            {
+              "name": "DNS_ROUTING_FIX.md",
+              "type": "file",
+              "path": "archive/legacy/DNS_ROUTING_FIX.md",
+              "size": 1545
+            },
+            {
+              "name": "FINAL_SUMMARY.md",
+              "type": "file",
+              "path": "archive/legacy/FINAL_SUMMARY.md",
+              "size": 4489
+            },
+            {
+              "name": "FIX_AUTHTOKEN.md",
+              "type": "file",
+              "path": "archive/legacy/FIX_AUTHTOKEN.md",
+              "size": 1871
+            },
+            {
+              "name": "FIX_NGROK.md",
+              "type": "file",
+              "path": "archive/legacy/FIX_NGROK.md",
+              "size": 2134
+            },
+            {
+              "name": "FIX_NGROK_ERROR.md",
+              "type": "file",
+              "path": "archive/legacy/FIX_NGROK_ERROR.md",
+              "size": 2220
+            },
+            {
+              "name": "QUICK_FIX.md",
+              "type": "file",
+              "path": "archive/legacy/QUICK_FIX.md",
+              "size": 818
+            },
+            {
+              "name": "VPN_FULLY_FIXED.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_FULLY_FIXED.md",
+              "size": 1882
+            },
+            {
+              "name": "VPN_FULLY_OPTIMIZED.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_FULLY_OPTIMIZED.md",
+              "size": 4095
+            },
+            {
+              "name": "VPN_ISSUES_FIXED.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_ISSUES_FIXED.md",
+              "size": 1719
+            },
+            {
+              "name": "VPN_OPTIMIZATIONS_COMPLETE.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_OPTIMIZATIONS_COMPLETE.md",
+              "size": 5100
+            },
+            {
+              "name": "VPN_OPTIMIZATION_SUMMARY.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_OPTIMIZATION_SUMMARY.md",
+              "size": 2215
+            },
+            {
+              "name": "VPN_OPTIMIZED_CRIMEA_NETHERLANDS.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_OPTIMIZED_CRIMEA_NETHERLANDS.md",
+              "size": 8503
+            },
+            {
+              "name": "VPN_PING_80MS_TARGET.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_PING_80MS_TARGET.md",
+              "size": 7035
+            },
+            {
+              "name": "VPN_PRODUCTION_READY.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_PRODUCTION_READY.md",
+              "size": 11436
+            },
+            {
+              "name": "VPN_READY_FOR_USE.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_READY_FOR_USE.md",
+              "size": 1760
+            },
+            {
+              "name": "VPN_SERVER_DEPLOYMENT_REPORT.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_SERVER_DEPLOYMENT_REPORT.md",
+              "size": 7464
+            },
+            {
+              "name": "VPN_SERVER_FIXED.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_SERVER_FIXED.md",
+              "size": 1341
+            },
+            {
+              "name": "VPN_SERVER_FIX_COMPLETE.md",
+              "type": "file",
+              "path": "archive/legacy/VPN_SERVER_FIX_COMPLETE.md",
+              "size": 4009
+            }
+          ]
+        },
+        {
+          "name": "snapshots",
+          "type": "directory",
+          "path": "archive/snapshots",
+          "children": [
+            {
+              "name": "x0tta6bl4_foundation_2025-10-29.tar.gz",
+              "type": "file",
+              "path": "archive/snapshots/x0tta6bl4_foundation_2025-10-29.tar.gz",
+              "size": 172024955233
+            }
+          ]
+        },
+        {
+          "name": "staging_area",
+          "type": "directory",
+          "path": "archive/staging_area",
+          "children": []
+        },
+        {
+          "name": "ARCHITECTURE.md",
+          "type": "file",
+          "path": "archive/ARCHITECTURE.md",
+          "size": 7371
+        },
+        {
+          "name": "README.md",
+          "type": "file",
+          "path": "archive/README.md",
+          "size": 5211
+        },
+        {
+          "name": "SECURITY.md",
+          "type": "file",
+          "path": "archive/SECURITY.md",
+          "size": 3789
+        }
+      ]
+    },
+    {
+      "name": "argocd",
+      "type": "directory",
+      "path": "argocd",
+      "children": [
+        {
+          "name": "applications",
+          "type": "directory",
+          "path": "argocd/applications",
+          "children": [
+            {
+              "name": "monitoring.yaml",
+              "type": "file",
+              "path": "argocd/applications/monitoring.yaml",
+              "size": 8354
+            },
+            {
+              "name": "spire.yaml",
+              "type": "file",
+              "path": "argocd/applications/spire.yaml",
+              "size": 1328
+            }
+          ]
+        },
+        {
+          "name": "app-of-apps.yaml",
+          "type": "file",
+          "path": "argocd/app-of-apps.yaml",
+          "size": 458
+        },
+        {
+          "name": "application.yaml",
+          "type": "file",
+          "path": "argocd/application.yaml",
+          "size": 943
+        }
+      ]
+    },
+    {
+      "name": "backups",
+      "type": "directory",
+      "path": "backups",
+      "children": [
+        {
+          "name": "config_backup_20251227_075224.json",
+          "type": "file",
+          "path": "backups/config_backup_20251227_075224.json",
+          "size": 856
+        }
+      ]
+    },
+    {
+      "name": "benchmarks",
+      "type": "directory",
+      "path": "benchmarks",
+      "children": [
+        {
+          "name": "__pycache__",
+          "type": "directory",
+          "path": "benchmarks/__pycache__",
+          "children": [
+            {
+              "name": "benchmark_graphsage_comprehensive.cpython-312.pyc",
+              "type": "file",
+              "path": "benchmarks/__pycache__/benchmark_graphsage_comprehensive.cpython-312.pyc",
+              "size": 18035
+            }
+          ]
+        },
+        {
+          "name": "results",
+          "type": "directory",
+          "path": "benchmarks/results",
+          "children": [
+            {
+              "name": "validation_results_20260103.json",
+              "type": "file",
+              "path": "benchmarks/results/validation_results_20260103.json",
+              "size": 1956
+            }
+          ]
+        },
+        {
+          "name": "README.md",
+          "type": "file",
+          "path": "benchmarks/README.md",
+          "size": 3850
+        },
+        {
+          "name": "benchmark_graphsage_comprehensive.py",
+          "type": "file",
+          "path": "benchmarks/benchmark_graphsage_comprehensive.py",
+          "size": 14340
+        },
+        {
+          "name": "benchmark_graphsage_validation.py",
+          "type": "file",
+          "path": "benchmarks/benchmark_graphsage_validation.py",
+          "size": 13833
+        },
+        {
+          "name": "benchmark_knowledge_storage.py",
+          "type": "file",
+          "path": "benchmarks/benchmark_knowledge_storage.py",
+          "size": 8443
+        },
+        {
+          "name": "benchmark_pqc.py",
+          "type": "file",
+          "path": "benchmarks/benchmark_pqc.py",
+          "size": 7101
+        }
+      ]
+    },
+    {
+      "name": "beta-customers",
+      "type": "directory",
+      "path": "beta-customers",
+      "children": [
+        {
+          "name": "beta-customer-1",
+          "type": "directory",
+          "path": "beta-customers/beta-customer-1",
+          "children": [
+            {
+              "name": "EMAIL_ПОЛНЫЙ_ПАКЕТ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/EMAIL_ПОЛНЫЙ_ПАКЕТ.md",
+              "size": 4091
+            },
+            {
+              "name": "EMAIL_ПРИГЛАШЕНИЕ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/EMAIL_ПРИГЛАШЕНИЕ.md",
+              "size": 2531
+            },
+            {
+              "name": "INVITATION_EMAIL.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/INVITATION_EMAIL.md",
+              "size": 1961
+            },
+            {
+              "name": "ONBOARDING_CALL_AGENDA.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ONBOARDING_CALL_AGENDA.md",
+              "size": 3721
+            },
+            {
+              "name": "ONBOARDING_SUMMARY.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ONBOARDING_SUMMARY.md",
+              "size": 870
+            },
+            {
+              "name": "api_token.txt",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/api_token.txt",
+              "size": 65
+            },
+            {
+              "name": "config.yaml",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/config.yaml",
+              "size": 989
+            },
+            {
+              "name": "port-forward.sh",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/port-forward.sh",
+              "size": 354
+            },
+            {
+              "name": "БЫСТРЫЙ_СТАРТ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/БЫСТРЫЙ_СТАРТ.md",
+              "size": 2461
+            },
+            {
+              "name": "ДЕМО_СЦЕНАРИИ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ДЕМО_СЦЕНАРИИ.md",
+              "size": 5028
+            },
+            {
+              "name": "ИНСТРУКЦИЯ_ДЛЯ_КЛИЕНТА.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ИНСТРУКЦИЯ_ДЛЯ_КЛИЕНТА.md",
+              "size": 5837
+            },
+            {
+              "name": "КАК_ПОДКЛЮЧИТЬСЯ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/КАК_ПОДКЛЮЧИТЬСЯ.md",
+              "size": 1404
+            },
+            {
+              "name": "ФИНАЛЬНАЯ_ПРОВЕРКА.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ФИНАЛЬНАЯ_ПРОВЕРКА.md",
+              "size": 1783
+            },
+            {
+              "name": "ЧЕКЛИСТ_ПЕРЕД_ОТПРАВКОЙ.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ЧЕКЛИСТ_ПЕРЕД_ОТПРАВКОЙ.md",
+              "size": 2515
+            },
+            {
+              "name": "ШАБЛОН_FEEDBACK.md",
+              "type": "file",
+              "path": "beta-customers/beta-customer-1/ШАБЛОН_FEEDBACK.md",
+              "size": 4854
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "business",
+      "type": "directory",
+      "path": "business",
+      "children": [
+        {
+          "name": "BUSINESS_PLAN_5_YEAR.md",
+          "type": "file",
+          "path": "business/BUSINESS_PLAN_5_YEAR.md",
+          "size": 7076
+        },
+        {
+          "name": "DISTRIBUTED_AI_OPPORTUNITY.md",
+          "type": "file",
+          "path": "business/DISTRIBUTED_AI_OPPORTUNITY.md",
+          "size": 9226
+        },
+        {
+          "name": "FUNDING_OPPORTUNITIES.md",
+          "type": "file",
+          "path": "business/FUNDING_OPPORTUNITIES.md",
+          "size": 5872
+        },
+        {
+          "name": "INVESTOR_PITCH.md",
+          "type": "file",
+          "path": "business/INVESTOR_PITCH.md",
+          "size": 5434
+        },
+        {
+          "name": "RU_BUSINESS_PLAN.md",
+          "type": "file",
+          "path": "business/RU_BUSINESS_PLAN.md",
+          "size": 10517
+        },
+        {
+          "name": "RU_DISTRIBUTED_AI.md",
+          "type": "file",
+          "path": "business/RU_DISTRIBUTED_AI.md",
+          "size": 13762
+        },
+        {
+          "name": "RU_FUNDING.md",
+          "type": "file",
+          "path": "business/RU_FUNDING.md",
+          "size": 7233
+        },
+        {
+          "name": "RU_INVESTOR_PITCH.md",
+          "type": "file",
+          "path": "business/RU_INVESTOR_PITCH.md",
+          "size": 6429
+        }
+      ]
+    },
+    {
+      "name": "chaos",
+      "type": "directory",
+      "path": "chaos",
+      "children": [
+        {
+          "name": "README.md",
+          "type": "file",
+          "path": "chaos/README.md",
+          "size": 1444
+        },
+        {
+          "name": "network-delay.yaml",
+          "type": "file",
+          "path": "chaos/network-delay.yaml",
+          "size": 990
+        },
+        {
+          "name": "partition-50pct.yaml",
+          "type": "file",
+          "path": "chaos/partition-50pct.yaml",
+          "size": 1202
+        },
+        {
+          "name": "pod-kill-25pct.yaml",
+          "type": "file",
+          "path": "chaos/pod-kill-25pct.yaml",
+          "size": 1671
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "type": "directory",
+      "path": "config",
+      "children": [
+        {
+          "name": "crdt_sync.yaml",
+          "type": "file",
+          "path": "config/crdt_sync.yaml",
+          "size": 1591
+        },
+        {
+          "name": "mape_k_config.yaml",
+          "type": "file",
+          "path": "config/mape_k_config.yaml",
+          "size": 2744
+        },
+        {
+          "name": "production_v3.yaml",
+          "type": "file",
+          "path": "config/production_v3.yaml",
+          "size": 1529
+        },
+        {
+          "name": "raft_production.yaml",
+          "type": "file",
+          "path": "config/raft_production.yaml",
+          "size": 1613
+        },
+        {
+          "name": "recovery_actions.yaml",
+          "type": "file",
+          "path": "config/recovery_actions.yaml",
+          "size": 1804
+        },
+        {
+          "name": "zero_trust.yaml",
+          "type": "file",
+          "path": "config/zero_trust.yaml",
+          "size": 1437
+        }
+      ]
+    },
+    {
+      "name": "dashboards",
+      "type": "directory",
+      "path": "dashboards",
+      "children": [
+        {
+          "name": "ebpf_metrics_dashboard.json",
+          "type": "file",
+          "path": "dashboards/ebpf_metrics_dashboard.json",
+          "size": 2716
+        }
+      ]
+    },
+    {
+      "name": "data",
+      "type": "directory",
+      "path": "data",
+      "children": [
+        {
+          "name": "embeddings",
+          "type": "directory",
+          "path": "data/embeddings",
+          "children": []
+        },
+        {
+          "name": "indexes",
+          "type": "directory",
+          "path": "data/indexes",
+          "children": []
+        },
+        {
+          "name": "private",
+          "type": "directory",
+          "path": "data/private",
+          "children": []
+        },
+        {
+          "name": "processed",
+          "type": "directory",
+          "path": "data/processed",
+          "children": []
+        },
+        {
+          "name": "raw",
+          "type": "directory",
+          "path": "data/raw",
+          "children": []
+        },
+        {
+          "name": "samples",
+          "type": "directory",
+          "path": "data/samples",
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "db",
+      "type": "directory",
+      "path": "db",
+      "children": [
+        {
+          "name": "migrations",
+          "type": "directory",
+          "path": "db/migrations",
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "demos",
+      "type": "directory",
+      "path": "demos",
+      "children": [
+        {
+          "name": "__pycache__",
+          "type": "directory",
+          "path": "demos/__pycache__",
+          "children": [
+            {
+              "name": "chaos_resilience.cpython-312.pyc",
+              "type": "file",
+              "path": "demos/__pycache__/chaos_resilience.cpython-312.pyc",
+              "size": 5829
+            },
+            {
+              "name": "complete_v3_demo.cpython-312.pyc",
+              "type": "file",
+              "path": "demos/__pycache__/complete_v3_demo.cpython-312.pyc",
+              "size": 10467
+            },
+            {
+              "name": "stego_mesh_test.cpython-312.pyc",
+              "type": "file",
+              "path": "demos/__pycache__/stego_mesh_test.cpython-312.pyc",
+              "size": 4746
+            }
+          ]
+        },
+        {
+          "name": "chaos_resilience.py",
+          "type": "file",
+          "path": "demos/chaos_resilience.py",
+          "size": 4201
+        },
+        {
+          "name": "complete_v3_demo.py",
+          "type": "file",
+          "path": "demos/complete_v3_demo.py",
+          "size": 8193
+        },
+        {
+          "name": "stego_mesh_test.py",
+          "type": "file",
+          "path": "demos/stego_mesh_test.py",
+          "size": 3763
+        }
+      ]
+    },
+    {
+      "name": "deploy",
+      "type": "directory",
+      "path": "deploy",
+      "children": [
+        {
+          "name": "configs",
+          "type": "directory",
+          "path": "deploy/configs",
+          "children": [
+            {
+              "name": "node-1.yaml",
+              "type": "file",
+              "path": "deploy/configs/node-1.yaml",
+              "size": 81
+            },
+            {
+              "name": "node-2.yaml",
+              "type": "file",
+              "path": "deploy/configs/node-2.yaml",
+              "size": 81
+            },
+            {
+              "name": "node-3.yaml",
+              "type": "file",
+              "path": "deploy/configs/node-3.yaml",
+              "size": 81
+            }
+          ]
+        },
+        {
+          "name": "monitoring",
+          "type": "directory",
+          "path": "deploy/monitoring",
+          "children": [
+            {
+              "name": "grafana-dashboards",
+              "type": "directory",
+              "path": "deploy/monitoring/grafana-dashboards",
+              "children": [
+                {
+                  "name": "consciousness.json",
+                  "type": "file",
+                  "path": "deploy/monitoring/grafana-dashboards/consciousness.json",
+                  "size": 9627
+                }
+              ]
+            },
+            {
+              "name": "prometheus-config.yml",
+              "type": "file",
+              "path": "deploy/monitoring/prometheus-config.yml",
+              "size": 7960
+            }
+          ]
+        },
+        {
+          "name": "test-results",
+          "type": "directory",
+          "path": "deploy/test-results",
+          "children": [
+            {
+              "name": "node-1.log",
+              "type": "file",
+              "path": "deploy/test-results/node-1.log",
+              "size": 4373
+            },
+            {
+              "name": "node-2.log",
+              "type": "file",
+              "path": "deploy/test-results/node-2.log",
+              "size": 5929
+            },
+            {
+              "name": "node-3.log",
+              "type": "file",
+              "path": "deploy/test-results/node-3.log",
+              "size": 1913
+            }
+          ]
+        },
+        {
+          "name": "Dockerfile.mesh-node",
+          "type": "file",
+          "path": "deploy/Dockerfile.mesh-node",
+          "size": 1227
+        },
+        {
+          "name": "docker-compose.test.yml",
+          "type": "file",
+          "path": "deploy/docker-compose.test.yml",
+          "size": 1360
+        },
+        {
+          "name": "docker-compose.yml",
+          "type": "file",
+          "path": "deploy/docker-compose.yml",
+          "size": 3616
+        },
+        {
+          "name": "final_monitor.sh",
+          "type": "file",
+          "path": "deploy/final_monitor.sh",
+          "size": 2732
+        },
+        {
+          "name": "merge_realities.sh",
+          "type": "file",
+          "path": "deploy/merge_realities.sh",
+          "size": 1875
+        },
+        {
+          "name": "monitor_consciousness.sh",
+          "type": "file",
+          "path": "deploy/monitor_consciousness.sh",
+          "size": 1760
+        },
+        {
+          "name": "preflight-check.sh",
+          "type": "file",
+          "path": "deploy/preflight-check.sh",
+          "size": 2590
+        },
+        {
+          "name": "quickstart.sh",
+          "type": "file",
+          "path": "deploy/quickstart.sh",
+          "size": 3108
+        },
+        {
+          "name": "run-chaos-tests.sh",
+          "type": "file",
+          "path": "deploy/run-chaos-tests.sh",
+          "size": 1657
+        }
+      ]
+    },
+    {
+      "name": "deployment",
+      "type": "directory",
+      "path": "deployment",
+      "children": [
+        {
+          "name": "docker",
+          "type": "directory",
+          "path": "deployment/docker",
+          "children": [
+            {
+              "name": "immutable-images.md",
+              "type": "file",
+              "path": "deployment/docker/immutable-images.md",
+              "size": 1226
+            }
+          ]
+        },
+        {
+          "name": "kubernetes",
+          "type": "directory",
+          "path": "deployment/kubernetes",
+          "children": [
+            {
+              "name": "helm-charts",
+              "type": "directory",
+              "path": "deployment/kubernetes/helm-charts",
+              "children": []
+            },
+            {
+              "name": "README.md",
+              "type": "file",
+              "path": "deployment/kubernetes/README.md",
+              "size": 3689
+            },
+            {
+              "name": "README_DEPLOYMENT.md",
+              "type": "file",
+              "path": "deployment/kubernetes/README_DEPLOYMENT.md",
+              "size": 6923
+            },
+            {
+              "name": "blue-green-deployment.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/blue-green-deployment.yaml",
+              "size": 3132
+            },
+            {
+              "name": "configmap.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/configmap.yaml",
+              "size": 398
+            },
+            {
+              "name": "demo-app.py",
+              "type": "file",
+              "path": "deployment/kubernetes/demo-app.py",
+              "size": 1429
+            },
+            {
+              "name": "deployment-demo.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/deployment-demo.yaml",
+              "size": 2686
+            },
+            {
+              "name": "deployment.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/deployment.yaml",
+              "size": 2078
+            },
+            {
+              "name": "hpa.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/hpa.yaml",
+              "size": 854
+            },
+            {
+              "name": "ingress.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/ingress.yaml",
+              "size": 1384
+            },
+            {
+              "name": "network-policy.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/network-policy.yaml",
+              "size": 1244
+            },
+            {
+              "name": "rbac.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/rbac.yaml",
+              "size": 852
+            },
+            {
+              "name": "secrets.yaml.example",
+              "type": "file",
+              "path": "deployment/kubernetes/secrets.yaml.example",
+              "size": 796
+            },
+            {
+              "name": "service.yaml",
+              "type": "file",
+              "path": "deployment/kubernetes/service.yaml",
+              "size": 334
+            }
+          ]
+        },
+        {
+          "name": "systemd",
+          "type": "directory",
+          "path": "deployment/systemd",
+          "children": [
+            {
+              "name": "x0tta6bl4-brain.service",
+              "type": "file",
+              "path": "deployment/systemd/x0tta6bl4-brain.service",
+              "size": 266
+            }
+          ]
+        },
+        {
+          "name": "check_brain_health.sh",
+          "type": "file",
+          "path": "deployment/check_brain_health.sh",
+          "size": 1347
+        },
+        {
+          "name": "check_dynamic.sh",
+          "type": "file",
+          "path": "deployment/check_dynamic.sh",
+          "size": 1790
+        },
+        {
+          "name": "check_dynamic_mesh.sh",
+          "type": "file",
+          "path": "deployment/check_dynamic_mesh.sh",
+          "size": 4119
+        },
+        {
+          "name": "check_mesh_health.sh",
+          "type": "file",
+          "path": "deployment/check_mesh_health.sh",
+          "size": 1769
+        },
+        {
+          "name": "check_web.sh",
+          "type": "file",
+          "path": "deployment/check_web.sh",
+          "size": 724
+        },
+        {
+          "name": "dashboard.html",
+          "type": "file",
+          "path": "deployment/dashboard.html",
+          "size": 8289
+        },
+        {
+          "name": "dashboard_v2.html",
+          "type": "file",
+          "path": "deployment/dashboard_v2.html",
+          "size": 6097
+        },
+        {
+          "name": "dashboard_v2_debug.html",
+          "type": "file",
+          "path": "deployment/dashboard_v2_debug.html",
+          "size": 8149
+        },
+        {
+          "name": "dashboard_v2_smart.html",
+          "type": "file",
+          "path": "deployment/dashboard_v2_smart.html",
+          "size": 7723
+        },
+        {
+          "name": "debug_brain.py",
+          "type": "file",
+          "path": "deployment/debug_brain.py",
+          "size": 450
+        },
+        {
+          "name": "deploy.sh",
+          "type": "file",
+          "path": "deployment/deploy.sh",
+          "size": 1513
+        },
+        {
+          "name": "deploy_3_nodes.sh",
+          "type": "file",
+          "path": "deployment/deploy_3_nodes.sh",
+          "size": 2197
+        },
+        {
+          "name": "deploy_dynamic.sh",
+          "type": "file",
+          "path": "deployment/deploy_dynamic.sh",
+          "size": 1261
+        },
+        {
+          "name": "deploy_landing_final.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_final.sh",
+          "size": 428
+        },
+        {
+          "name": "deploy_landing_fonts.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_fonts.sh",
+          "size": 437
+        },
+        {
+          "name": "deploy_landing_hybrid.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_hybrid.sh",
+          "size": 454
+        },
+        {
+          "name": "deploy_landing_mystic.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_mystic.sh",
+          "size": 436
+        },
+        {
+          "name": "deploy_landing_ru.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_ru.sh",
+          "size": 423
+        },
+        {
+          "name": "deploy_landing_v3.sh",
+          "type": "file",
+          "path": "deployment/deploy_landing_v3.sh",
+          "size": 440
+        },
+        {
+          "name": "deploy_mesh.sh",
+          "type": "file",
+          "path": "deployment/deploy_mesh.sh",
+          "size": 2070
+        }
+      ]
+    },
+    {
+      "name": "docker",
+      "type": "directory",
+      "path": "docker",
+      "children": [
+        {
+          "name": "mesh-node",
+          "type": "directory",
+          "path": "docker/mesh-node",
+          "children": [
+            {
+              "name": "Dockerfile",
+              "type": "file",
+              "path": "docker/mesh-node/Dockerfile",
+              "size": 1182
+            },
+            {
+              "name": "entrypoint.py",
+              "type": "file",
+              "path": "docker/mesh-node/entrypoint.py",
+              "size": 4260
+            },
+            {
+              "name": "requirements.txt",
+              "type": "file",
+              "path": "docker/mesh-node/requirements.txt",
+              "size": 274
+            }
+          ]
+        },
+        {
+          "name": "docker-compose.mesh.yml",
+          "type": "file",
+          "path": "docker/docker-compose.mesh.yml",
+          "size": 3645
+        }
+      ]
+    },
+    {
+      "name": "00_READ_ME_FIRST.txt",
+      "type": "file",
+      "path": "00_READ_ME_FIRST.txt",
+      "size": 5400
+    },
+    {
+      "name": "00_START_HERE_WESTWORLD_2026_01_11.md",
+      "type": "file",
+      "path": "00_START_HERE_WESTWORLD_2026_01_11.md",
+      "size": 12955
+    },
+    {
+      "name": "100_PERCENT_READINESS_PLAN.md",
+      "type": "file",
+      "path": "100_PERCENT_READINESS_PLAN.md",
+      "size": 3423
+    },
+    {
+      "name": "10_EXECUTIVE_SUMMARY.txt",
+      "type": "file",
+      "path": "10_EXECUTIVE_SUMMARY.txt",
+      "size": 2584
+    },
+    {
+      "name": "2026_YEAR_COMPLETE.md",
+      "type": "file",
+      "path": "2026_YEAR_COMPLETE.md",
+      "size": 6926
+    },
+    {
+      "name": "ACHIEVEMENTS_DEC_28.md",
+      "type": "file",
+      "path": "ACHIEVEMENTS_DEC_28.md",
+      "size": 2381
+    },
+    {
+      "name": "ACKNOWLEDGMENT_DEC_28.md",
+      "type": "file",
+      "path": "ACKNOWLEDGMENT_DEC_28.md",
+      "size": 4071
+    },
+    {
+      "name": "ACTION_NOW.md",
+      "type": "file",
+      "path": "ACTION_NOW.md",
+      "size": 4897
+    },
+    {
+      "name": "ACTION_NOW_40_MINUTES.md",
+      "type": "file",
+      "path": "ACTION_NOW_40_MINUTES.md",
+      "size": 4391
+    },
+    {
+      "name": "ACTION_NOW_COMMERCIALIZATION.md",
+      "type": "file",
+      "path": "ACTION_NOW_COMMERCIALIZATION.md",
+      "size": 3048
+    },
+    {
+      "name": "ACTION_PLAN_14DAYS.md",
+      "type": "file",
+      "path": "ACTION_PLAN_14DAYS.md",
+      "size": 5007
+    },
+    {
+      "name": "ACTION_PLAN_2026_01_10.md",
+      "type": "file",
+      "path": "ACTION_PLAN_2026_01_10.md",
+      "size": 21718
+    },
+    {
+      "name": "ACTION_PLAN_FIRST_STEPS.md",
+      "type": "file",
+      "path": "ACTION_PLAN_FIRST_STEPS.md",
+      "size": 6095
+    },
+    {
+      "name": "ACTION_PLAN_JAN_5_2026.md",
+      "type": "file",
+      "path": "ACTION_PLAN_JAN_5_2026.md",
+      "size": 6451
+    },
+    {
+      "name": "ACTION_PLAN_JAN_5_6.md",
+      "type": "file",
+      "path": "ACTION_PLAN_JAN_5_6.md",
+      "size": 4031
+    },
+    {
+      "name": "ACTION_PLAN_NOW.md",
+      "type": "file",
+      "path": "ACTION_PLAN_NOW.md",
+      "size": 3990
+    },
+    {
+      "name": "AI_SERVICES_ACCESS_REPORT.md",
+      "type": "file",
+      "path": "AI_SERVICES_ACCESS_REPORT.md",
+      "size": 5789
+    },
+    {
+      "name": "ALGORITHM_NAMING_STANDARD.md",
+      "type": "file",
+      "path": "ALGORITHM_NAMING_STANDARD.md",
+      "size": 3163
+    },
+    {
+      "name": "ALL_P0_P1_COMPLETE.md",
+      "type": "file",
+      "path": "ALL_P0_P1_COMPLETE.md",
+      "size": 7389
+    },
+    {
+      "name": "ALL_PHASES_COMPLETE.md",
+      "type": "file",
+      "path": "ALL_PHASES_COMPLETE.md",
+      "size": 3092
+    }
+  ]
+}

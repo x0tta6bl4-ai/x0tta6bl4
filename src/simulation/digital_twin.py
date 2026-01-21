@@ -211,7 +211,8 @@ class MeshDigitalTwin:
             self.nodes[node.node_id] = node
             # Exclude node_id from attrs to avoid duplicate argument
             attrs = {k: v for k, v in node.to_dict().items() if k != 'node_id'}
-                    self.graph.add_node(node.node_id, **attrs)    
+            self.graph.add_node(node.node_id, **attrs)
+    
     def add_link(self, link: TwinLink) -> None:
         """Add a link to the digital twin."""
         with self._lock:
@@ -219,11 +220,12 @@ class MeshDigitalTwin:
             # Exclude source/target/link_id from attrs to avoid duplicate arguments
             exclude_keys = {'source', 'target', 'link_id'}
             attrs = {k: v for k, v in link.to_dict().items() if k not in exclude_keys}
-                    self.graph.add_edge(
-                        link.source, link.target,
-                        weight=link.latency_ms,
-                        **attrs
-                    )    
+            self.graph.add_edge(
+                link.source,
+                link.target,
+                weight=link.latency_ms,
+                **attrs
+            )    
     def remove_node(self, node_id: str) -> None:
         """Remove a node and all its links."""
         with self._lock:
@@ -389,7 +391,11 @@ class MeshDigitalTwin:
             "node_id": node_id
         })
         
-        # Count affected links
+        # Count affected links using universal method
+        failed_nodes_set = {node_id}
+        links_affected_count = self._calculate_links_affected(failed_nodes_set, consider_bidirectional=True)
+        
+        # Get actual link IDs for state updates
         affected_links = [
             lid for lid, link in self.links.items()
             if link.source == node_id or link.target == node_id
@@ -401,7 +407,7 @@ class MeshDigitalTwin:
         events.append({
             "time": 0.1,
             "event": "links_down",
-            "count": len(affected_links)
+            "count": links_affected_count
         })
         
         # Simulate MAPE-K recovery cycle
@@ -459,9 +465,9 @@ class MeshDigitalTwin:
             duration_seconds=time.time() - start_time,
             mttr_seconds=mttr,
             nodes_affected=1,
-            links_affected=len(affected_links),
+            links_affected=links_affected_count,
             connectivity_maintained=final_connectivity,
-            packet_loss_total=0.05 * len(affected_links),  # Estimated
+            packet_loss_total=0.05 * links_affected_count,  # Estimated
             events=events
         )
     
@@ -483,11 +489,16 @@ class MeshDigitalTwin:
         start_time = time.time()
         events = []
         
-        # Find links between groups
+        # Find links between groups using universal method
+        group_a_set = set(group_a)
+        group_b_set = set(group_b)
+        links_affected_count = self._calculate_links_affected_by_partition(group_a_set, group_b_set)
+        
+        # Get actual link IDs for state updates
         affected_links = []
         for lid, link in self.links.items():
-            if ((link.source in group_a and link.target in group_b) or
-                (link.source in group_b and link.target in group_a)):
+            if ((link.source in group_a_set and link.target in group_b_set) or
+                (link.source in group_b_set and link.target in group_a_set)):
                 affected_links.append(lid)
                 link.state = LinkState.DOWN
         
@@ -496,7 +507,7 @@ class MeshDigitalTwin:
             "event": "partition_created",
             "group_a_size": len(group_a),
             "group_b_size": len(group_b),
-            "links_severed": len(affected_links)
+            "links_severed": links_affected_count
         })
         
         # Simulate partition healing
@@ -515,9 +526,9 @@ class MeshDigitalTwin:
             duration_seconds=time.time() - start_time,
             mttr_seconds=recovery_time,
             nodes_affected=len(group_a) + len(group_b),
-            links_affected=len(affected_links),
+            links_affected=links_affected_count,
             connectivity_maintained=0.5,  # During partition
-            packet_loss_total=0.2 * len(affected_links),
+            packet_loss_total=0.2 * links_affected_count,
             events=events
         )
     
@@ -557,7 +568,7 @@ class MeshDigitalTwin:
             new_failures = set()
             
             for node_id in failed_nodes:
-                            neighbors = list(self.graph.neighbors(node_id))                
+                neighbors = list(self.graph.neighbors(node_id))
                 for neighbor in neighbors:
                     if (neighbor not in failed_nodes and
                         neighbor not in new_failures and
@@ -597,18 +608,91 @@ class MeshDigitalTwin:
             "total_affected": len(failed_nodes)
         })
         
+        # Calculate links affected using universal method
+        failed_nodes_set = set(failed_nodes)
+        links_affected = self._calculate_links_affected(failed_nodes_set, consider_bidirectional=True)
+        
         return SimulationResult(
             scenario_name="cascade_failure",
             duration_seconds=time.time() - start_time,
             mttr_seconds=recovery_time,
             nodes_affected=len(failed_nodes),
-            links_affected=0,  # TODO: Calculate
+            links_affected=links_affected,
             connectivity_maintained=1 - (len(failed_nodes) / len(self.nodes)),
             packet_loss_total=0.1 * len(failed_nodes),
             events=events
         )
     
     # ==================== Analysis ====================
+    
+    def _calculate_links_affected(
+        self,
+        failed_nodes: Set[str],
+        consider_bidirectional: bool = True
+    ) -> int:
+        """
+        Calculate number of links affected by node failures.
+        
+        Args:
+            failed_nodes: Set of node IDs that have failed
+            consider_bidirectional: If True, count bidirectional links only once
+        
+        Returns:
+            Number of unique links affected
+        """
+        if not failed_nodes:
+            return 0
+        
+        affected_links = set()
+        
+        for node_id in failed_nodes:
+            if node_id not in self.nodes:
+                continue
+            
+            # Find all links connected to this node
+            for link_id, link in self.links.items():
+                # Check if link is connected to failed node
+                if link.source == node_id or link.target == node_id:
+                    if consider_bidirectional:
+                        # Create canonical link ID (always source < target)
+                        canonical_id = (
+                            f"{min(link.source, link.target)}->{max(link.source, link.target)}"
+                        )
+                        affected_links.add(canonical_id)
+                    else:
+                        affected_links.add(link_id)
+        
+        return len(affected_links)
+    
+    def _calculate_links_affected_by_partition(
+        self,
+        group_a: Set[str],
+        group_b: Set[str]
+    ) -> int:
+        """
+        Calculate number of links affected by network partition.
+        
+        Args:
+            group_a: Set of node IDs in partition A
+            group_b: Set of node IDs in partition B
+        
+        Returns:
+            Number of links severed between partitions
+        """
+        affected_links = set()
+        
+        for link_id, link in self.links.items():
+            # Check if link crosses partition boundary
+            source_in_a = link.source in group_a
+            source_in_b = link.source in group_b
+            target_in_a = link.target in group_a
+            target_in_b = link.target in group_b
+            
+            # Link is severed if it connects nodes from different partitions
+            if (source_in_a and target_in_b) or (source_in_b and target_in_a):
+                affected_links.add(link_id)
+        
+        return len(affected_links)
     
     def _calculate_connectivity(self) -> float:
         """Calculate current network connectivity (0-1)."""
@@ -626,13 +710,34 @@ class MeshDigitalTwin:
         """Plan recovery routes around failed node."""
         routes = []
         
-        if nx.has_path(temp_graph, source, target):
-            path = nx.shortest_path(temp_graph, source, target)
-            routes.append({
-                "source": source,
-                "target": target,
-                "path": path
-            })
+        # Create graph without the failed node
+        temp_graph = self.graph.copy()
+        if failed_node in temp_graph:
+            temp_graph.remove_node(failed_node)
+        
+        # Find alternative paths for affected connections
+        # Get all nodes that were connected to the failed node
+        affected_nodes = []
+        for link_id, link in self.links.items():
+            if link.source == failed_node:
+                affected_nodes.append(link.target)
+            elif link.target == failed_node:
+                affected_nodes.append(link.source)
+        
+        # Find alternative paths between affected nodes
+        for i, source in enumerate(affected_nodes):
+            for target in affected_nodes[i+1:]:
+                if source != target and source in temp_graph and target in temp_graph:
+                    try:
+                        if nx.has_path(temp_graph, source, target):
+                            path = nx.shortest_path(temp_graph, source, target)
+                            routes.append({
+                                "source": source,
+                                "target": target,
+                                "path": path
+                            })
+                    except (nx.NetworkXNoPath, KeyError):
+                        pass
         
         return routes[:10]  # Limit to 10 alternative routes
     

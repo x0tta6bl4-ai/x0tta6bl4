@@ -86,9 +86,21 @@ bpftool map show
 
 ### Read Counters
 ```python
-# TODO: Implement map reader in Python
-# For now, use bpftool:
-# bpftool map dump name packet_counters
+from src.network.ebpf.map_reader import EBPFMapReader, read_packet_counters
+
+# Read packet counters
+counters = read_packet_counters("packet_counters")
+print(counters)  # {'TCP': 1234, 'UDP': 5678, ...}
+
+# Or use the reader directly
+reader = EBPFMapReader()
+all_maps = reader.list_maps()
+map_data = reader.read_map(map_name="packet_counters")
+```
+
+Or using bpftool CLI:
+```bash
+bpftool map dump name packet_counters
 ```
 
 ## Troubleshooting

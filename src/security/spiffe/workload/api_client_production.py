@@ -3,12 +3,34 @@ Production-ready SPIFFE Workload API Client implementation.
 Replaces TODO in api_client.py lines 83-87.
 """
 import asyncio
-import grpc
+import time
+try:
+    import jwt
+    from jwt import JWTError
+    JWT_AVAILABLE = True
+except ImportError:
+    JWT_AVAILABLE = False
+    jwt = None
+    JWTError = Exception
+try:
+    import grpc
+    GRPC_AVAILABLE = True
+except ImportError:
+    GRPC_AVAILABLE = False
+    grpc = None
 import logging
 from typing import Optional, List
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
+
+# Try to import SPIFFE SDK
+try:
+    from spiffe import WorkloadApiClient
+    SPIFFE_SDK_AVAILABLE = True
+except ImportError:
+    SPIFFE_SDK_AVAILABLE = False
+    WorkloadApiClient = None  # type: ignore[assignment, misc]
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +71,27 @@ class WorkloadAPIClientProduction:
         max_retries: int = 3,
         retry_delay: float = 1.0
     ):
-        if not SPIFFE_SDK_AVAILABLE:
+        # Check if SPIFFE_SDK_AVAILABLE is defined (defensive check)
+        try:
+            sdk_available = SPIFFE_SDK_AVAILABLE
+        except NameError:
+            # This should never happen if module was imported correctly
+            logger.error(
+                "❌ CRITICAL: SPIFFE_SDK_AVAILABLE is not defined. "
+                "This indicates a module import error. "
+                "Please check that api_client_production.py was imported correctly."
+            )
             raise ImportError(
-                "The 'spiffe' SDK is required for the Workload API client. "
-                "Please install 'py-spiffe'."
+                "The SPIFFE SDK availability flag is not defined. "
+                "This indicates a module import error. "
+                "Please ensure the module was imported correctly."
+            ) from None
+        
+        if not sdk_available:
+            raise ImportError(
+                "The 'spiffe' SDK (py-spiffe) is required for the Workload API client. "
+                "Please install it with: pip install py-spiffe\n"
+                "For development/staging, you can use the mock SPIFFE client instead."
             )
         self.socket_path = socket_path
         self.max_retries = max_retries
@@ -61,7 +100,7 @@ class WorkloadAPIClientProduction:
         # self._channel: Optional[grpc.aio.Channel] = None  # No longer needed, managed by spiffe_client
         # self._private_key: Optional[rsa.RSAPrivateKey] = None  # No longer needed, handled by SVIDs
         self._spiffe_client = WorkloadApiClient(
-            unix_socket_path=str(socket_path),
+            socket_path=str(socket_path),
             # Set this to a lower value than grpc.aio.insecure_channel's default
             # (which is effectively infinite) to avoid hanging forever.
             grpc_timeout_in_seconds=10,
@@ -222,11 +261,6 @@ class WorkloadAPIClientProduction:
             return False
     
     async def auto_renew_svid(self, renewal_threshold: float = 0.5) -> None:
-
-import jwt # Using PyJWT
-from jwt.exceptions import PyJWTError
-
-    async def validate_jwt_svid(self, token: str, audience: List[str]) -> bool:
         """
         Auto-renew X.509-SVID when approaching expiry.
         
@@ -237,21 +271,40 @@ from jwt.exceptions import PyJWTError
         while True:
             try:
                 if self.current_svid:
-                    # Check if renewal needed
-                    remaining = self.current_svid.expiry
-                    threshold_time = self.current_svid.expiry * renewal_threshold
+                    # Calculate remaining time
+                    now = time.time()
+                    remaining = self.current_svid.expiry - now
                     
+                    # Calculate total TTL (approximate from first fetch)
+                    # For SPIFFE, typical TTL is 24 hours
+                    total_ttl = 86400.0  # 24 hours in seconds
+                    threshold_time = total_ttl * renewal_threshold
+                    
+                    # Renew if below threshold
                     if remaining < threshold_time:
-                        logger.info(f"🔄 Auto-renewing X.509-SVID (remaining: {remaining:.0f}s)")
-                        await self.fetch_x509_svid()
+                        logger.info(
+                            f"🔄 Auto-renewing X.509-SVID "
+                            f"(remaining: {remaining:.0f}s, threshold: {threshold_time:.0f}s)"
+                        )
+                        
+                        new_svid = await self.fetch_x509_svid()
+                        
+                        if new_svid:
+                            self.current_svid = new_svid
+                            logger.info(
+                                f"✅ SVID renewed successfully. "
+                                f"New expiry: {datetime.fromtimestamp(new_svid.expiry).isoformat()}"
+                            )
+                        else:
+                            logger.error("❌ Failed to renew SVID")
                 
                 # Check every 5 minutes
                 await asyncio.sleep(300)
                 
             except Exception as e:
-                logger.error(f"❌ Auto-renewal failed: {e}")
+                logger.error(f"❌ Auto-renewal error: {e}")
                 await asyncio.sleep(60)  # Retry after 1 minute
-    
+
     async def close(self) -> None:
         """Close gRPC connection"""
         if self._spiffe_client:

@@ -35,9 +35,9 @@ class KeyMaterial:
 
 
 class HybridTLSContext:
-    """Контекст для гибридного TLS (ECDHE + Kyber KEM + Dilithium Signature)."""
+    """Контекст для гибридного TLS (ECDHE + ML-KEM-768 KEM + ML-DSA-65 Signature, NIST FIPS 203/204)."""
 
-    def __init__(self, role: str = "peer", kem_alg: str = "Kyber768", sig_alg: str = "ML-DSA-65"):
+    def __init__(self, role: str = "peer", kem_alg: str = "ML-KEM-768", sig_alg: str = "ML-DSA-65"):
         self.role = role
         self.pqc_adapter = PQCAdapter(kem_alg, sig_alg)
 

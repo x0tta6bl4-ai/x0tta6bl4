@@ -21,14 +21,13 @@ terraform {
   }
   
   # S3 backend для state management (Zero Trust principle: immutable state)
-  # Uncomment after creating S3 bucket
-  # backend "s3" {
-  #   bucket         = "x0tta6bl4-terraform-state"
-  #   key            = "eks/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "x0tta6bl4-terraform-locks"
-  # }
+  backend "s3" {
+    bucket         = "x0tta6bl4-terraform-state"
+    key            = "eks/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "x0tta6bl4-terraform-locks"
+  }
 }
 
 provider "aws" {

@@ -1,0 +1,8 @@
+tcp        0      0 0.0.0.0:8081            0.0.0.0:*               LISTEN      45988/docker-proxy  
+tcp        0      0 0.0.0.0:10809           0.0.0.0:*               LISTEN      46010/docker-proxy  
+tcp        0      0 0.0.0.0:3000            0.0.0.0:*               LISTEN      1591/docker-proxy   
+tcp6       0      0 :::8081                 :::*                    LISTEN      45993/docker-proxy  
+tcp6       0      0 :::10809                :::*                    LISTEN      46015/docker-proxy  
+tcp6       0      0 :::9091                 :::*                    LISTEN      1508/prometheus     
+tcp6       0      0 :::39829                :::*                    LISTEN      49305/bin/xray-linu 
+tcp6       0      0 :::3000                 :::*                    LISTEN      1596/docker-proxy   

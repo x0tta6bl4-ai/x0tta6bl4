@@ -48,7 +48,7 @@ class PQCTunnel:
     4. All subsequent data is AES-256-GCM encrypted
     """
     
-    KEM_ALGORITHM = "Kyber768"
+    KEM_ALGORITHM = "ML-KEM-768"  # NIST FIPS 203 Level 3 (legacy: "Kyber768" supported)
     
     def __init__(self, node_id: str):
         self.node_id = node_id
@@ -57,9 +57,14 @@ class PQCTunnel:
         self._generate_keys()
     
     def _generate_keys(self):
-        """Generate Kyber768 keypair."""
+        """Generate ML-KEM-768 keypair (NIST FIPS 203)."""
         if PQC_AVAILABLE:
-            kem = oqs.KeyEncapsulation(self.KEM_ALGORITHM)
+            # Try NIST name first, fallback to legacy if needed
+            try:
+                kem = oqs.KeyEncapsulation(self.KEM_ALGORITHM)
+            except Exception:
+                # Fallback to legacy name if NIST name not supported
+                kem = oqs.KeyEncapsulation("Kyber768")
             public_key = kem.generate_keypair()
             private_key = kem.export_secret_key()
         else:
@@ -72,7 +77,7 @@ class PQCTunnel:
             private_key=private_key,
             node_id=self.node_id
         )
-        logger.info(f"🔐 PQC keys generated for {self.node_id} (Kyber768)")
+        logger.info(f"🔐 PQC keys generated for {self.node_id} (ML-KEM-768, NIST FIPS 203)")
     
     def get_public_key(self) -> bytes:
         """Get our public key for sharing with peers."""

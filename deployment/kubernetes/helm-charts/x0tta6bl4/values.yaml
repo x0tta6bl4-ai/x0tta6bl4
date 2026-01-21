@@ -1,0 +1,109 @@
+# Default values for x0tta6bl4
+replicaCount: 3
+
+image:
+  repository: registry.gitlab.com/x0tta6bl4/x0tta6bl4
+  # Use content-addressable tag (SHA256)
+  tag: "sha256-REPLACE_WITH_SHA"
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: x0tta6bl4.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "2000m"
+    memory: "2Gi"
+
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Feature flags
+featureFlags:
+  flEnabled: true
+  graphsageEnabled: true
+  spiffeEnabled: true
+
+# Environment variables
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: X0TTA6BL4_PRODUCTION
+    value: "true"
+  - name: LOG_LEVEL
+    value: "INFO"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+    - ALL
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Deployment strategy
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Blue-green deployment (optional)
+blueGreen:
+  enabled: false
+  activeVersion: "blue"
+

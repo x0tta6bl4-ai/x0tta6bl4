@@ -1,0 +1,2699 @@
+{
+  "timestamp": "2026-01-12T01:58:07.076551",
+  "audit_sections": {
+    "main_structure": {
+      "total_items": 479,
+      "directories": {
+        "ROADMAP_legacy": {
+          "type": "directory",
+          "files": 1,
+          "size_mb": 0.0
+        },
+        "deploy": {
+          "type": "directory",
+          "files": 17,
+          "size_mb": 0.05
+        },
+        "deployment": {
+          "type": "directory",
+          "files": 71,
+          "size_mb": 0.26
+        },
+        "plans": {
+          "type": "directory",
+          "files": 1,
+          "size_mb": 0.01
+        },
+        "product": {
+          "type": "directory",
+          "files": 3,
+          "size_mb": 0.01
+        },
+        "k8s": {
+          "type": "directory",
+          "files": 7,
+          "size_mb": 0.01
+        },
+        "tasks": {
+          "type": "directory",
+          "files": 1,
+          "size_mb": 0.01
+        },
+        "docs": {
+          "type": "directory",
+          "files": 168,
+          "size_mb": 1.51
+        },
+        "chaos": {
+          "type": "directory",
+          "files": 4,
+          "size_mb": 0.01
+        },
+        "site": {
+          "type": "directory",
+          "files": 52,
+          "size_mb": 2.53
+        },
+        "alertmanager": {
+          "type": "directory",
+          "files": 2,
+          "size_mb": 0.01
+        },
+        "alertmanager_data": {
+          "type": "directory",
+          "files": 2,
+          "size_mb": 0.0
+        },
+        "htmlcov": {
+          "type": "directory",
+          "files": 280,
+          "size_mb": 26.41
+        },
+        "infra": {
+          "type": "directory",
+          "files": 144,
+          "size_mb": 1.15
+        },
+        "k6-v0.48.0-linux-amd64": {
+          "type": "directory",
+          "files": 1,
+          "size_mb": 51.5
+        },
+        "go-to-market": {
+          "type": "directory",
+          "files": 38,
+          "size_mb": 0.07
+        },
+        "grafana": {
+          "type": "directory",
+          "files": 0,
+          "size_mb": 0.0
+        },
+        "helm": {
+          "type": "directory",
+          "files": 21,
+          "size_mb": 0.03
+        },
+        "WEB3_GO_TO_MARKET": {
+          "type": "directory",
+          "files": 17,
+          "size_mb": 0.1
+        },
+        "docker": {
+          "type": "directory",
+          "files": 5,
+          "size_mb": 0.01
+        },
+        "staging": {
+          "type": "directory",
+          "files": 15,
+          "size_mb": 0.06
+        },
+        "examples": {
+          "type": "directory",
+          "files": 19,
+          "size_mb": 0.13
+        }
+      },
+      "files": {
+        ".bumpversion.cfg": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".cfg"
+        },
+        ".copilot.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        ".coverage": {
+          "type": "file",
+          "size_mb": 0.08,
+          "ext": ""
+        },
+        ".dockerignore": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ""
+        },
+        ".env": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ""
+        },
+        ".env.development": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".development"
+        },
+        ".env.example": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".example"
+        },
+        ".env.production": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".production"
+        },
+        ".frontmatter_template.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        ".gitignore": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ""
+        },
+        ".gitlab-ci.yml": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".yml"
+        },
+        ".gitlab-ci.yml.ebpf": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".ebpf"
+        },
+        ".pre-commit-config.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        "ROADMAP.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ROADMAPS_AND_PLANS_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "run_demo.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "run_final_tests.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "run_server.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "run_tests.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "sales_bot_structure.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SALES_EMAIL_TEMPLATE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "SALES_OUTREACH_PREPARATION_2026_01_13.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SALES_READY_DEMO.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SCENARIOS_TEST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEMO_READY_TO_TEST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEMO_SUCCESS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEMO_VIDEO_SCRIPT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEMO_WORKING.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPENDENCIES_INSTALLED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "deploy.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "DEPLOYMENT_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_COMPLETE_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_COMPLETE_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_EXECUTED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_GUIDE_PRODUCTION.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_NEXT_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_READINESS_CHECK.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_READINESS_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_READY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_READY_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_ROADMAP_2026.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_RUNBOOK.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_START.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_SUCCESS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FEATURES_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FEDERATED_LEARNING_TESTS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FEEDBACK_RESPONSE_AND_REORIENTATION_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FILES_CHANGED_TECHNICAL_DEBT_SESSION.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FILES_CREATED_2026_01_10.txt": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".txt"
+        },
+        "final-deploy.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "FINAL_2026_ACHIEVEMENTS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_AUDIT_SUMMARY_2026_01_10.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_COMPLETION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_EMAIL_READY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_INTEGRATED_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.03,
+          "ext": ".md"
+        },
+        "FINAL_LAUNCH_PACKAGE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_LAUNCH_READINESS_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_LOAD_TEST_RESULTS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_MILESTONE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "final_monitor.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "FINAL_NGROK_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_ONE_PAGE_MANIFESTO.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_PACKAGE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_PRE_DEPLOYMENT_REVIEW.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_PROJECT_AUDIT_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "FINAL_PROJECT_COMPLETION_REPORT_RUS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ALL_TODOS_PREPARED.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "AUDIT_DOCUMENTS_INVENTORY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "baseline_metrics.json": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".json"
+        },
+        "CELEBRATION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "COMPLETE_PROJECT_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COPY_PASTE_DEPLOY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DECISION_MATRIX_2026.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEMO_READY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOYMENT_WEEK1.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "docker-build.log": {
+          "type": "file",
+          "size_mb": 0.05,
+          "ext": ".log"
+        },
+        "EBPF_PHASE2_DAYS1-3_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EXECUTION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FAILURE_INJECTION_FINAL_REPORT_ALL_FIXED_2026_01_08.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FAQ_RESPONSES.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_RUSSIAN_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "fix_server_complete.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "hero-mesh-network.svg": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".svg"
+        },
+        "k6-v0.48.0-linux-amd64.tar.gz": {
+          "type": "file",
+          "size_mb": 23.46,
+          "ext": ".gz"
+        },
+        "LEDGER_REVOLUTIONARY_VISION.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "logo.svg": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".svg"
+        },
+        "monitor_post_deploy.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "node_stats.json": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".json"
+        },
+        "PITCH_ONE_PAGER.txt": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".txt"
+        },
+        "portret-plan-daniya.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "post_deploy_security_tests.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "PQC_ENHANCEMENT_СТАТУС.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "PQC_MIGRATION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "prepare_emails.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "PRE_DEPLOYMENT_EXECUTION_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PRE_DEPLOYMENT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "pre_deploy_check.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "PRE_START_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PRIORITIES_2026_RECOMMENDATIONS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PRIORITY_ROADMAP_v3.2.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "production_config.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        "PRODUCTION_DEPLOYMENT_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PRODUCTION_DEPLOYMENT_GUIDE_2026_01_10.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "PRODUCTION_DEPLOYMENT_GUIDE_RUS_2026_01_10.md": {
+          "type": "file",
+          "size_mb": 0.03,
+          "ext": ".md"
+        },
+        "PRODUCTION_LAUNCH_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "PRODUCTION_MONITORING_SETUP_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VERIFICATION_PROOF.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "VPN_ACTIVE_USAGE_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_ADBLOCKING_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_ADBLOCKING_ENABLED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_ADBLOCKING_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_ADBLOCKING_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_ALL_OPTIMIZATIONS_APPLIED.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_CLIENT_CONFIG.txt": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".txt"
+        },
+        "VPN_CLIENT_ROUTING_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_COMPLETE_FINAL_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_COMPLETE_OPTIMIZATION_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_CONFIG_FIXED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "vpn_config_generator.py": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".py"
+        },
+        "VPN_CONNECTION_REFUSED_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_CRIMEA_OPTIMIZATION_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_DNS_FINAL_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "phase1_audit_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_audit_20251110_234050.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_audit_20251110_234324.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_batman_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_batman_20251110_234050.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_batman_20251110_234324.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_deploy_20251109_234253.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_deploy_20251110_001121.log": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".log"
+        },
+        "phase1_dev_20251109_230613.log": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".log"
+        },
+        "phase1_dns_20251110_234050.log": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".log"
+        },
+        "phase1_exporter_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_exporter_20251110_234324.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_falco_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_falco_20251110_004154.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_falco_20251110_234050.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_ns_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_remediation_20251109_234253.log": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".log"
+        },
+        "phase1_tests_20251110_001121.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_tests_20251110_003207.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_tests_20251110_234050.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "phase1_tests_20251110_234324.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "PHASE2_COMPLETION_INDEX.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "phase2_eks_kubeconfig_20251111_000727.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "PHASE3_PREPARATION_READY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PHASE_0_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "PHASE_0_LAUNCH_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "keyboards.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "kickoff-local.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "kickoff_brief_20251101_220156.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "kind-config.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        "kind-staging-config.yaml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yaml"
+        },
+        "landing_page_copy.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LAUNCH_DECISION.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LAUNCH_EXECUTION_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "LAUNCH_EXECUTION_STARTED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "LAUNCH_OPTIONS_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LAUNCH_READINESS_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LEDGER_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LEDGER_ML_DEPS_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "LEDGER_ML_DEPS_SETUP.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LEDGER_ML_DEPS_SUCCESS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "LEDGER_NEXT_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LEDGER_PHASE1_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "LEDGER_PHASE1_TEST_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SYSTEM_DIAGNOSTICS_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "SYSTEM_READY_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SYSTEM_STATUS_v3.3.0.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SYSTEM_STATUS_v3.5.0.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TARGET_CONTACTS_10.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TASKS_COMPLETION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TASKS_EXECUTION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "READINESS_10_10_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "README.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "README_DIGITAL_SURVIVAL_KIT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "README_EXECUTE_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "README_IMPLEMENTATION.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "README_INSTALLATION.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "README_START_HERE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "README_SYSTEM.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "README_РЕАЛИЗАЦИЯ_v2.0.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "READY_FOR_NGROK.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "READY_TO_DEPLOY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "READY_TO_LAUNCH.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "READY_TO_POST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "READY_TO_SEND.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "READY_TO_SEND_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "REALITY_CHECK_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "REALITY_CHECK_JAN_7_2026.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "REALITY_MAP.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "docker-compose.mesh-test.yml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yml"
+        },
+        "docker-compose.minimal.yml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yml"
+        },
+        "docker-compose.minio.yml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yml"
+        },
+        "docker-compose.staging.yml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yml"
+        },
+        "docker-compose.yml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".yml"
+        },
+        "docker-entrypoint.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "Dockerfile": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ""
+        },
+        "Dockerfile.app": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".app"
+        },
+        "Dockerfile.healing": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".healing"
+        },
+        "Dockerfile.landing": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".landing"
+        },
+        "Dockerfile.mape-k": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".mape-k"
+        },
+        "Dockerfile.minimal": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".minimal"
+        },
+        "Dockerfile.production": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".production"
+        },
+        "Dockerfile.vpn": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".vpn"
+        },
+        "DOCKERFILE_REQUIREMENTS_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DOCKER_BUILD_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DOCS_AUDIT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DOCUMENTATION_INDEX.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DOCUMENTATION_SESSION_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DOCUMENT_INDEX.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DRAFT_EMAIL_BETA_CUSTOMER_1.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EBPF_ARCHITECTURE_PLAN_2026_01_08.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "EBPF_FINAL_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EBPF_IMPLEMENTATION_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EBPF_PHASE1_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EBPF_PHASE1_DAY1_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EBPF_PHASE2_DAY1_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "CHANGELOG.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "check-containers.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "CHECK_ALL_COMPONENTS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "check_all_components.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "check_pqc.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "CHECK_YOURSELF.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "cheklist-90-dney.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "choose_your_path_monetization_2026_01_06.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ci-cd-simulate.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "CI_CD_DOCUMENTATION.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "CLOUD_DEPLOYMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COGNITIVE_BIAS_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMMERCIALIZATION_READY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMMERCIALIZATION_READY_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMMERCIALIZATION_START.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMMERCIALIZATION_STRATEGY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMMERCIALIZATION_TRACKER.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "COMMERCIAL_LAUNCH_ROADMAP.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMPLETE_EXECUTION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "COMPLETE_GENEALOGY.md": {
+          "type": "file",
+          "size_mb": 0.03,
+          "ext": ".md"
+        },
+        "COMPLETE_IMPLEMENTATION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SEQUENCE_DIAGRAM_x0tta6bl4.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SESSION_4_COMPLETION_REPORT_FINAL.txt": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".txt"
+        },
+        "SESSION_4_PERFORMANCE_AND_DEPLOYMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SESSION_COMPLETE_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "SETUP_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "setup_kind_cluster.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "SIMPLE_DECISION_CHECKLIST_JAN_8_2026.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "SKIPPED_TESTS_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SKIPPED_TESTS_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "social_media_launch_posts.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SPIFFE_ALL_TESTS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "SPIFFE_AUTO_RENEW_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SPIFFE_ERROR_HANDLING_IMPROVEMENTS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SPIFFE_INTEGRATION_IMPROVEMENTS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "SPIFFE_TESTS_FIXED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "00_READ_ME_FIRST.txt": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".txt"
+        },
+        "00_START_HERE_WESTWORLD_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "100_PERCENT_READINESS_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "10_EXECUTIVE_SUMMARY.txt": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".txt"
+        },
+        "2026_YEAR_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ACHIEVEMENTS_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACKNOWLEDGMENT_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_NOW_40_MINUTES.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_NOW_COMMERCIALIZATION.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_14DAYS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_2026_01_10.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_FIRST_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_JAN_5_2026.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_JAN_5_6.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ACTION_PLAN_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "admin_commands.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "AI_SERVICES_ACCESS_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ALGORITHM_NAMING_STANDARD.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ALL_P0_P1_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ALL_PHASES_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ALL_SCENARIOS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ALL_TASKS_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ALL_TODOS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ALL_TODOS_COMPLETE_LIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_DNS_PROTECTION.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_FINAL_OPTIMIZATIONS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_FINAL_OPTIMIZATION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPN_FIXED_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_FIXED_GEOSITE_ERROR.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPN_FIX_COMPLETE_INSTRUCTIONS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPS_DEPLOYMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPS_DEPLOYMENT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPS_LAUNCH_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPS_QUICK_START.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPS_SYSTEM_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPS_UPDATE_SUCCESS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "VPS_WITH_VPN_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "VPS_XRAY_CONFLICT_FIX.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "WARNING_ANALYSIS_PARALYSIS_JAN_7_2026.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HONEST_ANALYSIS_x0tta6bl4.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HONEST_ANALYSIS_x0tta6bl4_v2.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "HOTFIX_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HOTFIX_CONTAINMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HOTFIX_FINAL_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HOTFIX_PQC_CONTAINMENT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "HOW_TO_GET_URL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "IMMEDIATE_ACTIONS_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "IMMEDIATE_ACTIONS_48H.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "IMPLEMENTATION_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "IMPLEMENTATION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "IMPROVEMENTS_SUMMARY.txt": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".txt"
+        },
+        "INDEPENDENT_ANALYSIS_x0tta6bl4.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "INDEPENDENT_TECHNICAL_AUDIT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "index.html": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".html"
+        },
+        "index.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "INSTALLATION_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "INTERACTIVE_DEMO_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "INVENTORY.json.gz": {
+          "type": "file",
+          "size_mb": 20.18,
+          "ext": ".gz"
+        },
+        "junit.xml": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".xml"
+        },
+        "k6": {
+          "type": "file",
+          "size_mb": 51.5,
+          "ext": ""
+        },
+        "fix_vpn_connection_refused.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "fix_vpn_geosite_error.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "FULL_ARCHIVE_LIST.txt": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".txt"
+        },
+        "FULL_INVENTORY_INDEX.json": {
+          "type": "file",
+          "size_mb": 161.23,
+          "ext": ".json"
+        },
+        "FUTURE_ENHANCEMENTS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FUTURE_PLANS_QUICK_SUMMARY_RUS.txt": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".txt"
+        },
+        "FUTURE_ROADMAP_2026_RUS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "get-docker.sh": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".sh"
+        },
+        "GETTING_STARTED_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "get_demo_url.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "GET_DEMO_URL_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "GET_LIVE_URL_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "GET_NGROK_URL.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "GNN_OBSERVE_MODE_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "GOOGLE_ACCESS_ANONYMITY_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "GO_NO_GO_CRITERIA_2026_01_10.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "GO_NO_GO_DECISION.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "GRAPHSAGE_CAUSAL_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "health-check.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "health_check.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "health_report_20251101_220420.json": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".json"
+        },
+        "monitor_stats.py": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".py"
+        },
+        "MORNING_ACTION_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "MTLS_TESTS_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "MULTI_NODE_TESTING_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "MULTI_NODE_TESTING_RESULTS_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NARRATIVE_TEMPLATES.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "NEXT_ACTIONS_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NEXT_PHASE_GUIDE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "NEXT_SPRINT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "NEXT_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NEXT_STEPS_AFTER_STABILITY_TEST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NEXT_STEPS_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_AUTH_REQUIRED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_FINAL_INSTRUCTIONS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_MANUAL_STEPS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_QUICK_START.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_READY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "NGROK_SETUP_INSTRUCTIONS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "WEEK1_VALIDATION_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "weekly_action_schedule.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "WEEK_1_ACTION_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "WESTWORLD_AUDIT_AND_PHASE0_REALITY_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.03,
+          "ext": ".md"
+        },
+        "WESTWORLD_DOCUMENT_NAVIGATOR_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "WESTWORLD_EXECUTIVE_SUMMARY_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "WESTWORLD_FINAL_STATUS_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "WESTWORLD_HONEST_ASSESSMENT_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "WESTWORLD_IMPLEMENTATION_ROADMAP_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "WESTWORLD_INTEGRATION_MASTER_PLAN_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.03,
+          "ext": ".md"
+        },
+        "WESTWORLD_NAVIGATION_GUIDE_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "WESTWORLD_PACKAGE_COMPLETE_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "deploy_all.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "deploy_bot.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "deploy_landing.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "DEPLOY_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "DEPLOY_NOW.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "deploy_now.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "DEPLOY_SECURITY_FIXES.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "deploy_x0tta6bl4_to_vpn.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "DEVELOPMENT_PROGRESS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DEVELOPMENT_ROADMAP_NEXT_PHASES.txt": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".txt"
+        },
+        "diagnose.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "DIAGNOSTIC_REPORT_2025-12-24.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "DIGITAL_SURVIVAL_KIT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DIRECTORY_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "DISASTER_RECOVERY_PLAN_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TODAY_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODOS_COMPLETED_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODOS_COMPLETE_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODOS_COMPLETION_SUMMARY.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODO_ANALYSIS_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TODO_COMPLETION_FINAL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODO_FIXME_COMPLETION_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "TODO_FIXME_COMPLETION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TODO_FIXME_FINAL_IMPROVEMENTS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "top-largest.json": {
+          "type": "file",
+          "size_mb": 0.09,
+          "ext": ".json"
+        },
+        "TROUBLESHOOTING_QUICK_REFERENCE_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "ULTIMATE_FINAL_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "UNFINISHED_TASKS_DETAILED.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "UNFINISHED_TASKS_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "UNIFIED_ACTION_ITEMS.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "UNIMPLEMENTED_TASKS_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "update_email_url.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "UPWORK_PROFILE_TEMPLATE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "STAGING_DEPLOYMENT_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "STAGING_DEPLOYMENT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "STAGING_DEPLOYMENT_PLAN.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "STAGING_DEPLOYMENT_PLAN_WEEK2_WEEK3.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "STAGING_DEPLOYMENT_RUNBOOK.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "STAGING_VALIDATION_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "start-dev.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "start-docker.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "start-k8s.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "start.sh": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".sh"
+        },
+        "START_DEMO_SERVER.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "START_DEPLOYMENT.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "START_HERE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "START_HERE_JAN_2026.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "START_MONETIZATION_NOW.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "START_NGROK_MANUAL.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "START_NOW.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "START_SERVER_AND_NGROK.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "EBPF_SPRINT_READY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EMAIL_CONTACTS_LIST.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EMAIL_SEND_CHECKLIST.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "email_sequence_early_users.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EMAIL_TEMPLATES_READY.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EMAIL_TEMPLATE_V3.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EMAIL_С_ДЕМО_ВЕРСИЕЙ.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ERROR_HANDLER_TESTS_FIXED.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EXAMPLES_README.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "EXECUTE_NOW_7_DAYS.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EXECUTION_PLAN_NOW.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "EXECUTION_READY_2026.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_SESSION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_SESSION_REPORT_DEC_28.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_SETUP_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_SPRINT_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_STRATEGIC_SYNTHESIS_DEC_29_2025.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_SYNTHESIS_REPORT_2025-11-30.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_TASKS_COMPLETION_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_VALIDATION_REPORT_TEMPLATE.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "FINAL_VPN_DEPLOYMENT_REPORT.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FINAL_WHAT_TO_DO.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FIRST_5_CONTACTS_EXAMPLE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "FIRST_USER_EXPERIENCE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TECHNICAL_BRIEF_10_12_PAGES.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TECHNICAL_DEBT_ACTION_PLAN_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TECHNICAL_DEBT_ANALYSIS.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "TECHNICAL_DEBT_CHECK_COMPLETE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "TECHNICAL_DEBT_COMPLETE_2026_01_07.md": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".md"
+        },
+        "ALTERNATIVE_COMMERCIALIZATION_STRATEGIES.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "analyze_stability_test_results.sh": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".sh"
+        },
+        "ANOMALIES_DETECTION_COMPLETE_PACKAGE_2026_01_11.md": {
+          "type": "file",
+          "size_mb": 0.02,
+          "ext": ".md"
+        },
+        "ANOMALIES_FIXES_SUMMARY.txt": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".txt"
+        },
+        "api.log": {
+          "type": "file",
+          "size_mb": 0.38,
+          "ext": ".log"
+        },
+        "API_ENDPOINTS_REFERENCE.md": {
+          "type": "file",
+          "size_mb": 0.01,
+          "ext": ".md"
+        },
+        "api_server.log": {
+          "type": "file",
+          "size_mb": 0.0,
+          "ext": ".log"
+        },
+        "app.log": {
+          "type": "file",
+          "size_mb": 1.11,
+          "ext": ".log"
+        }
+      }
+    },
+    "critical_files": {
+      "pyproject.toml": {
+        "description": "Конфигурация Python проекта",
+        "present": true,
+        "size_kb": 4.21
+      },
+      "Makefile": {
+        "description": "Задачи сборки",
+        "present": true,
+        "size_kb": 1.61
+      },
+      "README.md": {
+        "description": "Документация проекта",
+        "present": true,
+        "size_kb": 3.45
+      },
+      "setup.py": {
+        "description": "Установка Python",
+        "present": false,
+        "size_kb": 0
+      },
+      "requirements.txt": {
+        "description": "Зависимости",
+        "present": true,
+        "size_kb": 0.69
+      },
+      "docker-compose.yml": {
+        "description": "Docker конфигурация",
+        "present": true,
+        "size_kb": 1.09
+      },
+      "Dockerfile": {
+        "description": "Docker образ",
+        "present": true,
+        "size_kb": 3.04
+      },
+      ".gitignore": {
+        "description": "Git исключения",
+        "present": true,
+        "size_kb": 2.25
+      },
+      ".github": {
+        "description": "GitHub конфигурация",
+        "present": true,
+        "size_kb": 0.0
+      }
+    },
+    "python_analysis": {
+      "total_py_files": 62982,
+      "total_py_size_mb": 875.37,
+      "packages": {
+        ".": {
+          "files": 21,
+          "size": 145909
+        },
+        "deployment": {
+          "files": 5,
+          "size": 18283
+        },
+        "infra": {
+          "files": 1,
+          "size": 10013
+        },
+        "go-to-market": {
+          "files": 3,
+          "size": 14305
+        },
+        "docker": {
+          "files": 1,
+          "size": 4260
+        },
+        "examples": {
+          "files": 15,
+          "size": 99741
+        },
+        "archive": {
+          "files": 9286,
+          "size": 149395131
+        },
+        "scripts": {
+          "files": 58,
+          "size": 298862
+        },
+        "x0tta6bl4_paradox_zone": {
+          "files": 52069,
+          "size": 751708245
+        },
+        "monitoring": {
+          "files": 1,
+          "size": 9154
+        },
+        "demos": {
+          "files": 3,
+          "size": 16157
+        },
+        "src": {
+          "files": 308,
+          "size": 3452314
+        },
+        "benchmarks": {
+          "files": 4,
+          "size": 43717
+        },
+        "Загрузки": {
+          "files": 45,
+          "size": 320641
+        },
+        "x0tta6bl4-roadmap": {
+          "files": 3,
+          "size": 7919
+        },
+        "venv_pip_tools": {
+          "files": 952,
+          "size": 10799033
+        },
+        "test": {
+          "files": 1,
+          "size": 12103
+        },
+        "tests": {
+          "files": 206,
+          "size": 1535180
+        }
+      },
+      "largest_modules": [
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/language_data/name_data.py",
+          "size": 4387324
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/kubernetes/client/api/core_v1_api.py",
+          "size": 2378292
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4/releases/v3.0.0-final/scripts/get-pip.py",
+          "size": 2154922
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4/scripts/get-pip.py",
+          "size": 2154922
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/torch/testing/_internal/common_methods_invocations.py",
+          "size": 1210651
+        },
+        {
+          "path": "archive/legacy/x0tta6bl4_backup_20250913_204248/saas_env/lib/python3.12/site-packages/torch/testing/_internal/common_methods_invocations.py",
+          "size": 1206661
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/scapy/libs/manuf.py",
+          "size": 910353
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/kubernetes/client/api/apps_v1_api.py",
+          "size": 794629
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/kubernetes/client/api/storage_v1_api.py",
+          "size": 602562
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4-next/quantum_venv/lib/python3.12/site-packages/ibm_platform_services/iam_identity_v1.py",
+          "size": 595056
+        }
+      ]
+    },
+    "src_structure": {
+      "exists": true,
+      "subdirs": [
+        "ml",
+        "adapters",
+        "ai",
+        "anti_censorship",
+        "api",
+        "chaos",
+        "cli",
+        "consensus",
+        "core",
+        "crypto",
+        "dao",
+        "data_sync",
+        "deployment",
+        "enterprise",
+        "federated_learning",
+        "innovation",
+        "integration",
+        "ledger",
+        "licensing",
+        "mapek",
+        "mape_k",
+        "mesh",
+        "monitoring",
+        "network",
+        "operations",
+        "optimization",
+        "performance",
+        "quality",
+        "quantum",
+        "rag",
+        "sales",
+        "security",
+        "self_healing",
+        "services",
+        "simulation",
+        "storage",
+        "testing",
+        "utils",
+        "web",
+        "westworld",
+        "x0tta6bl4.egg-info",
+        "__pycache__"
+      ],
+      "files": [
+        "database.py",
+        "legacy_cli.py",
+        "__init__.py"
+      ]
+    },
+    "potential_issues": [
+      {
+        "type": "warning",
+        "severity": "medium",
+        "message": "Большой Python файл: x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/language_data/name_data.py (4.18 MB)"
+      },
+      {
+        "type": "warning",
+        "severity": "medium",
+        "message": "Большой Python файл: x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/kubernetes/client/api/core_v1_api.py (2.27 MB)"
+      },
+      {
+        "type": "warning",
+        "severity": "medium",
+        "message": "Большой Python файл: x0tta6bl4_paradox_zone/x0tta6bl4/releases/v3.0.0-final/scripts/get-pip.py (2.06 MB)"
+      },
+      {
+        "type": "warning",
+        "severity": "medium",
+        "message": "Большой Python файл: x0tta6bl4_paradox_zone/x0tta6bl4/scripts/get-pip.py (2.06 MB)"
+      },
+      {
+        "type": "warning",
+        "severity": "medium",
+        "message": "Большой Python файл: x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/torch/testing/_internal/common_methods_invocations.py (1.15 MB)"
+      }
+    ],
+    "archive_analysis": {
+      "total_archives": 120,
+      "total_archive_size_mb": 165078.29,
+      "largest_archives": [
+        {
+          "path": "archive/snapshots/x0tta6bl4_foundation_2025-10-29.tar.gz",
+          "size_mb": 164055.78
+        },
+        {
+          "path": "личное/Camera/DCIM/100NCD80.rar",
+          "size_mb": 351.96
+        },
+        {
+          "path": "личное/15.09/печать/печать.rar",
+          "size_mb": 341.65
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4/.vscode/extensions/google.geminicodeassist-2.51.0/cloudcode_cli.zip",
+          "size_mb": 140.98
+        },
+        {
+          "path": "личное/15.09/тимур 9.23/тимур 9.23.rar",
+          "size_mb": 29.85
+        },
+        {
+          "path": "k6-v0.48.0-linux-amd64.tar.gz",
+          "size_mb": 23.46
+        },
+        {
+          "path": "личное/фрезер/nardy_muslim.rar",
+          "size_mb": 20.62
+        },
+        {
+          "path": "личное/фрезер/nardy_muslim/nardy_muslim.rar",
+          "size_mb": 18.24
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4/nltk_data/tokenizers/punkt.zip",
+          "size_mb": 13.26
+        },
+        {
+          "path": "x0tta6bl4_paradox_zone/x0tta6bl4/nltk_data/corpora/wordnet.zip",
+          "size_mb": 10.28
+        }
+      ]
+    }
+  }
+}

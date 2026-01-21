@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: x0tta6bl4-quota
+  namespace: x0tta6bl4-staging
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+    persistentvolumeclaims: "5"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"

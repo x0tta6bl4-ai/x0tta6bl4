@@ -1,0 +1,2454 @@
+{
+  "scan_time": "2026-01-12T01:55:57.164023",
+  "workspace_root": "/mnt/AC74CC2974CBF3DC",
+  "summary": {
+    "total_files": 415936,
+    "total_dirs": 47956,
+    "total_size_bytes": 263784384755,
+    "total_size_mb": 251564.39
+  },
+  "by_type": {
+    "Markdown": {
+      "count": 7998,
+      "size": 154206900
+    },
+    "Python": {
+      "count": 107790,
+      "size": 1572613377
+    },
+    "Other": {
+      "count": 260675,
+      "size": 67658479420
+    },
+    "Text": {
+      "count": 16402,
+      "size": 1330513661
+    },
+    "Image": {
+      "count": 11958,
+      "size": 14384160645
+    },
+    "Archive": {
+      "count": 2218,
+      "size": 172985929812
+    },
+    "Docker": {
+      "count": 77,
+      "size": 85046
+    },
+    "Config": {
+      "count": 1405,
+      "size": 4043932
+    },
+    "Binary": {
+      "count": 7413,
+      "size": 5694351962
+    }
+  },
+  "by_extension": {
+    ".md": {
+      "count": 7998,
+      "size": 154206900,
+      "size_mb": 147.06
+    },
+    ".py": {
+      "count": 107790,
+      "size": 1572613377,
+      "size_mb": 1499.76
+    },
+    ".sh": {
+      "count": 1040,
+      "size": 4936395,
+      "size_mb": 4.71
+    },
+    ".txt": {
+      "count": 3614,
+      "size": 814659638,
+      "size_mb": 776.92
+    },
+    ".json": {
+      "count": 10695,
+      "size": 473350643,
+      "size_mb": 451.42
+    },
+    ".log": {
+      "count": 212,
+      "size": 6080653,
+      "size_mb": 5.8
+    },
+    ".svg": {
+      "count": 341,
+      "size": 12115323,
+      "size_mb": 11.55
+    },
+    ".gz": {
+      "count": 2162,
+      "size": 172116316394,
+      "size_mb": 164142.91
+    },
+    ".yaml": {
+      "count": 1112,
+      "size": 11083660,
+      "size_mb": 10.57
+    },
+    ".yml": {
+      "count": 472,
+      "size": 1832879,
+      "size_mb": 1.75
+    },
+    "": {
+      "count": 17442,
+      "size": 1096865054,
+      "size_mb": 1046.05
+    },
+    ".app": {
+      "count": 1,
+      "size": 1936,
+      "size_mb": 0.0
+    },
+    ".healing": {
+      "count": 1,
+      "size": 1697,
+      "size_mb": 0.0
+    },
+    ".landing": {
+      "count": 1,
+      "size": 765,
+      "size_mb": 0.0
+    },
+    ".mape-k": {
+      "count": 1,
+      "size": 1048,
+      "size_mb": 0.0
+    },
+    ".minimal": {
+      "count": 3,
+      "size": 2513,
+      "size_mb": 0.0
+    },
+    ".production": {
+      "count": 9,
+      "size": 18578,
+      "size_mb": 0.02
+    },
+    ".vpn": {
+      "count": 1,
+      "size": 620,
+      "size_mb": 0.0
+    },
+    ".html": {
+      "count": 810,
+      "size": 60691423,
+      "size_mb": 57.88
+    },
+    ".xml": {
+      "count": 36,
+      "size": 2550549,
+      "size_mb": 2.43
+    },
+    ".js": {
+      "count": 99332,
+      "size": 801091252,
+      "size_mb": 763.98
+    },
+    ".cdr": {
+      "count": 84,
+      "size": 1673411162,
+      "size_mb": 1595.89
+    },
+    ".css": {
+      "count": 336,
+      "size": 6519929,
+      "size_mb": 6.22
+    },
+    ".in": {
+      "count": 54,
+      "size": 9410,
+      "size_mb": 0.01
+    },
+    ".sha256": {
+      "count": 1,
+      "size": 127,
+      "size_mb": 0.0
+    },
+    ".toml": {
+      "count": 1154,
+      "size": 224309,
+      "size_mb": 0.21
+    },
+    ".ini": {
+      "count": 106,
+      "size": 3619563,
+      "size_mb": 3.45
+    },
+    ".mesh-node": {
+      "count": 1,
+      "size": 1227,
+      "size_mb": 0.0
+    },
+    ".conf": {
+      "count": 50,
+      "size": 104102,
+      "size_mb": 0.1
+    },
+    ".example": {
+      "count": 19,
+      "size": 26089,
+      "size_mb": 0.02
+    },
+    ".tpl": {
+      "count": 39,
+      "size": 62009,
+      "size_mb": 0.06
+    },
+    ".service": {
+      "count": 15,
+      "size": 8655,
+      "size_mb": 0.01
+    },
+    ".png": {
+      "count": 1005,
+      "size": 213813825,
+      "size_mb": 203.91
+    },
+    ".map": {
+      "count": 19389,
+      "size": 287115329,
+      "size_mb": 273.81
+    },
+    ".lock": {
+      "count": 59,
+      "size": 1504031,
+      "size_mb": 1.43
+    },
+    ".tgz": {
+      "count": 17,
+      "size": 2395470,
+      "size_mb": 2.28
+    },
+    ".tf": {
+      "count": 58,
+      "size": 368717,
+      "size_mb": 0.35
+    },
+    ".csv": {
+      "count": 297,
+      "size": 23506188,
+      "size_mb": 22.42
+    },
+    ".rego": {
+      "count": 3,
+      "size": 3256,
+      "size_mb": 0.0
+    },
+    ".pyc": {
+      "count": 4853,
+      "size": 97078164,
+      "size_mb": 92.58
+    },
+    ".infrastructure": {
+      "count": 2,
+      "size": 13892,
+      "size_mb": 0.01
+    },
+    ".db": {
+      "count": 95,
+      "size": 280905216,
+      "size_mb": 267.89
+    },
+    ".prom": {
+      "count": 6,
+      "size": 88609,
+      "size_mb": 0.08
+    },
+    ".cff": {
+      "count": 3,
+      "size": 2724,
+      "size_mb": 0.0
+    },
+    ".advanced-integration": {
+      "count": 2,
+      "size": 3116,
+      "size_mb": 0.0
+    },
+    ".ai-ml": {
+      "count": 2,
+      "size": 5794,
+      "size_mb": 0.01
+    },
+    ".core": {
+      "count": 2,
+      "size": 5196,
+      "size_mb": 0.0
+    },
+    ".monitoring": {
+      "count": 2,
+      "size": 3549,
+      "size_mb": 0.0
+    },
+    ".platform": {
+      "count": 2,
+      "size": 3758,
+      "size_mb": 0.0
+    },
+    ".prod": {
+      "count": 3,
+      "size": 4365,
+      "size_mb": 0.0
+    },
+    ".quantum": {
+      "count": 4,
+      "size": 6433,
+      "size_mb": 0.01
+    },
+    ".quantum-mesh": {
+      "count": 2,
+      "size": 5772,
+      "size_mb": 0.01
+    },
+    ".replication": {
+      "count": 2,
+      "size": 4380,
+      "size_mb": 0.0
+    },
+    ".saas": {
+      "count": 2,
+      "size": 1600,
+      "size_mb": 0.0
+    },
+    ".secure": {
+      "count": 3,
+      "size": 3735,
+      "size_mb": 0.0
+    },
+    ".out": {
+      "count": 4,
+      "size": 49564,
+      "size_mb": 0.05
+    },
+    ".go": {
+      "count": 8828,
+      "size": 91737222,
+      "size_mb": 87.49
+    },
+    ".dashboard": {
+      "count": 3,
+      "size": 15031,
+      "size_mb": 0.01
+    },
+    ".documentation_security_testing": {
+      "count": 2,
+      "size": 38478,
+      "size_mb": 0.04
+    },
+    ".0": {
+      "count": 153,
+      "size": 594929235,
+      "size_mb": 567.37
+    },
+    ".6": {
+      "count": 3,
+      "size": 2538,
+      "size_mb": 0.0
+    },
+    ".1": {
+      "count": 65,
+      "size": 25252079,
+      "size_mb": 24.08
+    },
+    ".appimage": {
+      "count": 6,
+      "size": 1089241206,
+      "size_mb": 1038.78
+    },
+    ".part": {
+      "count": 3,
+      "size": 582665408,
+      "size_mb": 555.67
+    },
+    ".zs-old": {
+      "count": 1,
+      "size": 194487488,
+      "size_mb": 185.48
+    },
+    ".performance": {
+      "count": 2,
+      "size": 28928,
+      "size_mb": 0.03
+    },
+    ".security": {
+      "count": 3,
+      "size": 41055,
+      "size_mb": 0.04
+    },
+    ".jsx": {
+      "count": 10,
+      "size": 127634,
+      "size_mb": 0.12
+    },
+    ".ai": {
+      "count": 3,
+      "size": 1718,
+      "size_mb": 0.0
+    },
+    ".cultural": {
+      "count": 3,
+      "size": 1301,
+      "size_mb": 0.0
+    },
+    ".mesh": {
+      "count": 5,
+      "size": 2790,
+      "size_mb": 0.0
+    },
+    ".public_api": {
+      "count": 2,
+      "size": 536,
+      "size_mb": 0.0
+    },
+    ".qkaas_api": {
+      "count": 2,
+      "size": 534,
+      "size_mb": 0.0
+    },
+    ".quantum_core": {
+      "count": 2,
+      "size": 540,
+      "size_mb": 0.0
+    },
+    ".rag_server": {
+      "count": 2,
+      "size": 536,
+      "size_mb": 0.0
+    },
+    ".crt": {
+      "count": 10,
+      "size": 443545,
+      "size_mb": 0.42
+    },
+    ".cfg": {
+      "count": 95,
+      "size": 95958,
+      "size_mb": 0.09
+    },
+    ".csh": {
+      "count": 30,
+      "size": 30839,
+      "size_mb": 0.03
+    },
+    ".fish": {
+      "count": 32,
+      "size": 83459,
+      "size_mb": 0.08
+    },
+    ".ps1": {
+      "count": 36,
+      "size": 289210,
+      "size_mb": 0.28
+    },
+    ".12": {
+      "count": 47,
+      "size": 1616472349,
+      "size_mb": 1541.59
+    },
+    ".test": {
+      "count": 143,
+      "size": 41637,
+      "size_mb": 0.04
+    },
+    ".h": {
+      "count": 27959,
+      "size": 122877156,
+      "size_mb": 117.18
+    },
+    ".so": {
+      "count": 2448,
+      "size": 5577530135,
+      "size_mb": 5319.15
+    },
+    ".pth": {
+      "count": 14,
+      "size": 10082,
+      "size_mb": 0.01
+    },
+    ".typed": {
+      "count": 949,
+      "size": 14590,
+      "size_mb": 0.01
+    },
+    ".pxd": {
+      "count": 559,
+      "size": 3059801,
+      "size_mb": 2.92
+    },
+    ".pyx": {
+      "count": 619,
+      "size": 15425242,
+      "size_mb": 14.71
+    },
+    ".pyi": {
+      "count": 5182,
+      "size": 30429605,
+      "size_mb": 29.02
+    },
+    ".pxi": {
+      "count": 35,
+      "size": 111239,
+      "size_mb": 0.11
+    },
+    ".c": {
+      "count": 220,
+      "size": 23755166,
+      "size_mb": 22.65
+    },
+    ".rst": {
+      "count": 109,
+      "size": 334058,
+      "size_mb": 0.32
+    },
+    ".cpp": {
+      "count": 248,
+      "size": 3504671,
+      "size_mb": 3.34
+    },
+    ".hpp": {
+      "count": 313,
+      "size": 5104540,
+      "size_mb": 4.87
+    },
+    ".cmd": {
+      "count": 9,
+      "size": 1001,
+      "size_mb": 0.0
+    },
+    ".asm": {
+      "count": 14,
+      "size": 21602,
+      "size_mb": 0.02
+    },
+    ".obj": {
+      "count": 40,
+      "size": 148224886,
+      "size_mb": 141.36
+    },
+    ".psf": {
+      "count": 7,
+      "size": 16968,
+      "size_mb": 0.02
+    },
+    ".inc": {
+      "count": 17,
+      "size": 61736,
+      "size_mb": 0.06
+    },
+    ".npz": {
+      "count": 145,
+      "size": 22271768,
+      "size_mb": 21.24
+    },
+    ".npy": {
+      "count": 201,
+      "size": 3716058,
+      "size_mb": 3.54
+    },
+    ".arff": {
+      "count": 96,
+      "size": 1261938,
+      "size_mb": 1.2
+    },
+    ".mat": {
+      "count": 654,
+      "size": 410346,
+      "size_mb": 0.39
+    },
+    ".dat": {
+      "count": 2304,
+      "size": 94714278,
+      "size_mb": 90.33
+    },
+    ".sav": {
+      "count": 282,
+      "size": 1271418,
+      "size_mb": 1.21
+    },
+    ".nc": {
+      "count": 21,
+      "size": 128053,
+      "size_mb": 0.12
+    },
+    ".wav": {
+      "count": 146,
+      "size": 1367053288,
+      "size_mb": 1303.72
+    },
+    ".ani": {
+      "count": 6,
+      "size": 26172,
+      "size_mb": 0.02
+    },
+    ".build": {
+      "count": 98,
+      "size": 139731,
+      "size_mb": 0.13
+    },
+    ".exe": {
+      "count": 111,
+      "size": 19743638,
+      "size_mb": 18.83
+    },
+    ".tmpl": {
+      "count": 42,
+      "size": 72296,
+      "size_mb": 0.07
+    },
+    ".apache2": {
+      "count": 15,
+      "size": 148826,
+      "size_mb": 0.14
+    },
+    ".mit": {
+      "count": 15,
+      "size": 15774,
+      "size_mb": 0.02
+    },
+    ".g4": {
+      "count": 8,
+      "size": 40064,
+      "size_mb": 0.04
+    },
+    ".al": {
+      "count": 64,
+      "size": 30360,
+      "size_mb": 0.03
+    },
+    ".lark": {
+      "count": 8,
+      "size": 49478,
+      "size_mb": 0.05
+    },
+    ".xsl": {
+      "count": 12,
+      "size": 1464724,
+      "size_mb": 1.4
+    },
+    ".thrift": {
+      "count": 2,
+      "size": 14242,
+      "size_mb": 0.01
+    },
+    ".ld": {
+      "count": 2,
+      "size": 860,
+      "size_mb": 0.0
+    },
+    ".mjs": {
+      "count": 1232,
+      "size": 19687061,
+      "size_mb": 18.78
+    },
+    ".cuh": {
+      "count": 190,
+      "size": 2706863,
+      "size_mb": 2.58
+    },
+    ".cmake": {
+      "count": 92,
+      "size": 794587,
+      "size_mb": 0.76
+    },
+    ".cu": {
+      "count": 19,
+      "size": 201310,
+      "size_mb": 0.19
+    },
+    ".bazel": {
+      "count": 3,
+      "size": 312,
+      "size_mb": 0.0
+    },
+    ".bzl": {
+      "count": 3,
+      "size": 1187,
+      "size_mb": 0.0
+    },
+    ".http": {
+      "count": 105,
+      "size": 18805,
+      "size_mb": 0.02
+    },
+    ".bz2": {
+      "count": 50,
+      "size": 999959,
+      "size_mb": 0.95
+    },
+    ".a99": {
+      "count": 10,
+      "size": 8760,
+      "size_mb": 0.01
+    },
+    ".b99": {
+      "count": 10,
+      "size": 15220,
+      "size_mb": 0.01
+    },
+    ".a": {
+      "count": 39,
+      "size": 85218478,
+      "size_mb": 81.27
+    },
+    ".pc": {
+      "count": 7,
+      "size": 1337,
+      "size_mb": 0.0
+    },
+    ".fits": {
+      "count": 8,
+      "size": 69120,
+      "size_mb": 0.07
+    },
+    ".f90": {
+      "count": 476,
+      "size": 229132,
+      "size_mb": 0.22
+    },
+    ".f": {
+      "count": 190,
+      "size": 127592,
+      "size_mb": 0.12
+    },
+    ".pyf": {
+      "count": 54,
+      "size": 18094,
+      "size_mb": 0.02
+    },
+    ".f95": {
+      "count": 7,
+      "size": 973,
+      "size_mb": 0.0
+    },
+    ".apache": {
+      "count": 45,
+      "size": 472062,
+      "size_mb": 0.45
+    },
+    ".bsd": {
+      "count": 63,
+      "size": 85833,
+      "size_mb": 0.08
+    },
+    ".pem": {
+      "count": 81,
+      "size": 14765663,
+      "size_mb": 14.08
+    },
+    ".ts": {
+      "count": 49889,
+      "size": 114913534,
+      "size_mb": 109.59
+    },
+    ".xlsx": {
+      "count": 4,
+      "size": 29456,
+      "size_mb": 0.03
+    },
+    ".api": {
+      "count": 4,
+      "size": 3272,
+      "size_mb": 0.0
+    },
+    ".demo": {
+      "count": 1,
+      "size": 1725,
+      "size_mb": 0.0
+    },
+    ".light": {
+      "count": 1,
+      "size": 1108,
+      "size_mb": 0.0
+    },
+    ".phase5": {
+      "count": 1,
+      "size": 1086,
+      "size_mb": 0.0
+    },
+    ".webhook": {
+      "count": 1,
+      "size": 651,
+      "size_mb": 0.0
+    },
+    ".keep": {
+      "count": 2,
+      "size": 8404,
+      "size_mb": 0.01
+    },
+    ".snapshot": {
+      "count": 2,
+      "size": 8404,
+      "size_mb": 0.01
+    },
+    ".pdf": {
+      "count": 96,
+      "size": 154020340,
+      "size_mb": 146.89
+    },
+    ".zip": {
+      "count": 48,
+      "size": 62744159,
+      "size_mb": 59.84
+    },
+    ".srl": {
+      "count": 1,
+      "size": 41,
+      "size_mb": 0.0
+    },
+    ".sol": {
+      "count": 533,
+      "size": 3693181,
+      "size_mb": 3.52
+    },
+    ".backup": {
+      "count": 12,
+      "size": 103138,
+      "size_mb": 0.1
+    },
+    ".tsx": {
+      "count": 109,
+      "size": 652569,
+      "size_mb": 0.62
+    },
+    ".cjs": {
+      "count": 913,
+      "size": 9963967,
+      "size_mb": 9.5
+    },
+    ".tsbuildinfo": {
+      "count": 24,
+      "size": 843124,
+      "size_mb": 0.8
+    },
+    ".cts": {
+      "count": 570,
+      "size": 1873645,
+      "size_mb": 1.79
+    },
+    ".mts": {
+      "count": 233,
+      "size": 1160779,
+      "size_mb": 1.11
+    },
+    ".rs": {
+      "count": 92,
+      "size": 529926,
+      "size_mb": 0.51
+    },
+    ".node": {
+      "count": 82,
+      "size": 784885408,
+      "size_mb": 748.53
+    },
+    ".tokens": {
+      "count": 16,
+      "size": 42930,
+      "size_mb": 0.04
+    },
+    ".interp": {
+      "count": 8,
+      "size": 418358,
+      "size_mb": 0.4
+    },
+    ".hbs": {
+      "count": 22,
+      "size": 32438,
+      "size_mb": 0.03
+    },
+    ".mkd": {
+      "count": 6,
+      "size": 6300,
+      "size_mb": 0.01
+    },
+    ".flow": {
+      "count": 142,
+      "size": 1980619,
+      "size_mb": 1.89
+    },
+    ".markdown": {
+      "count": 38,
+      "size": 168676,
+      "size_mb": 0.16
+    },
+    ".opts": {
+      "count": 2,
+      "size": 78,
+      "size_mb": 0.0
+    },
+    ".bnf": {
+      "count": 21,
+      "size": 12999,
+      "size_mb": 0.01
+    },
+    ".coffee": {
+      "count": 30,
+      "size": 124460,
+      "size_mb": 0.12
+    },
+    ".source-map": {
+      "count": 2,
+      "size": 3050,
+      "size_mb": 0.0
+    },
+    ".gyp": {
+      "count": 9,
+      "size": 20955,
+      "size_mb": 0.02
+    },
+    ".cc": {
+      "count": 85,
+      "size": 2538079,
+      "size_mb": 2.42
+    },
+    ".macros": {
+      "count": 4,
+      "size": 61982,
+      "size_mb": 0.06
+    },
+    ".nix": {
+      "count": 5,
+      "size": 2295,
+      "size_mb": 0.0
+    },
+    ".gypi": {
+      "count": 6,
+      "size": 3922,
+      "size_mb": 0.0
+    },
+    ".ac": {
+      "count": 2,
+      "size": 37664,
+      "size_mb": 0.04
+    },
+    ".am": {
+      "count": 2,
+      "size": 11850,
+      "size_mb": 0.01
+    },
+    ".m4": {
+      "count": 6,
+      "size": 22158,
+      "size_mb": 0.02
+    },
+    ".sage": {
+      "count": 6,
+      "size": 60376,
+      "size_mb": 0.06
+    },
+    ".s": {
+      "count": 129,
+      "size": 793168,
+      "size_mb": 0.76
+    },
+    ".java": {
+      "count": 8,
+      "size": 60158,
+      "size_mb": 0.06
+    },
+    ".include": {
+      "count": 4,
+      "size": 1216,
+      "size_mb": 0.0
+    },
+    ".jsm": {
+      "count": 8,
+      "size": 4066,
+      "size_mb": 0.0
+    },
+    ".snap": {
+      "count": 5,
+      "size": 3061,
+      "size_mb": 0.0
+    },
+    ".info": {
+      "count": 87,
+      "size": 55407,
+      "size_mb": 0.05
+    },
+    ".wasm": {
+      "count": 45,
+      "size": 19977331,
+      "size_mb": 19.05
+    },
+    ".chaos-controller": {
+      "count": 1,
+      "size": 1418,
+      "size_mb": 0.0
+    },
+    ".mock-agents-gateway": {
+      "count": 1,
+      "size": 457,
+      "size_mb": 0.0
+    },
+    ".mock-quantum-core": {
+      "count": 1,
+      "size": 457,
+      "size_mb": 0.0
+    },
+    ".test-runner": {
+      "count": 1,
+      "size": 914,
+      "size_mb": 0.0
+    },
+    ".admission-controller": {
+      "count": 1,
+      "size": 1724,
+      "size_mb": 0.0
+    },
+    ".envoy-filter": {
+      "count": 1,
+      "size": 2742,
+      "size_mb": 0.0
+    },
+    ".sdk": {
+      "count": 1,
+      "size": 2234,
+      "size_mb": 0.0
+    },
+    ".lua": {
+      "count": 28,
+      "size": 22887,
+      "size_mb": 0.02
+    },
+    ".proto": {
+      "count": 209,
+      "size": 1153311,
+      "size_mb": 1.1
+    },
+    ".15": {
+      "count": 1,
+      "size": 502529,
+      "size_mb": 0.48
+    },
+    ".4": {
+      "count": 9,
+      "size": 4695307,
+      "size_mb": 4.48
+    },
+    ".2": {
+      "count": 16,
+      "size": 498328498,
+      "size_mb": 475.24
+    },
+    ".8": {
+      "count": 3,
+      "size": 13404089,
+      "size_mb": 12.78
+    },
+    ".14": {
+      "count": 1,
+      "size": 26121,
+      "size_mb": 0.02
+    },
+    ".13": {
+      "count": 1,
+      "size": 54441,
+      "size_mb": 0.05
+    },
+    ".zi": {
+      "count": 10,
+      "size": 1074700,
+      "size_mb": 1.02
+    },
+    ".tab": {
+      "count": 78,
+      "size": 11334412,
+      "size_mb": 10.81
+    },
+    ".eot": {
+      "count": 30,
+      "size": 2318838,
+      "size_mb": 2.21
+    },
+    ".ttf": {
+      "count": 164,
+      "size": 28835264,
+      "size_mb": 27.5
+    },
+    ".woff": {
+      "count": 44,
+      "size": 5144736,
+      "size_mb": 4.91
+    },
+    ".woff2": {
+      "count": 73,
+      "size": 3743412,
+      "size_mb": 3.57
+    },
+    ".ico": {
+      "count": 123,
+      "size": 508591,
+      "size_mb": 0.49
+    },
+    ".mo": {
+      "count": 371,
+      "size": 2236311,
+      "size_mb": 2.13
+    },
+    ".unicode": {
+      "count": 2,
+      "size": 4066,
+      "size_mb": 0.0
+    },
+    ".5": {
+      "count": 4,
+      "size": 1937012,
+      "size_mb": 1.85
+    },
+    ".3": {
+      "count": 18,
+      "size": 153113566,
+      "size_mb": 146.02
+    },
+    ".200": {
+      "count": 4,
+      "size": 1016596,
+      "size_mb": 0.97
+    },
+    ".16": {
+      "count": 7,
+      "size": 1941487,
+      "size_mb": 1.85
+    },
+    ".mako": {
+      "count": 52,
+      "size": 107406,
+      "size_mb": 0.1
+    },
+    ".jinja2": {
+      "count": 8,
+      "size": 17772,
+      "size_mb": 0.02
+    },
+    ".doctest": {
+      "count": 236,
+      "size": 3054688,
+      "size_mb": 2.91
+    },
+    ".license": {
+      "count": 3,
+      "size": 31088,
+      "size_mb": 0.03
+    },
+    ".pkl": {
+      "count": 2966,
+      "size": 156304349,
+      "size_mb": 149.06
+    },
+    ".z": {
+      "count": 18,
+      "size": 738,
+      "size_mb": 0.0
+    },
+    ".gzip": {
+      "count": 30,
+      "size": 24558,
+      "size_mb": 0.02
+    },
+    ".lzma": {
+      "count": 30,
+      "size": 20802,
+      "size_mb": 0.02
+    },
+    ".xz": {
+      "count": 30,
+      "size": 22320,
+      "size_mb": 0.02
+    },
+    ".about": {
+      "count": 2,
+      "size": 1301,
+      "size_mb": 0.0
+    },
+    ".markdown-it": {
+      "count": 6,
+      "size": 6438,
+      "size_mb": 0.01
+    },
+    ".xsd": {
+      "count": 10,
+      "size": 1341208,
+      "size_mb": 1.28
+    },
+    ".egg": {
+      "count": 6,
+      "size": 5058,
+      "size_mb": 0.0
+    },
+    ".sql": {
+      "count": 48,
+      "size": 158815,
+      "size_mb": 0.15
+    },
+    ".php": {
+      "count": 219,
+      "size": 1028486,
+      "size_mb": 0.98
+    },
+    ".closure-compiler": {
+      "count": 4,
+      "size": 45432,
+      "size_mb": 0.04
+    },
+    ".esprima": {
+      "count": 4,
+      "size": 4924,
+      "size_mb": 0.0
+    },
+    ".jst": {
+      "count": 53,
+      "size": 104995,
+      "size_mb": 0.1
+    },
+    ".def": {
+      "count": 10,
+      "size": 33524,
+      "size_mb": 0.03
+    },
+    ".rb": {
+      "count": 2,
+      "size": 3169,
+      "size_mb": 0.0
+    },
+    ".template": {
+      "count": 9,
+      "size": 12279,
+      "size_mb": 0.01
+    },
+    ".sqlite3": {
+      "count": 2,
+      "size": 458752,
+      "size_mb": 0.44
+    },
+    ".pickle": {
+      "count": 39,
+      "size": 37222865,
+      "size_mb": 35.5
+    },
+    ".onnx": {
+      "count": 1445,
+      "size": 1514685,
+      "size_mb": 1.44
+    },
+    ".pb": {
+      "count": 4358,
+      "size": 17045160,
+      "size_mb": 16.26
+    },
+    ".62": {
+      "count": 1,
+      "size": 285328,
+      "size_mb": 0.27
+    },
+    ".jpg": {
+      "count": 10452,
+      "size": 12481559595,
+      "size_mb": 11903.34
+    },
+    ".tp": {
+      "count": 72,
+      "size": 1385496,
+      "size_mb": 1.32
+    },
+    ".vy": {
+      "count": 2,
+      "size": 13935,
+      "size_mb": 0.01
+    },
+    ".ipynb": {
+      "count": 5,
+      "size": 740638,
+      "size_mb": 0.71
+    },
+    ".cnf": {
+      "count": 2,
+      "size": 378,
+      "size_mb": 0.0
+    },
+    ".17": {
+      "count": 8,
+      "size": 3174872,
+      "size_mb": 3.03
+    },
+    ".10": {
+      "count": 5,
+      "size": 139673980,
+      "size_mb": 133.2
+    },
+    ".0,": {
+      "count": 1,
+      "size": 0,
+      "size_mb": 0.0
+    },
+    ".12,": {
+      "count": 1,
+      "size": 0,
+      "size_mb": 0.0
+    },
+    ".code-workspace": {
+      "count": 1,
+      "size": 1932,
+      "size_mb": 0.0
+    },
+    ".agents": {
+      "count": 1,
+      "size": 1167,
+      "size_mb": 0.0
+    },
+    ".autoscaler": {
+      "count": 1,
+      "size": 327,
+      "size_mb": 0.0
+    },
+    ".blockchain": {
+      "count": 1,
+      "size": 955,
+      "size_mb": 0.0
+    },
+    ".patch": {
+      "count": 4,
+      "size": 32926,
+      "size_mb": 0.03
+    },
+    ".gif": {
+      "count": 74,
+      "size": 2977690,
+      "size_mb": 2.84
+    },
+    ".mod": {
+      "count": 147,
+      "size": 23661,
+      "size_mb": 0.02
+    },
+    ".idx": {
+      "count": 2,
+      "size": 760919,
+      "size_mb": 0.73
+    },
+    ".xslt": {
+      "count": 4,
+      "size": 17020,
+      "size_mb": 0.02
+    },
+    ".scss": {
+      "count": 20,
+      "size": 135004,
+      "size_mb": 0.13
+    },
+    ".local": {
+      "count": 1,
+      "size": 1515,
+      "size_mb": 0.0
+    },
+    ".j2": {
+      "count": 12,
+      "size": 66862,
+      "size_mb": 0.06
+    },
+    ".mp4": {
+      "count": 836,
+      "size": 28786229813,
+      "size_mb": 27452.69
+    },
+    ".deb": {
+      "count": 7,
+      "size": 742080498,
+      "size_mb": 707.7
+    },
+    ".mp3": {
+      "count": 220,
+      "size": 4276981119,
+      "size_mb": 4078.85
+    },
+    ".desktop": {
+      "count": 4,
+      "size": 2142,
+      "size_mb": 0.0
+    },
+    ".pak": {
+      "count": 116,
+      "size": 98175014,
+      "size_mb": 93.63
+    },
+    ".bin": {
+      "count": 12,
+      "size": 3628365,
+      "size_mb": 3.46
+    },
+    ".asar": {
+      "count": 2,
+      "size": 56,
+      "size_mb": 0.0
+    },
+    ".code-snippets": {
+      "count": 30,
+      "size": 54040,
+      "size_mb": 0.05
+    },
+    ".tmlanguage": {
+      "count": 2,
+      "size": 11728,
+      "size_mb": 0.01
+    },
+    ".config": {
+      "count": 2,
+      "size": 830,
+      "size_mb": 0.0
+    },
+    ".njs": {
+      "count": 2,
+      "size": 7838,
+      "size_mb": 0.01
+    },
+    ".lcov": {
+      "count": 2,
+      "size": 0,
+      "size_mb": 0.0
+    },
+    ".bak": {
+      "count": 2,
+      "size": 24140,
+      "size_mb": 0.02
+    },
+    ".makefile": {
+      "count": 2,
+      "size": 318,
+      "size_mb": 0.0
+    },
+    ".scm": {
+      "count": 10,
+      "size": 25720,
+      "size_mb": 0.02
+    },
+    ".scpt": {
+      "count": 4,
+      "size": 47564,
+      "size_mb": 0.05
+    },
+    ".zsh": {
+      "count": 8,
+      "size": 23116,
+      "size_mb": 0.02
+    },
+    ".plt": {
+      "count": 84,
+      "size": 477957173,
+      "size_mb": 455.82
+    },
+    ".dxf": {
+      "count": 20,
+      "size": 9580737,
+      "size_mb": 9.14
+    },
+    ".m4a": {
+      "count": 9,
+      "size": 28281966,
+      "size_mb": 26.97
+    },
+    ".pptx": {
+      "count": 1,
+      "size": 34809160,
+      "size_mb": 33.2
+    },
+    ".tif": {
+      "count": 25,
+      "size": 8236398574,
+      "size_mb": 7854.84
+    },
+    ".jpeg": {
+      "count": 2,
+      "size": 283050,
+      "size_mb": 0.27
+    },
+    ".heic": {
+      "count": 1,
+      "size": 1774880,
+      "size_mb": 1.69
+    },
+    ".docx": {
+      "count": 5,
+      "size": 249087,
+      "size_mb": 0.24
+    },
+    ".flac": {
+      "count": 2,
+      "size": 162742158,
+      "size_mb": 155.2
+    },
+    ".avi": {
+      "count": 2,
+      "size": 51096154,
+      "size_mb": 48.73
+    },
+    ".webp": {
+      "count": 166,
+      "size": 7778976,
+      "size_mb": 7.42
+    },
+    ".tgs": {
+      "count": 95,
+      "size": 1370839,
+      "size_mb": 1.31
+    },
+    ".mov": {
+      "count": 189,
+      "size": 7601780550,
+      "size_mb": 7249.62
+    },
+    ".webm": {
+      "count": 60,
+      "size": 2142565,
+      "size_mb": 2.04
+    },
+    ".m4v": {
+      "count": 1,
+      "size": 22324380,
+      "size_mb": 21.29
+    },
+    ".sacred": {
+      "count": 52,
+      "size": 53869,
+      "size_mb": 0.05
+    },
+    ".integration": {
+      "count": 2,
+      "size": 1662,
+      "size_mb": 0.0
+    },
+    ".monitor": {
+      "count": 2,
+      "size": 1582,
+      "size_mb": 0.0
+    },
+    ".optimized": {
+      "count": 4,
+      "size": 5371,
+      "size_mb": 0.01
+    },
+    ".backup_20250913_195003": {
+      "count": 6,
+      "size": 11925,
+      "size_mb": 0.01
+    },
+    ".po": {
+      "count": 343,
+      "size": 7481675,
+      "size_mb": 7.14
+    },
+    ".99": {
+      "count": 1,
+      "size": 0,
+      "size_mb": 0.0
+    },
+    ".afm": {
+      "count": 180,
+      "size": 4061352,
+      "size_mb": 3.87
+    },
+    ".xrc": {
+      "count": 3,
+      "size": 6558,
+      "size_mb": 0.01
+    },
+    ".mplstyle": {
+      "count": 87,
+      "size": 115047,
+      "size_mb": 0.11
+    },
+    ".external": {
+      "count": 3,
+      "size": 60066,
+      "size_mb": 0.06
+    },
+    ".cypher": {
+      "count": 1,
+      "size": 466,
+      "size_mb": 0.0
+    },
+    ".properties": {
+      "count": 1,
+      "size": 4871,
+      "size_mb": 0.0
+    },
+    ".rdb": {
+      "count": 1,
+      "size": 88,
+      "size_mb": 0.0
+    },
+    ".rdf": {
+      "count": 1,
+      "size": 577,
+      "size_mb": 0.0
+    },
+    ".active": {
+      "count": 2,
+      "size": 40002,
+      "size_mb": 0.04
+    },
+    ".real": {
+      "count": 1,
+      "size": 3926,
+      "size_mb": 0.0
+    },
+    ".sprint0": {
+      "count": 1,
+      "size": 6885,
+      "size_mb": 0.01
+    },
+    ".sprint3": {
+      "count": 1,
+      "size": 497,
+      "size_mb": 0.0
+    },
+    ".key": {
+      "count": 4,
+      "size": 9948,
+      "size_mb": 0.01
+    },
+    ".ziphash": {
+      "count": 30,
+      "size": 1410,
+      "size_mb": 0.0
+    },
+    ".20240526193622-a339e1f7089c": {
+      "count": 1,
+      "size": 429,
+      "size_mb": 0.0
+    },
+    ".20250423142747-f3939df9aa3c": {
+      "count": 1,
+      "size": 437,
+      "size_mb": 0.0
+    },
+    ".0-20231110203233-9a3e6036ecaa": {
+      "count": 1,
+      "size": 405,
+      "size_mb": 0.0
+    },
+    ".0-20250710130107-8d8967aff50b": {
+      "count": 1,
+      "size": 417,
+      "size_mb": 0.0
+    },
+    ".20250728180453-01a3475a31bc": {
+      "count": 1,
+      "size": 415,
+      "size_mb": 0.0
+    },
+    ".0-20231108232855-2478ac86f678": {
+      "count": 1,
+      "size": 427,
+      "size_mb": 0.0
+    },
+    ".0-20250620022241-b7579e27df2b": {
+      "count": 1,
+      "size": 427,
+      "size_mb": 0.0
+    },
+    ".20250523013057-bbc2f4dd71ea": {
+      "count": 1,
+      "size": 425,
+      "size_mb": 0.0
+    },
+    ".multi": {
+      "count": 12,
+      "size": 7306,
+      "size_mb": 0.01
+    },
+    ".sum": {
+      "count": 22,
+      "size": 33658,
+      "size_mb": 0.03
+    },
+    ".golden": {
+      "count": 408,
+      "size": 348866,
+      "size_mb": 0.33
+    },
+    ".input": {
+      "count": 77,
+      "size": 9289,
+      "size_mb": 0.01
+    },
+    ".txtar": {
+      "count": 342,
+      "size": 372790,
+      "size_mb": 0.36
+    },
+    ".bench": {
+      "count": 3,
+      "size": 45849,
+      "size_mb": 0.04
+    },
+    ".bash": {
+      "count": 5,
+      "size": 4084,
+      "size_mb": 0.0
+    },
+    ".want": {
+      "count": 5,
+      "size": 22674,
+      "size_mb": 0.02
+    },
+    ".hlp": {
+      "count": 33,
+      "size": 22165,
+      "size_mb": 0.02
+    },
+    ".y": {
+      "count": 4,
+      "size": 12896,
+      "size_mb": 0.01
+    },
+    ".work": {
+      "count": 6,
+      "size": 1584,
+      "size_mb": 0.0
+    },
+    ".gox": {
+      "count": 68,
+      "size": 248320,
+      "size_mb": 0.24
+    },
+    ".pprof": {
+      "count": 4,
+      "size": 201300,
+      "size_mb": 0.19
+    },
+    ".p": {
+      "count": 20,
+      "size": 7308,
+      "size_mb": 0.01
+    },
+    ".deps": {
+      "count": 2,
+      "size": 6719,
+      "size_mb": 0.01
+    },
+    ".imports": {
+      "count": 2,
+      "size": 1146,
+      "size_mb": 0.0
+    },
+    ".ct": {
+      "count": 50,
+      "size": 214926,
+      "size_mb": 0.2
+    },
+    ".blob": {
+      "count": 10,
+      "size": 119514,
+      "size_mb": 0.11
+    },
+    ".el": {
+      "count": 2,
+      "size": 2022,
+      "size_mb": 0.0
+    },
+    ".google": {
+      "count": 1,
+      "size": 1479,
+      "size_mb": 0.0
+    },
+    ".csr": {
+      "count": 2,
+      "size": 3090,
+      "size_mb": 0.0
+    },
+    ".phi-harmony": {
+      "count": 1,
+      "size": 17909,
+      "size_mb": 0.02
+    },
+    ".rollback": {
+      "count": 1,
+      "size": 8381,
+      "size_mb": 0.01
+    },
+    ".joblib": {
+      "count": 8,
+      "size": 34805,
+      "size_mb": 0.03
+    },
+    ".hcl": {
+      "count": 14,
+      "size": 101196,
+      "size_mb": 0.1
+    },
+    ".testcase": {
+      "count": 11,
+      "size": 87733,
+      "size_mb": 0.08
+    },
+    ".pid": {
+      "count": 8,
+      "size": 57,
+      "size_mb": 0.0
+    },
+    ".tex": {
+      "count": 6,
+      "size": 9803,
+      "size_mb": 0.01
+    },
+    ".cid": {
+      "count": 1,
+      "size": 47,
+      "size_mb": 0.0
+    },
+    ".client": {
+      "count": 1,
+      "size": 515,
+      "size_mb": 0.0
+    },
+    ".edge": {
+      "count": 1,
+      "size": 585,
+      "size_mb": 0.0
+    },
+    ".gateway": {
+      "count": 1,
+      "size": 523,
+      "size_mb": 0.0
+    },
+    ".hrm": {
+      "count": 1,
+      "size": 674,
+      "size_mb": 0.0
+    },
+    ".hrm-integration": {
+      "count": 1,
+      "size": 611,
+      "size_mb": 0.0
+    },
+    ".hrm-trainer": {
+      "count": 1,
+      "size": 742,
+      "size_mb": 0.0
+    },
+    ".llama": {
+      "count": 1,
+      "size": 717,
+      "size_mb": 0.0
+    },
+    ".opencua": {
+      "count": 1,
+      "size": 1660,
+      "size_mb": 0.0
+    },
+    ".packages": {
+      "count": 1,
+      "size": 759,
+      "size_mb": 0.0
+    },
+    ".quantum-full": {
+      "count": 1,
+      "size": 621,
+      "size_mb": 0.0
+    },
+    ".dockerfile": {
+      "count": 1,
+      "size": 1679,
+      "size_mb": 0.0
+    },
+    ".drift": {
+      "count": 1,
+      "size": 457,
+      "size_mb": 0.0
+    },
+    ".index": {
+      "count": 1,
+      "size": 1776,
+      "size_mb": 0.0
+    },
+    ".fixed": {
+      "count": 2,
+      "size": 2088,
+      "size_mb": 0.0
+    },
+    ".simple": {
+      "count": 1,
+      "size": 824,
+      "size_mb": 0.0
+    },
+    ".vault-init": {
+      "count": 1,
+      "size": 700,
+      "size_mb": 0.0
+    },
+    ".websocket-fixed": {
+      "count": 1,
+      "size": 854,
+      "size_mb": 0.0
+    },
+    ".enc": {
+      "count": 4,
+      "size": 2123,
+      "size_mb": 0.0
+    },
+    ".bat": {
+      "count": 10,
+      "size": 33302,
+      "size_mb": 0.03
+    },
+    ".nu": {
+      "count": 2,
+      "size": 5760,
+      "size_mb": 0.01
+    },
+    ".whl": {
+      "count": 10,
+      "size": 12238522,
+      "size_mb": 11.67
+    },
+    ".npmignore": {
+      "count": 2,
+      "size": 4,
+      "size_mb": 0.0
+    },
+    ".r": {
+      "count": 2,
+      "size": 24074,
+      "size_mb": 0.02
+    },
+    ".renv": {
+      "count": 2,
+      "size": 2104,
+      "size_mb": 0.0
+    },
+    ".pl": {
+      "count": 2,
+      "size": 208,
+      "size_mb": 0.0
+    },
+    ".rockspec": {
+      "count": 2,
+      "size": 424,
+      "size_mb": 0.0
+    },
+    ".gemspec": {
+      "count": 2,
+      "size": 390,
+      "size_mb": 0.0
+    },
+    ".hmt-adapter": {
+      "count": 1,
+      "size": 3723,
+      "size_mb": 0.0
+    },
+    ".tfvars": {
+      "count": 1,
+      "size": 3434,
+      "size_mb": 0.0
+    },
+    ".sha256sum": {
+      "count": 1,
+      "size": 75,
+      "size_mb": 0.0
+    },
+    ".ejs": {
+      "count": 1,
+      "size": 2444,
+      "size_mb": 0.0
+    },
+    ".jsdoc": {
+      "count": 1,
+      "size": 275,
+      "size_mb": 0.0
+    },
+    ".sig": {
+      "count": 5,
+      "size": 320,
+      "size_mb": 0.0
+    },
+    ".jsonl": {
+      "count": 2,
+      "size": 1704,
+      "size_mb": 0.0
+    },
+    ".css_t": {
+      "count": 1,
+      "size": 15236,
+      "size_mb": 0.01
+    },
+    ".jinja": {
+      "count": 46,
+      "size": 213416,
+      "size_mb": 0.2
+    },
+    ".bc": {
+      "count": 5,
+      "size": 32150216,
+      "size_mb": 30.66
+    },
+    ".hh": {
+      "count": 2,
+      "size": 14788,
+      "size_mb": 0.01
+    },
+    ".pot": {
+      "count": 7,
+      "size": 101996,
+      "size_mb": 0.1
+    },
+    ".hhc": {
+      "count": 2,
+      "size": 1593,
+      "size_mb": 0.0
+    },
+    ".hhp": {
+      "count": 2,
+      "size": 2197,
+      "size_mb": 0.0
+    },
+    ".stp": {
+      "count": 2,
+      "size": 330,
+      "size_mb": 0.0
+    },
+    ".xdy": {
+      "count": 4,
+      "size": 42919,
+      "size_mb": 0.04
+    },
+    ".ist": {
+      "count": 1,
+      "size": 392,
+      "size_mb": 0.0
+    },
+    ".sty": {
+      "count": 21,
+      "size": 295979,
+      "size_mb": 0.28
+    },
+    ".cls": {
+      "count": 2,
+      "size": 7497,
+      "size_mb": 0.01
+    },
+    ".html_t": {
+      "count": 1,
+      "size": 403,
+      "size_mb": 0.0
+    },
+    ".qhcp": {
+      "count": 1,
+      "size": 567,
+      "size_mb": 0.0
+    },
+    ".qhp": {
+      "count": 1,
+      "size": 863,
+      "size_mb": 0.0
+    },
+    ".js_t": {
+      "count": 1,
+      "size": 7243,
+      "size_mb": 0.01
+    },
+    ".9": {
+      "count": 8,
+      "size": 1053232960,
+      "size_mb": 1004.44
+    },
+    ".11": {
+      "count": 4,
+      "size": 685823936,
+      "size_mb": 654.05
+    },
+    ".7": {
+      "count": 2,
+      "size": 3600994,
+      "size_mb": 3.43
+    },
+    ".odt": {
+      "count": 1,
+      "size": 16500,
+      "size_mb": 0.02
+    },
+    ".marisa": {
+      "count": 799,
+      "size": 6895544,
+      "size_mb": 6.58
+    },
+    ".i": {
+      "count": 1,
+      "size": 36268,
+      "size_mb": 0.03
+    },
+    ".f3d": {
+      "count": 19,
+      "size": 2118498555,
+      "size_mb": 2020.36
+    },
+    ".msg": {
+      "count": 1,
+      "size": 613401,
+      "size_mb": 0.58
+    },
+    ".3ds": {
+      "count": 1,
+      "size": 729555,
+      "size_mb": 0.7
+    },
+    ".mtl": {
+      "count": 16,
+      "size": 3891,
+      "size_mb": 0.0
+    },
+    ".stl": {
+      "count": 3,
+      "size": 14424452,
+      "size_mb": 13.76
+    },
+    ".ipt": {
+      "count": 1,
+      "size": 2964480,
+      "size_mb": 2.83
+    },
+    ".dgn": {
+      "count": 1,
+      "size": 1608704,
+      "size_mb": 1.53
+    },
+    ".dwg": {
+      "count": 2,
+      "size": 1221821,
+      "size_mb": 1.17
+    },
+    ".gms": {
+      "count": 1,
+      "size": 4334098,
+      "size_mb": 4.13
+    },
+    ".otf": {
+      "count": 14,
+      "size": 1259192,
+      "size_mb": 1.2
+    },
+    ".bmp": {
+      "count": 6,
+      "size": 620164,
+      "size_mb": 0.59
+    },
+    ".rar": {
+      "count": 8,
+      "size": 806869259,
+      "size_mb": 769.49
+    },
+    ".newbin": {
+      "count": 16,
+      "size": 799120,
+      "size_mb": 0.76
+    },
+    ".label": {
+      "count": 13,
+      "size": 232377,
+      "size_mb": 0.22
+    },
+    ".inf": {
+      "count": 10,
+      "size": 15530,
+      "size_mb": 0.01
+    },
+    ".sys": {
+      "count": 10,
+      "size": 170624,
+      "size_mb": 0.16
+    },
+    ".doc": {
+      "count": 12,
+      "size": 15220224,
+      "size_mb": 14.52
+    },
+    ".lnk": {
+      "count": 3,
+      "size": 2506,
+      "size_mb": 0.0
+    },
+    ".newbin2": {
+      "count": 9,
+      "size": 1160748,
+      "size_mb": 1.11
+    },
+    ".msi": {
+      "count": 1,
+      "size": 2483200,
+      "size_mb": 2.37
+    },
+    ".3gp": {
+      "count": 9,
+      "size": 1125196029,
+      "size_mb": 1073.07
+    },
+    ".aae": {
+      "count": 49,
+      "size": 78855,
+      "size_mb": 0.08
+    },
+    ".url": {
+      "count": 1,
+      "size": 130,
+      "size_mb": 0.0
+    },
+    ".nef": {
+      "count": 5,
+      "size": 45492555,
+      "size_mb": 43.39
+    },
+    ".без названия": {
+      "count": 21,
+      "size": 709152,
+      "size_mb": 0.68
+    },
+    ".aw": {
+      "count": 1,
+      "size": 604,
+      "size_mb": 0.0
+    },
+    ".cgi": {
+      "count": 1,
+      "size": 26,
+      "size_mb": 0.0
+    },
+    ".psd": {
+      "count": 3,
+      "size": 838247034,
+      "size_mb": 799.41
+    },
+    ".max": {
+      "count": 6,
+      "size": 9154560,
+      "size_mb": 8.73
+    },
+    ".blend": {
+      "count": 11,
+      "size": 6177033,
+      "size_mb": 5.89
+    },
+    ".blend1": {
+      "count": 9,
+      "size": 4875318,
+      "size_mb": 4.65
+    },
+    ".eps": {
+      "count": 44,
+      "size": 71546329,
+      "size_mb": 68.23
+    },
+    ".pdo": {
+      "count": 14,
+      "size": 1711009,
+      "size_mb": 1.63
+    },
+    ".tap": {
+      "count": 17,
+      "size": 88507097,
+      "size_mb": 84.41
+    },
+    ".face_6mm": {
+      "count": 1,
+      "size": 1266,
+      "size_mb": 0.0
+    },
+    ".chern_6mm": {
+      "count": 1,
+      "size": 7620,
+      "size_mb": 0.01
+    },
+    ".chist_0,5mm": {
+      "count": 1,
+      "size": 193538,
+      "size_mb": 0.18
+    },
+    ".o": {
+      "count": 1,
+      "size": 25,
+      "size_mb": 0.0
+    },
+    ".03_linux_x64": {
+      "count": 1,
+      "size": 38251080,
+      "size_mb": 36.48
+    },
+    ".rag": {
+      "count": 1,
+      "size": 2995,
+      "size_mb": 0.0
+    },
+    ".ics": {
+      "count": 1,
+      "size": 867,
+      "size_mb": 0.0
+    }
+  },
+  "by_depth": {
+    "1": {
+      "count": 913,
+      "size": 335688904
+    },
+    "2": {
+      "count": 1447,
+      "size": 1432796131
+    },
+    "3": {
+      "count": 4451,
+      "size": 177098726370
+    },
+    "4": {
+      "count": 6620,
+      "size": 12962970450
+    },
+    "5": {
+      "count": 9457,
+      "size": 14206080168
+    },
+    "6": {
+      "count": 12070,
+      "size": 6271484428
+    },
+    "7": {
+      "count": 54664,
+      "size": 37508797731
+    },
+    "8": {
+      "count": 79323,
+      "size": 4831116081
+    },
+    "9": {
+      "count": 67564,
+      "size": 5863458844
+    },
+    "10": {
+      "count": 70238,
+      "size": 1735117859
+    },
+    "11": {
+      "count": 41485,
+      "size": 802759393
+    },
+    "12": {
+      "count": 33025,
+      "size": 341382603
+    },
+    "13": {
+      "count": 18946,
+      "size": 232520725
+    },
+    "14": {
+      "count": 7695,
+      "size": 68385591
+    },
+    "15": {
+      "count": 3809,
+      "size": 58233393
+    },
+    "16": {
+      "count": 2659,
+      "size": 16331583
+    },
+    "17": {
+      "count": 1119,
+      "size": 9740182
+    },
+    "18": {
+      "count": 303,
+      "size": 5997902
+    },
+    "19": {
+      "count": 143,
+      "size": 2791880
+    },
+    "20": {
+      "count": 5,
+      "size": 4537
+    }
+  },
+  "largest_files": [
+    {
+      "path": "archive/snapshots/x0tta6bl4_foundation_2025-10-29.tar.gz",
+      "size": 172024955233
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/x0tta6bl4/Загрузки/Telegram Desktop/ChatExport_2025-09-14/video_files/97.mp4",
+      "size": 1991668265
+    },
+    {
+      "path": "личное/15.09/печать/1.оракал_1590х1360_1шт.tif",
+      "size": 1207214510
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so",
+      "size": 1022772113
+    },
+    {
+      "path": "личное/15.09/печать/2.оракал_2990х720_1шт.tif",
+      "size": 1020912454
+    },
+    {
+      "path": "личное/15.09/печать/3.оракал_2990х720_1шт.tif",
+      "size": 1020912454
+    },
+    {
+      "path": "личное/Camera/DCIM/Photo/2016-08/MOV_0219.mp4",
+      "size": 1014493219
+    },
+    {
+      "path": "личное/15.09/печать/7.прозрачка_1080х1390_1шт.tif",
+      "size": 838197922
+    },
+    {
+      "path": "личное/papercraft/picture for model/Free_Mockup_Topview.psd",
+      "size": 783165202
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/nvidia/cublas/lib/libcublasLt.so.12",
+      "size": 751771728
+    },
+    {
+      "path": "личное/Camera/DCIM/Camera/VID_20150101_042408.mp4",
+      "size": 727971916
+    },
+    {
+      "path": "личное/15.09/тимур (1)/1.оракал_860х1220мм_1шт.tif",
+      "size": 587693112
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/secrets_scan_20251017_191537.txt",
+      "size": 582032529
+    },
+    {
+      "path": "личное/Camera/DCIM/Camera/VID_20141130_090744.mp4",
+      "size": 562161470
+    },
+    {
+      "path": "личное/15.09/тимур (1)/2.оракал_1490х670мм_1шт.tif",
+      "size": 559316960
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/test_venv/lib/python3.12/site-packages/nvidia/cudnn/lib/libcudnn_engines_precompiled.so.9",
+      "size": 547383096
+    },
+    {
+      "path": "личное/15.09/тимур (1)/5.оракал_560х1720мм_1шт.tif",
+      "size": 539880608
+    },
+    {
+      "path": "x0tta6bl4_paradox_zone/x0tta6bl4/Загрузки/Telegram Desktop/ChatExport_2025-09-14/video_files/СИФИЛИС_L.mp4",
+      "size": 533519067
+    },
+    {
+      "path": "личное/15.09/тимур (1)/4.оракал_1010х900мм_1шт.tif",
+      "size": 509452908
+    },
+    {
+      "path": "личное/15.09/печать/5.оракал_645х1260_1шт.tif",
+      "size": 453908310
+    }
+  ]
+}

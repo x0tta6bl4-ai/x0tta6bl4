@@ -10,30 +10,61 @@ Post-Quantum Cryptography using liboqs (Open Quantum Safe).
 """
 import logging
 import secrets
+import os
 from typing import Tuple, Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# Try to import liboqs
+# Prevent oqs from trying to auto-install liboqs (requires git which may not be available)
+# Set environment variable before import to disable auto-installation
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
+# Try to import liboqs with safe error handling
+LIBOQS_AVAILABLE = False
+KeyEncapsulation = None
+Signature = None
+
 try:
+    # Try importing oqs - if it fails, we'll use stub
     from oqs import KeyEncapsulation, Signature
     LIBOQS_AVAILABLE = True
-except ImportError:
+    logger.info("✅ liboqs-python available - Post-Quantum Cryptography enabled")
+except (ImportError, RuntimeError, AttributeError) as e:
     LIBOQS_AVAILABLE = False
-    logger.warning("⚠️ liboqs-python not installed. Install with: pip install liboqs-python")
-    logger.warning("⚠️ Falling back to SimplifiedNTRU (INSECURE - for testing only)")
+    # Don't log as error in staging/dev - this is expected when liboqs is not installed
+    import sys
+    if os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() != "true":
+        logger.info(f"ℹ Staging mode: liboqs-python not available ({type(e).__name__}), using stub")
+    else:
+        logger.warning(f"⚠️ liboqs-python not available ({type(e).__name__}: {e}). Install with: pip install liboqs-python")
 
 
 class PQAlgorithm(Enum):
-    """Поддерживаемые post-quantum алгоритмы."""
-    KYBER_512 = "Kyber512"          # NIST Level 1
-    KYBER_768 = "Kyber768"          # NIST Level 3 (рекомендуется)
-    KYBER_1024 = "Kyber1024"        # NIST Level 5
-    DILITHIUM_2 = "Dilithium2"      # NIST Level 2
-    DILITHIUM_3 = "Dilithium3"      # NIST Level 3 (рекомендуется)
-    DILITHIUM_5 = "Dilithium5"      # NIST Level 5
+    """Post-Quantum Cryptography algorithms (NIST FIPS 203/204 standardized).
+    
+    Используются новые NIST стандартизированные имена для совместимости с liboqs 0.15.0+.
+    """
+    # Key Encapsulation (NIST FIPS 203 - ML-KEM)
+    ML_KEM_512 = "ML-KEM-512"      # NIST Level 1
+    ML_KEM_768 = "ML-KEM-768"      # NIST Level 3 (рекомендуется) - бывший Kyber768
+    ML_KEM_1024 = "ML-KEM-1024"    # NIST Level 5
+    
+    # Digital Signatures (NIST FIPS 204 - ML-DSA)
+    ML_DSA_44 = "ML-DSA-44"        # NIST Level 2 - бывший Dilithium2
+    ML_DSA_65 = "ML-DSA-65"        # NIST Level 3 (рекомендуется) - бывший Dilithium3
+    ML_DSA_87 = "ML-DSA-87"        # NIST Level 5 - бывший Dilithium5
+    
+    # Alternative signature algorithms
+    FALCON_512 = "Falcon-512"
+    FALCON_1024 = "Falcon-1024"
+    SPHINCS_PLUS_SHA2_128F = "SPHINCS+-SHA2-128f-simple"
+    SPHINCS_PLUS_SHA2_192F = "SPHINCS+-SHA2-192f-simple"
+    
+    # Legacy names (для обратной совместимости)
+    KYBER_768 = "ML-KEM-768"       # Alias для ML-KEM-768
+    DILITHIUM_3 = "ML-DSA-65"       # Alias для ML-DSA-65
     HYBRID = "hybrid"              # Classical + PQ hybrid
 
 
@@ -63,7 +94,7 @@ class LibOQSBackend:
     - Dilithium для цифровых подписей
     """
     
-    def __init__(self, kem_algorithm: str = "Kyber768", sig_algorithm: str = "Dilithium3"):
+    def __init__(self, kem_algorithm: str = "ML-KEM-768", sig_algorithm: str = "ML-DSA-65"):
         """
         Инициализация liboqs backend.
         
@@ -90,13 +121,34 @@ class LibOQSBackend:
             PQKeyPair с публичным и приватным ключами
         """
         kem = KeyEncapsulation(self.kem_algorithm)
-        public_key, private_key = kem.generate_keypair()
+        keypair_result = kem.generate_keypair()
+        if isinstance(keypair_result, tuple):
+            public_key, private_key = keypair_result
+        else:
+            # liboqs returns single bytes object, need to extract both
+            public_key = keypair_result
+            private_key = kem.export_secret_key()
         
         # Generate key_id from public key
         import hashlib
         key_id = hashlib.sha256(public_key).hexdigest()[:16]
         
-        algorithm = PQAlgorithm(self.kem_algorithm)
+        # Map algorithm name to enum (handle both new NIST names and legacy)
+        algo_name = self.kem_algorithm
+        if algo_name == "Kyber768" or algo_name == "ML-KEM-768":
+            algorithm = PQAlgorithm.ML_KEM_768
+        elif algo_name == "Kyber512" or algo_name == "ML-KEM-512":
+            algorithm = PQAlgorithm.ML_KEM_512
+        elif algo_name == "Kyber1024" or algo_name == "ML-KEM-1024":
+            algorithm = PQAlgorithm.ML_KEM_1024
+        else:
+            # Try direct enum lookup
+            try:
+                algorithm = PQAlgorithm(algo_name)
+            except ValueError:
+                # Fallback to ML-KEM-768 if unknown
+                logger.warning(f"Unknown KEM algorithm {algo_name}, using ML-KEM-768")
+                algorithm = PQAlgorithm.ML_KEM_768
         
         return PQKeyPair(
             public_key=public_key,
@@ -118,26 +170,23 @@ class LibOQSBackend:
             (shared_secret, ciphertext)
         """
         kem = KeyEncapsulation(self.kem_algorithm)
-        kem.set_public_key(public_key)
-        
-        ciphertext, shared_secret = kem.encap_secret()
+        # liboqs 0.15+ API: encap_secret takes public_key as argument
+        ciphertext, shared_secret = kem.encap_secret(public_key)
         
         return shared_secret, ciphertext
     
-    def kem_decapsulate(self, ciphertext: bytes, private_key: bytes) -> bytes:
+    def kem_decapsulate(self, private_key: bytes, ciphertext: bytes) -> bytes:
         """
         KEM Decapsulation - восстановление shared secret.
         
         Args:
-            ciphertext: Зашифрованный shared secret
             private_key: Приватный ключ получателя
+            ciphertext: Зашифрованный shared secret
             
         Returns:
             shared_secret
         """
-        kem = KeyEncapsulation(self.kem_algorithm)
-        kem.set_secret_key(private_key)
-        
+        kem = KeyEncapsulation(self.kem_algorithm, private_key)
         shared_secret = kem.decap_secret(ciphertext)
         
         return shared_secret
@@ -150,12 +199,30 @@ class LibOQSBackend:
             PQKeyPair с публичным и приватным ключами
         """
         sig = Signature(self.sig_algorithm)
-        public_key, private_key = sig.generate_keypair()
+        # liboqs generate_keypair() returns only public_key
+        public_key = sig.generate_keypair()
+        # Private key is stored internally, export it
+        private_key = sig.export_secret_key()
         
         import hashlib
         key_id = hashlib.sha256(public_key).hexdigest()[:16]
         
-        algorithm = PQAlgorithm(self.sig_algorithm)
+        # Map algorithm name to enum (handle both new NIST names and legacy)
+        algo_name = self.sig_algorithm
+        if algo_name == "Dilithium3" or algo_name == "ML-DSA-65":
+            algorithm = PQAlgorithm.ML_DSA_65
+        elif algo_name == "Dilithium2" or algo_name == "ML-DSA-44":
+            algorithm = PQAlgorithm.ML_DSA_44
+        elif algo_name == "Dilithium5" or algo_name == "ML-DSA-87":
+            algorithm = PQAlgorithm.ML_DSA_87
+        else:
+            # Try direct enum lookup
+            try:
+                algorithm = PQAlgorithm(algo_name)
+            except ValueError:
+                # Fallback to ML-DSA-65 if unknown
+                logger.warning(f"Unknown signature algorithm {algo_name}, using ML-DSA-65")
+                algorithm = PQAlgorithm.ML_DSA_65
         
         return PQKeyPair(
             public_key=public_key,
@@ -164,40 +231,36 @@ class LibOQSBackend:
             key_id=key_id
         )
     
-    def sign(self, message: bytes, private_key: bytes) -> bytes:
+    def sign(self, private_key: bytes, message: bytes) -> bytes:
         """
         Подписать сообщение.
         
         Args:
-            message: Сообщение для подписи
             private_key: Приватный ключ
+            message: Сообщение для подписи
             
         Returns:
             Цифровая подпись
         """
-        sig = Signature(self.sig_algorithm)
-        sig.set_secret_key(private_key)
-        
+        sig = Signature(self.sig_algorithm, private_key)
         signature = sig.sign(message)
         
         return signature
     
-    def verify(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
+    def verify(self, public_key: bytes, message: bytes, signature: bytes) -> bool:
         """
         Проверить цифровую подпись.
         
         Args:
+            public_key: Публичный ключ подписанта
             message: Оригинальное сообщение
             signature: Цифровая подпись
-            public_key: Публичный ключ подписанта
             
         Returns:
             True если подпись валидна, False иначе
         """
         sig = Signature(self.sig_algorithm)
-        sig.set_public_key(public_key)
-        
-        is_valid = sig.verify(message, signature)
+        is_valid = sig.verify(message, signature, public_key)
         
         return is_valid
 
@@ -343,17 +406,30 @@ class PQMeshSecurityLibOQS:
     Интегрирует реальную PQ криптографию с mesh протоколами.
     """
     
-    def __init__(self, node_id: str, kem_algorithm: str = "Kyber768", sig_algorithm: str = "Dilithium3"):
+    def __init__(self, node_id: str, kem_algorithm: str = "ML-KEM-768", sig_algorithm: str = "ML-DSA-65"):
+        if not LIBOQS_AVAILABLE:
+            raise RuntimeError("liboqs not available. Cannot initialize PQMeshSecurityLibOQS")
         """
         Инициализация PQ mesh security.
         
         Args:
             node_id: ID узла
-            kem_algorithm: KEM алгоритм (Kyber512, Kyber768, Kyber1024)
-            sig_algorithm: Signature алгоритм (Dilithium2, Dilithium3, Dilithium5)
+            kem_algorithm: KEM алгоритм (default: "ML-KEM-768", NIST FIPS 203 Level 3)
+                          Legacy names supported: "Kyber512"→"ML-KEM-512", "Kyber768"→"ML-KEM-768", "Kyber1024"→"ML-KEM-1024"
+            sig_algorithm: Signature алгоритм (default: "ML-DSA-65", NIST FIPS 204 Level 3)
+                          Legacy names supported: "Dilithium2"→"ML-DSA-44", "Dilithium3"→"ML-DSA-65", "Dilithium5"→"ML-DSA-87"
         """
         if not LIBOQS_AVAILABLE:
             raise ImportError("liboqs-python required for PQ mesh security")
+        
+        # Map legacy names to NIST names
+        legacy_kem_map = {"Kyber512": "ML-KEM-512", "Kyber768": "ML-KEM-768", "Kyber1024": "ML-KEM-1024"}
+        legacy_sig_map = {"Dilithium2": "ML-DSA-44", "Dilithium3": "ML-DSA-65", "Dilithium5": "ML-DSA-87"}
+        
+        if kem_algorithm in legacy_kem_map:
+            kem_algorithm = legacy_kem_map[kem_algorithm]
+        if sig_algorithm in legacy_sig_map:
+            sig_algorithm = legacy_sig_map[sig_algorithm]
         
         self.node_id = node_id
         self.pq_backend = LibOQSBackend(kem_algorithm=kem_algorithm, sig_algorithm=sig_algorithm)

@@ -1,4 +1,4 @@
-{{- if .Values.monitoring.alerts.enabled }}
+{{- if and .Values.monitoring.enabled (hasKey .Values.monitoring "alerts") .Values.monitoring.alerts.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

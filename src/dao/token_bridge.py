@@ -24,7 +24,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, List, Callable, Any
+from typing import Optional, Dict, List, Callable, Any, TYPE_CHECKING
 from pathlib import Path
 
 # Optional web3 import
@@ -34,6 +34,10 @@ try:
 except ImportError:
     WEB3_AVAILABLE = False
     Web3 = None
+
+# Type imports
+if TYPE_CHECKING:
+    from src.dao.token import MeshToken
 
 logger = logging.getLogger(__name__)
 

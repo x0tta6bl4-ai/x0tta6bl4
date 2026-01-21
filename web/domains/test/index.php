@@ -1,7 +1,6 @@
 <?php
 	session_start();
-	require_once 'class.user.php';
-	$user_login = new USER();
+	require_once 'class.user.php';require_once __DIR__ . '/../../lib/SecurityUtils.php';	$user_login = new USER();
 	if($user_login->is_logged_in()!=""){
 		$user_login->redirect('user.php');
 	}
@@ -20,7 +19,7 @@
 		$uname = trim($_POST['txtuname']);
 		$email = trim($_POST['txtemail']);
 		$upass = trim($_POST['txtpass']);
-		$code = md5(uniqid(rand()));
+		$code = SecurityUtils::generateSecureToken(32);
 		$stmt = $reg_user->runQuery("SELECT * FROM tbl_users WHERE userEmail=:email_id");
 		$stmt->execute(array(":email_id"=>$email));
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);

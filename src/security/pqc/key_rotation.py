@@ -135,19 +135,43 @@ class PQCKeyRotation:
         
         return master_key
     
-    def generate_kem_keypair(self, algorithm: str = "Kyber768") -> Tuple[bytes, bytes]:
-        """Генерировать KEM ключевую пару."""
+    def generate_kem_keypair(self, algorithm: str = "ML-KEM-768") -> Tuple[bytes, bytes]:
+        """Генерировать KEM ключевую пару (NIST FIPS 203).
+        
+        Args:
+            algorithm: KEM алгоритм (default: "ML-KEM-768", legacy: "Kyber768" supported)
+        """
+        # Map legacy names to NIST names
+        if algorithm == "Kyber768":
+            algorithm = "ML-KEM-768"
+        elif algorithm == "Kyber512":
+            algorithm = "ML-KEM-512"
+        elif algorithm == "Kyber1024":
+            algorithm = "ML-KEM-1024"
+        
         kem = KeyEncapsulation(algorithm)
         public_key, private_key = kem.generate_keypair()
         return public_key, private_key
     
-    def generate_signature_keypair(self, algorithm: str = "Dilithium3") -> Tuple[bytes, bytes]:
-        """Генерировать signature ключевую пару."""
+    def generate_signature_keypair(self, algorithm: str = "ML-DSA-65") -> Tuple[bytes, bytes]:
+        """Генерировать signature ключевую пару (NIST FIPS 204).
+        
+        Args:
+            algorithm: Signature алгоритм (default: "ML-DSA-65", legacy: "Dilithium3" supported)
+        """
+        # Map legacy names to NIST names
+        if algorithm == "Dilithium2":
+            algorithm = "ML-DSA-44"
+        elif algorithm == "Dilithium3":
+            algorithm = "ML-DSA-65"
+        elif algorithm == "Dilithium5":
+            algorithm = "ML-DSA-87"
+        
         sig = Signature(algorithm)
         public_key, private_key = sig.generate_keypair()
         return public_key, private_key
     
-    def rotate_kem_key(self, algorithm: str = "Kyber768") -> KeyRotationRecord:
+    def rotate_kem_key(self, algorithm: str = "ML-KEM-768") -> KeyRotationRecord:
         """
         Ротировать KEM ключ.
         
@@ -185,7 +209,7 @@ class PQCKeyRotation:
         
         return record
     
-    def rotate_signature_key(self, algorithm: str = "Dilithium3") -> KeyRotationRecord:
+    def rotate_signature_key(self, algorithm: str = "ML-DSA-65") -> KeyRotationRecord:
         """
         Ротировать signature ключ.
         

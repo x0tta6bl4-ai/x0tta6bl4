@@ -23,7 +23,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем код
 COPY src/ ./src/
-COPY tests/ ./tests/
 
 # Переменные окружения
 ENV PYTHONPATH=/app

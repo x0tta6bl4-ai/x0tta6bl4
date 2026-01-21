@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # Main API Server
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile.staging
+      no_cache: false
+    container_name: x0tta6bl4-api
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ID=api-staging
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://x0tta6bl4:x0tta6bl4_password@db:5432/x0tta6bl4
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - x0tta6bl4_staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: x0tta6bl4-db
+    environment:
+      POSTGRES_USER: x0tta6bl4
+      POSTGRES_PASSWORD: x0tta6bl4_password
+      POSTGRES_DB: x0tta6bl4
+    ports:
+      - "5432:5432"
+    volumes:
+      - x0tta6bl4_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x0tta6bl4"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: x0tta6bl4-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - x0tta6bl4_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: x0tta6bl4-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - x0tta6bl4_grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - x0tta6bl4_staging
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: x0tta6bl4-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  x0tta6bl4_db_data:
+  x0tta6bl4_prometheus_data:
+  x0tta6bl4_grafana_data:
+
+networks:
+  x0tta6bl4_staging:
+    driver: bridge

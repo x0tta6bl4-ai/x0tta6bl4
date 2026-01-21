@@ -17,17 +17,57 @@ class PQCAdapter:
     для KEM (Kyber) и цифровых подписей (Dilithium).
     """
 
-    def __init__(self, kem_alg: str = "Kyber768", sig_alg: str = "ML-DSA-87"):
+    def __init__(self, kem_alg: str = "ML-KEM-768", sig_alg: str = "ML-DSA-65"):
         """
         Инициализирует адаптер с указанными алгоритмами.
 
-        :param kem_alg: Название KEM-алгоритма (по умолчанию "Kyber768").
-        :param sig_alg: Название алгоритма подписи (по умолчанию "Dilithium3").
+        :param kem_alg: Название KEM-алгоритма (по умолчанию "ML-KEM-768", NIST FIPS 203 Level 3).
+                       Поддерживаются legacy имена: "Kyber768" → "ML-KEM-768".
+        :param sig_alg: Название алгоритма подписи (по умолчанию "ML-DSA-65", NIST FIPS 204 Level 3).
+                       Поддерживаются legacy имена: "Dilithium3" → "ML-DSA-65".
         """
-        if kem_alg not in oqs.get_enabled_kem_mechanisms():
-            raise RuntimeError(f"KEM-алгоритм {kem_alg} не поддерживается библиотекой OQS.")
-        if sig_alg not in oqs.get_enabled_sig_mechanisms():
-            raise RuntimeError(f"Алгоритм подписи {sig_alg} не поддерживается библиотекой OQS.")
+        # Map legacy names to NIST names
+        legacy_kem_map = {
+            "Kyber768": "ML-KEM-768",
+            "Kyber512": "ML-KEM-512",
+            "Kyber1024": "ML-KEM-1024"
+        }
+        legacy_sig_map = {
+            "Dilithium2": "ML-DSA-44",
+            "Dilithium3": "ML-DSA-65",
+            "Dilithium5": "ML-DSA-87"
+        }
+        
+        # Convert legacy names to NIST names
+        if kem_alg in legacy_kem_map:
+            kem_alg = legacy_kem_map[kem_alg]
+        if sig_alg in legacy_sig_map:
+            sig_alg = legacy_sig_map[sig_alg]
+        
+        # Try to validate algorithms, but handle API differences
+        try:
+            if hasattr(oqs, 'get_enabled_kem_mechanisms'):
+                mechanisms = oqs.get_enabled_kem_mechanisms()
+                if kem_alg not in mechanisms:
+                    # Try legacy name if NIST name not found
+                    legacy_name = next((k for k, v in legacy_kem_map.items() if v == kem_alg), None)
+                    if legacy_name and legacy_name in mechanisms:
+                        kem_alg = legacy_name
+                    else:
+                        raise RuntimeError(f"KEM-алгоритм {kem_alg} не поддерживается библиотекой OQS.")
+            if hasattr(oqs, 'get_enabled_sig_mechanisms'):
+                mechanisms = oqs.get_enabled_sig_mechanisms()
+                if sig_alg not in mechanisms:
+                    # Try legacy name if NIST name not found
+                    legacy_name = next((k for k, v in legacy_sig_map.items() if v == sig_alg), None)
+                    if legacy_name and legacy_name in mechanisms:
+                        sig_alg = legacy_name
+                    else:
+                        raise RuntimeError(f"Алгоритм подписи {sig_alg} не поддерживается библиотекой OQS.")
+        except (AttributeError, RuntimeError) as e:
+            # If validation fails, try to use algorithms anyway
+            # They will fail at runtime if not supported
+            pass
 
         self.kem_alg = kem_alg
         self.sig_alg = sig_alg

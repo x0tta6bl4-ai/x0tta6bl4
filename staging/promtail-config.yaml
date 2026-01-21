@@ -1,0 +1,99 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker containers
+  - job_name: docker
+    docker: {}
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      - source_labels: ['__meta_docker_container_label_service']
+        target_label: 'service'
+
+  # x0tta6bl4 application logs
+  - job_name: x0tta6bl4
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: x0tta6bl4
+          env: production
+          __path__: /var/log/x0tta6bl4/*.log
+    
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            request_id: request_id
+      
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02T15:04:05Z07:00"
+      
+      - labels:
+          level:
+          request_id:
+      
+      - output:
+          source: message
+
+  # System logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          __path__: /var/log/syslog
+    
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>[a-zA-Z0-9:]+) (?P<hostname>\S+) (?P<app>[a-zA-Z0-9\-\.]+)(?:\[(?P<pid>[0-9]+)\])?:? (?P<message>.*)'
+      
+      - timestamp:
+          source: timestamp
+          format: "Jan 2 15:04:05"
+      
+      - output:
+          source: message
+
+  # Database logs
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgres
+          __path__: /var/log/postgresql/*.log
+    
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}.*?) \[(?P<pid>\d+)\] (?P<level>\w+):\s+(?P<message>.*)'
+      
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02 15:04:05 MST"
+      
+      - labels:
+          level:
+
+  # Application metrics as logs
+  - job_name: metrics
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: metrics
+          __path__: /var/log/metrics/*.log

@@ -147,6 +147,105 @@ class TestMeshDigitalTwin:
         assert "mttr" in state
 
 
+class TestLinksAffectedCalculation:
+    """Tests for links_affected calculation."""
+    
+    def test_calculate_links_affected_single_node(self):
+        """Test calculation for single node failure."""
+        twin = MeshDigitalTwin()
+        # Create a simple topology: A-B-C (linear)
+        twin.add_node(TwinNode(node_id="A"))
+        twin.add_node(TwinNode(node_id="B"))
+        twin.add_node(TwinNode(node_id="C"))
+        twin.add_link(TwinLink(source="A", target="B"))
+        twin.add_link(TwinLink(source="B", target="C"))
+        
+        # Fail node B (should affect 2 links: A-B and B-C)
+        links_affected = twin._calculate_links_affected({"B"}, consider_bidirectional=True)
+        assert links_affected == 2
+    
+    def test_calculate_links_affected_multiple_nodes(self):
+        """Test calculation for multiple node failures."""
+        twin = MeshDigitalTwin()
+        # Create topology: A-B-C-D (linear)
+        twin.add_node(TwinNode(node_id="A"))
+        twin.add_node(TwinNode(node_id="B"))
+        twin.add_node(TwinNode(node_id="C"))
+        twin.add_node(TwinNode(node_id="D"))
+        twin.add_link(TwinLink(source="A", target="B"))
+        twin.add_link(TwinLink(source="B", target="C"))
+        twin.add_link(TwinLink(source="C", target="D"))
+        
+        # Fail nodes B and C (should affect 3 links: A-B, B-C, C-D)
+        links_affected = twin._calculate_links_affected({"B", "C"}, consider_bidirectional=True)
+        assert links_affected == 3
+    
+    def test_calculate_links_affected_bidirectional(self):
+        """Test bidirectional link handling."""
+        twin = MeshDigitalTwin()
+        # Create topology: A-B (single link)
+        twin.add_node(TwinNode(node_id="A"))
+        twin.add_node(TwinNode(node_id="B"))
+        twin.add_link(TwinLink(source="A", target="B"))
+        
+        # With bidirectional=True, should count link once
+        links_affected = twin._calculate_links_affected({"A"}, consider_bidirectional=True)
+        assert links_affected == 1
+        
+        # With bidirectional=False, should still count once (only one link exists)
+        links_affected = twin._calculate_links_affected({"A"}, consider_bidirectional=False)
+        assert links_affected == 1
+    
+    def test_calculate_links_affected_star_topology(self):
+        """Test calculation for star topology."""
+        twin = MeshDigitalTwin()
+        # Create star: center node connected to 5 others
+        center = "center"
+        twin.add_node(TwinNode(node_id=center))
+        for i in range(5):
+            node_id = f"node_{i}"
+            twin.add_node(TwinNode(node_id=node_id))
+            twin.add_link(TwinLink(source=center, target=node_id))
+        
+        # Fail center node (should affect all 5 links)
+        links_affected = twin._calculate_links_affected({center}, consider_bidirectional=True)
+        assert links_affected == 5
+    
+    def test_calculate_links_affected_by_partition(self):
+        """Test calculation for network partition."""
+        twin = MeshDigitalTwin()
+        # Create topology: A-B-C-D (linear, partition between B and C)
+        twin.add_node(TwinNode(node_id="A"))
+        twin.add_node(TwinNode(node_id="B"))
+        twin.add_node(TwinNode(node_id="C"))
+        twin.add_node(TwinNode(node_id="D"))
+        twin.add_link(TwinLink(source="A", target="B"))
+        twin.add_link(TwinLink(source="B", target="C"))
+        twin.add_link(TwinLink(source="C", target="D"))
+        
+        # Partition: group_a={A,B}, group_b={C,D}
+        # Should affect 1 link: B-C
+        links_affected = twin._calculate_links_affected_by_partition({"A", "B"}, {"C", "D"})
+        assert links_affected == 1
+    
+    def test_calculate_links_affected_empty(self):
+        """Test calculation with no failed nodes."""
+        twin = MeshDigitalTwin()
+        twin.create_test_topology(num_nodes=5, connectivity=0.8)
+        
+        links_affected = twin._calculate_links_affected(set(), consider_bidirectional=True)
+        assert links_affected == 0
+    
+    def test_calculate_links_affected_nonexistent_node(self):
+        """Test calculation with nonexistent node."""
+        twin = MeshDigitalTwin()
+        twin.create_test_topology(num_nodes=5, connectivity=0.8)
+        
+        # Should not crash, just return 0
+        links_affected = twin._calculate_links_affected({"nonexistent"}, consider_bidirectional=True)
+        assert links_affected == 0
+
+
 class TestNodeFailureSimulation:
     """Tests for node failure simulation."""
     
@@ -159,6 +258,7 @@ class TestNodeFailureSimulation:
         
         assert result.scenario_name == "node_failure"
         assert result.nodes_affected == 1
+        assert result.links_affected > 0  # Should have affected links
         assert result.mttr_seconds > 0
         assert len(result.events) > 0
     
@@ -195,6 +295,7 @@ class TestNetworkPartition:
         
         assert result.scenario_name == "network_partition"
         assert result.nodes_affected == 6
+        assert result.links_affected > 0  # Should have affected links between partitions
         assert result.mttr_seconds > 0
     
     def test_partition_heals(self):
@@ -221,6 +322,7 @@ class TestCascadeFailure:
         
         assert result.scenario_name == "cascade_failure"
         assert result.nodes_affected >= 2  # At least initial failures
+        assert result.links_affected > 0  # Should have affected links
     
     def test_cascade_recovery(self):
         twin = MeshDigitalTwin()

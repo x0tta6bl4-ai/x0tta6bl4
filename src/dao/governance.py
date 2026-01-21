@@ -1,12 +1,15 @@
 """
 DAO Governance Module for x0tta6bl4.
 Implements decentralized decision making via weighted voting.
+Now with Quadratic Voting support.
 """
 import logging
 import time
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+from src.dao.quadratic_voting import QuadraticVoting, Vote
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,7 @@ class Proposal:
     end_time: float
     actions: List[Dict] = field(default_factory=list)
     votes: Dict[str, VoteType] = field(default_factory=dict)
+    voter_tokens: Dict[str, float] = field(default_factory=dict)  # Quadratic voting: tokens per voter
     state: ProposalState = ProposalState.PENDING
     quorum: float = 0.5  # 50% participation required
     threshold: float = 0.5  # 50% + 1 support required
@@ -48,12 +52,17 @@ class Proposal:
 class GovernanceEngine:
     """
     Manages proposals and voting for the Mesh DAO.
+    Now with Quadratic Voting support.
     """
     def __init__(self, node_id: str):
         self.node_id = node_id
         self.proposals: Dict[str, Proposal] = {}
         # Initialize voting power from a simulated node list
         self.voting_power: Dict[str, float] = self._get_initial_voting_power()
+        # Initialize Quadratic Voting
+        self.quadratic_voting = QuadraticVoting()
+        # Total token supply (for quorum calculation)
+        self.total_supply = sum(self.voting_power.values())
 
     def _get_initial_voting_power(self) -> Dict[str, float]:
         """
@@ -87,8 +96,19 @@ class GovernanceEngine:
         logger.info(f"Created proposal {proposal_id}: {title}")
         return proposal
 
-    def cast_vote(self, proposal_id: str, voter_id: str, vote: VoteType) -> bool:
-        """Cast a vote on a proposal."""
+    def cast_vote(self, proposal_id: str, voter_id: str, vote: VoteType, tokens: float = 1.0) -> bool:
+        """
+        Cast a vote on a proposal with quadratic voting support.
+        
+        Args:
+            proposal_id: ID of the proposal
+            voter_id: ID of the voter
+            vote: Vote type (YES, NO, ABSTAIN)
+            tokens: Number of tokens held by voter (for quadratic voting)
+        
+        Returns:
+            True if vote was recorded, False otherwise
+        """
         if proposal_id not in self.proposals:
             logger.warning(f"Unknown proposal: {proposal_id}")
             return False
@@ -104,8 +124,18 @@ class GovernanceEngine:
             logger.warning(f"Voting period ended for {proposal_id}")
             return False
 
+        # Record vote and tokens for quadratic voting
         proposal.votes[voter_id] = vote
-        logger.info(f"Vote cast by {voter_id} on {proposal_id}: {vote.value}")
+        proposal.voter_tokens[voter_id] = max(0.0, tokens)  # Ensure non-negative
+        
+        # Calculate quadratic voting power for logging
+        from math import sqrt
+        voting_power = sqrt(tokens) if tokens > 0 else 0.0
+        
+        logger.info(
+            f"Vote cast by {voter_id} on {proposal_id}: {vote.value} "
+            f"(tokens={tokens:.1f}, voting_power={voting_power:.2f})"
+        )
         return True
 
     def check_proposals(self):
@@ -143,8 +173,11 @@ class GovernanceEngine:
         total_weighted = 0.0
         
         for voter_id, vote in proposal.votes.items():
-            # Get voting power (tokens) for this voter
-            tokens = self.voting_power.get(voter_id, 0.0)
+            # Get tokens from proposal (set during cast_vote) or fallback to voting_power
+            tokens = proposal.voter_tokens.get(voter_id)
+            if tokens is None:
+                # Fallback: use voting_power from engine (for backward compatibility)
+                tokens = self.voting_power.get(voter_id, 0.0)
             
             # Quadratic Voting: voting_power = sqrt(tokens)
             voting_power = sqrt(tokens) if tokens > 0 else 0.0

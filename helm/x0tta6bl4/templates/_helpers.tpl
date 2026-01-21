@@ -33,12 +33,13 @@ Common labels
 */}}
 {{- define "x0tta6bl4.labels" -}}
 helm.sh/chart: {{ include "x0tta6bl4.chart" . }}
-{{ include "x0tta6bl4.selectorLabels" . }}
+app.kubernetes.io/name: {{ include "x0tta6bl4.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: x0tta6bl4-mesh
+app.kubernetes.io/release-type: {{ include "x0tta6bl4.releaseType" . }}
 {{- end }}
 
 {{/*
@@ -47,7 +48,7 @@ Selector labels
 {{- define "x0tta6bl4.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "x0tta6bl4.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: mesh-node
+app.kubernetes.io/release-type: {{ include "x0tta6bl4.releaseType" . }}
 {{- end }}
 
 {{/*
@@ -60,3 +61,15 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Return the release type (canary or main)
+*/}}
+{{- define "x0tta6bl4.releaseType" -}}
+{{- if .Values.canary.enabled }}
+{{- printf "canary" }}
+{{- else }}
+{{- printf "main" }}
+{{- end }}
+{{- end }}
+

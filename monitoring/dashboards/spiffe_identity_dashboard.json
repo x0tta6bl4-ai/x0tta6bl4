@@ -1,0 +1,109 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 - SPIFFE Identity Management",
+    "tags": ["spiffe", "identity", "zero-trust"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "SVID Issuance Latency",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, spiffe_svid_issuance_latency_ms)",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, spiffe_svid_issuance_latency_ms)",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, spiffe_svid_issuance_latency_ms)",
+            "legendFormat": "p99 (SLA: 1000ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "SVID Rotation Success Rate",
+        "targets": [
+          {
+            "expr": "spiffe_svid_rotation_success_rate * 100",
+            "legendFormat": "Success Rate (SLA: 99.99%)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "SVID Issuance Count",
+        "targets": [
+          {
+            "expr": "rate(spiffe_svid_issuance_count[1m])",
+            "legendFormat": "Issuances/sec"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "title": "Identity Rotation Count",
+        "targets": [
+          {
+            "expr": "rate(spiffe_svid_rotation_count[1m])",
+            "legendFormat": "Rotations/sec"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "title": "Attestation Success Rate",
+        "targets": [
+          {
+            "expr": "spiffe_attestation_success_rate * 100",
+            "legendFormat": "Success Rate (SLA: 99.95%)"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 }
+      },
+      {
+        "title": "Identity Service Availability",
+        "targets": [
+          {
+            "expr": "up{job=\"spiffe-svid\"}",
+            "legendFormat": "Service Status"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 }
+      },
+      {
+        "title": "Workload API Connections",
+        "targets": [
+          {
+            "expr": "spiffe_workload_api_connections"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 }
+      },
+      {
+        "title": "Workload API Request Latency",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, spiffe_workload_request_latency_ms)",
+            "legendFormat": "p99"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 }
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

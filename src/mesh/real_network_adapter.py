@@ -5,10 +5,11 @@
 import asyncio
 import subprocess
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import re
 import logging
 import random
+from src.core.subprocess_validator import validate_command
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,10 @@ class BatmanAdvAdapter:
     Интерфейс к batman-adv через batctl
     """
     
-    def __init__(self, interface: str = "bat0"):
+    def __init__(self, interface: str = "bat0") -> None:
         self.interface = interface
     
-    async def get_originators(self) -> List[Dict]:
+    async def get_originators(self) -> List[Dict[str, Any]]:
         """
         Получить список originator'ов (mesh-узлов)
         
@@ -28,6 +29,7 @@ class BatmanAdvAdapter:
         Парсит вывод в структурированные данные
         """
         try:
+            validate_command(['batctl', 'o'])
             proc = await asyncio.create_subprocess_exec(
                 'batctl', 'o',
                 stdout=asyncio.subprocess.PIPE,
@@ -76,10 +78,12 @@ class BatmanAdvAdapter:
         
         for orig in originators[:5]:  # Ограничиваем для производительности
             try:
+                validate_command(['batctl', 'tp', '-m', orig['mac']])
                 proc = await asyncio.create_subprocess_exec(
                     'batctl', 'tp', '-m', orig['mac'],
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    timeout=5
                 )
                 # Use wait_for for timeout
                 try:
@@ -310,6 +314,7 @@ class UnifiedMeshAdapter:
         Проверить наличие команды в системе
         """
         try:
+            validate_command(['which', cmd])
             proc = await asyncio.create_subprocess_exec(
                 'which', cmd,
                 stdout=asyncio.subprocess.PIPE,

@@ -2,6 +2,9 @@
 
 namespace Auth;
 
+// Include security utilities
+require_once __DIR__ . '/../../lib/SecurityUtils.php';
+
 class User
 {
     private $id;
@@ -37,14 +40,15 @@ class User
 
     public function passwordHash($password, $salt = null, $iterations = 10)
     {
-        $salt || $salt = uniqid();
-        $hash = md5(md5($password . md5(sha1($salt))));
-
-        for ($i = 0; $i < $iterations; ++$i) {
-            $hash = md5(md5(sha1($hash)));
-        }
-
-        return array('hash' => $hash, 'salt' => $salt);
+        // DEPRECATED: Old MD5-based hashing - INSECURE
+        // For NEW passwords, use SecurityUtils::hashPassword()
+        // For EXISTING passwords during migration, this function is kept for verification only
+        
+        // Using bcrypt with cost=12 (recommended by OWASP)
+        return array(
+            'hash' => \SecurityUtils::hashPassword($password),
+            'salt' => null  // bcrypt handles salt internally
+        );
     }
 
     public function getSalt($username) {

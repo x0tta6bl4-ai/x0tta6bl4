@@ -1,0 +1,69 @@
+{
+  "groups": [
+    {
+      "name": "ebpf_performance_alerts",
+      "rules": [
+        {
+          "alert": "EBPFHighLatency",
+          "expr": "histogram_quantile(0.95, rate(ebpf_processing_latency_microseconds_bucket[5m])) > 100000",
+          "for": "5m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "High eBPF processing latency detected",
+            "description": "eBPF packet processing latency is above 100\u00b5s (95th percentile)"
+          }
+        },
+        {
+          "alert": "EBPFPacketDrops",
+          "expr": "rate(ebpf_packets_dropped_total[5m]) / rate(ebpf_packets_processed_total[5m]) > 0.05",
+          "for": "2m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "High packet drop rate in eBPF programs",
+            "description": "Packet drop rate exceeds 5%"
+          }
+        },
+        {
+          "alert": "EBPFHighCPUUsage",
+          "expr": "ebpf_cpu_usage_percent > 80",
+          "for": "5m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "High CPU usage by eBPF programs",
+            "description": "eBPF CPU usage above 80%"
+          }
+        },
+        {
+          "alert": "EBPFMemoryPressure",
+          "expr": "ebpf_memory_usage_bytes > 100000000",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "High memory usage by eBPF programs",
+            "description": "eBPF memory usage above 100MB"
+          }
+        },
+        {
+          "alert": "EBPFProgramErrors",
+          "expr": "increase(ebpf_errors_total[10m]) > 10",
+          "for": "5m",
+          "labels": {
+            "severity": "error"
+          },
+          "annotations": {
+            "summary": "High error rate in eBPF programs",
+            "description": "More than 10 eBPF errors in 10 minutes"
+          }
+        }
+      ]
+    }
+  ]
+}

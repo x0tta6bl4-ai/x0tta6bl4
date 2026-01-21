@@ -139,7 +139,7 @@ class MeshRouter:
         }
         self._stats_lock = asyncio.Lock()
     
-    def start(self):
+    async def start(self):
         """Запустить router."""
         self._seen_cleanup_task = asyncio.create_task(self._cleanup_seen_packets())
         logger.info(f"MeshRouter started for {self.node_id}")
@@ -752,7 +752,7 @@ class MeshRouter:
         return {
             "node_id": self.node_id,
             "routes_count": len(self.get_routes()),
-            **current_stats
+            **stats_copy
         }
 
     async def get_mape_k_metrics(self) -> Dict[str, float]:

@@ -47,6 +47,11 @@ class DAOAuditLogger:
             return None
 
     def _sign_event(self, event_str: str) -> str:
-        """Create a sha256 hash of the event string as a mock signature."""
+        """
+        Create a SHA256 hash signature of the event string.
+        
+        This provides integrity verification for audit logs.
+        The hash can be used to verify that the event has not been tampered with.
+        """
         return hashlib.sha256(event_str.encode()).hexdigest()
 

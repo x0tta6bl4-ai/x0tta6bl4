@@ -1,0 +1,62 @@
+# x0tta6bl4 v3.4 - Production Dockerfile (Self-Healing Version)
+# ================================================================
+
+FROM python:3.11-slim as base
+
+# Metadata
+LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
+LABEL version="3.4.0"
+LABEL description="Self-healing mesh network with post-quantum cryptography"
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libc6-dev \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app /app/data /app/logs && \
+    chown -R appuser:appuser /app
+
+WORKDIR /app
+
+# Multi-stage dependency installation
+FROM base as core-deps
+COPY requirements-minimal.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements-minimal.txt
+
+# Development dependencies (optional)
+FROM base as dev-deps
+COPY requirements-minimal.txt .
+# Install only core deps for production
+RUN pip install --upgrade pip && \
+    pip install -r <(grep -v "black\|flake8\|mypy\|pytest\|bandit\|safety\|pre-commit\|ruff\|pip-audit" requirements-minimal.txt)
+
+# Production stage
+FROM core-deps as production
+COPY src/ ./src/
+COPY pyproject.toml ./
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "src.core.app:app", "--host", "0.0.0.0", "--port", "8000"]

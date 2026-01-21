@@ -1,26 +1,49 @@
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.app
-    container_name: x0tta6bl4_app
-    ports:
-      - "8080:8080" # Expose app on host port 8080
-    restart: unless-stopped
-    networks:
-      - x0tta6bl4_net
+version: '3.8'
 
-  landing-page:
-    build:
-      context: .
-      dockerfile: Dockerfile.landing
-    container_name: x0tta6bl4_landing
+services:
+  prometheus:
+    image: prom/prometheus:latest
     ports:
-      - "8081:80" # Expose landing page on host port 8081
-    restart: unless-stopped
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts/:/etc/prometheus/rules/:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
     networks:
-      - x0tta6bl4_net
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/config.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  webhook-receiver:
+    image: webhook.site
+    ports:
+      - "8080:3000"
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
 
 networks:
-  x0tta6bl4_net:
+  monitoring:
     driver: bridge

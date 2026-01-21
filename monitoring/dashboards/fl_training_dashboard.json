@@ -1,0 +1,112 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 - Federated Learning Training",
+    "tags": ["fl", "training", "ai", "convergence"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "Training Loss",
+        "targets": [
+          {
+            "expr": "fl_training_loss",
+            "legendFormat": "Training Loss"
+          },
+          {
+            "expr": "fl_validation_loss",
+            "legendFormat": "Validation Loss"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Model Accuracy",
+        "targets": [
+          {
+            "expr": "fl_training_accuracy * 100",
+            "legendFormat": "Training Accuracy"
+          },
+          {
+            "expr": "fl_validation_accuracy * 100",
+            "legendFormat": "Validation Accuracy"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Training Round Progress",
+        "targets": [
+          {
+            "expr": "fl_round_number",
+            "legendFormat": "Current Round"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 }
+      },
+      {
+        "title": "Convergence Status",
+        "targets": [
+          {
+            "expr": "fl_convergence_status"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 }
+      },
+      {
+        "title": "Aggregation Latency (p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, fl_aggregation_latency_ms)",
+            "legendFormat": "p99 (SLA: 500ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "title": "Updates Received vs Sent",
+        "targets": [
+          {
+            "expr": "fl_updates_sent",
+            "legendFormat": "Updates Sent"
+          },
+          {
+            "expr": "fl_updates_received",
+            "legendFormat": "Updates Received"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "title": "Byzantine Nodes Detected",
+        "targets": [
+          {
+            "expr": "count(fl_byzantine_detected)",
+            "legendFormat": "Byzantine Count"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 }
+      },
+      {
+        "title": "Active Training Nodes",
+        "targets": [
+          {
+            "expr": "count(fl_node_active == 1)"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 }
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}
