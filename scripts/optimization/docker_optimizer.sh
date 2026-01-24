@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/var/log/optimization.log"
+LOG_FILE="${HOME}/optimization.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -288,9 +288,34 @@ main() {
     check_docker
     
     local action_taken=false
+    local actions_to_run=()
     
     while [ $# -gt 0 ]; do
         case "$1" in
+            --analyze|--clean-images|--clean-volumes|--clean-containers|--clean-cache|--clean-all|--prune-all|--setup-log-rotation)
+                actions_to_run+=("$1")
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                log "DRY-RUN MODE ENABLED"
+                ;;
+            --yes)
+                SKIP_CONFIRM=true
+                log "Auto-confirm enabled (skipping prompts)"
+                ;;
+            --help)
+                show_usage
+                exit 0
+                ;;
+            *)
+                error "Unknown option: $1"
+                ;;
+        esac
+        shift
+    done
+    
+    for action in "${actions_to_run[@]}"; do
+        case "$action" in
             --analyze)
                 analyze_docker
                 action_taken=true
@@ -323,23 +348,7 @@ main() {
                 setup_log_rotation
                 action_taken=true
                 ;;
-            --dry-run)
-                DRY_RUN=true
-                log "DRY-RUN MODE ENABLED"
-                ;;
-            --yes)
-                SKIP_CONFIRM=true
-                log "Auto-confirm enabled (skipping prompts)"
-                ;;
-            --help)
-                show_usage
-                exit 0
-                ;;
-            *)
-                error "Unknown option: $1"
-                ;;
         esac
-        shift
     done
     
     if [ "$action_taken" = false ]; then
