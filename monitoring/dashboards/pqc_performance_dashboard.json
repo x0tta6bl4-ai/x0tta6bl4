@@ -1,0 +1,123 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 - PQC Cryptography Performance",
+    "tags": ["pqc", "cryptography", "security"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "KEM Encapsulation Latency",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, pqc_kem_encapsulation_latency_ms)",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, pqc_kem_encapsulation_latency_ms)",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, pqc_kem_encapsulation_latency_ms)",
+            "legendFormat": "p99 (SLA: 2ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "DSA-65 Signature Latency",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, pqc_dsa_signature_latency_ms)",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, pqc_dsa_signature_latency_ms)",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, pqc_dsa_signature_latency_ms)",
+            "legendFormat": "p99 (SLA: 5ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "KEM Operations/sec",
+        "targets": [
+          {
+            "expr": "rate(pqc_kem_operation_count[1m])",
+            "legendFormat": "Operations/sec"
+          },
+          {
+            "expr": "1000",
+            "legendFormat": "Minimum SLA"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "title": "Signature Operations/sec",
+        "targets": [
+          {
+            "expr": "rate(pqc_dsa_operation_count[1m])",
+            "legendFormat": "Operations/sec"
+          },
+          {
+            "expr": "1000",
+            "legendFormat": "Minimum SLA"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "title": "KEM Error Rate",
+        "targets": [
+          {
+            "expr": "pqc_kem_error_rate * 100"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 }
+      },
+      {
+        "title": "Signature Error Rate",
+        "targets": [
+          {
+            "expr": "pqc_dsa_error_rate * 100"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 }
+      },
+      {
+        "title": "Verification Latency (p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, pqc_verification_latency_ms)",
+            "legendFormat": "p99 (SLA: 2ms)"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 }
+      },
+      {
+        "title": "PQC Service Status",
+        "targets": [
+          {
+            "expr": "up{job=~\"pqc-.*\"}"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 }
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

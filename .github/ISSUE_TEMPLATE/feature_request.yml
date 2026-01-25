@@ -1,0 +1,98 @@
+name: ✨ Feature Request
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea? We'd love to hear it. Please provide context to help us prioritize.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this solve? What's the motivation?
+      placeholder: Currently, X is difficult because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: Add a new module that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches did you think about?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Target Area
+      description: Which domain would this affect?
+      options:
+        - Core (MAPE-K, orchestration)
+        - Security (SPIFFE/SPIRE, mTLS)
+        - Network (batman-adv, eBPF)
+        - ML (RAG, LoRA, embeddings)
+        - Monitoring (Prometheus, OpenTelemetry)
+        - Infrastructure (k8s, terraform)
+        - CI/CD (GitHub Actions)
+        - Documentation
+        - Developer Experience
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Estimate
+      description: How urgent is this? (Maintainers will finalize)
+      options:
+        - P0 (Critical - blocks usage)
+        - P1 (High - important for production)
+        - P2 (Medium - nice to have)
+        - P3 (Low - future enhancement)
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected Impact
+      description: Who benefits? What metrics improve?
+      placeholder: |
+        - Faster onboarding (reduces setup from 2h to 20min)
+        - Better security posture (closes XYZ attack vector)
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Hints
+      description: Technical approach, API sketches, or architecture notes
+      placeholder: |
+        Could use existing X library, expose via /api/v1/...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution Intent
+      options:
+        - label: I am willing to submit a PR for this feature
+          required: false
+        - label: I need guidance on implementation approach
+          required: false

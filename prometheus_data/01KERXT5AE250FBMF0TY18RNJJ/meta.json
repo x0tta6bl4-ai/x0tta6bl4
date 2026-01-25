@@ -1,0 +1,17 @@
+{
+	"ulid": "01KERXT5AE250FBMF0TY18RNJJ",
+	"minTime": 1768204809486,
+	"maxTime": 1768212000000,
+	"stats": {
+		"numSamples": 246720,
+		"numSeries": 514,
+		"numChunks": 2056
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01KERXT5AE250FBMF0TY18RNJJ"
+		]
+	},
+	"version": 1
+}

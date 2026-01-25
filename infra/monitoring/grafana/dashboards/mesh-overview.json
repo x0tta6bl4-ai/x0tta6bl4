@@ -1,0 +1,187 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Mesh Overview",
+    "uid": "x0tta6bl4-mesh-overview",
+    "version": 1,
+    "timezone": "browser",
+    "tags": ["x0tta6bl4", "mesh", "yggdrasil"],
+    "refresh": "10s",
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Mesh Nodes Online",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "count(up{job=~\"x0tta6bl4.*\"} == 1)",
+            "legendFormat": "Online Nodes"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 2, "color": "yellow"},
+                {"value": 3, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Request Rate (req/s)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=~\"x0tta6bl4.*\"}[1m])",
+            "legendFormat": "{{node_id}} - {{method}} {{path}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Response Time (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=~\"x0tta6bl4.*\"}[1m]))",
+            "legendFormat": "p50 - {{node_id}}"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~\"x0tta6bl4.*\"}[1m]))",
+            "legendFormat": "p95 - {{node_id}}"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=~\"x0tta6bl4.*\"}[1m]))",
+            "legendFormat": "p99 - {{node_id}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "MAPE-K Cycle Duration",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(mapek_cycle_duration_seconds_sum{job=~\"x0tta6bl4.*\"}[1m]) / rate(mapek_cycle_duration_seconds_count{job=~\"x0tta6bl4.*\"}[1m])",
+            "legendFormat": "{{node_id}} - {{phase}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Self-Healing Events",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(self_healing_actions_total{job=~\"x0tta6bl4.*\"}[5m])",
+            "legendFormat": "{{node_id}} - {{action_type}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Events/min"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Mesh Topology - Active Peers",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(yggdrasil_peers_active{job=~\"x0tta6bl4.*\"})",
+            "legendFormat": "Total Peers"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Consensus State",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 16},
+        "targets": [
+          {
+            "expr": "raft_state{job=~\"x0tta6bl4.*\"}",
+            "legendFormat": "",
+            "instant": true,
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true, "job": true},
+              "indexByName": {},
+              "renameByName": {
+                "node_id": "Node",
+                "Value": "State (0=follower, 1=candidate, 2=leader)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 18, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=~\"x0tta6bl4.*\",status=~\"5..\"}[1m])",
+            "legendFormat": "{{node_id}} - 5xx errors"
+          },
+          {
+            "expr": "rate(http_requests_total{job=~\"x0tta6bl4.*\",status=~\"4..\"}[1m])",
+            "legendFormat": "{{node_id}} - 4xx errors"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Errors/sec"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}

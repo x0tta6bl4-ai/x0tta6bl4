@@ -1,0 +1,46 @@
+# .copilot.yaml - Curated Copilot context for x0tta6bl4 (initial minimal version)
+core_context:
+  - ARCHITECTURE.md
+  - SECURITY.md
+  - ROADMAP.md
+  - run_api_server.py
+  - notification-suite.py
+  - requirements.consolidated.txt
+  - monitoring/
+  - spire-agent.yaml
+  - spire-server.yaml
+  - envoy-mtls-config.yaml
+  - drift_detector.py
+  - auto-recovery-system.yaml
+  - unified-reliability-monitoring-system.yaml
+
+exclude_patterns:
+  - archive/**
+  - x0tta6bl4_backup_*/**
+  - **/*.tar.gz
+  - **/*.zip
+  - **/*.snapshot
+  - **/__pycache__/**
+  - **/.venv/**
+  - assets/media/**
+  - Camera/**
+
+priorities:
+  core: [ARCHITECTURE.md, SECURITY.md, ROADMAP.md]
+  resilience: [unified-reliability-monitoring-system.yaml, drift_detector.py]
+  security: [envoy-mtls-config.yaml, spire-server.yaml, spire-agent.yaml]
+  operations: [notification-suite.py, auto-recovery-system.yaml]
+
+context_limits:
+  max_tokens: 8000
+  max_file_size: 60000  # characters
+
+prompt_guidelines:
+  - "Всегда указывай конкретный файл в запросе"
+  - "Избегай ссылок на archive/ и backup директории"
+  - "Используй архитектурные драйверы из ARCHITECTURE.md"
+  - "Для безопасности опирайся на SECURITY.md + mTLS/Spire"
+
+# Future enhancements:
+# - Auto-regenerate based on front-matter classification
+# - Dynamic weighting by criticality field

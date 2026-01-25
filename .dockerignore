@@ -1,0 +1,102 @@
+# Docker ignore file
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/
+.gitignore
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+htmlcov/
+dist/
+build/
+*.egg-info/
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+# Removed generic *.md and *.sh exclusions
+# Exclude large directories and files
+archive/
+Camera/
+papercraft/
+venv/
+web/
+k6/
+htmlcov/
+"System Volume Information"/
+"15.09"/
+"INVENTORY.json.gz"
+"x0tta6bl4-mesh-mvp"/
+личное/
+x0tta6bl4_paradox_zone/
+docs/
+tests/
+
+helm/
+k8s/
+infra/
+
+# Ignore documentation files
+*.md
+
+# Generic archives
+*.mp4
+*.avi
+*.mov
+*.3gp
+*.rar
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+# Exclude temporary and backup files
+backups/
+*.backup
+*.bak
+*.tmp
+
+# Exclude project-specific files
+10_EXECUTIVE_SUMMARY.txt
+!00_READ_ME_FIRST.txt
+# Removed generic *.yaml and *.yml exclusions for now.
+# This might need to be refined later if it causes context issues.
+!docker-compose.yml
+!docker-compose.mesh-test.yml
+!docker-compose.minimal.yml
+!docker-compose.minio.yml
+admin_commands.py
+auto_update_email_with_url.sh
+backup_database.sh
+baseline_metrics.json
+check_all_components.sh
+check-containers.sh
+crontab_setup.sh
+daily_check.sh
+database.py
+deploy_all.sh
+deploy_bot.sh
+deploy_landing.sh
+deploy_now.sh
+DEPLOY_NOW.sh
+DEPLOY_SECURITY_FIXES.sh
+deploy_x0tta6bl4_to_vpn.sh
+deploy.sh
+diagnose.sh

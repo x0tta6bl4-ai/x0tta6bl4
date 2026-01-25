@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-12-27T08:18:35.810369",
+  "summary": {
+    "duration_seconds": 30.078016,
+    "total_requests": 1000,
+    "successful_requests": 2000,
+    "failed_requests": 0,
+    "success_rate_percent": 100.0,
+    "latency_p50_ms": 17.795085906982422,
+    "latency_p95_ms": 58.623552322387695,
+    "latency_p99_ms": 97.16558456420898,
+    "avg_throughput_per_sec": 33.24687372996942,
+    "avg_memory_mb": 49.08125,
+    "max_memory_mb": 49.140625,
+    "avg_cpu_percent": 5.906666666666666,
+    "avg_pqc_handshake_ms": 22.04203748703003,
+    "errors_count": 0,
+    "passed": true
+  },
+  "config": {
+    "concurrent_users": 100,
+    "total_requests": 10000,
+    "duration_seconds": 60
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-12-27T07:52:24.463539",
+  "baseline_metrics": {
+    "timestamp": "2025-12-27T00:50:43.001607",
+    "summary": {
+      "duration_seconds": 30.017009,
+      "total_requests": 1000,
+      "successful_requests": 2000,
+      "failed_requests": 0,
+      "success_rate_percent": 100.0,
+      "latency_p50_ms": 15.137672424316406,
+      "latency_p95_ms": 40.37880897521973,
+      "latency_p99_ms": 55.71699142456055,
+      "avg_throughput_per_sec": 33.314445153412855,
+      "avg_memory_mb": 49.059895833333336,
+      "max_memory_mb": 49.1171875,
+      "avg_cpu_percent": 6.793333333333333,
+      "avg_pqc_handshake_ms": 18.793033838272095,
+      "errors_count": 0,
+      "passed": true
+    },
+    "config": {
+      "concurrent_users": 100,
+      "total_requests": 10000,
+      "duration_seconds": 60
+    }
+  },
+  "deployment_config": null
+}

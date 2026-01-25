@@ -1,0 +1,45 @@
+# Optional Dependencies for x0tta6bl4
+# These provide enhanced functionality but are not required
+# System will work in graceful degradation mode without them
+
+# Post-Quantum Cryptography (REQUIRED in production, optional in dev/staging)
+# liboqs-python==0.14.1  # Moved to requirements-production.txt
+
+# Zero Trust Identity (RECOMMENDED in production)
+# py-spiffe>=0.2.0  # Moved to requirements-production.txt
+
+# Machine Learning & AI
+torch>=2.0.0
+torch-geometric>=2.4.0
+sentence-transformers>=2.2.0
+hnswlib>=0.7.0
+
+# Federated Learning
+flwr[simulation]>=1.8.0
+
+# Observability (RECOMMENDED in production)
+prometheus-client==0.19.0
+# OpenTelemetry packages (install separately if needed)
+# opentelemetry-api
+# opentelemetry-sdk
+# opentelemetry-exporter-jaeger
+# opentelemetry-exporter-zipkin
+# opentelemetry-exporter-otlp
+
+# Blockchain & Web3
+web3==6.20.0
+ipfshttpclient>=0.8.0
+
+# Additional ML/AI tools
+shap>=0.44.0
+
+# Development Tools (optional)
+black==25.9.0
+flake8==7.3.0
+mypy==1.18.2
+bandit==1.8.6
+safety==3.6.2
+pre-commit==4.3.0
+ruff
+pip-audit
+

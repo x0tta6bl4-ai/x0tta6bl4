@@ -1,0 +1,115 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: x0tta6bl4-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: production
+  
+  source:
+    repoURL: https://github.com/x0tta6bl4/x0tta6bl4.git
+    targetRevision: main
+    path: helm/x0tta6bl4
+    helm:
+      releaseName: x0tta6bl4
+      version: v3
+      values: |
+        replicaCount: 3
+        image:
+          tag: latest
+          pullPolicy: IfNotPresent
+        environment: production
+        spire:
+          enabled: true
+          trustDomain: x0tta6bl4.mesh
+        monitoring:
+          enabled: true
+          prometheus:
+            enabled: true
+        database:
+          host: postgres.x0tta6bl4-db.svc.cluster.local
+          port: 5432
+      valueFiles:
+        - values-production.yaml
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: x0tta6bl4-prod
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=background
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: production
+  namespace: argocd
+spec:
+  sourceRepos:
+    - 'https://github.com/x0tta6bl4/x0tta6bl4.git'
+  destinations:
+    - namespace: 'x0tta6bl4-prod'
+      server: https://kubernetes.default.svc
+    - namespace: 'x0tta6bl4-db'
+      server: https://kubernetes.default.svc
+    - namespace: 'spire'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repository-x0tta6bl4
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  url: https://github.com/x0tta6bl4/x0tta6bl4.git
+  password: ${GITHUB_TOKEN}
+  username: not-used
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  policy.default: 'role:readonly'
+  policy.csv: |
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, repositories, *, *, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:deploy, applications, get, x0tta6bl4-prod/*, allow
+    p, role:deploy, applications, sync, x0tta6bl4-prod/*, allow
+    p, role:readonly, applications, get, */*, allow
+    p, role:readonly, repositories, get, *, allow
+    p, role:readonly, clusters, get, *, allow
+    g, team:platform, role:admin
+    g, team:developers, role:deploy

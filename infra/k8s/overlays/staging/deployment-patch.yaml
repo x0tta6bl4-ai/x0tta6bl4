@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x0tta6bl4
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: x0tta6bl4
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: PROFILING_ENABLED
+          value: "true"

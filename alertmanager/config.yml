@@ -1,0 +1,160 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  # Default receiver
+  receiver: 'default'
+  
+  # Group alerts by these labels for 5 minutes
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 4h
+  
+  # Routes for specific alert types
+  routes:
+    # CRITICAL violations → PagerDuty + Slack #charter-security
+    - match:
+        severity: critical
+        team: security
+      receiver: 'critical-security'
+      group_by: ['alertname', 'node_or_service']
+      group_wait: 5s
+      repeat_interval: 1h
+      continue: true  # Also send to default
+    
+    # Infrastructure warnings → Slack #charter-sre
+    - match:
+        severity: warning
+        team: infrastructure
+      receiver: 'sre-warnings'
+      group_wait: 30s
+      repeat_interval: 2h
+    
+    # Security warnings → Slack #charter-security
+    - match:
+        severity: warning
+        team: security
+      receiver: 'security-warnings'
+      group_wait: 10s
+      repeat_interval: 30m
+    
+    # Info-level alerts → Slack #charter-sre
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 60s
+      repeat_interval: 12h
+
+receivers:
+  # Default: Slack #charter-monitoring
+  - name: 'default'
+    slack_configs:
+      - channel: '#charter-monitoring'
+        title: 'Charter Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+
+  # Critical Security → PagerDuty + Slack
+  - name: 'critical-security'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: 'Charter: {{ .GroupLabels.alertname }}'
+        details:
+          firing: '{{ range .Alerts.Firing }}{{ .Annotations.description }} | {{ end }}'
+          cluster: '{{ .GroupLabels.cluster }}'
+    slack_configs:
+      - channel: '#charter-security'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Labels.node_or_service | default "Unknown" }}*
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: false
+        color: 'danger'
+        actions:
+          - type: button
+            text: 'Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+          - type: button
+            text: 'Runbook'
+            url: '{{ (index .Alerts 0).Annotations.runbook }}'
+
+  # Security Warnings → Slack
+  - name: 'security-warnings'
+    slack_configs:
+      - channel: '#charter-security'
+        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          {{ .Labels.metric_name | default .Labels.node_or_service | default "Unknown" }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+        color: 'warning'
+        actions:
+          - type: button
+            text: 'Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+
+  # SRE Warnings → Slack
+  - name: 'sre-warnings'
+    slack_configs:
+      - channel: '#charter-sre'
+        title: '⚠️ SRE ALERT: {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+        color: 'warning'
+        actions:
+          - type: button
+            text: 'Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+
+  # Info Alerts → Slack
+  - name: 'info-alerts'
+    slack_configs:
+      - channel: '#charter-sre'
+        title: 'ℹ️ INFO: {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: false
+        color: 'good'
+
+inhibit_rules:
+  # Don't alert on violations if policy is stale (suppress noise)
+  - source_match:
+      alertname: 'PolicyLoadFailure'
+      severity: 'critical'
+    target_match:
+      component: 'charter'
+    equal: ['cluster']
+
+  # Suppress committee overload warnings if under emergency
+  - source_match:
+      alertname: 'EmergencyOverrideStayingActive'
+    target_match:
+      alertname: 'CommitteeOverloaded'
+    equal: ['cluster']
+
+  # Don't repeat warnings if critical is firing for same node
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['node_or_service']

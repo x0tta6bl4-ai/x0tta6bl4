@@ -1,0 +1,112 @@
+name: Release & Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    name: Verify Release
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Extract and verify version
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          
+          # Verify version in pyproject.toml
+          SETUP_VERSION=$(grep -m 1 'version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$SETUP_VERSION" != "$TAG" ]; then
+            echo "ERROR: Tag version ($TAG) doesn't match pyproject.toml ($SETUP_VERSION)"
+            exit 1
+          fi
+          echo "✓ Version verified: $TAG"
+      
+      - name: Run tests before release
+        run: |
+          pip install -e ".[dev,testing]"
+          pytest tests/test_mape_k.py -v --tb=short || exit 1
+  
+  release:
+    name: Create Release
+    needs: verify
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          echo "## Changes in ${{ github.ref_name }}" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "HEAD~10")
+          
+          # Generate changelog
+          echo "### Features & Fixes" >> RELEASE_NOTES.md
+          git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --grep="feat" >> RELEASE_NOTES.md || true
+          echo "" >> RELEASE_NOTES.md
+          
+          echo "### All Changes" >> RELEASE_NOTES.md
+          git log $PREV_TAG..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md || true
+          
+          echo "" >> RELEASE_NOTES.md
+          echo "**Full Changelog:** [$PREV_TAG...${{ github.ref_name }}](https://github.com/${{ github.repository }}/compare/$PREV_TAG...${{ github.ref_name }})" >> RELEASE_NOTES.md
+          
+          cat RELEASE_NOTES.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  build-pypi:
+    name: Build & Publish PyPI
+    needs: verify
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Build distribution packages
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          
+          # Verify distributions
+          twine check dist/*
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

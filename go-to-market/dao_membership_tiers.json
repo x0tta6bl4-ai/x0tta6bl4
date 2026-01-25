@@ -1,0 +1,36 @@
+{
+  "tiers": [
+    {
+      "name": "Node Supporter",
+      "code": "NODE",
+      "price_rub": 1000,
+      "cap": 200,
+      "benefits": ["Early updates", "Access to governance chat", "Vote weight 1x"],
+      "nft_badge": "node_badge_v1"
+    },
+    {
+      "name": "Mesh Architect",
+      "code": "ARCH",
+      "price_rub": 5000,
+      "cap": 200,
+      "benefits": ["Prioritized feature input", "Technical workshops access", "Vote weight 1.5x", "Beta releases"],
+      "nft_badge": "architect_badge_v1"
+    },
+    {
+      "name": "Resilience Guardian",
+      "code": "GUARD",
+      "price_rub": 15000,
+      "cap": 100,
+      "benefits": ["Direct roadmap influence", "Private resilience audits (1/quarter)", "Vote weight 2x", "Early DAO proposal rights"],
+      "nft_badge": "guardian_badge_v1"
+    }
+  ],
+  "sale_rules": {
+    "total_cap": 500,
+    "start_date": "2025-11-02",
+    "end_date": "2025-11-30",
+    "payment_methods": ["Crypto", "Bank", "Card"],
+    "distribution": "NFT badge minted after payment confirmation",
+    "governance_activation": "Immediate"
+  }
+}

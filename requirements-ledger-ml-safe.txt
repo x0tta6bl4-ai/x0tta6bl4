@@ -1,0 +1,20 @@
+# ML Dependencies for Continuity Ledger v2.0 Phase 1 (RAG Integration)
+# SAFE VERSION - CPU-only, lightweight
+# ======================================================================
+# 
+# Эта версия использует CPU-only PyTorch для избежания проблем с ресурсами
+# и зависаниями системы при установке.
+
+# Core ML dependencies
+numpy>=2.0.0,<3.0.0
+
+# Vector Index (HNSW) - легкий пакет
+hnswlib>=0.7.0,<1.0.0
+
+# PyTorch CPU-only (легче и быстрее устанавливается)
+--index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0,<3.0.0
+
+# Sentence Embeddings (установится после torch)
+sentence-transformers>=2.2.0,<6.0.0
+

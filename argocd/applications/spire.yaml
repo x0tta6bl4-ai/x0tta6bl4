@@ -1,0 +1,65 @@
+# ArgoCD Application - SPIRE (Identity Layer)
+# Sync Wave: 1 (Foundation - deploy first)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spire
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/x0tta6bl4/x0tta6bl4
+    targetRevision: main
+    path: infra/k8s/kind-local
+    
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spire
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+---
+# SPIRE Server ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: spire-server
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - spire

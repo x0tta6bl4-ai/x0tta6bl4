@@ -1,0 +1,254 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Mesh Network Dashboard",
+    "tags": ["mesh", "x0tta6bl4", "self-healing"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "MTTR (Mean Time To Recovery)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "mesh:mttr_p95",
+            "legendFormat": "MTTR p95",
+            "refId": "A"
+          },
+          {
+            "expr": "mesh:mttr_p99",
+            "legendFormat": "MTTR p99",
+            "refId": "B"
+          },
+          {
+            "expr": "mesh:mttr_avg",
+            "legendFormat": "MTTR avg",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Time (seconds)"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 0, "color": "green"},
+          {"value": 5, "color": "yellow"},
+          {"value": 7, "color": "red"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Mesh Latency",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "mesh:latency_p95",
+            "legendFormat": "Latency p95",
+            "refId": "A"
+          },
+          {
+            "expr": "mesh:latency_p99",
+            "legendFormat": "Latency p99",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency (ms)"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 0, "color": "green"},
+          {"value": 50, "color": "yellow"},
+          {"value": 100, "color": "red"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Node Health Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(node_health_status)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Mesh Peers Count",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(mesh_peers_count)",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Slot Sync Success Rate",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "mesh:slot_sync_success_rate_avg",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 0.90, "color": "yellow"},
+              {"value": 0.95, "color": "green"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "eBPF CPU Overhead",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "ebpf:cpu_overhead_avg",
+            "legendFormat": "Avg Overhead",
+            "refId": "A"
+          },
+          {
+            "expr": "ebpf:cpu_overhead_max",
+            "legendFormat": "Max Overhead",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "CPU %"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 0, "color": "green"},
+          {"value": 1, "color": "yellow"},
+          {"value": 2, "color": "red"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "k-disjoint Paths Availability",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "mesh:k_disjoint_paths_avg",
+            "legendFormat": "Avg Paths",
+            "refId": "A"
+          },
+          {
+            "expr": "mesh:k_disjoint_cache_hit_rate",
+            "legendFormat": "Cache Hit Rate",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Count"},
+          {"format": "percent", "label": "Rate"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Self-Healing Events",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "sum(rate(self_healing_events_total[5m])) by (event_type)",
+            "legendFormat": "{{ event_type }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Events/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Topology Changes",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "mesh:topology_changes_rate",
+            "legendFormat": "{{ change_type }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Changes/min"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "System Availability",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "mesh:availability * 100",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 95, "color": "yellow"},
+              {"value": 99, "color": "green"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "DAO Incident Executions",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(rate(dao_incident_executed_total[5m])) by (incident_type, severity)",
+            "legendFormat": "{{incident_type}} | {{severity}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Incidents/sec"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,62 @@
+# Windsurf Cleanup Workflow (Advisory)
+# Non-destructive by default. Review outputs before acting.
+
+name: repo-cleanup
+version: 0.1
+
+steps:
+  - id: generate-large-files-report
+    name: Generate large files report (safe)
+    run: |
+      chmod +x scripts/generate_large_files_report.sh
+      ./scripts/generate_large_files_report.sh
+    outputs:
+      - path: reports/*/SUMMARY.md
+
+  - id: scan-db-secrets
+    name: Scan SQLite databases for secrets/PII (safe)
+    run: |
+      python3 scripts/scan_db_secrets.py --path . --patterns default --format table
+    optional: true
+
+  - id: review-summary
+    name: Review report summary and decide actions
+    instructions: |
+      - Inspect Top 20 largest files and categories (venv, db, archives)
+      - Mark items for removal from Git index (git rm --cached) or relocation
+    manual: true
+
+  - id: dry-run-git-clean
+    name: Dry-run workspace cleanup (safe)
+    run: |
+      git clean -xdn
+    manual: true
+
+  - id: prepare-removal-commands
+    name: Prepare removal from Git index (no deletion)
+    commands:
+      - git rm --cached -r venv .venv venv_*
+      - git rm --cached -r **/*.db **/*.sqlite* || true
+      - git rm --cached -r **/*.tar.gz **/*.tgz **/*.zip || true
+    manual: true
+
+  - id: dvc-init-and-remote
+    name: Initialize DVC and configure MinIO remote
+    run: |
+      dvc init -q || true
+      dvc remote add -d local s3://dvc-storage || true
+      dvc remote modify local endpointurl http://localhost:9000
+      dvc remote modify local access_key_id x0tta6bl4
+      dvc remote modify local secret_access_key "$MINIO_ROOT_PASSWORD"
+    manual: true
+
+  - id: dvc-add-push
+    name: Track datasets via DVC
+    run: |
+      dvc add data/raw data/processed data/embeddings || true
+      dvc push
+    manual: true
+
+notes:
+  - All destructive actions require explicit approval and are provided as manual commands.
+  - Prefer moving DB files to ~/.local/share/x0tta6bl4/databases before removal from Git index.

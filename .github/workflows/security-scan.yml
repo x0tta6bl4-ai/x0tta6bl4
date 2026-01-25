@@ -1,0 +1,167 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+
+jobs:
+  bandit:
+    name: Bandit Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+      
+      - name: Run Bandit (Python security linter)
+        id: bandit
+        run: |
+          echo "Running Bandit security analysis..."
+          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ -f txt -ll || true
+          
+          # Check for HIGH/CRITICAL issues
+          python -c "
+          import json
+          with open('bandit-report.json') as f:
+              report = json.load(f)
+          
+          high_critical = [r for r in report.get('results', []) 
+                          if r.get('severity') in ['HIGH', 'CRITICAL']]
+          
+          if high_critical:
+              print(f'::error::Found {len(high_critical)} HIGH/CRITICAL security issues')
+              for issue in high_critical:
+                  print(f'  - {issue[\"test_id\"]}: {issue[\"issue_text\"]}')
+              exit(1)
+          else:
+              print('✓ No HIGH/CRITICAL security issues found')
+          "
+      
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  safety:
+    name: Safety Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Safety
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety
+      
+      - name: Run Safety (dependency vulnerability check)
+        id: safety
+        run: |
+          echo "Installing project dependencies..."
+          pip install -e . 2>/dev/null || true
+          
+          echo "Running Safety vulnerability check..."
+          safety check --json > safety-report.json || true
+          safety check || true
+          
+          # Check for vulnerabilities
+          python -c "
+          import json
+          with open('safety-report.json') as f:
+              data = json.load(f)
+          
+          # Safety format varies, check for 'vulnerabilities' key
+          vulns = data.get('vulnerabilities', []) or []
+          
+          if vulns:
+              print(f'::warning::Found {len(vulns)} dependency vulnerabilities')
+              for vuln in vulns[:5]:  # Show first 5
+                  print(f'  - {vuln}')
+          else:
+              print('✓ No dependency vulnerabilities found')
+          "
+      
+      - name: Upload Safety report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safety-report
+          path: safety-report.json
+
+  pip-audit:
+    name: Pip-Audit Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      
+      - name: Run pip-audit
+        run: |
+          echo "Running pip-audit for known vulnerabilities..."
+          pip install -e . 2>/dev/null || true
+          pip-audit --format json > pip-audit-report.json || true
+          pip-audit --format markdown || true
+      
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+
+  summary:
+    name: Security Scan Summary
+    needs: [bandit, safety, pip-audit]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+      
+      - name: Print security summary
+        run: |
+          echo "## Security Scan Summary"
+          echo "✓ Bandit scan: ${{ needs.bandit.result }}"
+          echo "✓ Safety check: ${{ needs.safety.result }}"
+          echo "✓ Pip-audit scan: ${{ needs.pip-audit.result }}"

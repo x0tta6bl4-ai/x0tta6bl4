@@ -1,0 +1,118 @@
+# MAPE-K Configuration - Phase 3 Integration
+
+# Orchestrator settings
+orchestrator:
+  mode: staging  # staging, production
+  loop_interval: 30  # seconds
+  enable_logging: true
+  log_level: DEBUG
+
+# Monitor component
+monitor:
+  prometheus_url: http://prometheus:9090
+  poll_interval: 30  # seconds
+  metrics:
+    - name: westworld_charter_validation_latency_seconds
+      threshold: 1.0
+    - name: westworld_charter_failure_rate
+      threshold: 0.10
+    - name: westworld_charter_committee_size
+    - name: westworld_charter_throughput_ops_per_sec
+  queries:
+    - name: high_validation_latency
+      promql: 'westworld_charter_validation_latency_seconds > 1.0'
+    - name: high_failure_rate
+      promql: 'westworld_charter_failure_rate > 0.10'
+    - name: low_throughput
+      promql: 'westworld_charter_throughput_ops_per_sec < 100'
+
+# Analyze component
+analyze:
+  algorithms:
+    - name: temporal
+      enabled: true
+      sensitivity: 0.85
+      window: 60s
+    - name: spatial
+      enabled: true
+      sensitivity: 0.80
+      min_components: 3
+    - name: causal
+      enabled: true
+      sensitivity: 0.75
+      correlation_threshold: 0.8
+    - name: frequency
+      enabled: true
+      sensitivity: 0.70
+      anomaly_threshold: 8
+  pattern_history_limit: 100
+
+# Plan component
+plan:
+  cost_model:
+    SCALE_UP: 0.2
+    SCALE_DOWN: 0.15
+    RESTART_SERVICE: 0.3
+    APPLY_POLICY: 0.1
+    BYPASS_VALIDATION: 0.7
+    THROTTLE_REQUESTS: 0.25
+    ACTIVATE_EMERGENCY_OVERRIDE: 0.6
+    REBALANCE_LOAD: 0.2
+    UPDATE_CONFIGURATION: 0.15
+  benefit_target: 0.95
+  min_confidence: 0.6
+  max_policies_per_analysis: 5
+
+# Execute component
+execute:
+  charter_url: http://charter:8000
+  charter_api_key: staging-key-12345
+  timeout_seconds: 30
+  max_retries: 3
+  rollback_enabled: true
+  execution_mode: transactional  # transactional, best_effort
+
+# Knowledge component
+knowledge:
+  database: memory  # memory, sqlite, postgres
+  sqlite_path: /app/data/knowledge.db
+  pattern_learning_enabled: true
+  confidence_saturation_point: 30
+  outcome_history_limit: 1000
+  insight_generation_enabled: true
+
+# AlertManager integration
+alertmanager:
+  url: http://alertmanager:9093
+  webhook_port: 5000
+  webhook_path: /webhooks/alerts
+  enabled: true
+
+# API endpoints
+api:
+  host: 0.0.0.0
+  port: 8001
+  debug: false
+  cors_enabled: true
+
+# Logging
+logging:
+  level: DEBUG
+  format: json
+  file: /app/logs/mape_k.log
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# Performance
+performance:
+  max_concurrent_analyses: 10
+  metric_cache_ttl: 60  # seconds
+  policy_cache_ttl: 120  # seconds
+  async_executor: true
+
+# Staging-specific settings
+staging:
+  use_mock_charter: false
+  simulate_failures: false
+  verbose_logging: true
+  collect_metrics: true

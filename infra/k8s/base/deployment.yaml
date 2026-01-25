@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x0tta6bl4
+  namespace: x0tta6bl4
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: x0tta6bl4
+        app.kubernetes.io/part-of: x0tta6bl4-mesh
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: x0tta6bl4
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: x0tta6bl4
+        image: x0tta6bl4:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        - name: mesh
+          containerPort: 7946
+          protocol: TCP
+        
+        env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: x0tta6bl4-config
+              key: LOG_LEVEL
+        - name: SPIFFE_TRUST_DOMAIN
+          valueFrom:
+            configMapKeyRef:
+              name: x0tta6bl4-config
+              key: SPIFFE_TRUST_DOMAIN
+        - name: SPIRE_SERVER_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: x0tta6bl4-config
+              key: SPIRE_SERVER_ADDR
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: x0tta6bl4-config
+              key: METRICS_ENABLED
+        - name: METRICS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: x0tta6bl4-config
+              key: METRICS_PORT
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        
+        volumeMounts:
+        - name: config
+          mountPath: /etc/x0tta6bl4
+          readOnly: true
+        - name: data
+          mountPath: /data
+        - name: spire-socket
+          mountPath: /run/spire/sockets
+          readOnly: true
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: config
+        configMap:
+          name: x0tta6bl4-config
+      - name: data
+        emptyDir: {}
+      - name: spire-socket
+        hostPath:
+          path: /run/spire/sockets
+          type: DirectoryOrCreate
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - x0tta6bl4
+              topologyKey: kubernetes.io/hostname

@@ -1,0 +1,74 @@
+# Production Raft Consensus Configuration
+# Configuration for production-ready Raft consensus
+
+raft:
+  # Node configuration
+  node:
+    # Node ID (auto-set if not specified)
+    node_id: "${NODE_ID:-node-1}"
+    
+    # Peer node IDs
+    peers:
+      - "node-2"
+      - "node-3"
+      - "node-4"
+      - "node-5"
+    
+    # Storage configuration
+    storage:
+      # Storage path for persistent state
+      path: "/var/lib/x0tta6bl4/raft/${NODE_ID}"
+      
+      # Backup configuration
+      backup:
+        enabled: true
+        interval_hours: 24
+        retention_days: 7
+      
+      # Snapshot configuration
+      snapshot:
+        enabled: true
+        interval_entries: 1000  # Create snapshot every N entries
+        retention_count: 5  # Keep last N snapshots
+
+  # Raft algorithm configuration
+  algorithm:
+    # Election timeout (milliseconds)
+    election_timeout:
+      min: 150
+      max: 300
+    
+    # Heartbeat interval (milliseconds)
+    heartbeat_interval: 50
+    
+    # RPC timeout (milliseconds)
+    rpc_timeout: 1000
+    
+    # Log replication
+    replication:
+      batch_size: 100
+      max_retries: 3
+      retry_delay_ms: 100
+
+  # Performance tuning
+  performance:
+    # Enable compression for log entries
+    compression: true
+    
+    # Enable batching for log replication
+    batching: true
+    
+    # Max log size before compaction
+    max_log_size_mb: 100
+
+  # Monitoring
+  monitoring:
+    # Export metrics to Prometheus
+    metrics_enabled: true
+    
+    # Metrics prefix
+    metrics_prefix: "x0tta6bl4_raft"
+    
+    # Health check interval (seconds)
+    health_check_interval: 30
+

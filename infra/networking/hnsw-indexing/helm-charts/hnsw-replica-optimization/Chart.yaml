@@ -1,0 +1,23 @@
+apiVersion: v2
+name: hnsw-replica-optimization
+description: Оптимизированная HNSW индексация с многорегиональной репликацией и асинхронными обновлениями
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - hnsw
+  - vector-index
+  - similarity-search
+  - multi-region
+  - replication
+  - caching
+home: https://github.com/x0tta6bl4/infrastructure-optimizations
+maintainers:
+  - name: x0tta6bl4
+dependencies:
+  - name: redis
+    version: "18.6.0"
+    repository: "https://charts.bitnami.com/bitnami"
+  - name: elasticsearch
+    version: "19.17.0"
+    repository: "https://charts.bitnami.com/bitnami"

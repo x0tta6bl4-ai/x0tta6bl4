@@ -1,0 +1,45 @@
+# GCP Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: GCP Project ID
+gcp_project_id = "your-gcp-project-id"
+
+# Optional: Override defaults if needed
+gcp_region = "us-central1"
+environment = "production"
+
+# Network configuration
+subnet_cidr = "10.0.0.0/24"
+
+# Node pool configuration
+node_min_count     = 3
+node_max_count     = 10
+node_initial_count = 3
+
+# Node machine configuration
+node_machine_type = "e2-medium"
+node_disk_size    = 50
+
+# Example for different environments:
+# 
+# Development:
+# environment = "dev"
+# node_min_count = 1
+# node_max_count = 3
+# node_initial_count = 1
+# node_machine_type = "e2-small"
+#
+# Staging:
+# environment = "staging"
+# node_min_count = 2
+# node_max_count = 5
+# node_initial_count = 2
+# node_machine_type = "e2-medium"
+#
+# Production:
+# environment = "production"
+# node_min_count = 3
+# node_max_count = 10
+# node_initial_count = 3
+# node_machine_type = "e2-medium"
+

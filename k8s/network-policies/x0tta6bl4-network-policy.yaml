@@ -1,0 +1,86 @@
+# Network Policy for x0tta6bl4 Production
+# Дата: 2026-01-07
+# Версия: 3.4.0-fixed2
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: x0tta6bl4-network-policy
+  namespace: x0tta6bl4-production
+  labels:
+    app: x0tta6bl4
+spec:
+  podSelector:
+    matchLabels:
+      app: x0tta6bl4
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Allow from same namespace
+  - from:
+    - podSelector:
+        matchLabels:
+          app: x0tta6bl4
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Allow from ingress controller (if applicable)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Allow to monitoring namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090  # Prometheus
+  
+  # Allow to same namespace
+  - to:
+    - podSelector:
+        matchLabels:
+          app: x0tta6bl4
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Allow mesh network communication (if needed)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: x0tta6bl4
+    ports:
+    - protocol: TCP
+      port: 8081  # Mesh port
+    - protocol: UDP
+      port: 8081  # Mesh port
+

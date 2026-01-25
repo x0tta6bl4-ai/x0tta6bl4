@@ -1,0 +1,63 @@
+# Zero Trust Enforcement Configuration
+# Production-ready configuration for Zero Trust enforcement
+
+zero_trust:
+  # Trust scoring configuration
+  trust_scoring:
+    # Initial trust score for new peers (0.0-1.0)
+    initial_score: 0.5
+    
+    # Trust score thresholds
+    thresholds:
+      untrusted: 0.2
+      low: 0.4
+      medium: 0.7
+      high: 0.9
+      trusted: 1.0
+    
+    # Score adjustment deltas
+    adjustments:
+      successful_access: 0.05  # Reward for successful access
+      failed_access: -0.1       # Penalty for failed access
+      verification_failure: -0.1  # Penalty for verification failure
+    
+    # History weight (0.0-1.0)
+    history_weight: 0.3
+    history_window: 10  # Last N scores to consider
+
+  # Isolation configuration
+  isolation:
+    # Auto-isolate untrusted peers
+    auto_isolate_untrusted: true
+    
+    # Isolation levels
+    levels:
+      - name: "monitored"
+        threshold: 0.3
+      - name: "restricted"
+        threshold: 0.2
+      - name: "quarantined"
+        threshold: 0.1
+
+  # Continuous verification
+  verification:
+    enabled: true
+    interval_seconds: 60
+    checks:
+      - identity
+      - device
+      - behavior
+      - session
+
+  # Policy enforcement
+  policy:
+    default_action: "deny"  # deny, allow, audit
+    audit_all_decisions: true
+    audit_log_size: 1000
+
+  # Statistics
+  statistics:
+    track_peers: true
+    track_history: true
+    max_tracked_peers: 10000
+

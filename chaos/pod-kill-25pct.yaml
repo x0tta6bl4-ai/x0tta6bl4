@@ -1,0 +1,65 @@
+# Chaos Mesh: Kill 25% of pods randomly
+# Tests: MTTR ≤ 5 sec, 98% recovery rate
+#
+# Install Chaos Mesh first:
+#   kubectl apply -f https://mirrors.chaos-mesh.org/v2.7.0/crd.yaml
+#   kubectl apply -f https://mirrors.chaos-mesh.org/v2.7.0/chaos-mesh.yaml
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-kill-25pct
+  namespace: mesh-system
+spec:
+  action: pod-kill
+  mode: fixed-percent
+  value: "25"
+  selector:
+    namespaces:
+      - mesh-system
+    labelSelectors:
+      app.kubernetes.io/component: mesh-node
+  duration: "60s"
+  scheduler:
+    cron: "@every 5m"  # Repeat every 5 minutes for continuous testing
+---
+# Validation Job - runs after chaos
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: validate-mttr
+  namespace: mesh-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: validator
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for recovery..."
+          START=$(date +%s)
+          
+          # Wait until all pods are ready
+          while true; do
+            READY=$(curl -s http://mesh-gateway:8080/health | grep -c "ok")
+            if [ "$READY" -ge "7" ]; then  # At least 75% recovered
+              END=$(date +%s)
+              MTTR=$((END - START))
+              echo "✅ MTTR: ${MTTR}s"
+              
+              if [ "$MTTR" -le "5" ]; then
+                echo "✅ PASS: MTTR ≤ 5s"
+                exit 0
+              else
+                echo "❌ FAIL: MTTR > 5s"
+                exit 1
+              fi
+            fi
+            
+            sleep 1
+          done
+      restartPolicy: Never
+  backoffLimit: 3

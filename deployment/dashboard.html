@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 Neural Network Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body { background-color: #0a0a0a; color: #e0e0e0; font-family: 'Courier New', monospace; }
+        .neon-text { text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00; }
+        .node-card { background: #111; border: 1px solid #333; transition: all 0.3s; }
+        .node-card:hover { border-color: #00ff00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.2); }
+        .harmonic { color: #00ff00; }
+        .chaos { color: #ff0000; }
+        canvas { max-height: 100px; }
+    </style>
+</head>
+<body class="p-6">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-wider">x0tta6bl4 <span class="text-green-500">NEURAL MESH</span></h1>
+                <p class="text-xs text-gray-500 mt-1">DECENTRALIZED AUTONOMOUS SYSTEM v3.0</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-400">STATUS</div>
+                <div class="text-xl font-bold text-green-500 neon-text">OPERATIONAL</div>
+            </div>
+        </header>
+
+        <!-- GLOBAL METRICS -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-900 p-4 rounded border border-gray-800">
+                <div class="text-xs text-gray-500">ACTIVE NODES</div>
+                <div class="text-2xl font-bold" id="total-nodes">--</div>
+            </div>
+            <div class="bg-gray-900 p-4 rounded border border-gray-800">
+                <div class="text-xs text-gray-500">NETWORK PHI</div>
+                <div class="text-2xl font-bold text-yellow-500" id="avg-phi">--</div>
+            </div>
+            <div class="bg-gray-900 p-4 rounded border border-gray-800">
+                <div class="text-xs text-gray-500">CONNECTIVITY</div>
+                <div class="text-2xl font-bold text-blue-500">100%</div>
+            </div>
+            <div class="bg-gray-900 p-4 rounded border border-gray-800">
+                <div class="text-xs text-gray-500">UPTIME</div>
+                <div class="text-2xl font-bold text-purple-500">99.99%</div>
+            </div>
+        </div>
+
+        <!-- NODE GRID -->
+        <h2 class="text-xl mb-4 text-gray-400 border-l-4 border-green-500 pl-2">ACTIVE NEURAL NODES</h2>
+        <div id="nodes-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Nodes will be injected here -->
+            <div class="text-gray-600 italic">Scanning network topology...</div>
+        </div>
+        
+        <!-- FOOTER -->
+        <div class="mt-12 text-center text-xs text-gray-600 border-t border-gray-900 pt-4">
+            <p>x0tta6bl4 paradox zone | ID: 62.133.60.252 | 89.125.1.107 | 77.83.245.27</p>
+            <p class="mt-2"><a href="#" class="text-green-700 hover:text-green-500">[ JOIN THE MESH ]</a></p>
+        </div>
+    </div>
+
+    <script>
+        const BOOTSTRAP_NODE = "http://89.125.1.107:9092"; // Proxy via nginx locally usually
+        // Since we are accessing from browser, we need CORS or use local proxy.
+        // For this demo, we assume we run this HTML on the same server or open ports allow CORS.
+        // HACK: We use a list of known IPs for direct fetching if Bootstrap fails CORS
+        const KNOWN_IPS = [
+            "http://89.125.1.107:9092",
+            "http://77.83.245.27:9092", 
+            "http://62.133.60.252:9092"
+        ];
+
+        async function fetchMetrics(url) {
+            try {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), 2000);
+                const res = await fetch(`${url}/metrics`, { signal: controller.signal });
+                clearTimeout(id);
+                return await res.json();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function updateDashboard() {
+            const container = document.getElementById('nodes-grid');
+            const nodeData = [];
+
+            for (const ip of KNOWN_IPS) {
+                const data = await fetchMetrics(ip);
+                if (data) {
+                    data.url = ip;
+                    nodeData.push(data);
+                } else {
+                    nodeData.push({ url: ip, status: 'offline' });
+                }
+            }
+
+            // Update Global
+            document.getElementById('total-nodes').innerText = nodeData.filter(n => n.status !== 'offline').length;
+            
+            const phis = nodeData.filter(n => n.phi_ratio).map(n => n.phi_ratio);
+            if (phis.length > 0) {
+                const avg = phis.reduce((a,b) => a+b, 0) / phis.length;
+                document.getElementById('avg-phi').innerText = avg.toFixed(4);
+            }
+
+            // Render Nodes
+            container.innerHTML = '';
+            nodeData.forEach((node, index) => {
+                const isOnline = node.status !== 'offline';
+                const stateColor = node.state === 'HARMONIC' ? 'text-green-500' : 'text-yellow-500';
+                const cpuColor = node.cpu > 80 ? 'bg-red-600' : 'bg-blue-600';
+                
+                const html = `
+                    <div class="node-card p-4 rounded relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-2 opacity-20 text-6xl font-bold">${index + 1}</div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-lg">${node.url.replace('http://', '').replace(':9092', '')}</h3>
+                            <span class="text-xs px-2 py-1 rounded ${isOnline ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}">
+                                ${isOnline ? 'ONLINE' : 'OFFLINE'}
+                            </span>
+                        </div>
+                        
+                        ${isOnline ? `
+                            <div class="space-y-2 mt-4">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">State</span>
+                                    <span class="font-mono font-bold ${stateColor}">${node.state}</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Phi Ratio</span>
+                                    <span class="font-mono text-yellow-500">${node.phi_ratio.toFixed(4)}</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Peers Seen</span>
+                                    <span class="font-mono">${node.peers_count}</span>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span>CPU Load</span>
+                                        <span>${node.cpu}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-800 rounded-full h-2">
+                                        <div class="${cpuColor} h-2 rounded-full" style="width: ${Math.min(node.cpu, 100)}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="text-red-500 text-center py-8">Connection Lost</div>
+                        `}
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        // Auto-refresh every 5s
+        updateDashboard();
+        setInterval(updateDashboard, 5000);
+    </script>
+</body>
+</html>

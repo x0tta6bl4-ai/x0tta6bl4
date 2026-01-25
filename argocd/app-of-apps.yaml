@@ -1,0 +1,25 @@
+# ArgoCD App of Apps pattern
+# Manages multiple applications
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: x0tta6bl4-apps
+  namespace: argocd
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/x0tta6bl4/x0tta6bl4
+    targetRevision: main
+    path: argocd/apps
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+

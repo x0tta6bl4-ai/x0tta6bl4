@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 | PARADOX ZONE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FONTS: The Holy Trinity of Cyberpunk/Retro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Russo+One&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neon: '#00ff41',
+                        dark: '#020202',
+                        panel: '#0c0c0c',
+                        accent: '#ff003c',
+                        alert: '#ff2a2a',
+                        warn: '#fcee0a'
+                    },
+                    fontFamily: {
+                        soviet: ['"Russo One"', 'sans-serif'], 
+                        cyber: ['"Orbitron"', 'sans-serif'],
+                        code: ['"Space Mono"', 'monospace'],
+                        old: ['"VT323"', 'monospace']
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* BASE SETTINGS */
+        body { 
+            background-color: #000; 
+            color: #e0e0e0; 
+            overflow-x: hidden;
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+        }
+
+        /* CRT MONITOR FRAME (Shock Screen) */
+        #terminal-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 9000; 
+            padding: 2rem; display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        }
+
+        /* TEXT GLOWS */
+        .neon-glow { text-shadow: 0 0 10px rgba(0, 255, 65, 0.7), 0 0 20px rgba(0, 255, 65, 0.5); }
+        .red-glow { text-shadow: 0 0 10px rgba(255, 0, 60, 0.7), 0 0 20px rgba(255, 0, 60, 0.5); }
+        
+        /* TERMINAL LOGS */
+        .log-line { 
+            font-family: 'VT323', monospace; 
+            font-size: 1.5rem;
+            line-height: 1.1;
+            margin-bottom: 2px; 
+            opacity: 0; 
+            animation: fadeIn 0.05s forwards; 
+            text-shadow: 0 0 4px rgba(0, 255, 65, 0.6); 
+        }
+        
+        /* GLITCH EFFECT */
+        .glitch-text { position: relative; }
+        .glitch-text::before, .glitch-text::after {
+            content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+        .glitch-text::before { left: 2px; text-shadow: -2px 0 #ff003c; clip: rect(24px, 550px, 90px, 0); animation: glitch-anim 2.5s infinite linear alternate-reverse; }
+        .glitch-text::after { left: -2px; text-shadow: -2px 0 #00ff41; clip: rect(85px, 550px, 140px, 0); animation: glitch-anim 2s infinite linear alternate-reverse; }
+        @keyframes glitch-anim {
+            0% { clip: rect(14px, 9999px, 121px, 0); } 20% { clip: rect(94px, 9999px, 13px, 0); }
+            40% { clip: rect(29px, 9999px, 86px, 0); } 60% { clip: rect(110px, 9999px, 11px, 0); }
+            80% { clip: rect(68px, 9999px, 59px, 0); } 100% { clip: rect(76px, 9999px, 4px, 0); }
+        }
+
+        .monitor-frame {
+            border: 4px solid #1a1a1a;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0, 255, 65, 0.1), inset 0 0 100px rgba(0,0,0,0.9);
+            background: #020202;
+            padding: 40px;
+            max-width: 900px;
+            width: 95%;
+            min-height: 500px;
+            position: relative;
+        }
+
+        @keyframes fadeIn { to { opacity: 1; } }
+        
+        /* MAIN CONTENT */
+        #main-content { opacity: 0; transition: opacity 1s ease-in; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #00ff41; border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: #fff; }
+    </style>
+</head>
+<body class="antialiased selection:bg-accent selection:text-white font-code">
+
+    <!-- SHOCK TERMINAL -->
+    <div id="terminal-screen">
+        <div class="monitor-frame">
+            <div id="terminal-content" class="flex flex-col items-start justify-start w-full h-full overflow-hidden">
+                <!-- Logs go here -->
+            </div>
+            <div class="mt-4 text-neon font-old text-2xl animate-pulse">> <span id="cursor">█</span></div>
+        </div>
+        <div id="skip-btn" class="mt-8 font-cyber text-gray-600 text-xs tracking-[0.2em] opacity-0 transition hover:text-neon cursor-pointer uppercase" onclick="skipIntro()">
+            [ SKIP SEQUENCE ]
+        </div>
+    </div>
+
+    <!-- MAIN SITE -->
+    <div id="main-content">
+        
+        <!-- HERO -->
+        <div class="relative min-h-screen flex items-center justify-center overflow-hidden bg-black">
+            <!-- Background Grid/Cyberpunk Vibe -->
+            <div class="absolute inset-0 bg-[linear-gradient(to_right,#0a0a0a_1px,transparent_1px),linear-gradient(to_bottom,#0a0a0a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20"></div>
+            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-black/80 to-black z-0"></div>
+
+            <div class="relative z-10 text-center px-4 max-w-5xl mx-auto">
+                
+                <div class="font-cyber text-accent font-bold tracking-[0.3em] text-xs md:text-sm mb-8 uppercase animate-pulse">
+                    /// SYSTEM STATUS: HARMONIC // PHI: 1.618 ///
+                </div>
+                
+                <!-- LOWERCASE BRAND -->
+                <h1 class="text-6xl md:text-9xl font-soviet text-white mb-4 glitch-text tracking-tighter lowercase" data-text="x0tta6bl4">
+                    x0tta6bl4
+                </h1>
+                
+                <div class="text-xl md:text-3xl text-gray-500 font-cyber tracking-[0.5em] mb-16 border-b border-gray-800 pb-8 inline-block uppercase">
+                    PARADOX ZONE
+                </div>
+
+                <p class="text-lg md:text-2xl text-gray-300 mb-16 leading-relaxed max-w-3xl mx-auto font-code">
+                    <span class="text-neon">></span> Привет. Я Даня.<br>
+                    <span class="text-neon">></span> Я устал смотреть, как интернет превращается в <span class="text-white bg-accent/20 px-1">цифровую тюрьму</span>.
+                </p>
+
+                <div class="flex flex-col md:flex-row gap-8 justify-center">
+                    <a href="#manifesto" class="px-10 py-5 bg-transparent border-2 border-neon text-neon hover:bg-neon hover:text-black transition-all font-cyber font-bold uppercase tracking-widest">
+                        Читать Манифест
+                    </a>
+                    <a href="#join" class="px-10 py-5 bg-accent text-white font-cyber font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all shadow-[0_0_30px_rgba(255,0,60,0.4)]">
+                        Получить Доступ
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATS BAR -->
+        <div class="bg-panel border-y border-gray-800 py-16">
+            <div class="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
+                <div class="group">
+                    <div class="text-gray-600 font-cyber text-xs tracking-widest mb-2 group-hover:text-neon transition">NODES</div>
+                    <div class="text-4xl text-white font-soviet" id="nodes-count">3</div>
+                </div>
+                <div class="group">
+                    <div class="text-gray-600 font-cyber text-xs tracking-widest mb-2 group-hover:text-neon transition">TRAFFIC</div>
+                    <div class="text-4xl text-white font-soviet">1.2 TB</div>
+                </div>
+                <div class="group">
+                    <div class="text-gray-600 font-cyber text-xs tracking-widest mb-2 group-hover:text-neon transition">HEALTH</div>
+                    <div class="text-4xl text-neon font-soviet neon-glow">100%</div>
+                </div>
+                <div class="group">
+                    <div class="text-gray-600 font-cyber text-xs tracking-widest mb-2 group-hover:text-accent transition">BLOCKS</div>
+                    <div class="text-4xl text-accent font-soviet red-glow">∞</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MANIFESTO -->
+        <div id="manifesto" class="py-32 bg-dark relative">
+            <div class="max-w-4xl mx-auto px-6">
+                <h2 class="text-4xl md:text-6xl font-soviet text-white mb-16 border-l-8 border-neon pl-8 uppercase leading-none">
+                    Это не просто VPN.<br>
+                    <span class="text-gray-600">Это цифровое сопротивление.</span>
+                </h2>
+                
+                <div class="prose prose-invert max-w-none text-gray-400 space-y-10 text-xl font-code leading-relaxed">
+                    <p>
+                        Мы живем в эпоху, когда доступ к информации стал привилегией. 
+                        Корпорации торгуют нашими данными. Правительства возводят цифровые стены.
+                        <strong class="text-white font-soviet tracking-wide text-2xl lowercase">x0tta6bl4</strong> — это ответ.
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 my-16">
+                        <div class="bg-panel p-6 border border-gray-800 hover:border-neon transition">
+                            <div class="text-accent font-soviet text-5xl mb-4">01</div>
+                            <h3 class="text-white font-cyber font-bold mb-2">DECENTRALIZED</h3>
+                            <p class="text-sm">Нет главного рубильника. Убьешь один узел — проснутся два других.</p>
+                        </div>
+                        <div class="bg-panel p-6 border border-gray-800 hover:border-neon transition">
+                            <div class="text-accent font-soviet text-5xl mb-4">02</div>
+                            <h3 class="text-white font-cyber font-bold mb-2">HARMONIC</h3>
+                            <p class="text-sm">Система сама балансирует нагрузку (Phi Ratio). Она живая.</p>
+                        </div>
+                        <div class="bg-panel p-6 border border-gray-800 hover:border-neon transition">
+                            <div class="text-accent font-soviet text-5xl mb-4">03</div>
+                            <h3 class="text-white font-cyber font-bold mb-2">UNSTOPPABLE</h3>
+                            <p class="text-sm">Протокол VLESS Reality маскирует трафик под Google/Microsoft.</p>
+                        </div>
+                    </div>
+
+                    <p>
+                        Я строю это один, но для всех. 
+                        Я использую старые ноутбуки, дешевые VPS и чистую математику.
+                        Я приглашаю тебя стать частью уравнения.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- JOIN -->
+        <div id="join" class="py-32 bg-panel relative overflow-hidden">
+            <div class="max-w-5xl mx-auto px-6 relative z-10">
+                <h2 class="text-5xl font-soviet text-white mb-12 text-center uppercase">Genesis Access</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <!-- CARD 1 -->
+                    <div class="bg-dark border-2 border-gray-800 p-10 hover:border-neon transition group relative overflow-hidden">
+                        <div class="absolute top-0 right-0 bg-neon text-black font-cyber font-bold text-xs px-3 py-1">RECOMMENDED</div>
+                        <div class="font-cyber text-neon text-sm tracking-[0.3em] mb-6">EARLY ADOPTER</div>
+                        <div class="text-6xl font-soviet text-white mb-8">$500</div>
+                        <ul class="space-y-4 text-gray-400 mb-10 font-code text-sm">
+                            <li class="flex items-center"><span class="text-neon mr-3">>></span> Лицензия Оператора</li>
+                            <li class="flex items-center"><span class="text-neon mr-3">>></span> Доступ к исходному коду</li>
+                            <li class="flex items-center"><span class="text-neon mr-3">>></span> Вход в закрытое DAO</li>
+                        </ul>
+                        <a href="https://t.me/x0tta6bl4_admin" target="_blank" class="block w-full py-5 bg-gray-900 text-white text-center font-cyber font-bold uppercase tracking-widest group-hover:bg-neon group-hover:text-black transition-all">
+                            INITIATE TRANSFER
+                        </a>
+                    </div>
+
+                    <!-- CARD 2 -->
+                    <div class="bg-dark border-2 border-gray-800 p-10 hover:border-gray-600 transition group opacity-60 hover:opacity-100">
+                        <div class="font-cyber text-gray-500 text-sm tracking-[0.3em] mb-6">PUBLIC ACCESS</div>
+                        <div class="text-6xl font-soviet text-white mb-8">FREE</div>
+                        <ul class="space-y-4 text-gray-500 mb-10 font-code text-sm">
+                            <li class="flex items-center"><span class="text-gray-500 mr-3">>></span> Базовый доступ</li>
+                            <li class="flex items-center"><span class="text-gray-500 mr-3">>></span> Ограниченная скорость</li>
+                            <li class="flex items-center"><span class="text-accent mr-3">XX</span> Нет права голоса</li>
+                        </ul>
+                        <button disabled class="block w-full py-5 bg-black text-gray-700 text-center font-cyber font-bold uppercase tracking-widest cursor-not-allowed border border-gray-800">
+                            WAITLIST FULL
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="bg-black py-12 border-t border-gray-900 text-center font-code text-xs text-gray-600">
+            <p class="lowercase">x0tta6bl4 NETWORK // EST. 2025</p>
+            <p class="mt-2">NO LOGS. NO MASTERS.</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // --- SHOCK ENGINE (vFinal) ---
+        const out = document.getElementById('terminal-content');
+        const screen = document.getElementById('terminal-screen');
+        const main = document.getElementById('main-content');
+        const skipBtn = document.getElementById('skip-btn');
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const log = (text, style='') => {
+            const d = document.createElement('div');
+            d.className = 'log-line ' + style;
+            d.innerHTML = text;
+            out.appendChild(d);
+            out.scrollTop = out.scrollHeight;
+        };
+
+        setTimeout(() => { skipBtn.style.opacity = '1'; }, 2000);
+        function skipIntro() { screen.style.display = 'none'; main.style.opacity = '1'; }
+
+        async function getBattery() {
+            try { const b = await navigator.getBattery(); return Math.round(b.level * 100) + '%'; } catch { return 'N/A'; }
+        }
+
+        async function shockSequence() {
+            await sleep(500);
+            log('INITIALIZING TRACER V.0.9...', 'highlight');
+            await sleep(800);
+            log(`> KERNEL: ${navigator.userAgent.split(')')[0].split('(')[1] || 'UNKNOWN'}`);
+            await sleep(200);
+            log(`> THREADS: ${navigator.hardwareConcurrency}`);
+            await sleep(200);
+            const bat = await getBattery();
+            log(`> ENERGY: ${bat}`);
+            await sleep(500);
+
+            log('PROBING EXTERNAL IP...', 'highlight');
+            try {
+                const r = await fetch('https://ipapi.co/json/');
+                const d = await r.json();
+                await sleep(800);
+                log(`> IP: <span class="alert">${d.ip}</span>`);
+                await sleep(300);
+                log(`> ORG: ${d.org}`);
+                await sleep(300);
+                log(`> LOC: ${d.city}, ${d.country_code}`);
+            } catch (e) {
+                log('> FIREWALL DETECTED.', 'warn');
+            }
+
+            await sleep(1000);
+            log('-----------------------------------');
+            
+            log('DATA EXFILTRATION SUCCESSFUL.', 'warn');
+            await sleep(800);
+            log('YOUR DIGITAL FOOTPRINT: <span class="alert">EXPOSED</span>');
+            await sleep(1500);
+            
+            out.innerHTML = '';
+            log('<span class="alert" style="font-size: 1.5em">THEY WATCH EVERYTHING.</span>');
+            await sleep(2000);
+
+            log('BUT x0tta6bl4 IS WATCHING THEM.', 'neon-glow highlight');
+            await sleep(1000);
+            log('INITIATING GHOST PROTOCOL...', 'highlight');
+            await sleep(1000);
+
+            screen.style.transition = 'opacity 1.5s ease-out';
+            screen.style.opacity = '0';
+            main.style.opacity = '1';
+            setTimeout(() => { screen.style.display = 'none'; }, 1500);
+        }
+
+        // Metrics
+        fetch('http://89.125.1.107:9092/metrics')
+            .then(r => r.json()).then(d => { if(d.peers_count) document.getElementById('nodes-count').innerText = d.peers_count; })
+            .catch(e => console.log('Offline'));
+
+        shockSequence();
+    </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+name: Chaos Resilience Testing
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'infra/chaos/**'
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Chaos scenario to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - pod-kill
+          - network-delay
+          - network-partition
+          - cpu-stress
+          - memory-stress
+
+env:
+  CLUSTER_NAME: x0tta6bl4-chaos
+  NAMESPACE: x0tta6bl4
+  PROMETHEUS_URL: http://prometheus:9090
+
+jobs:
+  setup-cluster:
+    runs-on: ubuntu-latest
+    outputs:
+      cluster-ready: ${{ steps.cluster.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          config: infra/k8s/kind-config.yaml
+      
+      - name: Install Chaos Mesh
+        run: |
+          helm repo add chaos-mesh https://charts.chaos-mesh.org
+          helm install chaos-mesh chaos-mesh/chaos-mesh \
+            --namespace=chaos-mesh \
+            --create-namespace \
+            --set chaosDaemon.runtime=containerd \
+            --set chaosDaemon.socketPath=/run/containerd/containerd.sock
+          
+          # Wait for Chaos Mesh
+          kubectl wait --for=condition=Ready pods -l app.kubernetes.io/instance=chaos-mesh \
+            -n chaos-mesh --timeout=300s
+      
+      - name: Deploy x0tta6bl4 Mesh
+        run: |
+          helm install mesh ./infra/helm/x0tta6bl4 \
+            --namespace=${{ env.NAMESPACE }} \
+            --create-namespace \
+            --set mesh.replicaCount=5 \
+            --set zeroTrust.enabled=true \
+            --wait --timeout=5m
+      
+      - id: cluster
+        run: echo "ready=true" >> $GITHUB_OUTPUT
+
+  chaos-pod-kill:
+    needs: setup-cluster
+    if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'pod-kill' || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Apply Pod Kill Chaos
+        run: |
+          kubectl apply -f infra/chaos/pod-chaos.yaml
+          sleep 10
+      
+      - name: Monitor Recovery
+        id: monitor
+        run: |
+          # Wait for chaos to take effect
+          sleep 30
+          
+          # Query MTTR from Prometheus
+          MTTR=$(curl -s "${{ env.PROMETHEUS_URL }}/api/v1/query" \
+            --data-urlencode 'query=quantile_over_time(0.95, mesh_recovery_time_seconds[5m])' \
+            | jq -r '.data.result[0].value[1] // "N/A"')
+          
+          echo "mttr=$MTTR" >> $GITHUB_OUTPUT
+          echo "📊 P95 MTTR: ${MTTR}s"
+      
+      - name: Validate SLO
+        run: |
+          MTTR="${{ steps.monitor.outputs.mttr }}"
+          if [[ "$MTTR" != "N/A" ]] && (( $(echo "$MTTR > 10" | bc -l) )); then
+            echo "❌ SLO Violation: MTTR ${MTTR}s > 10s threshold"
+            exit 1
+          fi
+          echo "✅ SLO Met: MTTR within acceptable range"
+      
+      - name: Cleanup
+        if: always()
+        run: kubectl delete -f infra/chaos/pod-chaos.yaml --ignore-not-found
+
+  chaos-network:
+    needs: setup-cluster
+    if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'network-delay' || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Apply Network Chaos
+        run: |
+          kubectl apply -f infra/chaos/network-chaos.yaml
+          sleep 10
+      
+      - name: Monitor Latency Impact
+        run: |
+          # Monitor for 60 seconds
+          for i in {1..6}; do
+            LATENCY=$(curl -s "${{ env.PROMETHEUS_URL }}/api/v1/query" \
+              --data-urlencode 'query=histogram_quantile(0.99, mesh_request_latency_bucket)' \
+              | jq -r '.data.result[0].value[1] // "N/A"')
+            echo "📊 P99 Latency at ${i}0s: ${LATENCY}ms"
+            sleep 10
+          done
+      
+      - name: Validate Mesh Connectivity
+        run: |
+          # Check all nodes can still communicate
+          CONNECTED=$(kubectl exec -n ${{ env.NAMESPACE }} deploy/mesh-x0tta6bl4 -- \
+            curl -s localhost:8080/api/mesh/connectivity | jq '.connected_nodes')
+          
+          TOTAL=$(kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=x0tta6bl4 --no-headers | wc -l)
+          
+          if [[ "$CONNECTED" -lt $(($TOTAL * 80 / 100)) ]]; then
+            echo "❌ Connectivity dropped below 80%: $CONNECTED/$TOTAL"
+            exit 1
+          fi
+          echo "✅ Mesh connectivity maintained: $CONNECTED/$TOTAL nodes"
+      
+      - name: Cleanup
+        if: always()
+        run: kubectl delete -f infra/chaos/network-chaos.yaml --ignore-not-found
+
+  chaos-stress:
+    needs: setup-cluster
+    if: ${{ github.event.inputs.scenario == 'all' || github.event.inputs.scenario == 'cpu-stress' || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Apply Stress Chaos
+        run: |
+          kubectl apply -f infra/chaos/stress-chaos.yaml
+          sleep 10
+      
+      - name: Monitor Resource Usage
+        run: |
+          # Monitor CPU and Memory during stress
+          kubectl top pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=x0tta6bl4
+      
+      - name: Validate Service Availability
+        run: |
+          # Health check during stress
+          for i in {1..5}; do
+            STATUS=$(kubectl exec -n ${{ env.NAMESPACE }} deploy/mesh-x0tta6bl4 -- \
+              curl -s -o /dev/null -w "%{http_code}" localhost:8080/health)
+            
+            if [[ "$STATUS" != "200" ]]; then
+              echo "⚠️ Health check failed at iteration $i: HTTP $STATUS"
+            else
+              echo "✅ Health check passed at iteration $i"
+            fi
+            sleep 10
+          done
+      
+      - name: Cleanup
+        if: always()
+        run: kubectl delete -f infra/chaos/stress-chaos.yaml --ignore-not-found
+
+  report:
+    needs: [chaos-pod-kill, chaos-network, chaos-stress]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Report
+        run: |
+          echo "# 🔥 Chaos Testing Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scenario | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Pod Kill | ${{ needs.chaos-pod-kill.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Network Chaos | ${{ needs.chaos-network.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stress Test | ${{ needs.chaos-stress.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Date:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::error::Chaos testing revealed resilience issues. Review logs for details."

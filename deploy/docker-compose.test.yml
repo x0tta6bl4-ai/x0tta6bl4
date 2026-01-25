@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  mesh-node-phi-1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mesh-node
+    container_name: x0tta6bl4-phi-node-1
+    environment:
+      - NODE_ID=phi-node-1
+      - MESH_BACKEND=simulation
+      - PHI_TARGET=1.618
+      - SACRED_FREQUENCY=108
+    ports:
+      - "18001:8080"
+      - "17001:7000"
+    networks:
+      - x0tta6bl4-test
+    restart: unless-stopped
+
+  mesh-node-phi-2:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mesh-node
+    container_name: x0tta6bl4-phi-node-2
+    environment:
+      - NODE_ID=phi-node-2
+      - MESH_BACKEND=simulation
+    ports:
+      - "18002:8080"
+      - "17002:7000"
+    networks:
+      - x0tta6bl4-test
+    restart: unless-stopped
+
+  prometheus-phi:
+    image: prom/prometheus:v2.52.0
+    container_name: x0tta6bl4-prometheus-phi
+    volumes:
+      - ./monitoring/prometheus-config.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+    ports:
+      - "19090:9090"
+    networks:
+      - x0tta6bl4-test
+
+  grafana-phi:
+    image: grafana/grafana:10.4.0
+    container_name: x0tta6bl4-grafana-phi
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=phi_admin
+    ports:
+      - "13000:3000"
+    networks:
+      - x0tta6bl4-test
+    depends_on:
+      - prometheus-phi
+
+networks:
+  x0tta6bl4-test:
+    driver: bridge
+

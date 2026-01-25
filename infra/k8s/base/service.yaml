@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: x0tta6bl4
+  namespace: x0tta6bl4
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+  annotations:
+    description: "Main API and mesh networking service"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: x0tta6bl4
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  - name: mesh
+    port: 7946
+    targetPort: 7946
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x0tta6bl4-metrics
+  namespace: x0tta6bl4
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: x0tta6bl4
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP

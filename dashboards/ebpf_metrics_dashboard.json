@@ -1,0 +1,126 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 eBPF Performance Monitoring",
+    "tags": [
+      "ebpf",
+      "performance",
+      "x0tta6bl4"
+    ],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "title": "Packet Processing Rate",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "rate(ebpf_packets_processed_total[5m])",
+            "legendFormat": "{{program}} on {{interface}}"
+          }
+        ]
+      },
+      {
+        "title": "Processing Latency (95th percentile)",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ebpf_processing_latency_microseconds_bucket[5m]))",
+            "legendFormat": "{{program}} latency"
+          }
+        ]
+      },
+      {
+        "title": "Packet Drop Rate",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "rate(ebpf_packets_dropped_total[5m]) / rate(ebpf_packets_processed_total[5m])",
+            "legendFormat": "{{program}} drop rate"
+          }
+        ]
+      },
+      {
+        "title": "CPU Usage",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ebpf_cpu_usage_percent",
+            "legendFormat": "{{program}} CPU usage"
+          }
+        ]
+      },
+      {
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ebpf_memory_usage_bytes",
+            "legendFormat": "{{program}} memory"
+          }
+        ]
+      },
+      {
+        "title": "Active Flows",
+        "type": "singlestat",
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ebpf_flows_active",
+            "legendFormat": "Active flows"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "rate(ebpf_errors_total[5m])",
+            "legendFormat": "{{program}} {{error_type}}"
+          }
+        ]
+      }
+    ]
+  }
+}

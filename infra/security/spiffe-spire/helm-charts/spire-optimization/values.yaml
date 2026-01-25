@@ -1,0 +1,326 @@
+# Оптимизированная конфигурация SPIFFE/SPIRE для многорегиональной инфраструктуры
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Многорегиональная конфигурация SPIRE
+spire:
+  # Глобальные настройки
+  global:
+    trustDomain: "x0tta6bl4.com"
+    logLevel: "info"
+    upstreamAuthority: "aws-pca"
+
+  # Конфигурация серверов по регионам
+  servers:
+    us-east:
+      enabled: true
+      region: "us-east-1"
+      priority: 1
+      replicas: 3
+
+      # Конфигурация высокой доступности
+      ha:
+        enabled: true
+        raft:
+          enabled: true
+          clusterName: "spire-us-east"
+
+      # Параметры производительности
+      performance:
+        maxTokenTTL: "24h"
+        tokenCacheSize: 10000
+        jwtCacheSize: 5000
+        concurrentRPCs: 100
+
+      # Мониторинг и метрики
+      monitoring:
+        enabled: true
+        prometheus:
+          enabled: true
+          port: 9090
+          path: "/metrics"
+
+      # Резервное копирование
+      backup:
+        enabled: true
+        schedule: "0 */6 * * *"  # Каждые 6 часов
+        retention: "7d"
+        s3Bucket: "spire-backups-us-east"
+
+    eu-west:
+      enabled: true
+      region: "eu-west-1"
+      priority: 2
+      replicas: 3
+
+      ha:
+        enabled: true
+        raft:
+          enabled: true
+          clusterName: "spire-eu-west"
+
+      performance:
+        maxTokenTTL: "24h"
+        tokenCacheSize: 10000
+        jwtCacheSize: 5000
+        concurrentRPCs: 100
+
+      monitoring:
+        enabled: true
+        prometheus:
+          enabled: true
+          port: 9090
+          path: "/metrics"
+
+      backup:
+        enabled: true
+        schedule: "0 */6 * * *"
+        retention: "7d"
+        s3Bucket: "spire-backups-eu-west"
+
+    asia-pacific:
+      enabled: true
+      region: "ap-southeast-1"
+      priority: 3
+      replicas: 2
+
+      ha:
+        enabled: true
+        raft:
+          enabled: true
+          clusterName: "spire-asia-pacific"
+
+      performance:
+        maxTokenTTL: "24h"
+        tokenCacheSize: 8000
+        jwtCacheSize: 4000
+        concurrentRPCs: 80
+
+      monitoring:
+        enabled: true
+        prometheus:
+          enabled: true
+          port: 9090
+          path: "/metrics"
+
+      backup:
+        enabled: true
+        schedule: "0 */6 * * *"
+        retention: "7d"
+        s3Bucket: "spire-backups-asia-pacific"
+
+  # Конфигурация агентов
+  agents:
+    # Глобальные настройки агентов
+    global:
+      logLevel: "info"
+      trustDomain: "x0tta6bl4.com"
+      serverAddress: "spire-server"
+      serverPort: 8081
+
+    # Edge агенты с токен кешированием
+    edgeAgents:
+      enabled: true
+      image:
+        repository: spire-agent-edge
+        tag: "1.0.0"
+        pullPolicy: IfNotPresent
+
+      # Конфигурация кеширования токенов
+      tokenCache:
+        enabled: true
+        maxSize: 5000
+        ttl: "12h"
+        refreshThreshold: "1h"
+
+      # Многорегиональный failover
+      failover:
+        enabled: true
+        primaryRegion: "us-east"
+        fallbackRegions:
+          - "eu-west"
+          - "asia-pacific"
+        healthCheckInterval: "30s"
+        failoverThreshold: 3
+
+      # Ресурсы для edge узлов
+      resources:
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+
+    # Стандартные агенты для внутренних сервисов
+    standardAgents:
+      enabled: true
+      image:
+        repository: spire/spire-agent
+        tag: "1.8.5"
+        pullPolicy: IfNotPresent
+
+      resources:
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+        requests:
+          cpu: "25m"
+          memory: "32Mi"
+
+  # Конфигурация федерации между регионами
+  federation:
+    enabled: true
+    bundleEndpoints:
+      us-east: "https://spire-federation-us-east.x0tta6bl4.com"
+      eu-west: "https://spire-federation-eu-west.x0tta6bl4.com"
+      asia-pacific: "https://spire-federation-asia-pacific.x0tta6bl4.com"
+
+    # Синхронизация trust bundles
+    bundleSync:
+      enabled: true
+      interval: "5m"
+      timeout: "30s"
+
+  # Интеграция с AWS PCA для сертификатов
+  awsPCA:
+    enabled: true
+    region: "us-east-1"
+    # Externalized via External Secrets Operator
+    caArnFromSecret:
+      enabled: true
+      secretName: spire-aws-pca-secret
+      key: ca-arn
+    credentials:
+      secretName: spire-aws-pca-secret
+
+  # Мониторинг и алертинг
+  monitoring:
+    enabled: true
+
+    # Prometheus метрики
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        namespace: monitoring
+        interval: 30s
+
+    # Графана дашборды
+    grafana:
+      enabled: true
+      dashboards:
+        spireOverview: true
+        tokenCache: true
+        federationStatus: true
+        performanceMetrics: true
+
+  # Безопасность
+  security:
+    # Network Policies
+    networkPolicies:
+      enabled: true
+      allowFromNamespaces:
+        - monitoring
+        - istio-system
+
+    # mTLS для SPIRE компонентов
+    mtls:
+      enabled: true
+      minTLSVersion: "1.3"
+
+    # Аудит и логирование
+    audit:
+      enabled: true
+      logLevel: "info"
+      retention: "90d"
+
+# Конфигурация StatefulSets для серверов
+statefulSet:
+  enabled: true
+
+  # Аннотации для безопасности
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    security.alpha.kubernetes.io/secure-compute-mode: "baseline"
+
+  # Security Context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  # Persistence для SPIRE данных
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    storageClass: "fast-ssd"
+
+# Конфигурация DaemonSets для агентов
+daemonSet:
+  enabled: true
+  hostNetwork: false
+
+  # Аннотации для мониторинга
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+
+  # Ресурсы
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+
+# Service для SPIRE серверов
+service:
+  enabled: true
+  type: ClusterIP
+
+  # Порты для SPIRE API
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+# Ingress для федерации (если требуется)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: spire-federation.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Конфигурация резервного копирования
+backup:
+  enabled: true
+  schedule: "0 */6 * * *"
+  s3:
+    bucket: "spire-backups"
+    region: "us-east-1"
+    encryption: "AES256"
+
+# Автомасштабирование (если требуется)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

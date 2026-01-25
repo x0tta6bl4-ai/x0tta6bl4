@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  node-a:
+    build:
+      context: .
+      dockerfile: Dockerfile.minimal
+    container_name: x0tta6bl4-node-a-minimal
+    hostname: node-a
+    environment:
+      - NODE_ID=node-a
+      - NODE_NAME=node-a
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks: [mesh-minimal]
+
+  node-b:
+    build:
+      context: .
+      dockerfile: Dockerfile.minimal
+    container_name: x0tta6bl4-node-b-minimal
+    hostname: node-b
+    environment:
+      - NODE_ID=node-b
+      - NODE_NAME=node-b
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks: [mesh-minimal]
+
+  node-c:
+    build:
+      context: .
+      dockerfile: Dockerfile.minimal
+    container_name: x0tta6bl4-node-c-minimal
+    hostname: node-c
+    environment:
+      - NODE_ID=node-c
+      - NODE_NAME=node-c
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks: [mesh-minimal]
+
+networks:
+  mesh-minimal:
+    driver: bridge

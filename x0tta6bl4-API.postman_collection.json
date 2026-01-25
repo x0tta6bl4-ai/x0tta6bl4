@@ -1,0 +1,304 @@
+{
+  "info": {
+    "_postman_id": "x0tta6bl4-api-collection",
+    "name": "x0tta6bl4 API",
+    "description": "Complete API testing collection for x0tta6bl4 autonomous mesh network",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Status",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Complete system health check with all dependencies"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Dependencies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/dependencies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "dependencies"
+              ]
+            },
+            "description": "Detailed status of all system dependencies"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mesh Network",
+      "item": [
+        {
+          "name": "Mesh Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mesh/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mesh",
+                "status"
+              ]
+            },
+            "description": "Get current mesh network status and statistics"
+          },
+          "response": []
+        },
+        {
+          "name": "List Peers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mesh/peers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mesh",
+                "peers"
+              ]
+            },
+            "description": "List all connected mesh peers with their information"
+          },
+          "response": []
+        },
+        {
+          "name": "List Routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/mesh/routes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mesh",
+                "routes"
+              ]
+            },
+            "description": "Show all active routes in the mesh network"
+          },
+          "response": []
+        },
+        {
+          "name": "Send Beacon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"node_id\": \"local-node-1\",\n  \"timestamp\": \"2026-01-12T00:00:00Z\",\n  \"beacon_type\": \"heartbeat\",\n  \"metrics\": {\n    \"cpu_usage\": 45.2,\n    \"memory_usage\": 62.8,\n    \"network_latency_ms\": 12.5\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/mesh/beacon",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mesh",
+                "beacon"
+              ]
+            },
+            "description": "Send a beacon message to mesh network"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI & Predictions",
+      "item": [
+        {
+          "name": "Predict for Node",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ai/predict/node-123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ai",
+                "predict",
+                "node-123"
+              ]
+            },
+            "description": "Get AI predictions for a specific mesh node"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "DAO & Governance",
+      "item": [
+        {
+          "name": "Cast Vote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"voter_id\": \"user-001\",\n  \"proposal_id\": \"prop-2026-001\",\n  \"vote\": \"yes\",\n  \"weight\": 1.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/dao/vote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dao",
+                "vote"
+              ]
+            },
+            "description": "Cast a vote on a DAO proposal"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Security",
+      "item": [
+        {
+          "name": "Security Handshake",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"node_id\": \"local-node-1\",\n  \"challenge\": \"base64-encoded-challenge\",\n  \"pqc_public_key\": \"base64-encoded-key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/security/handshake",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "handshake"
+              ]
+            },
+            "description": "Initiate post-quantum cryptography handshake"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metrics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            },
+            "description": "Get Prometheus-format metrics for monitoring"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Web Pages",
+      "item": [
+        {
+          "name": "Landing Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Get the landing page HTML"
+          },
+          "response": []
+        },
+        {
+          "name": "Demo Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/demo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "demo"
+              ]
+            },
+            "description": "Get the demo page for presenting to users"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

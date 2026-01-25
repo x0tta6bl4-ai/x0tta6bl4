@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: x0tta6bl4
+  namespace: default
+  labels:
+    app: x0tta6bl4
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: x0tta6bl4
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+

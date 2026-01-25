@@ -1,0 +1,62 @@
+{
+  "title": "Envoy & SPIRE Overview",
+  "uid": "envoy-spire",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active Upstream Connections",
+      "targets": [{"expr": "sum(envoy_cluster_upstream_cx_active)"}],
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4}
+    },
+    {
+      "type": "graph",
+      "title": "Upstream Request Rate",
+      "targets": [{"expr": "sum(rate(envoy_cluster_upstream_rq_total[1m]))"}],
+      "gridPos": {"x": 6, "y": 0, "w": 12, "h": 8},
+      "lines": true
+    },
+    {
+      "type": "graph",
+      "title": "mTLS Handshake Latency (simulated)",
+      "targets": [{"expr": "histogram_quantile(0.9, sum(rate(spire_handshake_duration_seconds_bucket[5m])) by (le))"}],
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8}
+    },
+    {
+      "type": "stat",
+      "title": "Issued SVIDs",
+      "targets": [{"expr": "sum(spire_agent_svid_renew_total)"}],
+      "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4}
+    },
+    {
+      "type": "graph",
+      "title": "SVID Renewal Rate",
+      "targets": [{"expr": "sum(rate(spire_agent_svid_renew_total[5m]))"}],
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8}
+    }
+    ,{
+      "type": "graph",
+      "title": "p90 Upstream Request Duration",
+      "targets": [
+        {"expr": "histogram_quantile(0.90, sum(rate(envoy_cluster_upstream_rq_time_bucket[5m])) by (le))"}
+      ],
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "lines": true
+    }
+    ,{
+      "type": "graph",
+      "title": "HTTP 5xx Error Rate",
+      "targets": [
+        {"expr": "sum(rate(envoy_cluster_upstream_rq_xx{envoy_response_code_class='5'}[5m]))"}
+      ],
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "lines": true
+    }
+  ],
+  "templating": {
+    "list": []
+  }
+}

@@ -1,0 +1,72 @@
+# Staging values override
+# Deploy with: helm upgrade --install x0tta6bl4-staging ./helm/x0tta6bl4 -f values-staging.yaml -n x0tta6bl4-staging
+
+replicaCount: 2
+
+image:
+  repository: localhost:5001/x0tta6bl4
+  pullPolicy: IfNotPresent
+  tag: "3.4.0"
+
+environment: staging
+
+# Environment variables
+env:
+  X0TTA6BL4_VERSION: "3.4.0"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "staging"
+
+# Production mode disabled for staging
+production:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Staging-specific configurations
+mesh:
+  slotSync:
+    beaconInterval: "5s"      # Less frequent for staging
+  topology:
+    maxNodes: 100            # Smaller scale for staging
+
+security:
+  postQuantum:
+    keyRotationDays: 7       # More frequent rotation for testing
+  zeroTrust:
+    continuousVerification: false  # Disabled for staging
+
+ai:
+  graphsage:
+    targetRecall: 0.96       # Standard target for staging
+    federatedLearning:
+      aggregationInterval: "1h"  # Less frequent for staging
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: false  # Will be deployed separately
+
+# Logging
+logging:
+  level: INFO
+  format: json
+
+# Feature flags for staging
+features:
+  paymentVerification: true
+  ebpfObservability: false  # Will be enabled after implementation
+  graphsageCausal: false   # Will be enabled after implementation
+

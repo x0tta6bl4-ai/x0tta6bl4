@@ -1,0 +1,314 @@
+# Оптимизированная конфигурация mTLS с session resumption и certificate pinning
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Конфигурация mTLS оптимизаций
+mtls:
+  # Глобальные настройки
+  global:
+    minTLSVersion: "1.3"
+    maxTLSVersion: "1.3"
+    cipherSuites:
+      - TLS_AES_128_GCM_SHA256
+      - TLS_AES_256_GCM_SHA384
+      - TLS_CHACHA20_POLY1305_SHA256
+
+  # Session resumption для повторных соединений
+  sessionResumption:
+    enabled: true
+
+    # Серверная сторона
+    server:
+      enabled: true
+      sessionCacheSize: 10000
+      sessionTimeout: "24h"
+      sessionTickets:
+        enabled: true
+        rotationInterval: "12h"
+
+    # Клиентская сторона
+    client:
+      enabled: true
+      sessionCacheSize: 5000
+      sessionTimeout: "12h"
+
+    # Redis для распределенного кеша сессий
+    redis:
+      enabled: true
+      cluster:
+        enabled: true
+        replicas: 3
+      persistence:
+        enabled: true
+        size: "20Gi"
+
+  # Certificate pinning для критических сервисов
+  certificatePinning:
+    enabled: true
+
+    # Критические сервисы для pinning
+    criticalServices:
+      - name: "payment-api"
+        namespace: "payment"
+        pinSHA256: true
+        allowedCAs:
+          - "x0tta6bl4-root-ca"
+          - "aws-pca-ca"
+
+      - name: "quantum-compute"
+        namespace: "quantum"
+        pinSHA256: true
+        allowedCAs:
+          - "x0tta6bl4-root-ca"
+          - "ibm-cloud-ca"
+
+      - name: "ai-consciousness"
+        namespace: "ai-core"
+        pinSHA256: true
+        allowedCAs:
+          - "x0tta6bl4-root-ca"
+          - "google-cloud-ca"
+
+    # Политики pinning
+    policies:
+      strict:
+        enforceCA: true
+        enforceSerial: true
+        enforceExpiry: true
+        maxAge: "90d"
+
+      moderate:
+        enforceCA: true
+        enforceSerial: false
+        enforceExpiry: true
+        maxAge: "30d"
+
+  # Оптимизированные handshake параметры
+  handshake:
+    enabled: true
+
+    # Оптимизации для снижения задержек
+    optimizations:
+      # Предварительное создание ключей
+      preGeneratedKeys:
+        enabled: true
+        keyCount: 10
+        rotationInterval: "1h"
+
+      # Кеширование рукопожатий
+      handshakeCache:
+        enabled: true
+        size: 5000
+        ttl: "5m"
+
+      # Асинхронная криптография
+      asyncCrypto:
+        enabled: true
+        workerPoolSize: 4
+
+    # Параметры производительности
+    performance:
+      maxConcurrentHandshakes: 1000
+      handshakeTimeout: "10s"
+      keyExchangeTimeout: "5s"
+      certificateValidationTimeout: "2s"
+
+  # Мониторинг производительности
+  monitoring:
+    enabled: true
+
+    # Метрики производительности
+    metrics:
+      handshakeLatency: true
+      sessionResumptionRate: true
+      certificateValidationTime: true
+      tlsErrors: true
+      pinningViolations: true
+
+    # Prometheus интеграция
+    prometheus:
+      enabled: true
+      scrapeInterval: "15s"
+      metricsPort: 9092
+
+    # Алерт правила
+    alerts:
+      highHandshakeLatency:
+        threshold: "25ms"
+        duration: "5m"
+      lowSessionResumptionRate:
+        threshold: "0.7"
+        duration: "10m"
+      certificatePinningViolation:
+        threshold: 1
+        duration: "1m"
+
+  # Интеграция с cert-manager
+  certManager:
+    enabled: true
+
+    # ClusterIssuer для корневого CA
+    clusterIssuer:
+      name: "x0tta6bl4-root-ca"
+      type: "CA"
+      ca:
+        privateKey:
+          algorithm: ECDSA
+          size: 256
+        validity: "8760h"  # 1 год
+
+    # Intermediate Issuers для регионов
+    issuers:
+      us-east:
+        name: "x0tta6bl4-us-east-issuer"
+        type: "CA"
+        ca:
+          privateKey:
+            algorithm: ECDSA
+            size: 256
+          validity: "2160h"  # 90 дней
+
+      eu-west:
+        name: "x0tta6bl4-eu-west-issuer"
+        type: "CA"
+        ca:
+          privateKey:
+            algorithm: ECDSA
+            size: 256
+          validity: "2160h"
+
+      asia-pacific:
+        name: "x0tta6bl4-asia-pacific-issuer"
+        type: "CA"
+        ca:
+          privateKey:
+            algorithm: ECDSA
+            size: 256
+          validity: "2160h"
+
+  # Автоматическое управление сертификатами
+  certificateManagement:
+    enabled: true
+
+    # Авторотация сертификатов
+    rotation:
+      enabled: true
+      checkInterval: "24h"
+      renewalThreshold: "30d"
+      backoffSchedule: "5m,10m,30m,1h"
+
+    # Мониторинг сертификатов
+    monitoring:
+      expiryAlerts:
+        enabled: true
+        warningThreshold: "30d"
+        criticalThreshold: "7d"
+
+  # Безопасность
+  security:
+    # Защита от атак
+    protection:
+      antiReplay:
+        enabled: true
+        windowSize: "1m"
+
+      rateLimiting:
+        enabled: true
+        maxHandshakesPerSecond: 100
+        burstSize: 50
+
+    # Аудит и логирование
+    audit:
+      enabled: true
+      logLevel: "info"
+      retention: "90d"
+      includeCertificateDetails: false
+
+# Конфигурация Deployment для mTLS контроллера
+deployment:
+  enabled: true
+  replicas: 3
+
+  # Стратегия обновления
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  # Аннотации для мониторинга
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.mtls.monitoring.prometheus.metricsPort }}"
+
+  # Ресурсы
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+
+# Service для mTLS API
+service:
+  enabled: true
+  type: ClusterIP
+
+  ports:
+    - name: mtls-api
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: metrics
+      port: 9092
+      targetPort: 9092
+      protocol: TCP
+
+# Конфигурация Redis для кеша сессий
+redis:
+  enabled: true
+
+  # Архитектура кластера
+  architecture: standalone
+
+  # Мастер конфигурация
+  master:
+    persistence:
+      enabled: true
+      size: "20Gi"
+
+  # Конфигурация производительности
+  config:
+    maxmemory: "2gb"
+    maxmemoryPolicy: "allkeys-lru"
+    tcpKeepalive: 300
+    timeout: 300
+
+# NetworkPolicy для безопасности
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: istio-system
+        - podSelector:
+            matchLabels:
+              app: mtls-optimization
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9092
+
+# Автомасштабирование (если требуется)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

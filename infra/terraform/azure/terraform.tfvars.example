@@ -1,0 +1,43 @@
+# Azure Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Azure Configuration
+azure_location = "eastus"
+environment    = "production"
+
+# Network Configuration
+vnet_address_space = "10.0.0.0/16"
+aks_subnet_cidr    = "10.0.1.0/24"
+
+# Kubernetes Configuration
+kubernetes_version = "1.28"
+
+# Node Pool Configuration
+node_count      = 3
+node_min_count  = 3
+node_max_count  = 10
+node_vm_size    = "Standard_D2s_v3"
+
+# Example for different environments:
+#
+# Development:
+# environment = "dev"
+# node_count = 1
+# node_min_count = 1
+# node_max_count = 3
+# node_vm_size = "Standard_B2s"
+#
+# Staging:
+# environment = "staging"
+# node_count = 2
+# node_min_count = 2
+# node_max_count = 5
+# node_vm_size = "Standard_D2s_v3"
+#
+# Production:
+# environment = "production"
+# node_count = 3
+# node_min_count = 3
+# node_max_count = 10
+# node_vm_size = "Standard_D2s_v3"
+

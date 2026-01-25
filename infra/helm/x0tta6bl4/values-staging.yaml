@@ -1,0 +1,183 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "local-path"
+
+mesh:
+  replicaCount: 2
+  
+  image:
+    repository: x0tta6bl4
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  
+  config:
+    nodeId: ""
+    meshPort: 7946
+    apiPort: 8000
+    metricsPort: 9090
+  
+  persistence:
+    enabled: true
+    size: 100Mi
+    storageClass: "local-path"
+
+zeroTrust:
+  enabled: true
+  zkp:
+    enabled: true
+    algorithm: schnorr
+    challengeTimeout: 300
+  
+  postQuantum:
+    enabled: true
+    algorithm: ntru-hybrid
+    keyRotationDays: 30
+  
+  deviceAttestation:
+    enabled: true
+    privacyPreserving: true
+    tpmRequired: false
+  
+  did:
+    enabled: true
+    method: mesh
+    credentialExpireDays: 365
+  
+  policyEngine:
+    enabled: true
+    defaultEffect: deny
+    cacheEnabled: true
+    cacheTTL: 60
+  
+  continuousVerification:
+    enabled: true
+    baseIntervalSeconds: 60
+    maxIntervalSeconds: 300
+    riskThreshold: 0.7
+  
+  autoIsolation:
+    enabled: true
+    circuitBreakerThreshold: 5
+    recoveryTimeoutSeconds: 300
+  
+  threatIntelligence:
+    enabled: true
+    bloomFilterSize: 10000
+    reputationThreshold: 0.1
+    shareIndicators: true
+
+spiffe:
+  enabled: true
+  trustDomain: "x0tta6bl4.mesh"
+  
+  spireServer:
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  
+  spireAgent:
+    resources:
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+obfuscation:
+  enabled: false
+  defaultTransport: faketls
+  
+  faketls:
+    enabled: false
+    sni: "www.google.com"
+  
+  shadowsocks:
+    enabled: false
+    cipher: chacha20-poly1305
+  
+  domainFronting:
+    enabled: false
+    frontDomain: ""
+    targetDomain: ""
+
+networking:
+  batmanAdv:
+    enabled: true
+    interface: bat0
+    hopPenalty: 15
+  
+  service:
+    type: ClusterIP
+    port: 8000
+    metricsPort: 9090
+  
+  ingress:
+    enabled: false
+
+prometheus:
+  enabled: true
+
+grafana:
+  enabled: true
+  adminPassword: "staging"
+  
+  dashboards:
+    default:
+      zero-trust:
+        gnetId: 0
+        datasource: Prometheus
+      mesh-network:
+        gnetId: 0
+        datasource: Prometheus
+
+alertmanager:
+  enabled: true
+  config:
+    receivers:
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://localhost:5001/'
+
+dao:
+  enabled: false
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

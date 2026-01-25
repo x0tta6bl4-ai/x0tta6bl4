@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - monitoring.yaml
+  - rbac.yaml
+
+namePrefix: staging-
+namespace: x0tta6bl4-staging
+
+replicas:
+- name: x0tta6bl4
+  count: 2
+
+commonLabels:
+  environment: staging
+
+commonAnnotations:
+  environment: staging
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: x0tta6bl4
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENVIRONMENT
+          value: staging
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PROFILING_ENABLED
+          value: "true"

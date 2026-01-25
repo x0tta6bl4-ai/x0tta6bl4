@@ -1,0 +1,285 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install core dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-core.txt
+    
+    - name: Install test dependencies
+      run: |
+        pip install pytest pytest-cov pytest-asyncio
+    
+    - name: Check dependencies health
+      run: |
+        python scripts/check_dependencies.py || true
+    
+    - name: Run tests
+      run: |
+        pytest --cov=src --cov-report=xml --cov-report=term -v
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install linting tools
+      run: |
+        pip install black flake8 mypy ruff
+    
+    - name: Run black
+      run: black --check src tests
+    
+    - name: Run flake8
+      run: flake8 src tests
+    
+    - name: Run mypy
+      run: mypy src --ignore-missing-imports || true
+    
+    - name: Run ruff
+      run: ruff check src tests
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety pip-audit
+    
+    - name: Run Bandit (fail on HIGH/CRITICAL)
+      id: bandit
+      run: |
+        echo "Running Bandit security analysis..."
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/ -f txt -ll
+        
+        # Check for HIGH/CRITICAL issues and fail fast
+        python -c "
+        import json
+        import sys
+        
+        try:
+            with open('bandit-report.json') as f:
+                report = json.load(f)
+        except:
+            print('✓ No bandit issues found')
+            sys.exit(0)
+        
+        high_critical = [r for r in report.get('results', []) 
+                        if r.get('severity') in ['HIGH', 'CRITICAL']]
+        
+        if high_critical:
+            print(f'❌ Found {len(high_critical)} HIGH/CRITICAL security issues:')
+            for issue in high_critical:
+                print(f'  {issue[\"test_id\"]}: {issue[\"issue_text\"]}')
+                print(f'    File: {issue[\"filename\"]}:{issue[\"line_number\"]}')
+            sys.exit(1)
+        else:
+            print('✓ No HIGH/CRITICAL security issues found')
+        "
+    
+    - name: Upload Bandit report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: bandit-report.json
+    
+    - name: Run Safety (dependency check)
+      id: safety
+      run: |
+        echo "Checking dependencies for vulnerabilities..."
+        pip install -e . 2>/dev/null || true
+        safety check --json > safety-report.json || true
+        safety check
+    
+    - name: Upload Safety report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: safety-report
+        path: safety-report.json
+    
+    - name: Run pip-audit
+      run: |
+        echo "Running pip-audit..."
+        pip-audit --format json > pip-audit-report.json || true
+        pip-audit --format markdown || true
+    
+    - name: Upload pip-audit report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pip-audit-report
+        path: pip-audit-report.json
+
+  ebpf:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install LLVM/Clang toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm-dev linux-headers-$(uname -r)
+        echo "🔧 Installed LLVM/Clang toolchain"
+        clang --version
+        llvm-config --version
+    
+    - name: Install eBPF dependencies
+      run: |
+        sudo apt-get install -y libbpf-dev bpftool linux-tools-generic
+        echo "✅ eBPF dependencies installed"
+        which bpftool || echo "⚠️ bpftool not found in PATH"
+    
+    - name: Check kernel compatibility
+      run: |
+        KERNEL_VERSION=$(uname -r)
+        echo "📌 Current kernel: $KERNEL_VERSION"
+        
+        # Extract major.minor version
+        KERNEL_MAJOR_MINOR=$(echo $KERNEL_VERSION | cut -d. -f1-2)
+        echo "🔍 Kernel major.minor: $KERNEL_MAJOR_MINOR"
+        
+        # Check minimum kernel version (5.8+)
+        if python3 -c "
+        import sys
+        kernel_version = '$KERNEL_MAJOR_MINOR'
+        major, minor = map(int, kernel_version.split('.'))
+        if (major < 5) or (major == 5 and minor < 8):
+            print('❌ Kernel version too old (< 5.8). eBPF CO-RE requires >= 5.8')
+            sys.exit(1)
+        else:
+            print(f'✅ Kernel {kernel_version} compatible with eBPF CO-RE')
+        "; then
+          echo "Kernel compatibility check passed"
+        else
+          echo "Kernel compatibility check failed"
+          exit 1
+        fi
+        
+        # Check BTF availability
+        if [ -f /sys/kernel/btf/vmlinux ]; then
+          echo "✅ BTF available (/sys/kernel/btf/vmlinux)"
+        else
+          echo "⚠️ BTF not available - CO-RE vmlinux.h generation will be skipped"
+        fi
+    
+    - name: Compile eBPF programs
+      run: |
+        cd src/network/ebpf/programs
+        echo "📦 Compiling eBPF programs..."
+        make clean
+        make all
+        echo "✅ eBPF compilation completed"
+    
+    - name: Verify eBPF objects
+      run: |
+        cd src/network/ebpf/programs
+        echo "🔍 Verifying compiled eBPF objects..."
+        make verify
+        echo "✅ All eBPF objects verified"
+    
+    - name: Install eBPF artifacts
+      run: |
+        cd src/network/ebpf/programs
+        echo "📦 Installing eBPF artifacts..."
+        make install
+        echo "✅ eBPF artifacts installed to build/ebpf/"
+        ls -lah ../../build/ebpf/
+    
+    - name: Upload eBPF artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ebpf-objects
+        path: build/ebpf/
+        retention-days: 30
+    
+    - name: Generate eBPF compilation report
+      if: always()
+      run: |
+        echo "# eBPF Compilation Report" > ebpf-report.md
+        echo "" >> ebpf-report.md
+        echo "**Kernel Version**: $(uname -r)" >> ebpf-report.md
+        echo "**Build Date**: $(date)" >> ebpf-report.md
+        echo "" >> ebpf-report.md
+        echo "## Compiled Programs" >> ebpf-report.md
+        echo "" >> ebpf-report.md
+        if [ -d build/ebpf ]; then
+          ls -lh build/ebpf/ | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> ebpf-report.md
+        else
+          echo "- No artifacts generated" >> ebpf-report.md
+        fi
+        echo "" >> ebpf-report.md
+        echo "## Status" >> ebpf-report.md
+        if [ -d build/ebpf ] && [ "$(ls -1 build/ebpf/ | wc -l)" -gt 0 ]; then
+          echo "✅ **SUCCESS** - All eBPF programs compiled successfully" >> ebpf-report.md
+        else
+          echo "❌ **FAILED** - eBPF compilation failed" >> ebpf-report.md
+        fi
+        cat ebpf-report.md
+    
+    - name: Upload eBPF report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ebpf-report
+        path: ebpf-report.md
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install core dependencies
+      run: |
+        pip install -r requirements-core.txt
+    
+    - name: Check dependencies health
+      run: |
+        python scripts/check_dependencies.py

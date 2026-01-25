@@ -1,0 +1,154 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 - System Health & Resources",
+    "tags": ["system", "resources", "health", "infrastructure"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "CPU Usage (%)",
+        "targets": [
+          {
+            "expr": "node_cpu_usage_percent",
+            "legendFormat": "{{ instance }}"
+          },
+          {
+            "expr": "80",
+            "legendFormat": "Warning Threshold"
+          },
+          {
+            "expr": "95",
+            "legendFormat": "Critical Threshold"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Memory Usage (%)",
+        "targets": [
+          {
+            "expr": "100 - node_memory_available_percent",
+            "legendFormat": "{{ instance }}"
+          },
+          {
+            "expr": "75",
+            "legendFormat": "Warning Threshold"
+          },
+          {
+            "expr": "90",
+            "legendFormat": "Critical Threshold"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Available Memory (GB)",
+        "targets": [
+          {
+            "expr": "node_memory_available_bytes / 1024 / 1024 / 1024",
+            "legendFormat": "{{ instance }}"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "title": "Load Average (1/5/15 min)",
+        "targets": [
+          {
+            "expr": "node_load_average_1m",
+            "legendFormat": "1m"
+          },
+          {
+            "expr": "node_load_average_5m",
+            "legendFormat": "5m"
+          },
+          {
+            "expr": "node_load_average_15m",
+            "legendFormat": "15m"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "title": "Network Traffic (Mbps)",
+        "targets": [
+          {
+            "expr": "rate(node_network_in_bytes[1m]) / 1024 / 1024 * 8",
+            "legendFormat": "In: {{ device }}"
+          },
+          {
+            "expr": "rate(node_network_out_bytes[1m]) / 1024 / 1024 * 8",
+            "legendFormat": "Out: {{ device }}"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+      },
+      {
+        "title": "Disk I/O (ops/sec)",
+        "targets": [
+          {
+            "expr": "rate(node_disk_io_reads[1m])",
+            "legendFormat": "Reads: {{ device }}"
+          },
+          {
+            "expr": "rate(node_disk_io_writes[1m])",
+            "legendFormat": "Writes: {{ device }}"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      },
+      {
+        "title": "Disk Space Usage (%)",
+        "targets": [
+          {
+            "expr": "node_disk_space_percent",
+            "legendFormat": "{{ device }}"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 }
+      },
+      {
+        "title": "Network Errors (5min)",
+        "targets": [
+          {
+            "expr": "increase(node_network_errors_in[5m]) + increase(node_network_errors_out[5m])"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 }
+      },
+      {
+        "title": "System Uptime",
+        "targets": [
+          {
+            "expr": "time() - process_start_time_seconds",
+            "legendFormat": "Uptime (seconds)"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 }
+      },
+      {
+        "title": "Active Connections",
+        "targets": [
+          {
+            "expr": "node_network_tcp_connections"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 }
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

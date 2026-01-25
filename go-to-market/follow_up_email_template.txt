@@ -1,0 +1,19 @@
+Subject: Quick Follow-Up: 7-Day Mesh Resilience Pilot
+
+Hi [NAME],
+
+Following up on my earlier note regarding a 7-day resilience mesh pilot for [COMPANY]. If this landed at a busy moment, a quick recap:
+- MTTR target < 2.0s (self-healing mesh layer)
+- Identity isolation (SPIFFE/mTLS) + adaptive routing
+- Focused audit & deployment playbook in one week
+- Fixed 200K RUB, minimal lift (~6–8h engineer time)
+
+Goal: quantify recovery improvements before deeper investment.
+
+If relevant: can we lock a 30-min scope call this week? Proposed slots: [2 TIME OPTIONS]
+If not a fit right now, just let me know — I won’t spam.
+
+Thanks,
+[ТВОЁ ИМЯ]
+Founder, x0tta6bl4
+[Telegram] | [Email]

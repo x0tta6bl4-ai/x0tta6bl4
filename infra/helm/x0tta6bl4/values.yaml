@@ -1,0 +1,245 @@
+# x0tta6bl4 Mesh - Helm Values
+# Zero Trust Configuration
+
+# ============================================
+# Global Settings
+# ============================================
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# ============================================
+# Mesh Node Configuration
+# ============================================
+mesh:
+  replicaCount: 3
+  
+  image:
+    repository: x0tta6bl4/mesh-node
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Node configuration
+  config:
+    nodeId: ""  # Auto-generated if empty
+    meshPort: 7946
+    apiPort: 8080
+    metricsPort: 9090
+  
+  # Persistence
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+
+# ============================================
+# Zero Trust Security
+# ============================================
+zeroTrust:
+  enabled: true
+  
+  # ZKP Authentication
+  zkp:
+    enabled: true
+    algorithm: schnorr  # schnorr, pedersen
+    challengeTimeout: 300  # seconds
+  
+  # Post-Quantum Cryptography
+  postQuantum:
+    enabled: true
+    algorithm: ntru-hybrid
+    keyRotationDays: 30
+  
+  # Device Attestation
+  deviceAttestation:
+    enabled: true
+    privacyPreserving: true
+    tpmRequired: false
+  
+  # Decentralized Identity (DIDs)
+  did:
+    enabled: true
+    method: mesh  # mesh, key, web
+    credentialExpireDays: 365
+  
+  # Policy Engine
+  policyEngine:
+    enabled: true
+    defaultEffect: deny
+    cacheEnabled: true
+    cacheTTL: 60
+  
+  # Continuous Verification
+  continuousVerification:
+    enabled: true
+    baseIntervalSeconds: 60
+    maxIntervalSeconds: 300
+    riskThreshold: 0.7
+  
+  # Auto-Isolation
+  autoIsolation:
+    enabled: true
+    circuitBreakerThreshold: 5
+    recoveryTimeoutSeconds: 300
+  
+  # Threat Intelligence
+  threatIntelligence:
+    enabled: true
+    bloomFilterSize: 10000
+    reputationThreshold: 0.1
+    shareIndicators: true
+
+# ============================================
+# SPIFFE/SPIRE Integration
+# ============================================
+spiffe:
+  enabled: true
+  trustDomain: "x0tta6bl4.mesh"
+  
+  spireServer:
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  
+  spireAgent:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# ============================================
+# Anti-Censorship / Obfuscation
+# ============================================
+obfuscation:
+  enabled: true
+  defaultTransport: faketls
+  
+  faketls:
+    enabled: true
+    sni: "www.google.com"
+  
+  shadowsocks:
+    enabled: true
+    cipher: chacha20-poly1305
+  
+  domainFronting:
+    enabled: false
+    frontDomain: ""
+    targetDomain: ""
+
+# ============================================
+# Networking
+# ============================================
+networking:
+  # Batman-adv mesh
+  batmanAdv:
+    enabled: true
+    interface: bat0
+    hopPenalty: 15
+  
+  # Service mesh
+  service:
+    type: ClusterIP
+    port: 8080
+    metricsPort: 9090
+  
+  # Ingress
+  ingress:
+    enabled: false
+    className: nginx
+    annotations: {}
+    hosts:
+      - host: mesh.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+# ============================================
+# Monitoring
+# ============================================
+prometheus:
+  enabled: true
+  
+grafana:
+  enabled: true
+  adminPassword: "changeme"
+  
+  dashboards:
+    default:
+      zero-trust:
+        gnetId: 0
+        datasource: Prometheus
+      mesh-network:
+        gnetId: 0
+        datasource: Prometheus
+
+alertmanager:
+  enabled: true
+  config:
+    receivers:
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://localhost:5001/'
+
+# ============================================
+# DAO Governance (Optional)
+# ============================================
+dao:
+  enabled: false
+  quorumPercent: 51
+  votingPeriodHours: 72
+  proposalThreshold: 100
+
+# ============================================
+# Pod Configuration
+# ============================================
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# ============================================
+# Service Account
+# ============================================
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ============================================
+# Autoscaling
+# ============================================
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

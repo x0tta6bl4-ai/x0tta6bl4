@@ -1,0 +1,353 @@
+# Оптимизированная конфигурация HNSW индексации для многорегиональной инфраструктуры
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Конфигурация HNSW индексации
+hnsw:
+  # Глобальные настройки
+  global:
+    indexName: "x0tta6bl4-vector-index"
+    dimension: 1536  # Размерность векторов
+    metricType: "cosine"
+    maxConnections: 32
+    efConstruction: 200
+    efRuntime: 64
+    m: 16
+
+  # Многорегиональная репликация
+  replication:
+    enabled: true
+
+    # Региональные реплики
+    regions:
+      us-east:
+        enabled: true
+        priority: 1
+        replicas: 3
+        readReplicas: 2
+
+        # Конфигурация репликации
+        replication:
+          mode: "async"
+          batchSize: 1000
+          interval: "5s"
+          compression: true
+          encryption: true
+
+        # Локальное кеширование
+        cache:
+          enabled: true
+          type: "redis"
+          size: "10GB"
+          ttl: "24h"
+          evictionPolicy: "lru"
+
+        # Ресурсы для региона
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "8Gi"
+          requests:
+            cpu: "500m"
+            memory: "4Gi"
+
+      eu-west:
+        enabled: true
+        priority: 2
+        replicas: 2
+        readReplicas: 1
+
+        replication:
+          mode: "async"
+          batchSize: 800
+          interval: "10s"
+          compression: true
+          encryption: true
+
+        cache:
+          enabled: true
+          type: "redis"
+          size: "8GB"
+          ttl: "24h"
+          evictionPolicy: "lru"
+
+        resources:
+          limits:
+            cpu: "1500m"
+            memory: "6Gi"
+          requests:
+            cpu: "400m"
+            memory: "3Gi"
+
+      asia-pacific:
+        enabled: true
+        priority: 3
+        replicas: 1
+        readReplicas: 1
+
+        replication:
+          mode: "async"
+          batchSize: 500
+          interval: "15s"
+          compression: true
+          encryption: true
+
+        cache:
+          enabled: true
+          type: "redis"
+          size: "5GB"
+          ttl: "24h"
+          evictionPolicy: "lru"
+
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "4Gi"
+          requests:
+            cpu: "300m"
+            memory: "2Gi"
+
+  # Асинхронные обновления индексов
+  asyncUpdates:
+    enabled: true
+
+    # Очередь обновлений
+    updateQueue:
+      type: "redis"
+      batchSize: 100
+      maxRetries: 3
+      retryDelay: "5s"
+
+    # Пул воркеров для обновлений
+    workers:
+      count: 4
+      queueSize: 1000
+      timeout: "30s"
+
+    # Стратегии обновления
+    strategies:
+      incremental:
+        enabled: true
+        threshold: 0.1  # 10% изменения триггерит обновление
+        mergeThreshold: 0.05  # 5% для частичного слияния
+
+      fullRebuild:
+        enabled: true
+        schedule: "0 2 * * 0"  # Каждое воскресенье в 2:00
+        maxDuration: "4h"
+
+  # Локальное кеширование для снижения задержек
+  localCache:
+    enabled: true
+
+    # Redis cluster для кеширования
+    redis:
+      enabled: true
+      replicas: 3
+
+      # Конфигурация Redis
+      config:
+        maxmemory: "10gb"
+        maxmemoryPolicy: "allkeys-lru"
+        tcpKeepalive: 300
+        timeout: 300
+
+      # Persistence
+      persistence:
+        enabled: true
+        size: "50Gi"
+        storageClass: "fast-ssd"
+
+    # Локальный кеш на узлах
+    nodeCache:
+      enabled: true
+      size: "2GB"
+      ttl: "1h"
+      syncInterval: "5m"
+
+  # Мониторинг производительности
+  monitoring:
+    enabled: true
+
+    # Метрики индексации
+    metrics:
+      indexSize: true
+      searchLatency: true
+      updateLatency: true
+      cacheHitRate: true
+      replicationLag: true
+
+    # Prometheus интеграция
+    prometheus:
+      enabled: true
+      scrapeInterval: "15s"
+      metricsPort: 9091
+
+    # Алерт правила
+    alerts:
+      highLatency:
+        threshold: "100ms"
+        duration: "5m"
+      lowCacheHitRate:
+        threshold: "0.8"
+        duration: "10m"
+      replicationLag:
+        threshold: "30s"
+        duration: "5m"
+
+  # Безопасность
+  security:
+    # Шифрование данных в покое
+    encryption:
+      enabled: true
+      keyRotation: "30d"
+
+    # Шифрование в транзите
+    tls:
+      enabled: true
+      certManager: true
+
+    # Контроль доступа
+    rbac:
+      enabled: true
+      readOnlyUsers: []
+      adminUsers: []
+
+# Конфигурация StatefulSets для индексаторов
+statefulSet:
+  enabled: true
+
+  # Аннотации для мониторинга
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.hnsw.monitoring.prometheus.metricsPort }}"
+
+  # Security Context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  # Persistence для индексов
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 100Gi
+    storageClass: "ultra-fast-ssd"
+
+# Конфигурация Deployments для сервисов обновления
+deployment:
+  enabled: true
+
+  # Репликация
+  replicas: 3
+
+  # Стратегия обновления
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  # Ресурсы
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "1Gi"
+
+# Service для HNSW API
+service:
+  enabled: true
+  type: ClusterIP
+
+  ports:
+    - name: hnsw-api
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
+
+# Ingress для внешнего доступа (если требуется)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: hnsw-api.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Конфигурация Redis для кеширования
+redis:
+  enabled: true
+
+  # Архитектура
+  architecture: standalone
+
+  # Мастер конфигурация
+  master:
+    persistence:
+      enabled: true
+      size: "50Gi"
+
+  # Конфигурация производительности
+  config:
+    maxmemory: "10gb"
+    maxmemoryPolicy: "allkeys-lru"
+
+# Конфигурация Elasticsearch для метаданных
+elasticsearch:
+  enabled: true
+
+  # Мастер узлы
+  master:
+    replicaCount: 3
+    persistence:
+      size: "20Gi"
+
+  # Data узлы
+  data:
+    replicaCount: 2
+    persistence:
+      size: "100Gi"
+
+  # Coordinating узлы
+  coordinating:
+    replicaCount: 2
+
+# NetworkPolicy для безопасности
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: hnsw-system
+        - podSelector:
+            matchLabels:
+              app: hnsw-replica-optimization
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9091
+
+# Автомасштабирование (если требуется)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

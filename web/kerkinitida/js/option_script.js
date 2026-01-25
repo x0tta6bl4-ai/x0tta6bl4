@@ -1,0 +1,33 @@
+$(document).ready(function() {
+		$("#style_grid").click(function(){
+		$("#block_grid").show();
+		$("#block_list").hide();
+		$("#style_grid").attr("src","../img/grid_active.png");
+		$("#style_list").attr("src","../img/list.png");
+		$.cookie('select_style','grid');
+	});
+	$("#style_list").click(function(){
+		$("#block_grid").hide();
+		$("#block_list").show();
+		$("#style_list").attr("src","../img/list_active.png");
+		$("#style_grid").attr("src","../img/grid.png");
+		$.cookie('select_style','list');
+	});
+	if ($.cookie('select_style') == 'grid')
+	{
+		$("#block_grid").show();
+		$("#block_list").hide();
+		$("#style_grid").attr("src","../img/grid_active.png");
+		$("#style_list").attr("src","../img/list.png");
+	}
+	else
+	{
+		$("#block_grid").hide();
+		$("#block_list").show();
+		$("#style_list").attr("src","../img/list_active.png");
+		$("#style-grid").attr("src","../img/grid.png");
+	}
+	$("#select_sort").click(function(){
+		$("#sorting_list").slideToggle(200);
+	});
+}); 

@@ -1,0 +1,31 @@
+# Helm values for Terraform deployment
+
+replicaCount: 3
+
+production:
+  enabled: true
+  requireLiboqs: true
+  requireSpiffe: true
+
+dependencies:
+  liboqs: true
+  spiffe: true
+  opentelemetry: true
+  prometheus: true
+
+env:
+  X0TTA6BL4_VERSION: "3.4.0"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+monitoring:
+  enabled: true
+

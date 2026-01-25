@@ -1,0 +1,134 @@
+version: '3.9'
+
+services:
+  # Elasticsearch for centralized log storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: x0tta6bl4-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - indices.lifecycle.poll_interval=1m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl -s http://localhost:9200 >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - x0tta6bl4-logging
+
+  # Logstash for log processing
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.0
+    container_name: x0tta6bl4-logstash
+    environment:
+      - "LS_JAVA_OPTS=-Xmx256m -Xms256m"
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - ./logstash_patterns:/usr/share/logstash/patterns:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - x0tta6bl4-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Kibana for log visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: x0tta6bl4-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - x0tta6bl4-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Loki for log aggregation (Grafana-native)
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: x0tta6bl4-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - x0tta6bl4-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Promtail for log collection (Grafana agent)
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: x0tta6bl4-promtail
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+    networks:
+      - x0tta6bl4-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Fluent-bit for lightweight log collection
+  fluent-bit:
+    image: fluent/fluent-bit:2.1.9
+    container_name: x0tta6bl4-fluent-bit
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - /var/log:/var/log:ro
+    ports:
+      - "24224:24224"
+    depends_on:
+      - loki
+    networks:
+      - x0tta6bl4-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  x0tta6bl4-logging:
+    driver: bridge

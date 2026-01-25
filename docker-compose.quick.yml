@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  x0tta6bl4-db:
+    image: postgres:15-alpine
+    container_name: x0tta6bl4-db
+    environment:
+      POSTGRES_USER: x0tta6bl4
+      POSTGRES_PASSWORD: x0tta6bl4_test
+      POSTGRES_DB: x0tta6bl4_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x0tta6bl4"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - x0tta6bl4_network
+
+  # Redis Cache
+  x0tta6bl4-redis:
+    image: redis:7-alpine
+    container_name: x0tta6bl4-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - x0tta6bl4_network
+
+  # Prometheus Monitoring
+  x0tta6bl4-prometheus:
+    image: prom/prometheus:latest
+    container_name: x0tta6bl4-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - x0tta6bl4_network
+
+  # Grafana Dashboards
+  x0tta6bl4-grafana:
+    image: grafana/grafana:latest
+    container_name: x0tta6bl4-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - x0tta6bl4_network
+
+  # x0tta6bl4 API
+  x0tta6bl4-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.staging
+    container_name: x0tta6bl4-api
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: staging
+      DATABASE_URL: postgresql://x0tta6bl4:x0tta6bl4_test@x0tta6bl4-db:5432/x0tta6bl4_dev
+      REDIS_URL: redis://x0tta6bl4-redis:6379
+      PROMETHEUS_URL: http://x0tta6bl4-prometheus:9090
+      LOG_LEVEL: INFO
+    depends_on:
+      x0tta6bl4-db:
+        condition: service_healthy
+      x0tta6bl4-redis:
+        condition: service_healthy
+      x0tta6bl4-prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - x0tta6bl4_network
+
+networks:
+  x0tta6bl4_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:

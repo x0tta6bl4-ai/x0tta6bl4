@@ -1,0 +1,18 @@
+# Docker ignore для mesh node
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.git
+.gitignore
+.pytest_cache
+.hypothesis
+*.md
+*.txt
+!requirements.txt
+.env
+.venv
+venv
+node_modules
+*.log
+junit.xml

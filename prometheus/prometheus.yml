@@ -1,0 +1,220 @@
+# Prometheus Configuration for Charter Observability
+# File: prometheus/prometheus.yml
+# Purpose: Scrape Charter metrics from FastAPI application
+# Update: 2026-01-11
+
+global:
+  scrape_interval: 15s       # Default: scrape metrics every 15 seconds
+  evaluation_interval: 30s   # Evaluate alert rules every 30s
+  external_labels:
+    cluster: 'production'
+    region: 'us-east-1'
+    component: 'charter'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'  # AlertManager instance
+      path_prefix: '/'
+      timeout: 10s
+
+# Load alert rules
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+  - '/etc/prometheus/alerts/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # =============================================================================
+  # CHARTER APPLICATION METRICS (Primary)
+  # =============================================================================
+  - job_name: 'westworld-charter'
+    description: 'Charter Anti-Delos observability metrics'
+    
+    # Scrape settings
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+    scheme: 'https'  # Use HTTPS for security
+    
+    # Static targets
+    static_configs:
+      - targets: ['charter-api:8000']  # FastAPI application
+        labels:
+          service: 'charter'
+          instance: 'primary'
+      
+      - targets: ['charter-api-2:8000']  # Replica
+        labels:
+          service: 'charter'
+          instance: 'replica-1'
+    
+    # Relabel configs: add/modify labels
+    relabel_configs:
+      # Add job label
+      - source_labels: [__scheme__, __address__, __metrics_path__]
+        separator: ';'
+        regex: '([^;]+);([^:]+)(?::\d+)?;(.*)'
+        target_label: __param_target
+        replacement: '${1}://${2}${3}'
+      
+      # Add custom labels
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: '${1}'
+      
+      # Keep only Charter metrics (drop others)
+      - source_labels: [__name__]
+        regex: 'westworld_charter_.*'
+        action: keep
+    
+    # Metric relabeling: transform metric labels
+    metric_relabel_configs:
+      # Normalize severity labels to uppercase
+      - source_labels: [severity]
+        regex: '(.+)'
+        replacement: '${1}'
+        target_label: severity
+      
+      # Drop high-cardinality error metrics (prevent cardinality explosion)
+      - source_labels: [__name__]
+        regex: '.+_errors_total'
+        action: drop
+    
+    # Authentication (if needed)
+    bearer_token: '${CHARTER_PROMETHEUS_TOKEN}'
+    bearer_token_file: '/etc/prometheus/secrets/charter-token'
+    
+    # TLS configuration
+    tls_config:
+      ca_file: '/etc/prometheus/certs/ca.crt'
+      cert_file: '/etc/prometheus/certs/client.crt'
+      key_file: '/etc/prometheus/certs/client.key'
+      insecure_skip_verify: false
+    
+    # Service discovery (Kubernetes)
+    # kubernetes_sd_configs:
+    #   - role: pod
+    #     namespaces:
+    #       names:
+    #         - 'charter'
+    #     relabel_configs:
+    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_scrape]
+    #         action: keep
+    #         regex: 'true'
+    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_port]
+    #         action: replace
+    #         target_label: __address__
+    #         regex: '([^:]+)(?::\d+)?;(\d+)'
+    #         replacement: '${1}:${2}'
+
+  # =============================================================================
+  # PROMETHEUS SELF-MONITORING
+  # =============================================================================
+  - job_name: 'prometheus'
+    description: 'Prometheus server self-monitoring'
+    
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    scheme: 'http'
+    
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          instance: 'primary'
+    
+    # Keep only Prometheus metrics
+    relabel_configs:
+      - source_labels: [__name__]
+        regex: 'prometheus_.*|process_.*'
+        action: keep
+
+  # =============================================================================
+  # ALERTMANAGER METRICS
+  # =============================================================================
+  - job_name: 'alertmanager'
+    description: 'AlertManager instance metrics'
+    
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    scheme: 'http'
+    
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          service: 'alertmanager'
+          instance: 'primary'
+
+  # =============================================================================
+  # NODE EXPORTER (System metrics from nodes)
+  # =============================================================================
+  - job_name: 'node-exporter'
+    description: 'Node exporter for system metrics'
+    
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    scheme: 'http'
+    
+    static_configs:
+      - targets:
+          - 'node-exporter-1:9100'
+          - 'node-exporter-2:9100'
+        labels:
+          component: 'infrastructure'
+    
+    # Keep only node metrics, drop noisy ones
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'node_(?!cpu|memory|disk|filesystem|network).*'
+        action: drop
+      - source_labels: [device]
+        regex: 'loop.*'
+        action: drop
+
+  # =============================================================================
+  # DOCKER DAEMON (if using Docker)
+  # =============================================================================
+  # - job_name: 'docker'
+  #   description: 'Docker daemon metrics'
+  #   
+  #   scrape_interval: 30s
+  #   metrics_path: '/metrics'
+  #   scheme: 'http'
+  #   
+  #   static_configs:
+  #     - targets: ['docker-host:9323']
+
+  # =============================================================================
+  # POSTGRESQL (if using database)
+  # =============================================================================
+  # - job_name: 'postgres-exporter'
+  #   description: 'PostgreSQL database metrics'
+  #   
+  #   scrape_interval: 30s
+  #   metrics_path: '/metrics'
+  #   scheme: 'http'
+  #   
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+# =============================================================================
+# REMOTE WRITE (optional: send metrics to remote storage)
+# =============================================================================
+# remote_write:
+#   - url: 'http://remote-storage:9009/api/v1/push'
+#     write_relabel_configs:
+#       - source_labels: [__name__]
+#         regex: 'westworld_charter_.*'
+#         action: keep
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+
+# =============================================================================
+# REMOTE READ (optional: query remote storage)
+# =============================================================================
+# remote_read:
+#   - url: 'http://remote-storage:9009/api/v1/read'

@@ -1,0 +1,91 @@
+# Recovery Actions Configuration
+# Production-ready configuration for recovery actions
+
+recovery_actions:
+  # Node configuration
+  node:
+    node_id: "${NODE_ID:-default-node}"
+  
+  # Action timeouts (seconds)
+  timeouts:
+    restart_service: 60
+    switch_route: 30
+    clear_cache: 10
+    scale_up: 120
+    failover: 180
+    quarantine_node: 60
+  
+  # Retry configuration
+  retry:
+    enabled: true
+    max_retries: 3
+    retry_delay_seconds: 5
+    exponential_backoff: true
+  
+  # Kubernetes configuration
+  kubernetes:
+    # Default namespace
+    default_namespace: "default"
+    
+    # kubectl path
+    kubectl_path: "/usr/bin/kubectl"
+    
+    # Wait for rollout
+    wait_for_rollout: true
+    rollout_timeout_seconds: 300
+  
+  # Service restart
+  restart:
+    # Grace period (seconds)
+    grace_period: 30
+    
+    # Force restart if grace period fails
+    force_after_grace: true
+  
+  # Scaling
+  scale:
+    # Min replicas
+    min_replicas: 1
+    
+    # Max replicas
+    max_replicas: 100
+    
+    # Scale step (increment/decrement)
+    step: 1
+    
+    # Cooldown period between scales (seconds)
+    cooldown_seconds: 60
+  
+  # Failover
+  failover:
+    # Health check before failover
+    health_check: true
+    health_check_timeout: 10
+    
+    # Automatic failback
+    auto_failback: true
+    failback_health_check_interval: 60
+  
+  # Quarantine
+  quarantine:
+    # Isolation duration (seconds, 0 = permanent)
+    duration_seconds: 3600
+    
+    # Auto-release after duration
+    auto_release: true
+    
+    # Release health check
+    release_health_check: true
+
+  # Monitoring
+  monitoring:
+    # Track action execution
+    track_execution: true
+    
+    # Export metrics
+    metrics_enabled: true
+    metrics_prefix: "x0tta6bl4_recovery"
+    
+    # Log all actions
+    log_all_actions: true
+

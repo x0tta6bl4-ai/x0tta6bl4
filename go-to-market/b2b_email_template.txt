@@ -1,0 +1,40 @@
+Subject: Accelerate Your Network Resilience: 7-Day Mesh Pilot Proposal
+
+Hi [ИМЯ / NAME],
+
+I’m reaching out because [КОМПАНИЯ] operates in an environment where every minute of network instability costs focus and revenue. We’re building x0tta6bl4 — a self-healing, zero-trust mesh layer that keeps internal services reachable even under partial outages.
+
+Pilot (7 days):
+- Slot-based sync (no GPS dependency)
+- mTLS / SPIFFE identity isolation
+- Adaptive routing (Graph-based ML)
+- MTTR target: < 2.0s (we’re already at 2.4s with 25 nodes)
+- Optional: LoRa long-range fallback
+
+Deliverables for your team:
+- Resilience audit (current failure modes)
+- Deployment playbook (Kubernetes + fallback transport)
+- Policy-as-Code examples (OPA, Zero-Trust decisions)
+- Metrics dashboard (latency, convergence, recovery time)
+
+Commercial outline:
+- Cost of pilot: 200,000 RUB (fixed)
+- Duration: 7 calendar days
+- Effort: ~6–8 engineer hours your side
+- Outcome: Go/No-Go decision with quantified benefits
+
+Why now:
+- Q4 attack surface expansion
+- Internal latency targets tightening
+- Rising dependency on distributed eventing and edge nodes
+
+Next step: Short technical call (30 minutes) to confirm scope and adapt to your environment.
+
+Are you available [укажи 2 слота / propose 2 time slots]?
+
+Best,
+[ТВОЁ ИМЯ]
+Founder, x0tta6bl4
+[LinkedIn / Telegram / Email]
+
+P.S. If mTLS sandbox limitations interest you, I can show our hybrid libp2p + SPIFFE path during the call.

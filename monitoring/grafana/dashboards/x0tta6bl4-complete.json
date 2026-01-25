@@ -1,0 +1,298 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Complete Monitoring",
+    "tags": ["x0tta6bl4", "mesh", "self-healing", "security", "production"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Mesh Network Health",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_mesh_nodes_total",
+            "legendFormat": "Total Nodes",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_mesh_connections_active",
+            "legendFormat": "Active Connections",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_mesh_packet_loss_percent",
+            "legendFormat": "Packet Loss %",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Count"},
+          {"format": "percent", "label": "Percent"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "MAPE-K Cycle Metrics",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_mape_k_cycle_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Cycle Duration",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(x0tta6bl4_mapek_incidents_detected_total[5m])",
+            "legendFormat": "Incidents Detected/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(x0tta6bl4_self_healing_mttr_seconds_bucket[5m]))",
+            "legendFormat": "P95 MTTR",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Seconds"},
+          {"format": "short", "label": "Rate"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Security Events",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_pqc_handshake_failures_total[5m])",
+            "legendFormat": "PQC Handshake Failures",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_pqc_fallback_enabled",
+            "legendFormat": "PQC Fallback Enabled",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(x0tta6bl4_spire_auth_failure_total[5m])",
+            "legendFormat": "SPIFFE Auth Failures",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(x0tta6bl4_zero_trust_enforcement_denied_total[5m])",
+            "legendFormat": "Zero Trust Denials",
+            "refId": "D"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Rate"},
+          {"format": "short", "label": "Count"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "System Resources",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_cpu_percent",
+            "legendFormat": "CPU %",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_memory_percent",
+            "legendFormat": "Memory %",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_network_throughput_bytes",
+            "legendFormat": "Network Throughput",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Percent"},
+          {"format": "bytes", "label": "Bytes/sec"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "HTTP Request Metrics",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Latency",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99 Latency",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(http_requests_total{status=~'5..'}[5m])",
+            "legendFormat": "Error Rate",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Seconds"},
+          {"format": "short", "label": "Rate"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Raft Consensus Status",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_raft_current_term",
+            "legendFormat": "Current Term",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Raft Node State",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_raft_node_state",
+            "legendFormat": "State",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "Follower", "color": "blue"}}},
+              {"type": "value", "options": {"1": {"text": "Candidate", "color": "yellow"}}},
+              {"type": "value", "options": {"2": {"text": "Leader", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Batman-adv Metrics",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "x0tta6bl4_batman_originators_total",
+            "legendFormat": "Originators",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_batman_gateways_total",
+            "legendFormat": "Gateways",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_batman_tq_score",
+            "legendFormat": "TQ Score",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Count"},
+          {"format": "short", "label": "Score"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "SPIFFE/SPIRE Metrics",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_spire_svid_issued_total[5m])",
+            "legendFormat": "SVIDs Issued/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_spire_svid_expiry_seconds",
+            "legendFormat": "SVID Expiry",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(x0tta6bl4_spire_auth_success_total[5m])",
+            "legendFormat": "Auth Success Rate",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Rate"},
+          {"format": "s", "label": "Seconds"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Zero Trust Enforcement",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_zero_trust_enforcement_allowed_total[5m])",
+            "legendFormat": "Allowed/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(x0tta6bl4_zero_trust_enforcement_denied_total[5m])",
+            "legendFormat": "Denied/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_zero_trust_trust_score",
+            "legendFormat": "Trust Score",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Rate"},
+          {"format": "short", "label": "Score"}
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Error Rates by Component",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(x0tta6bl4_errors_total[5m])) by (component)",
+            "legendFormat": "{{component}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Errors/sec"}
+        ]
+      }
+    ]
+  }
+}
+

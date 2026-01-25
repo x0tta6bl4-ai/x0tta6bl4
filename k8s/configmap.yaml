@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x0tta6bl4-config
+  labels:
+    app: x0tta6bl4
+data:
+  LOG_LEVEL: "INFO"
+  IPFS_ENABLED: "true"
+  PQC_CACHE_ENABLED: "true"
+  PQC_EBPF_ENABLED: "false"
+  STORAGE_PATH: "/app/data"
+  MESH_DISCOVERY_MODE: "auto"
+  MAPEK_CYCLE_INTERVAL: "60"
+

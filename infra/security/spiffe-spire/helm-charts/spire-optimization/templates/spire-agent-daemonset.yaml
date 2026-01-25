@@ -1,0 +1,281 @@
+{{- if .Values.spire.agents.edgeAgents.enabled }}
+---
+# Edge агенты с токен кешированием
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent-edge
+  labels:
+    app: spire-agent
+    type: edge
+    component: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+      type: edge
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+        type: edge
+        component: spire-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: spire-agent-edge
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.spire.agents.edgeAgents.image.repository }}:{{ .Values.spire.agents.edgeAgents.image.tag }}"
+          imagePullPolicy: {{ .Values.spire.agents.edgeAgents.image.pullPolicy }}
+          command:
+            - spire-agent
+            - run
+            - -config
+            - /etc/spire/config/agent.conf
+          ports:
+            - name: workload-api
+              containerPort: 8080
+              protocol: TCP
+              hostPort: 8080
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+              hostPort: 9090
+          env:
+            - name: SPIRE_TRUST_DOMAIN
+              value: {{ .Values.spire.global.trustDomain }}
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: REGION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/region']
+          volumeMounts:
+            - name: spire-config
+              mountPath: /etc/spire/config
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /tmp/spire-agent/public
+            - name: spire-token-cache
+              mountPath: /opt/spire/cache
+            - name: spire-plugins
+              mountPath: /etc/spire/plugins
+              readOnly: true
+          securityContext:
+            privileged: true
+            runAsNonRoot: false
+          resources:
+            {{- toYaml .Values.spire.agents.edgeAgents.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'test -S /tmp/spire-agent/public/api.sock'
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'test -S /tmp/spire-agent/public/api.sock'
+            initialDelaySeconds: 15
+            periodSeconds: 5
+
+        - name: token-cache-manager
+          image: "{{ .Values.global.imageRegistry }}spire-token-cache:latest"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/token-cache-manager
+            - -cache-dir=/opt/spire/cache
+            - -max-size={{ .Values.spire.agents.edgeAgents.tokenCache.maxSize }}
+            - -ttl={{ .Values.spire.agents.edgeAgents.tokenCache.ttl }}
+            - -refresh-threshold={{ .Values.spire.agents.edgeAgents.tokenCache.refreshThreshold }}
+          env:
+            - name: REGION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/region']
+            - name: PRIMARY_SERVER
+              value: "{{ .Values.spire.agents.edgeAgents.failover.primaryRegion }}-spire-server:8081"
+          volumeMounts:
+            - name: spire-token-cache
+              mountPath: /opt/spire/cache
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+
+        - name: failover-manager
+          image: "{{ .Values.global.imageRegistry }}spire-failover-manager:latest"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/failover-manager
+            - -health-check-interval={{ .Values.spire.agents.edgeAgents.failover.healthCheckInterval }}
+            - -failover-threshold={{ .Values.spire.agents.edgeAgents.failover.failoverThreshold }}
+            - -primary-region={{ .Values.spire.agents.edgeAgents.failover.primaryRegion }}
+            {{- range .Values.spire.agents.edgeAgents.failover.fallbackRegions }}
+            - -fallback-region={{ . }}
+            {{- end }}
+          ports:
+            - name: failover
+              containerPort: 9092
+              protocol: TCP
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: REGION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['topology.kubernetes.io/region']
+          volumeMounts:
+            - name: spire-config
+              mountPath: /etc/spire/config
+              readOnly: true
+          resources:
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent-edge-config
+        - name: spire-agent-socket
+          hostPath:
+            path: /tmp/spire-agent/public
+        - name: spire-token-cache
+          hostPath:
+            path: /opt/spire/cache
+        - name: spire-plugins
+          configMap:
+            name: spire-agent-plugins-config
+
+      tolerations:
+        - operator: Exists
+
+      nodeSelector:
+        spire-agent-type: edge
+
+{{- end }}
+
+---
+{{- if .Values.spire.agents.standardAgents.enabled }}
+# Стандартные агенты для внутренних сервисов
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent-standard
+  labels:
+    app: spire-agent
+    type: standard
+    component: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+      type: standard
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+        type: standard
+        component: spire-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: spire-agent
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.spire.agents.standardAgents.image.repository }}:{{ .Values.spire.agents.standardAgents.image.tag }}"
+          imagePullPolicy: {{ .Values.spire.agents.standardAgents.image.pullPolicy }}
+          command:
+            - spire-agent
+            - run
+            - -config
+            - /etc/spire/config/agent.conf
+          ports:
+            - name: workload-api
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: SPIRE_TRUST_DOMAIN
+              value: {{ .Values.spire.global.trustDomain }}
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: spire-config
+              mountPath: /etc/spire/config
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /tmp/spire-agent/public
+            - name: spire-plugins
+              mountPath: /etc/spire/plugins
+              readOnly: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+          resources:
+            {{- toYaml .Values.spire.agents.standardAgents.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'test -S /tmp/spire-agent/public/api.sock'
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'test -S /tmp/spire-agent/public/api.sock'
+            initialDelaySeconds: 15
+            periodSeconds: 5
+
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent-standard-config
+        - name: spire-agent-socket
+          emptyDir: {}
+        - name: spire-plugins
+          configMap:
+            name: spire-agent-plugins-config
+
+      tolerations:
+        - operator: Exists
+
+      nodeSelector:
+        spire-agent-type: standard
+
+{{- end }}

@@ -1,0 +1,152 @@
+# docker-compose для mesh сети x0tta6bl4
+# Запуск: docker-compose -f docker/docker-compose.mesh.yml up
+
+services:
+  # ===== MESH NODES =====
+  
+  node-alpha:
+    build:
+      context: ../
+      dockerfile: docker/mesh-node/Dockerfile
+    container_name: mesh-node-alpha
+    hostname: node-alpha
+    environment:
+      - NODE_ID=node-alpha
+      - PORT=5000
+      - SERVICES=mesh,relay
+      - OBFUSCATION=xor
+      - OBFUSCATION_KEY=mesh-secret-key
+      - TRAFFIC_PROFILE=gaming
+      - ENABLE_MULTICAST=true
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.10
+    ports:
+      - "5001:5000/udp"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  node-beta:
+    build:
+      context: ../
+      dockerfile: docker/mesh-node/Dockerfile
+    container_name: mesh-node-beta
+    hostname: node-beta
+    environment:
+      - NODE_ID=node-beta
+      - PORT=5000
+      - SERVICES=mesh,relay
+      - OBFUSCATION=xor
+      - OBFUSCATION_KEY=mesh-secret-key
+      - TRAFFIC_PROFILE=gaming
+      - ENABLE_MULTICAST=true
+      - BOOTSTRAP_NODES=172.31.0.10:5000
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.11
+    ports:
+      - "5002:5000/udp"
+    depends_on:
+      - node-alpha
+    restart: unless-stopped
+
+  node-gamma:
+    build:
+      context: ../
+      dockerfile: docker/mesh-node/Dockerfile
+    container_name: mesh-node-gamma
+    hostname: node-gamma
+    environment:
+      - NODE_ID=node-gamma
+      - PORT=5000
+      - SERVICES=mesh,exit
+      - OBFUSCATION=xor
+      - OBFUSCATION_KEY=mesh-secret-key
+      - TRAFFIC_PROFILE=video_streaming
+      - ENABLE_MULTICAST=true
+      - BOOTSTRAP_NODES=172.31.0.10:5000,172.31.0.11:5000
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.12
+    ports:
+      - "5003:5000/udp"
+    depends_on:
+      - node-alpha
+      - node-beta
+    restart: unless-stopped
+
+  node-delta:
+    build:
+      context: ../
+      dockerfile: docker/mesh-node/Dockerfile
+    container_name: mesh-node-delta
+    hostname: node-delta
+    environment:
+      - NODE_ID=node-delta
+      - PORT=5000
+      - SERVICES=mesh
+      - OBFUSCATION=xor
+      - OBFUSCATION_KEY=mesh-secret-key
+      - TRAFFIC_PROFILE=voice_call
+      - ENABLE_MULTICAST=true
+      - BOOTSTRAP_NODES=172.31.0.10:5000
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.13
+    ports:
+      - "5004:5000/udp"
+    depends_on:
+      - node-alpha
+    restart: unless-stopped
+
+  # ===== MONITORING =====
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mesh-prometheus
+    volumes:
+      - ../infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.100
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mesh-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3001:3000"
+    networks:
+      mesh-network:
+        ipv4_address: 172.31.0.101
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+networks:
+  mesh-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+
+volumes:
+  prometheus-data:
+  grafana-data:

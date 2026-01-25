@@ -1,0 +1,183 @@
+groups:
+  - name: charter_violations
+    interval: 30s
+    rules:
+      # CRITICAL: Any CRITICAL severity violation detected
+      - alert: CriticalViolationDetected
+        expr: increase(westworld_charter_violations_total{severity="CRITICAL"}[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          component: charter
+        annotations:
+          summary: "🚨 CRITICAL Charter violation detected"
+          description: "{{ $value }} critical violation(s) detected in the last 1 minute"
+          runbook: "https://wiki.example.com/charter/critical-violations"
+          dashboard: "http://grafana:3000/d/violations-threats"
+          action: "Investigate immediately; may require emergency override"
+
+      # WARNING: Spike in forbidden metric access attempts
+      - alert: ForbiddenMetricSpike
+        expr: rate(westworld_charter_forbidden_metric_attempts_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+          component: charter
+        annotations:
+          summary: "⚠️ Spike in forbidden metric access attempts"
+          description: >-
+            Metric {{ $labels.metric_name }} from {{ $labels.node_or_service }}:
+            {{ $value | humanize }} attempts/sec (threshold: 10/sec)
+          dashboard: "http://grafana:3000/d/violations-threats"
+          action: "Check node for reconnaissance activity; consider blocking"
+
+      # WARNING: Metric validation latency SLA violated
+      - alert: ValidationLatencySLAViolation
+        expr: >-
+          histogram_quantile(0.99, rate(westworld_charter_metric_validation_latency_ns_bucket[5m])) > 20000000
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: charter
+        annotations:
+          summary: "⚠️ Metric validation SLA violated (p99 > 20µs)"
+          description: >-
+            Current p99 latency: {{ $value | humanizeDuration }}
+            (SLA: < 20µs / 20,000,000ns)
+          dashboard: "http://grafana:3000/d/enforcement-performance"
+          action: "Check system load; may need to scale up validation service"
+
+      # CRITICAL: Policy not loaded for > 24 hours (stale)
+      - alert: PolicyLoadFailure
+        expr: (time() - westworld_charter_policy_last_load_timestamp) > 86400
+        for: 1h
+        labels:
+          severity: critical
+          team: security
+          component: charter
+        annotations:
+          summary: "🚨 CRITICAL: Policy not loaded for > 24 hours"
+          description: >-
+            Policy last loaded {{ with query "time() - westworld_charter_policy_last_load_timestamp | humanizeDuration" }}
+            {{ . }}{{ end }} ago
+          action: "Manually trigger policy reload immediately; check policy loading service"
+          runbook: "https://wiki.example.com/charter/policy-loading"
+
+      # CRITICAL: Emergency override staying active too long
+      - alert: EmergencyOverrideStayingActive
+        expr: westworld_charter_emergency_override_active_count > 0
+        for: 30m
+        labels:
+          severity: critical
+          team: security
+          component: charter
+        annotations:
+          summary: "🚨 CRITICAL: Emergency override active for > 30 minutes"
+          description: >-
+            {{ $value }} emergency override(s) currently active
+            (automatic disable after 30 minutes should trigger review)
+          action: "Verify override necessity; disable if incident is resolved"
+          runbook: "https://wiki.example.com/charter/emergency-procedures"
+
+      # WARNING: Audit committee investigation queue too high
+      - alert: CommitteeOverloaded
+        expr: >-
+          sum(westworld_charter_violations_under_investigation) > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: security
+          component: charter
+        annotations:
+          summary: "⚠️ Audit committee investigation queue > 10 violations"
+          description: >-
+            {{ $value }} violations currently under investigation
+            (normal: 0-5, concerning: 6-10, overloaded: 11+)
+          dashboard: "http://grafana:3000/d/violations-threats"
+          action: "Consider adding committee members or prioritizing critical cases"
+
+      # WARNING: Committee notification latency SLA violated
+      - alert: CommitteeNotificationLatencySLA
+        expr: >-
+          histogram_quantile(0.99, rate(westworld_charter_committee_notification_latency_ms_bucket[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: charter
+        annotations:
+          summary: "⚠️ Committee notification latency SLA violated (p99 > 1000ms)"
+          description: >-
+            Current p99 latency: {{ $value | humanizeDuration }}
+            (SLA: < 1 second)
+          dashboard: "http://grafana:3000/d/enforcement-performance"
+          action: "Check notification delivery service; may need to optimize"
+
+      # WARNING: Data revocation taking too long
+      - alert: DataRevocationSLAViolation
+        expr: >-
+          histogram_quantile(0.99, rate(westworld_charter_data_revocation_latency_ms_bucket[5m])) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: charter
+        annotations:
+          summary: "⚠️ Data revocation SLA violated (p99 > 5 seconds)"
+          description: >-
+            Current p99 latency: {{ $value | humanizeDuration }}
+            (SLA: < 5 seconds)
+          dashboard: "http://grafana:3000/d/enforcement-performance"
+          action: "Check data revocation service performance"
+
+      # WARNING: Policy load frequency anomaly (too many reloads)
+      - alert: PolicyLoadFrequencyAnomaly
+        expr: >-
+          rate(westworld_charter_policy_load_duration_ms_count[1h]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+          component: charter
+        annotations:
+          summary: "⚠️ Policy reload frequency anomaly (> 10 reloads/hour)"
+          description: >-
+            {{ $value | humanize }} policy reloads in last hour
+            (normal: 1-5/day, suspicious: 10+/hour indicates churn)
+          dashboard: "http://grafana:3000/d/enforcement-performance"
+          action: "Check for policy churn; investigate policy update source"
+
+      # INFO: High violation investigation rate (might be under attack)
+      - alert: HighViolationInvestigationRate
+        expr: >-
+          rate(westworld_charter_investigation_initiated_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: info
+          team: security
+          component: charter
+        annotations:
+          summary: "ℹ️ High violation investigation initiation rate"
+          description: >-
+            {{ $value | humanize }} investigations/sec (elevated: > 5/sec)
+            May indicate coordinated attack or system misconfiguration
+          dashboard: "http://grafana:3000/d/violations-threats"
+
+      # WARNING: Unusual data revocation activity
+      - alert: UnusualDataRevocationActivity
+        expr: >-
+          rate(westworld_charter_data_revocation_events_total[1h]) > 1
+        for: 30m
+        labels:
+          severity: warning
+          team: security
+          component: charter
+        annotations:
+          summary: "⚠️ Unusual data revocation activity detected"
+          description: >-
+            {{ $value | humanize }} revocation events per minute
+            (normal: < 1/hour, high: > 1/minute suggests issue)
+          action: "Verify revocation reason; check for security incidents"

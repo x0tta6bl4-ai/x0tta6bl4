@@ -1,0 +1,313 @@
+---
+# SPIRE Server HA Deployment
+# High Availability с несколькими инстансами, load balancing и failover
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spire-system
+  labels:
+    name: spire-system
+    app: spire
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire-system
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      trust_domain = "x0tta6bl4.mesh"
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      log_file = "/run/spire/logs/server.log"
+      
+      # CA Key Manager (KMS/Vault for HA)
+      ca_key_type = "rsa-2048"
+      ca_subject {
+        country = ["US"]
+        organization = ["x0tta6bl4"]
+        common_name = "x0tta6bl4.mesh"
+      }
+      
+      # Node Attestation
+      node_attestation "join_token" {
+        plugin_data {}
+      }
+      
+      node_attestation "k8s_psat" {
+        plugin_data {
+          clusters = {
+            "x0tta6bl4-cluster" = {
+              service_account_whitelist = ["spire-system:spire-agent"]
+            }
+          }
+        }
+      }
+      
+      # Workload Attestation
+      workload_attestation "k8s" {
+        plugin_data {
+          kubelet_config_file = "/run/spire/config/kubelet.conf"
+          skip_kubelet_verification = true
+        }
+      }
+      
+      # Datastore (PostgreSQL for HA)
+      data_store "sql" {
+        plugin_data {
+          database_type = "postgres"
+          connection_string = "host=spire-postgres port=5432 user=spire password=${POSTGRES_PASSWORD} dbname=spire sslmode=disable"
+        }
+      }
+      
+      # Raft for HA (leader election)
+      raft {
+        bootstrap_cluster = true
+        raft_address = "spire-server-0.spire-server:8082"
+        raft_peers = [
+          "spire-server-0.spire-server:8082",
+          "spire-server-1.spire-server:8082",
+          "spire-server-2.spire-server:8082"
+        ]
+      }
+      
+      # Telemetry
+      telemetry {
+        Prometheus {
+          port = 9988
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: metrics
+      port: 9988
+      targetPort: 9988
+  selector:
+    app: spire-server
+  sessionAffinity: ClientIP  # Sticky sessions for HA
+
+---
+# LoadBalancer для внешнего доступа (опционально)
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server-lb
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  type: LoadBalancer
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+  selector:
+    app: spire-server
+  sessionAffinity: ClientIP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire-system
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire-system
+  labels:
+    app: spire-server
+spec:
+  serviceName: spire-server
+  replicas: 3  # HA: 3 инстанса
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      labels:
+        app: spire-server
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.8.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - name: grpc
+              containerPort: 8081
+            - name: raft
+              containerPort: 8082
+            - name: metrics
+              containerPort: 9988
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spire-postgres-secret
+                  key: password
+          volumeMounts:
+            - name: spire-server-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-server-data
+              mountPath: /run/spire/data
+            - name: spire-server-logs
+              mountPath: /run/spire/logs
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+      volumes:
+        - name: spire-server-config
+          configMap:
+            name: spire-server-config
+        - name: spire-server-logs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-server-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "fast-ssd"  # Use fast storage for HA
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+# PostgreSQL для shared datastore (HA)
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-postgres
+  namespace: spire-system
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: spire-postgres
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-postgres
+  namespace: spire-system
+spec:
+  serviceName: spire-postgres
+  replicas: 1  # Can be scaled to 3 for PostgreSQL HA
+  selector:
+    matchLabels:
+      app: spire-postgres
+  template:
+    metadata:
+      labels:
+        app: spire-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_DB
+              value: "spire"
+            - name: POSTGRES_USER
+              value: "spire"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spire-postgres-secret
+                  key: password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "fast-ssd"
+        resources:
+          requests:
+            storage: 20Gi
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spire-postgres-secret
+  namespace: spire-system
+type: Opaque
+stringData:
+  password: "change-me-in-production"  # Use sealed-secrets or external secret manager
+
+---
+# ServiceMonitor для Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spire-server
+  namespace: spire-system
+spec:
+  selector:
+    matchLabels:
+      app: spire-server
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+

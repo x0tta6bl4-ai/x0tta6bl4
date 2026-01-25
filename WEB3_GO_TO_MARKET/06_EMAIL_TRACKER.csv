@@ -1,0 +1,12 @@
+Company,Contact Name,Contact Role,Email,LinkedIn,Category,Email Sent,Date Sent,Follow-up 1,Date F1,Follow-up 2,Date F2,Response,Response Date,Demo Scheduled,Demo Date,Proposal Sent,Proposal Date,Status,Notes
+Arbitrum,,Head of Infrastructure,,,L2,,,,,,,,,,,,,Not Started,
+Optimism,,VP Engineering,,,L2,,,,,,,,,,,,,Not Started,
+Aave,,Head of Security,,,DeFi,,,,,,,,,,,,,Not Started,
+Chainlink,,Infra Architect,,,Infrastructure,,,,,,,,,,,,,Not Started,
+The Graph,,Protocol Engineer,,,Infrastructure,,,,,,,,,,,,,Not Started,
+ENS,,Core Team,,,DAO,,,,,,,,,,,,,Not Started,
+Safe,,Security Lead,,,DAO/Security,,,,,,,,,,,,,Not Started,
+Base,,Engineering Lead,,,L2,,,,,,,,,,,,,Not Started,
+dYdX,,Infra Director,,,DeFi,,,,,,,,,,,,,Not Started,
+Gelato,,CTO,,,Infrastructure,,,,,,,,,,,,,Not Started,
+

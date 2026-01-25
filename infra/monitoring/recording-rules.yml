@@ -1,0 +1,61 @@
+# Prometheus Recording Rules for x0tta6bl4 Mesh Network
+# Aggregated metrics for better query performance
+
+groups:
+  - name: mesh_network_aggregates
+    interval: 30s
+    rules:
+      # MTTR aggregates
+      - record: mesh:mttr_p95
+        expr: histogram_quantile(0.95, sum(rate(self_healing_mttr_seconds_bucket[5m])) by (le, recovery_type))
+        labels:
+          quantile: "0.95"
+      
+      - record: mesh:mttr_p99
+        expr: histogram_quantile(0.99, sum(rate(self_healing_mttr_seconds_bucket[5m])) by (le, recovery_type))
+        labels:
+          quantile: "0.99"
+      
+      - record: mesh:mttr_avg
+        expr: rate(self_healing_mttr_seconds_sum[5m]) / rate(self_healing_mttr_seconds_count[5m])
+      
+      # Mesh latency aggregates
+      - record: mesh:latency_p95
+        expr: histogram_quantile(0.95, sum(rate(mesh_latency_seconds_bucket[5m])) by (le, node_id))
+        labels:
+          quantile: "0.95"
+      
+      - record: mesh:latency_p99
+        expr: histogram_quantile(0.99, sum(rate(mesh_latency_seconds_bucket[5m])) by (le, node_id))
+        labels:
+          quantile: "0.99"
+      
+      # Slot sync success rate
+      - record: mesh:slot_sync_success_rate_avg
+        expr: avg(slot_sync_success_rate)
+      
+      # eBPF overhead aggregates
+      - record: ebpf:cpu_overhead_avg
+        expr: avg(ebpf_cpu_overhead_percent)
+      
+      - record: ebpf:cpu_overhead_max
+        expr: max(ebpf_cpu_overhead_percent)
+      
+      # k-disjoint paths availability
+      - record: mesh:k_disjoint_paths_avg
+        expr: avg(k_disjoint_paths_count)
+      
+      # Cache hit rate
+      - record: mesh:k_disjoint_cache_hit_rate
+        expr: |
+          sum(rate(k_disjoint_path_cache_hits_total[5m])) /
+          (sum(rate(k_disjoint_path_cache_hits_total[5m])) + sum(rate(k_disjoint_path_cache_misses_total[5m])))
+      
+      # Topology stability
+      - record: mesh:topology_changes_rate
+        expr: sum(rate(mesh_topology_changes_total[5m])) by (change_type)
+      
+      # System availability
+      - record: mesh:availability
+        expr: avg(node_health_status)
+

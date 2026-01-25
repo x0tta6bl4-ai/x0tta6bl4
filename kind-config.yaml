@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: x0tta6bl4-staging
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
+    endpoint = ["http://kind-registry:5000"]
+  [plugins."io.containerd.grpc.v1.cri".proxy_plugins]
+    [plugins."io.containerd.grpc.v1.cri".proxy_plugins.http_proxy]
+      http_proxy = "http://127.0.0.1:10808"
+      https_proxy = "http://127.0.0.1:10808"
+      no_proxy = "localhost,127.0.0.1,0.0.0.0,10.96.0.0/12,192.168.0.0/16,172.16.0.0/12,kind-registry,.svc,.svc.cluster.local"

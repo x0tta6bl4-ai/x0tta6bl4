@@ -1,0 +1,455 @@
+{
+  "metadata": {
+    "project": "x0tta6bl4",
+    "version": "3.3.0",
+    "total_modules": 40,
+    "total_files": 281
+  },
+  "modules": {
+    "ml": {
+      "type": "module",
+      "files": 16,
+      "submodules": [
+        "lora"
+      ]
+    },
+    "adapters": {
+      "type": "module",
+      "files": 1,
+      "submodules": []
+    },
+    "ai": {
+      "type": "module",
+      "files": 3,
+      "submodules": []
+    },
+    "anti_censorship": {
+      "type": "module",
+      "files": 1,
+      "submodules": []
+    },
+    "api": {
+      "type": "module",
+      "files": 5,
+      "submodules": []
+    },
+    "chaos": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "cli": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "consensus": {
+      "type": "module",
+      "files": 5,
+      "submodules": []
+    },
+    "core": {
+      "type": "module",
+      "files": 25,
+      "submodules": []
+    },
+    "crypto": {
+      "type": "module",
+      "files": 1,
+      "submodules": []
+    },
+    "dao": {
+      "type": "module",
+      "files": 18,
+      "submodules": [
+        "contracts"
+      ]
+    },
+    "data_sync": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "deployment": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "enterprise": {
+      "type": "module",
+      "files": 5,
+      "submodules": []
+    },
+    "federated_learning": {
+      "type": "module",
+      "files": 22,
+      "submodules": [
+        "integrations"
+      ]
+    },
+    "innovation": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "integration": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "ledger": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "licensing": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "mapek": {
+      "type": "module",
+      "files": 1,
+      "submodules": []
+    },
+    "mape_k": {
+      "type": "module",
+      "files": 7,
+      "submodules": []
+    },
+    "mesh": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "monitoring": {
+      "type": "module",
+      "files": 9,
+      "submodules": []
+    },
+    "network": {
+      "type": "module",
+      "files": 58,
+      "submodules": [
+        "batman",
+        "ebpf",
+        "routing",
+        "discovery",
+        "transport",
+        "pathfinder",
+        "obfuscation",
+        "byzantine"
+      ]
+    },
+    "operations": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "optimization": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "performance": {
+      "type": "module",
+      "files": 3,
+      "submodules": []
+    },
+    "quality": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "quantum": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "rag": {
+      "type": "module",
+      "files": 3,
+      "submodules": []
+    },
+    "sales": {
+      "type": "module",
+      "files": 4,
+      "submodules": []
+    },
+    "security": {
+      "type": "module",
+      "files": 51,
+      "submodules": [
+        "pqc",
+        "zero_trust",
+        "spiffe"
+      ]
+    },
+    "self_healing": {
+      "type": "module",
+      "files": 8,
+      "submodules": []
+    },
+    "services": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "simulation": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "storage": {
+      "type": "module",
+      "files": 8,
+      "submodules": []
+    },
+    "testing": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "utils": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "web": {
+      "type": "module",
+      "files": 2,
+      "submodules": []
+    },
+    "westworld": {
+      "type": "module",
+      "files": 7,
+      "submodules": []
+    }
+  },
+  "categories": {
+    "Core (MAPE-K Loop)": [
+      {
+        "name": "core",
+        "files": 25,
+        "submodules": []
+      },
+      {
+        "name": "mape_k",
+        "files": 7,
+        "submodules": []
+      },
+      {
+        "name": "mapek",
+        "files": 1,
+        "submodules": []
+      },
+      {
+        "name": "self_healing",
+        "files": 8,
+        "submodules": []
+      }
+    ],
+    "Security & Crypto": [
+      {
+        "name": "crypto",
+        "files": 1,
+        "submodules": []
+      },
+      {
+        "name": "security",
+        "files": 51,
+        "submodules": [
+          "pqc",
+          "zero_trust",
+          "spiffe"
+        ]
+      },
+      {
+        "name": "anti_censorship",
+        "files": 1,
+        "submodules": []
+      }
+    ],
+    "Networking": [
+      {
+        "name": "network",
+        "files": 58,
+        "submodules": [
+          "batman",
+          "ebpf",
+          "routing",
+          "discovery",
+          "transport",
+          "pathfinder",
+          "obfuscation",
+          "byzantine"
+        ]
+      },
+      {
+        "name": "mesh",
+        "files": 4,
+        "submodules": []
+      },
+      {
+        "name": "services",
+        "files": 2,
+        "submodules": []
+      }
+    ],
+    "Machine Learning": [
+      {
+        "name": "ml",
+        "files": 16,
+        "submodules": [
+          "lora"
+        ]
+      },
+      {
+        "name": "ai",
+        "files": 3,
+        "submodules": []
+      },
+      {
+        "name": "rag",
+        "files": 3,
+        "submodules": []
+      },
+      {
+        "name": "quantum",
+        "files": 2,
+        "submodules": []
+      }
+    ],
+    "DAO & Consensus": [
+      {
+        "name": "dao",
+        "files": 18,
+        "submodules": [
+          "contracts"
+        ]
+      },
+      {
+        "name": "consensus",
+        "files": 5,
+        "submodules": []
+      },
+      {
+        "name": "ledger",
+        "files": 4,
+        "submodules": []
+      }
+    ],
+    "Database & Storage": [
+      {
+        "name": "storage",
+        "files": 8,
+        "submodules": []
+      },
+      {
+        "name": "data_sync",
+        "files": 4,
+        "submodules": []
+      }
+    ],
+    "Monitoring & Operations": [
+      {
+        "name": "monitoring",
+        "files": 9,
+        "submodules": []
+      },
+      {
+        "name": "operations",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "performance",
+        "files": 3,
+        "submodules": []
+      }
+    ],
+    "Web & API": [
+      {
+        "name": "web",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "api",
+        "files": 5,
+        "submodules": []
+      },
+      {
+        "name": "adapters",
+        "files": 1,
+        "submodules": []
+      }
+    ],
+    "Testing & Quality": [
+      {
+        "name": "testing",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "quality",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "chaos",
+        "files": 4,
+        "submodules": []
+      }
+    ],
+    "Deployment": [
+      {
+        "name": "deployment",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "enterprise",
+        "files": 5,
+        "submodules": []
+      },
+      {
+        "name": "integration",
+        "files": 2,
+        "submodules": []
+      }
+    ],
+    "Utilities": [
+      {
+        "name": "utils",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "cli",
+        "files": 4,
+        "submodules": []
+      },
+      {
+        "name": "innovation",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "sales",
+        "files": 4,
+        "submodules": []
+      },
+      {
+        "name": "licensing",
+        "files": 2,
+        "submodules": []
+      },
+      {
+        "name": "westworld",
+        "files": 7,
+        "submodules": []
+      }
+    ]
+  }
+}

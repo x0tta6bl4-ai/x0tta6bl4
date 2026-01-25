@@ -1,0 +1,14 @@
+[Unit]
+Description=x0tta6bl4 Brain - System Consciousness
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/x0tta6bl4
+ExecStart=/usr/bin/python3 /opt/x0tta6bl4/run_brain.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

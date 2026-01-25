@@ -1,0 +1,13 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 Performance Baseline",
+    "panels": [
+      {"type": "graph", "title": "Mesh Routing Latency (ms)", "targets": [{"expr": "mesh_routing_latency_ms"}]},
+      {"type": "graph", "title": "RAG Query Latency (ms)", "targets": [{"expr": "rag_query_latency_ms"}]},
+      {"type": "graph", "title": "Mesh Throughput (Gbps)", "targets": [{"expr": "mesh_throughput_gbps"}]},
+      {"type": "graph", "title": "CPU Usage (%)", "targets": [{"expr": "node_cpu_usage"}]},
+      {"type": "graph", "title": "Memory Usage (MB)", "targets": [{"expr": "node_memory_usage"}]},
+      {"type": "graph", "title": "GPU Usage (%)", "targets": [{"expr": "node_gpu_usage"}]}
+    ]
+  }
+}
