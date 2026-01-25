@@ -392,7 +392,8 @@ class MeshSlotNetwork:
 
 
 # === Quick Test ===
-if __name__ == "__main__":
+def _run_test():
+    """Test function - call explicitly, don't run on import"""
     import asyncio
     
     async def test():
@@ -417,3 +418,7 @@ if __name__ == "__main__":
                   f"neighbors={node_status['neighbors_count']}")
     
     asyncio.run(test())
+
+
+if __name__ == "__main__":
+    _run_test()
