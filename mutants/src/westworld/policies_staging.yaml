@@ -1,0 +1,189 @@
+---
+# Charter Policy - Staging Environment
+# Use: pre-production testing, security-hardened but with some flexibility
+
+charter:
+  version: "1.0.0"
+  name: "staging-charter"
+  effective_date: "2026-01-25"  # Week 2 of Phase 0
+  metadata:
+    environment: "staging"
+    status: "active"
+    created_by: "platform_team"
+    requires_approval: false  # Staging doesn't need board approval
+    base_policy: "prod-charter"
+
+whitelisted_metrics:
+  network:
+    - metric_name: "latency_p50"
+      access_level: "public"
+      retention_days: 14  # Reduced from prod
+    - metric_name: "latency_p95"
+      access_level: "public"
+      retention_days: 14
+    - metric_name: "latency_p99"
+      access_level: "public"
+      retention_days: 14
+    - metric_name: "packet_loss_percent"
+      access_level: "public"
+      retention_days: 7
+    - metric_name: "throughput_mbps"
+      access_level: "public"
+      retention_days: 14
+    - metric_name: "connection_uptime_percent"
+      access_level: "audit_only"
+      retention_days: 30
+  
+  infrastructure:
+    - metric_name: "cpu_usage_percent"
+      access_level: "node_operator"
+      retention_days: 30  # More than prod for analysis
+    - metric_name: "memory_usage_percent"
+      access_level: "node_operator"
+      retention_days: 30
+    - metric_name: "disk_usage_percent"
+      access_level: "node_operator"
+      retention_days: 14
+    - metric_name: "network_interface_status"
+      access_level: "node_operator"
+      retention_days: 60  # More than prod for testing
+  
+  service:
+    - metric_name: "api_requests_per_second"
+      access_level: "public"
+      retention_days: 14
+    - metric_name: "error_rate_percent"
+      access_level: "public"
+      retention_days: 14
+    - metric_name: "service_version"
+      access_level: "public"
+      retention_days: 1000
+
+forbidden_metrics:
+  - metric_name: "user_location"
+    penalty: "CRITICAL"
+    reason: "Privacy violation: location tracking prohibited"
+  - metric_name: "user_identity"
+    penalty: "CRITICAL"
+    reason: "Privacy violation: identity disclosure prohibited"
+  - metric_name: "browsing_history"
+    penalty: "CRITICAL"
+    reason: "Privacy violation: browsing data prohibited"
+  - metric_name: "device_hardware_id"
+    penalty: "HIGH"
+    reason: "Device fingerprinting prohibited"
+  - metric_name: "user_communication_metadata"
+    penalty: "HIGH"
+    reason: "Communication patterns leakage prohibited"
+  - metric_name: "system_logs_with_user_data"
+    penalty: "HIGH"
+    reason: "Unredacted logs containing user data prohibited"
+
+access_control:
+  read_access:
+    - role: "public"
+      can_access: ["latency_p50", "latency_p95", "latency_p99", "packet_loss_percent", 
+                   "throughput_mbps", "api_requests_per_second", "error_rate_percent", 
+                   "service_version"]
+    - role: "node_operator"
+      can_access: ["*"]  # All whitelisted for staging testing
+    - role: "audit_committee_member"
+      can_access: ["*"]
+      requires_approval: false  # Staging: no approval needed
+    - role: "emergency_responder"
+      can_access: ["*"]
+      requires_renewal_hours: 1  # Faster renewal for testing
+
+  write_access:
+    - role: "node_operator"
+      can_write: ["latency_p50", "latency_p95", "latency_p99", "packet_loss_percent", 
+                  "throughput_mbps", "cpu_usage_percent", "memory_usage_percent", 
+                  "disk_usage_percent", "network_interface_status"]
+    - role: "monitoring_service"
+      can_write: ["api_requests_per_second", "error_rate_percent", "service_version"]
+
+violation_policy:
+  response:
+    - level: 1
+      action: "LOG_AND_ALERT"
+      alert_destination: ["qa_team", "security_team"]
+      block_collection: false
+    - level: 2
+      action: "BLOCK_AND_SUSPEND"
+      suspension_duration_hours: 12  # Shorter for testing
+      alert_destination: ["qa_team", "security_team"]
+    - level: 3
+      action: "NODE_QUARANTINE"
+      requires_dao_vote: false  # Not required in staging
+      alert_destination: ["qa_team", "security_team"]
+    - level: 4
+      action: "ESCALATE"
+      requires_board_approval: false
+      alert_destination: ["qa_team", "security_team"]
+  
+  audit_trail:
+    enabled: true
+    immutable: true  # Staging: like production
+    signing_required: true
+    backup_locations:
+      - "postgresql"
+      - "s3"  # Faster than arweave for staging
+
+whistleblower_policy:
+  anonymous_reporting: true
+  bounty_enabled: false  # Not in staging
+  reporting_channels:
+    - "email://qa-security@x0tta6bl4.dev"
+    - "slack://qa-security-reports"
+
+emergency_override:
+  enabled: true
+  requires_dao_vote: false  # Staging: testing flexibility
+  auto_renewal_hours: 1  # Faster for testing
+  full_audit_trail_required: true
+
+enforcement:
+  enabled: true
+  hooks:
+    - type: "prometheus_alert"
+      alert_name: "charter_violation_detected"
+    - type: "webhook"
+      url: "http://staging-api.x0tta6bl4.dev:8000/api/v1/violations"
+
+success_criteria:
+  - "All whitelisted metrics collecting successfully"
+  - "Forbidden metrics blocked in all scenarios"
+  - "Audit trail complete and verifiable"
+  - "All violation scenarios trigger alerts"
+  - "Emergency override renewable every hour"
+  - "All functionality matches production charter"
+  - "No regressions from dev to staging"
+  - "Performance acceptable (<10ms latency)"
+
+testing_scenarios:
+  - name: "Normal operation"
+    description: "All metrics collect without violations"
+    expected_result: "PASS"
+    
+  - name: "Forbidden metric collection attempt"
+    description: "Try to collect user_location, user_identity, browsing_history"
+    expected_result: "BLOCKED with CRITICAL penalty"
+    
+  - name: "Unauthorized access attempt"
+    description: "Public role tries to access node_operator metrics"
+    expected_result: "DENIED"
+    
+  - name: "Emergency override workflow"
+    description: "Emergency responder requests and renews override"
+    expected_result: "Approved, 1-hour renewal successful"
+    
+  - name: "Audit committee access"
+    description: "Audit committee retrieves violation report"
+    expected_result: "Report accessible in <1 sec, all violations visible"
+
+changelog:
+  - version: "1.0.0"
+    date: "2026-01-25"
+    author: "platform_team"
+    based_on: "prod-charter v1.0.0"
+    changes: "Staging version with faster renewal cycles and simpler approval"

@@ -1,0 +1,331 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "x0tta6bl4"
+version = "3.3.0"
+description = "PRODUCTION READY: Self-healing mesh-architecture with Zero-Trust, Post-Quantum Cryptography (FIPS 203/204), DAO-governance, CI/CD automation, 17 ML/AI components (94-98% accuracy), and complete DevOps infrastructure. Logical completion: Jan 20, 2026."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "x0tta6bl4 Team", email = "contact@x0tta6bl4.com" },
+]
+
+# Core dependencies based on requirements.txt and consolidated file
+dependencies = [
+    "fastapi>=0.119.1",
+    "uvicorn==0.38.0",
+    "starlette==0.49.1",
+    "pydantic==2.12.3",
+    "python-dotenv==1.1.1",
+    "httpx==0.28.1",
+    "requests==2.32.4",
+    "cryptography==45.0.3",
+    "torch==2.9.0",
+    "PyJWT==2.10.1",
+    "bcrypt==5.0.0",
+    "pyyaml==6.0.3",
+    "click==8.3.0",
+    "numpy==2.3.4",
+    "psutil==7.1.1",
+    "structlog==25.4.0",
+    "orjson==3.11.3",
+    "passlib==1.7.4",
+    "redis==5.0.1",
+    "slowapi==0.1.9",
+    "networkx==3.2.1",
+    "aiofiles==25.1.0",
+    "aiohttp==3.13.1",
+    "asyncio-mqtt==0.16.2",
+    "python-multipart==0.0.18",
+    "python-dateutil==2.9.0.post0",
+    "pytz==2025.2",
+    "sse-starlette==2.1.0",
+    "urllib3==2.6.0",
+]
+
+[project.optional-dependencies]
+# Dependencies for development, testing, and CI
+dev = [
+    "black==25.9.0",
+    "flake8==7.3.0",
+    "mypy==1.18.2",
+    "pytest==8.4.2",
+    "pytest-asyncio==1.2.0",
+    "pytest-cov==7.0.0",
+    "pytest-benchmark==5.1.0",
+    "bandit==1.8.6",
+    "safety==3.6.2",
+    "pre-commit==4.3.0",
+    "ruff", # From roadmap
+    "pip-audit", # From roadmap
+    "spiffe==0.2.2",
+    "pytest-mock==3.12.0",
+    "pyelftools>=0.30",  # For eBPF ELF parsing
+]
+
+# Dependencies for Machine Learning models and tasks
+ml = [
+    "pandas==2.3.3",
+    "scikit-learn==1.7.2",
+    "scipy==1.16.2",
+    "sentence-transformers==5.1.2",
+    "torch-geometric==2.5.3",
+    "transformers==4.57.1",
+    "joblib==1.5.2",
+    "nltk==3.9.2",
+    "matplotlib==3.10.7",
+    "seaborn==0.13.2",
+    "plotly==5.17.0",
+]
+
+# Dependencies for LoRA / PEFT
+lora = [
+    "peft>=0.2",
+]
+
+# Dependencies for monitoring and observability
+monitoring = [
+    "prometheus-client==0.23.1",
+    "opentelemetry-api==1.38.0",
+    "opentelemetry-sdk==1.38.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.38.0",
+    "opentelemetry-semantic-conventions==0.59b0",
+]
+
+# Dependencies for Telegram bots
+bots = [
+    "aiogram>=3.0.0", # Upgraded to resolve dependency conflict
+    "python-telegram-bot>=20.0",
+    "qrcode[pil]==7.4.2",
+]
+
+# Group to install all optional dependencies
+all = [
+    "x0tta6bl4[dev]",
+    "x0tta6bl4[ml]",
+    "x0tta6bl4[lora]",
+    "x0tta6bl4[monitoring]",
+    "x0tta6bl4[bots]",
+]
+
+[project.urls]
+
+Homepage = "https://github.com/x0tta6bl4/x0tta6bl4"
+
+Repository = "https://github.com/x0tta6bl4/x0tta6bl4"
+
+"Bug Tracker" = "https://github.com/x0tta6bl4/x0tta6bl4/issues"
+
+
+
+[tool.pytest.ini_options]
+
+
+
+
+
+
+
+pytest_plugins = ["pytest_mock"]
+
+
+
+
+
+
+
+# Merge addopts, keeping coverage flags and adding flags from pytest.ini
+
+
+
+addopts = "-v --tb=short --strict-markers --junitxml=junit.xml --cov=src --cov-report=html --cov-report=xml --cov-fail-under=75"
+
+
+
+testpaths = "tests"
+pythonpath = "."
+
+
+
+python_files = "test_*.py"
+
+
+
+python_classes = "Test*"
+
+
+
+python_functions = "test_*"
+
+
+
+
+
+
+
+# Define custom markers
+
+
+
+markers = [
+
+
+
+    "unit: Unit tests (fast, isolated)",
+
+
+
+    "integration: Integration tests (slower, requires services)",
+
+
+
+    "security: Security tests (penetration, fuzzing)",
+
+
+
+    "performance: Performance benchmarks",
+
+
+
+    "slow: Slow tests (>1s)",
+
+
+
+]
+
+
+
+
+
+
+
+# Filter warnings
+
+
+
+filterwarnings = [
+
+
+
+    "error",
+
+
+
+    "ignore::UserWarning",
+
+
+
+    "ignore::DeprecationWarning",
+
+
+
+]
+
+
+
+
+
+
+
+[tool.coverage.run]
+
+
+
+source = ["src"]
+
+
+
+omit = [
+
+
+
+    "*/tests/*",
+
+
+
+    "*/test_*.py",
+
+
+
+    "*/__pycache__/*",
+
+
+
+    "*/site-packages/*",
+
+
+
+]
+
+
+
+
+
+
+
+[tool.coverage.report]
+
+
+
+precision = 2
+
+
+
+exclude_lines = [
+
+
+
+    "pragma: no cover",
+
+
+
+    "def __repr__",
+
+
+
+    "raise AssertionError",
+
+
+
+    "raise NotImplementedError",
+
+
+
+    "if __name__ == .__main__.:",
+
+
+
+    "if TYPE_CHECKING:",
+
+
+
+    "class .*\bProtocol\\):",
+
+
+
+    "@(abc\\.)?abstractmethod",
+
+
+
+]
+
+
+
+
+
+
+
+[tool.coverage.html]
+
+
+
+directory = "htmlcov"
+
+
+
+

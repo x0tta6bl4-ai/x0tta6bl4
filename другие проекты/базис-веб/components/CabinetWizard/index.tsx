@@ -1,11 +1,11 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, Suspense, lazy } from 'react';
 import { CabinetConfig, Section, CabinetItem } from '../../types';
 import VisualEditor from './VisualEditor';
 import { PropertiesPanel } from './PropertiesPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { useCabinetWizard } from '../../hooks/useCabinetWizard';
 import { CabinetGenerator } from '../../services/CabinetGenerator';
-import { Scene3D } from '../Scene3D';
+const Scene3D = lazy(() => import('../Scene3D'));
 import { Eye, RefreshCw } from 'lucide-react';
 
 interface CabinetWizardProps {
@@ -120,7 +120,16 @@ export const CabinetWizard: React.FC<CabinetWizardProps> = ({
             </button>
           </div>
           {previewPanels.length > 0 ? (
-            <Scene3D previewMode panels={previewPanels} />
+            <Suspense fallback={
+              <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                <div className="text-center text-slate-400">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-sm">Загрузка 3D...</p>
+                </div>
+              </div>
+            }>
+              <Scene3D previewMode panels={previewPanels} />
+            </Suspense>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-slate-950">
               <div className="text-center text-slate-400">
