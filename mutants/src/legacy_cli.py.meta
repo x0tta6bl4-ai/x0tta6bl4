@@ -1,0 +1,27 @@
+{
+    "exit_code_by_key": {
+        "legacy_cli.x_main__mutmut_1": null,
+        "legacy_cli.x_main__mutmut_2": null,
+        "legacy_cli.x_main__mutmut_3": null,
+        "legacy_cli.x_main__mutmut_4": null,
+        "legacy_cli.x_main__mutmut_5": null,
+        "legacy_cli.x_main__mutmut_6": null,
+        "legacy_cli.x_main__mutmut_7": null,
+        "legacy_cli.x_main__mutmut_8": null,
+        "legacy_cli.x_main__mutmut_9": null,
+        "legacy_cli.x_main__mutmut_10": null,
+        "legacy_cli.x_main__mutmut_11": null,
+        "legacy_cli.x_main__mutmut_12": null,
+        "legacy_cli.x_main__mutmut_13": null,
+        "legacy_cli.x_main__mutmut_14": null,
+        "legacy_cli.x_main__mutmut_15": null,
+        "legacy_cli.x_main__mutmut_16": null,
+        "legacy_cli.x_main__mutmut_17": null,
+        "legacy_cli.x_main__mutmut_18": null,
+        "legacy_cli.x_main__mutmut_19": null,
+        "legacy_cli.x_main__mutmut_20": null
+    },
+    "hash_by_function_name": {},
+    "durations_by_key": {},
+    "estimated_durations_by_key": {}
+}
