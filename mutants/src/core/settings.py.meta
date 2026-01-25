@@ -1,0 +1,19 @@
+{
+    "exit_code_by_key": {
+        "core.settings.x\u01c1Settings\u01c1is_production__mutmut_1": null,
+        "core.settings.x\u01c1Settings\u01c1is_production__mutmut_2": null,
+        "core.settings.x\u01c1Settings\u01c1is_production__mutmut_3": null,
+        "core.settings.x\u01c1Settings\u01c1is_production__mutmut_4": null,
+        "core.settings.x\u01c1Settings\u01c1is_development__mutmut_1": null,
+        "core.settings.x\u01c1Settings\u01c1is_development__mutmut_2": null,
+        "core.settings.x\u01c1Settings\u01c1is_development__mutmut_3": null,
+        "core.settings.x\u01c1Settings\u01c1is_development__mutmut_4": null,
+        "core.settings.x\u01c1Settings\u01c1is_testing__mutmut_1": null,
+        "core.settings.x\u01c1Settings\u01c1is_testing__mutmut_2": null,
+        "core.settings.x\u01c1Settings\u01c1is_testing__mutmut_3": null,
+        "core.settings.x\u01c1Settings\u01c1is_testing__mutmut_4": null
+    },
+    "hash_by_function_name": {},
+    "durations_by_key": {},
+    "estimated_durations_by_key": {}
+}
