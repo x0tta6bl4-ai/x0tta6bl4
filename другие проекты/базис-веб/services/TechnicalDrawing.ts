@@ -282,11 +282,40 @@ export class TechnicalDrawing {
     }
 
     /**
-     * Экспорт в PDF (placeholder для интеграции с PDF-библиотекой)
-     * TODO: Интегрировать с jsPDF или аналогом
+     * Convert drawing entities to SVG string
+     */
+    static toSVG(entities: DrawEntity[], width: number = 800, height: number = 600): string {
+        let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+        svg += `<rect width="${width}" height="${height}" fill="white"/>`;
+        
+        // Add a grid
+        for (let x = 0; x < width; x += 50) {
+            svg += `<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#ddd" stroke-width="0.5"/>`;
+        }
+        for (let y = 0; y < height; y += 50) {
+            svg += `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="#ddd" stroke-width="0.5"/>`;
+        }
+
+        // Render entities
+        for (const entity of entities) {
+            if (entity.type === 'line') {
+                svg += `<line x1="${(entity as any).x1}" y1="${(entity as any).y1}" x2="${(entity as any).x2}" y2="${(entity as any).y2}" stroke="black" stroke-width="2"/>`;
+            } else if (entity.type === 'rect') {
+                svg += `<rect x="${(entity as any).x}" y="${(entity as any).y}" width="${(entity as any).w}" height="${(entity as any).h}" fill="none" stroke="black" stroke-width="2"/>`;
+            } else if (entity.type === 'text') {
+                svg += `<text x="${(entity as any).x}" y="${(entity as any).y}" font-size="12" fill="black">${(entity as any).text}</text>`;
+            }
+        }
+
+        svg += `</svg>`;
+        return svg;
+    }
+
+    /**
+     * Export drawing to PDF (placeholder)
      */
     static exportToPDF(entities: DrawEntity[], view: ViewType): string {
-        // Здесь будет логика конвертации в PDF
-        // На данный момент возвращаем SVG
+        // TODO: Integrate with jsPDF for actual PDF export
         return this.toSVG(entities);
     }
+}
