@@ -1,9 +1,11 @@
-"""FastAPI app with real system status monitoring - P0#3 implementation"""
+"""FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import logging
+import os
 from src.core.status_collector import get_current_status
+from src.core.mtls_middleware import MTLSMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,6 +16,21 @@ app = FastAPI(
     description="Self-healing mesh network node with MAPE-K autonomic loop"
 )
 
+# Add mTLS middleware (only in production)
+# In development, set MTLS_ENABLED=false or leave unset for TestClient compatibility
+mtls_enabled = os.getenv("MTLS_ENABLED", "false").lower() == "true"
+if mtls_enabled:
+    app.add_middleware(
+        MTLSMiddleware,
+        require_mtls=True,
+        enforce_tls_13=True,
+        allowed_spiffe_domains=["x0tta6bl4.mesh"],
+        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"]
+    )
+    logger.info("✓ mTLS middleware enabled (TLS 1.3 required)")
+else:
+    logger.info("⚠️  mTLS middleware disabled (dev mode)")
+
 # Security headers via decorator
 @app.middleware("http")
 async def add_security_headers(request, call_next):
@@ -22,7 +39,7 @@ async def add_security_headers(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 logger.info("✓ App created")
