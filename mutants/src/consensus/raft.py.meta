@@ -1,0 +1,25 @@
+{
+    "exit_code_by_key": {
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_1": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_2": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_3": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_4": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_5": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_6": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_7": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1__init____mutmut_8": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_leader__mutmut_1": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_leader__mutmut_2": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_leader__mutmut_3": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_leader__mutmut_4": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_follower__mutmut_1": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_follower__mutmut_2": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_follower__mutmut_3": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1become_follower__mutmut_4": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1append_entry__mutmut_1": null,
+        "consensus.raft.x\u01c1RaftNode\u01c1append_entry__mutmut_2": null
+    },
+    "hash_by_function_name": {},
+    "durations_by_key": {},
+    "estimated_durations_by_key": {}
+}

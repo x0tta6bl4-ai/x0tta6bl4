@@ -249,7 +249,7 @@ class MeshAIRouter:
                 
                 # Record routing history
                 self.routing_history.append({
-                    "query_hash": hashlib.md5(query.encode()).hexdigest()[:8],
+                    "query_hash": hashlib.sha256(query.encode()).hexdigest()[:8],
                     "complexity": complexity,
                     "node": node.name,
                     "latency_ms": node.latency_ms,

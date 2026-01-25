@@ -4,6 +4,15 @@
 
 ---
 
+## 📊 Test & Coverage Status
+
+![Tests](https://img.shields.io/badge/tests-718-green?style=flat-square)
+![Coverage](https://img.shields.io/badge/coverage-75%25-green?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.10+-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-BSD--3--Clause-blue?style=flat-square)
+
+---
+
 ## 🎯 WHAT IS x0tta6bl4?
 
 **x0tta6bl4** is a revolutionary self-healing mesh architecture designed for:

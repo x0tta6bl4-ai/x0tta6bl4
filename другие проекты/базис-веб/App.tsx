@@ -21,6 +21,7 @@ import {
 const Scene3D = React.lazy(() => import('./components/Scene3D'));
 const Scene3DBabylon = React.lazy(() => import('./components/Scene3DBabylon'));
 const NestingView = React.lazy(() => import('./components/NestingView'));
+const DrawingTab = React.lazy(() => import('./components/DrawingTab'));
 
 // Static Views
 import { CabinetWizard } from './components/CabinetWizard';
@@ -282,7 +283,20 @@ const App: React.FC = () => {
               </Suspense>
             )}
 
-            {viewMode !== ViewMode.DESIGN && viewMode !== ViewMode.WIZARD && viewMode !== ViewMode.NESTING && (
+            {viewMode === ViewMode.DRAWING && (
+              <Suspense fallback={
+                <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                  <div className="text-center text-slate-400">
+                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                    <p className="text-sm">Loading drawing module...</p>
+                  </div>
+                </div>
+              }>
+                <DrawingTab />
+              </Suspense>
+            )}
+
+            {viewMode !== ViewMode.DESIGN && viewMode !== ViewMode.WIZARD && viewMode !== ViewMode.NESTING && viewMode !== ViewMode.DRAWING && (
               <div className="w-full h-full flex items-center justify-center bg-slate-950">
                 <div className="text-center text-slate-400">
                   <h2 className="text-xl font-bold mb-2">Coming soon</h2>
