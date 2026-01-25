@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-01-13T11:11:04.816842",
+  "version": "1.0",
+  "baseline_type": "comprehensive_performance",
+  "results": {
+    "pqc": {
+      "timestamp": "2026-01-13T11:11:04.816598",
+      "component": "pqc",
+      "availability": "unavailable",
+      "benchmarks": {
+        "kem_keygen": {
+          "error": "PQC not available",
+          "status": "skipped"
+        },
+        "kem_encapsulate": {
+          "error": "PQC not available",
+          "status": "skipped"
+        },
+        "dsa_keygen": {
+          "error": "PQC not available",
+          "status": "skipped"
+        },
+        "signature_generation": {
+          "error": "PQC not available",
+          "status": "skipped"
+        },
+        "signature_verification": {
+          "error": "PQC not available",
+          "status": "skipped"
+        },
+        "batch_operations": {
+          "error": "PQC not available",
+          "status": "skipped"
+        }
+      }
+    },
+    "mesh": {
+      "timestamp": "2026-01-13T11:11:04.816676",
+      "component": "mesh",
+      "availability": "unavailable",
+      "benchmarks": {
+        "node_addition": {
+          "error": "Mesh not available",
+          "status": "skipped"
+        },
+        "link_quality_calculation": {
+          "error": "Mesh not available",
+          "status": "skipped"
+        },
+        "shortest_path": {
+          "error": "Mesh not available",
+          "status": "skipped"
+        }
+      }
+    }
+  },
+  "summary": {
+    "pqc": {
+      "total_benchmarks": 6,
+      "passed": 0,
+      "availability": "unavailable"
+    },
+    "mesh": {
+      "total_benchmarks": 3,
+      "passed": 0,
+      "availability": "unavailable"
+    }
+  }
+}

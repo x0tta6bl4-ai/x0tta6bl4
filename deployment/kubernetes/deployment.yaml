@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x0tta6bl4
+  namespace: default
+  labels:
+    app: x0tta6bl4
+    version: "3.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: x0tta6bl4
+  template:
+    metadata:
+      labels:
+        app: x0tta6bl4
+        version: "3.0.0"
+    spec:
+      containers:
+      - name: app
+        # Use content-addressable tag (SHA256)
+        # Example: registry.gitlab.com/x0tta6bl4/x0tta6bl4:sha256-abc123def456
+        image: registry.gitlab.com/x0tta6bl4/x0tta6bl4:sha256-REPLACE_WITH_SHA
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ENVIRONMENT
+          value: "production"
+        - name: X0TTA6BL4_PRODUCTION
+          value: "true"
+        - name: SPIFFE_ENABLED
+          value: "true"
+        - name: FL_ENABLED
+          value: "true"
+        - name: GRAPHSAGE_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000
+      restartPolicy: Always
+      serviceAccountName: x0tta6bl4
+

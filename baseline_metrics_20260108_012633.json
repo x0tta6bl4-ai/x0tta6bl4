@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-01-08T00:26:33Z",
+  "pods": {
+    "total": 5,
+    "running": 5,
+    "ready": 5
+  },
+  "mesh": {
+    "status": {"address":"fd00::a","subnet":"fd00::/8","status":"mock"}
+  },
+  "metrics": {
+    "mape_k_cycle_duration": null,
+    "gnn_recall_score": HELP
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "x0tta6bl4-dao",
+  "version": "1.0.0",
+  "description": "x0tta6bl4 Decentralized Autonomous Organization (DAO) on Ethereum/Polygon",
+  "main": "hardhat.config.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:watch": "hardhat test --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:debug": "playwright test --debug",
+    "deploy": "hardhat run scripts/deployDAO.js",
+    "deploy:mumbai": "hardhat run scripts/deployDAO.js --network mumbai",
+    "deploy:sepolia": "hardhat run scripts/deployDAO.js --network sepolia",
+    "deploy:polygon": "hardhat run scripts/deployDAO.js --network polygon",
+    "node": "hardhat node",
+    "node:fork": "hardhat node --fork https://rpc-mumbai.maticvigil.com",
+    "flatten": "hardhat flatten",
+    "gas:report": "REPORT_GAS=true hardhat test",
+    "coverage": "hardhat coverage",
+    "verify": "hardhat verify",
+    "clean": "hardhat clean"
+  },
+  "keywords": [
+    "ethereum",
+    "solidity",
+    "dao",
+    "governance",
+    "polygon",
+    "hardhat"
+  ],
+  "author": "x0tta6bl4 Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@openzeppelin/hardhat-upgrades": "^2.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "@playwright/test": "^1.48.0",
+    "chai": "^4.3.0",
+    "ethers": "^6.9.0",
+    "hardhat": "^2.20.0",
+    "hardhat-gas-reporter": "^1.0.0",
+    "solidity-coverage": "^0.8.0",
+    "dotenv": "^16.0.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  }
+}

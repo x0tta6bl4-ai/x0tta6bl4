@@ -1,0 +1,92 @@
+site_name: x0tta6bl4 Documentation
+docs_dir: docs
+nav:
+    - Home: index.md
+    - Roadmap: roadmap.md
+    - Contributing: contributing.md
+    - Changelog: changelog.md
+    - Getting Started:
+        - Project Overview: 00-getting-started/project-overview.md
+        - Open Source Overview: 00-getting-started/opensource-overview.md
+        - Sales Bot Setup Guide: 00-getting-started/sales-bot-setup-guide.md
+        - RAG API Quickstart: 00-getting-started/rag-api-quickstart.md
+        - Monetization Quick Start: 00-getting-started/monetization-quick-start.md
+        - Execution Quick Start: 00-getting-started/execution-quick-start.md
+        - Sales Quick Start: 00-getting-started/sales-quick-start.md
+        - Daily Plan Quick Start: 00-getting-started/daily-plan-quick-start.md
+    - Architecture:
+        - Overview: 01-architecture/index.md
+        - X0TTA6BL4 Comprehensive Analysis: 01-architecture/x0tta6bl4-comprehensive-analysis.md
+        - X0TTA6BL4 Analysis: 01-architecture/x0tta6bl4-analysis.md
+        - Bug Detector Project Structure: 01-architecture/bug-detector-project-structure.md
+        - GNN Routing RFC: 01-architecture/gnn-routing-rfc.md
+        - Master System: 01-architecture/master-system.md
+        - Philosophy and Architecture: 01-architecture/philosophy-and-architecture.md
+        - Philosophy Meets Reality: 01-architecture/philosophy-meets-reality.md
+        - Ontology of Becoming: 01-architecture/ontology-of-becoming.md
+    - Security:
+        - Overview: 02-security/overview.md
+        - Pip Audit Report: 02-security/pip-audit-report.md
+        - Snyk Trivy Guide: 02-security/snyk-trivy-guide.md
+        - Postmortem: 02-security/security-postmortem.md
+        - Fixes Verification: 02-security/security-fixes-verification.md
+        - P0 Fixes: 02-security/security-fixes-p0.md
+        - Fixes Applied: 02-security/security-fixes-applied.md
+        - Comprehensive Plan: 02-security/security-comprehensive-plan.md
+        - Hacker View Audit: 02-security/security-audit-hacker-view.md
+        - Audit Report 2025-11-11 00:29:59: 02-security/audit-report-20251111-002959.md
+        - Audit Report 2025-11-11 00:27:37: 02-security/audit-report-20251111-002737.md
+        - Audit Report 2025-11-10 23:43:46: 02-security/audit-report-20251110-234346.md
+        - Audit Report 2025-11-10 23:41:37: 02-security/audit-report-20251110-234137.md
+        - Audit Report 2025-11-10 00:32:40: 02-security/audit-report-20251110-003240.md
+        - Audit Report 2025-11-10 00:24:17: 02-security/audit-report-20251110-002417.md
+    - API: 03-api/index.md
+    - Deployment:
+        - Overview: 04-deployment/index.md
+        - Quick Deploy Steps: 04-deployment/quick-deploy-steps.md
+        - DAO Deployment Overview: 04-deployment/dao-deployment-overview.md
+        - Quick Deploy Checklist: 04-deployment/quick-deploy-checklist.md
+        - Release Instructions v1.5.0-alpha: 04-deployment/release-instructions-v1.5.0-alpha.md
+        - Bot and Landing Page Deployment: 04-deployment/bot-and-landing-page-deployment.md
+        - Causal Analysis Demo Deployment: 04-deployment/causal-analysis-demo-deployment.md
+        - Multi-Node Deployment: 04-deployment/multi-node-deployment.md
+    - Operations:
+        - Overview: 05-operations/index.md
+        - Validation Report: 05-operations/validation-report.md
+        - Version 1.1.0 Summary: 05-operations/version-1-1-0-summary.md
+        - Deep Roadmap Analysis: 05-operations/deep-roadmap-analysis.md
+        - Project Status Report: 05-operations/project-status-report.md
+        - Project Completion Report v1.4.0: 05-operations/project-completion-report-v1.4.0.md
+        - Project Completion Report v1.5: 05-operations/project-completion-report-v1.5.md
+        - Repository Migration Guide: 05-operations/repository-migration-guide.md
+        - Duplication Report: 05-operations/duplication-report.md
+        - Dependency Analysis: 05-operations/dependency-analysis.md
+        - Deep Analysis Report: 05-operations/deep-analysis-report.md
+        - Chaos Engineering Framework: 05-operations/chaos-engineering-framework.md
+    - Governance:
+        - Overview: 06-governance/index.md
+        - Investor Pitch: 06-governance/investor-pitch.md
+        - Monetization Master Plan: 06-governance/monetization-master-plan.md
+        - FTO Matrix: 06-governance/fto-matrix.md
+        - Patent Portfolio: 06-governance/patent-portfolio.md
+        - IP Policy: 06-governance/ip-policy.md
+    - Guides:
+        - Overview: 07-guides/index.md
+        - VPN Split Tunneling (Summary): 07-guides/vpn-split-tunneling-summary.md
+        - VPN Split Tunneling (RU): 07-guides/vpn-split-tunneling-ru.md
+        - Quick Email Send: 07-guides/quick-email-send.md
+        - Habr Article Draft: 07-guides/habr-article-draft.md
+        - Pitch Deck Structure: 07-guides/pitch-deck-structure.md
+        - Digital Survival Kit Overview: 07-guides/digital-survival-kit-overview.md
+        - Digital Survival Kit Plan: 07-guides/digital-survival-kit-plan.md
+        - Telegram Bot Guide: 07-guides/telegram-bot-guide.md
+        - Email Finder Guide: 07-guides/email-finder-guide.md
+        - Gumroad Listing Guide: 07-guides/gumroad-listing-guide.md
+        - X-UI Panel Instructions: 07-guides/xui-panel-instructions.md
+        - X-UI Panel Guide: 07-guides/xui-panel-guide.md
+    - References:
+        - Overview: 08-references/index.md
+        - Artifact Index: 08-references/artifact-index.md
+        - License Technical Spec: 08-references/license-technical-spec.md
+theme:
+    name: material

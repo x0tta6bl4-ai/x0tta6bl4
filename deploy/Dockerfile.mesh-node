@@ -1,0 +1,39 @@
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    iproute2 \
+    iptables \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install python dependencies
+# Using a requirements file approach for cleaner caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY src/ src/
+# COPY scripts/ scripts/ # Commented out as scripts dir might be missing or empty context issue
+
+# Create scripts dir manually and copy only necessary script if it exists locally
+# Or rely on volume mount for scripts if needed?
+# Let's assume scripts/simulate_mesh.py is needed.
+# If context is wrong, we fix context in docker-compose.
+# Docker-compose context is set to .. (parent dir), so scripts/ should be visible.
+# The error was: failed to calculate checksum ... "/scripts": not found.
+# This implies scripts/ folder was not found in build context.
+# But 'ls' showed 'scripts/'.
+# Maybe .dockerignore is excluding it?
+
+COPY scripts/ scripts/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Default command
+CMD ["python3", "scripts/simulate_mesh.py", "--nodes", "1", "--enable-consciousness"]

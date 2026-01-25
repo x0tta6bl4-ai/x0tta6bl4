@@ -1,0 +1,447 @@
+name: eBPF Compilation and Integration CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/network/ebpf/**/*.c'
+      - 'src/network/ebpf/**/*.h'
+      - '.github/workflows/ebpf-build.yml'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/network/ebpf/**'
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  LLVM_VERSION: 14
+  KERNEL_VERSION: 6.4
+  BPF_DIR: src/network/ebpf
+  ARTIFACTS_DIR: build/ebpf-artifacts
+
+jobs:
+  # ============================================================================
+  # Stage 1: Build eBPF Programs
+  # ============================================================================
+  build-ebpf:
+    name: Build eBPF Programs
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install build dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            clang-${LLVM_VERSION} \
+            llvm-${LLVM_VERSION} \
+            libelf-dev \
+            libpcap-dev \
+            pkg-config \
+            build-essential \
+            git \
+            linux-headers-$(uname -r) \
+            python3-dev \
+            python3-pip
+      
+      - name: Create build directory
+        run: mkdir -p ${ARTIFACTS_DIR}
+      
+      - name: Compile eBPF programs
+        run: |
+          cd ${BPF_DIR}
+          
+          echo "🔨 Compiling eBPF programs..."
+          for ebpf_file in programs/*.c; do
+            if [ -f "$ebpf_file" ]; then
+              prog_name=$(basename "$ebpf_file" .c)
+              echo "  → Compiling $prog_name..."
+              
+              clang-${LLVM_VERSION} \
+                -O2 \
+                -target bpf \
+                -D__KERNEL__ \
+                -D__BPF_TRACING__ \
+                -I./headers \
+                -c "$ebpf_file" \
+                -o "../../${ARTIFACTS_DIR}/${prog_name}.o"
+              
+              if [ $? -ne 0 ]; then
+                echo "❌ Failed to compile $prog_name"
+                exit 1
+              fi
+              
+              llvm-objdump-${LLVM_VERSION} \
+                -S "../../${ARTIFACTS_DIR}/${prog_name}.o" \
+                > "../../${ARTIFACTS_DIR}/${prog_name}.dis"
+              
+              echo "  ✅ ${prog_name}.o ($(stat -c%s ${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
+            fi
+          done
+      
+      - name: Verify compiled programs
+        run: |
+          echo "📋 Compiled eBPF programs:"
+          ls -lh ${ARTIFACTS_DIR}/*.o 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+          
+          if [ ! -f "${ARTIFACTS_DIR}/*.o" ]; then
+            echo "❌ No eBPF programs compiled!"
+            exit 1
+          fi
+      
+      - name: Upload eBPF artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebpf-programs
+          path: ${{ env.ARTIFACTS_DIR }}/*.o
+          retention-days: 30
+      
+      - name: Upload disassembly for review
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebpf-disassembly
+          path: ${{ env.ARTIFACTS_DIR }}/*.dis
+          retention-days: 7
+
+  # ============================================================================
+  # Stage 2: Verify eBPF Programs
+  # ============================================================================
+  verify-ebpf:
+    name: Verify eBPF Programs
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download eBPF artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ebpf-programs
+          path: ${{ env.ARTIFACTS_DIR }}
+      
+      - name: Install verification tools
+        run: |
+          apt-get update && apt-get install -y \
+            llvm-${LLVM_VERSION} \
+            libelf-dev
+      
+      - name: Verify program structure
+        run: |
+          echo "🔍 Verifying eBPF program structure..."
+          
+          for prog in ${ARTIFACTS_DIR}/*.o; do
+            echo ""
+            echo "Program: $(basename $prog)"
+            
+            # Check file type
+            file "$prog"
+            
+            # Check sections
+            llvm-objdump-${LLVM_VERSION} -h "$prog" | grep -E "\.text|\.maps|\.rodata"
+            
+            # Check for required symbols
+            llvm-nm-${LLVM_VERSION} "$prog" || true
+          done
+      
+      - name: Security checks
+        run: |
+          echo "🔒 Running security checks..."
+          
+          # Check for dangerous operations
+          for prog in ${ARTIFACTS_DIR}/*.o; do
+            llvm-objdump-${LLVM_VERSION} -d "$prog" | grep -E "bpf_probe_write_user|bpf_get_current_pid_tgid" && \
+              echo "⚠️  Found potentially unsafe operations in $(basename $prog)"
+          done
+          
+          echo "✅ Security checks passed"
+
+  # ============================================================================
+  # Stage 3: Semantic Analysis
+  # ============================================================================
+  semantic-analysis:
+    name: Semantic Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install analysis tools
+        run: |
+          apt-get update && apt-get install -y \
+            clang-tools-${LLVM_VERSION} \
+            splint \
+            cppcheck
+      
+      - name: Static analysis with cppcheck
+        continue-on-error: true
+        run: |
+          echo "🔍 Running cppcheck..."
+          cppcheck \
+            --enable=all \
+            --suppress=missingIncludeSystem \
+            ${BPF_DIR}/programs/ \
+            > cppcheck-report.txt 2>&1
+          
+          cat cppcheck-report.txt
+      
+      - name: Clang analyzer
+        continue-on-error: true
+        run: |
+          echo "🔍 Running clang analyzer..."
+          cd ${BPF_DIR}
+          
+          for prog in programs/*.c; do
+            echo "Analyzing $(basename $prog)..."
+            clang-${LLVM_VERSION} \
+              --analyze \
+              -I./headers \
+              "$prog" 2>&1 | tee -a ../../clang-analysis.txt
+          done
+      
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: analysis-reports
+          path: |
+            cppcheck-report.txt
+            clang-analysis.txt
+          retention-days: 30
+
+  # ============================================================================
+  # Stage 4: Integration Tests
+  # ============================================================================
+  integration-tests:
+    name: eBPF Integration Tests
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download eBPF artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ebpf-programs
+          path: ${{ env.ARTIFACTS_DIR }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Test eBPF loader
+        run: |
+          echo "🧪 Testing eBPF loader..."
+          python -m pytest tests/test_ebpf_loader.py -v --tb=short
+      
+      - name: Test eBPF orchestrator
+        run: |
+          echo "🧪 Testing eBPF orchestrator..."
+          python -m pytest tests/test_ebpf_orchestrator.py -v --tb=short
+      
+      - name: Integration test with mock kernel
+        run: |
+          echo "🧪 Running integration tests..."
+          python -m pytest tests/integration/test_ebpf_integration.py -v --tb=short
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 30
+
+  # ============================================================================
+  # Stage 5: Performance Benchmarks
+  # ============================================================================
+  benchmark-ebpf:
+    name: eBPF Performance Benchmarks
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download eBPF artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ebpf-programs
+          path: ${{ env.ARTIFACTS_DIR }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run benchmarks
+        run: |
+          echo "⏱️  Running eBPF performance benchmarks..."
+          python benchmarks/benchmark_ebpf_performance.py > ebpf-benchmark.txt
+          cat ebpf-benchmark.txt
+      
+      - name: Compare with baseline
+        run: |
+          echo "📊 Comparing with baseline..."
+          python scripts/compare_ebpf_baseline.py || true
+      
+      - name: Upload benchmarks
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: ebpf-benchmark.txt
+          retention-days: 30
+
+  # ============================================================================
+  # Stage 6: Generate Documentation
+  # ============================================================================
+  generate-docs:
+    name: Generate eBPF Documentation
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install tools
+        run: |
+          apt-get update && apt-get install -y \
+            llvm-${LLVM_VERSION} \
+            doxygen \
+            graphviz
+      
+      - name: Download eBPF artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ebpf-programs
+          path: ${{ env.ARTIFACTS_DIR }}
+      
+      - name: Generate documentation
+        run: |
+          echo "📚 Generating eBPF documentation..."
+          
+          cat > Doxyfile << EOF
+          PROJECT_NAME = "x0tta6bl4 eBPF Programs"
+          INPUT = src/network/ebpf/programs
+          OUTPUT_DIRECTORY = docs/ebpf
+          GENERATE_HTML = YES
+          GENERATE_LATEX = NO
+          HAVE_DOT = YES
+          EOF
+          
+          doxygen Doxyfile
+      
+      - name: Extract program metadata
+        run: |
+          echo "Generating program metadata..."
+          python scripts/generate_ebpf_metadata.py ${ARTIFACTS_DIR}
+      
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebpf-documentation
+          path: docs/ebpf/
+          retention-days: 90
+
+  # ============================================================================
+  # Stage 7: Deploy to Repository
+  # ============================================================================
+  deploy:
+    name: Deploy eBPF Artifacts
+    needs: [build-ebpf, integration-tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Create release package
+        run: |
+          mkdir -p release/ebpf-programs
+          cp ebpf-programs/*.o release/ebpf-programs/
+          
+          cat > release/MANIFEST.md << EOF
+          # x0tta6bl4 eBPF Programs Release
+          
+          **Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          **Git Commit**: ${GITHUB_SHA:0:8}
+          **Build Number**: ${GITHUB_RUN_NUMBER}
+          
+          ## Included Programs
+          EOF
+          
+          ls -1 release/ebpf-programs/*.o | while read prog; do
+            size=$(stat -c%s "$prog")
+            echo "- $(basename $prog) ($size bytes)" >> release/MANIFEST.md
+          done
+      
+      - name: Upload to release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebpf-release-package
+          path: release/
+          retention-days: 90
+      
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const manifest = fs.readFileSync('release/MANIFEST.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **eBPF Build Successful**\n\n' + manifest
+            });
+
+  # ============================================================================
+  # Final Status
+  # ============================================================================
+  status:
+    name: Build Status
+    runs-on: ubuntu-latest
+    needs: [build-ebpf, verify-ebpf, integration-tests]
+    if: always()
+    
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.build-ebpf.result }}" == "success" && \
+                "${{ needs.verify-ebpf.result }}" == "success" && \
+                "${{ needs.integration-tests.result }}" == "success" ]]; then
+            echo "✅ All eBPF compilation stages passed"
+            exit 0
+          else
+            echo "❌ eBPF compilation failed"
+            exit 1
+          fi

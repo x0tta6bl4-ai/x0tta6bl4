@@ -1,0 +1,91 @@
+# Production Configuration для x0tta6bl4
+# Использование: Все компоненты настроены для production deployment
+
+# MAPE-K Configuration
+mape_k:
+  cycle_interval_seconds: 5
+  monitor:
+    enable_graphsage: true
+    threshold_cpu: 90.0
+    threshold_memory: 85.0
+    threshold_packet_loss: 5.0
+  analyzer:
+    enable_causal_analysis: true
+    confidence_threshold: 0.90
+  planner:
+    k_disjoint_paths: 3
+    qos_threshold: 0.8
+  executor:
+    enable_kubernetes: true
+    grace_period_seconds: 3
+
+# GraphSAGE Observe Mode
+observe_mode:
+  enabled: true
+  mode: "observe"  # observe, warn, block
+  threshold: 0.95
+  confidence_required: 0.90
+  validation_required: true
+
+# Chaos Engineering
+chaos_engineering:
+  enabled: true
+  experiments:
+    - type: "node_failure"
+      frequency: "weekly"
+      duration: 10
+    - type: "network_partition"
+      frequency: "monthly"
+      duration: 15
+
+# eBPF Configuration
+ebpf:
+  enabled: true
+  explainer_enabled: true
+  programs:
+    - id: "xdp_counter"
+      type: "xdp"
+    - id: "tcp_tracer"
+      type: "tracepoint"
+
+# SPIRE/SPIFFE Configuration
+spire:
+  enabled: true
+  server:
+    namespace: "spire"
+    replicas: 1
+  agent:
+    daemonset: true
+  mTLS:
+    enabled: true
+    cert_ttl_hours: 24
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    retention_days: 30
+  grafana:
+    enabled: true
+  alerting:
+    enabled: true
+    rules:
+      - name: "HighMTTR"
+        threshold: 5.0
+      - name: "HighCPU"
+        threshold: 90.0
+
+# Mesh Network
+mesh:
+  protocol: "batman-adv"
+  yggdrasil_enabled: true
+  slot_sync_enabled: true
+  max_nodes: 300
+
+# Performance Targets
+targets:
+  mttr_p95_seconds: 5.0
+  system_availability: 0.995
+  anomaly_detection_accuracy: 0.95
+  false_positive_rate: 0.08
+

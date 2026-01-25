@@ -1,0 +1,320 @@
+# Оптимизированная конфигурация Cilium eBPF для снижения ложных срабатываний
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Конфигурация Cilium eBPF оптимизаций
+cilium:
+  # Глобальные настройки
+  global:
+    etcd:
+      managed: true
+      cluster:
+        enabled: true
+
+    # Hubble для мониторинга
+    hubble:
+      enabled: true
+      metrics:
+        enabled: true
+        port: 9091
+
+  # Consistency checks между регионами
+  consistencyChecks:
+    enabled: true
+
+    # Многорегиональная синхронизация политик
+    multiRegion:
+      enabled: true
+      syncInterval: "30s"
+      regions:
+        us-east:
+          priority: 1
+          endpoint: "cilium-etcd-us-east:2379"
+        eu-west:
+          priority: 2
+          endpoint: "cilium-etcd-eu-west:2379"
+        asia-pacific:
+          priority: 3
+          endpoint: "cilium-etcd-asia-pacific:2379"
+
+    # Валидация политик
+    policyValidation:
+      enabled: true
+      strictMode: false  # Снижаем ложные срабатывания
+      validationInterval: "60s"
+
+      # Правила валидации
+      rules:
+        allowDNS:
+          enabled: true
+          maxFalsePositives: 0.05  # 5% максимум
+        allowServiceMesh:
+          enabled: true
+          maxFalsePositives: 0.03  # 3% максимум
+        allowHealthChecks:
+          enabled: true
+          maxFalsePositives: 0.01  # 1% максимум
+
+  # Оптимизированные политики для снижения ложных срабатываний
+  optimizedPolicies:
+    enabled: true
+
+    # Адаптивные политики
+    adaptive:
+      enabled: true
+      learningPeriod: "7d"
+      sensitivity: "medium"  # low, medium, high
+
+      # Адаптация на основе поведения
+      behavior:
+        baselinePeriod: "24h"
+        deviationThreshold: 0.2  # 20% отклонение от baseline
+
+    # Контекстные политики
+    contextual:
+      enabled: true
+
+      # Временные окна
+      timeWindows:
+        businessHours:
+          enabled: true
+          schedule: "9:00-18:00"
+          timezone: "UTC"
+          relaxedPolicies: true
+
+        maintenanceWindow:
+          enabled: true
+          schedule: "2:00-4:00"
+          timezone: "UTC"
+          strictPolicies: false
+
+      # Географические контексты
+      geoContext:
+        enabled: true
+        regionSpecificRules: true
+        crossRegionAllowances: true
+
+  # Мониторинг производительности политик
+  policyMonitoring:
+    enabled: true
+
+    # Метрики производительности
+    metrics:
+      policyEvaluationTime: true
+      falsePositiveRate: true
+      policyHitRate: true
+      enforcementLatency: true
+
+    # Детальный анализ ложных срабатываний
+    falsePositiveAnalysis:
+      enabled: true
+      sampleRate: 0.1  # 10% сэмплирование
+      retention: "30d"
+
+      # Категории анализа
+      categories:
+        dns: true
+        serviceMesh: true
+        healthChecks: true
+        crossRegion: true
+
+    # Алерт правила
+    alerts:
+      highFalsePositiveRate:
+        threshold: 0.12  # 12% как указано в проблеме
+        duration: "10m"
+      slowPolicyEvaluation:
+        threshold: "10ms"
+        duration: "5m"
+      policyInconsistency:
+        threshold: 1
+        duration: "5m"
+
+  # Производительность eBPF
+  ebpf:
+    enabled: true
+
+    # Оптимизации компиляции
+    compilation:
+      optimize: true
+      inlineLimit: 100
+      unrollThreshold: 50
+
+    # Управление памятью
+    memory:
+      maxMapSize: 1000000
+      cleanupInterval: "5m"
+      gcThreshold: 0.8
+
+    # Мониторинг производительности
+    performance:
+      enabled: true
+      samplingRate: 0.01  # 1% сэмплирование
+
+  # Интеграция с Hubble для observability
+  hubble:
+    enabled: true
+
+    # Метрики Hubble
+    metrics:
+      enabled: true
+      port: 9091
+
+      # Детальные метрики
+      detailed:
+        flows: true
+        drops: true
+        errors: true
+        latency: true
+
+    # UI для визуализации
+    ui:
+      enabled: true
+      port: 12000
+
+  # Безопасность
+  security:
+    # Шифрование трафика между узлами
+    encryption:
+      enabled: true
+      type: "ipsec"
+
+    # Аутентификация узлов
+    nodeAuth:
+      enabled: true
+      certManager: true
+
+# Конфигурация DaemonSet для Cilium агентов
+daemonSet:
+  enabled: true
+
+  # Аннотации для мониторинга
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+
+  # Ресурсы для производительности
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+
+  # Health checks
+  livenessProbe:
+    exec:
+      command:
+        - cilium
+        - status
+        - --verbose
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    exec:
+      command:
+        - cilium
+        - status
+        - --verbose
+    initialDelaySeconds: 15
+    periodSeconds: 5
+
+# Service для метрик и API
+service:
+  enabled: true
+  type: ClusterIP
+
+  ports:
+    - name: hubble-metrics
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
+    - name: hubble-ui
+      port: 12000
+      targetPort: 12000
+      protocol: TCP
+
+# ConfigMap для дополнительных конфигураций
+configMap:
+  enabled: true
+  data:
+    cilium-config.yaml: |
+      # Оптимизированная конфигурация Cilium
+      debug: false
+
+      # eBPF настройки
+      bpf:
+        compile-debug: false
+        ct-global-tcp-max: 1000000
+        ct-global-any-max: 500000
+        map-dynamic-size-ratio: 0.0025
+
+      # Политики
+      policy-enforcement-mode: "default"
+      policy-audit-mode: false
+
+      # Мониторинг
+      metrics:
+        - "policy"
+        - "drop"
+        - "forward"
+        - "http"
+
+      # Hubble
+      hubble:
+        listen-address: ":4244"
+        metrics-server: ":9091"
+        ui: ":12000"
+
+    # Consistency check конфигурация
+    consistency-config.yaml: |
+      checks:
+        policyConsistency:
+          enabled: true
+          interval: "30s"
+          regions:
+            - us-east
+            - eu-west
+            - asia-pacific
+
+        falsePositiveReduction:
+          enabled: true
+          sensitivity: "medium"
+          learning: true
+
+# NetworkPolicy для безопасности
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+        - podSelector:
+            matchLabels:
+              app: cilium-ebpf-optimization
+      ports:
+        - protocol: TCP
+          port: 9091
+        - protocol: TCP
+          port: 12000
+
+# Persistence для Hubble данных
+persistence:
+  enabled: false
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  storageClass: ""
+
+# Автомасштабирование (если требуется)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

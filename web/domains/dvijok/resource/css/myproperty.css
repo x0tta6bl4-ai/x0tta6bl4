@@ -1,0 +1,19 @@
+.object_box {
+	width: 100%;
+	border: solid 1px black;
+	padding: 10px;
+	margin: 5px 0;
+}
+
+.photo_box {
+	display: table-cell;
+	float: none;
+	vertical-align: top;
+}
+
+.info_box {
+	padding: 0 15px;
+	display: table-cell;
+	float: none;
+	vertical-align: top;
+}

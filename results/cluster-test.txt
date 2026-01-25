@@ -1,0 +1,17 @@
+FULL TEST RESULTS
+=================
+
+Server: kind-x0tta6bl4-local
+Date: Вс 30 ноя 2025 17:23:51 CET
+
+TEST 1: Cluster Health
+x0tta6bl4-local-control-plane   Ready   control-plane   15h   v1.28.0
+mesh-node-544c78b96c-2mnf5   1/1   Running   0     48s
+mesh-node-544c78b96c-cskp7   1/1   Running   0     44s
+mesh-node-544c78b96c-q8lpq   1/1   Running   0     8m56s
+mesh-node-544c78b96c-wkz2m   1/1   Running   0     40s
+✅ PASS
+
+TEST 2: MTTR
+MTTR: 3.14s
+✅ PASS (target ≤5s)

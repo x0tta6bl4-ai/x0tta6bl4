@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: x0tta6bl4 Mesh Network API
+  description: |
+    REST API для x0tta6bl4 self-healing mesh network platform.
+    
+    ## Аутентификация
+    
+    В production используется SPIFFE/SPIRE для Zero Trust аутентификации:
+    - **mTLS:** Обязательно для всех запросов
+    - **SPIFFE ID:** Проверяется автоматически
+    - **Socket:** `/run/spire/sockets/agent.sock`
+    
+    В development/staging режиме mTLS опционален.
+  version: 3.0.0
+  contact:
+    name: x0tta6bl4 Support
+    email: support@x0tta6bl4.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.x0tta6bl4.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check and system status
+  - name: Mesh
+    description: Mesh network operations
+  - name: AI/ML
+    description: AI/ML predictions and analysis
+  - name: MAPE-K
+    description: Self-healing MAPE-K cycle
+  - name: Recovery
+    description: Recovery actions
+  - name: Monitoring
+    description: Metrics and monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Проверка статуса системы и компонентов
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Система работает
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Критические компоненты недоступны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /mesh/beacon:
+    post:
+      tags:
+        - Mesh
+      summary: Send beacon
+      description: Отправка beacon в mesh network
+      operationId: sendBeacon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeaconRequest'
+      responses:
+        '200':
+          description: Beacon accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeaconResponse'
+
+  /mesh/status:
+    get:
+      tags:
+        - Mesh
+      summary: Get mesh status
+      description: Получение статуса mesh network
+      operationId: getMeshStatus
+      responses:
+        '200':
+          description: Mesh status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeshStatus'
+
+  /mesh/peers:
+    get:
+      tags:
+        - Mesh
+      summary: Get peers
+      description: Получение списка peers
+      operationId: getPeers
+      responses:
+        '200':
+          description: List of peers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Peer'
+
+  /mesh/routes:
+    get:
+      tags:
+        - Mesh
+      summary: Get routes
+      description: Получение маршрутов mesh network
+      operationId: getRoutes
+      responses:
+        '200':
+          description: List of routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+
+  /ai/predict/{target_node_id}:
+    get:
+      tags:
+        - AI/ML
+      summary: Predict anomaly
+      description: Предсказание аномалии для узла
+      operationId: predictAnomaly
+      parameters:
+        - name: target_node_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID целевого узла
+      responses:
+        '200':
+          description: Prediction result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnomalyPrediction'
+
+  /api/v1/mapek/status:
+    get:
+      tags:
+        - MAPE-K
+      summary: Get MAPE-K status
+      description: Получение статуса MAPE-K цикла
+      operationId: getMAPEKStatus
+      responses:
+        '200':
+          description: MAPE-K status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAPEKStatus'
+
+  /api/v1/mapek/history:
+    get:
+      tags:
+        - MAPE-K
+      summary: Get MAPE-K history
+      description: Получение истории инцидентов MAPE-K
+      operationId: getMAPEKHistory
+      responses:
+        '200':
+          description: MAPE-K history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MAPEKIncident'
+
+  /api/v1/recovery/restart-service:
+    post:
+      tags:
+        - Recovery
+      summary: Restart service
+      description: Перезапуск сервиса
+      operationId: restartService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRestartRequest'
+      responses:
+        '200':
+          description: Service restarted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryResponse'
+
+  /api/v1/recovery/switch-route:
+    post:
+      tags:
+        - Recovery
+      summary: Switch route
+      description: Переключение маршрута
+      operationId: switchRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteSwitchRequest'
+      responses:
+        '200':
+          description: Route switched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryResponse'
+
+  /metrics:
+    get:
+      tags:
+        - Monitoring
+      summary: Get metrics
+      description: Получение Prometheus metrics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unavailable]
+        version:
+          type: string
+          example: "3.0.0"
+        components:
+          type: object
+          additionalProperties:
+            type: boolean
+        component_stats:
+          type: object
+          properties:
+            active:
+              type: integer
+            total:
+              type: integer
+            percentage:
+              type: number
+
+    BeaconRequest:
+      type: object
+      required:
+        - node_id
+        - timestamp
+      properties:
+        node_id:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+        neighbors:
+          type: array
+          items:
+            type: string
+
+    BeaconResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        slot:
+          type: integer
+        mttd_ms:
+          type: number
+        offset_ms:
+          type: number
+
+    MeshStatus:
+      type: object
+      properties:
+        build_name:
+          type: string
+        build_version:
+          type: string
+        uptime:
+          type: integer
+        peers:
+          type: integer
+        routes:
+          type: integer
+
+    Peer:
+      type: object
+      properties:
+        address:
+          type: string
+        port:
+          type: integer
+        uptime:
+          type: integer
+
+    Route:
+      type: object
+      properties:
+        destination:
+          type: string
+        via:
+          type: string
+        hops:
+          type: integer
+
+    AnomalyPrediction:
+      type: object
+      properties:
+        prediction:
+          type: object
+          properties:
+            is_anomaly:
+              type: boolean
+            confidence:
+              type: number
+            features:
+              type: object
+
+    MAPEKStatus:
+      type: object
+      properties:
+        cycle_active:
+          type: boolean
+        last_cycle_time:
+          type: string
+          format: date-time
+        incidents_detected:
+          type: integer
+        recovery_success_rate:
+          type: number
+
+    MAPEKIncident:
+      type: object
+      properties:
+        incident_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        severity:
+          type: string
+        action_taken:
+          type: string
+        success:
+          type: boolean
+
+    ServiceRestartRequest:
+      type: object
+      required:
+        - service_name
+      properties:
+        service_name:
+          type: string
+        namespace:
+          type: string
+          default: default
+
+    RouteSwitchRequest:
+      type: object
+      required:
+        - target_node
+        - alternative_route
+      properties:
+        target_node:
+          type: string
+        alternative_route:
+          type: string
+
+    RecoveryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        duration_seconds:
+          type: number
+
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Mutual TLS authentication via SPIFFE/SPIRE
+
+security:
+  - mTLS: []
+

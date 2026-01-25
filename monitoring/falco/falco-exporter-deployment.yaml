@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco-exporter
+  namespace: monitoring
+  labels:
+    app: falco-exporter
+spec:
+  ports:
+  - port: 9376
+    targetPort: 9376
+    protocol: TCP
+    name: metrics
+  - port: 2801
+    targetPort: 2801
+    protocol: TCP
+    name: http
+  selector:
+    app: falco-exporter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: falco-exporter
+  template:
+    metadata:
+      labels:
+        app: falco-exporter
+    spec:
+      containers:
+      - name: exporter
+        image: falcosecurity/falco-exporter:0.8.3
+        args:
+        - --listen-address=:9376
+        - --grpc-address=falco.falco-system:5060
+        ports:
+        - containerPort: 9376
+          name: metrics
+        - containerPort: 2801
+          name: http
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: falco-exporter
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: falco-exporter
+  endpoints:
+  - port: metrics
+    interval: 30s

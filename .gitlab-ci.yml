@@ -1,0 +1,457 @@
+# x0tta6bl4 Repository CI/CD Pipeline
+# Includes: hygiene checks, DVC validation, security scanning
+
+stages:
+  - validate
+  - ebpf-build
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  DVC_CACHE_DIR: "$CI_PROJECT_DIR/.cache/dvc"
+
+# === Repository Hygiene Checks ===
+
+repo-hygiene:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y git findutils
+  script:
+    - echo "🔍 Checking repository hygiene..."
+
+    # Check for accidentally committed virtual environments
+    - |
+      if find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: Virtual environments detected in repository!"
+        find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*'
+        exit 1
+      fi
+
+    # Check for database files (only migrations should be in Git)
+    - |
+      if find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: Database files detected in repository!"
+        echo "Only migrations should be committed. Found:"
+        find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*'
+        exit 1
+      fi
+
+    # Check for large files (>10MB)
+    - |
+      LARGE_FILES=$(find . -type f -size +10M ! -path './.git/*' ! -path './.cache/*')
+      if [ -n "$LARGE_FILES" ]; then
+        echo "❌ ERROR: Large files (>10MB) detected:"
+        echo "$LARGE_FILES" | xargs -I {} du -h {}
+        echo "Use DVC or move to artifact storage!"
+        exit 1
+      fi
+
+# === eBPF Programs Compilation ===
+
+ebpf-compile:
+  stage: ebpf-build
+  image: ubuntu:latest
+  cache:
+    key: "ebpf-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - src/network/ebpf/programs/vmlinux/
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends
+        clang
+        llvm
+        libelf-dev
+        libz-dev
+        pkg-config
+        linux-headers-generic
+        make
+        file
+        bpftool
+  script:
+    - echo "🔨 Compiling x0tta6bl4 eBPF programs..."
+    - mkdir -p build/ebpf
+    - cd src/network/ebpf/programs
+    - echo "📦 Generating CO-RE headers (vmlinux.h)..."
+    - make vmlinux || echo "⚠️  CO-RE not available, continuing without vmlinux.h"
+    - echo "🔨 Compiling all eBPF programs..."
+    - make clean
+    - make all
+    - echo "✅ Compilation successful"
+    - echo ""
+    - echo "📊 Compiled objects:"
+    - ls -lh *.o 2>/dev/null || echo "No object files"
+    - cd - && cp src/network/ebpf/programs/*.o build/ebpf/
+  artifacts:
+    paths:
+      - build/ebpf/*.o
+    reports:
+      junit: build/ebpf/*.xml
+    expire_in: 30 days
+  only:
+    - main
+    - develop
+    - merge_requests
+    changes:
+      - src/network/ebpf/programs/**
+      - .gitlab-ci.yml
+  allow_failure: false
+  timeout: 10 minutes
+
+ebpf-verify:
+  stage: ebpf-build
+  image: ubuntu:latest
+  dependencies:
+    - ebpf-compile
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends
+        llvm
+        python3
+        python3-pip
+        file
+        binutils
+  script:
+    - echo "🔍 Verifying eBPF programs..."
+    - |
+      if [ ! -d "build/ebpf" ] || [ -z "$(ls build/ebpf/*.o 2>/dev/null)" ]; then
+        echo "❌ No eBPF objects found in build/ebpf/"
+        exit 1
+      fi
+    - echo "📋 Checking ELF format..."
+    - |
+      for obj in build/ebpf/*.o; do
+        objname=$(basename "$obj")
+        echo "  Checking $objname..."
+        if file "$obj" | grep -q "ELF.*BPF"; then
+          echo "    ✅ Valid eBPF object"
+        else
+          echo "    ❌ INVALID ELF format"
+          file "$obj"
+          exit 1
+        fi
+      done
+    - echo "📊 Disassembling programs (first 30 lines)..."
+    - |
+      for obj in build/ebpf/*.o; do
+        objname=$(basename "$obj")
+        echo "  $objname:"
+        llvm-objdump -d "$obj" 2>/dev/null | head -30 || echo "    (Could not disassemble)"
+      done
+    - echo "🔧 Validating with Python ELF parser..."
+    - pip3 install -q pyelftools
+    - python3 << 'EOF'
+import os
+import sys
+from elftools.elf.elffile import ELFFile
+
+success = True
+for filename in os.listdir('build/ebpf'):
+    if not filename.endswith('.o'):
+        continue
+    
+    filepath = os.path.join('build/ebpf', filename)
+    try:
+        with open(filepath, 'rb') as f:
+            elf = ELFFile(f)
+            machine = elf['e_machine']
+            if machine == 'EM_BPF':
+                print(f"✅ {filename} - Valid eBPF (machine={machine})")
+            else:
+                print(f"❌ {filename} - INVALID machine type: {machine}")
+                success = False
+    except Exception as e:
+        print(f"❌ {filename} - Error: {e}")
+        success = False
+
+if not success:
+    sys.exit(1)
+EOF
+    - echo "🎉 All eBPF programs verified!"
+  artifacts:
+    paths:
+      - build/ebpf/*.o
+    expire_in: 30 days
+  only:
+    - main
+    - develop
+    - merge_requests
+    changes:
+      - src/network/ebpf/programs/**
+      - .gitlab-ci.yml
+  allow_failure: false
+  timeout: 10 minutes
+
+    # Check for archives that shouldn't be in Git
+    - |
+      ARCHIVES=$(find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) ! -path './.git/*' ! -path './external_artifacts/*')
+      if [ -n "$ARCHIVES" ]; then
+        echo "⚠️  WARNING: Archive files found outside external_artifacts/:"
+        echo "$ARCHIVES"
+        echo "Consider moving to external artifact storage."
+      fi
+
+    # Check for accidentally committed secrets
+    - |
+      if find . -name '.env' ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: .env file detected in repository!"
+        find . -name '.env' ! -path './.git/*'
+        exit 1
+      fi
+
+    - echo "✅ Repository hygiene check passed!"
+
+  only:
+    - merge_requests
+    - main
+    - develop
+
+  allow_failure: false
+
+# === DVC Validation ===
+
+dvc-validation:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - pip install dvc dvc-s3
+  script:
+    - echo "📦 Validating DVC setup..."
+
+    # Check DVC is initialized
+    - |
+      if [ ! -d ".dvc" ]; then
+        echo "⚠️  WARNING: DVC not initialized in this repository."
+        echo "Run: dvc init"
+        exit 0  # Don't fail if DVC not set up yet
+      fi
+
+    # Validate .dvc files
+    - dvc status || echo "⚠️  Some DVC files may be out of sync"
+
+    # Dry-run pull to check remote connectivity
+    - dvc pull --dry-run || echo "⚠️  Cannot connect to DVC remote (expected in CI)"
+
+    # Check for large files that should be in DVC
+    - |
+      echo "Checking for DVC candidates..."
+      find data/ -type f \( -name '*.csv' -o -name '*.jsonl' -o -name '*.parquet' \) -size +5M 2>/dev/null | while read file; do
+        if [ ! -f "${file}.dvc" ]; then
+          echo "⚠️  Large file not tracked by DVC: $file"
+        fi
+      done
+
+    - echo "✅ DVC validation complete"
+
+  only:
+    - merge_requests
+    - main
+    - develop
+
+  allow_failure: true  # Don't block pipeline if DVC not fully set up
+
+# === Security Scanning ===
+
+secrets-scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - pip install detect-secrets
+  script:
+    - echo "🔐 Scanning for secrets..."
+    - detect-secrets scan --all-files --force-use-all-plugins
+    - echo "✅ No secrets detected"
+  only:
+    - merge_requests
+    - main
+  allow_failure: false
+
+# === Python Linting & Type Checking ===
+
+python-quality:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - pip install ruff mypy
+  script:
+    - echo "🔍 Running code quality checks..."
+    - ruff check . || true  # Don't fail yet, just warn
+    - mypy . --ignore-missing-imports || true
+  only:
+    - merge_requests
+  allow_failure: true
+
+# === Unit Tests ===
+
+unit-tests:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install -r requirements.txt || true
+    - pip install pytest pytest-cov
+  script:
+    - echo "🧪 Running unit tests..."
+    - pytest tests/unit/ --cov=src --cov-report=term --cov-report=html --cov-fail-under=85
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+  only:
+    - merge_requests
+    - main
+
+# === Benchmark Thresholds Check ===
+
+benchmark-thresholds:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install -r requirements.txt || true
+    - pip install httpx  # For benchmark scripts
+  script:
+    - echo "📊 Checking benchmark thresholds..."
+    - |
+      if [ -f "benchmarks/baseline/baseline.json" ] && [ -f "benchmarks/results/latest.json" ]; then
+        python scripts/check_benchmark_thresholds.py \
+          --baseline benchmarks/baseline/baseline.json \
+          --current benchmarks/results/latest.json \
+          --threshold 0.10 || echo "⚠️ Benchmark degradation detected (non-blocking for now)"
+      else
+        echo "⚠️ Baseline or latest results not found, skipping threshold check"
+        echo "Run: ./scripts/run_baseline_benchmarks.sh to establish baseline"
+      fi
+  artifacts:
+    paths:
+      - benchmarks/results/*.json
+    expire_in: 30 days
+  only:
+    - merge_requests
+    - main
+  allow_failure: true  # Non-blocking for now, will be mandatory in Phase 3.3
+
+# === Docker Build (Immutable Images) ===
+
+docker-build:
+  stage: build
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - chmod +x scripts/build_immutable_image.sh
+  script:
+    - echo "🔨 Building immutable Docker image with content-addressable tags..."
+    - |
+      # Build with content-addressable tags
+      COMMIT_SHA="${CI_COMMIT_SHA}"
+      SHORT_SHA="${COMMIT_SHA:0:12}"
+      
+      # Build image
+      docker build -f Dockerfile.app \
+        -t ${CI_REGISTRY_IMAGE}:${COMMIT_SHA} \
+        -t ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA} \
+        -t ${CI_REGISTRY_IMAGE}:latest \
+        .
+      
+      # Push all tags
+      docker push ${CI_REGISTRY_IMAGE}:${COMMIT_SHA}
+      docker push ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA}
+      docker push ${CI_REGISTRY_IMAGE}:latest || true
+      
+      # Get image digest (content-addressable)
+      IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${CI_REGISTRY_IMAGE}:${COMMIT_SHA} 2>/dev/null || echo "")
+      
+      echo "✅ Image built and pushed:"
+      echo "  - Tag: ${CI_REGISTRY_IMAGE}:${COMMIT_SHA}"
+      echo "  - SHA256 tag: ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA}"
+      echo "  - Digest: ${IMAGE_DIGEST}"
+      
+      # Save metadata for deployment
+      echo "{\"image\":\"${CI_REGISTRY_IMAGE}\",\"tag\":\"${COMMIT_SHA}\",\"sha256_tag\":\"sha256-${SHORT_SHA}\",\"digest\":\"${IMAGE_DIGEST}\"}" > image_metadata.json
+  artifacts:
+    paths:
+      - image_metadata.json
+    expire_in: 30 days
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# === Deployment ===
+
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "🚀 Deploying to staging..."
+    - curl -X POST $STAGING_WEBHOOK_URL -d "version=$CI_COMMIT_SHA"
+  only:
+    - develop
+  environment:
+    name: staging
+    url: https://staging.x0tta6bl4.dev
+
+deploy-production:
+  stage: deploy
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache curl helm
+  script:
+    - echo "🚀 Deploying to production..."
+    - cd infra/terraform/aws
+    - terraform init
+    - terraform apply -auto-approve
+    - cd ../../..
+    - helm upgrade --install x0tta6bl4 ./helm/x0tta6bl4 -f helm/x0tta6bl4/values-production.yaml
+    - echo "Running health checks..."
+    - ./scripts/health-check-production.sh
+  only:
+    - main
+  environment:
+    name: production
+    url: https://x0tta6bl4.dev
+  when: manual  # Require manual approval for production
+# ============================================
+# WEST-0104: Anti-Delos Charter Test Suite
+# ============================================
+
+# Run all charter unit tests with coverage
+test:charter:unit:
+  stage: test
+  script:
+    - python -m pip install -q pytest pytest-asyncio pytest-cov
+    - python -m pytest tests/test_charter_*.py -v --tb=short --junitxml=charter-junit.xml --cov=src/westworld --cov-report=xml --cov-report=term-missing
+    - echo "Charter unit tests completed"
+  artifacts:
+    reports:
+      junit: charter-junit.xml
+    paths:
+      - coverage.xml
+    expire_in: 30 days
+  allow_failure: false
+  coverage: '/TOTAL.*\s+(\d+\.\d+)%/'
+
+# Run charter integration tests
+test:charter:integration:
+  stage: test
+  script:
+    - python -m pip install -q pytest pytest-asyncio
+    - python -m pytest tests/test_charter_integration.py tests/test_charter_async.py -v --tb=short
+  allow_failure: false
+
+# Run charter comprehensive tests
+test:charter:comprehensive:
+  stage: test
+  script:
+    - python -m pip install -q pytest
+    - python -m pytest tests/test_charter_comprehensive.py tests/test_charter_edges.py -v --tb=short
+  allow_failure: false

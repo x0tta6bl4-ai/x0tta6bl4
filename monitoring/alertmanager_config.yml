@@ -1,0 +1,537 @@
+# AlertManager Configuration for x0tta6bl4
+# SLA Alerting Rules
+
+global:
+  resolve_timeout: 5m
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_auth_username: '${SMTP_USER}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_from: 'alerts@x0tta6bl4.mesh'
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+  routes:
+    # CRITICAL ALERTS - Immediate escalation
+    - match:
+        severity: 'critical'
+      receiver: 'critical-team'
+      group_wait: 5s
+      group_interval: 5s
+      repeat_interval: 1h
+      continue: true
+
+    # WARNING ALERTS - Urgent but not critical
+    - match:
+        severity: 'warning'
+      receiver: 'ops-team'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      continue: false
+
+    # INFO ALERTS - Logging and audit
+    - match:
+        severity: 'info'
+      receiver: 'logging'
+      group_wait: 1m
+      group_interval: 1h
+      repeat_interval: 24h
+      continue: false
+
+    # Mesh Network Layer
+    - match:
+        component: 'mesh'
+        severity: 'critical'
+      receiver: 'mesh-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+      continue: true
+
+    # PQC Cryptography Layer
+    - match:
+        component: 'pqc'
+        severity: 'critical'
+      receiver: 'security-team'
+      group_wait: 5s
+      repeat_interval: 30m
+      continue: true
+
+    # SPIFFE Identity Layer
+    - match:
+        component: 'spiffe'
+        severity: 'critical'
+      receiver: 'identity-team'
+      group_wait: 5s
+      repeat_interval: 30m
+      continue: true
+
+    # Federated Learning Layer
+    - match:
+        component: 'fl'
+        severity: 'critical'
+      receiver: 'ml-team'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: false
+
+receivers:
+  # Default receiver
+  - name: 'default'
+    slack_configs:
+      - channel: '#x0tta6bl4-alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+
+  # Critical team receiver (PagerDuty + Slack)
+  - name: 'critical-team'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ .GroupLabels.alertname }}'
+        details:
+          firing: '{{ range .Alerts.Firing }}{{ .Labels.instance }} {{ end }}'
+    slack_configs:
+      - channel: '#x0tta6bl4-critical'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: false
+    email_configs:
+      - to: 'critical-oncall@example.com'
+        from: 'alerts@x0tta6bl4.mesh'
+        smarthost: 'smtp.example.com:587'
+        auth_username: '${SMTP_USER}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+
+  # Ops team receiver
+  - name: 'ops-team'
+    slack_configs:
+      - channel: '#x0tta6bl4-ops'
+        title: '⚠️  WARNING: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+
+  # Mesh network team
+  - name: 'mesh-critical'
+    slack_configs:
+      - channel: '#x0tta6bl4-mesh'
+        title: '🔴 MESH CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_MESH_KEY}'
+
+  # Security team receiver
+  - name: 'security-team'
+    slack_configs:
+      - channel: '#x0tta6bl4-security'
+        title: '🔐 SECURITY ALERT: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SECURITY_KEY}'
+
+  # Identity team receiver
+  - name: 'identity-team'
+    slack_configs:
+      - channel: '#x0tta6bl4-identity'
+        title: '🆔 IDENTITY ALERT: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # ML team receiver
+  - name: 'ml-team'
+    slack_configs:
+      - channel: '#x0tta6bl4-ml'
+        title: '🤖 FL ALERT: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # Logging receiver (for audit trail)
+  - name: 'logging'
+    slack_configs:
+      - channel: '#x0tta6bl4-logs'
+        title: 'ℹ️  INFO: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+
+inhibit_rules:
+  # Inhibit INFO alerts if WARNING exists
+  - source_match:
+      severity: 'warning'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'component', 'instance']
+
+  # Inhibit WARNING if CRITICAL exists
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'component', 'instance']
+
+  # Don't alert for resolved instances
+  - source_match:
+      status: 'resolved'
+    target_match:
+      status: 'resolved'
+    equal: ['alertname', 'instance']
+
+---
+
+# Prometheus Alert Rules
+
+groups:
+  - name: 'mesh_network.rules'
+    interval: 15s
+    rules:
+      # Beacon latency SLA violation
+      - alert: BeaconLatencySLAViolation
+        expr: histogram_quantile(0.99, mesh_beacon_latency_ms) > 150
+        for: 5m
+        labels:
+          component: mesh
+          severity: critical
+        annotations:
+          summary: "Beacon latency SLA violated"
+          description: "p99 beacon latency {{ $value }}ms exceeds 150ms SLA"
+
+      # Beacon throughput below minimum
+      - alert: BeaconThroughputLow
+        expr: rate(mesh_beacons_processed[1m]) < 50000
+        for: 10m
+        labels:
+          component: mesh
+          severity: warning
+        annotations:
+          summary: "Beacon throughput below minimum"
+          description: "Throughput {{ $value }} beacons/sec below 50k minimum"
+
+      # Mesh network downtime
+      - alert: MeshNetworkDown
+        expr: up{job="mesh-beacons"} == 0
+        for: 3m
+        labels:
+          component: mesh
+          severity: critical
+        annotations:
+          summary: "Mesh network offline"
+          description: "Mesh network {{ $labels.instance }} offline for 3+ minutes"
+
+      # Synchronization accuracy violation
+      - alert: SyncAccuracyViolation
+        expr: (count(mesh_slot_drift_ms > 100) / count(mesh_slot_drift_ms)) > 0.01
+        for: 5m
+        labels:
+          component: mesh
+          severity: warning
+        annotations:
+          summary: "Mesh synchronization accuracy degraded"
+          description: "{{ $value | humanizePercentage }} of nodes exceed 100ms drift"
+
+  - name: 'pqc_cryptography.rules'
+    interval: 15s
+    rules:
+      # KEM encapsulation latency violation
+      - alert: KEMEncapsulationLatencySLA
+        expr: histogram_quantile(0.99, pqc_kem_encapsulation_latency_ms) > 2
+        for: 5m
+        labels:
+          component: pqc
+          severity: warning
+        annotations:
+          summary: "KEM encapsulation latency SLA violated"
+          description: "p99 KEM latency {{ $value }}ms exceeds 2ms SLA"
+
+      # DSA signature generation latency
+      - alert: DSASignatureLatencySLA
+        expr: histogram_quantile(0.99, pqc_dsa_signature_latency_ms) > 5
+        for: 5m
+        labels:
+          component: pqc
+          severity: warning
+        annotations:
+          summary: "DSA signature latency SLA violated"
+          description: "p99 signature latency {{ $value }}ms exceeds 5ms SLA"
+
+      # PQC operation failure rate
+      - alert: PQCOperationFailureRate
+        expr: pqc_operation_error_rate > 0.0001
+        for: 5m
+        labels:
+          component: pqc
+          severity: critical
+        annotations:
+          summary: "PQC operation failure rate exceeds threshold"
+          description: "PQC failure rate {{ $value | humanizePercentage }} exceeds 0.01%"
+
+      # Cryptography service down
+      - alert: CryptoServiceDown
+        expr: up{job=~"pqc-.*"} == 0
+        for: 3m
+        labels:
+          component: pqc
+          severity: critical
+        annotations:
+          summary: "Cryptography service offline"
+          description: "PQC service {{ $labels.job }} offline for 3+ minutes"
+
+  - name: 'spiffe_identity.rules'
+    interval: 15s
+    rules:
+      # SVID issuance latency
+      - alert: SVIDIssuanceLatencySLA
+        expr: histogram_quantile(0.99, spiffe_svid_issuance_latency_ms) > 1000
+        for: 5m
+        labels:
+          component: spiffe
+          severity: warning
+        annotations:
+          summary: "SVID issuance latency exceeds SLA"
+          description: "p99 SVID issuance {{ $value }}ms exceeds 1000ms SLA"
+
+      # SVID rotation failure rate
+      - alert: SVIDRotationFailureRate
+        expr: (1 - spiffe_svid_rotation_success_rate) > 0.0001
+        for: 5m
+        labels:
+          component: spiffe
+          severity: critical
+        annotations:
+          summary: "SVID rotation reliability degraded"
+          description: "Rotation failure rate {{ $value | humanizePercentage }} exceeds threshold"
+
+      # Identity service down
+      - alert: IdentityServiceDown
+        expr: up{job="spiffe-svid"} == 0
+        for: 3m
+        labels:
+          component: spiffe
+          severity: critical
+        annotations:
+          summary: "Identity service offline"
+          description: "SPIFFE identity service offline for 3+ minutes"
+
+      # Attestation failures
+      - alert: AttestationFailureRate
+        expr: (1 - spiffe_attestation_success_rate) > 0.0005
+        for: 5m
+        labels:
+          component: spiffe
+          severity: warning
+        annotations:
+          summary: "Attestation failure rate elevated"
+          description: "Attestation failure rate {{ $value | humanizePercentage }} exceeds 0.05%"
+
+  - name: 'fl_training.rules'
+    interval: 30s
+    rules:
+      # Aggregation latency SLA
+      - alert: AggregationLatencySLA
+        expr: histogram_quantile(0.99, fl_aggregation_latency_ms) > 500
+        for: 5m
+        labels:
+          component: fl
+          severity: warning
+        annotations:
+          summary: "FL aggregation latency exceeds SLA"
+          description: "p99 aggregation {{ $value }}ms exceeds 500ms SLA"
+
+      # Byzantine nodes detected (30%+)
+      - alert: ByzantineNodesDetected
+        expr: (count(fl_byzantine_detected) / count(fl_node_active)) > 0.30
+        for: 3m
+        labels:
+          component: fl
+          severity: critical
+        annotations:
+          summary: "30%+ Byzantine nodes detected"
+          description: "{{ $value | humanizePercentage }} of nodes showing Byzantine behavior"
+
+      # Training convergence stalled
+      - alert: TrainingConvergenceStalled
+        expr: increase(fl_round_number[60m]) < 50
+        for: 10m
+        labels:
+          component: fl
+          severity: warning
+        annotations:
+          summary: "FL training convergence stalled"
+          description: "Only {{ $value }} rounds completed in 60 minutes"
+
+      # Model update loss
+      - alert: ModelUpdateLoss
+        expr: (fl_updates_sent - fl_updates_received) > (fl_updates_sent * 0.05)
+        for: 5m
+        labels:
+          component: fl
+          severity: critical
+        annotations:
+          summary: "Model update loss exceeds threshold"
+          description: "{{ $value | humanizePercentage }} of updates not received"
+
+  - name: 'system_resources.rules'
+    interval: 15s
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: node_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          component: system
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage {{ $value }}% on {{ $labels.instance }}"
+
+      # Critical CPU usage
+      - alert: CriticalCPUUsage
+        expr: node_cpu_usage_percent > 95
+        for: 2m
+        labels:
+          component: system
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage"
+          description: "CPU usage {{ $value }}% on {{ $labels.instance }}"
+
+      # Low memory
+      - alert: LowMemory
+        expr: node_memory_available_percent < 25
+        for: 5m
+        labels:
+          component: system
+          severity: warning
+        annotations:
+          summary: "Memory usage high"
+          description: "Available memory {{ $value }}% on {{ $labels.instance }}"
+
+      # Critical memory - OOM risk
+      - alert: CriticalMemory
+        expr: node_memory_available_percent < 10
+        for: 2m
+        labels:
+          component: system
+          severity: critical
+        annotations:
+          summary: "Critical memory shortage - OOM risk"
+          description: "Available memory {{ $value }}% on {{ $labels.instance }}"
+
+      # High disk I/O
+      - alert: HighDiskIO
+        expr: rate(node_disk_io_reads[5m]) + rate(node_disk_io_writes[5m]) > 100000
+        for: 5m
+        labels:
+          component: system
+          severity: warning
+        annotations:
+          summary: "High disk I/O activity"
+          description: "Disk I/O {{ $value }} ops/sec on {{ $labels.instance }}"
+
+      # Network errors
+      - alert: NetworkErrors
+        expr: increase(node_network_errors_in[5m]) + increase(node_network_errors_out[5m]) > 100
+        for: 5m
+        labels:
+          component: system
+          severity: warning
+        annotations:
+          summary: "Network errors detected"
+          description: "{{ $value }} network errors in 5 minutes on {{ $labels.instance }}"
+
+  - name: 'self_healing.rules'
+    interval: 15s
+    rules:
+      # MAPE-K loop slow
+      - alert: MAPEKLoopSlow
+        expr: histogram_quantile(0.95, mapek_loop_iteration_time_ms) > 1000
+        for: 5m
+        labels:
+          component: mapek
+          severity: warning
+        annotations:
+          summary: "MAPE-K loop performance degraded"
+          description: "p95 loop iteration {{ $value }}ms exceeds 1000ms"
+
+      # Adaptive actions failing
+      - alert: AdaptiveActionFailure
+        expr: (1 - mapek_action_success_rate) > 0.10
+        for: 5m
+        labels:
+          component: mapek
+          severity: critical
+        annotations:
+          summary: "Adaptive actions failing"
+          description: "{{ $value | humanizePercentage }} of adaptive actions failing"
+
+      # High rollback rate
+      - alert: HighRollbackRate
+        expr: increase(mapek_rollback_count[10m]) > 5
+        for: 5m
+        labels:
+          component: mapek
+          severity: warning
+        annotations:
+          summary: "High rollback rate detected"
+          description: "{{ $value }} rollbacks in 10 minutes"
+
+  - name: 'chaos_engineering.rules'
+    interval: 60s
+    rules:
+      # Recovery time SLA
+      - alert: RecoveryTimeSLAViolation
+        expr: chaos_recovery_time_seconds > 5
+        for: 2m
+        labels:
+          component: chaos
+          severity: warning
+        annotations:
+          summary: "Recovery time exceeds SLA"
+          description: "Recovery took {{ $value }}s, SLA is 5s"
+
+      # Data loss detected
+      - alert: DataLossDetected
+        expr: chaos_data_loss_bytes > 0
+        for: 1m
+        labels:
+          component: chaos
+          severity: critical
+        annotations:
+          summary: "Data loss detected during chaos"
+          description: "{{ $value }} bytes lost"
+
+      # Cascading failures
+      - alert: CascadingFailures
+        expr: chaos_cascade_depth > 10
+        for: 2m
+        labels:
+          component: chaos
+          severity: critical
+        annotations:
+          summary: "Cascading failures detected"
+          description: "Cascade depth {{ $value }} nodes"
+
+  - name: 'uptime.rules'
+    interval: 1m
+    rules:
+      # Overall system downtime
+      - alert: SystemDowntime
+        expr: |
+          (
+            count(up{job!="prometheus"} == 0) /
+            count(up{job!="prometheus"})
+          ) > 0.10
+        for: 5m
+        labels:
+          component: system
+          severity: critical
+        annotations:
+          summary: "System downtime exceeds 10%"
+          description: "{{ $value | humanizePercentage }} of services down"

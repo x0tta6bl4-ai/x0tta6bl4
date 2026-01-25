@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 Neural Mesh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        .ui { position: relative; z-index: 10; pointer-events: none; }
+        .panel { background: rgba(0, 10, 0, 0.8); border: 1px solid #0f0; padding: 20px; margin: 20px; display: inline-block; backdrop-filter: blur(5px); pointer-events: auto; }
+    </style>
+</head>
+<body>
+
+    <canvas id="network"></canvas>
+
+    <!-- TOP BAR -->
+    <div class="ui w-full flex justify-between p-6">
+        <div class="panel">
+            <h1 class="text-xl font-bold">x0tta6bl4 MESH</h1>
+            <div class="text-xs opacity-70">GATEWAY STATUS: ONLINE</div>
+        </div>
+        <div class="panel text-right">
+            <div class="text-2xl font-bold" id="total-phi">--</div>
+            <div class="text-xs opacity-70">GLOBAL PHI RATIO</div>
+        </div>
+    </div>
+
+    <!-- BOTTOM STATS -->
+    <div class="ui fixed bottom-0 left-0 w-full p-6 flex justify-center">
+        <div class="panel flex gap-8">
+            <div class="text-center">
+                <div class="text-2xl font-bold" id="node-count">--</div>
+                <div class="text-xs opacity-70">NODES</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-400" id="uptime">99.9%</div>
+                <div class="text-xs opacity-70">UPTIME</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-yellow-400" id="latency">12ms</div>
+                <div class="text-xs opacity-70">LATENCY</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('network');
+        const ctx = canvas.getContext('2d');
+        let nodes = [];
+        let width, height;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Node Class
+        class Node {
+            constructor(id, url, x, y) {
+                this.id = id;
+                this.url = url;
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.phi = 1.0;
+                this.state = 'HARMONIC';
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+
+            draw() {
+                // Pulse
+                const radius = 5 + Math.sin(Date.now() / 500) * 2;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.state === 'HARMONIC' ? '#00ff41' : '#ffff00';
+                ctx.fill();
+                
+                // Label
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.fillText(this.url.replace('http://', '').split(':')[0], this.x + 10, this.y - 10);
+            }
+        }
+
+        // Fetch Data
+        async function updateData() {
+            try {
+                const res = await fetch('http://89.125.1.107:9092/peers');
+                if (res.ok) {
+                    const data = await res.json();
+                    const peers = data.peers || [];
+                    
+                    document.getElementById('node-count').innerText = peers.length;
+                    
+                    // Sync visual nodes
+                    peers.forEach((peerUrl, i) => {
+                        if (!nodes.find(n => n.url === peerUrl)) {
+                            // Add new node at random pos
+                            nodes.push(new Node(i, peerUrl, Math.random() * width, Math.random() * height));
+                        }
+                    });
+                }
+                
+                // Fetch Phi (sample one node)
+                const mRes = await fetch('http://89.125.1.107:9092/metrics');
+                if (mRes.ok) {
+                    const mData = await mRes.json();
+                    document.getElementById('total-phi').innerText = mData.phi_ratio?.toFixed(4) || '1.0000';
+                }
+
+            } catch (e) {
+                console.log("Sync error");
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Trail effect
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Connections
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.lineTo(nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Nodes
+            nodes.forEach(node => {
+                node.update();
+                node.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Init
+        // Mock initial nodes if offline
+        nodes.push(new Node(1, '89.125.1.107', width/2, height/2));
+        nodes.push(new Node(2, '77.83.245.27', width/3, height/3));
+        nodes.push(new Node(3, '62.133.60.252', width*0.6, height*0.6));
+
+        animate();
+        setInterval(updateData, 5000);
+    </script>
+</body>
+</html>

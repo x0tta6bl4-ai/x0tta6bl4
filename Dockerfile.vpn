@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy code
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY requirements.txt .
+
+# Install python dependencies
+RUN pip install flask cryptography web3 || true
+
+ENV OPERATOR_PRIVATE_KEY=""
+ENV CONTRACT_ADDRESS="0x3f645dfa2a2a16725ed961d16f1667a13484bdd3"
+
+# Ports: VPN Bridge (10808), Dashboard (8080)
+EXPOSE 10808 8080
+
+# Start script that runs both bridge and dashboard
+CMD ["/bin/bash", "-c", "python3 -m src.web.operator_dashboard & python3 -m src.network.mesh_vpn_bridge"]

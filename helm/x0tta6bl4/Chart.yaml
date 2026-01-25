@@ -1,0 +1,17 @@
+apiVersion: v2
+name: x0tta6bl4
+description: Self-healing mesh network with post-quantum cryptography
+type: application
+version: 3.4.0
+appVersion: "3.4.0"
+keywords:
+  - mesh
+  - networking
+  - post-quantum
+  - cryptography
+  - self-healing
+home: https://github.com/x0tta6bl4/x0tta6bl4
+sources:
+  - https://github.com/x0tta6bl4/x0tta6bl4
+maintainers:
+  - name: x0tta6bl4 Team

@@ -1,0 +1,92 @@
+# Глобальные namespace для x0tta6bl4 multi-region инфраструктуры
+
+---
+# Основной namespace для приложений
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: x0tta6bl4
+  labels:
+    name: x0tta6bl4
+    environment: production
+    region: global
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для мониторинга
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    environment: production
+    region: global
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для ingress контроллеров
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    name: ingress-nginx
+    environment: production
+    region: global
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для Istio сервис-меша
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  labels:
+    name: istio-system
+    environment: production
+    region: global
+    app.kubernetes.io/name: istio
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для сертификационного менеджера
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    name: cert-manager
+    environment: production
+    region: global
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для политик безопасности
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security-policies
+  labels:
+    name: security-policies
+    environment: production
+    region: global
+    app.kubernetes.io/name: security-policies
+    app.kubernetes.io/part-of: x0tta6bl4-platform
+
+---
+# Namespace для внешних секретов
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets-system
+  labels:
+    name: external-secrets-system
+    environment: production
+    region: global
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/part-of: x0tta6bl4-platform

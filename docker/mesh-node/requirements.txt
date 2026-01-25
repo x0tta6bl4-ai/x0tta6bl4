@@ -1,0 +1,15 @@
+# Requirements для Mesh Node
+# Минимальные зависимости для работы
+
+# Crypto
+cryptography>=41.0.0
+
+# Async
+asyncio-throttle>=1.0.0
+
+# Metrics (опционально)
+prometheus-client>=0.17.0
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

@@ -1,0 +1,77 @@
+# CRDT Synchronization Configuration
+# Production-ready configuration for optimized CRDT sync
+
+crdt_sync:
+  # Node configuration
+  node:
+    node_id: "${NODE_ID:-node-1}"
+  
+  # Optimization settings
+  optimization:
+    # Enable delta-based synchronization
+    delta_sync: true
+    
+    # Enable compression
+    compression: true
+    
+    # Compression algorithm (gzip, lz4, none)
+    compression_algorithm: "gzip"
+    
+    # Compression threshold (bytes)
+    compression_threshold: 1024
+    
+    # Batch size for delta application
+    batch_size: 100
+
+  # Conflict resolution
+  conflict_resolution:
+    # Strategy: last_write_wins, merge, manual
+    strategy: "last_write_wins"
+    
+    # Auto-resolve conflicts
+    auto_resolve: true
+    
+    # Manual resolution timeout (seconds)
+    manual_timeout: 300
+
+  # Performance settings
+  performance:
+    # Sync interval (seconds)
+    sync_interval: 5
+    
+    # Max sync duration (seconds)
+    max_sync_duration: 30
+    
+    # Parallel sync peers
+    max_parallel_peers: 5
+    
+    # Rate limiting
+    rate_limit:
+      enabled: true
+      requests_per_minute: 100
+
+  # Metrics
+  metrics:
+    enabled: true
+    prefix: "x0tta6bl4_crdt"
+    
+    # Track detailed metrics
+    detailed: true
+    
+    # Metrics retention (hours)
+    retention_hours: 24
+
+  # State management
+  state:
+    # Max CRDTs per node
+    max_crdts: 10000
+    
+    # State cleanup interval (hours)
+    cleanup_interval_hours: 24
+    
+    # State persistence
+    persistence:
+      enabled: true
+      path: "/var/lib/x0tta6bl4/crdt/${NODE_ID}"
+      backup_enabled: true
+

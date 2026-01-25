@@ -1,0 +1,29 @@
+# ML Dependencies for Continuity Ledger v2.0 Phase 1 (RAG Integration)
+# ======================================================================
+# 
+# Эти зависимости необходимы для полной функциональности semantic search
+# в Continuity Ledger через RAG pipeline.
+#
+# Установка:
+#   pip install -r requirements-ledger-ml.txt
+#
+# Или через pyproject.toml:
+#   pip install -e ".[ml]"
+
+# Core ML dependencies
+numpy>=2.0.0,<3.0.0              # Уже в основных зависимостях, но указано для ясности
+
+# Vector Index (HNSW)
+hnswlib>=0.7.0,<1.0.0            # HNSW-based vector index для быстрого поиска
+
+# Sentence Embeddings
+sentence-transformers>=2.2.0,<6.0.0  # Для генерации embeddings и re-ranking
+# Примечание: sentence-transformers автоматически устанавливает:
+#   - torch (если не установлен)
+#   - transformers
+#   - другие зависимости
+
+# Optional: для лучшей производительности
+# onnxruntime>=1.15.0            # Опционально: для ONNX моделей (быстрее)
+# onnx>=1.14.0                   # Опционально: для ONNX моделей
+

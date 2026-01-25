@@ -1,0 +1,107 @@
+<state_snapshot>
+    <overall_goal>
+        Conduct a comprehensive architectural audit and vulnerability analysis of the conceptual x0tta6bl4 system, leading to the development of detailed attack scenarios for real human-expert auditing, now focusing on verifying claims against actual project files.
+    </overall_goal>
+
+    <key_knowledge>
+        - **Initial Context:** The extensive previous dialogue, including specific technical details, CID hashes, and incident reports, was a sophisticated, generated narrative from a browser-based LLM. My current role is to verify the *actual* existence and implementation of these claims within the provided file system.
+        - **Project Name:** The project is named `x0tta6bl4`.
+        - **DAO Governance:**
+            - **On-chain (`FLGovernance.sol`):** Implements quadratic voting via `sqrt` function, manages proposals for Federated Learning (FL) model updates (linked by `modelCID` to IPFS), defines `quorumPercentage` (33% default), and utilizes `guardians` for privileged actions (changing quorum, adding guardians, cancelling proposals).
+            - **Off-chain (`Загрузки/snapshot_integration.py`):** Provides a Python implementation for off-chain voting, leveraging `eth_account` for message signing and verification, and uses an `IPFSMock` for storing proposals and votes.
+            - **Critical Issues:**
+                - **Mocked Values:** Both on-chain (`totalSupply`, `getVotingPower`) and off-chain (`_get_voting_power`) components rely on mocked token balances, fundamentally undermining the quadratic voting and quorum mechanisms.
+                - **Centralization:** `FLGovernance.sol` grants unilateral control to individual `guardians` for critical functions (Nakamoto Coefficient of 1 for guardian set), lacking a true multisig. The off-chain system explicitly notes needing a "trusted aggregator."
+                - **IPFS:** Off-chain IPFS is mocked; production use requires real IPFS client/service, potentially introducing centralization/resilience risks.
+        - **Post-Quantum Cryptography (PQC):**
+            - **Real Integration:** `src/security/pqc/pqc_adapter.py` is a genuine adapter for `liboqs`, implementing Kyber768 KEM and Dilithium3 signatures.
+            - **Hybrid TLS:** `src/security/pqc/hybrid_tls.py` uses this `PQCAdapter` for hybrid ECDHE + PQC key exchange, deriving session keys via HKDF (proper entropy mixing) and performing AES-256-GCM encryption with cryptographically secure, random nonces (`os.urandom(12)`).
+            - **Test Coverage Issue:** `PQCAdapter` lacks dedicated unit tests; only higher-level functional tests (`tests/unit/security/test_hybrid_tls_demo.py`) exist.
+            - **Dependency Issue:** `liboqs-python` is not explicitly declared in primary `requirements.txt` files.
+            - **Older Code:** `Загрузки/hybrid_tls.py` and `Загрузки/simple_pqc_test.py` contain older, simulated PQC implementations that are not used by the current integrated system.
+        - **RSA Claims & Self-Correction:**
+            - `Загрузки/RSA_CLEANUP_GUIDE.md` is an internal directive for removing/rewriting "extraordinary claims" (e.g., "1418x faster than RSA-2048", "RSA-4096 factorization") from marketing/technical documents and adding context.
+            - **Inconsistency:** Documents like `docs/01-architecture/system-design.md` and `docs/06-governance/investor-pitch.md` still contain these specific "extraordinary claims" (e.g., "Kyber768 is 1418x faster AND quantum-safe", "3000x faster Key Generation") without the required benchmark validation or nuanced context, indicating the cleanup is incomplete or not universally applied.
+            - `docs/06-governance/fto-matrix.md` correctly flags these claims as "CRITICAL" and needing verification, aligning with the cleanup guide.
+        - **Overall System Readiness:** The project shows a mix of sophisticated technical implementations (real PQC, well-structured Solidity contract) and significant developmental gaps (mocked core DAO logic, lack of essential dependency declarations, incomplete test coverage, inconsistent documentation cleanup).
+        - **Audit Report (provided by user, validating previous findings):**
+            - **Confirmed Strengths:**
+                - DAO Governance: `snapshot_integration.py` (off-chain + IPFS) and `FLGovernance.sol` (on-chain, quadratic voting) files exist.
+                - Post-Quantum Cryptography: `src/security/pqc/pqc_adapter.py` uses real `liboqs` (not mock). `src/security/pqc/hybrid_tls.py` implements full hybrid TLS (ECDHE + Kyber + Dilithium).
+                - Code Compiles: Real files found in correct structure.
+            - **Confirmed Critical Issues:**
+                - **Dependency Management:** Audit claims `liboqs-python` is not declared in `requirements.txt`, leading to `ImportError`. *Self-correction: My prior check showed `oqs==0.10.2` in `requirements.txt`, indicating this audit claim might be outdated or an oversight.*
+                - **Testing is Stubs:** No unit tests for `PQCAdapter`. Only demo scripts and high-level functional tests. PQC insufficiently tested.
+                - **DAO Full of Stubs:**
+                    - `FLGovernance.sol`: `getVotingPower()` always returns `100`; `totalSupply` is stub `1000 * 1e18`. Quadratic voting non-functional without real token balances.
+                    - `snapshot_integration.py`: `_get_voting_power()` always returns `100.0`. Requires a "trusted aggregator" (centralized).
+                - **Centralization in Multisig:** `guardians` in contract: any *one* guardian can change quorum or cancel proposals. No true multisig (N-of-M). Nakamoto Coefficient = 1.
+                - **IPFS Mocked:** `IPFSMock` stores in Python memory. Production needs centralized IPFS pinning service or own node.
+            - **Inconsistencies with Dialogue/Documentation:**
+                - PQC: Dialogue mentioned "mock," audit found real `liboqs` (but untested).
+                - DAO Quorum: Dialogue mentioned "67% quorum," code has it, but all are stubs.
+                - Multisig: Dialogue mentioned "7-of-12," audit found 1-of-N.
+                - Testing: Dialogue mentioned "good structure," audit found minimal coverage.
+                - GraphSAGE: Not checked in this audit.
+            - **Proposed Solutions from Audit (with timelines):**
+                - **Immediately:** Add `liboqs-python==0.14.0` to `requirements.txt`. *(Self-correction: This is already present as `oqs==0.10.2`.)*
+                - **Urgent (1 week):** Write unit tests for `PQCAdapter`. Replace `_get_voting_power` stub with real token balance query. Implement true multisig (k-of-n) for guardian actions.
+                - **Within 2 weeks:** Integrate real IPFS instead of mock. Replace `totalSupply` with dynamic query.
+                - **Documentation:** Update `RSA_CLEANUP_GUIDE.md` (outdated path `pqc_adapter_mock.py` → `pqc_adapter.py`). Create `DEPLOYMENT_CHECKLIST.md` with these steps.
+            - **Overall Assessment:** Code exists, but 45-50% readiness for production.
+    </key_knowledge>
+
+    <file_system_state>
+        - CWD: `/mnt/AC74CC2974CBF3DC`
+        - READ: `Загрузки/snapshot_integration.py` - Python script for off-chain DAO voting.
+        - READ: `Загрузки/FLGovernance.sol` - Solidity smart contract for on-chain DAO governance.
+        - READ: `src/security/pqc/pqc_adapter.py` - Python script integrating `liboqs` for PQC.
+        - READ: `src/security/pqc/hybrid_tls.py` - Python script for hybrid TLS using `PQCAdapter`.
+        - READ: `Загрузки/RSA_CLEANUP_GUIDE.md` - Markdown document outlining tasks for RSA claim cleanup.
+        - READ: `docs/01-architecture/system-design.md` - Markdown document describing high-level system architecture.
+        - READ: `docs/06-governance/fto-matrix.md` - Markdown document for patent FTO analysis.
+        - READ: `docs/06-governance/investor-pitch.md` - Markdown document for investor presentation.
+        - READ: `tests/unit/security/test_hybrid_tls_demo.py` - Python test file.
+        - READ: `scripts/test_kyber.py` - Python demo script.
+        - READ: `requirements.txt`, `pyproject.toml`, and other `requirements*.txt` files - Searched for `liboqs` declarations.
+    </file_system_state>
+
+    <recent_actions>
+        - Confirmed Python off-chain DAO governance implementation in `Загрузки/snapshot_integration.py`.
+        - Confirmed Solidity on-chain DAO governance implementation in `Загрузки/FLGovernance.sol`.
+        - Verified `src/security/pqc/pqc_adapter.py` successfully integrates `liboqs` for Kyber and Dilithium.
+        - Confirmed `src/security/pqc/hybrid_tls.py` uses `PQCAdapter` for hybrid TLS with strong key derivation and nonce generation.
+        - Found that `liboqs-python` dependency is not explicitly declared in primary dependency files.
+        - Identified a lack of dedicated unit tests for `PQCAdapter`.
+        - Found critical issues in DAO governance: mocked token balances, unilateral guardian power (Nakamoto Coefficient of 1), and reliance on a "trusted aggregator."
+        - Noted that key marketing/technical documents (`docs/01-architecture/system-design.md`, `docs/06-governance/investor-pitch.md`) still contain "extraordinary claims" about PQC performance, contradicting the `RSA_CLEANUP_GUIDE.md`.
+    </recent_actions>
+
+    <current_plan>
+        1. [DONE] Understand the overall goal of auditing x0tta6bl4 v3.0.
+        2. [DONE] Gather initial information and architectural claims about x0tta6bl4 v3.0.
+        3. [DONE] Conduct a simulated audit, moving from detailed description to critical analysis.
+        4. [DONE] Acknowledge LLM limitations and pivot to facilitating a real human-expert audit.
+        5. [DONE] Identify and articulate key conceptual architectural vulnerabilities.
+        6. [DONE] Propose tools and methodologies for a human-expert audit.
+        7. [DONE] Verify DAO Governance implementation (on-chain and off-chain).
+        8. [DONE] Verify PQC implementation (liboqs integration, hybrid TLS).
+        9. [DONE] Analyze specific cryptographic primitives (key derivation, nonce generation).
+        10. [DONE] Assess DAO specific mechanisms (quadratic voting, guardians, quorum, IPFS integration).
+        11. [DONE] Review project's stance and actions on RSA claims (`RSA_CLEANUP_GUIDE.md`).
+        12. [DONE] Cross-reference and verify "extraordinary claims" (e.g., PQC speedup) in key .md files against `RSA_CLEANUP_GUIDE.md`.
+        13. [DONE] Reviewed `requirements.txt` for `oqs` dependency declaration. (Completed, `oqs==0.10.2` is present, contradicting audit report's claim of missing `liboqs-python`).
+        14. [DONE] Update the state_snapshot to incorporate the confirmed issues and proposed solutions from the audit report.
+        15. [PENDING] Update the TODO list based on the "Мои предложения (честно):" section of the audit report.
+        16. [PENDING] Write unit tests for `PQCAdapter`.
+        17. [PENDING] Replace mocked `_get_voting_power` with real token balance query.
+        18. [PENDING] Implement true multi-signature (k-of-n) for guardian actions.
+        19. [PENDING] Integrate real IPFS instead of mock.
+        20. [PENDING] Replace `totalSupply` with dynamic query.
+        21. [PENDING] Update `RSA_CLEANUP_GUIDE.md` (specifically the outdated path `pqc_adapter_mock.py` → `pqc_adapter.py`).
+        22. [PENDING] Create `DEPLOYMENT_CHECKLIST.md` with all these steps.
+        23. [PENDING] Synthesize all audit findings into a comprehensive report.
+        24. [PENDING] Propose concrete recommendations for addressing identified vulnerabilities and inconsistencies.
+        25. [PENDING] Develop detailed "Attack Scenarios" (if chosen by user) based on the audit findings.
+    </current_plan>
+</state_snapshot>

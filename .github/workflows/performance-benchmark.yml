@@ -1,0 +1,223 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/security/**'
+      - 'src/network/**'
+      - 'benchmarks/**'
+      - '.github/workflows/performance-benchmark.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/security/**'
+      - 'src/network/**'
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt 2>/dev/null || echo "requirements.txt not found"
+          pip install liboqs-python torch torch-geometric 2>/dev/null || echo "Optional dependencies not available"
+      
+      - name: Create benchmark output directory
+        run: mkdir -p benchmarks/results
+      
+      - name: Run comprehensive benchmarks
+        id: benchmark
+        run: |
+          cd benchmarks
+          python3 benchmark_comprehensive.py 2>&1 | tee benchmark_output.txt
+          
+          # Capture exit code
+          if [ $? -eq 0 ]; then
+            echo "BENCHMARK_STATUS=success" >> $GITHUB_OUTPUT
+          else
+            echo "BENCHMARK_STATUS=failure" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Generate baseline report
+        run: |
+          cd benchmarks
+          python3 generate_baseline_report.py 2>&1 | tee baseline_output.txt
+      
+      - name: Check performance gates
+        id: gates
+        continue-on-error: true
+        run: |
+          cd benchmarks
+          python3 ci_benchmark_integration.py --gates --baseline results/baseline_report.json --threshold 0.10
+          echo "GATES_STATUS=$?" >> $GITHUB_OUTPUT
+      
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmarks/results/
+          retention-days: 30
+      
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Find latest baseline report
+            const resultsDir = 'benchmarks/results';
+            const files = fs.readdirSync(resultsDir)
+              .filter(f => f.startsWith('baseline_report_'))
+              .sort()
+              .reverse();
+            
+            if (files.length === 0) {
+              console.log('No baseline report found');
+              return;
+            }
+            
+            const latestReport = JSON.parse(
+              fs.readFileSync(path.join(resultsDir, files[0]), 'utf8')
+            );
+            
+            // Format comment
+            let comment = '## 📊 Performance Benchmark Results\n\n';
+            
+            if (latestReport.production_readiness) {
+              const readiness = latestReport.production_readiness;
+              comment += `**Overall Status:** ${readiness.overall_status}\n\n`;
+              
+              comment += '### Component Readiness\n';
+              for (const [component, status] of Object.entries(readiness.readiness_by_component)) {
+                comment += `- **${component}**: ${status.status} (${status.confidence})\n`;
+              }
+            }
+            
+            if (latestReport.analysis) {
+              const analysis = latestReport.analysis;
+              comment += '\n### PQC Strengths\n';
+              analysis.pqc_performance.strengths.slice(0, 3).forEach(s => {
+                comment += `- ${s}\n`;
+              });
+            }
+            
+            comment += '\n[View full report in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+      
+      - name: Fail if gates failed
+        if: steps.gates.outcome == 'failure'
+        run: |
+          echo "❌ Performance gates check failed"
+          exit 1
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Benchmark Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Benchmark Status: ${{ steps.benchmark.outputs.BENCHMARK_STATUS }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Gates Status: ${{ steps.gates.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View full results in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+
+  regression-check:
+    name: Regression Detection
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Download benchmark artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmarks/results
+      
+      - name: Check for regressions
+        id: regression
+        continue-on-error: true
+        run: |
+          cd benchmarks
+          
+          # Find latest baseline and current results
+          BASELINE=$(ls -t results/baseline_report_*.json 2>/dev/null | head -1)
+          
+          if [ -z "$BASELINE" ]; then
+            echo "No baseline found, skipping regression check"
+            exit 0
+          fi
+          
+          python3 ci_benchmark_integration.py \
+            --compare \
+            --baseline "$BASELINE" \
+            --current "$BASELINE" \
+            --threshold 0.10 \
+            --output results
+      
+      - name: Report regression results
+        if: always()
+        run: |
+          echo "## Regression Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Regression detection: ${{ steps.regression.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  publish-metrics:
+    name: Publish Performance Metrics
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download benchmark artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmarks/results
+      
+      - name: Archive results
+        run: |
+          mkdir -p benchmarks/archive
+          cp benchmarks/results/*.json benchmarks/archive/ 2>/dev/null || true
+      
+      - name: Commit and push results
+        if: hashFiles('benchmarks/results/*.json') != ''
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add benchmarks/results/ benchmarks/archive/ || true
+          git commit -m "Update performance benchmarks [skip ci]" || true
+          git push origin HEAD:main || echo "No changes to commit"

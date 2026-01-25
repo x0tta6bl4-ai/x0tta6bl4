@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 Neural Mesh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        .ui { position: relative; z-index: 10; pointer-events: none; }
+        .panel { background: rgba(0, 10, 0, 0.8); border: 1px solid #0f0; padding: 20px; margin: 20px; display: inline-block; backdrop-filter: blur(5px); pointer-events: auto; }
+    </style>
+</head>
+<body>
+
+    <canvas id="network"></canvas>
+
+    <!-- TOP BAR -->
+    <div class="ui w-full flex justify-between p-6">
+        <div class="panel">
+            <h1 class="text-xl font-bold">x0tta6bl4 MESH <span class="text-xs text-yellow-500">v2.2</span></h1>
+            <div class="text-xs opacity-70">GATEWAY STATUS: ONLINE</div>
+        </div>
+        <div class="panel text-right">
+            <div class="text-2xl font-bold" id="total-phi">--</div>
+            <div class="text-xs opacity-70">GLOBAL PHI RATIO</div>
+        </div>
+    </div>
+
+    <!-- BOTTOM STATS -->
+    <div class="ui fixed bottom-0 left-0 w-full p-6 flex justify-center">
+        <div class="panel flex gap-8">
+            <div class="text-center">
+                <div class="text-2xl font-bold" id="node-count">--</div>
+                <div class="text-xs opacity-70">NODES</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-400" id="uptime">99.9%</div>
+                <div class="text-xs opacity-70">UPTIME</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-yellow-400" id="latency">12ms</div>
+                <div class="text-xs opacity-70">LATENCY</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('network');
+        const ctx = canvas.getContext('2d');
+        let nodes = [];
+        let width, height;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Node Class
+        class Node {
+            constructor(id, url, x, y) {
+                this.id = id;
+                this.url = url;
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.phi = 1.0;
+                this.state = 'HARMONIC';
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+
+            draw() {
+                const radius = 5 + Math.sin(Date.now() / 500) * 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.state === 'HARMONIC' ? '#00ff41' : '#ffff00';
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.fillText(this.url.replace('http://', '').split(':')[0], this.x + 10, this.y - 10);
+            }
+        }
+
+        const TRUSTED_IPS = ['89.125.1.107', '77.83.245.27', '62.133.60.252'];
+
+        async function updateData() {
+            try {
+                const res = await fetch('http://89.125.1.107:9092/peers');
+                if (res.ok) {
+                    const data = await res.json();
+                    const rawPeers = data.peers || [];
+                    
+                    console.log("Raw Peers:", rawPeers);
+
+                    // --- FORCE FILTER v2.2 ---
+                    // 1. Create Map for Trusted IPs
+                    let ipMap = new Map();
+                    TRUSTED_IPS.forEach(ip => {
+                        ipMap.set(ip, `http://${ip}:9092`); // Default
+                    });
+
+                    // 2. Update from Raw Data if valid
+                    rawPeers.forEach(url => {
+                        let ip = "";
+                        try {
+                             ip = new URL(url).hostname;
+                        } catch (e) {
+                             // Try manual parse
+                             if(url.indexOf("//") > -1) {
+                                 ip = url.split("//")[1].split(":")[0];
+                             }
+                        }
+                        
+                        if (ipMap.has(ip)) {
+                             // If incoming is 9092, prefer it
+                             if (url.includes(":9092")) {
+                                 ipMap.set(ip, url);
+                             }
+                        }
+                    });
+
+                    // 3. Convert to Array (Max 3 items guaranteed by map keys)
+                    const filteredPeers = Array.from(ipMap.values());
+                    console.log("Filtered:", filteredPeers);
+
+                    document.getElementById('node-count').innerText = filteredPeers.length;
+                    
+                    // Sync visual nodes
+                    // Remove nodes not in filtered list
+                    nodes = nodes.filter(n => {
+                         let ip = "";
+                         try { ip = new URL(n.url).hostname; } catch(e) {
+                             if(n.url.indexOf("//") > -1) ip = n.url.split("//")[1].split(":")[0];
+                         }
+                         return ipMap.has(ip);
+                    });
+
+                    // Add missing nodes
+                    filteredPeers.forEach((peerUrl, i) => {
+                        let ip = "";
+                        try { ip = new URL(peerUrl).hostname; } catch(e) {
+                            if(peerUrl.indexOf("//") > -1) ip = peerUrl.split("//")[1].split(":")[0];
+                        }
+
+                        const existing = nodes.find(n => {
+                             let nip = "";
+                             try { nip = new URL(n.url).hostname; } catch(e) {
+                                 if(n.url.indexOf("//") > -1) nip = n.url.split("//")[1].split(":")[0];
+                             }
+                             return nip === ip;
+                        });
+
+                        if (!existing) {
+                            nodes.push(new Node(i, peerUrl, Math.random() * width, Math.random() * height));
+                        }
+                    });
+                }
+                
+                const mRes = await fetch('http://89.125.1.107:9092/metrics');
+                if (mRes.ok) {
+                    const mData = await mRes.json();
+                    document.getElementById('total-phi').innerText = mData.phi_ratio?.toFixed(4) || '1.0000';
+                }
+
+            } catch (e) {
+                console.log("Sync error", e);
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; 
+            ctx.fillRect(0, 0, width, height);
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.lineTo(nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                }
+            }
+            nodes.forEach(node => { node.update(); node.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        nodes.push(new Node(1, 'http://89.125.1.107:9092', width/2, height/2));
+        animate();
+        updateData();
+        setInterval(updateData, 3000);
+    </script>
+</body>
+</html>

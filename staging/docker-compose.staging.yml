@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  control-plane:
+    image: x0tta6bl4-app:staging
+    container_name: x0tta6bl4-control-plane
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - NODE_ID=control-plane-staging
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+
+  mesh-node-1:
+    image: x0tta6bl4-mesh-node:staging
+    container_name: x0tta6bl4-mesh-node-1
+    environment:
+      - NODE_ID=mesh-node-1-staging
+      - ENVIRONMENT=staging
+      - CONTROL_PLANE_URL=http://control-plane:8080
+    restart: unless-stopped
+    networks:
+      - x0tta6bl4_staging
+    depends_on:
+      - control-plane
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: x0tta6bl4-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - x0tta6bl4_staging
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: x0tta6bl4-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - x0tta6bl4_staging
+    depends_on:
+      - prometheus
+
+networks:
+  x0tta6bl4_staging:
+    driver: bridge
+
+volumes:
+  grafana-data:

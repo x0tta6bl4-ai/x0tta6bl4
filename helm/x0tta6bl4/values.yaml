@@ -1,0 +1,129 @@
+# Default values for x0tta6bl4
+# This is a YAML-formatted file.
+
+replicaCount: 3
+
+image:
+  repository: x0tta6bl4
+  pullPolicy: IfNotPresent
+  tag: "3.4.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: x0tta6bl4.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 1500m      # Уменьшено с 2000m для предотвращения OOM
+    memory: 3Gi     # Уменьшено с 4Gi
+  requests:
+    cpu: 300m       # Уменьшено с 500m для лучшего bin-packing
+    memory: 512Mi   # Уменьшено с 1Gi
+
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Production configuration
+production:
+  enabled: false
+  requireLiboqs: true
+  requireSpiffe: false  # Recommended but not mandatory
+
+# Canary Deployment configuration
+canary:
+  enabled: false
+  replicaCount: 1
+  image:
+    tag: "" # Overrides main image.tag if set, otherwise uses main image.tag
+  annotations: {} # Annotations for the canary deployment (e.g., for Ingress traffic routing)
+  weight: 0 # New field: traffic weight for canary (0-100)
+
+
+# Dependencies configuration
+dependencies:
+  liboqs: true
+  spiffe: true
+  torch: false
+  opentelemetry: true
+  prometheus: true
+  web3: false
+  ipfs: false
+
+# Environment variables
+env:
+  X0TTA6BL4_VERSION: "3.4.0"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+
+# ConfigMap for application config
+configMap:
+  enabled: true
+  data: {}
+
+# Secrets
+secrets:
+  enabled: true
+  # Mount secrets for certificates, keys, etc.
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Persistence
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+# Network Policy
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: null
+  maxUnavailable: 1

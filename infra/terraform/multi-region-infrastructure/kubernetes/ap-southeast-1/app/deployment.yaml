@@ -1,0 +1,253 @@
+# Deployment для основного приложения в регионе ap-southeast-1
+
+---
+# ConfigMap для конфигурации приложения
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x0tta6bl4-config
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: config
+data:
+  REGION: "ap-southeast-1"
+  ENVIRONMENT: "production"
+  DATABASE_URL: "mysql://admin:$(DB_PASSWORD)@x0tta6bl4-ap-southeast-1.cluster-xxx.ap-southeast-1.rds.amazonaws.com:3306/x0tta6bl4"
+  REDIS_URL: "redis://x0tta6bl4-ap-southeast-1.xxx.0001.apse1.cache.amazonaws.com:6379"
+  API_VERSION: "v1"
+  LOG_LEVEL: "info"
+
+---
+# Secret для чувствительных данных приложения
+apiVersion: v1
+kind: Secret
+metadata:
+  name: x0tta6bl4-secrets
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: secrets
+type: Opaque
+data:
+  # Пароли должны быть base64 encoded
+  DB_PASSWORD: "CHANGE_ME_BASE64_ENCODED"
+  JWT_SECRET: "CHANGE_ME_BASE64_ENCODED"
+  API_KEY: "CHANGE_ME_BASE64_ENCODED"
+
+---
+# Deployment основного приложения
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x0tta6bl4-app
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4
+      app.kubernetes.io/instance: ap-southeast-1
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: x0tta6bl4
+        app.kubernetes.io/instance: ap-southeast-1
+        app.kubernetes.io/component: app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: x0tta6bl4-app
+        image: x0tta6bl4/app:latest
+        imagePullPolicy: Always
+
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+
+        envFrom:
+        - configMapRef:
+            name: x0tta6bl4-config
+        - secretRef:
+            name: x0tta6bl4-secrets
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      securityContext:
+        fsGroup: 1000
+
+      nodeSelector:
+        node-type: application
+
+      tolerations:
+      - key: dedicated
+        operator: Equal
+        value: application
+        effect: NoSchedule
+
+---
+# Service для приложения
+apiVersion: v1
+kind: Service
+metadata:
+  name: x0tta6bl4-service
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: service
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: app
+
+---
+# ServiceMonitor для мониторинга приложения
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: x0tta6bl4-servicemonitor
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4
+      app.kubernetes.io/instance: ap-southeast-1
+      app.kubernetes.io/component: service
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+
+---
+# HorizontalPodAutoscaler для автоматического масштабирования
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: x0tta6bl4-hpa
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: x0tta6bl4-app
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# PodDisruptionBudget для высокой доступности
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: x0tta6bl4-pdb
+  namespace: x0tta6bl4-ap-southeast-1
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    app.kubernetes.io/instance: ap-southeast-1
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4
+      app.kubernetes.io/instance: ap-southeast-1
+      app.kubernetes.io/component: app

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 Security Vulnerability
+    url: mailto:security@x0tta6bl4.local
+    about: Private disclosure for security issues (see SECURITY.md)
+  - name: 💬 Discussions
+    url: https://github.com/x0tta6bl4/x0tta6bl4/discussions
+    about: Ask questions, share ideas, or discuss the project
+  - name: 📚 Documentation
+    url: https://github.com/x0tta6bl4/x0tta6bl4/blob/main/README.md
+    about: Start with README, CONTRIBUTING, and docs/

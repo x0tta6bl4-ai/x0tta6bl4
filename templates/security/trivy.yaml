@@ -1,0 +1,31 @@
+format: json
+output: trivy-results.json
+severity: HIGH,CRITICAL
+ignore-unfixed: true
+ignore-policy: .trivyignore
+timeout: 10m
+
+vulnerability:
+  type: [os, library]
+  ignore-unfixed: true
+
+config:
+  type: [kubernetes, dockerfile, terraform]
+
+secret:
+  config-path: .trivy/secret-config.yaml
+
+license:
+  confidence: 0.9
+
+report:
+  format: json
+  output: trivy-report.json
+
+alerts:
+  critical:
+    threshold: 0
+    action: fail
+  high:
+    threshold: 5
+    action: warn

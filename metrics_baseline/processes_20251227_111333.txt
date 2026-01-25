@@ -1,0 +1,4 @@
+root       28372  0.0  0.1  11332  7168 ?        S    07:05   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;
+www-data   28681  0.0  0.1  12868  4812 ?        S    07:05   0:00 nginx: worker process
+www-data   28683  0.0  0.1  12868  4812 ?        S    07:05   0:00 nginx: worker process
+root       49305  6.1  1.5 1262664 61284 ?       Sl   07:28   2:58 bin/xray-linux-amd64 -c bin/config.json

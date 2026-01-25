@@ -1,0 +1,96 @@
+version: 2
+updates:
+- package-ecosystem: pip
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: 03:00
+  open-pull-requests-limit: 10
+  reviewers:
+  - x0tta6bl4-team
+  labels:
+  - dependencies
+  - bot
+  commit-message:
+    prefix: 'chore(deps):'
+    include: scope
+  groups:
+    security:
+      dependency-type: security
+      update-types:
+      - patch
+      - minor
+    production:
+      patterns:
+      - fastapi*
+      - uvicorn*
+      - pydantic*
+      - prometheus*
+      - liboqs*
+      - torch*
+    development:
+      patterns:
+      - pytest*
+      - black*
+      - mypy*
+      - flake8*
+      - ruff*
+  allow:
+    dependency-type: all
+  rebase-strategy: auto
+  versioning-strategy: semver
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: 03:30
+  open-pull-requests-limit: 5
+  reviewers:
+  - x0tta6bl4-team
+  labels:
+  - ci
+  - bot
+  commit-message:
+    prefix: 'ci(actions):'
+  allow:
+    dependency-type: all
+  rebase-strategy: auto
+- package-ecosystem: docker
+  directory: /
+  schedule:
+    interval: weekly
+    day: tuesday
+    time: 03:00
+  open-pull-requests-limit: 5
+  reviewers:
+  - x0tta6bl4-team
+  labels:
+  - docker
+  - infrastructure
+  - bot
+  commit-message:
+    prefix: 'build(docker):'
+  allow:
+    dependency-type: all
+  rebase-strategy: auto
+- package-ecosystem: npm
+  directory: /
+  schedule:
+    interval: weekly
+    day: wednesday
+    time: 03:00
+  open-pull-requests-limit: 5
+  reviewers:
+  - x0tta6bl4-team
+  labels:
+  - dependencies
+  - frontend
+  - bot
+  commit-message:
+    prefix: 'chore(npm):'
+  allow:
+    dependency-type: all
+  rebase-strategy: auto
+  versioning-strategy: semver

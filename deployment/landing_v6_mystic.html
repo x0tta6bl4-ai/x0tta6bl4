@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 | SYSTEM BREACH</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neon: '#00ff41',
+                        dark: '#050505',
+                        panel: '#0a0a0a',
+                        accent: '#ff0055',
+                        alert: '#ec6867',
+                        warn: '#fff2b0'
+                    },
+                    fontFamily: {
+                        mono: ['Share Tech Mono', 'Courier New', 'monospace'],
+                        vt: ['VT323', 'monospace']
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glitch': 'glitch 1s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* BASE */
+        body { background-color: #000; color: #e0e0e0; overflow-x: hidden; }
+
+        /* CRT EFFECTS (The Monitor) */
+        #crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, rgba(18, 16, 16, 0) 50%, #000 100%);
+            z-index: 10000; pointer-events: none;
+            background-size: 100% 2px, 3px 100%;
+        }
+        #crt-scanline {
+            width: 100%; height: 10px; z-index: 10001;
+            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0, 255, 65, 0.1) 50%, rgba(0,0,0,0) 100%);
+            opacity: 0.1; position: absolute; bottom: 100%;
+            animation: scanline 3s linear infinite; pointer-events: none;
+        }
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -10%; }
+        }
+        
+        /* TERMINAL TEXT */
+        .terminal-font { font-family: 'VT323', monospace; }
+        .log-line { margin-bottom: 4px; opacity: 0; animation: fadeIn 0.1s forwards; text-shadow: 0 0 5px rgba(0, 255, 65, 0.5); }
+        .highlight { color: #fff; font-weight: bold; }
+        .warn { color: #fff2b0; text-shadow: 0 0 5px #fff2b0; }
+        .alert { color: #ec6867; text-shadow: 0 0 10px #ec6867; font-weight: bold; }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        /* MAIN SITE STYLES (Preserved from v2) */
+        .neon-text { text-shadow: 0 0 5px #00ff41; }
+        .glitch-text { position: relative; }
+        .glitch-text::before, .glitch-text::after {
+            content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+        .glitch-text::before { left: 2px; text-shadow: -1px 0 #ff0055; clip: rect(24px, 550px, 90px, 0); animation: glitch-anim 3s infinite linear alternate-reverse; }
+        .glitch-text::after { left: -2px; text-shadow: -1px 0 #00ff41; clip: rect(85px, 550px, 140px, 0); animation: glitch-anim 2s infinite linear alternate-reverse; }
+        @keyframes glitch-anim {
+            0% { clip: rect(14px, 9999px, 121px, 0); } 20% { clip: rect(94px, 9999px, 13px, 0); }
+            40% { clip: rect(29px, 9999px, 86px, 0); } 60% { clip: rect(110px, 9999px, 11px, 0); }
+            80% { clip: rect(68px, 9999px, 59px, 0); } 100% { clip: rect(76px, 9999px, 4px, 0); }
+        }
+
+        /* VISIBILITY CONTROLS */
+        #terminal-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #050505; z-index: 9000; padding: 2rem; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #main-content { opacity: 0; transition: opacity 2s ease-in; }
+        .monitor-frame {
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1), inset 0 0 50px rgba(0,0,0,0.8);
+            background: #000;
+            padding: 20px;
+            max-width: 800px;
+            width: 100%;
+            min-height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-neon selection:text-black font-mono">
+
+    <!-- CRT OVERLAY (Always on top for effect) -->
+    <div id="crt-overlay"></div>
+    <div id="crt-scanline"></div>
+
+    <!-- SHOCK TERMINAL -->
+    <div id="terminal-screen">
+        <div class="monitor-frame terminal-font text-xl md:text-2xl text-neon">
+            <div id="terminal-content" class="flex flex-col items-start justify-start w-full h-full">
+                <!-- Logs will appear here -->
+            </div>
+            <div class="mt-4 animate-pulse">> <span id="cursor">_</span></div>
+        </div>
+        
+        <div id="skip-btn" class="mt-8 text-gray-600 text-xs uppercase tracking-widest opacity-0 transition hover:text-white cursor-pointer" onclick="skipIntro()">
+            [ ESCAPE THE MATRIX ]
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT (Initially Hidden) -->
+    <div id="main-content">
+        
+        <!-- HERO -->
+        <div class="relative min-h-screen flex items-center justify-center overflow-hidden bg-[url('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaXJ6eGZ4bnZ5eXJ6eGZ4bnZ5eXJ6eGZ4bnZ5eXJ6eGZ4bnZ5eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/U3qYN8S0j3bpK/giphy.gif')] bg-cover bg-center bg-no-repeat bg-blend-overlay bg-black/90">
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/50 to-black"></div>
+            
+            <div class="relative z-10 text-center px-4 max-w-4xl mx-auto">
+                <div class="text-neon font-bold tracking-[0.5em] text-xs mb-6 uppercase animate-pulse-fast">
+                    System Status: Harmonic // Phi: 1.618
+                </div>
+                
+                <h1 class="text-5xl md:text-8xl font-black text-white mb-2 glitch-text" data-text="x0tta6bl4">
+                    x0tta6bl4
+                </h1>
+                <div class="text-xl md:text-2xl text-gray-400 font-light tracking-widest mb-12 border-b border-gray-800 pb-8 inline-block">
+                    PARADOX ZONE
+                </div>
+
+                <p class="text-lg md:text-2xl text-gray-300 mb-12 leading-relaxed max-w-2xl mx-auto">
+                    Привет. Я Даня. <br>
+                    Я устал смотреть, как интернет превращается в цифровую тюрьму.
+                    <span class="text-neon block mt-4 text-sm font-bold typing-effect">
+                        // То, что ты видел сейчас — это лишь 1% того, что они знают.
+                    </span>
+                </p>
+
+                <div class="flex flex-col md:flex-row gap-6 justify-center">
+                    <a href="#manifesto" class="px-8 py-4 bg-transparent border border-neon text-neon hover:bg-neon hover:text-black transition-all font-bold uppercase tracking-wider backdrop-blur-sm">
+                        Читать Манифест
+                    </a>
+                    <a href="#join" class="px-8 py-4 bg-neon text-black font-bold uppercase tracking-wider hover:bg-white hover:text-black transition-all shadow-[0_0_20px_rgba(0,255,65,0.4)]">
+                        Получить Доступ
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVE NETWORK STATS -->
+        <div class="bg-panel border-y border-gray-800 py-12">
+            <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 text-center font-mono text-xs md:text-sm">
+                <div>
+                    <div class="text-gray-500 mb-2">ACTIVE NODES</div>
+                    <div class="text-3xl text-white font-bold" id="nodes-count">3</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 mb-2">TOTAL TRAFFIC</div>
+                    <div class="text-3xl text-white font-bold">1.2 TB</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 mb-2">NETWORK HEALTH</div>
+                    <div class="text-3xl text-neon font-bold">100%</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 mb-2">BLOCKS BYPASSED</div>
+                    <div class="text-3xl text-accent font-bold">∞</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MANIFESTO SECTION -->
+        <div id="manifesto" class="py-24 bg-dark relative">
+            <div class="max-w-3xl mx-auto px-4">
+                <h2 class="text-3xl font-bold text-white mb-12 border-l-4 border-neon pl-6">
+                    ЭТО НЕ ПРОСТО VPN.<br>
+                    ЭТО ЦИФРОВОЕ СОПРОТИВЛЕНИЕ.
+                </h2>
+                
+                <div class="prose prose-invert text-gray-400 space-y-8 text-lg leading-relaxed">
+                    <p>
+                        Мы живем в эпоху, когда доступ к информации стал привилегией. 
+                        Корпорации торгуют нашими данными. Правительства возводят цифровые стены.
+                        <span class="text-white font-bold">Stella Project</span> был началом. 
+                        <span class="text-white font-bold">x0tta6bl4</span> — это эволюция.
+                    </p>
+
+                    <div class="bg-panel p-8 border border-gray-800 rounded-lg my-12">
+                        <h3 class="text-neon font-bold mb-4 text-xl">/// ФИЛОСОФИЯ СИСТЕМЫ</h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start">
+                                <span class="text-accent mr-4">01.</span>
+                                <span><strong>Децентрализация.</strong> Нет главного рубильника. Убьешь один узел — проснутся два других.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-accent mr-4">02.</span>
+                                <span><strong>Гармония (Phi).</strong> Система сама балансирует нагрузку, используя принципы золотого сечения. Она живая.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-accent mr-4">03.</span>
+                                <span><strong>Доступность.</strong> Технологии должны служить людям, а не контролю.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <p>
+                        Я строю это один, но для всех. 
+                        Я использую старые ноутбуки, дешевые VPS и чистую математику, чтобы создать сеть, 
+                        которую невозможно выключить. И я приглашаю тебя стать её частью.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROADMAP -->
+        <div class="py-24 bg-dark border-y border-gray-800 relative overflow-hidden">
+            <div class="max-w-7xl mx-auto px-4 relative z-10">
+                <h2 class="text-3xl font-bold text-white mb-16 text-center">ROADMAP: ПУТЬ К ЦИФРОВОМУ БЕССМЕРТИЮ</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+                    <!-- PHASE 1 -->
+                    <div class="relative group">
+                        <div class="absolute -inset-1 bg-gradient-to-r from-neon to-transparent opacity-25 blur transition duration-1000 group-hover:opacity-75"></div>
+                        <div class="relative bg-panel p-8 h-full border border-gray-800">
+                            <div class="text-4xl font-bold text-gray-700 mb-4">2025</div>
+                            <h3 class="text-xl font-bold text-white mb-4">FOUNDATION</h3>
+                            <ul class="space-y-3 text-gray-400 text-sm">
+                                <li class="text-neon">✓ Mesh-ядро (готово)</li>
+                                <li class="text-neon">✓ Phi-мониторинг (готово)</li>
+                                <li>• Encrypted Storage</li>
+                                <li>• Mesh VPN v2</li>
+                                <li>• Mobile App</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <!-- PHASE 2 -->
+                    <div class="relative group">
+                        <div class="absolute -inset-1 bg-gradient-to-r from-blue-500 to-transparent opacity-25 blur transition duration-1000 group-hover:opacity-75"></div>
+                        <div class="relative bg-panel p-8 h-full border border-gray-800">
+                            <div class="text-4xl font-bold text-gray-700 mb-4">2026</div>
+                            <h3 class="text-xl font-bold text-white mb-4">INTELLIGENCE</h3>
+                            <ul class="space-y-3 text-gray-400 text-sm">
+                                <li>• Distributed AI Training</li>
+                                <li>• Smart Routing (GraphSAGE)</li>
+                                <li>• Anomaly Prediction</li>
+                                <li>• Zero-Knowledge Auth</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <!-- PHASE 3 -->
+                    <div class="relative group">
+                        <div class="absolute -inset-1 bg-gradient-to-r from-accent to-transparent opacity-25 blur transition duration-1000 group-hover:opacity-75"></div>
+                        <div class="relative bg-panel p-8 h-full border border-gray-800">
+                            <div class="text-4xl font-bold text-gray-700 mb-4">2027</div>
+                            <h3 class="text-xl font-bold text-white mb-4">ECONOMY</h3>
+                            <ul class="space-y-3 text-gray-400 text-sm">
+                                <li>• X0T Token Launch</li>
+                                <li>• Node Staking Rewards</li>
+                                <li>• Compute Marketplace</li>
+                                <li>• Global DAO Governance</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- JOIN SECTION -->
+        <div id="join" class="py-24 bg-panel relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-full bg-[url('https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif')] bg-cover opacity-5"></div>
+            
+            <div class="max-w-4xl mx-auto px-4 relative z-10 text-center">
+                <h2 class="text-4xl font-bold text-white mb-6">GENESIS NODE KEY</h2>
+                <p class="text-gray-400 mb-12 text-xl">
+                    Стань хранителем сети. Запусти свой узел. Поддержи свободу.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                    <!-- CARD 1 -->
+                    <div class="bg-dark border border-gray-700 p-8 hover:border-neon transition-colors group">
+                        <div class="text-neon font-bold text-sm tracking-widest mb-4">EARLY ADOPTER</div>
+                        <div class="text-4xl font-bold text-white mb-6">$500</div>
+                        <ul class="space-y-3 text-gray-400 mb-8 text-sm">
+                            <li>✓ Лицензия Оператора Узла</li>
+                            <li>✓ Доступ к исходному коду (Core)</li>
+                            <li>✓ Вход в закрытое DAO</li>
+                            <li>✓ Поддержка 24/7 от создателя</li>
+                        </ul>
+                        <a href="https://t.me/x0tta6bl4_admin" target="_blank" class="block w-full py-4 bg-gray-800 text-white text-center font-bold group-hover:bg-neon group-hover:text-black transition-all">
+                            КУПИТЬ КЛЮЧ
+                        </a>
+                    </div>
+
+                    <!-- CARD 2 -->
+                    <div class="bg-dark border border-gray-700 p-8 hover:border-accent transition-colors group relative opacity-75">
+                        <div class="absolute top-4 right-4 bg-accent text-white text-xs px-2 py-1 font-bold">SOON</div>
+                        <div class="text-accent font-bold text-sm tracking-widest mb-4">COMMUNITY</div>
+                        <div class="text-4xl font-bold text-white mb-6">FREE</div>
+                        <ul class="space-y-3 text-gray-400 mb-8 text-sm">
+                            <li>✓ Базовый доступ к сети</li>
+                            <li>✓ Использование ресурсов</li>
+                            <li>✗ Нет права голоса</li>
+                            <li>✗ Очередь на подключение</li>
+                        </ul>
+                        <button disabled class="block w-full py-4 bg-gray-900 text-gray-600 text-center font-bold cursor-not-allowed">
+                            ОЖИДАНИЕ...
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mt-12 text-gray-500 text-xs font-mono">
+                    FUNDS GO DIRECTLY TO SERVER COSTS AND R&D.<br>
+                    NO CORPORATE BS. JUST CODE.
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="bg-black py-8 border-t border-gray-900 text-center">
+            <div class="text-gray-600 text-xs font-mono">
+                <a href="dashboard.html" class="hover:text-neon mx-4">VIEW NETWORK STATUS</a>
+                <span class="mx-2">|</span>
+                <span class="mx-4">x0tta6bl4 © 2025</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        // --- SHOCK ENGINE ---
+        const out = document.getElementById('terminal-content');
+        const screen = document.getElementById('terminal-screen');
+        const main = document.getElementById('main-content');
+        const skipBtn = document.getElementById('skip-btn');
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const log = (text, style='') => {
+            const d = document.createElement('div');
+            d.className = 'log-line ' + style;
+            d.innerHTML = text;
+            out.appendChild(d);
+            // Auto scroll
+            out.scrollTop = out.scrollHeight;
+        };
+
+        // Enable Skip after 2s
+        setTimeout(() => { skipBtn.style.opacity = '0.5'; }, 2000);
+
+        function skipIntro() {
+            screen.style.display = 'none';
+            main.style.opacity = '1';
+        }
+
+        async function getBattery() {
+            try {
+                const b = await navigator.getBattery();
+                return Math.round(b.level * 100) + '%';
+            } catch { return 'N/A'; }
+        }
+
+        async function shockSequence() {
+            await sleep(500);
+            log('INITIALIZING TRACER...', 'highlight');
+            await sleep(1000);
+            
+            log(`> SYSTEM: ${navigator.platform.toUpperCase()}`);
+            await sleep(200);
+            log(`> CORES: ${navigator.hardwareConcurrency || 'UNKNOWN'}`);
+            await sleep(200);
+            log(`> SCREEN: ${window.screen.width}x${window.screen.height}`);
+            await sleep(200);
+            const bat = await getBattery();
+            log(`> POWER: ${bat}`);
+            await sleep(500);
+
+            log('SCANNING NETWORK INTERFACE...', 'highlight');
+            try {
+                // Using ipapi.co as requested in prompt (it's free, limits apply, fallback handled)
+                const r = await fetch('https://ipapi.co/json/');
+                const d = await r.json();
+                
+                await sleep(800);
+                log(`> IP ADDR: <span class="alert">${d.ip}</span>`);
+                await sleep(300);
+                log(`> ISP: ${d.org}`);
+                await sleep(300);
+                log(`> LOCATION: ${d.city}, ${d.country_name}`);
+                await sleep(300);
+                log(`> COORDS: ${d.latitude}, ${d.longitude}`);
+                
+            } catch (e) {
+                log('> TARGET IS SHIELDED OR API LIMIT.', 'warn');
+                log('> RETRYING DEEP SCAN...', 'warn');
+            }
+
+            await sleep(1000);
+            log('-----------------------------------');
+            log('ANALYSIS COMPLETE.');
+            await sleep(500);
+            
+            // THE REVEAL
+            log('СИСТЕМА СБОРА ЗАКРЫТЫХ ДАННЫХ АКТИВНА.', 'warn');
+            await sleep(800);
+            log('ВАШ ЦИФРОВОЙ СЛЕД: <span class="alert">КРИТИЧЕСКИЙ</span>');
+            await sleep(1500);
+            
+            out.innerHTML = ''; // Clear screen for impact
+            log('<span class="alert" style="font-size: 1.5em">ЭТО ЛИШЬ МАЛАЯ ЧАСТЬ ТОГО,</span>');
+            log('<span class="alert" style="font-size: 1.5em">ЧТО ИНТЕРНЕТ ЗНАЕТ О ВАС.</span>');
+            await sleep(2000);
+
+            log('НО x0tta6bl4 МОЖЕТ ЭТО ИЗМЕНИТЬ.', 'neon-text');
+            await sleep(1000);
+            log('INITIATING SECURE PROTOCOL...', 'highlight');
+            await sleep(1000);
+            log('WELCOME TO THE PARADOX ZONE.', 'highlight');
+            await sleep(1000);
+
+            // FADE OUT
+            screen.style.transition = 'opacity 1.5s ease-out';
+            screen.style.opacity = '0';
+            main.style.opacity = '1';
+            
+            setTimeout(() => {
+                screen.style.display = 'none';
+            }, 1500);
+        }
+
+        // Live Node Counter
+        fetch('http://89.125.1.107:9092/metrics')
+            .then(r => r.json())
+            .then(d => { if(d.peers_count) document.getElementById('nodes-count').innerText = d.peers_count; })
+            .catch(e => console.log('Offline'));
+
+        // Start
+        shockSequence();
+
+    </script>
+</body>
+</html>

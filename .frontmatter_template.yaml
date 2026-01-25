@@ -1,0 +1,54 @@
+---
+# Front-Matter Template for x0tta6bl4 Documentation
+# This YAML header should be added to all Markdown files for metadata tracking
+
+title: ""                     # Document title (human-readable)
+domain: ""                    # Core | DevOps | Security | Infrastructure | Research | Governance | Operations | ML | Quantum | Network
+status: ""                    # Draft | Review | Stable | Deprecated
+criticality: ""               # Critical | High | Medium | Low
+maturity: ""                  # Experimental | Development | Production | Archived
+owner: ""                     # GitHub username or team (@core-team, @security-team, etc.)
+last_updated: ""              # YYYY-MM-DD
+version: ""                   # Semantic version (optional, for versioned specs)
+tags: []                      # List of keywords for search/filtering
+  # Examples: ["mesh", "mape-k", "zero-trust", "ml", "quantum", "dao", "governance"]
+dependencies: []              # List of related documents
+  # Examples: ["ARCHITECTURE.md", "SECURITY.md", "docs/operations/MAPE_K_REFERENCE.md"]
+copilot_context: ""           # Usage hint for GitHub Copilot
+  # Examples: 
+  #   "Include for architectural decisions and system design"
+  #   "Reference for Zero Trust security patterns"
+  #   "Use for DAO governance workflows"
+related_rfcs: []              # Related RFCs (if applicable)
+  # Examples: ["RFC-0001", "RFC-0002"]
+audience: ""                  # Internal | Public | Enterprise | Research
+classification: ""            # Public | Internal | Confidential | Restricted (security classification)
+review_cycle: ""              # Weekly | Monthly | Quarterly | Annually | Ad-hoc
+---
+
+# Document Title
+
+Brief introduction or abstract (2-3 sentences summarizing the document).
+
+---
+
+## Overview
+
+Detailed overview section...
+
+## Usage Examples
+
+```bash
+# Example commands or code
+```
+
+## References
+
+- [Related Doc 1](./path/to/doc.md)
+- [External Reference](https://example.com)
+
+---
+
+**Last Updated:** YYYY-MM-DD  
+**Version:** X.Y.Z  
+**Maintained by:** @owner-name

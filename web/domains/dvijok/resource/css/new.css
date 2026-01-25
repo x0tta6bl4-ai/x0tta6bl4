@@ -1,0 +1,10 @@
+.type_box {
+	display: block;
+	height: 190px;
+}
+
+.object_type {
+	display: none;
+	max-width: 80%;
+	margin: 0 auto;
+}

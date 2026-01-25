@@ -1,0 +1,109 @@
+{
+  "dashboard": {
+    "title": "x0tta6bl4 - Mesh Network Monitoring",
+    "tags": ["mesh", "network", "sla"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "Beacon Latency (p50/p95/p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, mesh_beacon_latency_ms)",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, mesh_beacon_latency_ms)",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, mesh_beacon_latency_ms)",
+            "legendFormat": "p99 (SLA: 150ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "title": "Beacon Throughput (beacons/sec)",
+        "targets": [
+          {
+            "expr": "rate(mesh_beacons_processed[1m])",
+            "legendFormat": "Current"
+          },
+          {
+            "expr": "50000",
+            "legendFormat": "Minimum SLA"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "title": "Active Mesh Nodes",
+        "targets": [
+          {
+            "expr": "count(mesh_node_active == 1)"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 }
+      },
+      {
+        "title": "Mesh Network Availability",
+        "targets": [
+          {
+            "expr": "up{job=\"mesh-beacons\"}"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 }
+      },
+      {
+        "title": "Slot Synchronization Drift",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, mesh_slot_drift_ms)",
+            "legendFormat": "p99 Drift (Max: 100ms)"
+          }
+        ],
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      },
+      {
+        "title": "Link Quality Distribution",
+        "targets": [
+          {
+            "expr": "mesh_link_quality"
+          }
+        ],
+        "type": "heatmap",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "title": "Network Partition Events",
+        "targets": [
+          {
+            "expr": "increase(mesh_partition_events[1h])"
+          }
+        ],
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 }
+      },
+      {
+        "title": "Beacon Error Rate",
+        "targets": [
+          {
+            "expr": "(mesh_beacons_failed / mesh_beacons_processed) * 100"
+          }
+        ],
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 }
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

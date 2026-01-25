@@ -1,0 +1,43 @@
+<?php
+	$Param['id'] += 0;
+	if ($Param['id'] == 0) MessageSend(1, 'URL адрес указан неверно.', '/news');
+	$Row = mysqli_fetch_assoc(mysqli_query($CONNECT, 'SELECT `name`, `added`, `date`, `read`, `text`, `active`, `rate`, `rateusers` FROM `news` WHERE `id` = '.$Param['id']));
+	if (!$Row['name']) MessageSend(1, 'Такой новости не существует.', '/news');
+	if (!$Row['active'] and $_SESSION['USER_GROUP'] != 2) MessageSend(1, 'Новость ожидает модерации.');
+	mysqli_query($CONNECT, 'UPDATE `news` SET `read` = `read` + 1 WHERE `id` = '.$Param['id']);
+	Head($Row['name']);
+?>
+<body>
+	<div class="container">
+		<script src="/resource/js/notificationFx.js"></script>
+		<?php
+			MessageShow();
+			include ('include/header.php');
+			include ('include/menu.php');
+		?>
+		<div class="content-wrap">
+			<div class="content">
+				<div class="page">
+					<?php
+						if ($Row['rateusers']) {
+							$Exp = explode(',', $Row['rateusers']);
+								foreach ($Exp as $value) {
+								if ($value) {
+									$Row2 = mysqli_fetch_assoc(mysqli_query($CONNECT, "SELECT `email`, `login` FROM `users` WHERE `id` = $value"));
+									$RATED .= '<a href="/user/'.$Row2['email'].'" class="lol">'.$Row2['login'].'<a> ';
+								}
+							}
+
+						} 
+						else $RATED = 'n/a';
+						if (!$Row['active']) $Active = '| <a href="/news/control/id/'.$Param['id'].'/command/active" class="lol">Активировать новость</a>';
+						if ($_SESSION['USER_GROUP'] == 2) $EDIT = '| <a href="/news/edit/id/'.$Param['id'].'" class="lol">Редактировать новость</a> | <a href="/news/control/id/'.$Param['id'].'/command/delete" class="lol">Удалить новость</a>'.$Active;
+						echo 'Просомтров: '.($Row['read'] + 1).' | Добавил: '.$Row['added'].' | Оценок: '.$Row['rate'].' | Дата: '.$Row['date'].' '.$EDIT.'<br>Оценили: '.$RATED.'<br><br><a href="/rate/news/id/'.$Param['id'].'" class="button">Мне нравится</a><br><br><b>'.$Row['name'].'</b><br>'.$Row['text'];
+						Comments();
+					?>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
