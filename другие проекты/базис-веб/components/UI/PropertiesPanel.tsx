@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Panel, Axis, TextureType, EdgeThickness } from '../../types';
+import ValidationPanel from '../ValidationPanel';
+import { useProjectStore } from '../../store/projectStore';
 
 interface PropertiesPanelProps {
   selectedPanel: Panel | null;
@@ -314,6 +316,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             />
             <label className="text-sm text-slate-300 cursor-pointer">Видимо</label>
           </div>
+        </CollapsibleSection>
+
+        {/* Validation Results */}
+        <CollapsibleSection title="🔍 Результаты валидации" defaultOpen={false}>
+          <ValidationPanel panels={[selectedPanel]} />
         </CollapsibleSection>
       </div>
     </div>
