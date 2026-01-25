@@ -1,7 +1,9 @@
-"""Minimal FastAPI bootstrap - for P0#1 testing"""
+"""FastAPI app with real system status monitoring - P0#3 implementation"""
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import logging
+from src.core.status_collector import get_current_status
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -9,7 +11,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="x0tta6bl4",
     version="3.1.0",
-    description="Minimal API for bootstrap testing"
+    description="Self-healing mesh network node with MAPE-K autonomic loop"
 )
 
 # Security headers via decorator
@@ -27,22 +29,47 @@ logger.info("✓ App created")
 
 @app.get("/health")
 async def health():
-    """Health check"""
+    """Health check endpoint - returns 200 if alive"""
     return {"status": "ok", "version": "3.1.0"}
 
 @app.get("/status")
 async def status():
-    """Status endpoint"""
-    return {
-        "status": "healthy",
-        "version": "3.1.0",
-        "loop_running": True
-    }
+    """
+    Comprehensive status endpoint with real system metrics
+    
+    Returns:
+    - System metrics (CPU, memory, disk, network)
+    - Mesh network status (connected peers)
+    - MAPE-K loop state
+    - Overall system health
+    """
+    try:
+        status_data = get_current_status()
+        return JSONResponse(content=status_data)
+    except Exception as e:
+        logger.error(f"Error getting status: {e}")
+        # Fallback to minimal status if error
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "healthy",
+                "version": "3.1.0",
+                "error": str(e)
+            }
+        )
 
 @app.get("/")
 async def root():
-    """Root"""
-    return {"name": "x0tta6bl4", "docs": "/docs"}
+    """API root with documentation links"""
+    return {
+        "name": "x0tta6bl4",
+        "version": "3.1.0",
+        "docs": "/docs",
+        "endpoints": {
+            "health": "/health",
+            "status": "/status"
+        }
+    }
 
 logger.info("✓ Routes registered")
 
