@@ -1,141 +1,117 @@
 
-import { Panel, Hardware } from '../types';
+import { Panel, Hardware } from "../types";
 
-export class HardwarePositions {
-    
-    private static generateId = () => `hw-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+export interface PositionValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
 
-    /**
-     * Calculates hinge cup positions (Blum Standard)
-     * @param panelHeight Height of the facade
-     * @param offsetTop Distance from top edge (default 100mm)
-     * @param offsetBottom Distance from bottom edge (default 100mm)
-     * @param side 'left' or 'right' opening
-     */
-    public static calculateHinges(panel: Panel, side: 'left' | 'right' = 'left'): Hardware[] {
-        const result: Hardware[] = [];
-        const cupDist = 22; // Center of cup from edge
-        const x = side === 'left' ? cupDist : panel.width - cupDist;
-        
-        // Top Hinge
-        result.push({
-            id: this.generateId(),
-            type: 'hinge_cup',
-            name: 'Петля Blum Top',
-            x: x,
-            y: panel.height - 100,
-            diameter: 35,
-            depth: 13,
-            price: 150
-        });
+/**
+ * System 32 standard mebel (меблевой) - стандарт для позиционирования фурнитуры
+ * 37mm offset from edge
+ * 32mm spacing between holes
+ */
+export const SYSTEM_32 = {
+  EDGE_OFFSET: 37,
+  HOLE_SPACING: 32,
+} as const;
 
-        // Bottom Hinge
-        result.push({
-            id: this.generateId(),
-            type: 'hinge_cup',
-            name: 'Петля Blum Bot',
-            x: x,
-            y: 100,
-            diameter: 35,
-            depth: 13,
-            price: 150
-        });
+export class HardwarePositionsValidator {
+  /**
+   * Validate hardware positions on panels according to System 32 standard
+   */
+  public static validatePositions(panels: Panel[]): PositionValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
 
-        // Middle Hinge for tall doors (> 900mm)
-        if (panel.height > 900) {
-            result.push({
-                id: this.generateId(),
-                type: 'hinge_cup',
-                name: 'Петля Blum Mid',
-                x: x,
-                y: panel.height / 2,
-                diameter: 35,
-                depth: 13,
-                price: 150
-            });
+    for (const panel of panels) {
+      if (!panel.hardware || panel.hardware.length === 0) continue;
+
+      // Check each hardware item
+      for (const hardware of panel.hardware) {
+        // Validate X position (horizontal)
+        if (hardware.x < SYSTEM_32.EDGE_OFFSET) {
+          warnings.push(
+            `${panel.name}: ${hardware.name} слишком близко к левому краю ` +
+            `(${hardware.x}мм < ${SYSTEM_32.EDGE_OFFSET}мм стандарта System 32)`
+          );
         }
 
-        return result;
-    }
-
-    /**
-     * Generates System 32 grid for shelf pins
-     * @param panelHeight Panel height
-     * @param panelDepth Panel depth (width in local coords for side panels)
-     */
-    public static calculateSystem32(panel: Panel): Hardware[] {
-        const result: Hardware[] = [];
-        const startY = 200;
-        const endY = panel.height - 200;
-        const frontX = 37;
-        const backX = panel.width - 37; // Assuming local width is depth for side panels in 2D context
-
-        // Generate holes every 32mm
-        for (let y = startY; y <= endY; y += 32) {
-            // Front Column
-            result.push({
-                id: this.generateId(),
-                type: 'shelf_support',
-                name: 'Полкодержатель',
-                x: frontX,
-                y: y,
-                diameter: 5,
-                depth: 13, // Standard blind hole
-                price: 5
-            });
-
-            // Back Column
-            result.push({
-                id: this.generateId(),
-                type: 'shelf_support',
-                name: 'Полкодержатель',
-                x: backX,
-                y: y,
-                diameter: 5,
-                depth: 13,
-                price: 5
-            });
+        if (hardware.x > panel.width - SYSTEM_32.EDGE_OFFSET) {
+          warnings.push(
+            `${panel.name}: ${hardware.name} слишком близко к правому краю ` +
+            `(${hardware.x}мм > ${panel.width - SYSTEM_32.EDGE_OFFSET}мм)`
+          );
         }
 
-        return result;
+        // Validate Y position (vertical)
+        if (hardware.y < SYSTEM_32.EDGE_OFFSET) {
+          warnings.push(
+            `${panel.name}: ${hardware.name} слишком близко к верхнему краю ` +
+            `(${hardware.y}мм < ${SYSTEM_32.EDGE_OFFSET}мм)`
+          );
+        }
+
+        if (hardware.y > panel.height - SYSTEM_32.EDGE_OFFSET) {
+          warnings.push(
+            `${panel.name}: ${hardware.name} слишком близко к нижнему краю ` +
+            `(${hardware.y}мм > ${panel.height - SYSTEM_32.EDGE_OFFSET}мм)`
+          );
+        }
+
+        // Validate hardware diameter if present
+        if (hardware.diameter) {
+          const minDiameter = 8;
+          const maxDiameter = 50;
+
+          if (hardware.diameter < minDiameter) {
+            errors.push(
+              `${panel.name}: ${hardware.name} имеет слишком маленький диаметр ` +
+              `(${hardware.diameter}мм < ${minDiameter}мм)`
+            );
+          }
+
+          if (hardware.diameter > maxDiameter) {
+            errors.push(
+              `${panel.name}: ${hardware.name} имеет слишком большой диаметр ` +
+              `(${hardware.diameter}мм > ${maxDiameter}мм)`
+            );
+          }
+        }
+      }
+
+      // Check spacing between hardware items
+      for (let i = 0; i < panel.hardware.length; i++) {
+        for (let j = i + 1; j < panel.hardware.length; j++) {
+          const h1 = panel.hardware[i];
+          const h2 = panel.hardware[j];
+
+          // Calculate minimum distance
+          const dx = h2.x - h1.x;
+          const dy = h2.y - h1.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          // For holes/screws, maintain System 32 spacing
+          if (
+            (h1.type === "dowel_hole" || h1.type === "screw") &&
+            (h2.type === "dowel_hole" || h2.type === "screw")
+          ) {
+            if (distance < SYSTEM_32.HOLE_SPACING) {
+              warnings.push(
+                `${panel.name}: ${h1.name} и ${h2.name} слишком близко друг к другу ` +
+                `(${Math.round(distance)}мм < ${SYSTEM_32.HOLE_SPACING}мм стандарта)`
+              );
+            }
+          }
+        }
+      }
     }
 
-    /**
-     * Calculates handle position
-     * @param panelWidth Width of facade
-     * @param panelHeight Height of facade
-     * @param centerDist Distance between holes (96, 128, 160)
-     */
-    public static calculateHandle(panel: Panel, centerDist: number = 128): Hardware[] {
-        const result: Hardware[] = [];
-        const centerX = panel.width / 2;
-        // Standard placement: 50mm from top edge for base units, or centered vertically for drawers
-        const y = panel.openingType === 'drawer' ? panel.height / 2 : panel.height - 50; 
-
-        result.push({
-            id: this.generateId(),
-            type: 'handle',
-            name: `Ручка ${centerDist}mm`,
-            x: centerX - (centerDist / 2),
-            y: y,
-            diameter: 5,
-            depth: panel.depth, // Through hole
-            isThrough: true,
-            price: 100
-        });
-
-        result.push({
-            id: this.generateId(),
-            type: 'handle',
-            name: `Ручка ${centerDist}mm`,
-            x: centerX + (centerDist / 2),
-            y: y,
-            diameter: 5,
-            depth: panel.depth,
-            isThrough: true,
-            price: 0 // Price included in first hole/handle object usually, but for drilling map we need holes
-        });
-
-        return result;
-    }
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
 }
