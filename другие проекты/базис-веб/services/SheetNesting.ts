@@ -1,6 +1,14 @@
 
-/* eslint-disable no-restricted-globals */
+import { Panel, Material } from '../types';
 
+export const SHEET_SIZES = [
+    { id: '2800x2070', w: 2800, h: 2070, label: 'Egger (2800x2070)' },
+    { id: '2440x1830', w: 2440, h: 1830, label: 'Standard (2440x1830)' },
+    { id: '2750x1830', w: 2750, h: 1830, label: 'Kronospan (2750x1830)' },
+];
+
+// Guillotine Packing Worker Code
+const WORKER_CODE = `
 const KERF = 3; // 3mm Saw Blade Width
 
 self.onmessage = (e) => {
@@ -24,7 +32,7 @@ self.onmessage = (e) => {
     self.postMessage(results);
 };
 
-function optimizeMaterialGroup(parts, sheetW, sheetH, trim, isTextureStrict, activeMatId) {
+function optimizeMaterialGroup(parts, sheetW, sheetH, trim, isTextureStrict, matId) {
     if (!parts || parts.length === 0) return [];
 
     // Strategies to try
@@ -49,9 +57,10 @@ function optimizeMaterialGroup(parts, sheetW, sheetH, trim, isTextureStrict, act
             watchdog++;
             if (watchdog > 500) { allPlaced = false; break; }
 
-            const sheetResult = packSingleSheet(sortedParts, sheetW, sheetH, trim, isTextureStrict, activeMatId);
+            const sheetResult = packSingleSheet(sortedParts, sheetW, sheetH, trim, isTextureStrict, matId);
             
             if (sheetResult.parts.length === 0 && sortedParts.some(p => !p.placed)) {
+                 // Cannot fit remaining parts
                  break;
             }
 
@@ -121,6 +130,7 @@ function packSingleSheet(partsList, sheetW, sheetH, trim, isTextureStrict, activ
         const wRem = r.w - usedW;
         const hRem = r.h - usedH;
         
+        // Split along shorter axis to maximize the other rectangle
         if (wRem > hRem) {
              if (hRem > 0) freeRects.push({ x: r.x, y: r.y + usedH + KERF, w: r.w, h: hRem - KERF });
              if (wRem > 0) freeRects.push({ x: r.x + usedW + KERF, y: r.y, w: wRem - KERF, h: usedH });
@@ -147,7 +157,7 @@ function packSingleSheet(partsList, sheetW, sheetH, trim, isTextureStrict, activ
                  x: r.x, y: r.y, w: placeW, h: placeH,
                  finishW: p.w, finishH: p.h,
                  rotated: rotated, materialId: activeMatId,
-                 layer: p.layer
+                 layer: p.layer // Keep layer info
              });
 
              splitFreeRect(index, placeW, placeH);
@@ -155,7 +165,32 @@ function packSingleSheet(partsList, sheetW, sheetH, trim, isTextureStrict, activ
          }
     }
     
+    // Cleanup tiny scraps
     freeRects = freeRects.filter(r => r.w > 50 && r.h > 50);
     
     return { parts: sheetParts, freeRects };
+}
+`;
+
+export class SheetNestingService {
+    
+    static createWorker(): Worker {
+        const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        const worker = new Worker(url);
+        // Clean up URL object when worker is terminated (handled by consumer)
+        return worker;
+    }
+
+    static generateCSV(sheets: any[], materialName: string): string {
+        let csv = `SheetID;Material;PanelID;Name;X;Y;Width;Height;Rotated\n`;
+        
+        sheets.forEach((sheet, idx) => {
+            sheet.parts.forEach((p: any) => {
+                csv += `${idx + 1};${materialName};${p.id};${p.name};${Math.round(p.x)};${Math.round(p.y)};${Math.round(p.w)};${Math.round(p.h)};${p.rotated ? 1 : 0}\n`;
+            });
+        });
+        
+        return csv;
+    }
 }
