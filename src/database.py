@@ -9,10 +9,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Get DATABASE_URL from environment, fail fast if not set in production
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://x0tta6bl4:x0tta6bl4_password@localhost:5432/x0tta6bl4"
+    "sqlite:///./x0tta6bl4.db"  # Development default only
 )
+
+# Validate that we're not using a hardcoded password in production
+if os.getenv("ENVIRONMENT") == "production" and "x0tta6bl4_password" in DATABASE_URL:
+    raise ValueError("⚠️ CRITICAL: Hardcoded database password detected in production. Use DATABASE_URL environment variable.")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
