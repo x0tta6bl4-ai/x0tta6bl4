@@ -1,0 +1,22 @@
+# Python 3.9+ зависимости для обучения Neural CAD модели
+
+# Основные библиотеки
+torch==2.0.0
+torchvision==0.15.0
+numpy==1.24.0
+scipy==1.10.0
+
+# ONNX экспорт
+onnx==1.14.0
+onnxruntime==1.15.0
+skl2onnx==1.13.2
+
+# Утилиты
+tqdm==4.65.0
+matplotlib==3.7.0
+scikit-image==0.20.0
+Pillow==9.5.0
+
+# Опционально для ускорения (GPU поддержка)
+# torch-cuda  # для NVIDIA
+# tensorflow==2.12.0  # альтернатива PyTorch

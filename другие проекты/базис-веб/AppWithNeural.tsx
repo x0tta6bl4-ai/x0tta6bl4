@@ -23,6 +23,7 @@ const Scene3DSimple = React.lazy(() => import('./components/Scene3DSimple'));
 const Scene3DBabylon = React.lazy(() => import('./components/Scene3DBabylon'));
 const NestingView = React.lazy(() => import('./components/NestingView'));
 const DrawingTab = React.lazy(() => import('./components/DrawingTab'));
+const NeuralGenerationPanel = React.lazy(() => import('./components/NeuralGenerationPanel'));
 
 // Static Views
 import { CabinetWizard } from './components/CabinetWizard';
@@ -38,6 +39,7 @@ enum ViewMode {
   DRAWING = 'drawing',
   NESTING = 'nesting',
   PRODUCTION = 'production',
+  NEURAL = 'neural',
 }
 
 const App: React.FC = () => {
@@ -82,12 +84,23 @@ const App: React.FC = () => {
         if (data.panels && data.panels.length > 0) {
           setPanels(data.panels);
           setProjectName(data.projectName);
-          setViewMode(ViewMode.DESIGN); // Auto-switch to design mode if panels exist
+          setViewMode(ViewMode.DESIGN);
         }
       } catch (e) {
         console.error('Failed to load saved project:', e);
       }
     }
+
+    // Listen for neural generation events
+    const handleNeuralGeneration = (event: CustomEvent) => {
+      const { geometry, parameters } = event.detail;
+      addToast(`✨ Neural generation: ${geometry.metrics.vertexCount} vertices`, 'success');
+    };
+
+    window.addEventListener('neural-cabinet-generated', handleNeuralGeneration as EventListener);
+    return () => {
+      window.removeEventListener('neural-cabinet-generated', handleNeuralGeneration as EventListener);
+    };
   }, []);
 
   // Auto-save
@@ -125,6 +138,10 @@ const App: React.FC = () => {
       } else if (e.key === 'Delete' && selectedPanelId) {
         e.preventDefault();
         deletePanel(selectedPanelId);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        // Ctrl+N for Neural generation view
+        e.preventDefault();
+        setViewMode(ViewMode.NEURAL);
       }
     };
 
@@ -192,23 +209,81 @@ const App: React.FC = () => {
           />
         }
         sidePanel={
-          <SidePanel
-            layers={layers}
-            panels={panels}
-            selectedPanelId={selectedPanelId}
-            onSelectPanel={selectPanel}
-            onToggleLayerVisibility={() => {}}
-            onToggleLayerLocked={() => {}}
-            onDeletePanel={deletePanel}
-            onRenamePanel={(id, name) => updatePanel(id, { name })}
-          />
+          <div className="flex flex-col gap-2 pb-4">
+            {/* View Mode Switcher */}
+            <div className="px-4 py-2 border-b border-slate-700">
+              <div className="text-xs font-semibold text-slate-400 mb-2">VIEW MODE</div>
+              <div className="space-y-1">
+                <button
+                  onClick={() => setViewMode(ViewMode.WIZARD)}
+                  className={`w-full px-3 py-1 rounded text-xs font-medium transition ${
+                    viewMode === ViewMode.WIZARD
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  📋 Wizard
+                </button>
+                <button
+                  onClick={() => setViewMode(ViewMode.DESIGN)}
+                  className={`w-full px-3 py-1 rounded text-xs font-medium transition ${
+                    viewMode === ViewMode.DESIGN
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ✏️ Design
+                </button>
+                <button
+                  onClick={() => setViewMode(ViewMode.NEURAL)}
+                  className={`w-full px-3 py-1 rounded text-xs font-medium transition ${
+                    viewMode === ViewMode.NEURAL
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                  title="Ctrl+N"
+                >
+                  ✨ Neural Gen
+                </button>
+              </div>
+            </div>
+
+            {/* Layers */}
+            {viewMode !== ViewMode.NEURAL && (
+              <SidePanel
+                layers={layers}
+                panels={panels}
+                selectedPanelId={selectedPanelId}
+                onSelectPanel={selectPanel}
+                onToggleLayerVisibility={() => {}}
+                onToggleLayerLocked={() => {}}
+                onDeletePanel={deletePanel}
+                onRenamePanel={(id, name) => updatePanel(id, { name })}
+              />
+            )}
+          </div>
         }
         rightPanel={
-          <PropertiesPanel
-            selectedPanel={selectedPanel}
-            onPanelUpdate={(id, changes) => updatePanel(id, changes)}
-            materials={MATERIAL_LIBRARY}
-          />
+          viewMode === ViewMode.NEURAL ? (
+            <Suspense
+              fallback={
+                <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                  <div className="text-center text-slate-400">
+                    <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                    <p className="text-sm">Loading Neural Generator...</p>
+                  </div>
+                </div>
+              }
+            >
+              <NeuralGenerationPanel />
+            </Suspense>
+          ) : (
+            <PropertiesPanel
+              selectedPanel={selectedPanel}
+              onPanelUpdate={(id, changes) => updatePanel(id, changes)}
+              materials={MATERIAL_LIBRARY}
+            />
+          )
         }
         mainContent={
           <ErrorBoundary>
@@ -229,15 +304,23 @@ const App: React.FC = () => {
               <div className="w-full h-full flex gap-0">
                 <div className="flex-1 relative">
                   {show3DView && (
-                    <Suspense fallback={
-                      <div className="w-full h-full flex items-center justify-center bg-slate-950">
-                        <div className="text-center text-slate-400">
-                          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                          <p className="text-sm">Loading 3D engine...</p>
+                    <Suspense
+                      fallback={
+                        <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                          <div className="text-center text-slate-400">
+                            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                            <p className="text-sm">Loading 3D engine...</p>
+                          </div>
                         </div>
-                      </div>
-                    }>
-                      {engine3D === 'babylon' ? <Scene3DBabylon /> : engine3D === 'three' ? <Scene3D /> : <Scene3DSimple />}
+                      }
+                    >
+                      {engine3D === 'babylon' ? (
+                        <Scene3DBabylon />
+                      ) : engine3D === 'three' ? (
+                        <Scene3D />
+                      ) : (
+                        <Scene3DSimple />
+                      )}
                     </Suspense>
                   )}
 
@@ -245,19 +328,31 @@ const App: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEngine3D('simple')}
-                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${engine3D === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${
+                          engine3D === 'simple'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300'
+                        }`}
                       >
                         Simple
                       </button>
                       <button
                         onClick={() => setEngine3D('three')}
-                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${engine3D === 'three' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${
+                          engine3D === 'three'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300'
+                        }`}
                       >
                         Three.js
                       </button>
                       <button
                         onClick={() => setEngine3D('babylon')}
-                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${engine3D === 'babylon' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+                        className={`px-3 py-2 text-xs rounded-lg font-semibold ${
+                          engine3D === 'babylon'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300'
+                        }`}
                       >
                         Babylon.js
                       </button>
@@ -286,40 +381,63 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {viewMode === ViewMode.NEURAL && (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 p-8">
+                <Suspense
+                  fallback={
+                    <div className="text-center text-slate-400">
+                      <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-sm">Loading Neural Generator...</p>
+                    </div>
+                  }
+                >
+                  <NeuralGenerationPanel />
+                </Suspense>
+              </div>
+            )}
+
             {viewMode === ViewMode.NESTING && (
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-slate-950">
-                  <div className="text-center text-slate-400">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    <p className="text-sm">Loading nesting module...</p>
+              <Suspense
+                fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                    <div className="text-center text-slate-400">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                      <p className="text-sm">Loading nesting module...</p>
+                    </div>
                   </div>
-                </div>
-              }>
+                }
+              >
                 <NestingView materialLibrary={MATERIAL_LIBRARY} />
               </Suspense>
             )}
 
             {viewMode === ViewMode.DRAWING && (
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-slate-950">
-                  <div className="text-center text-slate-400">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    <p className="text-sm">Loading drawing module...</p>
+              <Suspense
+                fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                    <div className="text-center text-slate-400">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                      <p className="text-sm">Loading drawing module...</p>
+                    </div>
                   </div>
-                </div>
-              }>
+                }
+              >
                 <DrawingTab />
               </Suspense>
             )}
 
-            {viewMode !== ViewMode.DESIGN && viewMode !== ViewMode.WIZARD && viewMode !== ViewMode.NESTING && viewMode !== ViewMode.DRAWING && (
-              <div className="w-full h-full flex items-center justify-center bg-slate-950">
-                <div className="text-center text-slate-400">
-                  <h2 className="text-xl font-bold mb-2">Coming soon</h2>
-                  <p className="text-sm">{viewMode} mode</p>
+            {viewMode !== ViewMode.DESIGN &&
+              viewMode !== ViewMode.WIZARD &&
+              viewMode !== ViewMode.NESTING &&
+              viewMode !== ViewMode.DRAWING &&
+              viewMode !== ViewMode.NEURAL && (
+                <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                  <div className="text-center text-slate-400">
+                    <h2 className="text-xl font-bold mb-2">Coming soon</h2>
+                    <p className="text-sm">{viewMode} mode</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </ErrorBoundary>
         }
         statusBar={
