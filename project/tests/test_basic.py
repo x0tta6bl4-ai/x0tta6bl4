@@ -11,14 +11,10 @@ class TestBasic:
         assert fastapi.__version__
     
     def test_import_src(self):
-        """src modules can be imported"""
-        try:
-            from src.core import app
-            assert app
-        except ImportError:
-            # Alternative path
-            from core import app
-            assert app
+        """src.core.app should be importable"""
+        from src.core.app import app
+        assert app is not None
+        assert hasattr(app, 'routes')
     
     def test_python_version(self):
         """Python >= 3.10"""
