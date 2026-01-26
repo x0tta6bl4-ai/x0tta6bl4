@@ -28,7 +28,7 @@ class TestLibOQSBackend:
     
     def test_kem_keypair_generation(self):
         """Test KEM keypair generation."""
-        backend = LibOQSBackend(kem_algorithm="Kyber768")
+        backend = LibOQSBackend(kem_algorithm="ML-KEM-768")
         keypair = backend.generate_kem_keypair()
         
         assert keypair.public_key
@@ -39,7 +39,7 @@ class TestLibOQSBackend:
     
     def test_kem_encapsulate_decapsulate(self):
         """Test KEM encapsulation/decapsulation."""
-        backend = LibOQSBackend(kem_algorithm="Kyber768")
+        backend = LibOQSBackend(kem_algorithm="ML-KEM-768")
         
         # Generate keypair
         keypair = backend.generate_kem_keypair()
@@ -53,14 +53,14 @@ class TestLibOQSBackend:
         assert len(ciphertext) > 0
         
         # Decapsulate
-        shared_secret_dec = backend.kem_decapsulate(ciphertext, keypair.private_key)
+        shared_secret_dec = backend.kem_decapsulate(keypair.private_key, ciphertext)
         
         # Should match
         assert shared_secret_enc == shared_secret_dec
     
     def test_signature_keypair_generation(self):
         """Test signature keypair generation."""
-        backend = LibOQSBackend(sig_algorithm="Dilithium3")
+        backend = LibOQSBackend(sig_algorithm="ML-DSA-65")
         keypair = backend.generate_signature_keypair()
         
         assert keypair.public_key
@@ -70,25 +70,25 @@ class TestLibOQSBackend:
     
     def test_sign_verify(self):
         """Test digital signature sign/verify."""
-        backend = LibOQSBackend(sig_algorithm="Dilithium3")
+        backend = LibOQSBackend(sig_algorithm="ML-DSA-65")
         
         # Generate keypair
         keypair = backend.generate_signature_keypair()
         
         # Sign message
         message = b"Hello, quantum-safe world!"
-        signature = backend.sign(message, keypair.private_key)
+        signature = backend.sign(keypair.private_key, message)
         
         assert signature
         assert len(signature) > 0
         
         # Verify signature
-        is_valid = backend.verify(message, signature, keypair.public_key)
+        is_valid = backend.verify(keypair.public_key, message, signature)
         assert is_valid
         
         # Verify with wrong message (should fail)
         wrong_message = b"Hello, insecure world!"
-        is_invalid = backend.verify(wrong_message, signature, keypair.public_key)
+        is_invalid = backend.verify(keypair.public_key, wrong_message, signature)
         assert not is_invalid
 
 
@@ -98,19 +98,17 @@ class TestHybridPQEncryption:
     
     def test_hybrid_keypair_generation(self):
         """Test hybrid keypair generation."""
-        hybrid = HybridPQEncryption(kem_algorithm="Kyber768")
+        hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
         keypair = hybrid.generate_hybrid_keypair()
         
         assert "pq" in keypair
         assert "classical" in keypair
-        assert "pq" in keypair["pq"]
-        assert "classical" in keypair["classical"]
         assert "public_key" in keypair["pq"]
         assert "private_key" in keypair["pq"]
     
     def test_hybrid_encapsulate_decapsulate(self):
         """Test hybrid encapsulation/decapsulation."""
-        hybrid = HybridPQEncryption(kem_algorithm="Kyber768")
+        hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
         
         # Generate keypairs for two parties
         alice_keypair = hybrid.generate_hybrid_keypair()
@@ -118,8 +116,8 @@ class TestHybridPQEncryption:
         
         # Alice encapsulates to Bob
         combined_secret_enc, ciphertexts = hybrid.hybrid_encapsulate(
-            bytes.fromhex(alice_keypair["pq"]["public_key"]),
-            bytes.fromhex(alice_keypair["classical"]["public_key"])
+            bytes.fromhex(bob_keypair["pq"]["public_key"]),
+            bytes.fromhex(bob_keypair["classical"]["public_key"])
         )
         
         assert combined_secret_enc
@@ -133,9 +131,8 @@ class TestHybridPQEncryption:
             bytes.fromhex(bob_keypair["classical"]["private_key"])
         )
         
-        # Note: This won't match because we're using different keypairs
-        # In real usage, Bob would use Alice's public key for encapsulation
-        # This test just verifies the API works
+        # Should match because we used Bob's public key for encapsulation
+        assert combined_secret_enc == combined_secret_dec
 
 
 @pytest.mark.skipif(not LIBOQS_AVAILABLE, reason="liboqs-python not installed")
@@ -144,7 +141,7 @@ class TestPQMeshSecurityLibOQS:
     
     def test_initialization(self):
         """Test PQ mesh security initialization."""
-        mesh_sec = PQMeshSecurityLibOQS("node-1", kem_algorithm="Kyber768", sig_algorithm="Dilithium3")
+        mesh_sec = PQMeshSecurityLibOQS("node-1", kem_algorithm="ML-KEM-768", sig_algorithm="ML-DSA-65")
         
         assert mesh_sec.node_id == "node-1"
         assert mesh_sec.kem_keypair

@@ -20,9 +20,9 @@ def adapter():
 
 @pytest.fixture
 def kyber_keypair():
-    """Фикстура для генерации пары ключей Kyber."""
+    """Фикстура для генерации пары ключей Kyber/ML-KEM."""
     if HAS_KEYENCAPSULATION:
-        with oqs.KeyEncapsulation("Kyber768") as kem:
+        with oqs.KeyEncapsulation("ML-KEM-768") as kem:
             public_key = kem.generate_keypair()
             private_key = kem.export_secret_key()
             return public_key, private_key
@@ -32,9 +32,9 @@ def kyber_keypair():
 
 @pytest.fixture
 def dilithium_keypair():
-    """Фикстура для генерации пары ключей Dilithium."""
+    """Фикстура для генерации пары ключей Dilithium/ML-DSA."""
     if HAS_SIGNATURE:
-        with oqs.Signature("ML-DSA-87") as sig:
+        with oqs.Signature("ML-DSA-65") as sig:
             public_key = sig.generate_keypair()
             private_key = sig.export_secret_key()
             return public_key, private_key
@@ -47,14 +47,14 @@ class TestPQCAdapter:
 
     def test_init_default_algorithms(self, adapter):
         """Проверяет инициализацию с алгоритмами по умолчанию."""
-        assert adapter.kem_alg == "Kyber768"
-        assert adapter.sig_alg == "ML-DSA-87"
+        assert adapter.kem_alg == "ML-KEM-768"
+        assert adapter.sig_alg == "ML-DSA-65"
 
     def test_init_specified_algorithms(self):
         """Проверяет инициализацию с указанными алгоритмами."""
-        adapter = PQCAdapter(kem_alg="Kyber512", sig_alg="ML-DSA-65")
-        assert adapter.kem_alg == "Kyber512"
-        assert adapter.sig_alg == "ML-DSA-65"
+        adapter = PQCAdapter(kem_alg="ML-KEM-512", sig_alg="ML-DSA-44")
+        assert adapter.kem_alg == "ML-KEM-512"
+        assert adapter.sig_alg == "ML-DSA-44"
 
     def test_init_unsupported_kem_algorithm_raises_error(self):
         """Проверяет, что неподдерживаемый KEM-алгоритм вызывает RuntimeError."""

@@ -30,8 +30,9 @@ def mock_oqs_key_encapsulation():
     with patch('src.security.pqc.pqc_adapter.oqs.KeyEncapsulation') as mock_kem:
         mock_kem_instance = MagicMock()
         mock_kem_instance.generate_keypair.return_value = (b"mock_public_key", b"mock_private_key")
-        mock_kem_instance.encap_secret.return_value = (b"mock_ciphertext", b"mock_shared_secret_sender")
-        mock_kem_instance.decap_secret.return_value = b"mock_shared_secret_receiver"
+        shared_secret = b"mock_shared_secret"
+        mock_kem_instance.encap_secret.return_value = (b"mock_ciphertext", shared_secret)
+        mock_kem_instance.decap_secret.return_value = shared_secret
         mock_kem.return_value.__enter__.return_value = mock_kem_instance
         yield mock_kem_instance
 
@@ -52,16 +53,16 @@ def mock_oqs_signature():
 def test_handshake_agreement(mock_oqs_key_encapsulation, mock_oqs_signature):
     client = HybridTLSContext("client")
     server = HybridTLSContext("server")
-    session_key = hybrid_handshake(client, server)
+    client_session_key, server_session_key = hybrid_handshake(client, server)
 
-    assert client.session_key == server.session_key == session_key
+    assert client.session_key == server.session_key == client_session_key == server_session_key
 
 
 @pytest.mark.skipif(not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available")
 def test_encrypt_decrypt_roundtrip(mock_oqs_key_encapsulation, mock_oqs_signature):
     client = HybridTLSContext("client")
     server = HybridTLSContext("server")
-    session_key = hybrid_handshake(client, server)
+    session_key, _ = hybrid_handshake(client, server)
 
     payloads = [
         b"mesh heartbeat",
@@ -87,7 +88,7 @@ def test_mesh_heartbeat_report_generation(tmp_path, mock_oqs_key_encapsulation, 
     report_path = tmp_path / "hybrid_tls_report.json"
     report = generate_report(path=str(report_path))
 
-    assert report["test"] == "Hybrid TLS (ECDHE + Kyber)"
+    assert report["test"] == "Hybrid TLS (ECDHE + Kyber + Dilithium)"
     assert report["results"]["handshake"] == "✓ PASS"
     assert isinstance(report["results"]["handshake_ms"], float)
 
