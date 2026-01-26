@@ -312,7 +312,7 @@ def record_key_rotation_failure(reason: str):
             if loop.is_running():
                 asyncio.create_task(alert_manager.send_alert(
                     "PQC_KEY_ROTATION_FAILURE",
-                    AlertSeverity.HIGH,
+                    AlertSeverity.ERROR,
                     f"PQC key rotation failed: {reason}",
                     labels={"reason": reason, "component": "pqc_security"},
                     annotations={
@@ -323,7 +323,7 @@ def record_key_rotation_failure(reason: str):
             else:
                 loop.run_until_complete(alert_manager.send_alert(
                     "PQC_KEY_ROTATION_FAILURE",
-                    AlertSeverity.HIGH,
+                    AlertSeverity.ERROR,
                     f"PQC key rotation failed: {reason}",
                     labels={"reason": reason, "component": "pqc_security"},
                     annotations={
@@ -335,7 +335,7 @@ def record_key_rotation_failure(reason: str):
             # No event loop, create new one
             asyncio.run(alert_manager.send_alert(
                 "PQC_KEY_ROTATION_FAILURE",
-                AlertSeverity.HIGH,
+                AlertSeverity.ERROR,
                 f"PQC key rotation failed: {reason}",
                 labels={"reason": reason, "component": "pqc_security"},
                 annotations={

@@ -20,32 +20,47 @@ except ImportError:
 class TestPQCFuzzing:
     """Fuzzing tests for PQC implementation"""
     
-    def test_zero_length_message(self):
+    @pytest.mark.asyncio
+    async def test_zero_length_message(self):
         """Test encryption/decryption of zero-length message"""
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
         
         # Zero-length message
         plaintext = b""
-        ciphertext = security.encrypt(plaintext, "target-node")
-        decrypted = security.decrypt(ciphertext, "source-node")
+        ciphertext = security.encrypt_for_peer("target-node", plaintext)
+        decrypted = security.decrypt_from_peer("target-node", ciphertext)
         
         assert decrypted == plaintext
     
-    def test_maximum_size_message(self):
+    @pytest.mark.asyncio
+    async def test_maximum_size_message(self):
         """Test encryption/decryption of maximum size message"""
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
         
         # Large message (1MB)
         plaintext = b"x" * (1024 * 1024)
-        ciphertext = security.encrypt(plaintext, "target-node")
-        decrypted = security.decrypt(ciphertext, "source-node")
+        ciphertext = security.encrypt_for_peer("target-node", plaintext)
+        decrypted = security.decrypt_from_peer("target-node", ciphertext)
         
         assert decrypted == plaintext
         assert len(ciphertext) > len(plaintext)  # Ciphertext should be larger
     
-    def test_malformed_ciphertext(self):
+    @pytest.mark.asyncio
+    async def test_malformed_ciphertext(self):
         """Test handling of malformed ciphertext"""
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
         
         # Malformed ciphertexts
         malformed_inputs = [
@@ -58,19 +73,25 @@ class TestPQCFuzzing:
         
         for malformed in malformed_inputs:
             with pytest.raises((ValueError, Exception)):
-                security.decrypt(malformed, "source-node")
+                security.decrypt_from_peer("target-node", malformed)
     
-    def test_concurrent_encryption(self):
+    @pytest.mark.asyncio
+    async def test_concurrent_encryption(self):
         """Test concurrent encryption operations"""
         import threading
         
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
+        
         results = []
         errors = []
         
         def encrypt_worker(data: bytes, target: str):
             try:
-                ciphertext = security.encrypt(data, target)
+                ciphertext = security.encrypt_for_peer(target, data)
                 results.append(len(ciphertext))
             except Exception as e:
                 errors.append(e)
@@ -105,21 +126,26 @@ class TestPQCFuzzing:
         
         for invalid_id in invalid_ids:
             with pytest.raises((ValueError, TypeError)):
-                security.encrypt(plaintext, invalid_id)
+                security.encrypt_for_peer(invalid_id, plaintext)
     
-    def test_timing_attack_resistance(self):
+    @pytest.mark.asyncio
+    async def test_timing_attack_resistance(self):
         """Test that encryption/decryption timing is consistent"""
         import time
         
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
         
         # Measure timing for different message sizes
         timings = []
         for size in [10, 100, 1000, 10000]:
             data = b"x" * size
             start = time.perf_counter()
-            ciphertext = security.encrypt(data, "target-node")
-            security.decrypt(ciphertext, "source-node")
+            ciphertext = security.encrypt_for_peer("target-node", data)
+            security.decrypt_from_peer("target-node", ciphertext)
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
         
@@ -127,7 +153,8 @@ class TestPQCFuzzing:
         # Small messages should be faster than large ones
         assert timings[0] < timings[-1]
     
-    def test_key_regeneration(self):
+    @pytest.mark.asyncio
+    async def test_key_regeneration(self):
         """Test that keys are regenerated correctly"""
         security1 = PQMeshSecurityLibOQS("node-1")
         security2 = PQMeshSecurityLibOQS("node-2")
@@ -136,12 +163,17 @@ class TestPQCFuzzing:
         security3 = PQMeshSecurityLibOQS("node-1")
         
         plaintext = b"test data"
-        ciphertext1 = security1.encrypt(plaintext, "target")
-        ciphertext2 = security3.encrypt(plaintext, "target")
+        
+        # Establish secure channels
+        await security1.establish_secure_channel("target", security2.get_public_keys())
+        await security3.establish_secure_channel("target", security2.get_public_keys())
+        
+        ciphertext1 = security1.encrypt_for_peer("target", plaintext)
+        ciphertext2 = security3.encrypt_for_peer("target", plaintext)
         
         # Should be able to decrypt with same node
-        decrypted1 = security1.decrypt(ciphertext1, "target")
-        decrypted2 = security3.decrypt(ciphertext2, "target")
+        decrypted1 = security1.decrypt_from_peer("target", ciphertext1)
+        decrypted2 = security3.decrypt_from_peer("target", ciphertext2)
         
         assert decrypted1 == plaintext
         assert decrypted2 == plaintext
@@ -156,30 +188,34 @@ class TestPQCSecurityBoundaries:
         security = PQMeshSecurityLibOQS("test-node")
         
         message = b"test message"
-        signature = security.sign(message)
+        signature = security.sign_beacon(message)
         
         # Signature should be verifiable
-        assert security.verify(message, signature, "test-node")
+        assert security.verify_beacon(message, signature, security.sig_keypair.public_key)
         
         # Modified message should fail
-        assert not security.verify(b"modified", signature, "test-node")
+        assert not security.verify_beacon(b"modified", signature, security.sig_keypair.public_key)
     
     def test_empty_signature(self):
         """Test handling of empty signature"""
         security = PQMeshSecurityLibOQS("test-node")
         
         message = b"test"
-        with pytest.raises((ValueError, Exception)):
-            security.verify(message, b"", "test-node")
+        assert not security.verify_beacon(message, b"", security.sig_keypair.public_key)
     
-    def test_memory_exhaustion_protection(self):
+    @pytest.mark.asyncio
+    async def test_memory_exhaustion_protection(self):
         """Test protection against memory exhaustion attacks"""
         security = PQMeshSecurityLibOQS("test-node")
+        target_security = PQMeshSecurityLibOQS("target-node")
+        
+        # Establish secure channel
+        await security.establish_secure_channel("target-node", target_security.get_public_keys())
         
         # Very large message (should be rejected or handled gracefully)
         try:
             huge_message = b"x" * (100 * 1024 * 1024)  # 100MB
-            ciphertext = security.encrypt(huge_message, "target-node")
+            ciphertext = security.encrypt_for_peer("target-node", huge_message)
             # Should either succeed or fail gracefully
             assert len(ciphertext) > 0 or True  # Accept both outcomes
         except (MemoryError, ValueError) as e:

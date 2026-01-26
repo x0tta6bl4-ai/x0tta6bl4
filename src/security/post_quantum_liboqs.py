@@ -368,7 +368,7 @@ class HybridPQEncryption:
             combined_secret
         """
         # PQ decapsulation
-        pq_secret = self.pq_backend.kem_decapsulate(ciphertexts["pq"], pq_private_key)
+        pq_secret = self.pq_backend.kem_decapsulate(pq_private_key, ciphertexts["pq"])
         
         # Classical decapsulation
         import hashlib
@@ -490,7 +490,7 @@ class PQMeshSecurityLibOQS:
         Returns:
             Цифровая подпись
         """
-        signature = self.pq_backend.sign(beacon_data, self.sig_keypair.private_key)
+        signature = self.pq_backend.sign(self.sig_keypair.private_key, beacon_data)
         return signature
     
     def verify_beacon(self, beacon_data: bytes, signature: bytes, peer_public_key: bytes) -> bool:
@@ -505,7 +505,7 @@ class PQMeshSecurityLibOQS:
         Returns:
             True если подпись валидна
         """
-        is_valid = self.pq_backend.verify(beacon_data, signature, peer_public_key)
+        is_valid = self.pq_backend.verify(peer_public_key, beacon_data, signature)
         return is_valid
     
     def encrypt_for_peer(self, peer_id: str, plaintext: bytes) -> bytes:
