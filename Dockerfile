@@ -3,7 +3,7 @@ FROM python:3.11-slim as builder
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
-LABEL version="3.4.0"
+LABEL version="3.2.0"
 LABEL description="Self-healing mesh network with post-quantum cryptography"
 
 # Environment variables
@@ -40,23 +40,23 @@ RUN git clone --depth 1 --branch 0.14.0 https://github.com/open-quantum-safe/lib
 # Copy requirements files
 COPY requirements.txt .
 COPY requirements-dev.txt .
+COPY requirements.min.txt .
 
 # Install Python dependencies (including dev dependencies for potential testing in this stage)
-RUN pip install torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu && \
-    pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.9.0+cpu.html
+# Skip torch-geometric dependencies for now
 
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
+    pip install -r requirements.min.txt && \
     pip install -r requirements-dev.txt
 
-RUN pip wheel --wheel-dir=/wheelhouse -r requirements.txt -r requirements-dev.txt
+RUN pip wheel --wheel-dir=/wheelhouse -r requirements.min.txt -r requirements-dev.txt
 
 # Stage 2: Production
 FROM python:3.11-slim as production
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
-LABEL version="3.4.0"
+LABEL version="3.2.0"
 LABEL description="Self-healing mesh network with post-quantum cryptography"
 
 # Environment variables
@@ -82,9 +82,9 @@ WORKDIR /app
 
 # Copy only production dependencies from builder stage
 COPY --from=builder /wheelhouse /wheelhouse
-COPY requirements.txt .
-RUN pip install --no-index --find-links=/wheelhouse -r requirements.txt
-COPY requirements.txt .
+COPY requirements.min.txt .
+RUN pip install --no-index --find-links=/wheelhouse -r requirements.min.txt
+COPY requirements.min.txt .
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src

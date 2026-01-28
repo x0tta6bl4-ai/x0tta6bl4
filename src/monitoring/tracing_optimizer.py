@@ -98,7 +98,7 @@ class SamplingCalculator:
         elif strategy == SamplingStrategy.NONE:
             return False
         elif strategy == SamplingStrategy.RANDOM:
-            hash_val = int(hashlib.md5(trace_id.encode()).hexdigest(), 16)
+            hash_val = int(hashlib.sha256(trace_id.encode()).hexdigest(), 16)
             return (hash_val % 100) < (self.default_rate * 100)
         elif strategy == SamplingStrategy.ERROR_BASED:
             return has_error

@@ -55,7 +55,7 @@ class RoutingPacket:
     
     def __post_init__(self):
         if not self.packet_id:
-            self.packet_id = hashlib.md5(
+            self.packet_id = hashlib.sha256(
                 f"{self.source}{self.destination}{self.seq_num}{time.time()}".encode()
             ).hexdigest()[:16]
     

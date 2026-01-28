@@ -77,6 +77,25 @@ class GovernanceMetrics:
     timestamp: datetime
 
 
+@dataclass
+class SimpleLogisticModel:
+    """Minimal JSON-serializable logistic model for safe loading."""
+    weights: List[float]
+    bias: float = 0.0
+
+    def _score(self, features: List[float]) -> float:
+        if len(features) != len(self.weights):
+            raise ValueError("Feature length does not match model weights")
+        z = sum(w * x for w, x in zip(self.weights, features)) + self.bias
+        return 1.0 / (1.0 + pow(2.718281828, -z))
+
+    def predict(self, features_batch: List[List[float]]) -> List[int]:
+        return [1 if self._score(features) >= 0.5 else 0 for features in features_batch]
+
+    def predict_proba(self, features_batch: List[List[float]]) -> List[List[float]]:
+        return [[1.0 - self._score(features), self._score(features)] for features in features_batch]
+
+
 class GovernanceOracle(ABC):
     """Base class for governance decision oracles"""
 
@@ -114,10 +133,25 @@ class MLBasedGovernanceOracle(GovernanceOracle):
     def _load_model(self):
         """Load ML model for governance decisions"""
         try:
-            import pickle
-            with open(self.model_path, 'rb') as f:
-                self.model = pickle.load(f)
-            logger.info(f"Loaded governance ML model from {self.model_path}")
+            if not self.model_path or not self.model_path.endswith(".json"):
+                raise ValueError("Model path must point to a JSON model file")
+
+            with open(self.model_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            model_type = data.get("type")
+            if model_type != "logistic":
+                raise ValueError(f"Unsupported model type: {model_type}")
+
+            weights = data.get("weights", [])
+            if not weights:
+                raise ValueError("Model weights missing")
+
+            self.model = SimpleLogisticModel(
+                weights=[float(w) for w in weights],
+                bias=float(data.get("bias", 0.0)),
+            )
+            logger.info(f"Loaded governance JSON model from {self.model_path}")
         except Exception as e:
             logger.warning(f"Failed to load governance model: {e}")
 

@@ -4,11 +4,15 @@ Experimental VPN API Endpoints
 REST API endpoints for experimental VPN configuration and management.
 These endpoints use optimized parameters to bypass current blocking techniques.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Header, status, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 import logging
 import os
+import hmac
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -17,6 +21,16 @@ from new_vpn_config_generator import generate_vless_link, generate_config_text
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vpn/experimental", tags=["vpn-experimental"])
+limiter = Limiter(key_func=get_remote_address)
+
+
+async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
+    """Verify admin token for protected endpoints"""
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Admin token not configured")
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
 class VPNConfigRequest(BaseModel):
@@ -43,7 +57,9 @@ class VPNStatusResponse(BaseModel):
 
 
 @router.get("/config")
+@limiter.limit("30/minute")
 async def get_vpn_config(
+    request: Request,
     user_id: int,
     username: Optional[str] = None,
     server: Optional[str] = None,
@@ -90,8 +106,10 @@ async def get_vpn_config(
 
 
 @router.post("/config")
+@limiter.limit("30/minute")
 async def create_vpn_config(
-    request: VPNConfigRequest
+    request: Request,
+    config_request: VPNConfigRequest
 ) -> VPNConfigResponse:
     """
     Create experimental VPN configuration for a user.
@@ -103,15 +121,16 @@ async def create_vpn_config(
         VPN configuration with VLESS link and detailed instructions
     """
     return await get_vpn_config(
-        user_id=request.user_id,
-        username=request.username,
-        server=request.server,
-        port=request.port
+        user_id=config_request.user_id,
+        username=config_request.username,
+        server=config_request.server,
+        port=config_request.port
     )
 
 
 @router.get("/status")
-async def get_vpn_status() -> VPNStatusResponse:
+@limiter.limit("60/minute")
+async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     Get experimental VPN server status.
     
@@ -153,7 +172,8 @@ async def get_vpn_status() -> VPNStatusResponse:
 
 
 @router.get("/users")
-async def get_vpn_users() -> Dict[str, Any]:
+@limiter.limit("10/minute")
+async def get_vpn_users(request: Request, admin=Depends(verify_admin_token)) -> Dict[str, Any]:
     """
     Get list of active VPN users for experimental config.
     
@@ -177,8 +197,11 @@ async def get_vpn_users() -> Dict[str, Any]:
 
 
 @router.delete("/user/{user_id}")
+@limiter.limit("5/minute")
 async def delete_vpn_user(
-    user_id: int
+    request: Request,
+    user_id: int,
+    admin=Depends(verify_admin_token)
 ) -> Dict[str, Any]:
     """
     Delete experimental VPN user.

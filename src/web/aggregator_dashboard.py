@@ -1,10 +1,13 @@
 import requests
 from flask import Flask, jsonify
 from concurrent.futures import ThreadPoolExecutor
+from typing import List, Dict, Optional, Any
 import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY') or os.urandom(32)
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY is required for session security")
 
 NODES: List[Dict[str, str]] = [
     {"name": "Local (Germany)", "url": "http://127.0.0.1:8080"},

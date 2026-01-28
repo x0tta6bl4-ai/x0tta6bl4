@@ -135,7 +135,7 @@ class PasswordMigrator:
         if not self.is_md5_hash(md5_hash):
             return False
         
-        computed_md5 = hashlib.md5(plaintext.encode()).hexdigest()
+        computed_md5 = hashlib.md5(plaintext.encode(), usedforsecurity=False).hexdigest()
         return computed_md5 == md5_hash.lower()
     
     def verify_legacy_or_bcrypt(self, plaintext: str, stored_hash: str) -> Tuple[bool, bool]:

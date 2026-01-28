@@ -77,7 +77,7 @@ class IncidentEvent:
     def get_fingerprint(self) -> str:
         """Get incident fingerprint for deduplication"""
         key = f"{self.node_id}:{self.anomaly_type}:{self.severity.value}"
-        return hashlib.md5(key.encode()).hexdigest()[:12]
+        return hashlib.sha256(key.encode()).hexdigest()[:12]
 
 
 @dataclass

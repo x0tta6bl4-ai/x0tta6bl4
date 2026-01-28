@@ -55,7 +55,7 @@ class QueryNormalizer:
         """Generate cache key from query"""
         normalized = QueryNormalizer.normalize(query)
         key = f"{normalized}:k{k}"
-        return hashlib.md5(key.encode()).hexdigest()
+        return hashlib.sha256(key.encode()).hexdigest()
 
 
 class SemanticIndexer:

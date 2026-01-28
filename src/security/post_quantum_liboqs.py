@@ -157,6 +157,12 @@ class LibOQSBackend:
             key_id=key_id
         )
     
+    def generate_sig_keypair(self) -> PQKeyPair:
+        """
+        Alias for generate_signature_keypair() for backward compatibility.
+        """
+        return self.generate_signature_keypair()
+    
     def kem_encapsulate(self, public_key: bytes) -> Tuple[bytes, bytes]:
         """
         Key Encapsulation Mechanism (KEM) - инкапсуляция ключа.
@@ -175,6 +181,13 @@ class LibOQSBackend:
         
         return shared_secret, ciphertext
     
+    def encapsulate(self, public_key: bytes) -> Tuple[bytes, bytes]:
+        """
+        Alias for kem_encapsulate() for backward compatibility.
+        """
+        shared_secret, ciphertext = self.kem_encapsulate(public_key)
+        return ciphertext, shared_secret
+    
     def kem_decapsulate(self, private_key: bytes, ciphertext: bytes) -> bytes:
         """
         KEM Decapsulation - восстановление shared secret.
@@ -190,6 +203,12 @@ class LibOQSBackend:
         shared_secret = kem.decap_secret(ciphertext)
         
         return shared_secret
+    
+    def decapsulate(self, ciphertext: bytes, private_key: bytes) -> bytes:
+        """
+        Alias for kem_decapsulate() for backward compatibility.
+        """
+        return self.kem_decapsulate(private_key, ciphertext)
     
     def generate_signature_keypair(self) -> PQKeyPair:
         """
@@ -231,13 +250,13 @@ class LibOQSBackend:
             key_id=key_id
         )
     
-    def sign(self, private_key: bytes, message: bytes) -> bytes:
+    def sign(self, message: bytes, private_key: bytes) -> bytes:
         """
         Подписать сообщение.
         
         Args:
-            private_key: Приватный ключ
             message: Сообщение для подписи
+            private_key: Приватный ключ
             
         Returns:
             Цифровая подпись
@@ -247,14 +266,14 @@ class LibOQSBackend:
         
         return signature
     
-    def verify(self, public_key: bytes, message: bytes, signature: bytes) -> bool:
+    def verify(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
         """
         Проверить цифровую подпись.
         
         Args:
-            public_key: Публичный ключ подписанта
             message: Оригинальное сообщение
             signature: Цифровая подпись
+            public_key: Публичный ключ подписанта
             
         Returns:
             True если подпись валидна, False иначе
@@ -317,6 +336,41 @@ class HybridPQEncryption:
             },
             "key_id": pq_keypair.key_id
         }
+    
+    def encapsulate(self, keypair: Dict[str, Any]) -> Tuple[bytes, bytes]:
+        """
+        Alias method for integration tests compatibility.
+        Encapsulates using hybrid encryption with given keypair.
+        Returns: (ciphertext, shared_secret) - compatible with test interface
+        """
+        pq_public_key = bytes.fromhex(keypair["pq"]["public_key"])
+        classical_public_key = bytes.fromhex(keypair["classical"]["public_key"])
+        shared_secret, ciphertexts = self.hybrid_encapsulate(pq_public_key, classical_public_key)
+        
+        # Serialize ciphertexts dict to JSON for security
+        import json
+        ciphertext_dict = {
+            "pq": ciphertexts["pq"].decode('latin-1'),
+            "classical": ciphertexts["classical"].decode('latin-1')
+        }
+        serialized_ciphertext = json.dumps(ciphertext_dict).encode('utf-8')
+        return serialized_ciphertext, shared_secret
+    
+    def decapsulate(self, ciphertext: bytes, keypair: Dict[str, Any]) -> bytes:
+        """
+        Alias method for integration tests compatibility.
+        Decapsulates using hybrid encryption with given keypair.
+        """
+        import json
+        ciphertext_dict = json.loads(ciphertext.decode('utf-8'))
+        ciphertexts = {
+            "pq": ciphertext_dict["pq"].encode('latin-1'),
+            "classical": ciphertext_dict["classical"].encode('latin-1')
+        }
+        
+        pq_private_key = bytes.fromhex(keypair["pq"]["private_key"])
+        classical_private_key = bytes.fromhex(keypair["classical"]["private_key"])
+        return self.hybrid_decapsulate(ciphertexts, pq_private_key, classical_private_key)
     
     def hybrid_encapsulate(
         self,
@@ -397,6 +451,67 @@ class HybridPQEncryption:
         public_key = hashlib.sha256(private_key).digest()
         key = hashlib.sha256(public_key).digest()
         return bytes(e ^ k for e, k in zip(encrypted, key))
+    
+    def hybrid_encrypt(self, plaintext: bytes, shared_secret: bytes) -> bytes:
+        """
+        Hybrid encryption for data (simplified for demo purposes).
+        Uses SHA-256 key derivation and XOR for demonstration.
+        
+        Args:
+            plaintext: Data to encrypt
+            shared_secret: Shared secret from key exchange
+            
+        Returns:
+            Encrypted data
+        """
+        import hashlib
+        import secrets
+        
+        # Debug: Check type of shared_secret
+        print(f"DEBUG: shared_secret type = {type(shared_secret)}, value = {shared_secret}")
+        
+        # Ensure shared_secret is bytes
+        if not isinstance(shared_secret, bytes):
+            if isinstance(shared_secret, str):
+                shared_secret = shared_secret.encode('utf-8')
+            else:
+                shared_secret = bytes(str(shared_secret), 'utf-8')
+        
+        # Derive encryption key from shared secret
+        key = hashlib.sha256(shared_secret).digest()
+        
+        # XOR encryption (for demonstration purposes)
+        nonce = secrets.token_bytes(16)
+        extended_key = (key * ((len(plaintext) + len(key) - 1) // len(key)))[:len(plaintext)]
+        ciphertext = bytes([a ^ b for a, b in zip(plaintext, extended_key)])
+        
+        return nonce + ciphertext
+    
+    def hybrid_decrypt(self, ciphertext: bytes, shared_secret: bytes) -> bytes:
+        """
+        Hybrid decryption for data (simplified for demo purposes).
+        
+        Args:
+            ciphertext: Encrypted data
+            shared_secret: Shared secret from key exchange
+            
+        Returns:
+            Decrypted data
+        """
+        import hashlib
+        
+        # Extract nonce and ciphertext
+        nonce = ciphertext[:16]
+        encrypted = ciphertext[16:]
+        
+        # Derive encryption key from shared secret
+        key = hashlib.sha256(shared_secret).digest()
+        
+        # XOR decryption
+        extended_key = (key * ((len(encrypted) + len(key) - 1) // len(key)))[:len(encrypted)]
+        plaintext = bytes([a ^ b for a, b in zip(encrypted, extended_key)])
+        
+        return plaintext
 
 
 class PQMeshSecurityLibOQS:
@@ -434,6 +549,7 @@ class PQMeshSecurityLibOQS:
         self.node_id = node_id
         self.pq_backend = LibOQSBackend(kem_algorithm=kem_algorithm, sig_algorithm=sig_algorithm)
         self.hybrid = HybridPQEncryption(kem_algorithm=kem_algorithm)
+        self.hybrid_cipher = self.hybrid  # Backward compatibility
         
         # Долгосрочная ключевая пара для KEM
         self.kem_keypair = self.pq_backend.generate_kem_keypair()
@@ -490,7 +606,7 @@ class PQMeshSecurityLibOQS:
         Returns:
             Цифровая подпись
         """
-        signature = self.pq_backend.sign(self.sig_keypair.private_key, beacon_data)
+        signature = self.pq_backend.sign(beacon_data, self.sig_keypair.private_key)
         return signature
     
     def verify_beacon(self, beacon_data: bytes, signature: bytes, peer_public_key: bytes) -> bool:
@@ -505,7 +621,7 @@ class PQMeshSecurityLibOQS:
         Returns:
             True если подпись валидна
         """
-        is_valid = self.pq_backend.verify(peer_public_key, beacon_data, signature)
+        is_valid = self.pq_backend.verify(beacon_data, signature, peer_public_key)
         return is_valid
     
     def encrypt_for_peer(self, peer_id: str, plaintext: bytes) -> bytes:

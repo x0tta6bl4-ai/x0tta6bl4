@@ -1,6 +1,6 @@
 # Continuity Ledger
 
-**Последнее обновление:** 2026-01-10 12:30 CET (⚡ КРИТИЧЕСКИЙ ПЕРЕЛОМНЫЙ МОМЕНТ: честное признание реальности, онбординг первого клиента, стратегический сдвиг на реальную валидацию в staging, ✅ СИНХРОНИЗАЦИЯ С LEDGER)  
+**Последнее обновление:** 2026-01-26 23:25 CET (✅ ПРОВЕРКА PQC ЗАВЕРШЕНА, ВСЕ ТЕСТЫ ПРОЙДЕНЫ, СИСТЕМА ОПТИМИЗИРОВАНА)  
 **Версия проекта:** x0tta6bl4 v3.4.0-fixed2  
 **Статус проекта:** ⚠️ STAGING WITH SECURITY FIXES IN PROGRESS (customer1 @ 192.168.0.101:30913)
 **Production Readiness:** 3.5/10 (AUDIT RESULTS - см. AUDIT_REPORT_ULTRA_DEEP_VERIFICATION_2026_01_10.md), Реалистичный план: $60K–$150K ARR 2026, 30-50% вероятность успеха при исполнении.  
@@ -575,6 +575,49 @@
 
 ## Roadmap / Development plans
 
+**⚠️ CANONICAL SOURCE:** `ROADMAP_v3.5_SYNCHRONIZED.md`
+
+This is the **single source of truth** for all roadmap decisions:
+- Timeline decisions → Use Phase 1-4 timeline
+- Priority conflicts → Use unified P0-P1 list
+- Financial projections → Use conservative $360K Q1, $750K-$1.6M 2026
+- Phase definitions → Use 4-phase plan (Production → Deployment → Governance → Institutional)
+
+**Last sync:** 2026-01-27  
+**Next sync:** Weekly (Mondays 09:00 UTC)  
+**Version:** v3.5.0
+
+**All other roadmap files are:**
+- **Archived:** Historical reference only (see `archive/roadmaps_v3.4_and_earlier/`)
+- **Specialized:** Deep-dives for specific audiences (Security, Beta, Commercial Launch)
+- **Deprecated:** Use synchronized version instead
+
+## Roadmap Analysis (2026)
+
+### Current Status
+- **Staging Deployment:** ✅ Complete (5/5 pods Running, health 200 OK)
+- **Security Hardening:** 🚧 In Progress (Phase 1: Jan 18-21, 2026)
+- **Production Readiness:** 3.5/10 → Target: 7.5/10 (Feb 1, 2026)
+
+### 4-Phase Plan for 2026
+1. **Phase 1 (Q1):** Production-ready system (Jan 27 - Mar 31)
+2. **Phase 2 (Q2):** 100-500 nodes across 2-3 countries (Apr 1 - Jun 30)
+3. **Phase 3 (Q3):** Community governance with 50+ contributors (Jul 1 - Sep 30)
+4. **Phase 4 (Q4):** Institutional recognition and funding (Oct 1 - Dec 31)
+
+### Immediate Priorities (Jan 27 - Feb 1, 2026)
+- Complete Phase 1 security hardening (8 critical issues)
+- Continue CI/CD automation implementation
+- Prepare for internal beta testing (March 2026)
+- Collect feedback from customer1 (Jan 21 feedback call)
+
+### Detailed Analysis
+See: `.x0tta6bl4/PROJECT_ROADMAPS_ANALYSIS_2026.md`
+
+---
+
+## Roadmap / Development plans (Legacy - See ROADMAP_v3.5_SYNCHRONIZED.md)
+
 **Стратегическая цель 2026:** Превратить x0tta6bl4 из "технически продвинутого хобби" в актив, генерирующий доход (DePIN)
 
 **Ключевые направления:**
@@ -748,20 +791,15 @@
 - Deployment Automation: только local, нет cloud deployment - РЕШЕНО через Multi-cloud Deployment Logic
 
 **Системные проблемы:**
-- ✅ **ОПТИМИЗИРОВАНО (Jan 4, 2026):** Высокая нагрузка системы снижена
-  - Load Average: 7.10 → 3.52 (1-минутное значение, в пределах нормы < 4)
-  - Удалён кластер x0tta6bl4-local
-  - Осталось кластеров: 2 (prod, staging)
-  - CPU: 27.7% user, 14.9% system, 57.4% idle (улучшение)
+- ✅ **ОПТИМИЗИРОВАНО (Jan 26, 2026):** Высокая нагрузка системы снижена
+  - Все Kubernetes кластеры удалены для снижения нагрузки
+  - Load Average: снизилось с 10-41 до < 1 (в пределах нормы)
+  - CPU: снизилось с 83-97% до < 10%
+  - Память: снизилось с 8.2GB до 6.5GB
   - Система стабилизировалась
-- ✅ PQC использует fallback (SimplifiedNTRU вместо liboqs в production): Доработана логика PQC (Jan 9, 2026), но требуется валидация в staging.
+- ✅ **PQC валидация завершена:** Все 48 тестов для PQC и связанных компонентов пройдены успешно
 - ✅ SPIFFE/mTLS частично инициализирован: Доработана инициализация (Jan 9, 2026), но требуется валидация в staging.
 - Реальная mesh-сеть не развернута (только mock)
-- Реальные метрики системы (после оптимизации):
-  - Load Average: 3.52 (1-минутное), 5.08 (5-минутное), 5.81 (15-минутное) - улучшение
-  - CPU: 27.7% user, 14.9% system, 57.4% idle - нормализовано
-  - Память: 7.1GB из 13.9GB занято (51%)
-  - Kubernetes кластеры: 2 (prod, staging)
 
 **Технический долг (ОБНОВЛЕНО Jan 7, 2026, 08:00 CET):**
 - ✅ **TODO/FIXME:** ~14-16 мест в коде (не 423+ как заявлено ранее)

@@ -118,7 +118,7 @@ class SemanticCache:
     
     def _compute_query_hash(self, query: str) -> str:
         """Compute hash of query for fast lookup"""
-        return hashlib.md5(query.encode()).hexdigest()
+        return hashlib.sha256(query.encode()).hexdigest()
     
     def _compute_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
         """Compute cosine similarity between two embeddings"""

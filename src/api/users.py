@@ -62,7 +62,8 @@ def generate_session_token() -> str:
 
 # Endpoints
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -101,7 +102,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         "company": user.company,
         "plan": user.plan,
         "created_at": user.created_at,
-        "api_key": user.api_key,
         "requests_count": user.requests_count,
         "requests_limit": user.requests_limit
     }
@@ -156,7 +156,8 @@ async def login(request: Request, credentials: UserLogin, db: Session = Depends(
     )
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user():
+@limiter.limit("60/minute")
+async def get_current_user(request: Request):
     """Get current user profile (demo - returns first user)"""
     if not users_db:
         raise HTTPException(
@@ -185,11 +186,12 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
         raise HTTPException(status_code=500, detail="Admin token not configured")
-    if not x_admin_token or x_admin_token != admin_token:
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
         raise HTTPException(status_code=403, detail="Admin access required")
 
 @router.get("/stats")
-async def get_user_stats(admin=Depends(verify_admin_token), db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_user_stats(request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)):
     """Get user statistics (admin only)"""
     total_users = db.query(User).count()
     active_sessions = db.query(Session).filter(Session.expires_at > datetime.utcnow()).count()

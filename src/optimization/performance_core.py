@@ -69,7 +69,7 @@ class LRUCache:
     def _make_key(self, *args, **kwargs) -> str:
         """Create cache key from arguments"""
         key_str = f"{args}:{sorted(kwargs.items())}"
-        return hashlib.md5(key_str.encode()).hexdigest()
+        return hashlib.sha256(key_str.encode()).hexdigest()
     
     def _is_expired(self, timestamp: float) -> bool:
         """Check if entry is expired"""
