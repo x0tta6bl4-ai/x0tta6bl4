@@ -40,6 +40,7 @@ prompt_guidelines:
   - "Избегай ссылок на archive/ и backup директории"
   - "Используй архитектурные драйверы из ARCHITECTURE.md"
   - "Для безопасности опирайся на SECURITY.md + mTLS/Spire"
+  - "Применяй мета-когнитивный подход: думай о том, как думаешь (см. META_COGNITIVE_INSTRUCTIONS.md)"
 
 # Future enhancements:
 # - Auto-regenerate based on front-matter classification

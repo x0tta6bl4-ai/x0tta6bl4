@@ -269,7 +269,7 @@ class MeshRouter:
             route = relays + [exit_node]
         
         # Cache route
-        route_key = hashlib.md5(destination.encode()).hexdigest()[:8]
+        route_key = hashlib.sha256(destination.encode()).hexdigest()[:8]
         self.routes_cache[route_key] = route
         
         # Record route selection

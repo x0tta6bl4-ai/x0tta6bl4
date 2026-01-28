@@ -345,6 +345,7 @@ def create_chaos_scenario(
     chaos_type: ChaosType,
     severity: float,
     duration_seconds: float = 10.0,
+    target_component: Optional[str] = None,
     **kwargs
 ) -> ChaosScenario:
     """Factory function to create chaos scenarios"""
@@ -352,5 +353,6 @@ def create_chaos_scenario(
         chaos_type=chaos_type,
         severity=severity,
         duration_seconds=duration_seconds,
+        target_component=target_component,
         custom_config=kwargs
     )

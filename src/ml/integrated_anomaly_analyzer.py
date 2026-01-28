@@ -206,7 +206,7 @@ class IntegratedAnomalyAnalyzer:
         import hashlib
         timestamp = datetime.now().isoformat()
         key = f"{node_id}:{timestamp}"
-        return hashlib.md5(key.encode()).hexdigest()[:12]
+        return hashlib.sha256(key.encode()).hexdigest()[:12]
     
     def _score_to_severity(self, anomaly_score: float) -> Any:
         """Convert anomaly score to severity"""

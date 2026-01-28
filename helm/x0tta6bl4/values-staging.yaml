@@ -4,9 +4,9 @@
 replicaCount: 2
 
 image:
-  repository: localhost:5001/x0tta6bl4
+  repository: x0tta6bl4
   pullPolicy: IfNotPresent
-  tag: "3.4.0"
+  tag: "staging"
 
 environment: staging
 
@@ -54,10 +54,16 @@ ai:
 
 monitoring:
   enabled: true
+  serviceMonitor:
+    enabled: false
   prometheus:
     enabled: true
   grafana:
     enabled: false  # Will be deployed separately
+
+# Vertical Pod Autoscaler
+vpa:
+  enabled: false
 
 # Logging
 logging:

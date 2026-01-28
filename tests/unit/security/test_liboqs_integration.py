@@ -77,18 +77,18 @@ class TestLibOQSBackend:
         
         # Sign message
         message = b"Hello, quantum-safe world!"
-        signature = backend.sign(keypair.private_key, message)
+        signature = backend.sign(message, keypair.private_key)
         
         assert signature
         assert len(signature) > 0
         
         # Verify signature
-        is_valid = backend.verify(keypair.public_key, message, signature)
+        is_valid = backend.verify(message, signature, keypair.public_key)
         assert is_valid
         
         # Verify with wrong message (should fail)
         wrong_message = b"Hello, insecure world!"
-        is_invalid = backend.verify(keypair.public_key, wrong_message, signature)
+        is_invalid = backend.verify(wrong_message, signature, keypair.public_key)
         assert not is_invalid
 
 

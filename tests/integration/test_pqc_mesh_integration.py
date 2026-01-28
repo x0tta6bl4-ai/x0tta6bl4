@@ -22,7 +22,7 @@ class TestPQCMeshIntegration:
     """Test PQC functionality within mesh network context"""
 
     @pytest.fixture
-    async def pqc_nodes(self):
+    def pqc_nodes(self):
         """Create 3 test nodes with PQC"""
         nodes = {}
         for i in range(3):
@@ -36,15 +36,15 @@ class TestPQCMeshIntegration:
         node_a = pqc_nodes['node-pqc-0']
         node_b = pqc_nodes['node-pqc-1']
 
-        kem_pk_a = node_a['pqc'].generate_kem_keypair()
-        kem_pk_b = node_b['pqc'].generate_kem_keypair()
+        kem_pk_a = node_a['pqc'].pq_backend.generate_kem_keypair()
+        kem_pk_b = node_b['pqc'].pq_backend.generate_kem_keypair()
 
         assert kem_pk_a is not None
         assert kem_pk_b is not None
 
-        shared_a = node_a['pqc'].kem_encapsulate(kem_pk_b)
-        assert shared_a is not None
-        assert 'shared_secret' in shared_a
+        shared_secret, ciphertext = node_a['pqc'].pq_backend.kem_encapsulate(kem_pk_b.public_key)
+        assert shared_secret is not None
+        assert ciphertext is not None
 
     async def test_pqc_key_distribution_protocol(self, pqc_nodes):
         """Test key distribution in mesh network"""
@@ -52,7 +52,7 @@ class TestPQCMeshIntegration:
         public_keys = {}
 
         for i, node in enumerate(nodes):
-            public_keys[f'node-{i}'] = node['pqc'].generate_kem_keypair()
+            public_keys[f'node-{i}'] = node['pqc'].pq_backend.generate_kem_keypair()
 
         assert len(public_keys) == len(nodes)
 
@@ -60,20 +60,20 @@ class TestPQCMeshIntegration:
         """Test key rotation during mesh operation"""
         node = pqc_nodes['node-pqc-0']
 
-        old_pk = node['pqc'].generate_kem_keypair()
-        new_pk = node['pqc'].generate_kem_keypair()
+        old_pk = node['pqc'].pq_backend.generate_kem_keypair()
+        new_pk = node['pqc'].pq_backend.generate_kem_keypair()
 
-        assert old_pk != new_pk
+        assert old_pk.public_key != new_pk.public_key
 
     async def test_pqc_signature_verification_in_mesh_messages(self, pqc_nodes):
         """Test signature verification in mesh message routing"""
         node = pqc_nodes['node-pqc-0']
         message = b"Mesh network update from node-0"
 
-        signature = node['pqc'].sign(message)
+        signature = node['pqc'].sign_beacon(message)
         assert signature is not None
 
-        verified = node['pqc'].verify(message, signature)
+        verified = node['pqc'].verify_beacon(message, signature, node['pqc'].sig_keypair.public_key)
         assert verified is True
 
     async def test_pqc_beacon_with_signature(self, pqc_nodes):
@@ -81,16 +81,16 @@ class TestPQCMeshIntegration:
         node = pqc_nodes['node-pqc-0']
 
         beacon_data = b"Beacon from node-pqc-0 at slot 1000"
-        signature = node['pqc'].sign(beacon_data)
+        signature = node['pqc'].sign_beacon(beacon_data)
 
         assert signature is not None
-        assert node['pqc'].verify(beacon_data, signature) is True
+        assert node['pqc'].verify_beacon(beacon_data, signature, node['pqc'].sig_keypair.public_key) is True
 
     async def test_pqc_concurrent_mesh_operations(self, pqc_nodes):
         """Test concurrent PQC operations across mesh"""
         async def perform_key_exchange(node):
             try:
-                kem_pk = node['pqc'].generate_kem_keypair()
+                kem_pk = node['pqc'].pq_backend.generate_kem_keypair()
                 return kem_pk is not None
             except Exception:
                 return False
@@ -107,11 +107,11 @@ class TestPQCMeshIntegration:
         node_a = pqc_nodes['node-pqc-0']
         node_c = pqc_nodes['node-pqc-2']
 
-        kem_pk_a = node_a['pqc'].generate_kem_keypair()
-        kem_pk_c = node_c['pqc'].generate_kem_keypair()
+        kem_pk_a = node_a['pqc'].pq_backend.generate_kem_keypair()
+        kem_pk_c = node_c['pqc'].pq_backend.generate_kem_keypair()
 
-        shared_ac = node_a['pqc'].kem_encapsulate(kem_pk_c)
-        assert shared_ac is not None
+        shared_secret, ciphertext = node_a['pqc'].pq_backend.kem_encapsulate(kem_pk_c.public_key)
+        assert shared_secret is not None
 
 
 @pytest.mark.skipif(not PQC_AVAILABLE, reason="PQC components not available")
@@ -130,27 +130,27 @@ class TestPQCBeaconIntegration:
         }
 
         beacon_bytes = json.dumps(beacon_payload).encode()
-        signature = pqc.sign(beacon_bytes)
+        signature = pqc.sign_beacon(beacon_bytes)
 
         assert signature is not None
-        assert pqc.verify(beacon_bytes, signature) is True
+        assert pqc.verify_beacon(beacon_bytes, signature, pqc.sig_keypair.public_key) is True
 
     def test_pqc_beacon_tampering_detection(self):
         """Test tampering detection in PQC-signed beacons"""
         pqc = PQMeshSecurityLibOQS(node_id="tamper-test")
 
         original = b"Valid beacon data"
-        signature = pqc.sign(original)
+        signature = pqc.sign_beacon(original)
 
         tampered = b"Tampered beacon data"
-        assert pqc.verify(tampered, signature) is False
+        assert pqc.verify_beacon(tampered, signature, pqc.sig_keypair.public_key) is False
 
     def test_pqc_beacon_batch_verification(self):
         """Test batch verification of multiple beacons"""
         pqc = PQMeshSecurityLibOQS(node_id="batch-test")
 
         beacons = [f"beacon-{i}".encode() for i in range(10)]
-        signatures = [pqc.sign(b) for b in beacons]
+        signatures = [pqc.sign_beacon(b) for b in beacons]
 
         for beacon, sig in zip(beacons, signatures):
-            assert pqc.verify(beacon, sig) is True
+            assert pqc.verify_beacon(beacon, sig, pqc.sig_keypair.public_key) is True

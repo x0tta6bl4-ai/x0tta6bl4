@@ -13,7 +13,7 @@ import numpy as np
 import time
 from collections import defaultdict
 import os
-import pickle
+import json
 from pathlib import Path
 
 # Monitoring metrics
@@ -56,6 +56,30 @@ class RetrievalResult:
     similarities: List[float]
     query: str
     timestamp: datetime
+
+
+def serialize_document(doc: Document) -> Dict[str, Any]:
+    """Serialize Document to JSON-safe dict."""
+    return {
+        "id": doc.id,
+        "content": doc.content,
+        "metadata": doc.metadata,
+        "embedding": doc.embedding.tolist() if doc.embedding is not None else None,
+        "timestamp": doc.timestamp.isoformat() if doc.timestamp else None,
+    }
+
+
+def deserialize_document(data: Dict[str, Any]) -> Document:
+    """Deserialize Document from JSON-safe dict."""
+    embedding = np.array(data["embedding"]) if data.get("embedding") is not None else None
+    timestamp = datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else None
+    return Document(
+        id=data["id"],
+        content=data["content"],
+        metadata=data.get("metadata", {}),
+        embedding=embedding,
+        timestamp=timestamp,
+    )
 
 
 class HNSWVectorStore:
@@ -179,18 +203,21 @@ class HNSWVectorStore:
         if self.index is not None:
             self.index.save_index(os.path.join(path, "hnsw.index"))
         
-        # Save metadata
+        # Save metadata as JSON (no pickle)
         metadata = {
-            'documents': self.documents,
+            'documents': {
+                doc_id: serialize_document(doc)
+                for doc_id, doc in self.documents.items()
+            },
             'id_to_label': self.id_to_label,
-            'label_to_id': self.label_to_id,
+            'label_to_id': {str(label): doc_id for label, doc_id in self.label_to_id.items()},
             'next_label': self.next_label,
             'embedding_dim': self.embedding_dim,
             'max_elements': self.max_elements
         }
-        
-        with open(os.path.join(path, "metadata.pkl"), 'wb') as f:
-            pickle.dump(metadata, f)
+
+        with open(os.path.join(path, "metadata.json"), 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=True)
     
     def load(self, path: str) -> None:
         """Load index from disk"""
@@ -198,12 +225,15 @@ class HNSWVectorStore:
             self.index.load_index(os.path.join(path, "hnsw.index"))
         
         # Load metadata
-        with open(os.path.join(path, "metadata.pkl"), 'rb') as f:
-            metadata = pickle.load(f)
+        with open(os.path.join(path, "metadata.json"), 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
         
-        self.documents = metadata['documents']
-        self.id_to_label = metadata['id_to_label']
-        self.label_to_id = metadata['label_to_id']
+        self.documents = {
+            doc_id: deserialize_document(doc_data)
+            for doc_id, doc_data in metadata['documents'].items()
+        }
+        self.id_to_label = {k: int(v) if isinstance(v, str) and v.isdigit() else v for k, v in metadata['id_to_label'].items()}
+        self.label_to_id = {int(label): doc_id for label, doc_id in metadata['label_to_id'].items()}
         self.next_label = metadata['next_label']
 
 

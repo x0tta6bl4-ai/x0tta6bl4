@@ -6,11 +6,14 @@ import os
 import socket
 import struct
 import secrets
+import logging
 from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 from .base import ObfuscationTransport
+
+logger = logging.getLogger(__name__)
 
 class ShadowsocksSocket(socket.socket):
     """Socket wrapper that applies Shadowsocks AEAD encryption."""
@@ -103,7 +106,16 @@ class ShadowsocksTransport(ObfuscationTransport):
     It treats every obfuscate() call as a discrete message.
     """
     
-    def __init__(self, password: str = "x0tta6bl4"):
+    def __init__(self, password: Optional[str] = None):
+        # Get password from environment variable if not provided
+        if password is None:
+            password = os.getenv("X0TTA6BL4_SHADOWSOCKS_PASSWORD")
+            if password is None:
+                # Fallback to random password for security if not configured
+                import secrets
+                password = secrets.token_urlsafe(32)
+                logger.warning("Using random Shadowsocks password - please set X0TTA6BL4_SHADOWSOCKS_PASSWORD for production")
+        
         self.password = password.encode('utf-8')
         # Pre-derive master key from password? 
         # SS usually derives per-session key from (Master Key + Salt).

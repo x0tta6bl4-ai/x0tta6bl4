@@ -356,6 +356,7 @@ class TestPQCMigrationPath:
 class TestPQCErrorHandling:
     """Test PQC error handling and edge cases."""
     
+    @pytest.mark.asyncio
     async def test_invalid_ciphertext_decapsulation(self, pqc_backend):
         """Test handling of invalid ciphertext."""
         keypair = pqc_backend.generate_kem_keypair()
@@ -369,6 +370,7 @@ class TestPQCErrorHandling:
             assert "invalid" in str(e).lower() or "decapsulation" in str(e).lower()
             logger.info(f"✅ Gracefully handled invalid ciphertext: {type(e).__name__}")
     
+    @pytest.mark.asyncio
     async def test_invalid_signature_verification(self, pqc_backend):
         """Test handling of invalid signatures."""
         keypair = pqc_backend.generate_sig_keypair()

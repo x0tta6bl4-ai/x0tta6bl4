@@ -239,9 +239,10 @@ class RunbookExecutor:
         
         for attempt in range(step.retry_count + 1):
             try:
+                import shlex
                 result = subprocess.run(
-                    command,
-                    shell=True,
+                    shlex.split(command),
+                    shell=False,
                     capture_output=True,
                     text=True,
                     timeout=step.timeout

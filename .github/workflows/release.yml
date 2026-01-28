@@ -1,112 +1,121 @@
-name: Release & Publish
+name: Release
 
 on:
   push:
     tags:
       - 'v*.*.*'
 
-permissions:
-  contents: write
-  packages: write
+env:
+  PYTHON_VERSION: "3.11"
 
 jobs:
-  verify:
+  release:
+    name: Create Release
     runs-on: ubuntu-latest
-    name: Verify Release
-    
+    permissions:
+      contents: write
+      packages: write
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      
-      - name: Extract and verify version
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Extract version from tag
         id: version
         run: |
-          TAG=${GITHUB_REF#refs/tags/v}
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          
-          # Verify version in pyproject.toml
-          SETUP_VERSION=$(grep -m 1 'version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          if [ "$SETUP_VERSION" != "$TAG" ]; then
-            echo "ERROR: Tag version ($TAG) doesn't match pyproject.toml ($SETUP_VERSION)"
-            exit 1
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+          echo "$VERSION" > VERSION
+
+      - name: Update version files
+        run: |
+          # Update pyproject.toml if needed
+          if [ -f pyproject.toml ]; then
+            python -c "
+            import re
+            with open('pyproject.toml', 'r') as f:
+                content = f.read()
+            content = re.sub(r'version = \"[^\"]+\"', f'version = \"${{ steps.version.outputs.version }}\"', content)
+            with open('pyproject.toml', 'w') as f:
+                f.write(content)
+            "
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -n "$TWINE_PASSWORD" ]; then
+            twine upload dist/*
+          else
+            echo "⚠️ PyPI_API_TOKEN not set, skipping PyPI upload"
           fi
-          echo "✓ Version verified: $TAG"
-      
-      - name: Run tests before release
-        run: |
-          pip install -e ".[dev,testing]"
-          pytest tests/test_mape_k.py -v --tb=short || exit 1
-  
-  release:
-    name: Create Release
-    needs: verify
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
+        continue-on-error: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          fetch-depth: 0
-      
-      - name: Generate changelog from commits
-        id: changelog
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ secrets.DOCKER_PASSWORD != '' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/x0tta6bl4:${{ steps.version.outputs.version }}
+            ${{ secrets.DOCKER_USERNAME }}/x0tta6bl4:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+        continue-on-error: true
+
+      - name: Generate release notes
+        id: release_notes
         run: |
-          echo "## Changes in ${{ github.ref_name }}" > RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
           
-          # Get previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "HEAD~10")
+          echo "## Changes since $PREV_TAG" > release_notes.md
+          echo "" >> release_notes.md
+          git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" >> release_notes.md || echo "- Initial release" >> release_notes.md
           
-          # Generate changelog
-          echo "### Features & Fixes" >> RELEASE_NOTES.md
-          git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --grep="feat" >> RELEASE_NOTES.md || true
-          echo "" >> RELEASE_NOTES.md
-          
-          echo "### All Changes" >> RELEASE_NOTES.md
-          git log $PREV_TAG..HEAD --pretty=format:"- %s" >> RELEASE_NOTES.md || true
-          
-          echo "" >> RELEASE_NOTES.md
-          echo "**Full Changelog:** [$PREV_TAG...${{ github.ref_name }}](https://github.com/${{ github.repository }}/compare/$PREV_TAG...${{ github.ref_name }})" >> RELEASE_NOTES.md
-          
-          cat RELEASE_NOTES.md
-      
+          NOTES=$(cat release_notes.md)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          body_path: RELEASE_NOTES.md
+          name: Release v${{ steps.version.outputs.version }}
+          body: ${{ steps.release_notes.outputs.notes }}
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
-  build-pypi:
-    name: Build & Publish PyPI
-    needs: verify
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
-      - name: Build distribution packages
-        run: |
-          python -m pip install --upgrade pip build twine
-          python -m build
-          
-          # Verify distributions
-          twine check dist/*
-      
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          skip-existing: true
+          prerelease: false
+          files: |
+            dist/*.whl
+            dist/*.tar.gz

@@ -8,6 +8,7 @@ for maximum security and compatibility.
 import logging
 import hashlib
 import secrets
+import json
 from typing import Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 
@@ -80,6 +81,86 @@ class HybridPQEncryption:
         self.kem_algorithm = kem_algorithm
         
         logger.info(f"✅ Hybrid PQ Encryption initialized: {kem_algorithm} + X25519")
+    
+    def encapsulate(self, keypair: HybridKeyPair) -> Tuple[bytes, bytes]:
+        """
+        Alias method for integration tests compatibility.
+        Encapsulates using hybrid encryption with given keypair.
+        """
+        shared_secret, hybrid_ciphertext = self.hybrid_encapsulate(keypair.classical_public, keypair.pq_public)
+        # Serialize HybridCiphertext to JSON for security
+        ciphertext_dict = {
+            "pq_ciphertext": hybrid_ciphertext.pq_ciphertext.decode('latin-1'),
+            "classical_ciphertext": hybrid_ciphertext.classical_ciphertext.decode('latin-1'),
+            "combined_secret": hybrid_ciphertext.combined_secret.decode('latin-1')
+        }
+        ciphertext_bytes = json.dumps(ciphertext_dict).encode('utf-8')
+        return ciphertext_bytes, shared_secret
+    
+    def decapsulate(self, ciphertext: bytes, keypair: HybridKeyPair) -> bytes:
+        """
+        Alias method for integration tests compatibility.
+        Decapsulates using hybrid encryption with given keypair.
+        """
+        # Deserialize ciphertext from JSON
+        ciphertext_dict = json.loads(ciphertext.decode('utf-8'))
+        hybrid_ciphertext = HybridCiphertext(
+            pq_ciphertext=ciphertext_dict["pq_ciphertext"].encode('latin-1'),
+            classical_ciphertext=ciphertext_dict["classical_ciphertext"].encode('latin-1'),
+            combined_secret=ciphertext_dict["combined_secret"].encode('latin-1')
+        )
+        return self.hybrid_decapsulate(hybrid_ciphertext, keypair.classical_private, keypair.pq_private)
+    
+    def hybrid_encrypt(self, plaintext: bytes, shared_secret: bytes) -> bytes:
+        """
+        Hybrid encryption for data (simplified for demo purposes).
+        Uses SHA-256 key derivation and XOR for demonstration.
+        
+        Args:
+            plaintext: Data to encrypt
+            shared_secret: Shared secret from key exchange
+            
+        Returns:
+            Encrypted data
+        """
+        import hashlib
+        import secrets
+        
+        # Derive encryption key from shared secret
+        key = hashlib.sha256(shared_secret).digest()
+        
+        # XOR encryption (for demonstration purposes)
+        nonce = secrets.token_bytes(16)
+        extended_key = (key * ((len(plaintext) + len(key) - 1) // len(key)))[:len(plaintext)]
+        ciphertext = bytes([a ^ b for a, b in zip(plaintext, extended_key)])
+        
+        return nonce + ciphertext
+    
+    def hybrid_decrypt(self, ciphertext: bytes, shared_secret: bytes) -> bytes:
+        """
+        Hybrid decryption for data (simplified for demo purposes).
+        
+        Args:
+            ciphertext: Encrypted data
+            shared_secret: Shared secret from key exchange
+            
+        Returns:
+            Decrypted data
+        """
+        import hashlib
+        
+        # Extract nonce and ciphertext
+        nonce = ciphertext[:16]
+        encrypted = ciphertext[16:]
+        
+        # Derive encryption key from shared secret
+        key = hashlib.sha256(shared_secret).digest()
+        
+        # XOR decryption
+        extended_key = (key * ((len(encrypted) + len(key) - 1) // len(key)))[:len(encrypted)]
+        plaintext = bytes([a ^ b for a, b in zip(encrypted, extended_key)])
+        
+        return plaintext
     
     def generate_hybrid_keypair(self) -> HybridKeyPair:
         """

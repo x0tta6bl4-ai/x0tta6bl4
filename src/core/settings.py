@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     # FastAPI
     # ─────────────────────────────────────────
     api_host: str = Field(default="0.0.0.0", validation_alias="API_HOST")
-    api_port: int = Field(default=8000, validation_alias="API_PORT")
+    api_port: int = Field(default=8080, validation_alias="API_PORT")
 
     # ─────────────────────────────────────────
     # Stripe Payment

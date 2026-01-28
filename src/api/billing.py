@@ -7,9 +7,12 @@ from typing import Optional, Dict, Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Header, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 class CheckoutSessionRequest(BaseModel):
@@ -48,7 +51,8 @@ async def billing_config():
 
 
 @router.post("/checkout-session")
-async def create_checkout_session(payload: CheckoutSessionRequest):
+@limiter.limit("10/minute")
+async def create_checkout_session(request: Request, payload: CheckoutSessionRequest):
     if "@" not in payload.email:
         raise HTTPException(status_code=400, detail="Invalid email")
 
@@ -116,6 +120,7 @@ def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str,
 
 
 @router.post("/webhook")
+@limiter.limit("120/minute")
 async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Header(default=None, alias="Stripe-Signature")):
     secret = _require_env("STRIPE_WEBHOOK_SECRET")
     if not stripe_signature:

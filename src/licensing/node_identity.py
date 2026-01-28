@@ -112,16 +112,16 @@ class HardwareFingerprinter:
                 )
                 for line in result.stdout.split('\n'):
                     if 'Serial' in line or 'model name' in line:
-                        return hashlib.md5(line.encode()).hexdigest()[:16]
+                        return hashlib.sha256(line.encode()).hexdigest()[:16]
             elif platform.system() == "Darwin":
                 result = subprocess.run(
                     ["sysctl", "-n", "machdep.cpu.brand_string"],
                     capture_output=True, text=True, timeout=5
                 )
-                return hashlib.md5(result.stdout.encode()).hexdigest()[:16]
+                return hashlib.sha256(result.stdout.encode()).hexdigest()[:16]
         except:
             pass
-        return hashlib.md5(platform.processor().encode()).hexdigest()[:16]
+        return hashlib.sha256(platform.processor().encode()).hexdigest()[:16]
     
     @staticmethod
     def get_mac_address() -> str:
@@ -148,7 +148,7 @@ class HardwareFingerprinter:
                         return line.split('"')[-2][:32]
         except:
             pass
-        return hashlib.md5(str(uuid.getnode()).encode()).hexdigest()[:32]
+        return hashlib.sha256(str(uuid.getnode()).encode()).hexdigest()[:32]
     
     @classmethod
     def generate(cls) -> DeviceFingerprint:

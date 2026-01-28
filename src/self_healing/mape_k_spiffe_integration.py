@@ -79,9 +79,15 @@ class SPIFFEMapEKLoop:
             
             # Initialize with join token for development
             # In production, use AWS IID or Kubernetes PSAT attestation
+            import os
+            join_token = os.getenv("X0TTA6BL4_SPIRE_JOIN_TOKEN")
+            if join_token is None:
+                logger.error("X0TTA6BL4_SPIRE_JOIN_TOKEN environment variable is not set. Cannot proceed without a valid join token.")
+                raise RuntimeError("X0TTA6BL4_SPIRE_JOIN_TOKEN environment variable is required")
+                
             self.spiffe_controller.initialize(
                 attestation_strategy=AttestationStrategy.JOIN_TOKEN,
-                token="dev-join-token"  # Override with environment variable in production
+                token=join_token
             )
             
             logger.info("✅ SPIFFE initialized successfully")
@@ -350,9 +356,15 @@ class SPIFFEMapEKLoop:
         try:
             logger.info("Re-attesting node identity...")
             # In production, use real attestation strategy
+            import os
+            join_token = os.getenv("X0TTA6BL4_SPIRE_JOIN_TOKEN")
+            if join_token is None:
+                logger.error("X0TTA6BL4_SPIRE_JOIN_TOKEN environment variable is not set. Cannot proceed without a valid join token.")
+                raise RuntimeError("X0TTA6BL4_SPIRE_JOIN_TOKEN environment variable is required")
+                
             self.spiffe_controller.initialize(
                 attestation_strategy=AttestationStrategy.JOIN_TOKEN,
-                token="dev-join-token"
+                token=join_token
             )
             return {"success": True, "re_attested": True}
         except Exception as e:

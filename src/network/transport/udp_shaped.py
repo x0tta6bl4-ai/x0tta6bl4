@@ -548,7 +548,7 @@ class UDPHolePuncher:
             
             # Простой STUN Binding Request (упрощённый)
             # В реальности нужен полный STUN клиент
-            transaction_id = hashlib.md5(str(time.time()).encode()).digest()[:12]
+            transaction_id = hashlib.sha256(str(time.time()).encode()).digest()[:12]
             stun_request = struct.pack("!HHI", 0x0001, 0, 0x2112A442) + transaction_id
             
             loop = asyncio.get_event_loop()

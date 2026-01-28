@@ -156,7 +156,7 @@ class PQCKeyExchange:
             raise RuntimeError("PQC not available")
         
         try:
-            kemalg = oqs.KeyEncapsulation(self.ALGORITHM)
+            kemalg = oqs.KeyEncapsulation(self.ALGORITHM, secret_key=secret_key)
             shared_secret = kemalg.decap_secret(ciphertext)
             
             logger.debug(f"Decapsulated shared secret: {len(shared_secret)} bytes")
@@ -241,7 +241,7 @@ class PQCDigitalSignature:
             raise RuntimeError("PQC not available")
         
         try:
-            sigsalg = oqs.Signature(self.ALGORITHM)
+            sigsalg = oqs.Signature(self.ALGORITHM, secret_key=secret_key)
             signature = sigsalg.sign(message)
             message_hash = hashlib.sha256(message).digest()
             
@@ -276,7 +276,7 @@ class PQCDigitalSignature:
         
         try:
             sigsalg = oqs.Signature(self.ALGORITHM)
-            is_valid = sigsalg.verify(message, signature_bytes)
+            is_valid = sigsalg.verify(message, signature_bytes, public_key)
             
             logger.debug(f"Signature verification: {'VALID' if is_valid else 'INVALID'}")
             return is_valid

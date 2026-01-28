@@ -7,6 +7,9 @@ import json
 from flask import Flask, jsonify
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY is required for session security")
 
 STATS_FILE = "node_stats.json"
 
