@@ -46,7 +46,7 @@ docker-compose up
 
 ### Health Check
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8080/health
 # {"status": "ok", "version": "3.3.0", "timestamp": "..."}
 ```
 
