@@ -116,9 +116,9 @@ class IsolationForestDetector:
             anomaly_scores.append(score)
         
         avg_score = np.mean(anomaly_scores)
-        is_anomaly = avg_score > self.threshold
-        confidence = min(1.0, abs(avg_score - self.threshold) * 2)
-        
+        is_anomaly = bool(avg_score > self.threshold)
+        confidence = float(min(1.0, abs(avg_score - self.threshold) * 2))
+
         return is_anomaly, confidence
     
     def _path_length(self, tree: Dict[str, Any], value: float, current_depth: int) -> float:
@@ -194,9 +194,9 @@ class LocalOutlierFactorDetector:
         lof_score = self._compute_lof(value)
         threshold = np.mean(list(self.lof_scores.values())) if self.lof_scores else 1.0
         
-        is_anomaly = lof_score > threshold * 1.5
-        confidence = min(1.0, (lof_score / threshold - 1.0) / 2.0) if threshold > 0 else 0.0
-        
+        is_anomaly = bool(lof_score > threshold * 1.5)
+        confidence = float(min(1.0, (lof_score / threshold - 1.0) / 2.0)) if threshold > 0 else 0.0
+
         return is_anomaly, confidence
 
 
@@ -268,9 +268,9 @@ class MovingAverageDetector:
             return False, 0.0
         
         z_score = abs((value - ma) / std)
-        is_anomaly = z_score > self.threshold_std
-        confidence = min(1.0, z_score / (self.threshold_std * 2))
-        
+        is_anomaly = bool(z_score > self.threshold_std)
+        confidence = float(min(1.0, z_score / (self.threshold_std * 2)))
+
         return is_anomaly, confidence
 
 
