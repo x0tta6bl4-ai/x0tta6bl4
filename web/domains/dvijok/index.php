@@ -1,5 +1,6 @@
 <?php
 	include_once 'setting.php';
+	require_once __DIR__ . '/../../lib/SecurityUtils.php';
 	session_start();
 	$CONNECT = mysqli_connect(HOST, USER, PASS, DB);
 	$_COOKIE['user'] = FormChars($_COOKIE['user'], 1);
@@ -193,9 +194,17 @@
 			$_SESSION['type_message'] = array();
 	}
 	
-	// Генератор пароля
-	function GenPass ($p1, $p2) {
-		return md5('X0TTA6bI4'.md5('321'.$p1.'123').md5('678'.$p2.'890'));
+	// Генератор пароля - SECURITY FIX: bcrypt вместо md5
+	function GenPass ($p1, $p2 = '') {
+		return SecurityUtils::hashPassword($p1);
+	}
+
+	// Верификация пароля - SECURITY FIX
+	function VerifyPass($password, $hash) {
+		if (isMD5Hash($hash)) {
+			return migrateFromMD5($password, $hash);
+		}
+		return SecurityUtils::verifyPassword($password, $hash);
 	}
 	
 	// Чистка спецсимволов

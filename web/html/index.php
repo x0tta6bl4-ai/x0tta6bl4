@@ -1,5 +1,6 @@
 <?php
 include_once 'setting.php';
+require_once __DIR__ . '/../lib/SecurityUtils.php';
 session_start();
 $CONNECT = mysqli_connect(HOST, USER, PASS, DB);
 
@@ -40,7 +41,17 @@ return nl2br(htmlspecialchars(trim($p1), ENT_QUOTES), false);
 
 
 function GenPass ($p1, $p2) {
-return md5('MRSHIFT'.md5('321'.$p1.'123').md5('678'.$p2.'890'));
+// SECURITY: Use bcrypt for new passwords, MD5 migration for legacy
+return SecurityUtils::hashPassword($p1);
+}
+
+function VerifyPass($p1, $hash) {
+// SECURITY: Verify password with bcrypt or migrate from MD5
+if (isMD5Hash($hash)) {
+    // Legacy MD5 - attempt migration
+    return migrateFromMD5($p1, $hash);
+}
+return SecurityUtils::verifyPassword($p1, $hash);
 }
 
 

@@ -154,7 +154,7 @@ class MeshFileShare:
         file_data = b"".join(info["chunks"])
         
         # Проверяем checksum
-        checksum = hashlib.md5(file_data).hexdigest()
+        checksum = hashlib.sha256(file_data).hexdigest()
         if checksum != info["checksum"]:
             print(f"\n❌ Checksum mismatch for {filename}!")
             return
@@ -180,7 +180,7 @@ class MeshFileShare:
         
         file_data = path.read_bytes()
         filename = path.name
-        checksum = hashlib.md5(file_data).hexdigest()
+        checksum = hashlib.sha256(file_data).hexdigest()
         
         print(f"📤 Sending {filename} to {peer}...")
         

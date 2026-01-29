@@ -16,9 +16,9 @@
 		else if (mysqli_fetch_assoc(mysqli_query($CONNECT, "SELECT `email` FROM `users` WHERE `email` = '$p2'"))) MessageSend(1, 'E-Mail <b>'.$_POST['email'].'</b> уже используеться.');
 	}
 	
-	//Шифрование
+	//Шифрование - SECURITY FIX: secure HMAC вместо md5
 	function MIX($p1) {
-		return md5($p1.date('d.m.Y H').'65475g45');
+		return hash_hmac('sha256', $p1 . date('d.m.Y H'), 'x0tta6bl4_secret_key_' . date('Y'));
 	}
 	
 		// Редактирование профиля
@@ -41,8 +41,16 @@
 		if ($_POST['opassword'] or $_POST['npassword']) {
 			if (!$_POST['opassword']) MessageSend(2, 'Не указан старый пароль');
 			if (!$_POST['npassword']) MessageSend(2, 'Не указан новый пароль');
-			if ($_SESSION['USER_PASSWORD'] != GenPass($_POST['opassword'], $_SESSION['USER_EMAIL'])) MessageSend(2, 'Старый пароль указан не верно.');
-			$Password = GenPass($_POST['npassword'], $_SESSION['USER_EMAIL']);
+			// SECURITY FIX: proper password verification
+			$storedHash = $_SESSION['USER_PASSWORD'];
+			$verified = false;
+			if (isMD5Hash($storedHash)) {
+				$verified = (migrateFromMD5($_POST['opassword'], $storedHash) !== false);
+			} else {
+				$verified = SecurityUtils::verifyPassword($_POST['opassword'], $storedHash);
+			}
+			if (!$verified) MessageSend(2, 'Старый пароль указан не верно.');
+			$Password = SecurityUtils::hashPassword($_POST['npassword']);
 			mysqli_query($CONNECT, "UPDATE `users`  SET `password` = '$Password' WHERE `id` = $_SESSION[USER_ID]");
 			$_SESSION['USER_PASSWORD'] = $Password;
 		}
@@ -119,17 +127,40 @@
 		MessageSend(3, 'Аккаунт подтвержден.', '/login');
 	}
 	
-	//Вход на сайт
+	//Вход на сайт - SECURITY FIX: bcrypt verification
 	else if ($Module == 'login' and $_POST['submit']) {
 		$_POST['email'] = FormChars($_POST['email'], 1);
-		$_POST['password'] = GenPass(FormChars($_POST['password']), $_POST['email']);
-		if (!$_POST['email'] or !$_POST['password']) MessageSend(1, 'Невозможно обработать форму.');
-		$Row = mysqli_fetch_assoc(mysqli_query($CONNECT, "SELECT `password` FROM `users` WHERE `email` = '$_POST[email]'"));
-		if ($Row['password'] != $_POST['password']) MessageSend(1, 'Не верный email или пароль.');
-		$Row = mysqli_fetch_assoc(mysqli_query($CONNECT, "SELECT `id`, `regdate`, `email`, `login`, `password`, `avatar`, `town`, `group`  FROM `users` WHERE `email` = '$_POST[email]'"));
+		$plainPassword = FormChars($_POST['password']);
+		if (!$_POST['email'] or !$plainPassword) MessageSend(1, 'Невозможно обработать форму.');
+		$Row = mysqli_fetch_assoc(mysqli_query($CONNECT, "SELECT `id`, `regdate`, `email`, `login`, `password`, `avatar`, `town`, `group` FROM `users` WHERE `email` = '$_POST[email]'"));
+		if (!$Row) MessageSend(1, 'Не верный email или пароль.');
+
+		$storedHash = $Row['password'];
+		$verified = false;
+		$newHash = null;
+
+		if (isMD5Hash($storedHash)) {
+			$newHash = migrateFromMD5($plainPassword, $storedHash);
+			$verified = ($newHash !== false);
+		} else {
+			$verified = SecurityUtils::verifyPassword($plainPassword, $storedHash);
+		}
+
+		if (!$verified) MessageSend(1, 'Не верный email или пароль.');
+
+		if ($newHash) {
+			mysqli_query($CONNECT, "UPDATE `users` SET `password` = '$newHash' WHERE `id` = " . intval($Row['id']));
+			$Row['password'] = $newHash;
+		}
+
 		$_SESSION['USER_LOGIN_IN'] = 1;
 		foreach ($Row as $Key => $Value) $_SESSION['USER_'.strtoupper($Key)] = $Value;
-		if ($_REQUEST['remember']) setcookie('user',$_POST['password'], strtotime('+10 days'), '/');
+		if ($_REQUEST['remember']) {
+			$rememberToken = SecurityUtils::generateSecureToken(32);
+			setcookie('user', $rememberToken, strtotime('+10 days'), '/', '', true, true);
+			mysqli_query($CONNECT, "UPDATE `users` SET `remember_token` = '$rememberToken' WHERE `id` = " . intval($Row['id']));
+		}
+		SecurityUtils::regenerateSessionID();
 		Location('/profile');
 	}
 
