@@ -94,3 +94,32 @@ updates:
     dependency-type: all
   rebase-strategy: auto
   versioning-strategy: semver
+
+- package-ecosystem: npm
+  directory: /src/dao/contracts
+  schedule:
+    interval: weekly
+    day: wednesday
+    time: 03:30
+  open-pull-requests-limit: 5
+  reviewers:
+  - x0tta6bl4-team
+  labels:
+  - dependencies
+  - smart-contracts
+  - bot
+  commit-message:
+    prefix: 'chore(contracts):'
+  groups:
+    hardhat-ecosystem:
+      patterns:
+      - "@nomicfoundation/*"
+      - hardhat*
+      - ethers*
+    openzeppelin:
+      patterns:
+      - "@openzeppelin/*"
+  allow:
+    dependency-type: all
+  rebase-strategy: auto
+  versioning-strategy: semver
