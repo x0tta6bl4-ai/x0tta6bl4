@@ -16,13 +16,21 @@ Features:
 import asyncio
 import logging
 import time
-from typing import Optional, Dict, List, Set, Callable
+from typing import Optional, Dict, List, Set, Callable, TYPE_CHECKING, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from prometheus_client import Gauge, Counter # New import
+from prometheus_client import Gauge, Counter
 
 logger = logging.getLogger(__name__)
+
+# Type hints only - avoid circular import with api_client.py
+if TYPE_CHECKING:
+    from src.security.spiffe.workload.api_client import (
+        WorkloadAPIClient,
+        X509SVID,
+        JWTSVID
+    )
 
 # Prometheus Metrics
 SVID_X509_EXPIRY_TIMESTAMP = Gauge(
@@ -45,19 +53,19 @@ AUTO_RENEW_FAILURE_TOTAL = Counter(
     ['svid_type']
 )
 
-try:
-    from src.security.spiffe.workload.api_client import (
-        WorkloadAPIClient,
-        X509SVID,
-        JWTSVID
-    )
-    SPIFFE_CLIENT_AVAILABLE = True
-except ImportError:
-    SPIFFE_CLIENT_AVAILABLE = False
-    WorkloadAPIClient = None
-    X509SVID = None
-    JWTSVID = None
-    logger.warning("⚠️ SPIFFE WorkloadAPIClient not available")
+# Runtime import check (deferred to avoid circular import)
+SPIFFE_CLIENT_AVAILABLE = False
+
+def _check_spiffe_client() -> bool:
+    """Check if SPIFFE client is available (deferred import)."""
+    global SPIFFE_CLIENT_AVAILABLE
+    try:
+        from src.security.spiffe.workload.api_client import WorkloadAPIClient
+        SPIFFE_CLIENT_AVAILABLE = True
+        return True
+    except ImportError:
+        logger.warning("⚠️ SPIFFE WorkloadAPIClient not available")
+        return False
 
 
 @dataclass
@@ -88,7 +96,7 @@ class SPIFFEAutoRenew:
     
     def __init__(
         self,
-        client: WorkloadAPIClient,
+        client: "WorkloadAPIClient",
         config: Optional[AutoRenewConfig] = None
     ):
         """
@@ -111,8 +119,8 @@ class SPIFFEAutoRenew:
         self._jwt_audiences: Set[tuple] = set()
         
         # Callbacks for renewal events
-        self._on_x509_renewed: Optional[Callable[[X509SVID], None]] = None
-        self._on_jwt_renewed: Optional[Callable[[JWTSVID], None]] = None
+        self._on_x509_renewed: Optional[Callable[["X509SVID"], None]] = None
+        self._on_jwt_renewed: Optional[Callable[["JWTSVID"], None]] = None
         self._on_renewal_failed: Optional[Callable[[str, Exception], None]] = None
         
         logger.info("✅ SPIFFE Auto-Renew service initialized")
@@ -139,11 +147,11 @@ class SPIFFEAutoRenew:
         self._jwt_audiences.discard(audience_key)
         logger.debug(f"Unregistered JWT audience: {audience}")
     
-    def set_on_x509_renewed(self, callback: Callable[[X509SVID], None]):
+    def set_on_x509_renewed(self, callback: Callable[["X509SVID"], None]):
         """Set callback for X.509 SVID renewal events."""
         self._on_x509_renewed = callback
     
-    def set_on_jwt_renewed(self, callback: Callable[[JWTSVID], None]):
+    def set_on_jwt_renewed(self, callback: Callable[["JWTSVID"], None]):
         """Set callback for JWT SVID renewal events."""
         self._on_jwt_renewed = callback
     
@@ -384,7 +392,7 @@ class SPIFFEAutoRenew:
         # Time until renewal = time until expiry - threshold
         return max(0.0, time_until_expiry - threshold_time)
     
-    async def _renew_x509_with_retry(self) -> Optional[X509SVID]:
+    async def _renew_x509_with_retry(self) -> Optional["X509SVID"]:
         """Renew X.509 SVID with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
@@ -406,7 +414,7 @@ class SPIFFEAutoRenew:
         
         return None
     
-    async def _renew_jwt_with_retry(self, audience: List[str]) -> Optional[JWTSVID]:
+    async def _renew_jwt_with_retry(self, audience: List[str]) -> Optional["JWTSVID"]:
         """Renew JWT SVID with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
@@ -435,7 +443,7 @@ class SPIFFEAutoRenew:
 
 
 def create_auto_renew(
-    client: WorkloadAPIClient,
+    client: "WorkloadAPIClient",
     renewal_threshold: float = 0.5,
     check_interval: float = 300.0
 ) -> SPIFFEAutoRenew:

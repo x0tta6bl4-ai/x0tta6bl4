@@ -20,23 +20,56 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 # Optional OpenTelemetry imports
+OTEL_AVAILABLE = False
+JAEGER_AVAILABLE = False
+PROMETHEUS_EXPORTER_AVAILABLE = False
+
 try:
     from opentelemetry import trace, metrics
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.prometheus import PrometheusMetricReader
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.requests import RequestsInstrumentor
-    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-    
     OTEL_AVAILABLE = True
 except ImportError:
-    OTEL_AVAILABLE = False
-    logger.warning("⚠️ OpenTelemetry not available. Install with: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-jaeger")
+    logger.debug("OpenTelemetry SDK not available")
+
+# Optional Jaeger exporter (deprecated, prefer OTLP)
+try:
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    JAEGER_AVAILABLE = True
+except ImportError:
+    JaegerExporter = None  # type: ignore
+
+# Optional Prometheus exporter
+try:
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+    PROMETHEUS_EXPORTER_AVAILABLE = True
+except ImportError:
+    PrometheusMetricReader = None  # type: ignore
+
+# Optional OTLP exporter (preferred)
+try:
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    OTLP_AVAILABLE = True
+except ImportError:
+    OTLPSpanExporter = None  # type: ignore
+    OTLP_AVAILABLE = False
+
+# Optional instrumentors
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.requests import RequestsInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+except ImportError:
+    FastAPIInstrumentor = None  # type: ignore
+    RequestsInstrumentor = None  # type: ignore
+    HTTPXClientInstrumentor = None  # type: ignore
+
+try:
+    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+except ImportError:
+    SQLAlchemyInstrumentor = None  # type: ignore
 
 
 class OTelTracingManager:

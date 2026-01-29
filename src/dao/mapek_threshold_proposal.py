@@ -6,7 +6,7 @@ Allows DAO to change MAPE-K thresholds through governance.
 """
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from dataclasses import dataclass
 
 from src.dao.governance import GovernanceEngine, Proposal, ProposalState
@@ -14,13 +14,9 @@ from src.dao.quadratic_voting import QuadraticVoting, Vote
 
 logger = logging.getLogger(__name__)
 
-# Импорт для интеграции с MAPEKThresholdManager
-try:
+# Type hints only - avoid circular import with mapek_threshold_manager.py
+if TYPE_CHECKING:
     from src.dao.mapek_threshold_manager import MAPEKThresholdManager
-    THRESHOLD_MANAGER_AVAILABLE = True
-except ImportError:
-    THRESHOLD_MANAGER_AVAILABLE = False
-    logger.warning("MAPEKThresholdManager not available, using defaults")
 
 
 @dataclass
