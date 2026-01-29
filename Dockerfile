@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
@@ -40,19 +40,19 @@ RUN git clone --depth 1 --branch 0.14.0 https://github.com/open-quantum-safe/lib
 # Copy requirements files
 COPY requirements.txt .
 COPY requirements-dev.txt .
-COPY requirements.min.txt .
 
 # Install Python dependencies (including dev dependencies for potential testing in this stage)
-# Skip torch-geometric dependencies for now
+RUN pip install torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.9.0+cpu.html
 
 RUN pip install --upgrade pip && \
-    pip install -r requirements.min.txt && \
+    pip install -r requirements.txt && \
     pip install -r requirements-dev.txt
 
-RUN pip wheel --wheel-dir=/wheelhouse -r requirements.min.txt -r requirements-dev.txt
+RUN pip wheel --wheel-dir=/wheelhouse -r requirements.txt -r requirements-dev.txt
 
 # Stage 2: Production
-FROM python:3.11-slim as production
+FROM python:3.12-slim as production
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
@@ -82,9 +82,9 @@ WORKDIR /app
 
 # Copy only production dependencies from builder stage
 COPY --from=builder /wheelhouse /wheelhouse
-COPY requirements.min.txt .
-RUN pip install --no-index --find-links=/wheelhouse -r requirements.min.txt
-COPY requirements.min.txt .
+COPY requirements.txt .
+RUN pip install --no-index --find-links=/wheelhouse -r requirements.txt
+COPY requirements.txt .
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src
@@ -101,7 +101,7 @@ EXPOSE 8080 8081 4001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command
 CMD ["python", "-m", "src.core.app"]

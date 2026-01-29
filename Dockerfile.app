@@ -1,56 +1,107 @@
 # Dockerfile for x0tta6bl4 FastAPI application
 
-# Stage 1: Base image
-FROM python:3.11-slim
+# Stage 1: Builder
+FROM python:3.12-slim as builder
+
+# Metadata
+LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
+LABEL version="3.2.0"
+LABEL description="Self-healing mesh network with post-quantum cryptography"
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/root/.local/bin:$PATH"
+
+# Install system dependencies required for building some Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libc6-dev \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    cmake \
+    git \
+    pkg-config \
+    libpq-dev \
+    ninja-build \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for liboqs compilation
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    build-essential \
-    cmake \
-    ninja-build \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Clone and build liboqs from source
+RUN git clone --depth 1 --branch 0.14.0 https://github.com/open-quantum-safe/liboqs.git && \
+    cmake -S liboqs -B liboqs/build -DBUILD_SHARED_LIBS=ON && \
+    cmake --build liboqs/build --parallel 8 && \
+    cmake --build liboqs/build --target install
 
-# Install liboqs from source (before Python packages)
-# Build with shared libraries (.so) for Python bindings
-# Note: Version mismatch warning is non-critical, liboqs-python works with newer liboqs
-RUN git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs && \
-    cd /tmp/liboqs && \
-    mkdir build && \
-    cd build && \
-    cmake -GNinja \
-        -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DBUILD_SHARED_LIBS=ON \
-        -DOQS_BUILD_ONLY_LIB=ON \
-        .. && \
-    ninja && \
-    ninja install && \
-    ldconfig && \
-    rm -rf /tmp/liboqs
+# Copy requirements files
+COPY requirements.txt .
+COPY requirements-dev.txt .
+COPY requirements.min.txt .
 
 # Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install -r requirements.min.txt && \
+    pip install -r requirements-dev.txt
 
-# 🔒 SECURITY: Hard gate - LibOQS must be importable (production invariant)
-# This fails the build if liboqs-python is not available
-RUN python -c "from oqs import KeyEncapsulation, Signature; print('✅ LibOQS verified - Post-Quantum Secure')" || \
-    (echo "🔴 ERROR: LibOQS not importable! Build failed." && exit 1)
+RUN pip wheel --wheel-dir=/wheelhouse -r requirements.min.txt -r requirements-dev.txt
 
-# Optional: Verify SPIFFE SDK if available (not blocking, but logs status)
-RUN python -c "try:\n    import spiffe\n    print('✅ SPIFFE SDK available')\nexcept ImportError:\n    print('⚠️ SPIFFE SDK not available (optional)')" || true
+# Stage 2: Production
+FROM python:3.12-slim as production
+
+# Metadata
+LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
+LABEL version="3.2.0"
+LABEL description="Self-healing mesh network with post-quantum cryptography"
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install *only* runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app /app/data /app/logs && \
+    chown -R appuser:appuser /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy only production dependencies from builder stage
+COPY --from=builder /wheelhouse /wheelhouse
+COPY requirements.min.txt .
+RUN pip install --no-index --find-links=/wheelhouse -r requirements.min.txt
 
 # Copy application code
-# Assuming the application is in the 'src' directory
-COPY ./src /app/src
+COPY --chown=appuser:appuser src/ ./src
 
-# Expose the port the app runs on
-EXPOSE 8080
+# Copy the compiled liboqs shared library from the builder stage
+COPY --from=builder /usr/local/lib/liboqs.so* /usr/local/lib/
+RUN ldconfig
 
-# Run the application
-# We use uvicorn to run the FastAPI app found in src/core/app.py
+# Switch to non-root user
+USER appuser
+
+# Expose ports
+EXPOSE 8080 8081 4001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run with read-only filesystem
 CMD ["uvicorn", "src.core.app:app", "--host", "0.0.0.0", "--port", "8080"]
