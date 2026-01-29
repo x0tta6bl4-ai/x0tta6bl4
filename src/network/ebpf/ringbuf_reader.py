@@ -10,14 +10,14 @@ import struct
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 try:
     from bcc import BPF, PerfType, PerfSWConfig
     BCC_AVAILABLE = True
 except ImportError:
     BCC_AVAILABLE = False
     logger.warning("bcc not available, ring buffer reading will be limited")
-
-logger = logging.getLogger(__name__)
 
 
 class RingBufferReader:

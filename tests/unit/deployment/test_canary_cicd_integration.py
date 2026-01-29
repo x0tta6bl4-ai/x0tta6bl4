@@ -35,14 +35,17 @@ class TestCanaryCICDIntegration:
             'GITLAB_TOKEN': 'test_token'
         }):
             with patch('httpx.post') as mock_post:
-                # Mock cancel pipeline response
-                mock_post.return_value.status_code = 200
-                mock_post.return_value.json.return_value = {"status": "canceled"}
-                
-                # Mock rollback pipeline response
-                mock_post.return_value.status_code = 201
-                mock_post.return_value.json.return_value = {"id": 789}
-                
+                # Mock responses for sequential calls: cancel then rollback
+                cancel_response = MagicMock()
+                cancel_response.status_code = 200
+                cancel_response.json.return_value = {"status": "canceled"}
+
+                rollback_response = MagicMock()
+                rollback_response.status_code = 201
+                rollback_response.json.return_value = {"id": 789}
+
+                mock_post.side_effect = [cancel_response, rollback_response]
+
                 result = canary._trigger_cicd_rollback()
                 
                 # Verify rollback was triggered

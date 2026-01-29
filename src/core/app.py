@@ -84,9 +84,46 @@ async def root():
         "docs": "/docs",
         "endpoints": {
             "health": "/health",
-            "status": "/status"
+            "status": "/status",
+            "mesh/status": "/mesh/status",
+            "mesh/peers": "/mesh/peers",
+            "mesh/routes": "/mesh/routes"
         }
     }
+
+
+# Mesh network endpoints
+@app.get("/mesh/status")
+async def mesh_status():
+    """Get Yggdrasil mesh network status"""
+    try:
+        from src.network.yggdrasil_client import get_yggdrasil_status
+        return get_yggdrasil_status()
+    except Exception as e:
+        logger.error(f"Error getting mesh status: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/mesh/peers")
+async def mesh_peers():
+    """Get Yggdrasil mesh network peers"""
+    try:
+        from src.network.yggdrasil_client import get_yggdrasil_peers
+        return get_yggdrasil_peers()
+    except Exception as e:
+        logger.error(f"Error getting mesh peers: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/mesh/routes")
+async def mesh_routes():
+    """Get Yggdrasil mesh network routes"""
+    try:
+        from src.network.yggdrasil_client import get_yggdrasil_routes
+        return get_yggdrasil_routes()
+    except Exception as e:
+        logger.error(f"Error getting mesh routes: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 logger.info("✓ Routes registered")
 

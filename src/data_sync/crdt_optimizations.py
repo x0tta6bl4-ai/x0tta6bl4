@@ -279,9 +279,16 @@ class CRDTSyncOptimizer:
         self.metrics.total_syncs += 1
         self.metrics.successful_syncs += 1
         
-        # Calculate bytes (simplified)
-        local_bytes = len(json.dumps(local_deltas))
-        peer_bytes = len(json.dumps(peer_state))
+        # Calculate bytes (simplified) - use default=str for non-serializable objects
+        def crdt_encoder(obj):
+            if hasattr(obj, 'to_dict'):
+                return obj.to_dict()
+            elif hasattr(obj, '__dict__'):
+                return obj.__dict__
+            return str(obj)
+
+        local_bytes = len(json.dumps(local_deltas, default=crdt_encoder))
+        peer_bytes = len(json.dumps(peer_state, default=crdt_encoder))
         self.metrics.bytes_sent += local_bytes
         self.metrics.bytes_received += peer_bytes
         

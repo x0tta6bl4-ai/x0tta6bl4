@@ -435,9 +435,9 @@ class MetaCognitiveMAPEK:
         return {
             'system_metrics': system_metrics,
             'reasoning_metrics': reasoning_metrics,
-            'mind_map': mind_map.__dict__ if mind_map else None,  # Новое
-            'logic_gaps': logic_gaps,  # Новое
-            'think_aloud_log': self.think_aloud.get_thoughts() if self.think_aloud else []  # Новое
+            'mind_map': mind_map if mind_map else None,  # mind_maps.create() already returns dict
+            'logic_gaps': logic_gaps,
+            'think_aloud_log': self.think_aloud.get_thoughts() if self.think_aloud else []
         }
     
     async def analyze(

@@ -240,25 +240,63 @@ class EBPFValidator:
             'r10': {'used': False, 'purpose': 'frame_pointer', 'read_only': True}
         }
         
-        # Analyze register usage in instructions (stub - instructions not parsed from bytecode)
+        # Parse bytecode into instructions (8 bytes each)
         instructions = []
+        for i in range(0, len(bytecode), 8):
+            if i + 8 <= len(bytecode):
+                insn = bytecode[i:i+8]
+                opcode = insn[0]
+                dst_src = insn[1]
+                dst_reg = dst_src & 0x0F
+                src_reg = (dst_src >> 4) & 0x0F
+                offset_val = int.from_bytes(insn[2:4], 'little', signed=True)
+                imm_val = int.from_bytes(insn[4:8], 'little', signed=True)
+
+                # Map opcode to name
+                opcode_names = {
+                    0x05: 'jmp', 0x15: 'jeq', 0x55: 'jne', 0x25: 'jgt',
+                    0x35: 'jge', 0xa5: 'jlt', 0xb5: 'jle', 0x07: 'add',
+                    0x17: 'sub', 0x27: 'mul', 0x37: 'div', 0x95: 'exit'
+                }
+                opcode_name = opcode_names.get(opcode, f'0x{opcode:02x}')
+
+                instructions.append({
+                    'index': i // 8,
+                    'opcode': opcode_name,
+                    'opcode_raw': opcode,
+                    'dst_reg': dst_reg,
+                    'src_reg': src_reg,
+                    'offset_val': offset_val,
+                    'imm_val': imm_val
+                })
+
+        # Analyze register usage
         for i, instruction in enumerate(instructions):
             opcode = instruction.get('opcode', '')
             src_reg = instruction.get('src_reg', -1)
             dst_reg = instruction.get('dst_reg', -1)
             
             # Track register usage
+            # Helper to get register key
+            def get_reg_key(reg_num):
+                if reg_num == 10:
+                    return 'r10'
+                elif reg_num < 6:
+                    return f'r{reg_num}'
+                else:
+                    return 'r6-r9'
+
             if 0 <= src_reg <= 10:
-                reg_key = f'r{src_reg}' if src_reg < 6 else 'r6-r9'
+                reg_key = get_reg_key(src_reg)
                 if reg_key in register_usage:
                     register_usage[reg_key]['used'] = True
-            
+
             if 0 <= dst_reg <= 10:
-                reg_key = f'r{dst_reg}' if dst_reg < 6 else 'r6-r9'
+                reg_key = get_reg_key(dst_reg)
                 if reg_key in register_usage:
                     register_usage[reg_key]['used'] = True
                     # Check for write to read-only register
-                    if reg_key == 'r10' and 'read_only' in register_usage[reg_key]:
+                    if reg_key == 'r10' and register_usage[reg_key].get('read_only'):
                         warnings.append(f"Attempted write to read-only frame pointer R10 at instruction {i}")
         
         metadata["register_analysis"] = "full"

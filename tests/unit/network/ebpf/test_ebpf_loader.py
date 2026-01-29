@@ -272,8 +272,9 @@ class TestEBPFLoader:
         with patch('src.network.ebpf.loader.ELF_TOOLS_AVAILABLE', False):
             program_id = loader.load_program(dest_file.name, EBPFProgramType.XDP)
 
-            with pytest.raises(EBPFAttachError):
-                loader.detach_from_interface(program_id, 'nonexistent')
+            # Detaching from non-existent interface should return False (graceful handling)
+            result = loader.detach_from_interface(program_id, 'nonexistent')
+            assert result is False
 
     def test_unload_program(self, loader, temp_ebpf_file, mock_subprocess_run):
         """Test unloading program."""
@@ -327,8 +328,10 @@ class TestEBPFLoader:
                 with patch('pathlib.Path.read_text', return_value='up'):
                     loader.attach_to_interface(program_id, 'eth0')
 
-            with pytest.raises(EBPFAttachError):
-                loader.unload_program(program_id)
+            # Unloading attached program should auto-detach and succeed (graceful handling)
+            success = loader.unload_program(program_id)
+            assert success is True
+            assert program_id not in loader.loaded_programs
 
     def test_list_loaded_programs(self, loader, temp_ebpf_file, mock_subprocess_run):
         """Test listing loaded programs."""

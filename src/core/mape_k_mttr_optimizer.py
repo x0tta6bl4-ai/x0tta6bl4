@@ -160,7 +160,7 @@ class ParallelMAPEKExecutor:
     
     def _is_recovery_state(self, analyze_result: Dict[str, Any]) -> bool:
         """Check if system is in recovery state"""
-        return (
+        return bool(
             analyze_result.get("is_degraded") or
             analyze_result.get("is_critical") or
             analyze_result.get("recovery_in_progress")

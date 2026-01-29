@@ -102,8 +102,8 @@ class FedAvgAggregator(Aggregator):
     Reference: "Communication-Efficient Learning" (McMahan et al., 2017)
     """
     
-    def __init__(self):
-        super().__init__(name="fedavg")
+    def __init__(self, name: str = "fedavg"):
+        super().__init__(name=name)
     
     def aggregate(
         self,
