@@ -119,14 +119,22 @@ class TestLoRATrainer:
         """Test trainer initialization"""
         # Mock imports
         import sys
+        import tempfile
         sys.modules['torch'] = MagicMock()
         sys.modules['transformers'] = MagicMock()
         sys.modules['peft'] = MagicMock()
-        
-        trainer = LoRATrainer(
-            base_model_name="test-model",
-            config=LoRAConfig()
-        )
+
+        # Use temp directory to avoid permission issues
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch('src.ml.lora.trainer.Path') as mock_path:
+                mock_path.return_value.mkdir = MagicMock()
+                mock_path.return_value.exists = MagicMock(return_value=True)
+
+                trainer = LoRATrainer(
+                    base_model_name="test-model",
+                    config=LoRAConfig(),
+                    output_dir=tmp_dir
+                )
         
         assert trainer.base_model_name == "test-model"
         assert trainer.config is not None

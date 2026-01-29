@@ -76,10 +76,12 @@ class TestEBPFValidatorExtended:
         """Test detection of write to read-only register (R10)."""
         # Create bytecode that attempts to write to R10
         bytecode = bytearray(8 * 3)
-        
+
         # Attempt to write to R10 (frame pointer, read-only)
+        # eBPF instruction byte 1: (src_reg << 4) | dst_reg
+        # So for dst=10 (0xa), src=0: byte = 0x0a
         bytecode[0] = 0x07  # ADD opcode
-        bytecode[1] = 0xa0  # R10 = dst (invalid)
+        bytecode[1] = 0x0a  # dst=R10, src=R0
         
         result = validator.validate_bytecode(bytes(bytecode))
         

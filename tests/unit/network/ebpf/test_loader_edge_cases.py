@@ -288,23 +288,24 @@ class TestEBPFLoaderEdgeCases:
     def test_interface_state_check(self):
         """Test checking interface state before attachment"""
         loader = EBPFLoader()
-        
+
         dummy_program = Path("/tmp/dummy_ebpf.o")
         # Create minimal ELF header
         elf_header = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 48
         dummy_program.write_bytes(elf_header)
-        
+
         try:
             # Mock _load_via_bpftool to avoid actual loading
             with patch.object(loader, '_load_via_bpftool') as mock_load:
                 mock_load.return_value = (123, "/sys/fs/bpf/test_xdp")
                 program_id = loader.load_program(str(dummy_program))
-            
+
             # Mock interface in down state - loader should warn but not fail
-            # According to loader code, it only warns if interface is not up, but still allows attachment
+            # We need to mock both the attachment and verification subprocess calls
             with patch('pathlib.Path.exists', return_value=True), \
                  patch('pathlib.Path.read_text', return_value="down\n"), \
-                 patch('subprocess.run', return_value=Mock(returncode=0, stdout="", stderr="")):
+                 patch.object(loader, '_verify_xdp_attachment', return_value=True), \
+                 patch('subprocess.run', return_value=Mock(returncode=0, stdout="xdp", stderr="")):
                 # Interface in down state should still allow attachment (with warning)
                 # The loader code warns but doesn't fail on down state
                 result = loader.attach_to_interface(program_id, "eth0")

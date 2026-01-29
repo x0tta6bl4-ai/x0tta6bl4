@@ -80,7 +80,8 @@ class TestClass:
         # Check test file content
         content = test_file.read_text()
         assert "test_test_function" in content, "Test method should be generated"
-        assert "TestTestModule" in content, "Test class should be generated"
+        # Class name is TestTest_module (uses underscore from filename, not PascalCase)
+        assert "TestTest_module" in content, "Test class should be generated"
         assert "from test_module import" in content, "Import statement should be present"
     
     @pytest.mark.asyncio

@@ -14,10 +14,35 @@ logger = logging.getLogger(__name__)
 
 # Optional alerting
 try:
-    from src.monitoring.alerting import send_alert, AlertSeverity
+    from src.monitoring.alerting import send_alert, AlertSeverity, AlertManager
     ALERTING_AVAILABLE = True
 except ImportError:
     ALERTING_AVAILABLE = False
+    AlertManager = None  # type: ignore
+
+# Prometheus metrics - create once at module level
+_error_counter = None
+try:
+    from prometheus_client import Counter, REGISTRY
+    # Check if metric already exists
+    if 'x0tta6bl4_errors_total' not in [c.describe()[0].name for c in REGISTRY._names_to_collectors.values() if hasattr(c, 'describe')]:
+        _error_counter = Counter(
+            'x0tta6bl4_errors',
+            'Total number of errors',
+            ['error_type', 'context', 'severity']
+        )
+    else:
+        # Get existing counter
+        for collector in REGISTRY._names_to_collectors.values():
+            if hasattr(collector, 'describe'):
+                for desc in collector.describe():
+                    if desc.name == 'x0tta6bl4_errors_total':
+                        _error_counter = collector
+                        break
+except ImportError:
+    pass  # Prometheus not available
+except Exception:
+    pass  # Registry issues
 
 
 class ErrorSeverity(Enum):
@@ -100,8 +125,6 @@ class ErrorHandler:
         # Alert for critical/high errors - Full integration with AlertManager
         if ALERTING_AVAILABLE and severity in [ErrorSeverity.CRITICAL, ErrorSeverity.HIGH]:
             try:
-                from src.monitoring.alerting import send_alert, AlertSeverity
-                
                 alert_severity = AlertSeverity.CRITICAL if severity == ErrorSeverity.CRITICAL else AlertSeverity.ERROR
                 
                 # Use async send_alert function
@@ -125,21 +148,16 @@ class ErrorHandler:
                 logger.warning(f"Failed to send alert: {e}")
         
         # Update error metrics (if Prometheus available)
-        try:
-            from prometheus_client import Counter
-            error_counter = Counter(
-                'x0tta6bl4_errors_total',
-                'Total number of errors',
-                ['error_type', 'context', 'severity']
-            )
-            error_counter.labels(
-                error_type=error_type,
-                context=context,
-                severity=severity.value
-            ).inc()
-        except ImportError:
-            pass  # Prometheus not available
-    
+        if _error_counter is not None:
+            try:
+                _error_counter.labels(
+                    error_type=error_type,
+                    context=context,
+                    severity=severity.value
+                ).inc()
+            except Exception:
+                pass  # Metric update failed
+
     @staticmethod
     def handle_error_sync(
         error: Exception,
@@ -196,14 +214,16 @@ class ErrorHandler:
         if ALERTING_AVAILABLE and severity in [ErrorSeverity.CRITICAL, ErrorSeverity.HIGH]:
             try:
                 import asyncio
-                from src.monitoring.alerting import AlertManager, AlertSeverity
-                
+
                 # Get or create AlertManager instance
                 alert_manager = getattr(ErrorHandler.handle_error_sync, '_alert_manager', None)
-                if alert_manager is None:
+                if alert_manager is None and AlertManager is not None:
                     alert_manager = AlertManager()
                     ErrorHandler.handle_error_sync._alert_manager = alert_manager
-                
+
+                if alert_manager is None:
+                    raise ValueError("AlertManager not available")
+
                 alert_severity = AlertSeverity.CRITICAL if severity == ErrorSeverity.CRITICAL else AlertSeverity.ERROR
                 
                 # Run async alert in sync context
@@ -262,22 +282,17 @@ class ErrorHandler:
                     ))
             except Exception as e:
                 logger.warning(f"Failed to send alert: {e}")
-        
+
         # Update error metrics (if Prometheus available)
-        try:
-            from prometheus_client import Counter
-            error_counter = Counter(
-                'x0tta6bl4_errors_total',
-                'Total number of errors',
-                ['error_type', 'context', 'severity']
-            )
-            error_counter.labels(
-                error_type=error_type,
-                context=context,
-                severity=severity.value
-            ).inc()
-        except ImportError:
-            pass  # Prometheus not available
+        if _error_counter is not None:
+            try:
+                _error_counter.labels(
+                    error_type=error_type,
+                    context=context,
+                    severity=severity.value
+                ).inc()
+            except Exception:
+                pass  # Metric update failed
 
 
 def handle_error_decorator(context: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM):

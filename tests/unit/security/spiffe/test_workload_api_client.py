@@ -52,24 +52,37 @@ def spiffe_socket_env(monkeypatch):
     return socket_path
 
 
-def test_init_fails_if_sdk_not_available(monkeypatch):
-    """Verify WorkloadAPIClient raises ImportError if the SDK is missing."""
-    # Disable force mock mode for this test
+def test_init_fails_if_sdk_not_available_in_production(monkeypatch):
+    """Verify WorkloadAPIClient raises ImportError if the SDK is missing in production mode."""
+    # Enable production mode and disable force mock
+    monkeypatch.setenv("X0TTA6BL4_PRODUCTION", "true")
     monkeypatch.delenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", raising=False)
     with patch('src.security.spiffe.workload.api_client.SPIFFE_SDK_AVAILABLE', False):
-        with pytest.raises(ImportError, match="The 'spiffe' SDK is required"):
+        with pytest.raises(ImportError, match="REQUIRED in production"):
             WorkloadAPIClient()
 
 
-def test_init_fails_if_socket_not_configured(monkeypatch):
-    """Verify WorkloadAPIClient raises ValueError if the socket is not set."""
-    # Disable force mock mode for this test
+def test_init_fails_if_socket_not_configured_in_production(monkeypatch):
+    """Verify WorkloadAPIClient raises ValueError if the socket is not set in production mode."""
+    # Enable production mode and disable force mock
+    monkeypatch.setenv("X0TTA6BL4_PRODUCTION", "true")
     monkeypatch.delenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", raising=False)
-    # Ensure the environment variable is not set
     monkeypatch.delenv("SPIFFE_ENDPOINT_SOCKET", raising=False)
     with patch('src.security.spiffe.workload.api_client.SPIFFE_SDK_AVAILABLE', True):
-        with pytest.raises(ValueError, match="SPIFFE endpoint socket must be provided"):
+        with pytest.raises(ValueError, match="REQUIRED in production"):
             WorkloadAPIClient()
+
+
+def test_init_uses_mock_mode_when_sdk_not_available(monkeypatch):
+    """Verify WorkloadAPIClient uses mock mode when SDK is not available in dev mode."""
+    # Disable production mode
+    monkeypatch.setenv("X0TTA6BL4_PRODUCTION", "false")
+    monkeypatch.delenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", raising=False)
+    monkeypatch.delenv("SPIFFE_ENDPOINT_SOCKET", raising=False)
+    with patch('src.security.spiffe.workload.api_client.SPIFFE_SDK_AVAILABLE', False):
+        # Should not raise, should use mock mode
+        client = WorkloadAPIClient()
+        assert client._force_mock_spiffe is True
 
 
 def test_fetch_x509_svid_success(mock_spiffe_sdk, spiffe_socket_env, monkeypatch):

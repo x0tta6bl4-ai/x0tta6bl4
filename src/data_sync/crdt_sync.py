@@ -56,6 +56,14 @@ class LWWRegister(CRDT):
     def value(self) -> Any:
         return self.value_data
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to JSON-serializable dict."""
+        return {
+            "value_data": self.value_data,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "node_id": self.node_id
+        }
+
 # ---------------------------------------------------------------------------
 # Counter (G-Counter style - grow only, merge by max per node then sum)
 # ---------------------------------------------------------------------------

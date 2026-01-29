@@ -500,7 +500,47 @@ class EBPFLoader:
             
         except subprocess.CalledProcessError:
             return False
-    
+
+    def _verify_attachment(self, program_id: int, interface: str, program_type: EBPFProgramType) -> bool:
+        """
+        Verify eBPF program attachment via bpftool.
+
+        Args:
+            program_id: The eBPF program ID
+            interface: Network interface name
+            program_type: Type of eBPF program
+
+        Returns:
+            True if program is verified attached, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ["bpftool", "prog", "show", "id", str(program_id)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode != 0:
+                return False
+
+            # Check if program exists in output
+            output = result.stdout
+            if f"id {program_id}" in output or str(program_id) in output:
+                return True
+
+            return False
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Timeout verifying program {program_id}")
+            return False
+        except FileNotFoundError:
+            logger.warning("bpftool not found, cannot verify attachment")
+            return False
+        except Exception as e:
+            logger.error(f"Error verifying attachment: {e}")
+            return False
+
     def _attach_xdp_program(
         self, 
         interface: str, 
@@ -602,17 +642,21 @@ class EBPFLoader:
             return False
         
         if interface not in self.attached_interfaces:
-            raise EBPFAttachError(f"No programs attached to interface {interface}")
-        
+            logger.warning(f"No programs attached to interface {interface}")
+            return False
+
         # Find program attachment
         attachment = None
         for att in self.attached_interfaces[interface]:
-            if att.get("program_id") == program_id:
+            # Handle both dict format ({"program_id": ...}) and string format
+            att_program_id = att.get("program_id") if isinstance(att, dict) else att
+            if att_program_id == program_id:
                 attachment = att
                 break
-        
+
         if not attachment:
-            raise EBPFAttachError(f"Program {program_id} not attached to {interface}")
+            logger.warning(f"Program {program_id} not attached to {interface}")
+            return False
         
         program_type = attachment["type"]
         
@@ -701,14 +745,22 @@ class EBPFLoader:
         attached_interfaces = []
         for interface, attachments in self.attached_interfaces.items():
             for att in attachments:
-                if att.get("program_id") == program_id:
+                # Handle both dict format ({"program_id": ...}) and string format
+                att_program_id = att.get("program_id") if isinstance(att, dict) else att
+                if att_program_id == program_id:
                     attached_interfaces.append(interface)
         
         if attached_interfaces:
-            raise EBPFAttachError(
-                f"Cannot unload program {program_id}: still attached to {attached_interfaces}. "
-                f"Detach first using detach_from_interface()"
+            # Auto-detach from all interfaces before unloading
+            logger.warning(
+                f"Program {program_id} still attached to {attached_interfaces}. "
+                f"Auto-detaching before unload."
             )
+            for interface in attached_interfaces:
+                try:
+                    self.detach_from_interface(program_id, interface)
+                except Exception as e:
+                    logger.warning(f"Failed to auto-detach from {interface}: {e}")
         
         # Unpin from bpffs if pinned
         pinned_path = self.loaded_programs[program_id].get("pinned_path")
