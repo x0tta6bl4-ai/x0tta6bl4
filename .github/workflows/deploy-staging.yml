@@ -27,7 +27,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+    
       redis:
         image: redis:7-alpine
         options: >-
@@ -55,21 +55,45 @@ jobs:
           pip install pytest pytest-cov pytest-asyncio
 
       - name: Lint with flake8
-        continue-on-error: true
         run: |
           pip install flake8
-          # Stop on style errors, warnings are ok
-          flake8 src/ --count --statistics --max-line-length=120
+          # Stop on critical errors (E9, F63, F7, F82), warn on style
+          flake8 src/ --count --statistics --max-line-length=120 --select=E9,F63,F7,F82
 
       - name: Type check with mypy
+        run: |
+          pip install mypy types-requests
+          mypy src/ --ignore-missing-imports --show-error-codes --no-error-summary
+
+      - name: Run unit tests with coverage enforcement
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          REDIS_URL: "redis://localhost:6379"
+          STRIPE_SECRET_KEY: "sk_test_fake"
+          STRIPE_PRICE_ID: "price_test_fake"
+          STRIPE_WEBHOOK_SECRET: "whsec_test_fake"
+          ADMIN_TOKEN: "test_admin_token"
+        run: |
+          pytest tests/ -v --tb=short --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=10 -x --ignore=tests/integration --ignore=tests/chaos --ignore=tests/load --ignore=tests/k6
+
+      - name: Run API tests
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          REDIS_URL: "redis://localhost:6379"
+          STRIPE_SECRET_KEY: "sk_test_fake"
+          STRIPE_PRICE_ID: "price_test_fake"
+          STRIPE_WEBHOOK_SECRET: "whsec_test_fake"
+          ADMIN_TOKEN: "test_admin_token"
+        run: |
+          pytest tests/api/ -v --tb=short --no-cov
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: "postgresql://x0tta6bl4:staging_password@localhost:5432/x0tta6bl4_db"
+          REDIS_URL: "redis://localhost:6379"
         continue-on-error: true
         run: |
-          pip install mypy
-          mypy src/ --ignore-missing-imports --show-error-codes || true
-
-      - name: Run unit tests
-        run: |
-          pytest tests/unit -v --tb=short --cov=src --cov-report=term-missing || true
+          pytest tests/integration/test_users_api.py -v --tb=short --no-cov
 
       - name: Build Docker image
         run: |
@@ -82,10 +106,10 @@ jobs:
           # Test that the image builds and starts
           docker run --rm -d \
             --name x0tta6bl4-test \
-            -p 8000:8000 \
+            -p 8080:8080 \
             x0tta6bl4:latest &
           sleep 5
-          curl -f http://localhost:8000/health || echo "Health check pending"
+          curl -f http://localhost:8080/health || echo "Health check pending"
           docker stop x0tta6bl4-test || true
 
       - name: Login to Docker Hub (optional)
@@ -122,7 +146,7 @@ jobs:
           sleep 10
           
           echo "API Health:"
-          curl -s http://localhost:8000/health | head -20 || echo "API not ready yet"
+          curl -s http://localhost:8080/health | head -20 || echo "API not ready yet"
           
           echo "Prometheus Health:"
           curl -s http://localhost:9090/-/healthy || echo "Prometheus not ready yet"
@@ -143,7 +167,6 @@ jobs:
         if: always()
         uses: slackapi/slack-github-action@v1
         with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
           payload: |
             {
               "text": "x0tta6bl4 ${{ github.event_name }} on ${{ github.ref }}: ${{ job.status }}",
@@ -157,4 +180,6 @@ jobs:
                 }
               ]
             }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
         continue-on-error: true

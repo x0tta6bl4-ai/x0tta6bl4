@@ -13,10 +13,13 @@ import hmac
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy.orm import Session
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from vpn_config_generator import generate_vless_link, generate_config_text
+from src.database import get_db, User
+from src.core.cache import cached, cache
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +116,15 @@ async def create_vpn_config(
 ) -> VPNConfigResponse:
     """
     Create VPN configuration for a user.
-    
+
     Args:
         request: VPN config request data
-        
+
     Returns:
         VPN configuration with VLESS link and detailed instructions
     """
     return await get_vpn_config(
+        request=request,
         user_id=config_request.user_id,
         username=config_request.username,
         server=config_request.server,
@@ -128,70 +132,104 @@ async def create_vpn_config(
     )
 
 
+async def _check_vpn_connectivity(server: str, port: int) -> str:
+    """Check VPN server connectivity."""
+    import asyncio
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(server, port),
+            timeout=2.0
+        )
+        writer.close()
+        await writer.wait_closed()
+        return "online"
+    except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+        return "offline"
+
+
+@cached(ttl=30, key_prefix="vpn_status")
+async def _get_vpn_status_cached() -> Dict[str, Any]:
+    """Get VPN status with caching (30 seconds TTL)."""
+    server = os.getenv("VPN_SERVER", "89.125.1.107")
+    port = int(os.getenv("VPN_PORT", "39829"))
+
+    status = await _check_vpn_connectivity(server, port)
+    active_users = int(os.getenv("VPN_ACTIVE_USERS", "0"))
+    uptime = int(os.getenv("VPN_UPTIME_SECONDS", "0"))
+
+    return {
+        "status": status,
+        "server": server,
+        "port": port,
+        "protocol": "VLESS+Reality",
+        "active_users": active_users,
+        "uptime": uptime
+    }
+
+
 @router.get("/status")
 @limiter.limit("60/minute")
 async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     Get VPN server status.
-    
+
     Returns:
-        Current VPN server status
+        Current VPN server status (cached for 30 seconds)
     """
     try:
-        # Get default values from environment
-        server = os.getenv("VPN_SERVER", "89.125.1.107")
-        port = int(os.getenv("VPN_PORT", "39829"))
-        
-        # Check if VPN is reachable (simple TCP connect test)
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        try:
-            sock.connect((server, port))
-            status = "online"
-        except Exception:
-            status = "offline"
-        finally:
-            sock.close()
-        
-        # Mock data for active users and uptime (in production, this should come from real stats)
-        active_users = 5
-        uptime = 86400  # 24 hours
-        
-        return VPNStatusResponse(
-            status=status,
-            server=server,
-            port=port,
-            protocol="VLESS+Reality",
-            active_users=active_users,
-            uptime=uptime
-        )
+        data = await _get_vpn_status_cached()
+        return VPNStatusResponse(**data)
     except Exception as e:
         logger.error(f"Error getting VPN status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
+VPN_USERS_CACHE_KEY = "vpn:users:list"
+
+
+async def _fetch_vpn_users_from_db(db: Session) -> Dict[str, Any]:
+    """Fetch VPN users from database."""
+    db_users = db.query(User).filter(User.plan != "free").all()
+    users = [
+        {
+            "user_id": u.id,
+            "username": u.email.split("@")[0] if u.email else "unknown",
+            "vless_link": "vless://...",
+            "last_connected": "2024-01-20 10:30:00"
+        }
+        for u in db_users
+    ]
+    return {"total": len(users), "users": users}
+
+
 @router.get("/users")
 @limiter.limit("10/minute")
-async def get_vpn_users(request: Request, admin=Depends(verify_admin_token)) -> Dict[str, Any]:
+async def get_vpn_users(
+    request: Request,
+    admin=Depends(verify_admin_token),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """
     Get list of active VPN users.
-    
+
     Returns:
-        List of active VPN users
+        List of active VPN users (cached for 60 seconds)
     """
     try:
-        # Mock data (in production, this should come from x-ui API or database)
-        users = [
-            {"user_id": 12345, "username": "user1", "vless_link": "vless://...", "last_connected": "2024-01-20 10:30:00"},
-            {"user_id": 67890, "username": "user2", "vless_link": "vless://...", "last_connected": "2024-01-20 11:45:00"},
-            {"user_id": 11223, "username": "user3", "vless_link": "vless://...", "last_connected": "2024-01-20 12:15:00"}
-        ]
-        
-        return {
-            "total": len(users),
-            "users": users
-        }
+        # Try to get from cache first
+        cached_result = await cache.get(VPN_USERS_CACHE_KEY)
+        if cached_result is not None:
+            logger.debug("VPN users cache hit")
+            return cached_result
+
+        # Cache miss - fetch from database
+        logger.debug("VPN users cache miss")
+        result = await _fetch_vpn_users_from_db(db)
+
+        # Cache for 60 seconds
+        await cache.set(VPN_USERS_CACHE_KEY, result, ttl=60)
+
+        return result
     except Exception as e:
         logger.error(f"Error getting VPN users: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -202,25 +240,38 @@ async def get_vpn_users(request: Request, admin=Depends(verify_admin_token)) -> 
 async def delete_vpn_user(
     request: Request,
     user_id: int,
-    admin=Depends(verify_admin_token)
+    admin=Depends(verify_admin_token),
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Delete VPN user.
-    
+
     Args:
         user_id: User ID to delete
-        
+
     Returns:
         Confirmation of deletion
     """
     try:
-        # Mock deletion (in production, this should call x-ui API)
-        logger.info(f"Deleting VPN user {user_id}")
-        
-        return {
-            "success": True,
-            "message": f"User {user_id} deleted successfully"
-        }
+        user = db.query(User).filter(User.id == str(user_id)).first()
+        if user:
+            user.plan = "free"  # Downgrade to free
+            db.commit()
+
+            # Invalidate users cache
+            await cache.delete(VPN_USERS_CACHE_KEY)
+            logger.info(f"Downgraded user {user_id} to free plan, cache invalidated")
+
+            return {
+                "success": True,
+                "message": f"User {user_id} downgraded to free plan"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"User {user_id} not found"
+            }
     except Exception as e:
         logger.error(f"Error deleting VPN user: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

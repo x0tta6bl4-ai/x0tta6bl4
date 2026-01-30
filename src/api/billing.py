@@ -3,13 +3,20 @@ import time
 import hmac
 import hashlib
 import json
+import logging
 from typing import Optional, Dict, Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Header, status
+from fastapi import APIRouter, HTTPException, Request, Header, status, Depends
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from src.database import get_db, User, License
+from src.core.circuit_breaker import stripe_circuit, CircuitBreakerOpen
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 limiter = Limiter(key_func=get_remote_address)
@@ -73,22 +80,30 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
         "metadata[plan]": payload.plan,
     }
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.post(
-            "https://api.stripe.com/v1/checkout/sessions",
-            data=data,
-            auth=(secret_key, ""),
+    async def call_stripe_api():
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                "https://api.stripe.com/v1/checkout/sessions",
+                data=data,
+                auth=(secret_key, ""),
+            )
+        if resp.status_code >= 400:
+            try:
+                err = resp.json()
+            except Exception:
+                err = {"error": {"message": resp.text}}
+            raise HTTPException(status_code=502, detail=err)
+        return resp.json()
+
+    try:
+        session = await stripe_circuit.call(call_stripe_api)
+        return {"id": session.get("id"), "url": session.get("url")}
+    except CircuitBreakerOpen:
+        logger.error("Stripe API circuit breaker is open")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payment service temporarily unavailable. Please try again later."
         )
-
-    if resp.status_code >= 400:
-        try:
-            err = resp.json()
-        except Exception:
-            err = {"error": {"message": resp.text}}
-        raise HTTPException(status_code=502, detail=err)
-
-    session = resp.json()
-    return {"id": session.get("id"), "url": session.get("url")}
 
 
 def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str, tolerance_seconds: int = 300) -> None:
@@ -121,7 +136,11 @@ def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str,
 
 @router.post("/webhook")
 @limiter.limit("120/minute")
-async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Header(default=None, alias="Stripe-Signature")):
+async def stripe_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    stripe_signature: Optional[str] = Header(default=None, alias="Stripe-Signature")
+):
     secret = _require_env("STRIPE_WEBHOOK_SECRET")
     if not stripe_signature:
         raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
@@ -151,46 +170,38 @@ async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Hea
     if email and event_type in {"checkout.session.completed", "invoice.paid", "customer.subscription.created"}:
         try:
             from src.api.users import users_db
-            from src.database import SessionLocal, User, License
             from src.sales.telegram_bot import TokenGenerator
-            
-            # Update in-memory user
+
+            # Update in-memory user (for backward compatibility)
             user = users_db.get(email)
             if user is not None:
                 user["plan"] = "pro"
                 user["stripe_customer_id"] = obj.get("customer")
                 user["stripe_subscription_id"] = obj.get("subscription")
-            
-            # Update database
-            db = SessionLocal()
-            try:
-                db_user = db.query(User).filter(User.email == email).first()
-                if db_user:
-                    db_user.plan = "pro"
-                    db_user.stripe_customer_id = obj.get("customer")
-                    db_user.stripe_subscription_id = obj.get("subscription")
-                    db.commit()
-                    db.refresh(db_user)
-                    
-                    # Generate license for pro plan
-                    license_token = TokenGenerator.generate(tier="pro")
-                    new_license = License(
-                        token=license_token,
-                        user_id=db_user.id,
-                        tier="pro",
-                        is_active=True
-                    )
-                    db.add(new_license)
-                    db.commit()
-                    
-                    logger.info(f"Generated pro license {license_token} for user {email}")
-            except Exception as e:
-                logger.error(f"Database update failed: {e}")
-                db.rollback()
-            finally:
-                db.close()
-                
+
+            # Update database using injected session
+            db_user = db.query(User).filter(User.email == email).first()
+            if db_user:
+                db_user.plan = "pro"
+                db_user.stripe_customer_id = obj.get("customer")
+                db_user.stripe_subscription_id = obj.get("subscription")
+
+                # Generate license for pro plan
+                license_token = TokenGenerator.generate(tier="pro")
+                new_license = License(
+                    token=license_token,
+                    user_id=db_user.id,
+                    tier="pro",
+                    is_active=True
+                )
+                db.add(new_license)
+                db.commit()
+                db.refresh(db_user)
+
+                logger.info(f"Generated pro license {license_token} for user {email}")
+
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
+            db.rollback()
 
     return {"received": True}
