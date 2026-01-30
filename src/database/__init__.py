@@ -15,9 +15,14 @@ import os
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./x0tta6bl4.db")
 
 # Create engine
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
+if "sqlite" in DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL, connect_args={"check_same_thread": False}
+    )
+elif "postgresql" in DATABASE_URL:
+    engine = create_engine(DATABASE_URL)
+else:
+    raise ValueError(f"Unsupported database type: {DATABASE_URL}")
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
