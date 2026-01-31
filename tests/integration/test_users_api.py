@@ -2,6 +2,7 @@
 Test for user authentication and authorization
 """
 import pytest
+import os
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch
 from src.core.app import app
