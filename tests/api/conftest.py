@@ -1,5 +1,8 @@
-"""Pytest configuration for integration tests."""
+"""
+Conftest для API тестов.
 
+Мокирует optional dependencies перед импортом src модулей.
+"""
 import sys
 from unittest.mock import MagicMock
 
@@ -27,13 +30,3 @@ for mod_name, mock_obj in _mocked_modules.items():
         sys.modules[mod_name] = mock_obj
 
 import pytest
-
-
-def pytest_configure(config):
-    """Register custom markers."""
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration test (requires mesh running)"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow (>10s execution time)"
-    )
