@@ -8,14 +8,16 @@ from src.core.status_collector import get_current_status
 from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitMiddleware, RateLimitConfig
 from src.core.tracing_middleware import TracingMiddleware
+from src.core.request_validation import RequestValidationMiddleware, ValidationConfig
+from src.core.graceful_shutdown import create_lifespan, shutdown_manager, ShutdownMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="x0tta6bl4",
-    version="3.1.0",
-    description="Self-healing mesh network node with MAPE-K autonomic loop"
+    version="3.2.0",
+    description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm"
 )
 
 # Import and register API routers
@@ -39,6 +41,13 @@ try:
     logger.info("✓ Billing router registered")
 except ImportError as e:
     logger.warning(f"Could not import billing router: {e}")
+
+try:
+    from src.api.swarm import router as swarm_router
+    app.include_router(swarm_router)
+    logger.info("✓ Swarm router registered (Kimi K2.5 integration)")
+except ImportError as e:
+    logger.warning(f"Could not import swarm router: {e}")
 
 # Add mTLS middleware (only in production)
 # In development, set MTLS_ENABLED=false or leave unset for TestClient compatibility
@@ -84,6 +93,31 @@ if tracing_enabled:
 else:
     logger.info("⚠️  Distributed tracing disabled")
 
+# Add request validation middleware
+validation_enabled = os.getenv("REQUEST_VALIDATION_ENABLED", "true").lower() == "true"
+if validation_enabled:
+    validation_config = ValidationConfig(
+        max_content_length=int(os.getenv("MAX_CONTENT_LENGTH", str(10 * 1024 * 1024))),
+        max_url_length=int(os.getenv("MAX_URL_LENGTH", "2048")),
+        block_suspicious_patterns=True,
+        excluded_paths=["/health", "/metrics", "/docs", "/openapi.json"]
+    )
+    app.add_middleware(
+        RequestValidationMiddleware,
+        config=validation_config
+    )
+    logger.info("✓ Request validation enabled (injection protection active)")
+else:
+    logger.info("⚠️  Request validation disabled")
+
+# Add graceful shutdown middleware
+shutdown_enabled = os.getenv("GRACEFUL_SHUTDOWN_ENABLED", "true").lower() == "true"
+if shutdown_enabled:
+    app.add_middleware(ShutdownMiddleware, shutdown_manager=shutdown_manager)
+    logger.info("✓ Graceful shutdown middleware enabled")
+else:
+    logger.info("⚠️  Graceful shutdown middleware disabled")
+
 # Security headers via decorator
 @app.middleware("http")
 async def add_security_headers(request, call_next):
@@ -100,7 +134,7 @@ logger.info("✓ App created")
 @app.get("/health")
 async def health():
     """Simple health check endpoint - returns 200 if alive"""
-    return {"status": "ok", "version": "3.1.0"}
+    return {"status": "ok", "version": "3.2.0"}
 
 
 @app.get("/health/live")
@@ -151,7 +185,7 @@ async def status():
             status_code=200,
             content={
                 "status": "healthy",
-                "version": "3.1.0",
+                "version": "3.2.0",
                 "error": str(e)
             }
         )
@@ -161,14 +195,22 @@ async def root():
     """API root with documentation links"""
     return {
         "name": "x0tta6bl4",
-        "version": "3.1.0",
+        "version": "3.2.0",
         "docs": "/docs",
         "endpoints": {
             "health": "/health",
             "status": "/status",
             "mesh/status": "/mesh/status",
             "mesh/peers": "/mesh/peers",
-            "mesh/routes": "/mesh/routes"
+            "mesh/routes": "/mesh/routes",
+            "swarm": "/api/v3/swarm",
+            "swarm/health": "/api/v3/swarm/health"
+        },
+        "features": {
+            "kimi_k2.5_swarm": True,
+            "parl_parallel_execution": True,
+            "max_agents": 100,
+            "max_parallel_steps": 1500
         }
     }
 
