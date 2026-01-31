@@ -556,8 +556,26 @@ async def analyze_visual(
         # Read image content
         image_content = await image.read()
 
-        # TODO: Integrate with vision_coding.py when fully implemented
-        # For now, return a placeholder response
+        # Import vision engine
+        from src.swarm.vision_coding import get_vision_engine
+
+        engine = get_vision_engine()
+
+        # Perform analysis based on type
+        if analysis_type == "mesh_topology":
+            results = await engine.analyze_mesh_topology(image_content)
+        elif analysis_type == "anomaly_detection":
+            results = await engine.detect_anomalies(image_content)
+        elif analysis_type == "routing_visualization":
+            # For routing, we need start/end positions - use defaults or from context
+            results = await engine.analyze_maze(
+                image_content,
+                start_pos=(0, 0),
+                end_pos=(100, 100)
+            )
+        else:
+            # Default to mesh topology analysis
+            results = await engine.analyze_mesh_topology(image_content)
 
         return {
             "analysis_id": f"analysis_{swarm_id[:8]}",
@@ -565,11 +583,7 @@ async def analyze_visual(
             "status": "completed",
             "analysis_type": analysis_type,
             "image_size": len(image_content),
-            "results": {
-                "message": "Vision analysis placeholder - full implementation pending",
-                "detected_issues": [],
-                "recommendations": []
-            }
+            "results": results
         }
 
     except Exception as e:
