@@ -83,8 +83,8 @@ async def get_vpn_config(
     try:
         import uuid
         # Get default values from environment
-        default_server = os.getenv("VPN_SERVER", "89.125.1.107")
-        default_port = int(os.getenv("VPN_PORT", "39829"))
+        default_server = os.getenv("VPN_SERVER")
+        default_port = int(os.getenv("VPN_PORT", "0")) or None
         
         # Use custom values or defaults
         server = server or default_server
@@ -150,8 +150,8 @@ async def _check_vpn_connectivity(server: str, port: int) -> str:
 @cached(ttl=30, key_prefix="vpn_status")
 async def _get_vpn_status_cached() -> Dict[str, Any]:
     """Get VPN status with caching (30 seconds TTL)."""
-    server = os.getenv("VPN_SERVER", "89.125.1.107")
-    port = int(os.getenv("VPN_PORT", "39829"))
+    server = os.getenv("VPN_SERVER", "")
+    port = int(os.getenv("VPN_PORT", "0")) or 0
 
     status = await _check_vpn_connectivity(server, port)
     active_users = int(os.getenv("VPN_ACTIVE_USERS", "0"))

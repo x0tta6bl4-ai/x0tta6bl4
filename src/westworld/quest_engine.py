@@ -449,9 +449,9 @@ async def demo_quests():
     print("="*70)
     
     engine = QuestEngine(
-        mesh_api="https://mesh.x0tta6bl4.local",
-        blockchain_api="https://blockchain.x0tta6bl4.local",
-        nft_contract_address="0x..."
+        mesh_api=os.getenv("MESH_API", ""),
+        blockchain_api=os.getenv("BLOCKCHAIN_API", ""),
+        nft_contract_address=os.getenv("NFT_CONTRACT_ADDRESS", "")
     )
     
     # Load sample quests

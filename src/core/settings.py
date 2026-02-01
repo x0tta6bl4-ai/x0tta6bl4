@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     # ─────────────────────────────────────────
     operator_private_key: Optional[str] = Field(default=None, validation_alias="OPERATOR_PRIVATE_KEY")
     contract_address: Optional[str] = Field(default=None, validation_alias="CONTRACT_ADDRESS")
-    rpc_url: Optional[str] = Field(default="https://sepolia.base.org", validation_alias="RPC_URL")
+    rpc_url: Optional[str] = Field(default=None, validation_alias="RPC_URL")
 
     @field_validator("operator_private_key", mode="before")
     @classmethod
@@ -85,8 +85,8 @@ class Settings(BaseSettings):
     node_id: str = Field(default="node-001", validation_alias="NODE_ID")
     socks_port: int = Field(default=10809, validation_alias="SOCKS_PORT")
     dashboard_port: int = Field(default=8080, validation_alias="DASHBOARD_PORT")
-    bootstrap_nodes: str = Field(
-        default="89.125.1.107:10809,62.133.60.252:10809",
+    bootstrap_nodes: Optional[str] = Field(
+        default=None,
         validation_alias="BOOTSTRAP_NODES"
     )
 
@@ -103,12 +103,12 @@ class Settings(BaseSettings):
     stripe_publishable_key: Optional[str] = Field(default=None, validation_alias="STRIPE_PUBLISHABLE_KEY")
     stripe_price_id: Optional[str] = Field(default=None, validation_alias="STRIPE_PRICE_ID")
     stripe_webhook_secret: Optional[str] = Field(default=None, validation_alias="STRIPE_WEBHOOK_SECRET")
-    stripe_success_url: str = Field(
-        default="https://yourdomain.com/?success=1",
+    stripe_success_url: Optional[str] = Field(
+        default=None,
         validation_alias="STRIPE_SUCCESS_URL"
     )
-    stripe_cancel_url: str = Field(
-        default="https://yourdomain.com/?canceled=1",
+    stripe_cancel_url: Optional[str] = Field(
+        default=None,
         validation_alias="STRIPE_CANCEL_URL"
     )
 

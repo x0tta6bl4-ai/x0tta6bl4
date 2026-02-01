@@ -80,8 +80,8 @@ async def get_vpn_config(
     try:
         import uuid
         # Get default values from environment
-        default_server = os.getenv("VPN_SERVER", "89.125.1.107")
-        default_port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "39830"))
+        default_server = os.getenv("VPN_SERVER")
+        default_port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or None
         
         # Use custom values or defaults
         server = server or default_server
@@ -139,8 +139,8 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     try:
         # Get default values from environment
-        server = os.getenv("VPN_SERVER", "89.125.1.107")
-        port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "39830"))
+        server = os.getenv("VPN_SERVER", "")
+        port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or 0
         
         # Check if VPN is reachable (simple TCP connect test)
         import socket

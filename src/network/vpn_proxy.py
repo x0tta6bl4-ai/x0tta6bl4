@@ -254,8 +254,8 @@ class MeshVPNProxy(SOCKS5Server):
     In production, traffic would be routed through mesh nodes.
     """
     
-    # Default exit node (x0tta6bl4 VPN server)
-    DEFAULT_EXIT_NODE = "89.125.1.107:39829"
+    # Default exit node loaded from environment
+    DEFAULT_EXIT_NODE = os.getenv("VPN_EXIT_NODE", "")
     
     def __init__(self, host: str = "127.0.0.1", port: int = 1080, exit_node: str = None, use_exit: bool = False):
         super().__init__(host, port)

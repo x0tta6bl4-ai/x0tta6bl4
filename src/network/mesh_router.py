@@ -63,11 +63,39 @@ class MeshRouter:
     - Automatic failover
     """
     
-    # Known bootstrap nodes
-    BOOTSTRAP_NODES = [
-        MeshPeer("node-vps1", "89.125.1.107", 10809, is_exit=True),
-        MeshPeer("node-vps2", "62.133.60.252", 10809, is_exit=True),
-    ]
+    # Bootstrap nodes loaded from environment or config
+    @classmethod
+    def _load_bootstrap_nodes(cls) -> List[MeshPeer]:
+        """Load bootstrap nodes from environment variable."""
+        import os
+        bootstrap_env = os.getenv("BOOTSTRAP_NODES", "")
+        nodes = []
+        
+        if bootstrap_env:
+            # Format: "host:port:node_id,host:port:node_id"
+            for node_str in bootstrap_env.split(","):
+                parts = node_str.strip().split(":")
+                if len(parts) >= 2:
+                    host = parts[0]
+                    port = int(parts[1]) if len(parts) > 1 else 10809
+                    node_id = parts[2] if len(parts) > 2 else f"node-{host.replace('.', '-')}"
+                    nodes.append(MeshPeer(node_id, host, port, is_exit=True))
+        
+        # Development fallback - only if explicitly allowed
+        if not nodes and os.getenv("ENVIRONMENT") == "development":
+            dev_nodes_env = os.getenv("DEV_BOOTSTRAP_NODES", "")
+            if dev_nodes_env:
+                for node_str in dev_nodes_env.split(","):
+                    parts = node_str.strip().split(":")
+                    if len(parts) >= 2:
+                        host = parts[0]
+                        port = int(parts[1]) if len(parts) > 1 else 10809
+                        node_id = parts[2] if len(parts) > 2 else f"node-{host.replace('.', '-')}"
+                        nodes.append(MeshPeer(node_id, host, port, is_exit=True))
+        
+        return nodes
+    
+    BOOTSTRAP_NODES = []
     
     def __init__(self, node_id: str, local_port: int = 10809):
         self.node_id = node_id
@@ -94,7 +122,8 @@ class MeshRouter:
             self.shield = None
         
         # Add bootstrap nodes
-        for peer in self.BOOTSTRAP_NODES:
+        bootstrap_nodes = self._load_bootstrap_nodes()
+        for peer in bootstrap_nodes:
             if peer.node_id != node_id:  # Don't add self
                 self.peers[peer.node_id] = peer
     

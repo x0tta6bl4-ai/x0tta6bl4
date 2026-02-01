@@ -9,11 +9,18 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY')
 if not app.secret_key:
     raise RuntimeError("FLASK_SECRET_KEY is required for session security")
 
-NODES: List[Dict[str, str]] = [
-    {"name": "Local (Germany)", "url": "http://127.0.0.1:8080"},
-    {"name": "VPS 1 (Netherlands)", "url": "http://89.125.1.107:8081"},
-    {"name": "VPS 2 (Russia)", "url": "http://62.133.60.252:8081"}
-]
+def _load_nodes_from_env() -> List[Dict[str, str]]:
+    """Load nodes from MESH_NODES environment variable."""
+    nodes_env = os.getenv("MESH_NODES", "")
+    nodes = []
+    if nodes_env:
+        for node_str in nodes_env.split(","):
+            parts = node_str.strip().split("|")
+            if len(parts) >= 2:
+                nodes.append({"name": parts[0], "url": parts[1]})
+    return nodes or [{"name": "Local", "url": "http://127.0.0.1:8080"}]
+
+NODES: List[Dict[str, str]] = _load_nodes_from_env()
 
 def check_node(node: Dict[str, str]) -> Optional[Dict[str, Any]]:
     try:
