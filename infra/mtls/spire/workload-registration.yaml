@@ -1,0 +1,77 @@
+# SPIRE Workload Registration for x0tta6bl4 services
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: proxy-api
+spec:
+  spiffeIDTemplate: "spiffe://x0tta6bl4.mesh/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}/pod/{{ .PodMeta.Name }}"
+  podSelector:
+    matchLabels:
+      app: proxy-api
+  namespaceSelector:
+    matchNames:
+      - x0tta6bl4-production
+      - x0tta6bl4-staging
+  dnsNameTemplates:
+    - "{{ .PodMeta.Name }}"
+    - "{{ .PodMeta.Name }}.{{ .PodMeta.Namespace }}"
+    - "proxy-api.{{ .PodMeta.Namespace }}.svc.cluster.local"
+  workloadSelectorTemplates:
+    - "k8s:pod-uid:{{ .PodMeta.UID }}"
+    - "k8s:container-name:proxy-api"
+  ttl: "1h"
+  jwtTTL: "5m"
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: redis
+spec:
+  spiffeIDTemplate: "spiffe://x0tta6bl4.mesh/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}/redis"
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  namespaceSelector:
+    matchNames:
+      - x0tta6bl4-production
+      - x0tta6bl4-staging
+  dnsNameTemplates:
+    - "{{ .PodMeta.Name }}"
+    - "redis.{{ .PodMeta.Namespace }}.svc.cluster.local"
+    - "redis-headless.{{ .PodMeta.Namespace }}.svc.cluster.local"
+  ttl: "1h"
+  jwtTTL: "5m"
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: mesh-node
+spec:
+  spiffeIDTemplate: "spiffe://x0tta6bl4.mesh/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}/mesh-node/{{ .PodMeta.Name }}"
+  podSelector:
+    matchLabels:
+      app: mesh-node
+  namespaceSelector:
+    matchNames:
+      - x0tta6bl4-production
+      - x0tta6bl4-staging
+  dnsNameTemplates:
+    - "{{ .PodMeta.Name }}"
+    - "mesh-node.{{ .PodMeta.Namespace }}.svc.cluster.local"
+  workloadSelectorTemplates:
+    - "k8s:pod-uid:{{ .PodMeta.UID }}"
+  ttl: "30m"
+  jwtTTL: "5m"
+---
+# Federation entry for cross-cluster communication
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterFederatedTrustDomain
+metadata:
+  name: x0tta6bl4-federation
+spec:
+  trustDomain: "x0tta6bl4.mesh"
+  bundleEndpointURL: "https://spire-bundle.x0tta6bl4.io/bundle"
+  bundleEndpointProfile:
+    type: https_spiffe
+    endpointSPIFFEID: "spiffe://x0tta6bl4.mesh/bundle-server"

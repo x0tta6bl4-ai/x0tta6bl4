@@ -1,0 +1,360 @@
+name: Vault Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/vault/**'
+      - 'src/security/vault*.py'
+      - '.github/workflows/vault-deployment.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'k8s/vault/**'
+      - 'src/security/vault*.py'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - backup
+          - restore
+          - rotate-secrets
+
+env:
+  HELM_VERSION: '3.13.0'
+  VAULT_VERSION: '1.15.0'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Lint and validate configuration
+  lint:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install yamllint flake8 black
+          pip install hvac prometheus-client pytest
+
+      - name: Lint YAML files
+        run: |
+          yamllint -d relaxed k8s/vault/ || true
+
+      - name: Lint Python code
+        run: |
+          flake8 src/security/vault*.py --max-line-length=100 || true
+          black --check src/security/vault*.py || true
+
+      - name: Validate Kubernetes manifests
+        run: |
+          # Install kubeval or similar tool
+          curl -L https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz | tar xz
+          sudo mv kubeval /usr/local/bin/
+          
+          kubeval k8s/vault/*.yaml --ignore-missing-schemas || true
+
+  # Run unit tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+          pip install hvac prometheus-client
+
+      - name: Run Vault client tests
+        run: |
+          pytest tests/vault/ -v --cov=src/security --cov-report=xml --cov-report=html
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: vault
+          name: vault-coverage
+
+  # Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'k8s/vault/'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  # Deploy to staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [lint, test, security-scan]
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://vault.staging.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name staging-cluster --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy Vault
+        run: |
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm repo update
+          
+          # Deploy or upgrade Vault
+          helm upgrade --install vault hashicorp/vault \
+            --namespace vault \
+            --create-namespace \
+            --values k8s/vault/helm-values.yaml \
+            --set server.ha.raft.enabled=true \
+            --set server.ha.replicas=3 \
+            --wait --timeout=10m
+
+      - name: Wait for Vault to be ready
+        run: |
+          kubectl wait --for=condition=ready pod/vault-0 -n vault --timeout=300s
+
+      - name: Run Vault setup script
+        run: |
+          chmod +x k8s/vault/setup.sh
+          export VAULT_NAMESPACE=vault
+          export PROXY_API_NAMESPACE=default
+          ./k8s/vault/setup.sh
+
+      - name: Verify deployment
+        run: |
+          kubectl exec -n vault vault-0 -- vault status
+          kubectl get pods -n vault
+
+  # Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [lint, test, security-scan, deploy-staging]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://vault.production.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name production-cluster --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy Vault
+        run: |
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm repo update
+          
+          # Deploy with auto-unseal enabled for production
+          helm upgrade --install vault hashicorp/vault \
+            --namespace vault \
+            --create-namespace \
+            --values k8s/vault/helm-values.yaml \
+            --values k8s/vault/helm-values-production.yaml \
+            --set server.ha.raft.enabled=true \
+            --set server.ha.replicas=5 \
+            --wait --timeout=15m
+
+      - name: Wait for Vault to be ready
+        run: |
+          kubectl wait --for=condition=ready pod/vault-0 -n vault --timeout=300s
+
+      - name: Run Vault setup script
+        run: |
+          chmod +x k8s/vault/setup.sh
+          export VAULT_NAMESPACE=vault
+          export PROXY_API_NAMESPACE=production
+          ./k8s/vault/setup.sh --auto-unseal --cloud-provider aws --kms-key-id ${{ secrets.VAULT_KMS_KEY_ID }}
+
+      - name: Verify deployment
+        run: |
+          kubectl exec -n vault vault-0 -- vault status
+          kubectl get pods -n vault
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: 'Vault deployed to production'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
+
+  # Backup job
+  backup:
+    name: Backup Vault
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'backup'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name production-cluster --region ${{ secrets.AWS_REGION }}
+
+      - name: Run backup
+        run: |
+          chmod +x k8s/vault/backup/backup.sh
+          ./k8s/vault/backup/backup.sh
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: vault-backup
+          path: vault-backup-*.snap
+          retention-days: 30
+
+  # Secret rotation job
+  rotate-secrets:
+    name: Rotate Secrets
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'rotate-secrets'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install hvac kubernetes
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name production-cluster --region ${{ secrets.AWS_REGION }}
+
+      - name: Rotate database credentials
+        run: |
+          python k8s/vault/rotate-database-credentials.py
+
+      - name: Rotate API keys
+        run: |
+          python k8s/vault/rotate-api-keys.py
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#security'
+          text: 'Vault secrets rotated'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()

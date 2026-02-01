@@ -1,0 +1,178 @@
+# Argo Rollout for proxy-api with Canary strategy
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: proxy-api
+  namespace: x0tta6bl4-production
+  labels:
+    app.kubernetes.io/name: proxy-api
+    app.kubernetes.io/part-of: x0tta6bl4
+spec:
+  replicas: 5
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: proxy-api
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: proxy-api
+  strategy:
+    canary:
+      # Canary service for traffic splitting
+      canaryService: proxy-api-canary
+      stableService: proxy-api-stable
+
+      # Traffic management via Istio
+      trafficRouting:
+        istio:
+          virtualService:
+            name: proxy-api
+            routes:
+              - primary
+          destinationRule:
+            name: proxy-api
+            canarySubsetName: canary
+            stableSubsetName: stable
+
+      # Canary steps
+      steps:
+        # Step 1: 5% traffic to canary
+        - setWeight: 5
+        - pause: {duration: 2m}
+
+        # Step 2: Run smoke tests
+        - analysis:
+            templates:
+              - templateName: smoke-test
+            args:
+              - name: service-name
+                value: proxy-api-canary
+
+        # Step 3: 10% traffic
+        - setWeight: 10
+        - pause: {duration: 5m}
+
+        # Step 4: Error rate analysis
+        - analysis:
+            templates:
+              - templateName: error-rate-analysis
+            args:
+              - name: service-name
+                value: proxy-api
+
+        # Step 5: 25% traffic
+        - setWeight: 25
+        - pause: {duration: 10m}
+
+        # Step 6: Latency analysis
+        - analysis:
+            templates:
+              - templateName: latency-analysis
+            args:
+              - name: service-name
+                value: proxy-api
+
+        # Step 7: 50% traffic
+        - setWeight: 50
+        - pause: {duration: 15m}
+
+        # Step 8: Full analysis
+        - analysis:
+            templates:
+              - templateName: full-analysis
+            args:
+              - name: service-name
+                value: proxy-api
+
+        # Step 9: 75% traffic
+        - setWeight: 75
+        - pause: {duration: 10m}
+
+        # Step 10: Final check before full rollout
+        - analysis:
+            templates:
+              - templateName: pre-promotion-analysis
+
+        # Step 11: 100% (promotion)
+        - setWeight: 100
+
+      # Anti-affinity between canary and stable
+      antiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution: {}
+
+      # Analysis on abort
+      abortAnalysisTemplates:
+        - templateName: rollback-notification
+
+      # Maximum surge during rollout
+      maxSurge: "25%"
+      maxUnavailable: 0
+
+  # Minimum ready seconds before considering pod available
+  minReadySeconds: 30
+
+  # Progress deadline
+  progressDeadlineSeconds: 600
+
+  # Dynamic scaling during rollout
+  dynamicStableScale: true
+
+---
+# Services for traffic splitting
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-api-stable
+  namespace: x0tta6bl4-production
+  labels:
+    app: proxy-api
+    role: stable
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: proxy-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-api-canary
+  namespace: x0tta6bl4-production
+  labels:
+    app: proxy-api
+    role: canary
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: proxy-api
+---
+# Main service (for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-api
+  namespace: x0tta6bl4-production
+  labels:
+    app: proxy-api
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: proxy-api

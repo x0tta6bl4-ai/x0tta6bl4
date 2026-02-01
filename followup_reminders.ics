@@ -1,0 +1,47 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//x0tta6bl4//Outreach Follow-up//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+
+BEGIN:VEVENT
+UID:x0tta6bl4-followup-proton-20260205
+DTSTART:20260205T090000Z
+DTEND:20260205T093000Z
+SUMMARY:Follow-up: Proton (Andy Yen)
+DESCRIPTION:Отправить follow-up email если нет ответа от Andy Yen (Proton).\n\nOriginal email sent: 2026-01-31\nContact: andy.yen@proton.ch\nSubject: Post-Quantum Mesh for Proton's 100M+ Users
+END:VEVENT
+
+BEGIN:VEVENT
+UID:x0tta6bl4-followup-eff-20260205
+DTSTART:20260205T090000Z
+DTEND:20260205T093000Z
+SUMMARY:Follow-up: EFF (Cindy Cohn)
+DESCRIPTION:Отправить follow-up email если нет ответа от Cindy Cohn (EFF).\n\nOriginal email sent: 2026-01-31\nContact: cindy@eff.org\nSubject: Uncensorable Mesh for EFF Activists
+END:VEVENT
+
+BEGIN:VEVENT
+UID:x0tta6bl4-followup-mullvad-20260205
+DTSTART:20260205T090000Z
+DTEND:20260205T093000Z
+SUMMARY:Follow-up: Mullvad VPN (Jan Jonsson)
+DESCRIPTION:Отправить follow-up email если нет ответа от Jan Jonsson (Mullvad VPN).\n\nOriginal email sent: 2026-01-31\nContact: jan@mullvad.net\nSubject: Quantum-Safe Tunnel Mesh for Mullvad
+END:VEVENT
+
+BEGIN:VEVENT
+UID:x0tta6bl4-followup-accessnow-20260205
+DTSTART:20260205T090000Z
+DTEND:20260205T093000Z
+SUMMARY:Follow-up: Access Now (Brett Solomon)
+DESCRIPTION:Отправить follow-up email если нет ответа от Brett Solomon (Access Now).\n\nOriginal email sent: 2026-01-31\nContact: brett@accessnow.org\nSubject: Unblockable Mesh for #KeepItOn Campaign
+END:VEVENT
+
+BEGIN:VEVENT
+UID:x0tta6bl4-followup-signal-20260205
+DTSTART:20260205T090000Z
+DTEND:20260205T093000Z
+SUMMARY:Follow-up: Signal Foundation (Meredith Whittaker)
+DESCRIPTION:Отправить follow-up email если нет ответа от Meredith Whittaker (Signal Foundation).\n\nOriginal email sent: 2026-01-31\nContact: meredith@signal.org\nSubject: Self-Healing Mesh Backend for Signal
+END:VEVENT
+
+END:VCALENDAR

@@ -1,0 +1,99 @@
+{
+  "log": {
+    "level": "warning"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "port": 7890,
+      "sniff": true,
+      "sniff_override_destination": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "x0tta6bl4-vless-splithttp",
+      "server": "REPLACE_SERVER_IP",
+      "server_port": 8443,
+      "uuid": "REPLACE_UUID",
+      "transport": {
+        "type": "splithttp",
+        "path": "/splithttp",
+        "headers": {
+          "Host": "REPLACE_SERVER_IP"
+        }
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "REPLACE_SERVER_IP",
+        "insecure": false,
+        "alpn": ["h2", "http/1.1"]
+      },
+      "packet_encoding": "xudp"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "final": "x0tta6bl4-vless-splithttp",
+    "rules": [
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["geoip-cn", "geosite-cn"],
+        "outbound": "block"
+      },
+      {
+        "rule_set": ["geosite-category-ads-all"],
+        "outbound": "block"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs"
+      },
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs"
+      }
+    ]
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "cloudflare",
+        "address": "https://1.1.1.1/dns-query",
+        "detour": "x0tta6bl4-vless-splithttp"
+      }
+    ],
+    "final": "cloudflare"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+}

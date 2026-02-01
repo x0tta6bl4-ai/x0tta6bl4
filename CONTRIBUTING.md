@@ -1,102 +1,71 @@
 # Contributing to x0tta6bl4
 
-Thank you for considering contributing to x0tta6bl4! We welcome contributions from the community.
+Спасибо за интерес к проекту x0tta6bl4! Этот документ поможет вам внести вклад.
 
-## How to Contribute
+## Как внести вклад
 
-### 1. Reporting Issues
+### Сообщить об ошибке
 
-If you find a bug or have a feature request:
+1. Проверьте, не создан ли уже issue для этой ошибки
+2. Создайте новый issue используя шаблон [Bug Report](.github/ISSUE_TEMPLATE/bug_report.md)
+3. Предоставьте максимум информации для воспроизведения
 
-1. Check if the issue already exists in the [GitHub Issues](https://github.com/x0tta6bl4-ai/x0tta6bl4/issues)
-2. If not, create a new issue with:
-   - Clear, descriptive title
-   - Detailed description of the problem or feature
-   - Steps to reproduce (for bugs)
-   - Expected behavior
-   - Environment information
+### Предложить функциональность
 
-### 2. Making Changes
+1. Создайте issue с описанием предлагаемой функции
+2. Обсудите подход с maintainers
+3. После одобрения создайте PR
 
-To contribute code changes:
+### Pull Request процесс
 
-1. Fork the repository
-2. Create a new branch from `main`
-3. Make your changes
-4. Add tests for your changes
-5. Run the test suite
-6. Commit your changes with meaningful commit messages
-7. Push your branch to your forked repository
-8. Create a pull request
+1. Форкните репозиторий
+2. Создайте ветку для ваших изменений: `git checkout -b feature/my-feature`
+3. Сделайте изменения с понятными commit messages
+4. Убедитесь, что тесты проходят: `pytest`
+5. Запустите линтеры: `ruff check src/ tests/`
+6. Создайте Pull Request используя шаблон
 
-### 3. Pull Request Guidelines
-
-- Keep PRs small and focused on a single feature or fix
-- Include clear description of what the PR does
-- Reference any related issues
-- Ensure all tests pass
-- Follow the coding style guidelines
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- Docker & Docker Compose
-- Kubernetes 1.20+ (recommended)
-- PostgreSQL 13+
-- Redis 6+ (optional)
-
-### Local Development
-
-```bash
-git clone https://github.com/x0tta6bl4-ai/x0tta6bl4.git
-cd x0tta6bl4
-docker-compose up
-```
-
-### Running Tests
-
-```bash
-pytest tests/unit/ -v --tb=short
-```
-
-### Building the Project
-
-```bash
-docker build -t x0tta6bl4:latest -f Dockerfile.app .
-```
-
-## Coding Style Guidelines
+## Стандарты кода
 
 ### Python
+- Следуйте PEP 8
+- Используйте type hints
+- Документируйте функции (docstrings)
+- Максимальная длина строки: 100 символов
 
-- Follow PEP 8 guidelines
-- Use type hints for all function signatures
-- Write clear docstrings for all classes and functions
-- Keep lines under 80 characters where possible
+### Коммиты
+- Используйте понятные сообщения
+- Формат: `type(scope): description`
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
-### Commit Messages
-
-Use semantic commit messages:
-
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation changes
-- `style:` Code style changes
-- `refactor:` Code refactoring
-- `test:` Test additions
-- `chore:` Maintenance tasks
-
-Example:
+Примеры:
 ```
-feat: Add support for ML-KEM-768 key exchange
+feat(pqc): add ML-KEM-768 key encapsulation
+fix(mesh): resolve Yggdrasil connection timeout
+docs(api): update authentication endpoints
 ```
 
-## Code of Conduct
+### Тестирование
+- Все новые функции должны иметь тесты
+- Поддерживайте coverage > 80%
+- Используйте pytest
 
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions.
+## Структура проекта
 
-## License
+```
+x0tta6bl4/
+├── src/           # Исходный код
+├── tests/         # Тесты
+├── docs/          # Документация
+├── scripts/       # Вспомогательные скрипты
+└── config/        # Конфигурации
+```
 
-By contributing to x0tta6bl4, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
+## Лицензия
+
+Внося вклад, вы соглашаетесь с тем, что ваш код будет лицензирован под Apache License 2.0.
+
+## Вопросы?
+
+- Email: contact@x0tta6bl4.net
+- Issues: GitHub Issues

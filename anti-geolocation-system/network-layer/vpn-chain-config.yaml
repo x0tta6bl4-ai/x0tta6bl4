@@ -1,0 +1,80 @@
+# VPN Chain Configuration
+# Multi-hop VPN chaining with automatic failover
+
+# VPN Endpoints - Add your VPN providers here
+endpoints:
+  # Example: Mullvad VPN endpoint
+  - name: mullvad-se1
+    host: se1-wireguard.mullvad.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/mullvad/se1
+    weight: 10
+    
+  - name: mullvad-de1
+    host: de1-wireguard.mullvad.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/mullvad/de1
+    weight: 10
+    
+  - name: mullvad-nl1
+    host: nl1-wireguard.mullvad.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/mullvad/nl1
+    weight: 10
+    
+  # Example: ProtonVPN endpoint
+  - name: proton-ch1
+    host: ch-01.protonvpn.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/protonvpn/ch1
+    weight: 8
+    
+  - name: proton-is1
+    host: is-01.protonvpn.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/protonvpn/is1
+    weight: 8
+    
+  # Example: IVPN endpoint
+  - name: ivpn-ca1
+    host: ca1.wg.ivpn.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/ivpn/ca1
+    weight: 5
+    
+  - name: ivpn-jp1
+    host: jp1.wg.ivpn.net
+    port: 51820
+    protocol: wireguard
+    credentials_path: /etc/wireguard/ivpn/jp1
+    weight: 5
+
+# Optional: SOCKS/HTTP proxy configuration
+# proxy:
+#   host: 127.0.0.1
+#   port: 1080
+#   type: socks5
+#   username: optional_username
+#   password: optional_password
+#   priority: 1
+
+# Tor integration
+tor_enabled: true
+tor_control_port: 9051
+tor_socks_port: 9050
+
+# Rotation settings (seconds)
+rotation_interval: 3600  # Rotate chain every hour
+health_check_interval: 30  # Check health every 30 seconds
+
+# Chain configuration
+chain:
+  num_hops: 2  # Number of VPN hops in chain
+  allow_same_provider: false  # Don't chain through same provider
+  prefer_different_countries: true  # Prefer geographic diversity
