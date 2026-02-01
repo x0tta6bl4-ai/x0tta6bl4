@@ -21,44 +21,68 @@ import hvac
 from hvac.exceptions import InvalidPath, VaultError
 from hvac.api.auth_methods import Kubernetes
 import prometheus_client as prom
+from prometheus_client import REGISTRY
 
 logger = logging.getLogger(__name__)
 
-# Prometheus metrics
-vault_auth_latency = prom.Histogram(
+
+def _get_or_create_metric(metric_class, name, description, **kwargs):
+    """Get existing metric or create new one to avoid duplicate registration."""
+    try:
+        # Try to get existing metric from registry
+        for collector in REGISTRY._names_to_collectors.values():
+            if hasattr(collector, '_name') and collector._name == name:
+                return collector
+        # Create new metric if not found
+        return metric_class(name, description, **kwargs)
+    except Exception:
+        # Fallback: create with registry=None to avoid registration
+        return metric_class(name, description, registry=None, **kwargs)
+
+
+# Prometheus metrics - using helper to avoid duplicate registration
+vault_auth_latency = _get_or_create_metric(
+    prom.Histogram,
     'vault_auth_latency_seconds',
     'Vault authentication latency',
     buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0)
 )
-vault_secret_retrieve_latency = prom.Histogram(
+vault_secret_retrieve_latency = _get_or_create_metric(
+    prom.Histogram,
     'vault_secret_retrieve_latency_seconds',
     'Secret retrieval latency',
     buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0)
 )
-vault_secret_write_latency = prom.Histogram(
+vault_secret_write_latency = _get_or_create_metric(
+    prom.Histogram,
     'vault_secret_write_latency_seconds',
     'Secret write latency',
     buckets=(0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0)
 )
-vault_auth_failures = prom.Counter(
+vault_auth_failures = _get_or_create_metric(
+    prom.Counter,
     'vault_auth_failures_total',
     'Total authentication failures',
-    ['reason']
+    labelnames=['reason']
 )
-vault_secret_failures = prom.Counter(
+vault_secret_failures = _get_or_create_metric(
+    prom.Counter,
     'vault_secret_failures_total',
     'Total secret operation failures',
-    ['operation', 'reason']
+    labelnames=['operation', 'reason']
 )
-vault_health = prom.Gauge(
+vault_health = _get_or_create_metric(
+    prom.Gauge,
     'vault_health_status',
     'Vault health status (1=healthy, 0=unhealthy)'
 )
-vault_cache_hits = prom.Counter(
+vault_cache_hits = _get_or_create_metric(
+    prom.Counter,
     'vault_cache_hits_total',
     'Total cache hits'
 )
-vault_cache_misses = prom.Counter(
+vault_cache_misses = _get_or_create_metric(
+    prom.Counter,
     'vault_cache_misses_total',
     'Total cache misses'
 )
