@@ -1,0 +1,105 @@
+# cert-manager ClusterIssuers for x0tta6bl4
+---
+# Self-signed issuer for bootstrapping
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: x0tta6bl4-selfsigned
+spec:
+  selfSigned: {}
+---
+# Root CA Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: x0tta6bl4-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: x0tta6bl4-root-ca
+  secretName: x0tta6bl4-root-ca-secret
+  duration: 87600h  # 10 years
+  renewBefore: 8760h  # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: x0tta6bl4-selfsigned
+    kind: ClusterIssuer
+    group: cert-manager.io
+  subject:
+    organizations:
+      - x0tta6bl4
+    countries:
+      - US
+    organizationalUnits:
+      - Security
+---
+# Root CA ClusterIssuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: x0tta6bl4-root-ca
+  annotations:
+    description: "Root CA for x0tta6bl4 internal services"
+spec:
+  ca:
+    secretName: x0tta6bl4-root-ca-secret
+---
+# Intermediate CA for production workloads
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: x0tta6bl4-intermediate-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: x0tta6bl4-intermediate-ca
+  secretName: x0tta6bl4-intermediate-ca-secret
+  duration: 8760h  # 1 year
+  renewBefore: 720h  # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: x0tta6bl4-root-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+  subject:
+    organizations:
+      - x0tta6bl4
+    countries:
+      - US
+    organizationalUnits:
+      - Platform
+---
+# Intermediate CA ClusterIssuer (for workload certificates)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: x0tta6bl4-workload-issuer
+  annotations:
+    description: "Intermediate CA for x0tta6bl4 workloads"
+spec:
+  ca:
+    secretName: x0tta6bl4-intermediate-ca-secret
+---
+# Production namespace Issuer
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: x0tta6bl4-production-issuer
+  namespace: x0tta6bl4-production
+spec:
+  ca:
+    secretName: x0tta6bl4-intermediate-ca-secret
+---
+# Staging namespace Issuer
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: x0tta6bl4-staging-issuer
+  namespace: x0tta6bl4-staging
+spec:
+  ca:
+    secretName: x0tta6bl4-intermediate-ca-secret

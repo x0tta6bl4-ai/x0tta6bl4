@@ -1,0 +1,162 @@
+# Istio configuration for Canary deployments
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: proxy-api
+  namespace: x0tta6bl4-production
+spec:
+  hosts:
+    - proxy-api
+    - proxy-api.x0tta6bl4.io
+  gateways:
+    - mesh
+    - x0tta6bl4-gateway
+  http:
+    - name: primary
+      match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: proxy-api-canary
+            port:
+              number: 8081
+          weight: 100
+    - name: primary
+      route:
+        - destination:
+            host: proxy-api-stable
+            port:
+              number: 8081
+          weight: 100
+        - destination:
+            host: proxy-api-canary
+            port:
+              number: 8081
+          weight: 0
+  # Retries
+  retries:
+    attempts: 3
+    perTryTimeout: 5s
+    retryOn: connect-failure,refused-stream,unavailable,cancelled,retriable-4xx
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: proxy-api
+  namespace: x0tta6bl4-production
+spec:
+  host: proxy-api
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+  subsets:
+    - name: stable
+      labels:
+        rollouts-pod-template-hash: stable
+      trafficPolicy:
+        connectionPool:
+          tcp:
+            maxConnections: 100
+          http:
+            http2MaxRequests: 1000
+    - name: canary
+      labels:
+        rollouts-pod-template-hash: canary
+      trafficPolicy:
+        connectionPool:
+          tcp:
+            maxConnections: 50
+          http:
+            http2MaxRequests: 500
+---
+# Gateway for external traffic
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: x0tta6bl4-gateway
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*.x0tta6bl4.io"
+      tls:
+        httpsRedirect: true
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - "*.x0tta6bl4.io"
+      tls:
+        mode: SIMPLE
+        credentialName: x0tta6bl4-tls
+---
+# PeerAuthentication for mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: proxy-api-mtls
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  mtls:
+    mode: STRICT
+---
+# AuthorizationPolicy
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: proxy-api-authz
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  rules:
+    # Allow from ingress gateway
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+    # Allow from same namespace
+    - from:
+        - source:
+            namespaces:
+              - x0tta6bl4-production
+    # Allow from monitoring
+    - from:
+        - source:
+            namespaces:
+              - monitoring
+      to:
+        - operation:
+            paths:
+              - /metrics
+              - /health

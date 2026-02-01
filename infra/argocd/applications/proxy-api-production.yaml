@@ -1,0 +1,72 @@
+# ArgoCD Application for proxy-api (Production)
+# Uses Argo Rollouts for canary deployments
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: proxy-api-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: proxy-api
+    app.kubernetes.io/part-of: x0tta6bl4
+    environment: production
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: deployments
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: alerts-critical
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: alerts-critical
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: x0tta6bl4
+
+  source:
+    repoURL: https://github.com/x0tta6bl4/mesh.git
+    targetRevision: main
+    path: infra/k8s/overlays/production
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: x0tta6bl4-production
+
+  # Manual sync for production (require approval)
+  syncPolicy:
+    automated: null  # Disabled - manual sync required
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  # Ignore differences
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: argoproj.io
+      kind: Rollout
+      jsonPointers:
+        - /spec/replicas
+        - /status
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/minReplicas
+        - /spec/maxReplicas
+
+  revisionHistoryLimit: 20
+
+  info:
+    - name: Documentation
+      value: https://docs.x0tta6bl4.io/production
+    - name: Runbook
+      value: https://runbooks.x0tta6bl4.io/proxy-api
+    - name: Incident Response
+      value: https://incident.x0tta6bl4.io

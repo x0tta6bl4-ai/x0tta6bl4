@@ -1,0 +1,77 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proxy-infrastructure
+
+resources:
+# Core infrastructure
+- namespace.yaml
+- redis-statefulset.yaml
+- proxy-api-deployment.yaml
+- proxy-node-agent-daemonset.yaml
+
+# Monitoring
+- monitoring/servicemonitors.yaml
+- monitoring/prometheus-rules.yaml
+- monitoring/grafana-dashboards.yaml
+
+# Security
+- security/network-policies.yaml
+- security/sealed-secrets.yaml
+
+# Webhooks
+- webhook/alertmanager-webhook.yaml
+
+configMapGenerator:
+- name: proxy-config
+  files:
+  - config.yaml=proxy/config.yaml
+- name: prometheus-sidecar-config
+  literals:
+  - prometheus.yml=|
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+      - job_name: 'proxy-api'
+        static_configs:
+        - targets: ['localhost:9090']
+
+secretGenerator:
+- name: proxy-tls
+  files:
+  - tls.crt=proxy/cert.pem
+  - tls.key=proxy/key.pem
+  type: kubernetes.io/tls
+
+images:
+- name: x0tta6bl4/proxy-orchestrator
+  newTag: v1.0.0
+- name: x0tta6bl4/proxy-node-agent
+  newTag: v1.0.0
+- name: x0tta6bl4/webhook-receiver
+  newTag: v1.0.0
+
+replicas:
+- name: proxy-api
+  count: 3
+- name: redis-cluster
+  count: 3
+
+patchesStrategicMerge:
+- |
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: proxy-api
+  spec:
+    template:
+      spec:
+        containers:
+        - name: proxy-api
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi

@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proxy-infrastructure
+  labels:
+    app.kubernetes.io/name: proxy-infrastructure
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/version: "1.0.0"
+    environment: production
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: proxy-infrastructure-quota
+  namespace: proxy-infrastructure
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "50"
+    persistentvolumeclaims: "10"
+    services: "20"
+    secrets: "50"
+    configmaps: "50"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: proxy-infrastructure-limits
+  namespace: proxy-infrastructure
+spec:
+  limits:
+  - default:
+      cpu: "1000m"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "256Mi"
+    max:
+      cpu: "4000m"
+      memory: "8Gi"
+    min:
+      cpu: "50m"
+      memory: "128Mi"
+    type: Container

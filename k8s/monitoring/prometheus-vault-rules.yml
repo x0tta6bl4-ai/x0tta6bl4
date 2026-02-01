@@ -1,0 +1,240 @@
+---
+# Prometheus alerting rules for Vault
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vault-alerts
+  namespace: monitoring
+  labels:
+    app: vault
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: vault-health
+      rules:
+        # Vault is sealed
+        - alert: VaultSealed
+          expr: vault_core_unsealed == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault instance is sealed"
+            description: "Vault instance {{ $labels.instance }} has been sealed for more than 1 minute"
+            runbook_url: "https://wiki.internal/vault-runbooks/vault-sealed"
+
+        # Vault is not initialized
+        - alert: VaultNotInitialized
+          expr: vault_core_initialized == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault is not initialized"
+            description: "Vault instance {{ $labels.instance }} is not initialized"
+
+        # Vault is down
+        - alert: VaultDown
+          expr: up{job="vault"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault instance is down"
+            description: "Vault instance {{ $labels.instance }} has been down for more than 2 minutes"
+
+        # High latency
+        - alert: VaultHighLatency
+          expr: histogram_quantile(0.99, rate(vault_core_handle_request_latency_seconds_bucket[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault high request latency"
+            description: "99th percentile latency is above 1 second on {{ $labels.instance }}"
+
+        # Authentication failures
+        - alert: VaultAuthFailures
+          expr: rate(vault_core_auth_request_failure_count[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault authentication failures"
+            description: "High rate of authentication failures on {{ $labels.instance }}"
+
+        # Token expiry warning
+        - alert: VaultTokenExpiringSoon
+          expr: vault_token_expiry_seconds < 3600
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault token expiring soon"
+            description: "Vault token will expire in less than 1 hour"
+
+        # Lease expiry
+        - alert: VaultLeaseExpiringSoon
+          expr: vault_expire_num_leases > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High number of expiring leases"
+            description: "Vault has more than 10000 leases that may expire soon"
+
+        # Storage backend issues
+        - alert: VaultStorageBackendErrors
+          expr: rate(vault_raft_storage_error_count[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault storage backend errors"
+            description: "Vault storage backend is reporting errors on {{ $labels.instance }}"
+
+        # Raft cluster issues
+        - alert: VaultRaftClusterUnhealthy
+          expr: vault_raft_cluster_health != 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault Raft cluster is unhealthy"
+            description: "Vault Raft cluster health check failed on {{ $labels.instance }}"
+
+        # Leader election issues
+        - alert: VaultNoLeader
+          expr: vault_raft_leader == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault has no leader"
+            description: "Vault cluster has no elected leader"
+
+        # Step-down events
+        - alert: VaultLeaderStepDown
+          expr: increase(vault_raft_leader_stepdown_count[1h]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault leader stepped down"
+            description: "Vault leader has stepped down in the last hour"
+
+    - name: vault-performance
+      rules:
+        # High memory usage
+        - alert: VaultHighMemoryUsage
+          expr: (vault_runtime_alloc_bytes / vault_runtime_sys_bytes) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault high memory usage"
+            description: "Vault memory usage is above 80% on {{ $labels.instance }}"
+
+        # High goroutine count
+        - alert: VaultHighGoroutineCount
+          expr: vault_runtime_num_goroutines > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault high goroutine count"
+            description: "Vault has more than 10000 goroutines on {{ $labels.instance }}"
+
+        # GC pressure
+        - alert: VaultHighGCPause
+          expr: rate(vault_runtime_gc_pause_ns_total[5m]) > 100000000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault high GC pause time"
+            description: "Vault GC pause time is high on {{ $labels.instance }}"
+
+    - name: vault-security
+      rules:
+        # Policy changes
+        - alert: VaultPolicyChange
+          expr: increase(vault_core_policy_count[1h]) > 0
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "Vault policy changed"
+            description: "Vault policies have been modified in the last hour"
+
+        # Auth method changes
+        - alert: VaultAuthMethodChange
+          expr: increase(vault_core_auth_count[1h]) > 0
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "Vault auth method changed"
+            description: "Vault auth methods have been modified in the last hour"
+
+        # Secret engine changes
+        - alert: VaultSecretEngineChange
+          expr: increase(vault_core_mount_count[1h]) > 0
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "Vault secret engine changed"
+            description: "Vault secret engines have been modified in the last hour"
+
+        # Root token usage
+        - alert: VaultRootTokenUsage
+          expr: increase(vault_core_auth_token_create_count{token_type="root"}[1h]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Root token used"
+            description: "Root token was used in the last hour"
+
+    - name: vault-client
+      rules:
+        # Client authentication failures
+        - alert: VaultClientAuthFailures
+          expr: rate(vault_auth_failures_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault client authentication failures"
+            description: "High rate of client authentication failures"
+
+        # Client secret retrieval failures
+        - alert: VaultClientSecretFailures
+          expr: rate(vault_secret_failures_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault client secret retrieval failures"
+            description: "High rate of secret retrieval failures"
+
+        # Client degraded mode
+        - alert: VaultClientDegraded
+          expr: vault_degraded_mode == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault client in degraded mode"
+            description: "Vault client has entered degraded mode"
+
+        # Token expiry
+        - alert: VaultClientTokenExpiry
+          expr: vault_token_expiry_seconds < 600
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault client token expiring"
+            description: "Vault client token will expire in less than 10 minutes"

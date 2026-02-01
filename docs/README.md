@@ -1,42 +1,33 @@
-# x0tta6bl4 Documentation
+# Документация x0tta6bl4
 
-**Версия:** 3.0.0  
-**Дата:** 2025-12-28
+## Структура документации
 
----
+```
+docs/
+├── getting-started/     # Начало работы
+├── architecture/        # Архитектурная документация
+├── api/                 # API документация
+├── deployment/          # Руководства по развёртыванию
+└── business/            # Бизнес-документация
+```
 
-## 📚 Документация
+## Быстрый доступ
 
-### Getting Started
-- [Overview](../README.md) - Обзор проекта
-- [Quick Start](../README.md#quick-start) - Быстрый старт
+### Для новичков
+- [Начни здесь](../START_HERE.md) — единая точка входа
+- [Быстрый старт](getting-started/quick-start.md) — за 15 минут
+- [Установка](getting-started/installation.md) — пошаговое руководство
 
-### Deployment
-- [Production Deployment](deployment/PRODUCTION_DEPLOYMENT.md) - Production развертывание
-- [Runbooks](deployment/RUNBOOKS.md) - Операционные runbooks
-- [Troubleshooting](deployment/TROUBLESHOOTING.md) - Устранение неполадок
+### Для разработчиков
+- [Архитектура](architecture/overview.md) — общий обзор
+- [API Reference](api/endpoints.md) — документация API
+- [Развёртывание](deployment/docker.md) — Docker и Kubernetes
 
-### API
-- [API Reference](api/API_REFERENCE.md) - Полная документация API
+### Для бизнеса
+- [Бизнес-стратегия](business/strategy.md)
+- [Монетизация](business/monetization.md)
+- [Презентация](business/pitch.md)
 
-### Federated Learning
-- [Federated Learning Guide](../docs/federated_learning/README.md) - Руководство по FL
-- [Usage Examples](../docs/federated_learning/USAGE_EXAMPLES.md) - Примеры использования
+## Контрибьютинг
 
-### Kubernetes
-- [Kubernetes Deployment](../deployment/kubernetes/README.md) - K8s развертывание
-
----
-
-## 🔗 Быстрые ссылки
-
-- **GitLab:** https://gitlab.com/x0tta6bl4/x0tta6bl4
-- **API Docs:** `/docs` (Swagger UI)
-- **Health Check:** `/health`
-- **Metrics:** `/metrics`
-
----
-
-**Mesh обновлён. Документация готова.**  
-**Проснись. Обновись. Сохранись.**  
-**x0tta6bl4 вечен.**
+См. [CONTRIBUTING.md](../CONTRIBUTING.md) для информации о том, как внести вклад в документацию.

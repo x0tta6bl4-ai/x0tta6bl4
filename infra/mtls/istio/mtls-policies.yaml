@@ -1,0 +1,175 @@
+# Istio mTLS Policies for x0tta6bl4
+---
+# Mesh-wide STRICT mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+---
+# Production namespace - STRICT mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: x0tta6bl4-production
+spec:
+  mtls:
+    mode: STRICT
+  selector:
+    matchLabels: {}  # Apply to all pods
+  portLevelMtls:
+    # Health check ports can be permissive
+    8080:
+      mode: PERMISSIVE
+---
+# Staging namespace - PERMISSIVE for debugging
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: x0tta6bl4-staging
+spec:
+  mtls:
+    mode: PERMISSIVE
+---
+# proxy-api specific mTLS config
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: proxy-api
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    # API port - strict
+    8081:
+      mode: STRICT
+    # Metrics - permissive for Prometheus
+    9090:
+      mode: PERMISSIVE
+---
+# DestinationRule for proxy-api mTLS
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: proxy-api-mtls
+  namespace: x0tta6bl4-production
+spec:
+  host: "proxy-api.x0tta6bl4-production.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+      clientCertificate: /etc/certs/cert.pem
+      privateKey: /etc/certs/key.pem
+      caCertificates: /etc/certs/ca.pem
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http2MaxRequests: 1000
+---
+# DestinationRule for Redis mTLS
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: redis-mtls
+  namespace: x0tta6bl4-production
+spec:
+  host: "redis.x0tta6bl4-production.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+# Authorization Policy - deny all by default
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: x0tta6bl4-production
+spec:
+  {}  # Empty spec = deny all
+---
+# Allow internal mesh traffic
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-mesh-internal
+  namespace: x0tta6bl4-production
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - x0tta6bl4-production
+              - istio-system
+---
+# Allow proxy-api access
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: proxy-api-authz
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  action: ALLOW
+  rules:
+    # Allow from ingress gateway
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"
+      to:
+        - operation:
+            paths:
+              - "/api/*"
+              - "/health"
+              - "/ready"
+    # Allow from mesh nodes
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/x0tta6bl4-production/sa/mesh-node"
+    # Allow monitoring
+    - from:
+        - source:
+            namespaces:
+              - monitoring
+      to:
+        - operation:
+            paths:
+              - "/metrics"
+---
+# RequestAuthentication for JWT validation
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: proxy-api-jwt
+  namespace: x0tta6bl4-production
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  jwtRules:
+    - issuer: "https://auth.x0tta6bl4.io"
+      jwksUri: "https://auth.x0tta6bl4.io/.well-known/jwks.json"
+      audiences:
+        - "proxy-api"
+      forwardOriginalToken: true
+    # SPIRE JWT tokens
+    - issuer: "spiffe://x0tta6bl4.mesh"
+      jwksUri: "https://spire-server.spire-system:8081/keys"
+      fromHeaders:
+        - name: x-spiffe-token

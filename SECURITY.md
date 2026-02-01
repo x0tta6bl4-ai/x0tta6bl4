@@ -1,156 +1,70 @@
 # Security Policy
 
-## 🔒 Supported Versions
-
-We actively support security updates for the following versions:
+## Поддерживаемые версии
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 3.4.x   | :white_check_mark: |
-| 3.3.x   | :white_check_mark: |
-| < 3.3   | :x:                |
+| 3.2.x   | :white_check_mark: |
+| 3.1.x   | :white_check_mark: |
+| 3.0.x   | :white_check_mark: |
+| < 3.0   | :x:                |
 
----
+## Сообщение об уязвимостях
 
-## 🚨 Reporting a Vulnerability
+Если вы обнаружили уязвимость безопасности в x0tta6bl4, пожалуйста, сообщите нам ответственно.
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+### Как сообщить
 
-Instead, please report them via email to: **security@x0tta6bl4.net**
+**НЕ создавайте public issue** для уязвимостей безопасности.
 
-### What to Include
+Вместо этого:
+1. Отправьте email на: security@x0tta6bl4.net
+2. Используйте PGP ключ (если доступен)
+3. Опишите уязвимость подробно
+4. Укажите шаги для воспроизведения
 
-- **Description** of the vulnerability
-- **Steps to reproduce** the issue
-- **Potential impact** and severity
-- **Suggested fix** (if any)**
-- **Affected versions**
+### Что включать в отчёт
 
-### Response Timeline
+- Тип уязвимости
+- Полные пути к затронутым файлам
+- Версия x0tta6bl4
+- Шаги для воспроизведения
+- Возможное воздействие
+- Предлагаемое исправление (если есть)
 
-- **Initial response:** Within 48 hours
-- **Status update:** Within 7 days
-- **Fix timeline:** Depends on severity
+### Время ответа
 
-### Severity Levels
+- Подтверждение получения: 24-48 часов
+- Первоначальная оценка: 5-7 дней
+- Исправление: зависит от серьёзности
 
-- **Critical:** Remote code execution, data breach
-- **High:** Privilege escalation, authentication bypass
-- **Medium:** Information disclosure, DoS
-- **Low:** Minor information leak, configuration issues
-
----
-
-## 🛡️ Security Features
+## Меры безопасности
 
 ### Post-Quantum Cryptography
 
-- **ML-KEM-768** for key exchange (NIST FIPS 203)
-- **ML-DSA-65** for digital signatures (NIST FIPS 204)
-- **Hybrid mode** for backward compatibility
+- ML-KEM-768 для key encapsulation
+- ML-DSA-65 для цифровых подписей
+- Соответствие NIST FIPS 203/204
 
-### Zero-Trust Architecture
+### Сетевая безопасность
 
-- **SPIFFE/SPIRE** for identity management
-- **mTLS** for all inter-service communication
-- **Certificate rotation** every 24 hours
+- Zero-Trust архитектура (SPIFFE/SPIRE)
+- Traffic obfuscation
+- Domain fronting для обхода цензуры
 
-### Network Security
+### Рекомендации по безопасности
 
-- **eBPF-based** traffic filtering
-- **Rate limiting** to prevent DDoS
-- **Traffic obfuscation** to prevent DPI
+1. Регулярно обновляйтесь до последней версии
+2. Используйте strong passwords для всех сервисов
+3. Включите 2FA где возможно
+4. Мониторьте логи на подозрительную активность
 
-### Access Control
+## История уязвимостей
 
-- **Role-based access control (RBAC)**
-- **Multi-factor authentication (MFA)**
-- **Audit logging** for all security events
-
----
-
-## 🔍 Security Best Practices
-
-### For Users
-
-1. **Keep software updated** to the latest version
-2. **Use strong passwords** and enable MFA
-3. **Review access logs** regularly
-4. **Report suspicious activity** immediately
-5. **Follow principle of least privilege**
-
-### For Developers
-
-1. **Never commit secrets** to version control
-2. **Use dependency scanning** (Dependabot)
-3. **Run security tests** before deployment
-4. **Review code changes** for security issues
-5. **Follow secure coding practices**
+| Date | CVE | Description | Fixed in |
+|------|-----|-------------|----------|
+| - | - | No known vulnerabilities | - |
 
 ---
 
-## 📋 Security Checklist
-
-### Before Deployment
-
-- [ ] All dependencies updated
-- [ ] Security tests passed
-- [ ] Secrets properly managed
-- [ ] Access controls configured
-- [ ] Monitoring enabled
-- [ ] Backup strategy in place
-
-### Regular Maintenance
-
-- [ ] Weekly dependency updates
-- [ ] Monthly security audits
-- [ ] Quarterly penetration testing
-- [ ] Annual security review
-
----
-
-## 🔐 Known Security Considerations
-
-### Quantum Threats
-
-- **Current:** Hybrid encryption protects against both classical and quantum attacks
-- **Future:** Pure PQC mode will be available in v3.0
-
-### Network Partitioning
-
-- **CRDT** ensures data consistency during partitions
-- **Automatic recovery** when connectivity is restored
-
-### Byzantine Nodes
-
-- **BFT consensus** prevents malicious nodes from disrupting the network
-- **Slashing mechanisms** penalize bad actors
-
----
-
-## 📚 Security Resources
-
-- **OWASP Top 10:** https://owasp.org/www-project-top-ten/
-- **NIST Cybersecurity Framework:** https://www.nist.gov/cyberframework
-- **CWE Top 25:** https://cwe.mitre.org/top25/
-
----
-
-## 🏆 Security Acknowledgments
-
-We thank the following security researchers for their responsible disclosure:
-
-- [List will be updated as reports are received]
-
----
-
-## 📞 Contact
-
-- **Security Email:** security@x0tta6bl4.net
-- **General Contact:** contact@x0tta6bl4.net
-- **PGP Key:** [Available upon request]
-
----
-
-**Thank you for helping keep x0tta6bl4 secure!** 🔒
-
+**Спасибо за помощь в обеспечении безопасности x0tta6bl4!**

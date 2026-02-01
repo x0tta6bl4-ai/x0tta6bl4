@@ -1,0 +1,44 @@
+# ArgoCD RBAC Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  # Policy CSV
+  policy.csv: |
+    # Roles
+    p, role:readonly, applications, get, *, allow
+    p, role:readonly, logs, get, *, allow
+    p, role:readonly, clusters, get, *, allow
+    p, role:readonly, projects, get, *, allow
+    p, role:readonly, repositories, get, *, allow
+
+    p, role:developer, applications, get, */*, allow
+    p, role:developer, applications, sync, */*-staging, allow
+    p, role:developer, applications, action/*, */*-staging, allow
+    p, role:developer, logs, get, */*, allow
+    p, role:developer, exec, create, */*-staging, allow
+    p, role:developer, repositories, get, *, allow
+    p, role:developer, projects, get, *, allow
+
+    p, role:deployer, applications, *, */*, allow
+    p, role:deployer, logs, get, */*, allow
+    p, role:deployer, exec, create, */*, allow
+    p, role:deployer, repositories, *, *, allow
+    p, role:deployer, clusters, get, *, allow
+    p, role:deployer, projects, get, *, allow
+
+    p, role:admin, *, *, */*, allow
+
+    # Group mappings (OIDC groups)
+    g, developers, role:developer
+    g, sre-team, role:deployer
+    g, platform-team, role:admin
+    g, security-team, role:readonly
+
+  # Default policy for authenticated users
+  policy.default: role:readonly
+
+  # OIDC scopes to include in authorization
+  scopes: '[groups, email]'

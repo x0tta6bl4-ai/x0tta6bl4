@@ -1,0 +1,130 @@
+# ApplicationSet for multi-environment deployment
+# Automatically generates Applications for each environment
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: x0tta6bl4-components
+  namespace: argocd
+spec:
+  generators:
+    # Matrix generator: environments x components
+    - matrix:
+        generators:
+          # Environments
+          - list:
+              elements:
+                - environment: staging
+                  namespace: x0tta6bl4-staging
+                  targetRevision: develop
+                  autoSync: true
+                  syncWindow: "0 * * * *"
+                - environment: production
+                  namespace: x0tta6bl4-production
+                  targetRevision: main
+                  autoSync: false
+                  syncWindow: "0 10-18 * * 1-5"
+          # Components
+          - list:
+              elements:
+                - component: proxy-api
+                  path: infra/k8s/overlays
+                - component: redis
+                  path: infra/redis-sentinel
+                  isHelm: "true"
+
+  template:
+    metadata:
+      name: '{{component}}-{{environment}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: '{{component}}'
+        app.kubernetes.io/part-of: x0tta6bl4
+        environment: '{{environment}}'
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: deployments
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: alerts
+    spec:
+      project: x0tta6bl4
+      source:
+        repoURL: https://github.com/x0tta6bl4/mesh.git
+        targetRevision: '{{targetRevision}}'
+        path: '{{path}}/{{environment}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - ApplyOutOfSyncOnly=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      revisionHistoryLimit: 10
+---
+# ApplicationSet for Redis Sentinel (Helm-based)
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: redis-sentinel
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - environment: staging
+            namespace: x0tta6bl4-staging
+            values: values-staging.yaml
+            replicas: "1"
+          - environment: production
+            namespace: x0tta6bl4-production
+            values: values.yaml
+            replicas: "3"
+
+  template:
+    metadata:
+      name: 'redis-{{environment}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/part-of: x0tta6bl4
+        environment: '{{environment}}'
+    spec:
+      project: x0tta6bl4
+      source:
+        repoURL: https://charts.bitnami.com/bitnami
+        chart: redis
+        targetRevision: 18.x.x
+        helm:
+          releaseName: redis
+          valueFiles:
+            - $values/infra/redis-sentinel/{{values}}
+          parameters:
+            - name: sentinel.replicas
+              value: '{{replicas}}'
+      sources:
+        - repoURL: https://charts.bitnami.com/bitnami
+          chart: redis
+          targetRevision: 18.x.x
+          helm:
+            releaseName: redis
+            valueFiles:
+              - $values/infra/redis-sentinel/{{values}}
+        - repoURL: https://github.com/x0tta6bl4/mesh.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m

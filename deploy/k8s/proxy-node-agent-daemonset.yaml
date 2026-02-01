@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: proxy-node-agent
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-node-agent
+    component: agent
+    version: "1.0.0"
+spec:
+  selector:
+    matchLabels:
+      app: proxy-node-agent
+  template:
+    metadata:
+      labels:
+        app: proxy-node-agent
+        component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+      - key: dedicated
+        value: proxy
+        effect: NoSchedule
+      containers:
+      - name: node-agent
+        image: x0tta6bl4/proxy-node-agent:v1.0.0
+        imagePullPolicy: Always
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: API_ENDPOINT
+          value: "http://proxy-api.proxy-infrastructure:8081"
+        - name: PROXY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: proxy-secrets
+              key: node-agent-api-key
+        ports:
+        - containerPort: 9100
+          name: metrics
+          protocol: TCP
+        - containerPort: 8080
+          name: health
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: node-info
+        downwardAPI:
+          items:
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-node-agent-metrics
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-node-agent
+    component: metrics
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: proxy-node-agent
+  ports:
+  - port: 9100
+    targetPort: 9100
+    name: metrics
+    protocol: TCP

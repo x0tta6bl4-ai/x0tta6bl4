@@ -1,0 +1,77 @@
+environment: production
+version: "1.0.0"
+
+providers:
+  - name: oxylabs
+    enabled: true
+    host_template: pr.oxylabs.io
+    port: 7777
+    username: "${OXYLABS_USERNAME}"
+    password: "${OXYLABS_PASSWORD}"
+    regions:
+      - us
+      - uk
+      - de
+    priority: 100
+    max_failures: 3
+    health_check_interval: 60
+    rate_limit_per_minute: 100
+
+selection:
+  strategy: weighted_score
+  latency_weight: 0.3
+  success_weight: 0.4
+  stability_weight: 0.2
+  geographic_weight: 0.1
+  enable_predictive: true
+  predictive_window_size: 20
+
+health_check:
+  enabled: true
+  interval_seconds: 60
+  timeout_seconds: 10
+  max_retries: 3
+  retry_delay_seconds: 5
+  unhealthy_threshold: 3
+  healthy_threshold: 2
+  check_urls:
+    - https://www.google.com
+    - https://www.cloudflare.com
+
+metrics:
+  enabled: true
+  retention_hours: 24
+  aggregation_interval_seconds: 60
+  prometheus_enabled: true
+  prometheus_port: 9090
+  alert_thresholds:
+    failure_rate: 0.1
+    p95_latency_ms: 2000
+    error_rate: 0.05
+
+security:
+  api_key_required: true
+  api_key_header: X-API-Key
+  rate_limit_enabled: true
+  rate_limit_requests_per_minute: 100
+  rate_limit_burst: 10
+  jwt_secret: "${JWT_SECRET}"
+  jwt_algorithm: HS256
+  jwt_expiry_hours: 24
+  allowed_origins: []
+  tls_enabled: true
+  tls_cert_path: "./deploy/proxy/cert.pem"
+  tls_key_path: "./deploy/proxy/key.pem"
+
+control_plane:
+  host: 0.0.0.0
+  port: 8081
+  workers: 4
+
+xray:
+  config_path: /usr/local/etc/xray/config.json
+  reload_command: systemctl reload xray
+
+logging:
+  level: INFO
+  format: json

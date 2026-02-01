@@ -1,0 +1,256 @@
+# Helm values for HashiCorp Vault
+# Install with:
+# helm repo add hashicorp https://helm.releases.hashicorp.com
+# helm install vault hashicorp/vault -n vault -f helm-values.yaml
+
+server:
+  # Enable HA mode with 3 replicas
+  ha:
+    enabled: true
+    replicas: 3
+    
+    # Raft storage backend configuration
+    raft:
+      enabled: true
+      setNodeId: true
+      
+      # Raft storage configuration
+      config: |
+        ui = true
+        
+        listener "tcp" {
+          tls_disable = 0
+          tls_cert_file = "/vault/userconfig/vault-server-tls/tls.crt"
+          tls_key_file = "/vault/userconfig/vault-server-tls/tls.key"
+          tls_ca_file = "/vault/userconfig/vault-server-tls/ca.crt"
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+        
+        storage "raft" {
+          path = "/vault/data"
+          node_id = "${HOSTNAME}"
+          retry_leader_election = true
+          
+          autopilot {
+            cleanup_dead_servers = true
+            last_contact_threshold = "10s"
+            last_contact_failure_threshold = "30s"
+            max_trailing_logs = 250
+            min_quorum = 3
+            server_stabilization_time = "10s"
+          }
+        }
+        
+        service_registration "kubernetes" {}
+        
+        seal "awskms" {
+          region = "us-east-1"
+          kms_key_id = "REPLACE_WITH_KMS_KEY_ID"
+        }
+        
+        telemetry {
+          prometheus_retention_time = "30s"
+          disable_hostname = true
+        }
+  
+  # Data storage configuration
+  dataStorage:
+    enabled: true
+    size: 50Gi
+    # storageClass: fast-ssd
+    accessMode: ReadWriteOnce
+  
+  # Audit storage configuration
+  auditStorage:
+    enabled: true
+    size: 10Gi
+    # storageClass: fast-ssd
+    accessMode: ReadWriteOnce
+  
+  # Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8200
+    targetPort: 8200
+    annotations: {}
+  
+  # Headless service for internal communication
+  serviceAccount:
+    create: false  # We create this manually in rbac.yaml
+    name: vault
+    annotations: {}
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  
+  # Affinity rules for pod distribution
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ template "vault.name" . }}
+              app.kubernetes.io/instance: "{{ .Release.Name }}"
+              component: server
+          topologyKey: kubernetes.io/hostname
+  
+  # Tolerations for node selection
+  tolerations: []
+  
+  # Node selector
+  nodeSelector: {}
+  
+  # Pod security context
+  securityContext:
+    runAsNonRoot: true
+    runAsGroup: 1000
+    runAsUser: 100
+    fsGroup: 1000
+    fsGroupChangePolicy: "OnRootMismatch"
+  
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsGroup: 1000
+    runAsUser: 100
+  
+  # Readiness probe
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+    port: 8200
+    failureThreshold: 2
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 3
+  
+  # Liveness probe
+  livenessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    port: 8200
+    failureThreshold: 2
+    initialDelaySeconds: 60
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 3
+  
+  # Startup probe
+  startupProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+    port: 8200
+    failureThreshold: 12
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 3
+  
+  # Extra environment variables
+  extraEnvironmentVars: {}
+    # VAULT_LOG_LEVEL: debug
+  
+  # Extra volumes
+  extraVolumes: []
+    # - type: secret
+    #   name: vault-server-tls
+    #   path: /vault/userconfig
+  
+  # Extra volume mounts
+  extraVolumeMounts: []
+    # - name: vault-server-tls
+    #   mountPath: /vault/userconfig/vault-server-tls
+    #   readOnly: true
+  
+  # Extra init containers
+  extraInitContainers: []
+  
+  # Extra containers
+  extraContainers: []
+  
+  # Share process namespace
+  shareProcessNamespace: false
+
+# Vault Agent Injector configuration
+injector:
+  enabled: true
+  replicas: 2
+  
+  # Leader election for HA
+  leaderElector:
+    enabled: true
+  
+  # Metrics configuration
+  metrics:
+    enabled: true
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  
+  # Affinity
+  affinity: |
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: {{ template "vault.name" . }}-agent-injector
+                app.kubernetes.io/instance: "{{ .Release.Name }}"
+            topologyKey: kubernetes.io/hostname
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsGroup: 1000
+    runAsUser: 100
+  
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsGroup: 1000
+    runAsUser: 100
+
+# Vault UI configuration
+ui:
+  enabled: true
+  serviceType: "ClusterIP"
+  serviceNodePort: null
+  externalPort: 8200
+  targetPort: 8200
+  annotations: {}
+
+# CSI Driver configuration
+csi:
+  enabled: false
+  
+# Server Telemetry configuration
+telemetry:
+  prometheus:
+    enabled: true
+    port: 9090

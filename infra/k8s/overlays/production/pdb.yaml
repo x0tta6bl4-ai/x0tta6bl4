@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: x0tta6bl4-pdb
+  namespace: x0tta6bl4-production
+  labels:
+    app.kubernetes.io/name: x0tta6bl4
+    environment: production
+spec:
+  # At least 3 pods must be available (of 5 replicas)
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4
+  # Unhealthy pod eviction policy (K8s 1.27+)
+  unhealthyPodEvictionPolicy: IfHealthyBudget

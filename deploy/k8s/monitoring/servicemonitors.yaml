@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: proxy-api-metrics
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: proxy-api
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    honorLabels: true
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'proxy_requests_total|proxy_requests_success|proxy_requests_failed|proxy_latency_ms|proxy_health_check'
+      action: keep
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-metrics
+  namespace: proxy-infrastructure
+  labels:
+    app: redis
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: proxy-node-agent-metrics
+  namespace: proxy-infrastructure
+  labels:
+    app: proxy-node-agent
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: proxy-node-agent
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
