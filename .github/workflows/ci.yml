@@ -2,198 +2,74 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, master]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main, develop, master]
-
-env:
-  PYTHON_VERSION: "3.11"
-  PIP_CACHE_DIR: "${{ github.workspace }}/.cache/pip"
+    branches: [ main, develop ]
 
 jobs:
-  lint:
-    name: Lint & Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff mypy types-requests types-PyYAML
-
-      - name: Lint with ruff
-        run: ruff check . --output-format=github
-
-      - name: Type check with mypy
-        run: mypy src/ --ignore-missing-imports || true
-        continue-on-error: true
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-
-      - name: Install security tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install bandit safety pip-audit
-
-      - name: Run Bandit security scan
-        run: bandit -r src/ -f json -o bandit-report.json || true
-        continue-on-error: true
-
-      - name: Check dependencies with safety
-        run: safety check --json || true
-        continue-on-error: true
-
-      - name: Audit dependencies with pip-audit
-        run: pip-audit --format json --output pip-audit-report.json || true
-        continue-on-error: true
-
   test:
-    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ['3.10', '3.11', '3.12']
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libpq-dev \
-            libssl-dev
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          pip install pytest pytest-cov pytest-asyncio pytest-xdist
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-core.txt
+        pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: |
-          pytest tests/ \
-            --cov=src \
-            --cov-report=xml \
-            --cov-report=term \
-            --cov-report=html \
-            -v \
-            --tb=short \
-            -n auto || true
-        continue-on-error: true
+    - name: Lint with ruff
+      run: |
+        pip install ruff
+        ruff check src/ tests/
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
+    - name: Type check with mypy
+      run: |
+        pip install mypy
+        mypy src/ --ignore-missing-imports
 
-  build:
-    name: Build Package
+    - name: Test with pytest
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  security:
     runs-on: ubuntu-latest
-    needs: [lint, security, test]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+    - name: Run security scan
+      run: |
+        pip install bandit safety
+        bandit -r src/ -f json -o bandit-report.json || true
+        safety check -r requirements-core.txt || true
 
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine
-
-      - name: Read version
-        id: version
-        run: |
-          if [ -f VERSION ]; then
-            VERSION=$(cat VERSION)
-          else
-            VERSION=$(python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-
-      - name: Build package
-        run: python -m build
-
-      - name: Check package
-        run: twine check dist/*
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-packages
-          path: dist/*
-          retention-days: 7
-
-  docker-build:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [lint, security]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Read version
-        id: version
-        run: |
-          if [ -f VERSION ]; then
-            VERSION=$(cat VERSION)
-          else
-            VERSION="3.2.0"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Docker image version: $VERSION"
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: x0tta6bl4:${{ steps.version.outputs.version }},x0tta6bl4:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64
-
-      - name: Test Docker image
-        run: |
-          docker run --rm x0tta6bl4:${{ steps.version.outputs.version }} python --version
+    - name: Check for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified

@@ -29,12 +29,25 @@ def get_log_level() -> str:
 
 
 def mask_sensitive_data(data: str) -> str:
-    """Mask sensitive data in logs"""
+    """Mask sensitive data in logs including passwords, tokens, secrets, and IP addresses"""
     patterns = [
+        # Authentication credentials
         (r'password["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'password=***'),
         (r'token["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'token=***'),
         (r'api[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'api_key=***'),
         (r'authorization["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'authorization=***'),
+        (r'secret["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'secret=***'),
+        (r'private[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'private_key=***'),
+        (r'passwd["\']?\s*[:=]\s*["\']?[^"\'\s]+', 'passwd=***'),
+        
+        # IP address masking (preserve private ranges, mask public)
+        (r'\b(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}\b', r'\1.***'),
+        
+        # Email masking
+        (r'\b([a-zA-Z0-9._%+-])[^@]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b', r'\1***@\2'),
+        
+        # JWT tokens (three base64 parts separated by dots)
+        (r'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*', '***JWT_TOKEN***'),
     ]
     
     for pattern, replacement in patterns:

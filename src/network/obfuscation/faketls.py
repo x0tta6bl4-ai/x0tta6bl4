@@ -85,7 +85,8 @@ class FakeTLSTransport(ObfuscationTransport):
     It only provides obfuscation against DPI.
     """
     
-    def __init__(self, sni: str = "www.google.com"):
+    def __init__(self, sni: str = "www.cloudflare.com"):
+        # Default changed from google.com to cloudflare.com to avoid Google Cloud conflicts
         self.sni = sni.encode('utf-8')
         
     def wrap_socket(self, sock: socket.socket) -> socket.socket:

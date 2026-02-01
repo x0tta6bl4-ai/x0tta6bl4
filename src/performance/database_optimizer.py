@@ -224,6 +224,10 @@ class DatabaseOptimizer:
             cursor = conn.cursor()
             
             # Get EXPLAIN QUERY PLAN
+            # Note: EXPLAIN QUERY PLAN doesn't support parameterized queries
+            # This is for analysis only, not for user input
+            if any(c in query for c in [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE']):
+                raise ValueError("Invalid query for analysis")
             explain_query = f"EXPLAIN QUERY PLAN {query}"
             cursor.execute(explain_query)
             plan = cursor.fetchall()
@@ -265,11 +269,11 @@ class DatabaseOptimizer:
             cursor = conn.cursor()
             
             # Get table schema
-            cursor.execute(f"PRAGMA table_info({table_name})")
+            cursor.execute("PRAGMA table_info(?)", (table_name,))
             columns = cursor.fetchall()
             
             # Get existing indexes
-            cursor.execute(f"PRAGMA index_list({table_name})")
+            cursor.execute("PRAGMA index_list(?)", (table_name,))
             existing_indexes = [row[1] for row in cursor.fetchall()]
             
             # Analyze slow queries for this table

@@ -1,124 +1,159 @@
-# Prometheus Alerting Rules for x0tta6bl4 Mesh Network
-# Alerts for critical SLO violations
+# Prometheus Alerting Rules for x0tta6bl4
+# These rules monitor connection health, latency, and system stability
 
 groups:
-  - name: mesh_network_alerts
+  - name: x0tta6bl4-connection-alerts
     interval: 30s
     rules:
-      # MTTR alerts
-      - alert: HighMTTR
-        expr: mesh:mttr_p95 > 7
-        for: 5m
-        labels:
-          severity: warning
-          component: self-healing
-        annotations:
-          summary: "MTTR p95 exceeds target ({{ $value }}s > 7s)"
-          description: "Mean Time To Recovery p95 is {{ $value }}s, target is <7s"
-      
-      - alert: CriticalMTTR
-        expr: mesh:mttr_p95 > 10
+      # High latency alert
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(x0tta6bl4_request_duration_seconds_bucket[5m])) > 0.5
         for: 2m
         labels:
-          severity: critical
-          component: self-healing
+          severity: warning
+          service: x0tta6bl4
         annotations:
-          summary: "CRITICAL: MTTR p95 very high ({{ $value }}s)"
-          description: "MTTR p95 is {{ $value }}s, significantly above target of 7s"
-      
-      # Latency alerts
-      - alert: HighMeshLatency
-        expr: mesh:latency_p95 > 0.1
+          summary: "High latency detected on {{ $labels.instance }}"
+          description: "95th percentile latency is {{ $value }}s (threshold: 0.5s)"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/high-latency"
+
+      # Connection drops alert
+      - alert: ConnectionDrops
+        expr: rate(x0tta6bl4_connection_errors_total[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+          service: x0tta6bl4
+        annotations:
+          summary: "Connection drops detected on {{ $labels.instance }}"
+          description: "Connection error rate is {{ $value }} errors/sec"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/connection-drops"
+
+      # Circuit breaker open alert
+      - alert: CircuitBreakerOpen
+        expr: x0tta6bl4_circuit_breaker_state == 2
+        for: 0s
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "Circuit breaker is open for {{ $labels.circuit_name }}"
+          description: "Circuit breaker {{ $labels.circuit_name }} has opened due to failures"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/circuit-breaker"
+
+      # High retry rate alert
+      - alert: HighRetryRate
+        expr: rate(x0tta6bl4_retry_attempts_total[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "High retry rate on {{ $labels.instance }}"
+          description: "Retry rate is {{ $value }} retries/sec"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/high-retry-rate"
+
+  - name: x0tta6bl4-system-alerts
+    interval: 30s
+    rules:
+      # Service down alert
+      - alert: ServiceDown
+        expr: up{job="x0tta6bl4"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: x0tta6bl4
+        annotations:
+          summary: "x0tta6bl4 service is down on {{ $labels.instance }}"
+          description: "Service has been down for more than 1 minute"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/service-down"
+
+      # High memory usage alert
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes{job="x0tta6bl4"} / 1024 / 1024) > 1024
         for: 5m
         labels:
           severity: warning
-          component: networking
+          service: x0tta6bl4
         annotations:
-          summary: "Mesh latency p95 exceeds target ({{ $value }}s > 100ms)"
-          description: "Mesh latency p95 is {{ $value }}s, target is <100ms"
-      
-      # Slot sync alerts
-      - alert: SlotSyncDegraded
-        expr: mesh:slot_sync_success_rate_avg < 0.95
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }} MB"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/high-memory"
+
+      # High CPU usage alert
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="x0tta6bl4"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/high-cpu"
+
+  - name: x0tta6bl4-security-alerts
+    interval: 30s
+    rules:
+      # Security event alert
+      - alert: SecurityEvent
+        expr: increase(x0tta6bl4_security_events_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: info
+          service: x0tta6bl4
+        annotations:
+          summary: "Security event detected on {{ $labels.instance }}"
+          description: "Event type: {{ $labels.event_type }}"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/security-events"
+
+      # Failed authentication alert
+      - alert: FailedAuthentication
+        expr: rate(x0tta6bl4_auth_failures_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "High authentication failure rate on {{ $labels.instance }}"
+          description: "Auth failure rate is {{ $value }} failures/sec"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/auth-failures"
+
+  - name: x0tta6bl4-mesh-alerts
+    interval: 30s
+    rules:
+      # Mesh node disconnected
+      - alert: MeshNodeDisconnected
+        expr: x0tta6bl4_mesh_node_connected == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "Mesh node {{ $labels.node_id }} is disconnected"
+          description: "Node has been disconnected for more than 2 minutes"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/mesh-node-down"
+
+      # Low mesh connectivity
+      - alert: LowMeshConnectivity
+        expr: x0tta6bl4_mesh_connected_peers < 2
+        for: 5m
+        labels:
+          severity: warning
+          service: x0tta6bl4
+        annotations:
+          summary: "Low mesh connectivity on {{ $labels.instance }}"
+          description: "Only {{ $value }} peers connected (minimum: 2)"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/low-mesh-connectivity"
+
+      # High mesh latency
+      - alert: HighMeshLatency
+        expr: histogram_quantile(0.95, rate(x0tta6bl4_mesh_latency_seconds_bucket[5m])) > 0.2
         for: 3m
         labels:
           severity: warning
-          component: synchronization
+          service: x0tta6bl4
         annotations:
-          summary: "Slot synchronization success rate below target ({{ $value | humanizePercentage }} < 95%)"
-          description: "Slot sync success rate is {{ $value | humanizePercentage }}, target is >95%"
-      
-      - alert: SlotSyncCritical
-        expr: mesh:slot_sync_success_rate_avg < 0.90
-        for: 2m
-        labels:
-          severity: critical
-          component: synchronization
-        annotations:
-          summary: "CRITICAL: Slot synchronization failing ({{ $value | humanizePercentage }})"
-          description: "Slot sync success rate is {{ $value | humanizePercentage }}, critical threshold is 90%"
-      
-      # eBPF overhead alerts
-      - alert: HighEBPFOverhead
-        expr: ebpf:cpu_overhead_avg > 2
-        for: 5m
-        labels:
-          severity: warning
-          component: observability
-        annotations:
-          summary: "eBPF CPU overhead exceeds target ({{ $value }}% > 2%)"
-          description: "eBPF telemetry CPU overhead is {{ $value }}%, target is <2%"
-      
-      # Node health alerts
-      - alert: NodeUnhealthy
-        expr: node_health_status == 0
-        for: 1m
-        labels:
-          severity: warning
-          component: node
-        annotations:
-          summary: "Node {{ $labels.node_id }} is unhealthy"
-          description: "Node {{ $labels.node_id }} health status is 0 (unhealthy)"
-      
-      - alert: NodeNotAttested
-        expr: node_spiffe_attested == 0
-        for: 1m
-        labels:
-          severity: critical
-          component: security
-        annotations:
-          summary: "SECURITY: Node {{ $labels.node_id }} failed SPIFFE attestation"
-          description: "Node {{ $labels.node_id }} is running but not attested. Zero Trust violation."
-
-      - alert: MultipleNodesUnhealthy
-        expr: sum(node_health_status == 0) > 2
-        for: 2m
-        labels:
-          severity: critical
-          component: cluster
-        annotations:
-          summary: "Multiple nodes unhealthy ({{ $value }} nodes)"
-          description: "{{ $value }} nodes are unhealthy, cluster stability at risk"
-      
-      # k-disjoint paths alerts
-      - alert: InsufficientDisjointPaths
-        expr: mesh:k_disjoint_paths_avg < 2
-        for: 5m
-        labels:
-          severity: warning
-          component: routing
-        annotations:
-          summary: "Insufficient k-disjoint paths ({{ $value }} < 2)"
-          description: "Average k-disjoint paths available is {{ $value }}, target is ≥2"
-      
-      # Topology stability alerts
-      - alert: HighTopologyChurn
-        expr: sum(mesh:topology_changes_rate) > 10
-        for: 5m
-        labels:
-          severity: warning
-          component: topology
-        annotations:
-          summary: "High topology churn ({{ $value }} changes/min)"
-          description: "Topology changing at {{ $value }} changes/min, may indicate instability"
-
+          summary: "High mesh latency on {{ $labels.instance }}"
+          description: "95th percentile mesh latency is {{ $value }}s"
+          runbook_url: "https://wiki.internal/x0tta6bl4/runbooks/high-mesh-latency"

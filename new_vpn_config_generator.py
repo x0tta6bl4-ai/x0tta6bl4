@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 New VPN Config Generator for x0tta6bl4 - Experimental Inbound
-Generates VLESS + Reality configs with new parameters to bypass current blocks
+Generates VLESS + Reality configs with advanced parameters to bypass current blocks
 """
 
 import os
 import uuid
 import urllib.parse
 import logging
+import random
 from typing import Dict, Optional
 from datetime import datetime
 
@@ -17,13 +18,51 @@ logger = logging.getLogger(__name__)
 VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
 VPN_PORT = int(os.getenv("VPN_PORT_EXPERIMENTAL", "39830"))
 
-# Reality Configuration - Optimized for bypassing current blocks
+# Rotating Reality Configuration - Optimized for bypassing current blocks
 REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY_EXPERIMENTAL", "yWfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww")
 REALITY_PRIVATE_KEY = os.getenv("REALITY_PRIVATE_KEY_EXPERIMENTAL")
-REALITY_SNI = os.getenv("REALITY_SNI_EXPERIMENTAL", "www.cloudflare.com")
+
+# Rotating SNI options for experimental config (optimized for block bypass)
+# NOTE: Google/YouTube domains excluded to prevent conflicts with Google Cloud API
+ROTATING_SNI_OPTIONS = [
+    "www.cloudflare.com",
+    "www.microsoft.com",
+    "www.apple.com",
+    "www.netflix.com",
+    "www.github.com",
+    "www.gitlab.com",
+    "www.bitbucket.org",
+    "www.spotify.com",      # Added for Spotify compatibility
+    "www.scdn.co",          # Spotify CDN
+    "open.spotify.com"      # Spotify web player
+]  # Excluded: youtube.com (conflict with Google Cloud)
+
+# Rotating TLS fingerprints options for experimental config
+ROTATING_FINGERPRINT_OPTIONS = [
+    "firefox",
+    "safari",
+    "edge",
+    "ios",
+    "android"
+]
+
+# Rotating SpiderX paths for experimental config (CDN-specific paths)
+ROTATING_SPIDERX_OPTIONS = [
+    "/cdn-cgi/trace",
+    "/api/v1/health",
+    "/api/v1/status",
+    "/static/css/main.css",
+    "/static/js/app.js",
+    "/favicon.ico",
+    "/robots.txt",
+    "/sitemap.xml"
+]
+
+# Default Reality parameters (randomized for each config)
+REALITY_SNI = os.getenv("REALITY_SNI_EXPERIMENTAL", random.choice(ROTATING_SNI_OPTIONS))
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID_EXPERIMENTAL", "7a")
-REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT_EXPERIMENTAL", "firefox")
-REALITY_SPIDERX = os.getenv("REALITY_SPIDERX_EXPERIMENTAL", "/cdn-cgi/trace")
+REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT_EXPERIMENTAL", random.choice(ROTATING_FINGERPRINT_OPTIONS))
+REALITY_SPIDERX = os.getenv("REALITY_SPIDERX_EXPERIMENTAL", random.choice(ROTATING_SPIDERX_OPTIONS))
 
 # Security check
 if not REALITY_PRIVATE_KEY:
@@ -39,18 +78,37 @@ def generate_vless_link(
     user_uuid: Optional[str] = None,
     server: str = VPN_SERVER,
     port: int = VPN_PORT,
-    sni: str = REALITY_SNI,
+    sni: str = None,
     short_id: str = REALITY_SHORT_ID,
     public_key: str = REALITY_PUBLIC_KEY,
-    fingerprint: str = REALITY_FINGERPRINT,
-    spiderx: str = REALITY_SPIDERX,
+    fingerprint: str = None,
+    spiderx: str = None,
     remark: str = "x0tta6bl4_VPN_Experimental"
 ) -> str:
     """
     Generate VLESS + Reality link for user with experimental parameters
+    
+    Args:
+        user_uuid: User UUID (if None, uses default)
+        server: VPN server address
+        port: VPN server port
+        sni: SNI for Reality (if None, random from ROTATING_SNI_OPTIONS)
+        short_id: Short ID for Reality
+        public_key: Reality public key
+        fingerprint: TLS fingerprint (if None, random from ROTATING_FINGERPRINT_OPTIONS)
+        spiderx: SpiderX path (if None, random from ROTATING_SPIDERX_OPTIONS)
+        remark: Connection remark/name
+        
+    Returns:
+        VLESS link string
     """
     if user_uuid is None:
         raise ValueError("user_uuid is required!")
+    
+    # Use random parameters if not provided (optimized for block bypass)
+    sni = sni or random.choice(ROTATING_SNI_OPTIONS)
+    fingerprint = fingerprint or random.choice(ROTATING_FINGERPRINT_OPTIONS)
+    spiderx = spiderx or random.choice(ROTATING_SPIDERX_OPTIONS)
     
     spiderx_encoded = urllib.parse.quote(spiderx, safe='')
     

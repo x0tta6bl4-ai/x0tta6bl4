@@ -23,6 +23,18 @@ logger = logging.getLogger(__name__)
 class MeshVPNBridge:
     """Bridge between SOCKS5 client and Mesh Network with P2P routing."""
     
+    # Domains that should bypass mesh routing for compatibility
+    BYPASS_DOMAINS = [
+        "googleapis.com",
+        "cloud.google.com",
+        "appspot.com",
+        "googleusercontent.com",
+        "gstatic.com",
+        "spotify.com",
+        "scdn.co",
+        "spotifycdn.com",
+    ]
+    
     def __init__(self, socks_port=10809, node_id=None, use_mesh_routing=True):
         self.socks_port = socks_port
         self.node_id = node_id or os.getenv("NODE_ID", f"node-{random.randint(1000,9999)}")
@@ -32,11 +44,22 @@ class MeshVPNBridge:
         self.is_exit_node = self.node_id.startswith("node-vps")
         self.use_mesh_routing = use_mesh_routing and not self.is_exit_node
         
-        # Legacy exit nodes (fallback)
-        self.exit_nodes = [
-            {"ip": "89.125.1.107", "port": 10809, "weight": 10},
-            {"ip": "62.133.60.252", "port": 10809, "weight": 8},
-        ]
+        # Legacy exit nodes (fallback) - configured via environment
+        exit_nodes_env = os.getenv("EXIT_NODES", "")
+        if exit_nodes_env:
+            # Format: "ip:port:weight,ip:port:weight"
+            self.exit_nodes = []
+            for node_str in exit_nodes_env.split(","):
+                parts = node_str.strip().split(":")
+                if len(parts) >= 2:
+                    self.exit_nodes.append({
+                        "ip": parts[0],
+                        "port": int(parts[1]),
+                        "weight": int(parts[2]) if len(parts) > 2 else 10
+                    })
+        else:
+            # Development defaults (empty for production safety)
+            self.exit_nodes = []
         
         # Initialize Mesh Node
         config = MeshNodeConfig(
@@ -51,9 +74,11 @@ class MeshVPNBridge:
         self.router = MeshRouter(self.node_id, socks_port)
         
         # Token Rewards
-        self.rewards = TokenRewards(
-            contract_address="0x3f645dfa2a2a16725ed961d16f1667a13484bdd3"
-        )
+        contract_address = os.getenv("TOKEN_CONTRACT_ADDRESS", "")
+        if not contract_address and os.getenv("ENVIRONMENT") != "production":
+            # Development placeholder only
+            contract_address = os.getenv("TOKEN_CONTRACT_ADDRESS", "")
+        self.rewards = TokenRewards(contract_address=contract_address)
         
         self.packets_relayed = 0
         self.bytes_relayed = 0
@@ -158,8 +183,13 @@ class MeshVPNBridge:
                 await writer.drain()
                 return
             
+            # Check if target should bypass mesh routing
+            should_bypass_mesh = any(target_host.endswith(d) or target_host == d for d in self.BYPASS_DOMAINS)
+            if should_bypass_mesh:
+                logger.info(f"🔄 Bypassing mesh for {target_host} (Google Cloud/Spotify domain)")
+            
             # 4. Establish connection through mesh
-            if self.use_mesh_routing and self.router.peers:
+            if self.use_mesh_routing and self.router.peers and not should_bypass_mesh:
                 # Multi-hop mesh routing
                 mesh_conn = MeshConnection(self.router, f"{target_host}:{target_port}", self.crypto)
                 
