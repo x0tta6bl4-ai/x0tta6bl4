@@ -453,10 +453,10 @@ async def main():
     import sys
     
     oracle = CradleDAOOracle(
-        snapshot_api="https://snapshot.org/api",
-        aragon_api="https://aragon.org/api",
-        mesh_controller_url="https://mesh-control.x0tta6bl4.local",
-        observability_endpoint="https://observability.x0tta6bl4.local"
+        snapshot_api=os.getenv("SNAPSHOT_API", "https://snapshot.org/api"),
+        aragon_api=os.getenv("ARAGON_API", "https://aragon.org/api"),
+        mesh_controller_url=os.getenv("MESH_CONTROLLER_URL", ""),
+        observability_endpoint=os.getenv("OBSERVABILITY_ENDPOINT", "")
     )
     
     # Load experiment config

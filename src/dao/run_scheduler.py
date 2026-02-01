@@ -85,7 +85,7 @@ async def main():
     
     # Load config from env
     private_key = os.getenv("PRIVATE_KEY")
-    rpc_url = os.getenv("RPC_URL", "https://sepolia.base.org")
+    rpc_url = os.getenv("RPC_URL", "")
     contract_addr = os.getenv("CONTRACT_ADDRESS")
     
     if not private_key or not contract_addr:

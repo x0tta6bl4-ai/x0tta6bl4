@@ -65,10 +65,10 @@ class Config:
     PRICE_NEIGHBORHOOD: int = 20
     
     # Download links (IPFS or S3)
-    DOWNLOAD_URL: str = "https://download.x0tta6bl4.io/kit"
-    
+    DOWNLOAD_URL: str = os.getenv("DOWNLOAD_URL", "")
+
     # License server
-    LICENSE_SERVER: str = "https://license.x0tta6bl4.io"
+    LICENSE_SERVER: str = os.getenv("LICENSE_SERVER", "")
 
 
 config = Config()

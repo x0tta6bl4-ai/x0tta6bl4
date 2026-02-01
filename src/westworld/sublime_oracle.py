@@ -545,9 +545,9 @@ async def demo_sublime():
     print("="*70)
     
     oracle = SublimeOracle(
-        ipfs_api="https://ipfs.x0tta6bl4.local",
-        arweave_api="https://arweave.x0tta6bl4.local",
-        snapshot_api="https://snapshot.org/api"
+        ipfs_api=os.getenv("IPFS_API", ""),
+        arweave_api=os.getenv("ARWEAVE_API", ""),
+        snapshot_api=os.getenv("SNAPSHOT_API", "https://snapshot.org/api")
     )
     
     # Initialize with guardians

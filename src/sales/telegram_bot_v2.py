@@ -42,7 +42,7 @@ class Config:
     PRICE_APARTMENT: int = 30  # 4+ человек
     PRICE_NEIGHBORHOOD: int = 20  # 8+ человек
     
-    DOWNLOAD_URL: str = "https://get.x0tta6bl4.io"
+    DOWNLOAD_URL: str = os.getenv("DOWNLOAD_URL", "")
 
 config = Config()
 

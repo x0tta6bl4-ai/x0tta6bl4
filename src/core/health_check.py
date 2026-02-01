@@ -235,8 +235,8 @@ async def check_redis() -> CheckResult:
 
 async def check_vpn_server() -> CheckResult:
     """Check VPN server connectivity."""
-    server = os.getenv("VPN_SERVER", "89.125.1.107")
-    port = int(os.getenv("VPN_PORT", "39829"))
+    server = os.getenv("VPN_SERVER", "")
+    port = int(os.getenv("VPN_PORT", "0")) or 0
 
     try:
         start = time.time()

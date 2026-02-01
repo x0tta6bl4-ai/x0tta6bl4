@@ -237,7 +237,9 @@ class NodeLicenseManager:
     
     CERT_PATH = Path.home() / ".x0tta6bl4" / "license.cert"
     
-    def __init__(self, auth_server_url: str = "https://license.x0tta6bl4.io"):
+    def __init__(self, auth_server_url: str = None):
+        import os
+        auth_server_url = auth_server_url or os.getenv("LICENSE_SERVER", "")
         self.auth_server_url = auth_server_url
         self.fingerprint = HardwareFingerprinter.generate()
         self.certificate: Optional[IdentityCertificate] = None
