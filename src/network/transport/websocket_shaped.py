@@ -117,7 +117,8 @@ class ShapedWebSocketClient:
             if name == "xor":
                 return TransportManager.create("xor", key=key)
             elif name == "faketls":
-                return TransportManager.create("faketls", sni=key or "google.com")
+                # Use cloudflare.com instead of google.com to avoid Google Cloud conflicts
+                return TransportManager.create("faketls", sni=key or "www.cloudflare.com")
             elif name == "shadowsocks":
                 return TransportManager.create("shadowsocks", password=key)
             else:

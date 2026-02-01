@@ -9,7 +9,7 @@ services:
       no_cache: false
     container_name: x0tta6bl4-api
     ports:
-      - "8000:8000"
+      - "8080:8080"
     environment:
       - NODE_ID=api-staging
       - ENVIRONMENT=staging
@@ -23,7 +23,7 @@ services:
     networks:
       - x0tta6bl4_staging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3

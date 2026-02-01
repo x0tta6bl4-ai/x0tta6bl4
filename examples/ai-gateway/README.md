@@ -1,105 +1,132 @@
-# x0tta6bl4 AI Gateway Demo
+# x0tta6bl4 AI Gateway Example
 
-This demo shows how to use x0tta6bl4 as a self-healing AI gateway with post-quantum cryptography and zero-trust security.
-
----
+This example demonstrates x0tta6bl4 as a self-healing AI gateway with post-quantum security.
 
 ## What this demo shows
 
-1. **Self-healing mesh network** with Batman-adv and Yggdrasil
-2. **Post-quantum cryptography** using ML-KEM-768 and ML-DSA-65
-3. **Zero-trust security** with mTLS and SPIFFE/SPIRE
-4. **AI-driven threat detection** with 17 ML/AI components
-5. **Prometheus metrics** for real-time monitoring
-
----
+- **Self-healing mesh network** with 2 nodes
+- **Post-quantum cryptography** (ML-KEM-768 + ML-DSA-65)
+- **Zero-trust security** with mTLS and SPIFFE/SPIRE
+- **AI-driven threat detection** using RAG pipeline
+- **Automatic failover** when a node is down
+- **Real-time monitoring** with Prometheus and Grafana
 
 ## How to run
 
-### Prerequisites
-- Docker & Docker Compose
-- Python 3.10+ (for local development)
+1. Make sure Docker is running
 
-### Run the demo
-```bash
-cd examples/ai-gateway
-docker-compose up -d
-```
+2. Run the demo:
+   ```bash
+   cd examples/ai-gateway
+   ./demo.sh
+   ```
 
-### Health Check
-```bash
-curl http://localhost:8000/health
-# {"status": "ok", "version": "3.3.0", "timestamp": "..."}
-```
-
-### Prometheus Metrics
-Open your browser and go to `http://localhost:9090`.
-
-You should see metrics like:
-- `x0tta6bl4_api_requests_total` - Total API requests
-- `x0tta6bl4_api_request_duration_seconds` - API request duration
-- `x0tta6bl4_mesh_nodes_total` - Number of mesh nodes
-- `x0tta6bl4_threat_detection_total` - Number of threats detected
-
----
+3. The demo will:
+   - Build the x0tta6bl4 image if it doesn't exist
+   - Start the mesh network with 2 nodes
+   - Wait for services to initialize
+   - Verify node health
+   - Display demo URLs and next steps
 
 ## What to observe
 
-### Mesh Network Status
+### 1. Service Health
+Check if both nodes are healthy:
 ```bash
-curl http://localhost:8000/api/v1/mesh/nodes
+curl http://localhost:8081/health
+curl http://localhost:8082/health
 ```
 
-You should see information about the mesh nodes, including:
-- Node ID
-- IP address
-- Status (connected/disconnected)
-- Threat level (low/medium/high)
+### 2. Metrics
+Open Prometheus in your browser: http://localhost:9090
 
-### Threat Detection
-```bash
-curl http://localhost:8000/api/v1/threats
+Query for node health:
+```promql
+x0tta6bl4_node_health
 ```
 
-You should see a list of detected threats, including:
-- Threat ID
-- Type (malware/phishing/ddos)
-- Source IP
-- Destination IP
-- Severity (low/medium/high)
+### 3. Grafana Dashboard
+Open Grafana: http://localhost:3000 (admin/admin)
 
----
+Add Prometheus data source (http://prometheus:9090) and create a dashboard.
 
-## How to break it (failure injection)
-
-### Disconnect a node
+### 4. AI Gateway Usage
+Test the chat endpoint:
 ```bash
-docker stop x0tta6bl4_1
+curl -X POST http://localhost:8081/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Explain quantum computing to a 10-year-old",
+    "context": "simple explanation for kids"
+  }'
 ```
 
-Wait 30 seconds and check the mesh network status:
+### 5. Failover Simulation
+Simulate a node failure:
 ```bash
-curl http://localhost:8000/api/v1/mesh/nodes
+docker stop x0tta6bl4-node1
 ```
 
-The node should be marked as disconnected, and the mesh should automatically heal.
-
-### Restore the node
+Wait ~30 seconds and check if node 2 is still healthy:
 ```bash
-docker start x0tta6bl4_1
+curl http://localhost:8082/health
 ```
 
-Wait 30 seconds and check the mesh network status:
+The mesh will automatically:
+- Detect the failed node (MTTD ~20s)
+- Reconfigure the network
+- Redirect traffic to healthy nodes
+
+### 6. Restore Node
+Bring the failed node back online:
 ```bash
-curl http://localhost:8000/api/v1/mesh/nodes
+docker start x0tta6bl4-node1
 ```
 
-The node should be marked as connected again.
+Check if the mesh heals:
+```bash
+curl http://localhost:8081/health
+```
 
----
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  AI Gateway Demo Architecture               │
+├─────────────────────────────────────────────┤
+│                                             │
+│  ┌──────────────┐  ┌──────────────┐        │
+│  │ Node 1       │  │ Node 2       │        │
+│  │ - API        │  │ - API        │        │
+│  │ - RAG        │  │ - RAG        │        │
+│  │ - Monitor    │  │ - Monitor    │        │
+│  └──────────────┘  └──────────────┘        │
+│          │                  │               │
+│          └──────────┬───────┘               │
+│                     ▼                       │
+│         ┌──────────────────┐               │
+│         │ Mesh Network     │               │
+│         │ (Batman-adv)     │               │
+│         └──────────────────┘               │
+│                     │                       │
+│         ┌───────────▼───────────┐          │
+│         │ Monitoring Stack     │          │
+│         │ - Prometheus         │          │
+│         │ - Grafana            │          │
+│         └──────────────────────┘          │
+│                     │                       │
+│         ┌───────────▼───────────┐          │
+│         │ Data Storage         │          │
+│         │ - PostgreSQL         │          │
+│         │ - Redis              │          │
+│         └──────────────────────┘          │
+│                                             │
+└─────────────────────────────────────────────┘
+```
 
 ## Cleanup
+
+To stop the demo:
 ```bash
 cd examples/ai-gateway
-docker-compose down -v
-```
+docker-compose down

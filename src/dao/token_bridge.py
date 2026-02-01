@@ -66,7 +66,7 @@ class BridgeTransaction:
 @dataclass
 class BridgeConfig:
     """Configuration for token bridge."""
-    rpc_url: str = "https://sepolia.base.org"
+    rpc_url: str = ""
     contract_address: str = ""
     private_key: str = ""
     chain_id: int = 84532  # Base Sepolia

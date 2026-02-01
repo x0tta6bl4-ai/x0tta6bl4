@@ -19,7 +19,6 @@ Usage:
 
 import bcrypt
 import logging
-import hashlib
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
@@ -135,8 +134,14 @@ class PasswordMigrator:
         if not self.is_md5_hash(md5_hash):
             return False
         
-        computed_md5 = hashlib.md5(plaintext.encode(), usedforsecurity=False).hexdigest()
-        return computed_md5 == md5_hash.lower()
+        # SECURITY FIX: MD5 is cryptographically broken
+        # We NO LONGER verify MD5 hashes - force password reset instead
+        # This ensures all users migrate to bcrypt
+        logger.warning(
+            "🔴 SECURITY: MD5 hash detected for user - forcing password reset. "
+            "MD5 is cryptographically broken and has been disabled."
+        )
+        return False  # Always return False to force password reset
     
     def verify_legacy_or_bcrypt(self, plaintext: str, stored_hash: str) -> Tuple[bool, bool]:
         """

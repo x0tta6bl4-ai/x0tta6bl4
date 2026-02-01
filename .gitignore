@@ -167,6 +167,22 @@ project_files_list.txt
 **/*.key
 **/secrets/
 
+# Google OAuth credentials (contains client_id, client_secret)
+credentials.json
+token.json
+
+# Backup files with sensitive data
+*.sql
+backup_*.sql
+
+# Outreach tracking with email data
+crm_outreach_tracking.csv
+
+# Logs with potentially sensitive data
+*.log
+agent_logs/
+.logs/
+
 # External artifacts
 /external_artifacts/releases/*
 !/external_artifacts/releases/.gitkeep

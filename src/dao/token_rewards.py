@@ -18,8 +18,8 @@ except ImportError:
     WEB3_AVAILABLE = False
     logger.warning("Web3 not installed. Using simulation mode.")
 
-# Base Sepolia RPC
-BASE_SEPOLIA_RPC = "https://sepolia.base.org"
+# Base Sepolia RPC - should be configured via environment
+BASE_SEPOLIA_RPC = os.getenv("RPC_URL", "")
 
 # Minimal ERC20 ABI for transfer
 ERC20_ABI = [

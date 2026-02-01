@@ -77,7 +77,7 @@ class GovernanceEngine:
             "node-4": 200.0,
         }
 
-    def create_proposal(self, title: str, description: str, duration_seconds: float = 3600, actions: List[Dict] = None) -> Proposal:
+    def create_proposal(self, title: str, description: str, duration_seconds: float = 3600, actions: Optional[List[Dict]] = None) -> Proposal:
         """Create a new governance proposal."""
         proposal_id = f"prop_{int(time.time())}_{self.node_id}"
         now = time.time()

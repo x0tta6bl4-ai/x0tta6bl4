@@ -22,6 +22,8 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 
+from src.core.safe_subprocess import SafeSubprocess, SafeCommandResult
+
 logger = logging.getLogger(__name__)
 
 
@@ -167,12 +169,11 @@ class MultiCloudDeployment:
                 return None
             
             # Get AWS account and region
-            aws_account = subprocess.run(
+            aws_result = SafeSubprocess.run(
                 ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],
-                capture_output=True,
-                text=True,
                 timeout=10
-            ).stdout.strip()
+            )
+            aws_account = aws_result.stdout.strip() if aws_result.success else ""
             
             if not aws_account:
                 logger.error("❌ AWS credentials not configured")
@@ -186,80 +187,71 @@ class MultiCloudDeployment:
             
             # Build image
             logger.info(f"📦 Building Docker image: {image_name}:{image_tag}")
-            build_result = subprocess.run(
+            build_result = SafeSubprocess.run(
                 ["docker", "build", "-f", "Dockerfile", "-t", f"{image_name}:{image_tag}", "."],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if build_result.returncode != 0:
+            if not build_result.success:
                 logger.error(f"❌ Docker build failed: {build_result.stderr}")
                 return None
             
             # Login to ECR
             logger.info("🔐 Logging into ECR...")
-            login_result = subprocess.run(
+            login_result = SafeSubprocess.run(
                 ["aws", "ecr", "get-login-password", "--region", region],
-                capture_output=True,
-                text=True,
                 timeout=10
             )
             
-            if login_result.returncode != 0:
+            if not login_result.success:
                 logger.error(f"❌ ECR login failed: {login_result.stderr}")
                 return None
             
             # Docker login
-            docker_login = subprocess.run(
+            docker_login = SafeSubprocess.run(
                 ["docker", "login", "--username", "AWS", "--password-stdin", ecr_registry],
-                input=login_result.stdout,
-                text=True,
+                input_data=login_result.stdout,
                 timeout=30
             )
             
-            if docker_login.returncode != 0:
+            if not docker_login.success:
                 logger.error("❌ Docker login to ECR failed")
                 return None
             
             # Create ECR repository if not exists
             logger.info(f"📦 Checking ECR repository: {image_name}")
-            repo_check = subprocess.run(
+            repo_check = SafeSubprocess.run(
                 ["aws", "ecr", "describe-repositories", "--repository-names", image_name, "--region", region],
-                capture_output=True,
                 timeout=10
             )
             
-            if repo_check.returncode != 0:
+            if not repo_check.success:
                 logger.info(f"📦 Creating ECR repository: {image_name}")
-                create_repo = subprocess.run(
+                create_repo = SafeSubprocess.run(
                     ["aws", "ecr", "create-repository", "--repository-name", image_name, "--region", region],
-                    capture_output=True,
                     timeout=30
                 )
-                if create_repo.returncode != 0:
+                if not create_repo.success:
                     logger.error(f"❌ Failed to create ECR repository: {create_repo.stderr}")
                     return None
             
             # Tag and push
             logger.info(f"📤 Pushing image to ECR: {ecr_image}")
-            docker_tag = subprocess.run(
+            docker_tag = SafeSubprocess.run(
                 ["docker", "tag", f"{image_name}:{image_tag}", ecr_image],
                 timeout=10
             )
             
-            if docker_tag.returncode != 0:
+            if not docker_tag.success:
                 logger.error("❌ Docker tag failed")
                 return None
             
-            push_result = subprocess.run(
+            push_result = SafeSubprocess.run(
                 ["docker", "push", ecr_image],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if push_result.returncode != 0:
+            if not push_result.success:
                 logger.error(f"❌ Docker push failed: {push_result.stderr}")
                 return None
             
@@ -282,13 +274,12 @@ class MultiCloudDeployment:
                 return None
             
             # Check Azure login
-            account_check = subprocess.run(
+            account_check = SafeSubprocess.run(
                 ["az", "account", "show"],
-                capture_output=True,
                 timeout=10
             )
             
-            if account_check.returncode != 0:
+            if not account_check.success:
                 logger.error("❌ Azure not logged in. Run 'az login'")
                 return None
             
@@ -298,49 +289,43 @@ class MultiCloudDeployment:
             
             # Build image
             logger.info(f"📦 Building Docker image: {self.config.image_name}:{self.config.image_tag}")
-            build_result = subprocess.run(
+            build_result = SafeSubprocess.run(
                 ["docker", "build", "-f", "Dockerfile", "-t", f"{self.config.image_name}:{self.config.image_tag}", "."],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if build_result.returncode != 0:
+            if not build_result.success:
                 logger.error(f"❌ Docker build failed: {build_result.stderr}")
                 return None
             
             # Login to ACR
             logger.info(f"🔐 Logging into ACR: {acr_name}")
-            login_result = subprocess.run(
+            login_result = SafeSubprocess.run(
                 ["az", "acr", "login", "--name", acr_name],
-                capture_output=True,
-                text=True,
                 timeout=30
             )
             
-            if login_result.returncode != 0:
+            if not login_result.success:
                 logger.error(f"❌ ACR login failed: {login_result.stderr}")
                 return None
             
             # Tag and push
             logger.info(f"📤 Pushing image to ACR: {acr_image}")
-            docker_tag = subprocess.run(
+            docker_tag = SafeSubprocess.run(
                 ["docker", "tag", f"{self.config.image_name}:{self.config.image_tag}", acr_image],
                 timeout=10
             )
             
-            if docker_tag.returncode != 0:
+            if not docker_tag.success:
                 logger.error("❌ Docker tag failed")
                 return None
             
-            push_result = subprocess.run(
+            push_result = SafeSubprocess.run(
                 ["docker", "push", acr_image],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if push_result.returncode != 0:
+            if not push_result.success:
                 logger.error(f"❌ Docker push failed: {push_result.stderr}")
                 return None
             
@@ -363,24 +348,21 @@ class MultiCloudDeployment:
                 return None
             
             # Check GCP login
-            auth_check = subprocess.run(
+            auth_check = SafeSubprocess.run(
                 ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"],
-                capture_output=True,
-                text=True,
                 timeout=10
             )
             
-            if not auth_check.stdout.strip():
+            if not auth_check.success or not auth_check.stdout.strip():
                 logger.error("❌ GCP not logged in. Run 'gcloud auth login'")
                 return None
             
             # Get GCP configuration
-            project = os.getenv("GCP_PROJECT", subprocess.run(
+            project_result = SafeSubprocess.run(
                 ["gcloud", "config", "get-value", "project"],
-                capture_output=True,
-                text=True,
                 timeout=10
-            ).stdout.strip())
+            )
+            project = os.getenv("GCP_PROJECT", project_result.stdout.strip() if project_result.success else "")
             
             if not project:
                 logger.error("❌ GCP project not configured")
@@ -392,70 +374,62 @@ class MultiCloudDeployment:
             
             # Build image
             logger.info(f"📦 Building Docker image: {self.config.image_name}:{self.config.image_tag}")
-            build_result = subprocess.run(
+            build_result = SafeSubprocess.run(
                 ["docker", "build", "-f", "Dockerfile", "-t", f"{self.config.image_name}:{self.config.image_tag}", "."],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if build_result.returncode != 0:
+            if not build_result.success:
                 logger.error(f"❌ Docker build failed: {build_result.stderr}")
                 return None
             
             # Configure Docker for Artifact Registry
             logger.info(f"🔐 Configuring Docker for Artifact Registry...")
-            configure_result = subprocess.run(
+            configure_result = SafeSubprocess.run(
                 ["gcloud", "auth", "configure-docker", f"{region}-docker.pkg.dev"],
-                capture_output=True,
-                text=True,
                 timeout=30
             )
             
-            if configure_result.returncode != 0:
+            if not configure_result.success:
                 logger.warning(f"⚠️ Docker configuration warning: {configure_result.stderr}")
             
             # Create Artifact Registry repository if not exists
             logger.info(f"📦 Checking Artifact Registry repository: {repo_name}")
-            repo_check = subprocess.run(
+            repo_check = SafeSubprocess.run(
                 ["gcloud", "artifacts", "repositories", "describe", repo_name,
                  "--location", region, "--repository-format", "docker"],
-                capture_output=True,
                 timeout=10
             )
             
-            if repo_check.returncode != 0:
+            if not repo_check.success:
                 logger.info(f"📦 Creating Artifact Registry repository: {repo_name}")
-                create_repo = subprocess.run(
+                create_repo = SafeSubprocess.run(
                     ["gcloud", "artifacts", "repositories", "create", repo_name,
                      "--repository-format", "docker", "--location", region,
                      "--description", "x0tta6bl4 Docker images"],
-                    capture_output=True,
                     timeout=60
                 )
-                if create_repo.returncode != 0:
+                if not create_repo.success:
                     logger.error(f"❌ Failed to create Artifact Registry repository: {create_repo.stderr}")
                     return None
             
             # Tag and push
             logger.info(f"📤 Pushing image to Artifact Registry: {artifact_image}")
-            docker_tag = subprocess.run(
+            docker_tag = SafeSubprocess.run(
                 ["docker", "tag", f"{self.config.image_name}:{self.config.image_tag}", artifact_image],
                 timeout=10
             )
             
-            if docker_tag.returncode != 0:
+            if not docker_tag.success:
                 logger.error("❌ Docker tag failed")
                 return None
             
-            push_result = subprocess.run(
+            push_result = SafeSubprocess.run(
                 ["docker", "push", artifact_image],
-                capture_output=True,
-                text=True,
                 timeout=600
             )
             
-            if push_result.returncode != 0:
+            if not push_result.success:
                 logger.error(f"❌ Docker push failed: {push_result.stderr}")
                 return None
             
@@ -507,14 +481,12 @@ class MultiCloudDeployment:
                 helm_cmd.extend(["-f", self.config.values_file])
             
             logger.info(f"🚀 Deploying with Helm: {self.config.helm_release_name}")
-            deploy_result = subprocess.run(
+            deploy_result = SafeSubprocess.run(
                 helm_cmd,
-                capture_output=True,
-                text=True,
                 timeout=self.config.wait_timeout + 60
             )
             
-            if deploy_result.returncode != 0:
+            if not deploy_result.success:
                 logger.error(f"❌ Helm deployment failed: {deploy_result.stderr}")
                 return False
             
@@ -550,14 +522,12 @@ class MultiCloudDeployment:
             region = self.config.region
             cluster_name = self.config.cluster_name
             
-            result = subprocess.run(
+            result = SafeSubprocess.run(
                 ["aws", "eks", "update-kubeconfig", "--region", region, "--name", cluster_name],
-                capture_output=True,
-                text=True,
                 timeout=60
             )
             
-            if result.returncode != 0:
+            if not result.success:
                 logger.error(f"❌ Failed to get EKS credentials: {result.stderr}")
                 return False
             
@@ -573,14 +543,12 @@ class MultiCloudDeployment:
             resource_group = os.getenv("AZURE_RG", "x0tta6bl4-rg")
             cluster_name = self.config.cluster_name
             
-            result = subprocess.run(
+            result = SafeSubprocess.run(
                 ["az", "aks", "get-credentials", "--resource-group", resource_group, "--name", cluster_name, "--overwrite-existing"],
-                capture_output=True,
-                text=True,
                 timeout=60
             )
             
-            if result.returncode != 0:
+            if not result.success:
                 logger.error(f"❌ Failed to get AKS credentials: {result.stderr}")
                 return False
             
@@ -593,25 +561,22 @@ class MultiCloudDeployment:
     def _get_gke_credentials(self) -> bool:
         """Получить GKE credentials."""
         try:
-            project = os.getenv("GCP_PROJECT", subprocess.run(
+            project_result = SafeSubprocess.run(
                 ["gcloud", "config", "get-value", "project"],
-                capture_output=True,
-                text=True,
                 timeout=10
-            ).stdout.strip())
+            )
+            project = os.getenv("GCP_PROJECT", project_result.stdout.strip() if project_result.success else "")
             
             region = self.config.region
             cluster_name = self.config.cluster_name
             
-            result = subprocess.run(
+            result = SafeSubprocess.run(
                 ["gcloud", "container", "clusters", "get-credentials", cluster_name,
                  "--region", region, "--project", project],
-                capture_output=True,
-                text=True,
                 timeout=60
             )
             
-            if result.returncode != 0:
+            if not result.success:
                 logger.error(f"❌ Failed to get GKE credentials: {result.stderr}")
                 return False
             
@@ -631,17 +596,15 @@ class MultiCloudDeployment:
             
             # Wait for deployment to be ready
             logger.info("🏥 Waiting for deployment to be ready...")
-            wait_result = subprocess.run(
+            wait_result = SafeSubprocess.run(
                 ["kubectl", "wait", "--for=condition=available",
                  f"deployment/{self.config.helm_release_name}",
                  "--namespace", self.config.namespace,
                  "--timeout", f"{self.config.health_check_timeout}s"],
-                capture_output=True,
-                text=True,
                 timeout=self.config.health_check_timeout + 10
             )
             
-            if wait_result.returncode != 0:
+            if not wait_result.success:
                 logger.warning(f"⚠️ Deployment not ready: {wait_result.stderr}")
                 return False
             
@@ -658,12 +621,11 @@ class MultiCloudDeployment:
     def _check_command(self, command: str) -> bool:
         """Проверить наличие команды."""
         try:
-            result = subprocess.run(
+            result = SafeSubprocess.run(
                 ["which", command] if os.name != "nt" else ["where", command],
-                capture_output=True,
                 timeout=5
             )
-            return result.returncode == 0
+            return result.success
         except Exception:
             return False
 

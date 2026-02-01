@@ -12,6 +12,7 @@ Version: 1.0.0
 import asyncio
 import json
 import logging
+import os
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
@@ -491,7 +492,11 @@ class DAOIntegration:
 # Example usage
 async def main():
     # Setup Web3 connection
-    w3 = Web3(Web3.HTTPProvider('https://rpc-mumbai.maticvigil.com'))
+    rpc_url = os.getenv("RPC_URL", "")
+    if not rpc_url:
+        logger.error("RPC_URL not configured")
+        return
+    w3 = Web3(Web3.HTTPProvider(rpc_url))
 
     # Contract addresses (from deployment)
     contracts = {

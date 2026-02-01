@@ -62,7 +62,7 @@ class GovernanceContract:
         contract_address: str,
         token_address: str,
         private_key: Optional[str] = None,
-        rpc_url: str = "http://localhost:8545"
+        rpc_url: Optional[str] = None
     ):
         """
         Initialize governance contract interface.
@@ -78,7 +78,9 @@ class GovernanceContract:
         
         self.contract_address = contract_address
         self.token_address = token_address
-        self.rpc_url = rpc_url
+        self.rpc_url = rpc_url or os.getenv("RPC_URL")
+        if not self.rpc_url:
+            raise ValueError("RPC_URL must be provided via environment or parameter")
         self.private_key = private_key or os.getenv("OPERATOR_PRIVATE_KEY")
         
         # Initialize Web3
