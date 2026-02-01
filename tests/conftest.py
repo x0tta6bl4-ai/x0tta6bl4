@@ -14,10 +14,8 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # Mock optional dependencies to prevent import errors during testing
+# NOTE: torch is NOT mocked because it's installed and mocking causes __spec__ errors
 mocked_modules = {
-    'torch': mock.MagicMock(),
-    'torch.nn': mock.MagicMock(),
-    'torch.nn.functional': mock.MagicMock(),
     'torch_geometric': mock.MagicMock(),
     'torch_geometric.nn': mock.MagicMock(),
     'liboqs': mock.MagicMock(),
@@ -223,11 +221,11 @@ def performance_tracker():
 @pytest.fixture(scope="function")
 def fresh_mock_dependencies():
     """Function-scoped mock dependencies - fresh for each test if needed.
-    
+
     Use this when test isolation requires fresh mocks (not shared session ones).
+    NOTE: torch is NOT mocked because it's installed.
     """
     fresh_mocks = {
-        'torch': mock.MagicMock(),
         'tensorflow': mock.MagicMock(),
         'transformers': mock.MagicMock(),
     }

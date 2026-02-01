@@ -21,9 +21,8 @@ _hvac_mock.api = MagicMock()
 _hvac_mock.api.auth_methods = MagicMock()
 _hvac_mock.api.auth_methods.Kubernetes = MagicMock()
 
+# NOTE: torch is NOT mocked because it's installed and mocking causes __spec__ errors
 _mocked_modules = {
-    'torch': MagicMock(),
-    'torch.nn': MagicMock(),
     'hvac': _hvac_mock,
     'hvac.exceptions': _hvac_mock.exceptions,
     'hvac.api': _hvac_mock.api,
