@@ -2,10 +2,18 @@
 """
 Database module для x0tta6bl4 Telegram Bot
 Использует SQLite для хранения пользователей
+
+Optimizations:
+- WAL mode for concurrent read/write
+- Connection pooling for reduced overhead
+- Memory-mapped temp storage
+- 64MB cache for faster queries
 """
 
 import sqlite3
 import logging
+import threading
+from queue import Queue, Empty
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 from contextlib import contextmanager
@@ -14,21 +22,89 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = "x0tta6bl4_users.db"
 
+# Connection pool settings
+_pool: Queue = Queue(maxsize=10)
+_pool_lock = threading.Lock()
+_pool_initialized = False
+
+
+def _create_optimized_connection() -> sqlite3.Connection:
+    """Create an optimized SQLite connection."""
+    conn = sqlite3.connect(
+        DB_PATH,
+        timeout=5.0,
+        check_same_thread=False,
+        isolation_level=None  # Autocommit for better WAL performance
+    )
+    conn.row_factory = sqlite3.Row
+
+    # Performance optimizations
+    conn.execute("PRAGMA journal_mode=WAL")        # Write-Ahead Logging
+    conn.execute("PRAGMA synchronous=NORMAL")      # Balanced durability/speed
+    conn.execute("PRAGMA cache_size=-64000")       # 64MB cache
+    conn.execute("PRAGMA temp_store=MEMORY")       # In-memory temp tables
+    conn.execute("PRAGMA mmap_size=268435456")     # 256MB memory-mapped I/O
+    conn.execute("PRAGMA page_size=4096")          # Optimal page size
+
+    return conn
+
+
+def _init_pool():
+    """Initialize connection pool with pre-created connections."""
+    global _pool_initialized
+    if _pool_initialized:
+        return
+
+    with _pool_lock:
+        if _pool_initialized:
+            return
+        # Pre-create 3 connections
+        for _ in range(3):
+            try:
+                conn = _create_optimized_connection()
+                _pool.put(conn)
+            except Exception as e:
+                logger.warning(f"Failed to pre-create connection: {e}")
+        _pool_initialized = True
+        logger.info("Database connection pool initialized")
+
 
 @contextmanager
 def get_db_connection():
-    """Context manager for database connection"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """Context manager for pooled database connection."""
+    _init_pool()
+    conn = None
+
     try:
+        # Try to get from pool (non-blocking)
+        try:
+            conn = _pool.get_nowait()
+        except Empty:
+            # Create new connection if pool empty
+            conn = _create_optimized_connection()
+
+        # Use BEGIN for transaction (WAL mode)
+        conn.execute("BEGIN")
         yield conn
-        conn.commit()
+        conn.execute("COMMIT")
+
     except Exception as e:
-        conn.rollback()
+        if conn:
+            try:
+                conn.execute("ROLLBACK")
+            except:
+                pass
         logger.error(f"Database error: {e}")
         raise
+
     finally:
-        conn.close()
+        if conn:
+            try:
+                # Return to pool
+                _pool.put_nowait(conn)
+            except:
+                # Pool full, close connection
+                conn.close()
 
 
 def init_database():
