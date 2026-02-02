@@ -11,27 +11,45 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Callable, Dict, Any
 import prometheus_client as prom
+from prometheus_client import REGISTRY
 
 logger = logging.getLogger(__name__)
 
-# Prometheus metrics
-vault_token_expiry_seconds = prom.Gauge(
+
+def _get_or_create_metric(metric_class, name, description, **kwargs):
+    """Get existing metric or create new one to avoid duplicate registration."""
+    try:
+        for collector in REGISTRY._names_to_collectors.values():
+            if hasattr(collector, '_name') and collector._name == name:
+                return collector
+        return metric_class(name, description, **kwargs)
+    except Exception:
+        return metric_class(name, description, registry=None, **kwargs)
+
+
+# Prometheus metrics - using helper to avoid duplicate registration
+vault_token_expiry_seconds = _get_or_create_metric(
+    prom.Gauge,
     'vault_token_expiry_seconds',
     'Seconds until Vault token expires'
 )
-vault_uptime_seconds = prom.Counter(
+vault_uptime_seconds = _get_or_create_metric(
+    prom.Counter,
     'vault_uptime_seconds',
     'Total Vault connection uptime'
 )
-vault_health_check_failures = prom.Counter(
+vault_health_check_failures = _get_or_create_metric(
+    prom.Counter,
     'vault_health_check_failures_total',
     'Total health check failures'
 )
-vault_token_refresh_count = prom.Counter(
+vault_token_refresh_count = _get_or_create_metric(
+    prom.Counter,
     'vault_token_refresh_count_total',
     'Total token refresh operations'
 )
-vault_degraded_mode = prom.Gauge(
+vault_degraded_mode = _get_or_create_metric(
+    prom.Gauge,
     'vault_degraded_mode',
     'Vault client in degraded mode (1=yes, 0=no)'
 )
