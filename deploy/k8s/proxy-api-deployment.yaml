@@ -208,13 +208,15 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: proxy-api-hpa
   namespace: proxy-infrastructure
+  annotations:
+    description: "HPA for 5000+ node mesh network support"
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: proxy-api
-  minReplicas: 3
-  maxReplicas: 20
+  minReplicas: 5
+  maxReplicas: 100  # Increased for 5000+ nodes (50 nodes per pod)
   metrics:
   - type: Resource
     resource:
@@ -227,14 +229,21 @@ spec:
       name: memory
       target:
         type: Utilization
-        averageUtilization: 80
+        averageUtilization: 75
   - type: Pods
     pods:
       metric:
         name: proxy_active_connections
       target:
         type: AverageValue
-        averageValue: "1000"
+        averageValue: "500"  # Lower threshold for faster scaling
+  - type: Pods
+    pods:
+      metric:
+        name: mesh_node_count
+      target:
+        type: AverageValue
+        averageValue: "50"  # Target 50 mesh nodes per API pod
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -242,6 +251,10 @@ spec:
       - type: Percent
         value: 10
         periodSeconds: 60
+      - type: Pods
+        value: 5
+        periodSeconds: 60
+      selectPolicy: Min  # Conservative scale-down
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
@@ -249,7 +262,7 @@ spec:
         value: 100
         periodSeconds: 15
       - type: Pods
-        value: 4
+        value: 10  # Increased for faster scale-up
         periodSeconds: 15
       selectPolicy: Max
 ---

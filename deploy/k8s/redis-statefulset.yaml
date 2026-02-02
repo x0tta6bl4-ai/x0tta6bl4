@@ -28,10 +28,12 @@ metadata:
     app: redis
     component: cache
     version: "7.0"
+  annotations:
+    description: "Redis Cluster for 5000+ node mesh network"
 spec:
   serviceName: redis-cluster
-  replicas: 3
-  podManagementPolicy: OrderedReady
+  replicas: 6  # Increased for 5000+ nodes (3 masters + 3 replicas)
+  podManagementPolicy: Parallel  # Faster scaling
   selector:
     matchLabels:
       app: redis
@@ -91,11 +93,11 @@ spec:
           name: cluster
         resources:
           requests:
-            cpu: 500m
-            memory: 1Gi
+            cpu: 1000m
+            memory: 2Gi
           limits:
-            cpu: 2000m
-            memory: 4Gi
+            cpu: 4000m
+            memory: 8Gi  # Increased for 5000+ connections
         livenessProbe:
           exec:
             command:
@@ -163,17 +165,33 @@ metadata:
   namespace: proxy-infrastructure
 data:
   redis.conf: |
+    # Redis Cluster config for 5000+ mesh nodes
     port 6379
     cluster-enabled yes
     cluster-config-file nodes.conf
     cluster-node-timeout 5000
+    cluster-replica-validity-factor 10
+    cluster-migration-barrier 1
+    cluster-require-full-coverage no
+
+    # Persistence
     appendonly yes
     appendfsync everysec
-    maxmemory 3gb
-    maxmemory-policy allkeys-lru
     save 900 1
     save 300 10
     save 60 10000
+
+    # Memory (7GB for 8GB limit)
+    maxmemory 7gb
+    maxmemory-policy allkeys-lru
+
+    # Performance for 5000+ nodes
+    tcp-backlog 511
+    maxclients 10000
+    tcp-keepalive 300
+    timeout 0
+
+    # Network
     protected-mode no
     bind 0.0.0.0
 ---
