@@ -5,6 +5,7 @@ Now with Quadratic Voting support.
 """
 import logging
 import time
+import uuid
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -77,11 +78,31 @@ class GovernanceEngine:
             "node-4": 200.0,
         }
 
-    def create_proposal(self, title: str, description: str, duration_seconds: float = 3600, actions: Optional[List[Dict]] = None) -> Proposal:
-        """Create a new governance proposal."""
-        proposal_id = f"prop_{int(time.time())}_{self.node_id}"
+    def create_proposal(
+        self,
+        title: str,
+        description: str,
+        duration_seconds: float = 3600,
+        actions: Optional[List[Dict]] = None,
+        quorum: float = 0.5,
+        threshold: float = 0.5
+    ) -> Proposal:
+        """Create a new governance proposal.
+
+        Args:
+            title: Proposal title
+            description: Proposal description
+            duration_seconds: Voting duration in seconds
+            actions: List of actions to execute if passed
+            quorum: Required participation ratio (0.0-1.0)
+            threshold: Required support ratio (0.0-1.0)
+
+        Returns:
+            Created Proposal object
+        """
+        proposal_id = f"prop_{uuid.uuid4().hex[:8]}_{self.node_id}"
         now = time.time()
-        
+
         proposal = Proposal(
             id=proposal_id,
             title=title,
@@ -90,7 +111,9 @@ class GovernanceEngine:
             start_time=now,
             end_time=now + duration_seconds,
             actions=actions or [],
-            state=ProposalState.ACTIVE
+            state=ProposalState.ACTIVE,
+            quorum=quorum,
+            threshold=threshold
         )
         self.proposals[proposal_id] = proposal
         logger.info(f"Created proposal {proposal_id}: {title}")
@@ -195,14 +218,27 @@ class GovernanceEngine:
             proposal.state = ProposalState.REJECTED
             logger.info(f"Proposal {proposal.id} rejected (no weighted votes)")
             return
-        
+
+        # Check quorum: participation must meet minimum threshold
+        # Calculate total possible voting power from all known voters
+        total_possible = sum(sqrt(t) for t in self.voting_power.values()) if self.voting_power else total_weighted
+        participation = total_weighted / total_possible if total_possible > 0 else 0.0
+        if participation < proposal.quorum:
+            proposal.state = ProposalState.REJECTED
+            logger.info(
+                f"Proposal {proposal.id} rejected (quorum not met: "
+                f"{participation:.1%} < {proposal.quorum:.1%} required)"
+            )
+            return
+
         support = yes_weighted / total_weighted
-        
+
         # Log quadratic voting metrics
         logger.info(
             f"Quadratic Voting tally for {proposal.id}: "
             f"YES={yes_weighted:.2f}, NO={no_weighted:.2f}, "
-            f"Total={total_weighted:.2f}, Support={support:.1%}"
+            f"Total={total_weighted:.2f}, Support={support:.1%}, "
+            f"Participation={participation:.1%}"
         )
         
         if support > proposal.threshold:
