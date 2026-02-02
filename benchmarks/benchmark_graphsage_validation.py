@@ -45,21 +45,21 @@ class BenchmarkMetrics:
     precision: float
     recall: float
     f1_score: float
-    roc_auc: Optional[float] = None
-    
+
     # Performance metrics
     inference_latency_ms: float
     model_size_mb: float
     throughput_samples_per_sec: float
-    
+
     # Dataset metrics
     total_samples: int
     true_positives: int
     false_positives: int
     true_negatives: int
     false_negatives: int
-    
-    # Timestamps
+
+    # Optional fields (with defaults)
+    roc_auc: Optional[float] = None
     benchmark_date: str = None
     
     def __post_init__(self):
@@ -94,7 +94,7 @@ class BenchmarkMetrics:
 ║   Precision:  {self.precision:.4f} (↑ reduce false alarms)     ║
 ║   Recall:     {self.recall:.4f}     (↑ catch all anomalies)     ║
 ║   F1-Score:   {self.f1_score:.4f}     (↑ balanced metric)       ║
-║   ROC-AUC:    {self.roc_auc:.4f if self.roc_auc else 'N/A':<7}   (discrimination ability)   ║
+║   ROC-AUC:    {f'{self.roc_auc:.4f}' if self.roc_auc is not None else 'N/A':<7}   (discrimination ability)   ║
 ║                                                    ║
 ║ Performance Metrics:                               ║
 ║   Latency:    {self.inference_latency_ms:.2f}ms   (target: <50ms)  ║
@@ -173,8 +173,9 @@ class GraphSAGEBenchmark:
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         
         # Compute performance metrics
-        avg_latency_ms = np.mean(inference_times) if inference_times else 0.0
-        throughput = (len(y_true) / np.sum(inference_times) * 1000) if inference_times and np.sum(inference_times) > 0 else 0
+        avg_latency_ms = np.mean(inference_times) if len(inference_times) > 0 else 0.0
+        total_time = np.sum(inference_times) if len(inference_times) > 0 else 0.0
+        throughput = (len(y_true) / total_time * 1000) if total_time > 0 else 0.0
         model_size = model_size_mb or 0.0
         
         metrics = BenchmarkMetrics(
