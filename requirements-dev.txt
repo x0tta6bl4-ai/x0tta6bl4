@@ -9,3 +9,11 @@ safety==3.7.0
 pre-commit==3.7.1
 ruff==0.4.10
 pip-audit==2.10.0
+
+# Additional runtime/test dependencies for CI
+httpx
+numpy
+sqlalchemy
+slowapi
+hvac
+bcrypt
