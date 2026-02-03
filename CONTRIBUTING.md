@@ -49,6 +49,7 @@ docs(api): update authentication endpoints
 - Все новые функции должны иметь тесты
 - Поддерживайте coverage > 80%
 - Используйте pytest
+- Установите dev-зависимости перед запуском тестов локально: `pip install -r requirements-dev.txt`
 
 ## Структура проекта
 

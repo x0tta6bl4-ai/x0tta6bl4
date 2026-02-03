@@ -50,6 +50,29 @@ repo-hygiene:
         exit 1
       fi
 
+    # Check for archives that shouldn't be in Git
+    - |
+      ARCHIVES=$(find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) ! -path './.git/*' ! -path './external_artifacts/*')
+      if [ -n "$ARCHIVES" ]; then
+        echo "⚠️  WARNING: Archive files found outside external_artifacts/:"
+        echo "$ARCHIVES"
+        echo "Consider moving to external artifact storage."
+      fi
+
+    # Check for accidentally committed secrets
+    - |
+      if find . -name '.env' ! -path './.git/*' | grep -q .; then
+        echo "❌ ERROR: .env file detected in repository!"
+        find . -name '.env' ! -path './.git/*'
+        exit 1
+      fi
+
+    - echo "✅ Repository hygiene check passed!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: false
+
 # === eBPF Programs Compilation ===
 
 ebpf-compile:
@@ -90,13 +113,15 @@ ebpf-compile:
     reports:
       junit: build/ebpf/*.xml
     expire_in: 30 days
-  only:
-    - main
-    - develop
-    - merge_requests
-    changes:
-      - src/network/ebpf/programs/**
-      - .gitlab-ci.yml
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+      changes:
+        - src/network/ebpf/programs/**
+        - .gitlab-ci.yml
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/network/ebpf/programs/**
+        - .gitlab-ci.yml
   allow_failure: false
   timeout: 10 minutes
 
@@ -173,41 +198,17 @@ EOF
     paths:
       - build/ebpf/*.o
     expire_in: 30 days
-  only:
-    - main
-    - develop
-    - merge_requests
-    changes:
-      - src/network/ebpf/programs/**
-      - .gitlab-ci.yml
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+      changes:
+        - src/network/ebpf/programs/**
+        - .gitlab-ci.yml
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/network/ebpf/programs/**
+        - .gitlab-ci.yml
   allow_failure: false
   timeout: 10 minutes
-
-    # Check for archives that shouldn't be in Git
-    - |
-      ARCHIVES=$(find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) ! -path './.git/*' ! -path './external_artifacts/*')
-      if [ -n "$ARCHIVES" ]; then
-        echo "⚠️  WARNING: Archive files found outside external_artifacts/:"
-        echo "$ARCHIVES"
-        echo "Consider moving to external artifact storage."
-      fi
-
-    # Check for accidentally committed secrets
-    - |
-      if find . -name '.env' ! -path './.git/*' | grep -q .; then
-        echo "❌ ERROR: .env file detected in repository!"
-        find . -name '.env' ! -path './.git/*'
-        exit 1
-      fi
-
-    - echo "✅ Repository hygiene check passed!"
-
-  only:
-    - merge_requests
-    - main
-    - develop
-
-  allow_failure: false
 
 # === DVC Validation ===
 
@@ -243,12 +244,9 @@ dvc-validation:
       done
 
     - echo "✅ DVC validation complete"
-
-  only:
-    - merge_requests
-    - main
-    - develop
-
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true  # Don't block pipeline if DVC not fully set up
 
 # === Security Scanning ===
@@ -262,10 +260,46 @@ secrets-scan:
     - echo "🔐 Scanning for secrets..."
     - detect-secrets scan --all-files --force-use-all-plugins
     - echo "✅ No secrets detected"
-  only:
-    - merge_requests
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: false
+
+bandit-scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - pip install bandit
+  script:
+    - echo "🔍 Running Bandit security linter..."
+    - bandit -r src/ -f json -o bandit-report.json || true
+    - echo "✅ Bandit scan complete"
+  artifacts:
+    paths:
+      - bandit-report.json
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: true
+
+safety-scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - pip install safety
+  script:
+    - echo "🔍 Running Safety dependency vulnerability scanner..."
+    - safety check --json --output safety-report.json || true
+    - echo "✅ Safety scan complete"
+  artifacts:
+    paths:
+      - safety-report.json
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: true
 
 # === Python Linting & Type Checking ===
 
@@ -278,8 +312,8 @@ python-quality:
     - echo "🔍 Running code quality checks..."
     - ruff check . || true  # Don't fail yet, just warn
     - mypy . --ignore-missing-imports || true
-  only:
-    - merge_requests
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true
 
 # === Unit Tests ===
@@ -288,10 +322,11 @@ unit-tests:
   stage: test
   image: python:3.11
   before_script:
+    - pip install -r requirements-dev.txt || true
     - pip install -r requirements.txt || true
     - pip install pytest pytest-cov
   script:
-    - echo "🧪 Running unit tests..."
+    - echo "🧪 Running unit tests (dev environment)..."
     - pytest tests/unit/ --cov=src --cov-report=term --cov-report=html --cov-fail-under=85
   coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
@@ -301,9 +336,9 @@ unit-tests:
         path: coverage.xml
     paths:
       - htmlcov/
-  only:
-    - merge_requests
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
 # === Benchmark Thresholds Check ===
 
@@ -329,9 +364,9 @@ benchmark-thresholds:
     paths:
       - benchmarks/results/*.json
     expire_in: 30 days
-  only:
-    - merge_requests
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true  # Non-blocking for now, will be mandatory in Phase 3.3
 
 # === Docker Build (Immutable Images) ===
@@ -377,10 +412,9 @@ docker-build:
     paths:
       - image_metadata.json
     expire_in: 30 days
-  only:
-    - main
-    - develop
-    - merge_requests
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
 # === Deployment ===
 
@@ -392,8 +426,8 @@ deploy-staging:
   script:
     - echo "🚀 Deploying to staging..."
     - curl -X POST $STAGING_WEBHOOK_URL -d "version=$CI_COMMIT_SHA"
-  only:
-    - develop
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
   environment:
     name: staging
     url: https://staging.x0tta6bl4.dev
@@ -414,8 +448,9 @@ deploy-production:
     - helm upgrade --install x0tta6bl4 ./helm/x0tta6bl4 -f helm/x0tta6bl4/values-production.yaml
     - echo "Running health checks..."
     - ./scripts/health-check-production.sh
-  only:
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   environment:
     name: production
     url: https://x0tta6bl4.dev
