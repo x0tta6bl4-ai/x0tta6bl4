@@ -7,7 +7,7 @@ Steganographic Mesh Protocol
 """
 import struct
 import hashlib
-import random
+import secrets
 from typing import Optional, Tuple, List
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -112,7 +112,7 @@ class StegoMeshProtocol:
             # 5. Встраиваем nonce, payload_prefix и зашифрованные данные
             # Структура: header + nonce (16) + payload_prefix (32) + encrypted + noise
             # Добавляем шум в конце для дополнительной маскировки
-            noise = random.randbytes(random.randint(8, 32))
+            noise = secrets.token_bytes(secrets.randbelow(25) + 8)  # 8-32 bytes
             stego_packet = header + nonce + payload_prefix + encrypted + noise
             
             logger.debug(
@@ -147,8 +147,8 @@ class StegoMeshProtocol:
     def _create_dns_header(self, data_length: int) -> bytes:
         """Создание DNS-заголовка для маскировки"""
         # DNS Query header (ID, flags, questions, answers, etc.)
-        header = struct.pack('!HHHHHH', 
-                            random.randint(0, 65535),  # Transaction ID
+        header = struct.pack('!HHHHHH',
+                            secrets.randbelow(65536),  # Transaction ID (crypto-secure)
                             0x0100,  # Flags: standard query
                             1,       # Questions
                             0,       # Answer RRs
