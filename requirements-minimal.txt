@@ -7,7 +7,7 @@ python-dotenv==1.1.1
 httpx==0.28.1
 requests==2.32.4
 cryptography
-python-jose[cryptography]==3.5.0
+# python-jose removed: CVE-2024-23342
 PyJWT==2.10.1
 bcrypt==5.0.0
 pyyaml==6.0.3
@@ -15,7 +15,7 @@ click
 numpy==2.3.4
 psutil==7.1.1
 structlog==25.4.0
-orjson==3.11.3
+orjson==3.11.7
 passlib==1.7.4
 redis==5.0.1
 slowapi==0.1.9
