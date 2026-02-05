@@ -113,53 +113,69 @@ class HybridPQEncryption:
     
     def hybrid_encrypt(self, plaintext: bytes, shared_secret: bytes) -> bytes:
         """
-        Hybrid encryption for data (simplified for demo purposes).
-        Uses SHA-256 key derivation and XOR for demonstration.
-        
+        Hybrid encryption using AES-256-GCM.
+
         Args:
             plaintext: Data to encrypt
             shared_secret: Shared secret from key exchange
-            
+
         Returns:
-            Encrypted data
+            Encrypted data (nonce + ciphertext + tag)
         """
-        import hashlib
-        import secrets
-        
-        # Derive encryption key from shared secret
-        key = hashlib.sha256(shared_secret).digest()
-        
-        # XOR encryption (for demonstration purposes)
-        nonce = secrets.token_bytes(16)
-        extended_key = (key * ((len(plaintext) + len(key) - 1) // len(key)))[:len(plaintext)]
-        ciphertext = bytes([a ^ b for a, b in zip(plaintext, extended_key)])
-        
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        import os
+
+        # Derive 256-bit encryption key using HKDF
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b'x0tta6bl4-hybrid-encrypt',
+        )
+        key = hkdf.derive(shared_secret)
+
+        # AES-256-GCM encryption with 12-byte nonce
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(key)
+        ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+
+        # Return nonce + ciphertext (includes GCM tag)
         return nonce + ciphertext
-    
+
     def hybrid_decrypt(self, ciphertext: bytes, shared_secret: bytes) -> bytes:
         """
-        Hybrid decryption for data (simplified for demo purposes).
-        
+        Hybrid decryption using AES-256-GCM.
+
         Args:
-            ciphertext: Encrypted data
+            ciphertext: Encrypted data (nonce + ciphertext + tag)
             shared_secret: Shared secret from key exchange
-            
+
         Returns:
             Decrypted data
         """
-        import hashlib
-        
-        # Extract nonce and ciphertext
-        nonce = ciphertext[:16]
-        encrypted = ciphertext[16:]
-        
-        # Derive encryption key from shared secret
-        key = hashlib.sha256(shared_secret).digest()
-        
-        # XOR decryption
-        extended_key = (key * ((len(encrypted) + len(key) - 1) // len(key)))[:len(encrypted)]
-        plaintext = bytes([a ^ b for a, b in zip(encrypted, extended_key)])
-        
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        # Extract nonce (12 bytes) and ciphertext
+        nonce = ciphertext[:12]
+        encrypted = ciphertext[12:]
+
+        # Derive 256-bit decryption key using HKDF
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b'x0tta6bl4-hybrid-encrypt',
+        )
+        key = hkdf.derive(shared_secret)
+
+        # AES-256-GCM decryption
+        aesgcm = AESGCM(key)
+        plaintext = aesgcm.decrypt(nonce, encrypted, None)
+
         return plaintext
     
     def generate_hybrid_keypair(self) -> HybridKeyPair:

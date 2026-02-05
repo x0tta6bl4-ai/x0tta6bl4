@@ -102,10 +102,11 @@ class SPIREHealthChecker:
     async def check_server_health(self) -> bool:
         """Check SPIRE Server availability"""
         try:
+            # Use HTTP for local health checks (SPIRE server is on trusted network)
+            # For HTTPS endpoints, proper certificate verification is enforced
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.get(
-                    f"http://{self.config.server_address}/health",
-                    verify=False
+                    f"http://{self.config.server_address}/health"
                 )
                 self.server_healthy = response.status_code == 200
                 if self.server_healthy:
