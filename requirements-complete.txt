@@ -24,7 +24,7 @@ python-multipart>=0.0.22
 # Environment & Configuration
 python-dotenv==1.1.1
 pyyaml==6.0.3
-click==8.3.0
+click>=8.1.0,<8.2.0  # flwr requires click<8.2.0
 
 # HTTP & Networking
 httpx==0.28.1
