@@ -231,37 +231,37 @@ class LibOQSBackend:
             key_id=key_id
         )
     
-    def sign(self, private_key: bytes, message: bytes) -> bytes:
+    def sign(self, message: bytes, private_key: bytes) -> bytes:
         """
-        Подписать сообщение.
-        
+        Sign a message.
+
         Args:
-            private_key: Приватный ключ
-            message: Сообщение для подписи
-            
+            message: Message to sign
+            private_key: Private signing key
+
         Returns:
-            Цифровая подпись
+            Digital signature
         """
         sig = Signature(self.sig_algorithm, private_key)
         signature = sig.sign(message)
-        
+
         return signature
-    
-    def verify(self, public_key: bytes, message: bytes, signature: bytes) -> bool:
+
+    def verify(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
         """
-        Проверить цифровую подпись.
-        
+        Verify a digital signature.
+
         Args:
-            public_key: Публичный ключ подписанта
-            message: Оригинальное сообщение
-            signature: Цифровая подпись
-            
+            message: Original message
+            signature: Digital signature
+            public_key: Public key of signer
+
         Returns:
-            True если подпись валидна, False иначе
+            True if signature is valid, False otherwise
         """
         sig = Signature(self.sig_algorithm)
         is_valid = sig.verify(message, signature, public_key)
-        
+
         return is_valid
 
 
@@ -382,21 +382,33 @@ class HybridPQEncryption:
         return combined_secret
     
     def _classical_encrypt(self, message: bytes, public_key: bytes) -> bytes:
-        """Классическое шифрование (упрощённое для демо)."""
+        """Classical encryption using AES-256-GCM."""
         import hashlib
-        key = hashlib.sha256(public_key).digest()
-        nonce = secrets.token_bytes(16)
-        encrypted = bytes(m ^ k for m, k in zip(message, key))
-        return nonce + encrypted
-    
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+        raw_key = hashlib.sha256(public_key).digest()
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-classical-aes-key").derive(raw_key)
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(aes_key)
+        ct = aesgcm.encrypt(nonce, message, None)
+        return nonce + ct
+
     def _classical_decrypt(self, ciphertext: bytes, private_key: bytes) -> bytes:
-        """Классическое расшифрование."""
+        """Classical decryption using AES-256-GCM."""
         import hashlib
-        nonce = ciphertext[:16]
-        encrypted = ciphertext[16:]
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
         public_key = hashlib.sha256(private_key).digest()
-        key = hashlib.sha256(public_key).digest()
-        return bytes(e ^ k for e, k in zip(encrypted, key))
+        raw_key = hashlib.sha256(public_key).digest()
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-classical-aes-key").derive(raw_key)
+        nonce = ciphertext[:12]
+        ct = ciphertext[12:]
+        aesgcm = AESGCM(aes_key)
+        return aesgcm.decrypt(nonce, ct, None)
 
 
 class PQMeshSecurityLibOQS:
@@ -509,43 +521,36 @@ class PQMeshSecurityLibOQS:
         return is_valid
     
     def encrypt_for_peer(self, peer_id: str, plaintext: bytes) -> bytes:
-        """Зашифровать данные для peer."""
+        """Encrypt data for peer using AES-256-GCM with PQ-derived key."""
         key = self._peer_keys.get(peer_id)
         if not key:
             raise ValueError(f"No shared key with {peer_id}")
-        
-        # AES-256-GCM с PQ-derived key (упрощённое для демо)
-        import hashlib
-        nonce = secrets.token_bytes(12)
-        extended_key = hashlib.shake_256(key + nonce).digest(len(plaintext))
-        ciphertext = bytes(p ^ k for p, k in zip(plaintext, extended_key))
-        
-        # MAC
-        mac = hashlib.sha256(key + nonce + ciphertext).digest()[:16]
-        
-        return nonce + ciphertext + mac
-    
+
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-peer-aes-key").derive(key)
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(aes_key)
+        ct = aesgcm.encrypt(nonce, plaintext, None)
+        return nonce + ct
+
     def decrypt_from_peer(self, peer_id: str, ciphertext: bytes) -> bytes:
-        """Расшифровать данные от peer."""
+        """Decrypt data from peer using AES-256-GCM with PQ-derived key."""
         key = self._peer_keys.get(peer_id)
         if not key:
             raise ValueError(f"No shared key with {peer_id}")
-        
-        import hashlib
+
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-peer-aes-key").derive(key)
         nonce = ciphertext[:12]
-        mac = ciphertext[-16:]
-        encrypted = ciphertext[12:-16]
-        
-        # Verify MAC
-        expected_mac = hashlib.sha256(key + nonce + encrypted).digest()[:16]
-        if mac != expected_mac:
-            raise ValueError("MAC verification failed")
-        
-        # Decrypt
-        extended_key = hashlib.shake_256(key + nonce).digest(len(encrypted))
-        plaintext = bytes(e ^ k for e, k in zip(encrypted, extended_key))
-        
-        return plaintext
+        ct = ciphertext[12:]
+        aesgcm = AESGCM(aes_key)
+        return aesgcm.decrypt(nonce, ct, None)
     
     def get_security_level(self) -> Dict[str, Any]:
         """Получить информацию об уровне безопасности."""

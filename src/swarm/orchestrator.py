@@ -31,12 +31,8 @@ except ImportError:
     PARLController = None
     HAS_PARL = False
 
-try:
-    from src.westworld.anti_meave_protocol import AntiMeaveOracle
-    HAS_ANTI_MEAVE = True
-except ImportError:
-    AntiMeaveOracle = None
-    HAS_ANTI_MEAVE = False
+AntiMeaveOracle = None
+HAS_ANTI_MEAVE = False
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,75 @@
+services:
+  node-a:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mesh-node-a
+    hostname: node-a
+    environment:
+      NODE_ID: node-a
+      PEERS: node-b:8080,node-c:8080
+      RAFT_PEERS: node-b:50051,node-c:50051
+      FL_COORDINATOR: node-a:8090
+      X0TTA6BL4_PRODUCTION: "false"
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+      - "8090:8090"
+    networks:
+      - mesh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  node-b:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mesh-node-b
+    hostname: node-b
+    environment:
+      NODE_ID: node-b
+      PEERS: node-a:8080,node-c:8080
+      RAFT_PEERS: node-a:50051,node-c:50051
+      FL_COORDINATOR: node-a:8090
+      X0TTA6BL4_PRODUCTION: "false"
+    ports:
+      - "8081:8080"
+    networks:
+      - mesh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  node-c:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mesh-node-c
+    hostname: node-c
+    environment:
+      NODE_ID: node-c
+      PEERS: node-a:8080,node-b:8080
+      RAFT_PEERS: node-a:50051,node-b:50051
+      FL_COORDINATOR: node-a:8090
+      X0TTA6BL4_PRODUCTION: "false"
+    ports:
+      - "8082:8080"
+    networks:
+      - mesh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+networks:
+  mesh:
+    driver: bridge

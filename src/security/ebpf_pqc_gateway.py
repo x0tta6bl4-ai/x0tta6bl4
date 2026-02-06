@@ -17,6 +17,7 @@ import hmac
 import secrets
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 try:
     from liboqs import KeyEncapsulation, Signature
@@ -155,23 +156,41 @@ class EBPFPQCGateway:
             return False
 
     def encrypt_payload(self, session_id: str, payload: bytes) -> Optional[bytes]:
-        """Encrypt payload using session AES key"""
+        """Encrypt payload using session AES-256-GCM key.
+
+        Returns nonce (12 bytes) || ciphertext+tag, or None on failure.
+        """
         session = self.sessions.get(session_id)
         if not session or not session.aes_key or not session.verified:
             return None
 
-        # Simple AES encryption (in production, use proper AES-GCM)
-        # For demo purposes, using XOR with derived key
-        key = session.aes_key[:len(payload)] if len(session.aes_key) >= len(payload) else session.aes_key * (len(payload) // len(session.aes_key) + 1)
-        key = key[:len(payload)]
-
-        encrypted = bytes(a ^ b for a, b in zip(payload, key))
-        return encrypted
+        try:
+            aesgcm = AESGCM(session.aes_key)
+            nonce = os.urandom(12)  # 96-bit nonce per NIST recommendation
+            ciphertext = aesgcm.encrypt(nonce, payload, None)
+            return nonce + ciphertext
+        except Exception as e:
+            logger.error(f"AES-256-GCM encryption failed: {e}")
+            return None
 
     def decrypt_payload(self, session_id: str, encrypted_payload: bytes) -> Optional[bytes]:
-        """Decrypt payload using session AES key"""
-        # Same as encrypt for symmetric cipher
-        return self.encrypt_payload(session_id, encrypted_payload)
+        """Decrypt AES-256-GCM payload (nonce || ciphertext+tag)."""
+        session = self.sessions.get(session_id)
+        if not session or not session.aes_key or not session.verified:
+            return None
+
+        if len(encrypted_payload) < 12 + 16:  # nonce + minimum GCM tag
+            logger.error("Encrypted payload too short for AES-256-GCM")
+            return None
+
+        try:
+            nonce = encrypted_payload[:12]
+            ciphertext = encrypted_payload[12:]
+            aesgcm = AESGCM(session.aes_key)
+            return aesgcm.decrypt(nonce, ciphertext, None)
+        except Exception as e:
+            logger.error(f"AES-256-GCM decryption failed: {e}")
+            return None
 
     def sign_message(self, message: bytes) -> bytes:
         """Sign message with ML-DSA-65"""

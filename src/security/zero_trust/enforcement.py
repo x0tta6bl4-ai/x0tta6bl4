@@ -18,16 +18,18 @@ logger = logging.getLogger(__name__)
 
 # Import existing components
 try:
-    from ..zero_trust.policy_engine import PolicyEngine, PolicyDecision, get_policy_engine
-    from ..zero_trust import ZeroTrustValidator
+    from .policy_engine import PolicyEngine, PolicyDecision, get_policy_engine
+    from .validator import ZeroTrustValidator
     from ..auto_isolation import AutoIsolationManager, IsolationLevel
     from ..continuous_verification import ContinuousVerificationEngine
     ZERO_TRUST_AVAILABLE = True
 except ImportError:
     ZERO_TRUST_AVAILABLE = False
     PolicyEngine = None  # type: ignore
+    PolicyDecision = None  # type: ignore
     ZeroTrustValidator = None  # type: ignore
     AutoIsolationManager = None  # type: ignore
+    IsolationLevel = None  # type: ignore
     ContinuousVerificationEngine = None  # type: ignore
 
 
