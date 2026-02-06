@@ -2,7 +2,7 @@
 # Минимальные зависимости для работы
 
 # Crypto
-cryptography>=41.0.0
+cryptography>=46.0.3
 
 # Async
 asyncio-throttle>=1.0.0

@@ -18,7 +18,7 @@ hnswlib>=0.7.0
 flwr[simulation]>=1.8.0
 
 # Observability (RECOMMENDED in production)
-prometheus-client==0.19.0
+prometheus-client==0.23.1
 # OpenTelemetry packages (install separately if needed)
 # opentelemetry-api
 # opentelemetry-sdk
