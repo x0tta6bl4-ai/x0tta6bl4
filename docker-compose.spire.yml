@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   spire-server:
-    image: ghcr.io/spiffe/spire-server:1.8.6
+    image: ghcr.io/spiffe/spire-server:1.9.0
     container_name: spire-server
     hostname: spire-server
     expose:
@@ -22,7 +22,7 @@ services:
       start_period: 10s
 
   spire-agent:
-    image: ghcr.io/spiffe/spire-agent:1.8.6
+    image: ghcr.io/spiffe/spire-agent:1.9.0
     container_name: spire-agent
     hostname: spire-agent
     depends_on:

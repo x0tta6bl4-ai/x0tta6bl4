@@ -103,37 +103,42 @@ class PQCKeyRotation:
         logger.info(f"✅ PQC Key Rotation initialized for {node_id}")
     
     def _save_master_key(self):
-        """Сохранить master key (в production использовать KMS/Vault)."""
+        """Save master key encrypted with AES-256-GCM."""
         master_key_path = Path(self.config.master_key_path)
         master_key_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Encrypt master key with node-specific secret
-        import secrets
-        import hashlib
+
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
         node_secret = hashlib.sha256(f"{self.node_id}:x0tta6bl4".encode()).digest()
-        
-        # Simple XOR encryption (в production использовать proper encryption)
-        encrypted = bytes(m ^ s for m, s in zip(self.master_key, node_secret))
-        
-        master_key_path.write_bytes(encrypted)
-        os.chmod(master_key_path, 0o600)  # Read-only for owner
-        logger.info(f"✅ Master key saved to {master_key_path}")
-    
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-master-key").derive(node_secret)
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(aes_key)
+        ct = aesgcm.encrypt(nonce, self.master_key, None)
+        master_key_path.write_bytes(nonce + ct)
+        os.chmod(master_key_path, 0o600)
+        logger.info(f"Master key saved to {master_key_path}")
+
     def _load_master_key(self) -> bytes:
-        """Загрузить master key."""
+        """Load master key decrypted with AES-256-GCM."""
         master_key_path = Path(self.config.master_key_path)
-        
+
         if not master_key_path.exists():
             raise FileNotFoundError(f"Master key not found: {master_key_path}")
-        
-        encrypted = master_key_path.read_bytes()
-        
-        # Decrypt
-        import hashlib
+
+        data = master_key_path.read_bytes()
+
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
         node_secret = hashlib.sha256(f"{self.node_id}:x0tta6bl4".encode()).digest()
-        master_key = bytes(e ^ s for e, s in zip(encrypted, node_secret))
-        
-        return master_key
+        aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                       info=b"x0tta6bl4-master-key").derive(node_secret)
+        nonce = data[:12]
+        ct = data[12:]
+        aesgcm = AESGCM(aes_key)
+        return aesgcm.decrypt(nonce, ct, None)
     
     def generate_kem_keypair(self, algorithm: str = "ML-KEM-768") -> Tuple[bytes, bytes]:
         """Генерировать KEM ключевую пару (NIST FIPS 203).

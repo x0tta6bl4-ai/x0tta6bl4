@@ -35,7 +35,9 @@ class TestZeroTrustEnforcer:
         """Create Zero Trust Enforcer instance"""
         with patch('src.security.zero_trust.enforcement.ZeroTrustValidator'), \
              patch('src.security.zero_trust.enforcement.AutoIsolationManager'), \
-             patch('src.security.zero_trust.enforcement.ContinuousVerificationEngine'):
+             patch('src.security.zero_trust.enforcement.ContinuousVerificationEngine'), \
+             patch('src.security.zero_trust.enforcement.get_policy_engine') as mock_gpe:
+            mock_gpe.return_value = Mock()
             return ZeroTrustEnforcer()
     
     def test_enforcer_initialization(self, enforcer):
@@ -47,27 +49,34 @@ class TestZeroTrustEnforcer:
     
     def test_enforce_allow(self, enforcer):
         """Test enforcement for allowed access"""
-        with patch.object(enforcer, '_check_policy', return_value=True), \
-             patch.object(enforcer, '_calculate_trust_score', return_value=TrustScore.HIGH):
+        # Mock sub-components to allow access
+        enforcer.isolation_manager.get_isolation_status.return_value = None
+        enforcer.validator.validate_connection.return_value = True
+        mock_decision = Mock(allowed=True, reason="allowed")
+        enforcer.policy_engine.evaluate.return_value = mock_decision
+        with patch.object(enforcer, '_calculate_trust_score', return_value=TrustScore.HIGH):
             result = enforcer.enforce(
                 peer_spiffe_id="spiffe://x0tta6bl4.mesh/workload/api",
                 resource="/api/v1/health"
             )
-            
+
             assert result.allowed is True
             assert result.trust_score == TrustScore.HIGH
             assert enforcer.enforcement_stats["allowed"] > 0
-    
+
     def test_enforce_deny(self, enforcer):
-        """Test enforcement for denied access"""
-        with patch.object(enforcer, '_check_policy', return_value=False):
-            result = enforcer.enforce(
-                peer_spiffe_id="spiffe://x0tta6bl4.mesh/workload/unknown",
-                resource="/api/v1/admin"
-            )
-            
-            assert result.allowed is False
-            assert enforcer.enforcement_stats["denied"] > 0
+        """Test enforcement for denied access via policy"""
+        enforcer.isolation_manager.get_isolation_status.return_value = None
+        enforcer.validator.validate_connection.return_value = True
+        mock_decision = Mock(allowed=False, reason="policy denied")
+        enforcer.policy_engine.evaluate.return_value = mock_decision
+        result = enforcer.enforce(
+            peer_spiffe_id="spiffe://x0tta6bl4.mesh/workload/unknown",
+            resource="/api/v1/admin"
+        )
+
+        assert result.allowed is False
+        assert enforcer.enforcement_stats["denied"] > 0
     
     def test_trust_score_calculation(self, enforcer):
         """Test trust score calculation"""
@@ -99,14 +108,18 @@ class TestZeroTrustEnforcer:
     
     def test_enforcement_statistics(self, enforcer):
         """Test enforcement statistics"""
-        # Perform multiple enforcements
+        # Mock sub-components to allow access
+        enforcer.isolation_manager.get_isolation_status.return_value = None
+        enforcer.validator.validate_connection.return_value = True
+        mock_decision = Mock(allowed=True, reason="allowed")
+        enforcer.policy_engine.evaluate.return_value = mock_decision
+
         for i in range(10):
             peer_id = f"spiffe://x0tta6bl4.mesh/workload/node-{i}"
-            with patch.object(enforcer, '_check_policy', return_value=True):
-                enforcer.enforce(peer_id, "/api/v1/health")
-        
+            enforcer.enforce(peer_id, "/api/v1/health")
+
         stats = enforcer.get_enforcement_stats()
-        
+
         assert stats["total_requests"] == 10
         assert stats["total_requests"] == stats["allowed"] + stats["denied"]
         assert "allow_rate" in stats
@@ -150,9 +163,15 @@ class TestGetZeroTrustEnforcer:
     
     def test_singleton_pattern(self):
         """Test that get_zero_trust_enforcer returns singleton"""
-        enforcer1 = get_zero_trust_enforcer()
-        enforcer2 = get_zero_trust_enforcer()
-        
-        # Should be the same instance
-        assert enforcer1 is enforcer2
+        import src.security.zero_trust.enforcement as enf_module
+        enf_module._zero_trust_enforcer = None  # Reset singleton
+        with patch('src.security.zero_trust.enforcement.ZeroTrustValidator'), \
+             patch('src.security.zero_trust.enforcement.AutoIsolationManager'), \
+             patch('src.security.zero_trust.enforcement.ContinuousVerificationEngine'):
+            enforcer1 = get_zero_trust_enforcer()
+            enforcer2 = get_zero_trust_enforcer()
+
+            # Should be the same instance
+            assert enforcer1 is enforcer2
+        enf_module._zero_trust_enforcer = None  # Cleanup
 
