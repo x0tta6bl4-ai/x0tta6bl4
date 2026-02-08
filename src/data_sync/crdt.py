@@ -15,7 +15,7 @@ Implements state-based (CvRDT) variants:
 from __future__ import annotations
 
 import time
-import uuid
+import uuid # Add uuid import
 import logging
 from typing import Dict, Set, Tuple, Any, Optional, FrozenSet
 from dataclasses import dataclass, field
@@ -90,16 +90,20 @@ class PNCounter:
         return c
 
 
+@dataclass
 class LWWRegister:
     """
-    Last-Writer-Wins Register. Stores a single value with a Lamport timestamp.
-    On merge, the value with the higher timestamp wins.
-    Ties are broken by comparing values lexicographically (deterministic).
+    Last-Writer-Wins Register. Stores a single value with a (timestamp, node_id) pair.
+    On merge, the value with the higher (timestamp, node_id) pair wins.
     """
+    _value: Any = None
+    _timestamp: float = 0.0
+    _node_id: str = "" # Unique identifier for the node that last wrote the value
 
-    def __init__(self, value: Any = None, timestamp: float = 0.0):
-        self._value = value
-        self._timestamp = timestamp
+    def __init__(self, node_id: str, value: Any = None, timestamp: Optional[float] = None):
+        self._node_id = node_id
+        logger.debug(f"LWWRegister init for node {node_id}: initial _timestamp={self._timestamp} ({type(self._timestamp)})")
+        self.set(value, timestamp)
 
     @property
     def value(self) -> Any:
@@ -108,33 +112,40 @@ class LWWRegister:
     @property
     def timestamp(self) -> float:
         return self._timestamp
+    
+    @property
+    def node_id(self) -> str:
+        return self._node_id
 
     def set(self, value: Any, timestamp: Optional[float] = None):
-        ts = timestamp if timestamp is not None else time.monotonic()
-        if ts > self._timestamp:
+        current_time = timestamp if timestamp is not None else time.time()
+        logger.debug(f"LWWRegister set for node {self._node_id}: current_time={current_time} ({type(current_time)}), self._timestamp={self._timestamp} ({type(self._timestamp)})")
+        
+        # A new value must have a strictly greater timestamp to overwrite
+        # The node_id tie-breaking is handled only during merge operations.
+        if current_time > self._timestamp:
             self._value = value
-            self._timestamp = ts
-        elif ts == self._timestamp:
-            # Deterministic tie-break: higher value wins
-            if str(value) > str(self._value):
-                self._value = value
-                self._timestamp = ts
+            self._timestamp = current_time
+            # The node_id field of the register instance already reflects the current node.
+            # It's not changed here, as this `set` operation is initiated by `self._node_id`.
 
     def merge(self, other: LWWRegister):
-        if other._timestamp > self._timestamp:
+        # Compare (timestamp, node_id) tuples
+        if (other._timestamp, other._node_id) > (self._timestamp, self._node_id):
             self._value = other._value
             self._timestamp = other._timestamp
-        elif other._timestamp == self._timestamp:
-            if str(other._value) > str(self._value):
-                self._value = other._value
-                self._timestamp = other._timestamp
+            self._node_id = other._node_id # Update node_id to the winning one
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"value": self._value, "timestamp": self._timestamp}
+        return {"value": self._value, "timestamp": self._timestamp, "node_id": self._node_id}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> LWWRegister:
-        return cls(value=data["value"], timestamp=data["timestamp"])
+    def from_dict(cls, data: dict, node_id: str = None) -> LWWRegister:
+        return cls(
+            node_id=data.get('node_id', node_id),
+            value=data['value'],
+            timestamp=float(data['timestamp']) # ensure float
+        )
 
 
 class GSet:
