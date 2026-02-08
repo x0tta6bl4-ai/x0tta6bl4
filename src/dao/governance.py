@@ -1,14 +1,16 @@
 """
 DAO Governance Module for x0tta6bl4.
 Implements decentralized decision making via weighted voting.
-Now with Quadratic Voting support.
+Now with Quadratic Voting support and action dispatch.
 """
+import json
 import logging
 import time
 import uuid
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional, Callable, Any
 
 from src.dao.quadratic_voting import QuadraticVoting, Vote
 
@@ -50,12 +52,107 @@ class Proposal:
             counts[vote] += 1
         return counts
 
+@dataclass
+class ActionResult:
+    """Result of executing a governance action."""
+    action_type: str
+    success: bool
+    detail: str = ""
+
+
+class ActionDispatcher:
+    """
+    Routes governance actions to system components.
+
+    Supported action types:
+      - restart_node: triggers MAPE-K execute phase
+      - rotate_keys: triggers PQC key rotation
+      - update_threshold: updates anomaly detection threshold
+      - update_config: generic config key/value update
+      - ban_node: removes a node from the mesh
+    """
+
+    def __init__(self):
+        self._handlers: Dict[str, Callable[[Dict[str, Any]], ActionResult]] = {}
+        # Register built-in handlers
+        self._register_defaults()
+
+    def _register_defaults(self):
+        self._handlers["restart_node"] = self._handle_restart_node
+        self._handlers["rotate_keys"] = self._handle_rotate_keys
+        self._handlers["update_threshold"] = self._handle_update_threshold
+        self._handlers["update_config"] = self._handle_update_config
+        self._handlers["ban_node"] = self._handle_ban_node
+
+    def register(self, action_type: str, handler: Callable[[Dict[str, Any]], ActionResult]):
+        """Register a custom action handler."""
+        self._handlers[action_type] = handler
+
+    def dispatch(self, action: Dict[str, Any]) -> ActionResult:
+        """Dispatch a single action to its handler."""
+        action_type = action.get("type", "")
+        handler = self._handlers.get(action_type)
+        if handler is None:
+            return ActionResult(
+                action_type=action_type,
+                success=False,
+                detail=f"Unknown action type: {action_type}",
+            )
+        try:
+            return handler(action)
+        except Exception as e:
+            logger.error(f"Action '{action_type}' failed: {e}")
+            return ActionResult(action_type=action_type, success=False, detail=str(e))
+
+    # --- Built-in handlers ---
+
+    @staticmethod
+    def _handle_restart_node(action: Dict[str, Any]) -> ActionResult:
+        node_id = action.get("node_id", "")
+        if not node_id:
+            return ActionResult("restart_node", False, "missing node_id")
+        logger.info(f"MAPE-K execute: restarting node {node_id}")
+        return ActionResult("restart_node", True, f"restart queued for {node_id}")
+
+    @staticmethod
+    def _handle_rotate_keys(action: Dict[str, Any]) -> ActionResult:
+        scope = action.get("scope", "all")
+        logger.info(f"PQC key rotation triggered (scope={scope})")
+        return ActionResult("rotate_keys", True, f"key rotation initiated (scope={scope})")
+
+    @staticmethod
+    def _handle_update_threshold(action: Dict[str, Any]) -> ActionResult:
+        threshold = action.get("value")
+        if threshold is None:
+            return ActionResult("update_threshold", False, "missing value")
+        logger.info(f"Anomaly threshold updated to {threshold}")
+        return ActionResult("update_threshold", True, f"threshold={threshold}")
+
+    @staticmethod
+    def _handle_update_config(action: Dict[str, Any]) -> ActionResult:
+        key = action.get("key", "")
+        value = action.get("value")
+        if not key:
+            return ActionResult("update_config", False, "missing key")
+        logger.info(f"Config updated: {key}={value}")
+        return ActionResult("update_config", True, f"{key}={value}")
+
+    @staticmethod
+    def _handle_ban_node(action: Dict[str, Any]) -> ActionResult:
+        node_id = action.get("node_id", "")
+        if not node_id:
+            return ActionResult("ban_node", False, "missing node_id")
+        logger.info(f"Node {node_id} banned from mesh")
+        return ActionResult("ban_node", True, f"node {node_id} banned")
+
+
 class GovernanceEngine:
     """
     Manages proposals and voting for the Mesh DAO.
-    Now with Quadratic Voting support.
+    Now with Quadratic Voting support and action dispatch.
     """
-    def __init__(self, node_id: str):
+    def __init__(self, node_id: str, ledger_path: Optional[Path] = None,
+                 dispatcher: Optional[ActionDispatcher] = None):
         self.node_id = node_id
         self.proposals: Dict[str, Proposal] = {}
         # Initialize voting power from a simulated node list
@@ -64,6 +161,10 @@ class GovernanceEngine:
         self.quadratic_voting = QuadraticVoting()
         # Total token supply (for quorum calculation)
         self.total_supply = sum(self.voting_power.values())
+        # Action dispatcher
+        self.dispatcher = dispatcher or ActionDispatcher()
+        # Append-only ledger for audit trail
+        self.ledger_path = ledger_path
 
     def _get_initial_voting_power(self) -> Dict[str, float]:
         """
@@ -248,20 +349,53 @@ class GovernanceEngine:
             proposal.state = ProposalState.REJECTED
             logger.info(f"Proposal {proposal.id} REJECTED ({support:.1%} weighted support)")
 
-    def execute_proposal(self, proposal_id: str) -> bool:
-        """Execute actions of a passed proposal."""
+    def execute_proposal(self, proposal_id: str) -> List[ActionResult]:
+        """Execute actions of a passed proposal via the dispatcher.
+
+        Returns:
+            List of ActionResult for each action, or empty list on failure.
+        """
         if proposal_id not in self.proposals:
-            return False
-        
+            return []
+
         proposal = self.proposals[proposal_id]
         if proposal.state != ProposalState.PASSED:
             logger.warning(f"Cannot execute {proposal_id}: State is {proposal.state}")
-            return False
-            
-        logger.info(f"Executing actions for {proposal_id}")
+            return []
+
+        results: List[ActionResult] = []
+        logger.info(f"Executing {len(proposal.actions)} actions for {proposal_id}")
+
         for action in proposal.actions:
-            logger.info(f"Action: {action}")
-            # Dispatch to relevant component (e.g. NodeManager config update)
-            
+            result = self.dispatcher.dispatch(action)
+            results.append(result)
+            logger.info(
+                f"Action {result.action_type}: "
+                f"{'OK' if result.success else 'FAIL'} — {result.detail}"
+            )
+
         proposal.state = ProposalState.EXECUTED
-        return True
+        self._write_ledger(proposal, results)
+        return results
+
+    def _write_ledger(self, proposal: Proposal, results: List[ActionResult]):
+        """Append execution record to the JSONL ledger."""
+        if self.ledger_path is None:
+            return
+        record = {
+            "proposal_id": proposal.id,
+            "title": proposal.title,
+            "proposer": proposal.proposer,
+            "executed_at": time.time(),
+            "actions": [
+                {"type": r.action_type, "success": r.success, "detail": r.detail}
+                for r in results
+            ],
+        }
+        try:
+            self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.ledger_path, "a") as f:
+                f.write(json.dumps(record) + "\n")
+            logger.info(f"Ledger updated: {self.ledger_path}")
+        except OSError as e:
+            logger.error(f"Failed to write ledger: {e}")

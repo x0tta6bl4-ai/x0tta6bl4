@@ -558,16 +558,50 @@ class GraphSAGEAnomalyDetector:
         return torch.tensor(edge_list, dtype=torch.long).t().contiguous()
     
     def _generate_labels(self, node_features: List[Dict[str, float]]) -> List[float]:
-        """Generate simple heuristic labels for training."""
+        """
+        Generate anomaly labels using multi-signal scoring.
+
+        Combines multiple correlated indicators rather than a single
+        threshold. A node is labeled anomalous when several signals
+        agree, reducing false positives from normal variance.
+        """
         labels = []
         for features in node_features:
-            # Simple heuristic: high loss rate or low RSSI = anomaly
-            loss_rate = features.get('loss_rate', 0.0)
+            score = 0.0
+            # Signal quality degradation
             rssi = features.get('rssi', -50.0)
-            
-            is_anomaly = loss_rate > 0.05 or rssi < -80.0
-            labels.append(1.0 if is_anomaly else 0.0)
-        
+            if rssi < -80.0:
+                score += 0.3
+            elif rssi < -70.0:
+                score += 0.1
+            # Packet loss (strongest single signal)
+            loss_rate = features.get('loss_rate', 0.0)
+            if loss_rate > 0.1:
+                score += 0.35
+            elif loss_rate > 0.03:
+                score += 0.1
+            # Resource exhaustion
+            cpu = features.get('cpu', 0.3)
+            memory = features.get('memory', 0.4)
+            if cpu > 0.85 or memory > 0.85:
+                score += 0.25
+            # Latency spike
+            latency = features.get('latency', 15.0)
+            if latency > 100.0:
+                score += 0.2
+            elif latency > 50.0:
+                score += 0.1
+            # Throughput collapse
+            throughput = features.get('throughput', 50.0)
+            if throughput < 1.0:
+                score += 0.2
+            # Link instability (very young link = flapping)
+            link_age = features.get('link_age', 3600.0)
+            if link_age < 10.0:
+                score += 0.15
+
+            labels.append(1.0 if score >= 0.5 else 0.0)
+
         return labels
     
 
