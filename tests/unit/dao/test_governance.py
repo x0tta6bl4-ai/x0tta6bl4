@@ -25,13 +25,15 @@ class TestGovernance(unittest.TestCase):
         self.assertEqual(counts[VoteType.NO], 1)
         
     def test_tally_passing(self):
-        # Create short lived proposal
+        # Create short lived proposal — need enough voters to meet 50% quorum
         prop = self.gov.create_proposal("Fast Vote", "Desc", duration_seconds=0.1)
+        self.gov.cast_vote(prop.id, "node-1", VoteType.YES, tokens=100.0)
         self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=100.0)
-        
+        self.gov.cast_vote(prop.id, "node-3", VoteType.YES, tokens=100.0)
+
         time.sleep(0.2)
         self.gov.check_proposals()
-        
+
         self.assertEqual(prop.state, ProposalState.PASSED)
 
     def test_multi_node_majority_pass(self):
