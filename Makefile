@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status
 
 .DEFAULT_GOAL := help
 
@@ -489,6 +489,26 @@ perf-report:
 	else \
 		echo "No load test results found. Run 'make perf-load-test' first."; \
 	fi
+
+# ============================================================================
+# AI AGENT ORCHESTRATION
+# ============================================================================
+
+plan:
+	@./ai.sh plan
+
+code:
+	@./ai.sh code
+
+ops-test:
+	@echo "Running unit tests (no coverage overhead)..."
+	python3 -m pytest tests/unit/ -o "addopts=" --no-cov -v
+
+gtm:
+	@./ai.sh gtm
+
+ai-status:
+	@./ai.sh status
 
 all: install test lint
 
