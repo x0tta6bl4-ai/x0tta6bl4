@@ -10,7 +10,7 @@ Implements token economics for the mesh network:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class MeshToken:
     
     SYMBOL = "X0T"
     DECIMALS = 18
-    INITIAL_SUPPLY = 1_000_000_000  # 1 billion tokens
+    INITIAL_SUPPLY = 1_000_000_000.0  # 1 billion tokens
     
     # Pricing (tokens per unit)
     PRICE_PER_MB_BANDWIDTH = 0.001
@@ -70,15 +70,18 @@ class MeshToken:
     # Rewards
     REWARD_POOL_PER_EPOCH = 10000.0  # Tokens distributed per epoch
     EPOCH_DURATION_SECONDS = 3600    # 1 hour epochs
+    DEPLOY_REWARD = 50.0             # One-time signup bonus
+    REFERRAL_BONUS = 100.0           # Bonus for referrer
     
     def __init__(self):
         self.balances: Dict[str, float] = {}
         self.stakes: Dict[str, StakeInfo] = {}
         self.resource_usage: List[ResourceUsage] = []
-        self.total_supply = self.INITIAL_SUPPLY
-        self.treasury_balance = self.INITIAL_SUPPLY
+        self.total_supply: float = self.INITIAL_SUPPLY
+        self.treasury_balance: float = self.INITIAL_SUPPLY
         self.last_epoch_time = time.time()
         self.epoch_number = 0
+        self.referrals: Dict[str, str] = {} # referee -> referrer
         
         # Callbacks for external integrations
         self._on_transfer: List[Callable] = []
@@ -139,6 +142,15 @@ class MeshToken:
         self.balances[to_node] = self.balance_of(to_node) + amount
         logger.info(f"Minted {amount} {self.SYMBOL} to {to_node} ({reason})")
         return True
+
+    def reward_deployment(self, node_id: str, referrer_id: Optional[str] = None) -> bool:
+        """Reward a node for joining the network and handle referral bonus."""
+        success = self.mint(node_id, self.DEPLOY_REWARD, reason="initial_deployment")
+        if success and referrer_id and referrer_id in self.balances:
+            self.referrals[node_id] = referrer_id
+            self.mint(referrer_id, self.REFERRAL_BONUS, reason=f"referral_bonus_{node_id}")
+            logger.info(f"🎁 Referral bonus 100 X0T sent to {referrer_id} for {node_id}")
+        return success
     
     def burn(self, from_node: str, amount: float, reason: str = "fee") -> bool:
         """Burn tokens (deflationary mechanism)."""
@@ -390,6 +402,16 @@ class MeshToken:
     def get_voting_power_map(self) -> Dict[str, float]:
         """Get voting power for all stakers (for GovernanceEngine)."""
         return {node_id: self.voting_power(node_id) for node_id in self.stakes}
+
+    def get_dao_summary(self) -> Dict[str, Any]:
+        """Get summary of DAO economy."""
+        return {
+            "total_staked": self.total_staked(),
+            "active_stakers": len(self.stakes),
+            "distributed_x0t": self.INITIAL_SUPPLY - self.treasury_balance,
+            "total_nodes": len(self.balances),
+            "total_referrals": len(self.referrals)
+        }
 
 
 def create_token_integrated_governance(token: MeshToken, node_id: str):

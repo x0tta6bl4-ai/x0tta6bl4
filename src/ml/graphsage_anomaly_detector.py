@@ -562,50 +562,108 @@ class GraphSAGEAnomalyDetector:
         Generate anomaly labels using multi-signal scoring.
 
         Combines multiple correlated indicators rather than a single
-        threshold. A node is labeled anomalous when several signals
+        threshold.  A node is labeled anomalous when several signals
         agree, reducing false positives from normal variance.
         """
         labels = []
         for features in node_features:
             score = 0.0
-            # Signal quality degradation
+
             rssi = features.get('rssi', -50.0)
-            if rssi < -80.0:
-                score += 0.3
-            elif rssi < -70.0:
-                score += 0.1
-            # Packet loss (strongest single signal)
+            snr = features.get('snr', 20.0)
             loss_rate = features.get('loss_rate', 0.0)
-            if loss_rate > 0.1:
-                score += 0.35
-            elif loss_rate > 0.03:
-                score += 0.1
-            # Resource exhaustion
             cpu = features.get('cpu', 0.3)
             memory = features.get('memory', 0.4)
+            latency = features.get('latency', 15.0)
+            throughput = features.get('throughput', 50.0)
+            link_age = features.get('link_age', 3600.0)
+
+            # --- Signal quality degradation ---
+            if rssi < -80.0:
+                score += 0.30
+            elif rssi < -70.0:
+                score += 0.10
+
+            # SNR drop (catches interference where RSSI stays moderate but SNR tanks)
+            if snr < 8.0:
+                score += 0.25
+            elif snr < 12.0:
+                score += 0.10
+
+            # --- Packet loss ---
+            if loss_rate > 0.15:
+                score += 0.35
+            elif loss_rate > 0.05:
+                score += 0.15
+
+            # --- Resource exhaustion ---
             if cpu > 0.85 or memory > 0.85:
                 score += 0.25
-            # Latency spike
-            latency = features.get('latency', 15.0)
+
+            # --- Latency spike ---
             if latency > 100.0:
-                score += 0.2
-            elif latency > 50.0:
-                score += 0.1
-            # Throughput collapse
-            throughput = features.get('throughput', 50.0)
-            if throughput < 1.0:
-                score += 0.2
-            # Link instability (very young link = flapping)
-            link_age = features.get('link_age', 3600.0)
+                score += 0.25
+            elif latency > 40.0:
+                score += 0.10
+
+            # --- Throughput collapse (only severe) ---
+            if throughput < 2.0:
+                score += 0.20
+
+            # --- Link instability (very young link = flapping) ---
             if link_age < 10.0:
                 score += 0.15
 
-            labels.append(1.0 if score >= 0.5 else 0.0)
+            # --- Correlated signal patterns (boost for multi-degradation) ---
+            # Interference: SNR down + throughput down without extreme RSSI drop
+            if snr < 15.0 and throughput < 30.0 and rssi > -75.0:
+                score += 0.15
+            # Cascade: high latency + elevated loss
+            if latency > 30.0 and loss_rate > 0.03:
+                score += 0.10
+
+            labels.append(1.0 if score >= 0.50 else 0.0)
 
         return labels
     
 
     
+    def train_from_telemetry(
+        self,
+        num_snapshots: int = 200,
+        nodes_per_snapshot: int = 20,
+        anomaly_ratio: float = 0.3,
+        epochs: int = 50,
+        lr: float = 0.001,
+        seed: int = 42,
+    ):
+        """Train the model using structured mesh telemetry data.
+
+        Uses MeshTelemetryGenerator to produce scenario-based training data
+        with physically plausible anomalies instead of random noise.
+
+        Args:
+            num_snapshots: Number of mesh snapshots to generate
+            nodes_per_snapshot: Nodes per snapshot
+            anomaly_ratio: Fraction of anomalous snapshots
+            epochs: Training epochs
+            lr: Learning rate
+            seed: RNG seed for reproducibility
+        """
+        from src.ml.mesh_telemetry import generate_training_data
+
+        features, edges, labels = generate_training_data(
+            num_snapshots=num_snapshots,
+            nodes_per_snapshot=nodes_per_snapshot,
+            anomaly_ratio=anomaly_ratio,
+            seed=seed,
+        )
+        logger.info(
+            f"Training from telemetry: {len(features)} nodes, "
+            f"{len(edges)} edges, {sum(1 for l in labels if l > 0.5)} anomalies"
+        )
+        self.train(features, edges, labels, epochs=epochs, lr=lr)
+
     def save_model(self, path: str):
         """Save model to file."""
         if self.model is None:
@@ -644,10 +702,19 @@ class GraphSAGEAnomalyDetector:
 
 
 # Integration with MAPE-K
-def create_graphsage_detector_for_mapek() -> GraphSAGEAnomalyDetector:
+def create_graphsage_detector_for_mapek(
+    pretrain: bool = False,
+    num_snapshots: int = 200,
+    epochs: int = 50,
+) -> GraphSAGEAnomalyDetector:
     """
     Create GraphSAGE detector configured for MAPE-K integration.
-    
+
+    Args:
+        pretrain: If True, train on mesh telemetry data before returning.
+        num_snapshots: Number of training snapshots (when pretrain=True).
+        epochs: Training epochs (when pretrain=True).
+
     Returns:
         GraphSAGEAnomalyDetector instance ready for use in Monitor phase
     """
@@ -658,6 +725,12 @@ def create_graphsage_detector_for_mapek() -> GraphSAGEAnomalyDetector:
         anomaly_threshold=0.6,
         use_quantization=True
     )
-    
+
+    if pretrain and _TORCH_AVAILABLE:
+        detector.train_from_telemetry(
+            num_snapshots=num_snapshots,
+            epochs=epochs,
+        )
+
     return detector
 

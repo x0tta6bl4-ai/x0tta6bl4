@@ -39,13 +39,15 @@ class MAPEKLoop:
                  mesh_manager: MeshNetworkManager,
                  prometheus: PrometheusExporter,
                  zero_trust: ZeroTrustValidator,
-                 dao_logger: DAOAuditLogger = None): # Added dao_logger with default None for backward compatibility
+                 dao_logger: DAOAuditLogger = None,
+                 action_dispatcher=None):
         self.consciousness = consciousness_engine
         self.mesh = mesh_manager
         self.prometheus = prometheus
         self.zero_trust = zero_trust
         self.dao_logger = dao_logger
-        
+        self.action_dispatcher = action_dispatcher
+
         self.running = False
         self.loop_interval = 60  # Dynamic, adjusted by consciousness state
         self.state_history: List[MAPEKState] = []
@@ -175,7 +177,17 @@ class MAPEKLoop:
         if scaling != 'none':
             await self._handle_scaling(scaling)
             actions.append(f"scaling={scaling}")
-        
+
+        # DAO governance actions (dispatched via ActionDispatcher)
+        dao_actions = directives.get('dao_actions', [])
+        if dao_actions and self.action_dispatcher is not None:
+            for dao_action in dao_actions:
+                result = self.action_dispatcher.dispatch(dao_action)
+                status = "OK" if result.success else "FAIL"
+                actions.append(f"dao:{result.action_type}={status}")
+                if not result.success:
+                    logger.warning(f"DAO action failed: {result.action_type} — {result.detail}")
+
         return actions
     
     async def _knowledge(self, 
