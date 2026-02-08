@@ -118,9 +118,13 @@ def test_start_agent_timeout(mock_spire_env, tmp_path):
 def test_stop_agent(mock_spire_env, tmp_path):
     """Test stopping a running agent."""
     mgr = SPIREAgentManager(socket_path=tmp_path / "agent.sock")
-    mgr.agent_process = mock_spire_env["process"] # Pretend it's running
+    process = mock_spire_env["process"]
+    # Simulate: first poll returns None (running), then 0 (terminated after SIGTERM)
+    process.poll.side_effect = [None, 0]
+    mgr.agent_process = process
 
-    assert mgr.stop() is True
+    with patch('time.sleep'):
+        assert mgr.stop() is True
     mock_spire_env["killpg"].assert_called()
 
 
@@ -181,7 +185,10 @@ def test_attest_node_sets_token_if_not_running(mock_spire_env, tmp_path):
 def test_attest_node_restarts_running_agent(mock_spire_env, tmp_path):
     """Test that attest_node restarts a running agent to apply the new token."""
     mgr = SPIREAgentManager(socket_path=tmp_path / "agent.sock")
-    mgr.agent_process = mock_spire_env["process"] # Pretend agent is running
+    process = mock_spire_env["process"]
+    # poll: None (running) -> None (still running at stop check) -> 0 (terminated)
+    process.poll.side_effect = [None, None, 0, None]
+    mgr.agent_process = process
 
     # Make start() successful
     socket_path = tmp_path / "agent.sock"
@@ -190,9 +197,10 @@ def test_attest_node_restarts_running_agent(mock_spire_env, tmp_path):
         socket_path.touch()
         return mock_spire_env["process"]
     mock_spire_env["popen"].side_effect = touch_socket
-    
+
     token = "test_token_456"
-    result = mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
+    with patch('time.sleep'):
+        result = mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
 
     assert result is True
     assert mgr._join_token == token
@@ -202,16 +210,25 @@ def test_attest_node_restarts_running_agent(mock_spire_env, tmp_path):
 
 def test_start_uses_attest_token(mock_spire_env, tmp_path):
     """Test that start() uses the token set by attest_node."""
-    mgr = SPIREAgentManager(socket_path=tmp_path / "agent.sock")
+    socket_path = tmp_path / "agent.sock"
+    mgr = SPIREAgentManager(socket_path=socket_path)
     token = "my_special_token"
-    
+
     # 1. Attest first (while agent is not running)
+    mgr.agent_process = None
     mgr.attest_node(AttestationStrategy.JOIN_TOKEN, token=token)
 
-    # 2. Then start the agent
+    # 2. Simulate socket appearing on start
+    def touch_socket(*args, **kwargs):
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
+        socket_path.touch()
+        return mock_spire_env["process"]
+    mock_spire_env["popen"].side_effect = touch_socket
+
+    # 3. Start the agent (agent_process is None so it won't early-return)
     mgr.start()
 
-    # 3. Check the environment passed to Popen
+    # 4. Check the environment passed to Popen
     mock_spire_env["popen"].assert_called_once()
     call_args = mock_spire_env["popen"].call_args
     assert 'env' in call_args.kwargs

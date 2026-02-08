@@ -50,7 +50,8 @@ class IncidentDAOWorkflow:
 
     def auto_vote_and_execute(self, proposal_id: str, voters: Dict[str, VoteType]) -> bool:
         for node_id, vote in voters.items():
-            self.governance.cast_vote(proposal_id, node_id, vote)
+            tokens = self.governance.voting_power.get(node_id, 100.0)
+            self.governance.cast_vote(proposal_id, node_id, vote, tokens=tokens)
 
         # Для тестового/симуляционного режима не полагаемся на реальные таймеры.
         # Сначала запускаем обычную проверку, затем при необходимости явно подводим итоги.

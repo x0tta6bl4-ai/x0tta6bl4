@@ -27,7 +27,8 @@ def test_incident_creates_proposal_and_executes():
     voters = {
         "node-1": VoteType.YES,
         "node-2": VoteType.YES,
-        "node-3": VoteType.NO,
+        "node-3": VoteType.YES,
+        "node-4": VoteType.NO,
     }
 
     success = workflow.auto_vote_and_execute(proposal.id, voters)
