@@ -316,10 +316,14 @@ class XAIEngine:
         )[:5]
         
         for feature, value in sorted_features:
+            if isinstance(value, (int, float)):
+                level = "high" if abs(value) > 1.0 else "medium" if abs(value) > 0.5 else "low"
+            else:
+                level = "low"
             factors.append({
                 "feature": feature,
                 "value": value,
-                "contribution": "high" if abs(value) > 1.0 else "medium" if abs(value) > 0.5 else "low"
+                "contribution": level,
             })
         
         return factors
@@ -406,30 +410,122 @@ class ConsciousnessEngineV2:
             "unified_representation": unified
         }
     
+    # Weighted scoring matrix: action → {feature: (threshold, weight)}
+    # Each feature contributes score = weight * sigmoid(value / threshold)
+    # for proportional signals, or weight * (1 - value/threshold) for inverse.
+    ACTION_SCORES: Dict[str, Dict[str, Tuple[float, float]]] = {
+        "restart_service": {
+            "anomaly_score": (0.7, 0.35),
+            "error_rate": (0.5, 0.25),
+            "packet_loss": (0.3, 0.15),
+            "latency": (500.0, 0.15),
+            "cpu_usage": (0.95, 0.10),
+        },
+        "scale_up": {
+            "traffic_rate": (1000.0, 0.30),
+            "cpu_usage": (0.80, 0.25),
+            "memory_usage": (0.85, 0.25),
+            "latency": (200.0, 0.10),
+            "queue_depth": (100.0, 0.10),
+        },
+        "rotate_keys": {
+            "anomaly_score": (0.5, 0.30),
+            "key_age_hours": (24.0, 0.40),
+            "auth_failures": (10.0, 0.30),
+        },
+        "switch_route": {
+            "packet_loss": (0.2, 0.35),
+            "latency": (300.0, 0.30),
+            "rssi": (-75.0, 0.20),     # inverse: lower RSSI → higher score
+            "link_flap_count": (3.0, 0.15),
+        },
+        "isolate_node": {
+            "anomaly_score": (0.9, 0.40),
+            "auth_failures": (20.0, 0.30),
+            "error_rate": (0.8, 0.30),
+        },
+    }
+
+    # Minimum score to recommend an action (below this → "monitor")
+    ACTION_THRESHOLD = 0.3
+
     def _make_decision(self, unified_representation: Dict[str, Any]) -> Dict[str, Any]:
-        """Make decision based on unified representation"""
-        # Simple decision logic (would be enhanced with actual ML models)
+        """Make decision using weighted multi-objective scoring.
+
+        Evaluates every candidate action against all observed features,
+        producing a normalized score in [0, 1]. The highest-scoring action
+        above ACTION_THRESHOLD wins. If nothing breaches the threshold,
+        the decision is "monitor".
+        """
         features = unified_representation.get("combined_features", {})
-        
-        # Example decision logic
-        if features.get("anomaly_score", 0) > 0.7:
-            return {
-                "action": "restart_service",
-                "confidence": 0.8,
-                "reasoning": "High anomaly score detected"
-            }
-        elif features.get("traffic_rate", 0) > 1000:
-            return {
-                "action": "scale_up",
-                "confidence": 0.7,
-                "reasoning": "High traffic rate detected"
-            }
-        else:
+        scored = self._score_actions(features)
+
+        if not scored or scored[0][1] < self.ACTION_THRESHOLD:
             return {
                 "action": "monitor",
-                "confidence": 0.5,
-                "reasoning": "No immediate action needed"
+                "confidence": max(0.3, 1.0 - (scored[0][1] if scored else 0.0)),
+                "reasoning": "All signals within normal range",
+                "scores": {a: round(s, 3) for a, s in scored},
             }
+
+        best_action, best_score = scored[0]
+        # Confidence proportional to score and separation from runner-up
+        runner_up = scored[1][1] if len(scored) > 1 else 0.0
+        separation = best_score - runner_up
+        confidence = min(0.99, 0.5 + best_score * 0.3 + separation * 0.2)
+
+        # Build human-readable reasoning
+        reasoning_parts = self._explain_score(best_action, features)
+
+        return {
+            "action": best_action,
+            "confidence": round(confidence, 3),
+            "reasoning": "; ".join(reasoning_parts),
+            "scores": {a: round(s, 3) for a, s in scored},
+        }
+
+    def _score_actions(
+        self, features: Dict[str, Any]
+    ) -> List[Tuple[str, float]]:
+        """Score every candidate action against observed features."""
+        results = []
+        for action, criteria in self.ACTION_SCORES.items():
+            score = 0.0
+            for feature, (threshold, weight) in criteria.items():
+                value = features.get(feature)
+                if value is None:
+                    continue
+                if not isinstance(value, (int, float)):
+                    continue
+                # Sigmoid-like activation: 0 when value << threshold, ~1 when value >> threshold
+                # For negative thresholds (e.g. RSSI=-75), dividing two negatives
+                # naturally gives ratio>1 when the signal is worse than threshold.
+                ratio = value / threshold if threshold != 0 else 0.0
+                activation = 1.0 / (1.0 + 2.718 ** (-4.0 * (ratio - 1.0)))
+                score += weight * activation
+            results.append((action, score))
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+    def _explain_score(
+        self, action: str, features: Dict[str, Any]
+    ) -> List[str]:
+        """Build per-feature reasoning for the winning action."""
+        parts = []
+        criteria = self.ACTION_SCORES.get(action, {})
+        for feature, (threshold, weight) in criteria.items():
+            value = features.get(feature)
+            if value is None or not isinstance(value, (int, float)):
+                continue
+            if threshold < 0:
+                triggered = value <= threshold * 0.7  # 70% of |threshold| into negative
+            else:
+                triggered = value >= threshold * 0.7  # 70% of threshold
+            if triggered:
+                parts.append(f"{feature}={value} (threshold={threshold}, weight={weight})")
+        if not parts:
+            parts.append(f"Composite score triggered {action}")
+        return parts
     
     def explain_decision(self, decision_id: str) -> Optional[DecisionExplanation]:
         """Get explanation for a decision"""
