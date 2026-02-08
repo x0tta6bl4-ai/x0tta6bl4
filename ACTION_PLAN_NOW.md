@@ -1,125 +1,82 @@
-# 🚀 ACTION PLAN - ПРЯМО СЕЙЧАС
+# ACTION PLAN NOW
 
-**Цель:** 10 trial users к выходным  
-**Текущий статус:** 0 пользователей  
-**Landing:** http://89.125.1.107:8080/landing.html ✅
-
----
-
-## ✅ ЧТО УЖЕ ГОТОВО:
-
-- [x] Bot работает: `@x0tta6bl4_bot` (проверь username)
-- [x] Landing page доступен: http://89.125.1.107:8080/landing.html
-- [x] Посты готовы в `READY_TO_POST.md`
-- [x] Database готова к пользователям
+**Sprint:** Week 2 (Feb 8-14, 2026) -- Grant Application Writing
+**Grant deadline:** Start-AI-1 (FSI) ~Feb 20, 2026
+**Status:** R&D gaps closed, evidence collected, writing application
 
 ---
 
-## 🎯 ПЛАН ДЕЙСТВИЙ (СЕЙЧАС):
+## DONE (Batches 1-4)
 
-### 1. Проверь username бота (2 минуты)
-
-```bash
-# Открой бота в Telegram
-# Проверь что username правильный
-# Если нет - обнови ссылки в постах
-```
-
-### 2. Пости в Telegram каналы (30 минут)
-
-**Где искать каналы:**
-- Telegram поиск: "VPN", "privacy", "IT Крым", "selfhosting"
-- Используй @channel_search_bot
-- Посмотри где конкуренты постили
-
-**Готовый пост (короткий):**
-```
-🔥 Новый VPN который НЕ ПАДАЕТ
-
-Проблема: Обычные VPN тормозят и ломаются. Один сервер упал — всё не работает.
-
-Решение: x0tta6bl4 — self-healing mesh network. Если один узел падает — автопереключение за 3 минуты.
-
-✅ Ping <80ms из Крыма
-✅ Локальное шифрование (твои данные в безопасности)
-✅ Безлимитный трафик
-
-Попробуй 7 дней БЕСПЛАТНО:
-👉 https://t.me/x0tta6bl4_bot?start=trial
-
-Landing: http://89.125.1.107:8080/landing.html
-```
-
-**Минимум 3 канала:**
-1. [ ] Канал про VPN/Privacy
-2. [ ] IT-комьюнити канал
-3. [ ] Self-hosting канал
-
-### 3. Пости на Reddit (20 минут)
-
-**r/privacy:**
-- Title: `Self-healing VPN mesh network - 7 day free trial`
-- Body: См. `READY_TO_POST.md` (Reddit секция)
-
-**r/VPN:**
-- Title: `[Self-hosted] Self-healing VPN with auto-failover - Free trial`
-- Body: См. `READY_TO_POST.md` (Reddit секция)
-
-**r/selfhosted:**
-- Title: `Self-healing VPN mesh network - Open source approach`
-- Body: См. `READY_TO_POST.md` (Reddit секция)
-
-### 4. Проверь статистику (каждый день)
-
-```bash
-# Через бота:
-/admin_stats
-
-# Или через SSH:
-ssh root@89.125.1.107 'cd /mnt/AC74CC2974CBF3DC && python3 -c "from database import get_user_stats; import json; print(json.dumps(get_user_stats(), indent=2))"'
-```
+- [x] CRDT expansion: PNCounter, LWWRegister, ORSet (`524f3d18`)
+- [x] BM25 hybrid search with RRF fusion (`524f3d18`)
+- [x] eBPF PQC SipHash-2-4 MAC verification (`524f3d18`)
+- [x] MeshTelemetryGenerator 6 scenarios (`0e11a730`)
+- [x] ActionDispatcher + JSONL audit ledger (`0e11a730`)
+- [x] ConsciousnessV2 sigmoid scoring (`0e11a730`)
+- [x] GraphSAGE train_from_telemetry wiring (`3e327882`)
+- [x] MAPE-K execute phase DAO dispatch (`3e327882`)
+- [x] Anomaly detection benchmark suite (`3e327882`)
+- [x] 31 new unit tests: MAPE-K loop + governance (`d62d1046`)
+- [x] Grant technical evidence document (`docs/GRANT_TECHNICAL_EVIDENCE.md`)
+- [x] AI agent orchestration: roles, walkthrough, ACTION_PLAN
 
 ---
 
-## 📊 МЕТРИКИ ДЛЯ ОТСЛЕЖИВАНИЯ:
+## THIS WEEK: Grant Application
 
-| Метрика | Цель | Текущее |
-|---------|------|---------|
-| Trial users | 10 | 0 |
-| Total users | 10+ | 0 |
-| Landing views | 100+ | ? |
+### 1. Application text (Dev/Architect)
+- [ ] Finalize NIOKR description with real metrics from `docs/GRANT_TECHNICAL_EVIDENCE.md`
+- [ ] Map each R&D gap closure to FSI evaluation criteria
+- [ ] Write "scientific novelty" section using ADRs from `docs/walkthrough.md`
 
----
+### 2. Evidence package (Ops)
+- [ ] Verify all benchmarks reproducible: `python3 -m benchmarks.benchmark_anomaly_detection`
+- [ ] Generate fresh coverage report: `python3 -m pytest tests/ --cov=src --cov-report=html -o "addopts="`
+- [ ] Screenshot key metrics for grant attachments
 
-## ⚡ БЫСТРЫЙ СТАРТ (5 минут):
+### 3. Demo readiness (Dev/Ops)
+- [ ] Verify FastAPI app starts: `uvicorn src.core.app:app --host 0.0.0.0 --port 8080`
+- [ ] Confirm /health, /metrics endpoints respond
+- [ ] Prepare 2-minute demo script for reviewers
 
-1. **Скопируй короткий пост** из секции выше
-2. **Найди 1 канал** в Telegram (поиск "VPN")
-3. **Пости** с ссылкой на бота
-4. **Проверь статистику** через `/admin_stats` в боте
-
-**Начни с этого!** Потом добавь больше каналов.
-
----
-
-## 🎯 ЦЕЛЬ НА СЕГОДНЯ:
-
-- [ ] Постил в 3+ Telegram канала
-- [ ] Постил в 2+ Reddit сабреддита
-- [ ] Получил 2-3 trial users
-
-**Завтра:** Продолжи постинг, цель 5-6 users  
-**Выходные:** Достичь 10 trial users
+### 4. Review and submit (Architect/GTM)
+- [ ] Cross-check application against FSI checklist
+- [ ] Peer review of technical claims vs evidence
+- [ ] Submit before Feb 20
 
 ---
 
-## 💡 СОВЕТЫ:
+## Key Metrics (measured)
 
-1. **Отвечай быстро** на вопросы в каналах
-2. **Следи за метриками** каждый день
-3. **Итерация:** Если не работает - меняй текст
-4. **Не жди идеального** - пости сейчас!
+| Metric | Value | Source |
+|--------|-------|--------|
+| Anomaly detection accuracy | 95.0% | `benchmarks/anomaly_detection_results.json` |
+| False positive rate | 2.6% | benchmark suite |
+| DAO dispatch latency | 22us | ActionDispatcher bench |
+| Consciousness scoring | 22us | ConsciousnessV2 bench |
+| Partition recall | 100% | per-scenario bench |
+| Node overload recall | 99% | per-scenario bench |
+| Unit tests (new modules) | 90+ | pytest |
 
 ---
 
-**НАЧИНАЙ ПРЯМО СЕЙЧАС! 🚀**
+## Files Map
+
+| File | Role | Purpose |
+|------|------|---------|
+| `ACTION_PLAN_NOW.md` | All agents | Current sprint tasks |
+| `docs/walkthrough.md` | All agents | Decision log + ADRs |
+| `docs/GRANT_TECHNICAL_EVIDENCE.md` | GTM/Architect | Grant evidence with real metrics |
+| `docs/ARCHITECTURE.md` | Architect | System architecture |
+| `ai/roles/*.md` | All agents | Agent role descriptions |
+| `benchmarks/anomaly_detection_results.json` | Ops/GTM | Benchmark data |
+
+---
+
+## Agent Assignments
+
+- **Architect:** Application structure, scientific novelty, ADR review
+- **Dev:** NIOKR text, code examples for application, demo prep
+- **Ops:** Reproducible benchmarks, coverage reports, demo environment
+- **GTM:** Grant narrative, evidence packaging, submission checklist
