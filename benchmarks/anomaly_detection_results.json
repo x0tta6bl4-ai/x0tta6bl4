@@ -1,0 +1,107 @@
+{
+  "telemetry_generation": {
+    "100_snapshots": {
+      "elapsed_sec": 0.039,
+      "total_nodes": 2000,
+      "nodes_per_sec": 51762.0
+    },
+    "500_snapshots": {
+      "elapsed_sec": 0.202,
+      "total_nodes": 10000,
+      "nodes_per_sec": 49526.0
+    },
+    "1000_snapshots": {
+      "elapsed_sec": 0.372,
+      "total_nodes": 20000,
+      "nodes_per_sec": 53719.0
+    }
+  },
+  "scenario_metrics": {
+    "normal": {
+      "accuracy": 0.967,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "tp": 0,
+      "fp": 33,
+      "tn": 967,
+      "fn": 0
+    },
+    "link_degradation": {
+      "accuracy": 0.93,
+      "precision": 0.8716,
+      "recall": 0.6291,
+      "f1": 0.7308,
+      "tp": 95,
+      "fp": 14,
+      "tn": 835,
+      "fn": 56
+    },
+    "node_overload": {
+      "accuracy": 0.976,
+      "precision": 0.813,
+      "recall": 0.9901,
+      "f1": 0.8929,
+      "tp": 100,
+      "fp": 23,
+      "tn": 876,
+      "fn": 1
+    },
+    "cascade_failure": {
+      "accuracy": 0.832,
+      "precision": 0.8256,
+      "recall": 0.317,
+      "f1": 0.4581,
+      "tp": 71,
+      "fp": 15,
+      "tn": 761,
+      "fn": 153
+    },
+    "interference": {
+      "accuracy": 0.791,
+      "precision": 0.9531,
+      "recall": 0.5533,
+      "f1": 0.7001,
+      "tp": 244,
+      "fp": 12,
+      "tn": 547,
+      "fn": 197
+    },
+    "partition": {
+      "accuracy": 0.982,
+      "precision": 0.9058,
+      "recall": 1.0,
+      "f1": 0.9505,
+      "tp": 173,
+      "fp": 18,
+      "tn": 809,
+      "fn": 0
+    }
+  },
+  "overall_metrics": {
+    "total_nodes": 10000,
+    "accuracy": 0.9504,
+    "precision": 0.6224,
+    "recall": 0.6052,
+    "f1": 0.6137,
+    "fpr": 0.0256,
+    "tp": 394,
+    "fp": 239,
+    "tn": 9110,
+    "fn": 257,
+    "inference_time_ms": 6.63,
+    "throughput_nodes_per_sec": 1509153.0
+  },
+  "dao_dispatch": {
+    "avg_dispatch_us": 21.8,
+    "max_dispatch_us": 25.3,
+    "actions_tested": 5,
+    "iterations": 1000
+  },
+  "consciousness_scoring": {
+    "avg_decision_us": 21.7,
+    "max_decision_us": 31.2,
+    "scenarios_tested": 4,
+    "iterations": 10000
+  }
+}
