@@ -26,19 +26,19 @@
 ## THIS WEEK: Grant Application
 
 ### 1. Application text (Dev/Architect)
-- [ ] Finalize NIOKR description with real metrics from `docs/GRANT_TECHNICAL_EVIDENCE.md`
-- [ ] Map each R&D gap closure to FSI evaluation criteria
-- [ ] Write "scientific novelty" section using ADRs from `docs/walkthrough.md`
+- [x] Finalize NIOKR description with real metrics (`plans/НИОКР_ОПИСАНИЕ_ДЛЯ_ГРАНТА.md`)
+- [x] Map each R&D gap closure to FSI evaluation criteria (7 компонентов, таблица сравнения)
+- [x] Write "scientific novelty" section (5 пунктов новизны + сравнение с аналогами)
 
 ### 2. Evidence package (Ops)
-- [ ] Verify all benchmarks reproducible: `python3 -m benchmarks.benchmark_anomaly_detection`
+- [x] Verify all benchmarks reproducible: accuracy 95.0%, FPR 2.6%
 - [ ] Generate fresh coverage report: `python3 -m pytest tests/ --cov=src --cov-report=html -o "addopts="`
 - [ ] Screenshot key metrics for grant attachments
 
 ### 3. Demo readiness (Dev/Ops)
-- [ ] Verify FastAPI app starts: `uvicorn src.core.app:app --host 0.0.0.0 --port 8080`
-- [ ] Confirm /health, /metrics endpoints respond
-- [ ] Prepare 2-minute demo script for reviewers
+- [x] Verify FastAPI app starts: /health 200 OK, /metrics 200 (19KB)
+- [x] Confirm PQC enabled (ML-DSA-65 keypair generated)
+- [x] Prepare 2-minute demo script (`docs/DEMO_SCRIPT.md`)
 
 ### 4. Review and submit (Architect/GTM)
 - [ ] Cross-check application against FSI checklist

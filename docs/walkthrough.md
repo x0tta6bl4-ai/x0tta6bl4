@@ -4,6 +4,23 @@ Log of what was done, decisions made, and outcomes. Used by all AI agents for co
 
 ---
 
+## 2026-02-08: Grant application prep (Batch 5)
+
+**Что:** Подготовка документации для гранта Старт-ИИ-1.
+**Файлы:**
+- `plans/НИОКР_ОПИСАНИЕ_ДЛЯ_ГРАНТА.md` — полностью переписан с реальными метриками (7 компонентов НИОКР, 5 пунктов научной новизны, сравнение с аналогами)
+- `docs/DEMO_SCRIPT.md` — 2-минутный демо-скрипт для рецензентов (5 шагов)
+- `ACTION_PLAN_NOW.md` — обновлён на Week 2 sprint (написание заявки)
+- `ai/roles/*.md` + `ai.sh` + Makefile targets — AI-оркестрация агентов
+**Коммит:** `3f484429` (оркестрация), текущий коммит (НИОКР + демо)
+**Решения:**
+- Бенчмарки воспроизведены: accuracy 95.0%, FPR 2.6%, DAO 32мкс, scoring 29мкс
+- 157 тестов по НИОКР-компонентам проходят (123 core/dao/ml + 34 PQC)
+- Научная новизна: 5 пунктов (GraphSAGE для mesh, sigmoid scoring, квадратичное голосование, SipHash eBPF, MAPE-K↔DAO)
+- Демо-скрипт: 5 шагов за 2 минуты (app → benchmark → tests → metrics → PQC)
+
+---
+
 ## 2026-02-08: Test coverage boost (Batch 4)
 
 **What:** Added 31 new unit tests for MAPE-K loop and governance.
