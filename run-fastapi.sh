@@ -16,12 +16,17 @@ fi
 # Activate venv
 source venv/bin/activate
 
-echo "📦 Installing dependencies (this may take a minute)..."
-pip install --quiet -r requirements-staging.txt
+# Check if key dependencies are installed, install if not
+if ! python -c "import hvac" &> /dev/null; then
+    echo "📦 Installing dependencies (this may take a minute)..."
+    pip install --quiet -r requirements-staging.txt
+    echo ""
+    echo "✅ All dependencies installed"
+    echo ""
+else
+    echo "✅ Dependencies already installed."
+fi
 
-echo ""
-echo "✅ All dependencies installed"
-echo ""
 echo "Starting FastAPI server on http://localhost:8000"
 echo "Press Ctrl+C to stop"
 echo ""
