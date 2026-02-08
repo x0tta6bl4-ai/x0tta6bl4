@@ -31,7 +31,7 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     """Verify admin token for protected endpoints"""
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Admin token not configured")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin token not configured (access forbidden)")
     if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
