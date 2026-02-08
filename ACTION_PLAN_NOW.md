@@ -2,7 +2,7 @@
 
 **Sprint:** Week 2 (Feb 8-14, 2026) -- Grant Application Writing
 **Grant deadline:** Start-AI-1 (FSI) ~Feb 20, 2026
-**Status:** R&D gaps closed, evidence collected, writing application
+**Status:** Заявка готова к подаче. Осталось: видео-демо + финальная подача
 
 ---
 
@@ -32,8 +32,8 @@
 
 ### 2. Evidence package (Ops)
 - [x] Verify all benchmarks reproducible: accuracy 95.0%, FPR 2.6%
-- [ ] Generate fresh coverage report: `python3 -m pytest tests/ --cov=src --cov-report=html -o "addopts="`
-- [ ] Screenshot key metrics for grant attachments
+- [x] Coverage report: 188 тестов на 3878 строк (`docs/COVERAGE_REPORT.md`)
+- [x] Benchmark output в текстовом формате (`docs/BENCHMARK_OUTPUT.txt`)
 
 ### 3. Demo readiness (Dev/Ops)
 - [x] Verify FastAPI app starts: /health 200 OK, /metrics 200 (19KB)
@@ -41,9 +41,11 @@
 - [x] Prepare 2-minute demo script (`docs/DEMO_SCRIPT.md`)
 
 ### 4. Review and submit (Architect/GTM)
-- [ ] Cross-check application against FSI checklist
-- [ ] Peer review of technical claims vs evidence
-- [ ] Submit before Feb 20
+- [x] Cross-check against FSI checklist (`docs/FSI_CHECKLIST.md`)
+- [x] Peer review claims vs evidence (`docs/CLAIMS_AUDIT.md`) — 37/44 подтверждены, 3 уточнены
+- [x] MTTD/MTTR формулировки уточнены как "проектные метрики"
+- [ ] Записать видео-демо по `docs/DEMO_SCRIPT.md`
+- [ ] Подать заявку до 20 февраля
 
 ---
 
