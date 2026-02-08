@@ -227,3 +227,17 @@ async def get_user_stats(request: Request, admin=Depends(verify_admin_token), db
         "active_sessions": active_sessions,
         "plans": plans
     }
+
+@router.get("/", response_model=list[UserResponse])
+@limiter.limit("30/minute")
+async def get_users(request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)):
+    """Get all users (admin only)"""
+    users = db.query(User).all()
+    return [UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        company=user.company,
+        plan=user.plan,
+        created_at=user.created_at
+    ) for user in users]
