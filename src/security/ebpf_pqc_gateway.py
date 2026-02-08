@@ -23,8 +23,13 @@ try:
     from liboqs import KeyEncapsulation, Signature
     PQC_AVAILABLE = True
 except ImportError:
-    PQC_AVAILABLE = False
-    logging.warning("liboqs not available - PQC features disabled")
+    try:
+        import oqs
+        from oqs import KeyEncapsulation, Signature
+        PQC_AVAILABLE = True
+    except ImportError:
+        PQC_AVAILABLE = False
+        logging.warning("liboqs not available - PQC features disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +44,22 @@ class PQCSession:
     shared_secret: Optional[bytes] = None
     dsa_secret_key: Optional[bytes] = None
     aes_key: Optional[bytes] = None
+    mac_key: Optional[bytes] = None  # 16-byte SipHash key for eBPF fast-path
+    packet_counter: int = 0
     created_at: float = None
     last_used: float = None
     verified: bool = False
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = asyncio.get_event_loop().time()
+            import time
+            self.created_at = time.time()
 
     @property
     def is_expired(self) -> bool:
         """Check if session is expired (1 hour)"""
-        return (asyncio.get_event_loop().time() - self.created_at) > 3600
+        import time
+        return (time.time() - self.created_at) > 3600
 
 class EBPFPQCGateway:
     """
@@ -114,8 +123,9 @@ class EBPFPQCGateway:
         # Sign the kem_ciphertext
         signature = self.dsa.sign(kem_ciphertext, self.our_dsa_secret_key)
 
-        # Derive AES key from shared secret
+        # Derive AES key and MAC key from shared secret
         session.aes_key = self._derive_aes_key(shared_secret)
+        session.mac_key = self._derive_mac_key(shared_secret)
 
         return session.session_id, kem_ciphertext, signature
 
@@ -142,11 +152,13 @@ class EBPFPQCGateway:
             shared_secret = self.kem.decap_secret(kem_ciphertext)
             session.shared_secret = shared_secret
 
-            # Derive AES key
+            # Derive AES key and MAC key
             session.aes_key = self._derive_aes_key(shared_secret)
+            session.mac_key = self._derive_mac_key(shared_secret)
 
             session.verified = True
-            session.last_used = asyncio.get_event_loop().time()
+            import time
+            session.last_used = time.time()
 
             logger.info(f"Completed PQC key exchange for session {session_id}")
             return True
@@ -225,6 +237,25 @@ class EBPFPQCGateway:
         if expired:
             logger.info(f"Cleaned up {len(expired)} expired PQC sessions")
 
+    def rotate_session_keys(self, session_id: str) -> bool:
+        """
+        Rotate session keys (force new AES + MAC keys).
+        Note: In a real system this would trigger a re-handshake.
+        """
+        import time as _time
+        session = self.sessions.get(session_id)
+        if not session:
+            return False
+
+        new_secret = secrets.token_bytes(32)
+        session.aes_key = self._derive_aes_key(new_secret)
+        session.mac_key = self._derive_mac_key(new_secret)
+        session.packet_counter = 0
+        session.last_used = _time.time()
+
+        logger.info(f"Rotated keys for session {session_id}")
+        return True
+
     def _derive_aes_key(self, shared_secret: bytes) -> bytes:
         """Derive AES-256 key from shared secret using HKDF"""
         hkdf = HKDF(
@@ -232,6 +263,16 @@ class EBPFPQCGateway:
             length=32,  # 256 bits
             salt=None,
             info=b"x0tta6bl4-pqc-aes-key",
+        )
+        return hkdf.derive(shared_secret)
+
+    def _derive_mac_key(self, shared_secret: bytes) -> bytes:
+        """Derive 16-byte SipHash MAC key for eBPF fast-path verification."""
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=16,  # 128 bits for SipHash-2-4
+            salt=None,
+            info=b"x0tta6bl4-pqc-mac-key",
         )
         return hkdf.derive(shared_secret)
 
@@ -247,12 +288,12 @@ class EBPFPQCGateway:
 
         for session_id, session in self.sessions.items():
             if session.verified and session.aes_key:
-                # Convert session data for eBPF
                 ebpf_data[session_id] = {
-                    'aes_key': list(session.aes_key),  # Convert to list for eBPF
+                    'aes_key': list(session.aes_key),
                     'peer_id_hash': int(hashlib.sha256(session.peer_id.encode()).hexdigest()[:16], 16),
                     'verified': 1,
-                    'timestamp': int(session.last_used or session.created_at)
+                    'timestamp': int(session.last_used or session.created_at),
+                    'packet_counter': session.packet_counter,
                 }
 
         return ebpf_data
