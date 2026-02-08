@@ -6,14 +6,18 @@ Retrieval-Augmented Generation pipeline for knowledge retrieval.
 
 import logging
 import time
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from src.storage.vector_index import VectorIndex
 from src.rag.chunker import DocumentChunker, DocumentChunk, ChunkingStrategy
+from src.rag.bm25 import BM25Index, reciprocal_rank_fusion
 
 logger = logging.getLogger(__name__)
+
+import concurrent.futures
 
 # Optional imports for re-ranking
 try:
@@ -43,28 +47,33 @@ class RAGPipeline:
     
     Pipeline:
     1. Document chunking
-    2. Embedding generation
-    3. Vector search (HNSW)
-    4. Re-ranking (optional)
-    5. Context augmentation
+    2. Embedding generation + BM25 indexing
+    3. Hybrid search: Vector (HNSW) + BM25 keyword
+    4. Score fusion (Reciprocal Rank Fusion)
+    5. Re-ranking (optional, CrossEncoder)
+    6. Context augmentation
     """
     
     def __init__(
         self,
         vector_index: Optional[VectorIndex] = None,
         chunker: Optional[DocumentChunker] = None,
+        bm25_index: Optional[BM25Index] = None,
         enable_reranking: bool = True,
+        enable_bm25: bool = True,
         top_k: int = 10,
         rerank_top_k: int = 5,
         similarity_threshold: float = 0.7
     ):
         """
         Initialize RAG pipeline.
-        
+
         Args:
             vector_index: VectorIndex instance (creates new if None)
             chunker: DocumentChunker instance (creates new if None)
+            bm25_index: BM25Index instance (creates new if None)
             enable_reranking: Enable CrossEncoder re-ranking
+            enable_bm25: Enable BM25 keyword search for hybrid retrieval
             top_k: Number of documents to retrieve
             rerank_top_k: Number of documents after re-ranking
             similarity_threshold: Minimum similarity score
@@ -85,14 +94,46 @@ class RAGPipeline:
         else:
             self.chunker = chunker
         
+        # BM25 keyword index
+        self.enable_bm25 = enable_bm25
+        if bm25_index is None:
+            self.bm25_index = BM25Index()
+        else:
+            self.bm25_index = bm25_index
+
+        # Chunk text storage for BM25 retrieval
+        self._chunk_texts: Dict[str, str] = {}
+
         # Re-ranking
         self.enable_reranking = enable_reranking
         self.reranker = None
-        if enable_reranking and CROSS_ENCODER_AVAILABLE:
+
+        def _try_load_model(loader_callable, timeout: int = 5):
             try:
-                # Use a lightweight CrossEncoder model
-                self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
-                logger.info("✅ CrossEncoder re-ranker loaded")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    future = ex.submit(loader_callable)
+                    return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"Model loading timed out after {timeout}s")
+                return None
+            except Exception as e:
+                logger.warning(f"Model loading failed: {e}")
+                return None
+
+        # Allow disabling reranker in tests/CI to avoid model downloads
+        if os.getenv("RAG_DISABLE_RERANKER", "false").lower() == "true":
+            logger.info("⚠️ Re-ranker disabled via RAG_DISABLE_RERANKER")
+            self.enable_reranking = False
+        elif enable_reranking and CROSS_ENCODER_AVAILABLE:
+            try:
+                timeout = int(os.getenv("RAG_MODEL_LOAD_TIMEOUT", "5"))
+                model = _try_load_model(lambda: CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'), timeout=timeout)
+                if model is not None:
+                    self.reranker = model
+                    logger.info("✅ CrossEncoder re-ranker loaded")
+                else:
+                    logger.warning("⚠️ CrossEncoder not available (timeout or failure) - reranking disabled")
+                    self.enable_reranking = False
             except Exception as e:
                 logger.warning(f"⚠️ Failed to load CrossEncoder: {e}")
                 self.enable_reranking = False
@@ -145,18 +186,30 @@ class RAGPipeline:
         
         chunk_ids = []
         for chunk in chunks:
+            chunk_meta = {
+                **chunk.metadata,
+                'chunk_id': chunk.chunk_id,
+                'document_id': chunk.document_id,
+                'start_index': chunk.start_index,
+                'end_index': chunk.end_index,
+                'text': chunk.text,
+            }
             # Add chunk to vector index
             chunk_id = self.vector_index.add(
                 text=chunk.text,
-                metadata={
-                    **chunk.metadata,
-                    'chunk_id': chunk.chunk_id,
-                    'document_id': chunk.document_id,
-                    'start_index': chunk.start_index,
-                    'end_index': chunk.end_index
-                }
+                metadata=chunk_meta
             )
-            chunk_ids.append(str(chunk_id))
+            chunk_id_str = str(chunk_id)
+            chunk_ids.append(chunk_id_str)
+
+            # Add chunk to BM25 index for keyword search
+            if self.enable_bm25:
+                self.bm25_index.add(
+                    text=chunk.text,
+                    doc_id=chunk_id_str,
+                    metadata=chunk_meta,
+                )
+                self._chunk_texts[chunk_id_str] = chunk.text
         
         logger.info(f"📝 Added document {document_id} ({len(chunks)} chunks)")
         return chunk_ids
@@ -198,26 +251,43 @@ class RAGPipeline:
         rerank = rerank if rerank is not None else self.enable_reranking
         
         start_time = time.time()
-        
-        # Step 1: Vector search
-        search_results = self.vector_index.search(
+
+        # Step 1: Vector search (dense retrieval)
+        vector_results = self.vector_index.search(
             query=query,
             k=top_k,
             threshold=self.similarity_threshold
         )
-        
+
+        # Step 2: BM25 search (sparse retrieval)
+        bm25_results = []
+        if self.enable_bm25 and self.bm25_index.num_documents > 0:
+            bm25_results = self.bm25_index.search(query=query, k=top_k)
+
+        # Step 3: Hybrid fusion
+        if vector_results and bm25_results:
+            search_results = reciprocal_rank_fusion(
+                [vector_results, bm25_results],
+                top_n=top_k,
+            )
+        elif vector_results:
+            search_results = vector_results
+        else:
+            search_results = bm25_results
+
         retrieval_time = (time.time() - start_time) * 1000
-        
+
         if not search_results:
-            logger.warning(f"⚠️ No results found for query: {query}")
+            logger.warning(f"No results found for query: {query}")
             return RAGResult(
                 query=query,
                 retrieved_chunks=[],
                 scores=[],
                 context="",
-                retrieval_time_ms=retrieval_time
+                retrieval_time_ms=retrieval_time,
+                metadata={'search_mode': 'hybrid' if self.enable_bm25 else 'vector'}
             )
-        
+
         # Extract chunks and scores
         chunks = []
         scores = []
@@ -323,7 +393,8 @@ class RAGPipeline:
     def get_stats(self) -> Dict[str, Any]:
         """Get pipeline statistics."""
         index_stats = self.vector_index.get_stats()
-        
+        bm25_stats = self.bm25_index.get_stats() if self.enable_bm25 else {}
+
         return {
             **index_stats,
             'chunking_strategy': self.chunker.strategy.value,
@@ -332,7 +403,10 @@ class RAGPipeline:
             'top_k': self.top_k,
             'rerank_top_k': self.rerank_top_k,
             'similarity_threshold': self.similarity_threshold,
-            'reranking_enabled': self.enable_reranking and self.reranker is not None
+            'reranking_enabled': self.enable_reranking and self.reranker is not None,
+            'bm25_enabled': self.enable_bm25,
+            'bm25': bm25_stats,
+            'search_mode': 'hybrid' if self.enable_bm25 else 'vector',
         }
     
     def save(self, path: Optional[Path] = None):
