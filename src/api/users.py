@@ -157,29 +157,49 @@ async def login(request: Request, credentials: UserLogin, db: Session = Depends(
 
 @router.get("/me", response_model=UserResponse)
 @limiter.limit("60/minute")
-async def get_current_user(request: Request):
-    """Get current user profile (demo - returns first user)"""
-    if not users_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No users found. Please register first."
-        )
+async def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """Get current user profile based on API Key or Session"""
+    api_key = request.headers.get("X-API-Key")
+    auth_header = request.headers.get("Authorization")
     
-    # Return first user for demo
-    user = list(users_db.values())[0]
+    user = None
+    
+    # Try to authenticate with session token first
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        session_entry = db.query(DB_Session).filter(
+            DB_Session.token == token,
+            DB_Session.expires_at > datetime.utcnow()
+        ).first()
+        
+        if session_entry:
+            user = db.query(User).filter(User.id == session_entry.user_id).first()
+            
+    # If not authenticated by session, try API key
+    if not user and api_key:
+        user = db.query(User).filter(User.api_key == api_key).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+        
     return UserResponse(
-        id=user["id"],
-        email=user["email"],
-        full_name=user["full_name"],
-        company=user["company"],
-        plan=user["plan"],
-        created_at=user["created_at"]
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        company=user.company,
+        plan=user.plan,
+        created_at=user.created_at
     )
 
 @router.post("/logout")
-async def logout():
-    """Logout user"""
-    return {"message": "Logged out successfully (demo mode)"}
+async def logout(request: Request, db: Session = Depends(get_db)):
+    """Logout user by invalidating session"""
+    token = request.headers.get("Authorization")
+    if token and token.startswith("Bearer "):
+        token = token[7:]
+        db.query(DB_Session).filter(DB_Session.token == token).delete()
+        db.commit()
+    return {"message": "Logged out successfully"}
 
 async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     """Verify admin token for protected endpoints"""
@@ -194,7 +214,7 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
 async def get_user_stats(request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)):
     """Get user statistics (admin only)"""
     total_users = db.query(User).count()
-    active_sessions = db.query(Session).filter(Session.expires_at > datetime.utcnow()).count()
+    active_sessions = db.query(DB_Session).filter(DB_Session.expires_at > datetime.utcnow()).count()
     
     plans = {
         "free": db.query(User).filter(User.plan == "free").count(),
