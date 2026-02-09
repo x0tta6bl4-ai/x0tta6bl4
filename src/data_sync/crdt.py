@@ -38,6 +38,7 @@ class GCounter:
         for node, val in other.counters.items():
             self.counters[node] = max(self.counters.get(node, 0), val)
 
+    @property
     def value(self) -> int:
         return sum(self.counters.values())
 
@@ -232,6 +233,7 @@ class ORSet:
         for elem in empty:
             del self._adds[elem]
 
+    @property
     def value(self) -> FrozenSet[Any]:
         result = set()
         for elem, tags in self._adds.items():

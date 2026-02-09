@@ -137,11 +137,11 @@ async def run_test():
 
     # 6. Verify state on node 2
     logger.info(f"[{node2_id}] Verifying CRDT states after sync...")
-    assert sync2.crdts["my_counter"].value() == 5
+    assert sync2.crdts["my_counter"].value == 5
     assert sync2.crdts["my_register"].value == "node1_value_A"
-    assert "item1" in sync2.crdts["my_set"].value()
-    assert "item2" in sync2.crdts["my_set"].value()
-    logger.info(f"[{node2_id}] CRDTs verified: my_counter={sync2.crdts['my_counter'].value()}, my_register={sync2.crdts['my_register'].value}, my_set={sync2.crdts['my_set'].value()}")
+    assert "item1" in sync2.crdts["my_set"].value
+    assert "item2" in sync2.crdts["my_set"].value
+    logger.info(f"[{node2_id}] CRDTs verified: my_counter={sync2.crdts['my_counter'].value}, my_register={sync2.crdts['my_register'].value}, my_set={sync2.crdts['my_set'].value}")
     
     # 7. Perform updates on node 2, creating a conflict for LWWRegister
     logger.info(f"[{node2_id}] Performing updates on CRDTs (creating conflict)...")
@@ -156,12 +156,12 @@ async def run_test():
 
     # 9. Verify merged state on node 1
     logger.info(f"[{node1_id}] Verifying merged CRDT states on node 1...")
-    assert sync1.crdts["my_counter"].value() == 8 # 5 from node1 + 3 from node2
+    assert sync1.crdts["my_counter"].value == 8 # 5 from node1 + 3 from node2
     assert sync1.crdts["my_register"].value == "node2_value_B" # node2 should win due to later timestamp
-    assert "item1" not in sync1.crdts["my_set"].value() # Removed by node2
-    assert "item2" in sync1.crdts["my_set"].value()
-    assert "item3" in sync1.crdts["my_set"].value()
-    logger.info(f"[{node1_id}] Merged CRDTs verified: my_counter={sync1.crdts['my_counter'].value()}, my_register={sync1.crdts['my_register'].value}, my_set={sync1.crdts['my_set'].value()}")
+    assert "item1" not in sync1.crdts["my_set"].value # Removed by node2
+    assert "item2" in sync1.crdts["my_set"].value
+    assert "item3" in sync1.crdts["my_set"].value
+    logger.info(f"[{node1_id}] Merged CRDTs verified: my_counter={sync1.crdts['my_counter'].value}, my_register={sync1.crdts['my_register'].value}, my_set={sync1.crdts['my_set'].value}")
     
     # 10. Test LWWRegister conflict resolution with same timestamp, different node_id
     logger.info("Testing LWWRegister conflict resolution with same timestamp...")
