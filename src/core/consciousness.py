@@ -1,10 +1,10 @@
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, NamedTuple # For mock AnomalyPrediction
 import time
-# Remove numpy dependency
-# import numpy as np
+import numpy as np
+from src.ml.graphsage_anomaly_detector import create_graphsage_detector_for_mapek
 
 # Constants
 PHI = 1.618033988749895
@@ -66,6 +66,8 @@ class ConsciousnessEngine:
         self.enable_advanced = enable_advanced_metrics
         self.history: List[ConsciousnessMetrics] = []
         self.max_history = 1000  # Keep last 1000 measurements
+        
+        self.graphsage_detector = create_graphsage_detector_for_mapek(pretrain=False)
         
         # Adaptive recovery parameters
         self.recovery_mode = False
@@ -260,7 +262,7 @@ class ConsciousnessEngine:
     def get_consciousness_metrics(self, raw_metrics: Dict[str, float], 
                                   timestamp: Optional[float] = None) -> ConsciousnessMetrics:
         """
-        Generate complete consciousness metrics from raw system measurements.
+        Generate complete consciousness metrics from raw system measurements using GraphSAGE.
         
         Args:
             raw_metrics: Dictionary of system metrics
@@ -272,18 +274,56 @@ class ConsciousnessEngine:
         if timestamp is None:
             timestamp = time.time()
         
-        # Calculate core metrics
-        phi = self.calculate_phi_ratio(raw_metrics)
-        state = self.evaluate_state(phi)
+        # --- Prepare GraphSAGE input features ---
+        # GraphSAGE expects 8D features: RSSI, SNR, loss rate, link age, latency, throughput, CPU, memory
+        node_features_for_graphsage = {
+            'rssi': raw_metrics.get('rssi', -60.0), # Default if not provided
+            'snr': raw_metrics.get('snr', 25.0),    # Default if not provided
+            'loss_rate': raw_metrics.get('packet_loss', 0.0),
+            'link_age': raw_metrics.get('link_age', 3600.0), # Default
+            'latency': raw_metrics.get('latency_ms', 50.0),
+            'throughput': raw_metrics.get('throughput_mbps', 100.0), # Default
+            'cpu': raw_metrics.get('cpu_percent', 0.5) * 100, # Convert 0-1 to 0-100
+            'memory': raw_metrics.get('memory_percent', 0.4) * 100 # Convert 0-1 to 0-100
+        }
+        
+        # --- Use GraphSAGE for anomaly prediction ---
+        node_id = raw_metrics.get('node_id', 'self') # Use 'self' or actual node_id
+        # For initial integration, we'll assume no explicit neighbors are passed for this node's prediction context.
+        # The GraphSAGE model can still make a prediction based on the node's features.
+        # We pass an empty list for neighbors and edge_index for a single-node prediction.
+        
+        # Note: If GraphSAGE is not trained, it will fall back to rule-based prediction.
+        
+        anomaly_prediction: AnomalyPrediction = self.graphsage_detector.predict(
+            node_id=node_id,
+            node_features=node_features_for_graphsage,
+            neighbors=[] # No explicit neighbors for single node prediction
+        )
+        
+        # --- Convert GraphSAGE output to ConsciousnessMetrics ---
+        # Higher anomaly score -> lower phi_ratio, worse state
+        # We can invert the anomaly_score to get a 'health' score, then map to phi-ratio.
+        health_score = 1.0 - anomaly_prediction.anomaly_score
+        
+        # Map health_score to phi_ratio (e.g., 1/PHI to PHI)
+        # Perfect health (1.0) maps to PHI
+        # Zero health (0.0) maps to 1/PHI
+        phi = (PHI * health_score) + ((1/PHI) * (1 - health_score)) # Linear interpolation between 1/PHI and PHI
+        
+        # Evaluate ConsciousnessState based on the derived phi
+        state = self.evaluate_state(phi) # Reuse existing state evaluation logic
+        
+        # Continue with other metric calculations (can also be influenced by GraphSAGE)
         alignment = self.calculate_frequency_alignment(
             phi, 
             raw_metrics.get('frequency_hz')
         )
-        entropy = self.calculate_entropy(raw_metrics)
-        mesh_health = self.calculate_mesh_health(raw_metrics)
+        entropy = self.calculate_entropy(raw_metrics) # This still uses history
+        mesh_health = self.calculate_mesh_health(raw_metrics) # This still uses raw metrics
         
-        # Harmony index is composite of phi and alignment
-        harmony = (phi / PHI + alignment) / 2.0
+        # Harmony index (can be further refined with GraphSAGE confidence)
+        harmony = (phi / PHI + alignment + (1.0 - anomaly_prediction.anomaly_score)) / 3.0
         
         metrics = ConsciousnessMetrics(
             phi_ratio=phi,
