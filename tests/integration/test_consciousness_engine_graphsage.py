@@ -21,18 +21,16 @@ class MockGraphSAGEAnomalyDetectorInTest:
         return True # Assume trained for mock
 
 
-# --- IMPORTANT: Patch the module before importing ConsciousnessEngine ---
-
-
-# --- Now import ConsciousnessEngine and other related modules ---
-from src.core.consciousness import ConsciousnessEngine, ConsciousnessState, ConsciousnessMetrics, PHI
-import src.ml.graphsage_anomaly_detector
+import src.ml.graphsage_anomaly_detector # Import the module first
 
 @pytest.mark.asyncio
-@patch('src.core.consciousness.create_graphsage_detector_for_mapek')
+@patch('src.core.consciousness.create_graphsage_detector_for_mapek') # Patch the function in the module where it's looked up
 async def test_consciousness_engine_graphsage_anomaly_detection(mock_create_graphsage_detector_for_mapek_func):
     # Configure the mock to return instances of our MockGraphSAGEAnomalyDetectorInTest
     mock_create_graphsage_detector_for_mapek_func.return_value = MockGraphSAGEAnomalyDetectorInTest()
+    
+    # --- Now import ConsciousnessEngine and other related modules (after patch) ---
+    from src.core.consciousness import ConsciousnessEngine, ConsciousnessState, ConsciousnessMetrics, PHI
     """
     Тест: ConsciousnessEngine должен корректно определять состояние
     при аномалиях, предсказанных GraphSAGE.
