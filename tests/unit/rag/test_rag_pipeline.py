@@ -2,6 +2,11 @@
 Unit tests for RAG Pipeline MVP
 """
 
+import os
+# Prevent heavy model downloads during unit tests
+os.environ.setdefault("RAG_DISABLE_EMBEDDING_MODEL", "true")
+os.environ.setdefault("RAG_DISABLE_RERANKER", "true")
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
@@ -79,17 +84,20 @@ class TestRAGPipeline:
         assert result.retrieval_time_ms >= 0
     
     def test_query_convenience_method(self):
-        """Test query convenience method"""
+        """Test query convenience method - mock heavy retrieval to avoid model downloads/hangs"""
         pipeline = RAGPipeline()
-        
-        pipeline.add_document(
-            text="Test document content",
-            document_id="doc_001"
-        )
-        
-        context = pipeline.query("test query")
-        
+
+        # Avoid calling the real add_document (may trigger embedding/model loads)
+        from unittest.mock import patch
+        with patch.object(RAGPipeline, "add_document", return_value=["doc_001_chunk_0"]), \
+             patch.object(RAGPipeline, "retrieve", return_value=RAGResult(query="test query", retrieved_chunks=[], scores=[], context="mocked context", retrieval_time_ms=0.0)):
+            # Call add_document (mocked) and then query (retrieve mocked)
+            chunk_ids = pipeline.add_document(text="Test document content", document_id="doc_001")
+            assert chunk_ids == ["doc_001_chunk_0"]
+            context = pipeline.query("test query")
+
         assert isinstance(context, str)
+        assert context == "mocked context"
     
     def test_get_stats(self):
         """Test getting pipeline statistics"""
@@ -105,9 +113,14 @@ class TestRAGPipeline:
     def test_save_and_load(self, tmp_path):
         """Test saving and loading pipeline"""
         pipeline = RAGPipeline()
-        
-        # Add some documents
-        pipeline.add_document("Test document", "doc_001")
+
+        # Add some documents (text must exceed min_chunk_size=100 to produce at least one chunk)
+        pipeline.add_document(
+            "This is a sufficiently long test document about mesh networking, "
+            "post-quantum cryptography, and self-healing infrastructure that "
+            "exceeds the minimum chunk size threshold for the recursive chunker.",
+            "doc_001"
+        )
         
         # Save
         save_path = tmp_path / "rag_pipeline"
