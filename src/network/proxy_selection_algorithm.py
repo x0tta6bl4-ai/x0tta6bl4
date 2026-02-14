@@ -10,6 +10,7 @@ Implements:
 import asyncio
 import logging
 import random
+import secrets
 import time
 from typing import List, Optional, Dict, Any, Tuple, Deque
 from dataclasses import dataclass, field
@@ -528,7 +529,7 @@ class AdaptiveLoadBalancer:
         async with self._lock:
             self._active_connections[selected.id] = self._active_connections.get(selected.id, 0) + 1
         
-        token = f"{selected.id}_{time.time()}_{random.randint(1000, 9999)}"
+        token = f"{selected.id}_{secrets.token_hex(8)}"
         return selected, token
     
     async def release_proxy(self, token: str):
