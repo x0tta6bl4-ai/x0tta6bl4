@@ -1,8 +1,9 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 from src.api import swarm as swarm_api
 from src.api.swarm import router
@@ -14,7 +15,9 @@ def _build_app() -> FastAPI:
     return app
 
 
-def _fake_swarm(name: str = "swarm-a", status: str = "running", created_at: float = 1.0):
+def _fake_swarm(
+    name: str = "swarm-a", status: str = "running", created_at: float = 1.0
+):
     return SimpleNamespace(
         config=SimpleNamespace(name=name, enable_vision=True),
         status=SimpleNamespace(value=status),
@@ -67,7 +70,10 @@ async def test_list_swarms_applies_filter_and_pagination(monkeypatch):
 
     transport = ASGITransport(app=_build_app())
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/v3/swarm", params={"status_filter": "running", "limit": 1, "offset": 0})
+        response = await client.get(
+            "/api/v3/swarm",
+            params={"status_filter": "running", "limit": 1, "offset": 0},
+        )
 
     assert response.status_code == 200
     payload = response.json()

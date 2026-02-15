@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/x0tta6bl4/x0tta6bl4/actions/workflows/ci.yml/badge.svg)](https://github.com/x0tta6bl4/x0tta6bl4/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![Security](https://img.shields.io/badge/security-PQC%20NIST%20FIPS%20203%2F204-green)]()
 
-**Digital Survival Kit** — децентрализованная mesh-сеть с постквантовой криптографией и самовосстановлением.
+**Digital Survival Kit** — децентрализованная mesh-сеть с постквантовой криптографией, DAO-управлением и самовосстановлением.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -16,16 +16,28 @@
 
 ## 🚀 Быстрый старт
 
+### 1. Установка
 ```bash
 # Клонировать репозиторий
 git clone https://github.com/x0tta6bl4/x0tta6bl4.git
 cd x0tta6bl4
 
-# Установить зависимости
-pip install -r requirements-core.txt
+# Настройка окружения
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-# Запустить
-python -m src.main
+### 2. Запуск
+```bash
+# Запустить API и Ядро
+uvicorn src.core.app:app --host 0.0.0.0 --port 8080 --reload
+```
+
+### 3. Инициализация DAO (Опционально)
+```bash
+# Создать токены и генезис-блок
+python3 scripts/init_dao.py
 ```
 
 Или с Docker:
@@ -51,6 +63,7 @@ docker-compose up -d
 | 🤖 **Federated Learning** | Byzantine-отказоустойчивое обучение | ✅ Готово |
 | 🏛️ **DAO Governance** | Quadratic voting, децентрализованное управление | ✅ Готово |
 | 📊 **Monitoring** | Prometheus + Grafana | ✅ Готово |
+| 🧠 **Autonomous Mode** | Swarm Intelligence + Local LLM | ✅ Active |
 
 ## 🏗️ Архитектура
 

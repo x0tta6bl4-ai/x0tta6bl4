@@ -11,16 +11,15 @@ Test Scenarios:
 4. Failure injection: Node crashes, network partitions, Byzantine nodes
 """
 
-import pytest
 import logging
 from pathlib import Path
 
-from tests.load.distributed_load_generator import (
-    DistributedLoadGenerator,
-    TrafficPattern,
-    FailurePattern,
-    PerformanceAnalyzer,
-)
+import pytest
+
+from tests.load.distributed_load_generator import (DistributedLoadGenerator,
+                                                   FailurePattern,
+                                                   PerformanceAnalyzer,
+                                                   TrafficPattern)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class TestBasicLoadGeneration:
         """Test creating virtual mesh nodes"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=10)
         nodes = gen.spawn_mesh_nodes()
-        
+
         assert len(nodes) == 100
         assert all(node.node_id for node in nodes)
         assert all(not node.is_failed for node in nodes)
@@ -41,12 +40,12 @@ class TestBasicLoadGeneration:
         """Test beacon message processing"""
         gen = DistributedLoadGenerator(node_count=10, duration_seconds=5)
         nodes = gen.spawn_mesh_nodes()
-        
+
         # Generate beacon from first node
         beacon = nodes[0].generate_beacon()
         assert beacon is not None
         assert beacon.node_id == "node-0"
-        
+
         # Process at another node
         success, latency = nodes[1].process_beacon(beacon)
         assert success is True
@@ -57,7 +56,7 @@ class TestBasicLoadGeneration:
         """Test PQC operation simulation"""
         gen = DistributedLoadGenerator(node_count=10, duration_seconds=5)
         nodes = gen.spawn_mesh_nodes()
-        
+
         # Run PQC operation
         latency = nodes[0].simulate_pqc_operation()
         assert latency > 0.4
@@ -68,7 +67,7 @@ class TestBasicLoadGeneration:
         """Test SPIFFE identity rotation"""
         gen = DistributedLoadGenerator(node_count=10, duration_seconds=5)
         nodes = gen.spawn_mesh_nodes()
-        
+
         # Rotate identity
         latency = nodes[0].rotate_identity()
         assert latency > 0.1
@@ -79,13 +78,13 @@ class TestBasicLoadGeneration:
         """Test failure injection"""
         gen = DistributedLoadGenerator(node_count=10, duration_seconds=5)
         nodes = gen.spawn_mesh_nodes()
-        
+
         # Inject failure
         failure = FailurePattern.node_crash(start_time=0)
         nodes[0].inject_failure(failure)
-        
+
         assert nodes[0].is_failed is True
-        
+
         # Node shouldn't process beacons when failed
         beacon = nodes[1].generate_beacon()
         result, latency = nodes[0].process_beacon(beacon)
@@ -99,11 +98,11 @@ class TestSteadyStateScaling:
         """Test 100 node steady state - baseline"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=30)
         result = gen.run_steady_state_test()
-        
+
         assert result.node_count == 100
         assert result.total_beacons > 0
         assert len(result.beacon_latencies) > 0
-        
+
         # Verify beacon latencies are reasonable
         report = result.generate_report()
         assert report["beacon_latency_ms"]["p99"] < 10
@@ -112,10 +111,10 @@ class TestSteadyStateScaling:
         """Test 500 node steady state"""
         gen = DistributedLoadGenerator(node_count=500, duration_seconds=30)
         result = gen.run_steady_state_test()
-        
+
         assert result.node_count == 500
         assert result.total_beacons > 0
-        
+
         report = result.generate_report()
         # Expect some latency increase but still reasonable
         assert report["beacon_latency_ms"]["p99"] < 50
@@ -124,10 +123,10 @@ class TestSteadyStateScaling:
         """Test 1000 node steady state - production scale"""
         gen = DistributedLoadGenerator(node_count=1000, duration_seconds=30)
         result = gen.run_steady_state_test()
-        
+
         assert result.node_count == 1000
         assert result.total_beacons > 0
-        
+
         report = result.generate_report()
         # Production target: p99 < 100ms at 1000 nodes
         latency_p99 = report["beacon_latency_ms"]["p99"]
@@ -138,7 +137,7 @@ class TestSteadyStateScaling:
         """Test 2000 node stress - find limits"""
         gen = DistributedLoadGenerator(node_count=2000, duration_seconds=60)
         result = gen.run_steady_state_test()
-        
+
         assert result.node_count == 2000
         # Should not crash, but latency may degrade
         assert result.total_beacons > 0
@@ -152,7 +151,7 @@ class TestTrafficPatterns:
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=20)
         pattern = TrafficPattern.steady_state()
         result = gen.run_steady_state_test(pattern)
-        
+
         assert result.total_beacons > 0
         assert result.total_pqc_ops > 0
         report = result.generate_report()
@@ -163,11 +162,11 @@ class TestTrafficPatterns:
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=20)
         pattern = TrafficPattern.burst()
         result = gen.run_steady_state_test(pattern)
-        
+
         # Burst should generate much more traffic
         assert result.total_beacons > 0
         assert result.total_pqc_ops > 0
-        
+
         # But latencies should still be acceptable
         report = result.generate_report()
         assert report["beacon_latency_ms"]["p99"] < 50
@@ -177,7 +176,7 @@ class TestTrafficPatterns:
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=20)
         pattern = TrafficPattern.high_churn()  # Rotate every 60 seconds instead of 600
         result = gen.run_steady_state_test(pattern)
-        
+
         # Should have more identity operations
         assert result.total_identity_ops > 0
 
@@ -190,10 +189,10 @@ class TestFailureInjection:
         failures = [FailurePattern.node_crash(start_time=10)]
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=45)
         result = gen.run_failure_injection_test(failures)
-        
+
         assert len(result.failures_injected) > 0
         assert "node_crash" in result.failures_injected
-        
+
         # Should still process some beacons after recovery
         assert result.total_beacons > 0
 
@@ -202,10 +201,10 @@ class TestFailureInjection:
         failures = [FailurePattern.network_partition(start_time=10)]
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=90)
         result = gen.run_failure_injection_test(failures)
-        
+
         assert "network_partition" in result.failures_injected
         assert len(result.recovery_times) > 0
-        
+
         # Recovery should happen within expected window
         recovery_time = result.recovery_times[0]
         assert recovery_time < 70  # Should recover before test ends
@@ -215,7 +214,7 @@ class TestFailureInjection:
         failures = [FailurePattern.byzantine_nodes(start_time=10)]
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=60)
         result = gen.run_failure_injection_test(failures)
-        
+
         assert "byzantine" in result.failures_injected
         # Byzantine nodes should still send beacons (but invalid)
         assert result.total_beacons > 0
@@ -228,7 +227,7 @@ class TestFailureInjection:
         ]
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=60)
         result = gen.run_failure_injection_test(failures)
-        
+
         assert len(result.failures_injected) >= 2
         # System should handle multiple failures gracefully
         assert result.total_beacons > 0
@@ -241,9 +240,9 @@ class TestPerformanceAnalysis:
         """Test percentile calculation"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=15)
         result = gen.run_steady_state_test()
-        
+
         analysis = PerformanceAnalyzer.analyze_beacon_latency(result)
-        
+
         assert "p50_ms" in analysis
         assert "p95_ms" in analysis
         assert "p99_ms" in analysis
@@ -253,9 +252,9 @@ class TestPerformanceAnalysis:
         """Test bottleneck identification"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=15)
         result = gen.run_steady_state_test()
-        
+
         bottleneck = PerformanceAnalyzer.identify_bottleneck(result)
-        
+
         # Should identify something (even if "no bottleneck")
         assert isinstance(bottleneck, str)
         assert len(bottleneck) > 0
@@ -267,9 +266,9 @@ class TestPerformanceAnalysis:
         for node_count in [100, 500, 1000]:
             gen = DistributedLoadGenerator(node_count=node_count, duration_seconds=15)
             results[node_count] = gen.run_steady_state_test()
-        
+
         prediction = PerformanceAnalyzer.predict_scaling(results)
-        
+
         assert "slope" in prediction
         assert "feasible_for_1000" in prediction
         assert "predicted_latency_at_2000_nodes" in prediction
@@ -278,9 +277,9 @@ class TestPerformanceAnalysis:
         """Test that scaling follows expected pattern"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=15)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Latency per 1000 nodes should give insight into scaling
         latency_metric = report["scaling_analysis"]["latency_per_thousand_nodes"]
         assert latency_metric >= 0  # Should be positive
@@ -293,9 +292,9 @@ class TestReportGeneration:
         """Test report generation and structure"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=15)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Check report structure
         assert "metadata" in report
         assert "summary" in report
@@ -310,13 +309,13 @@ class TestReportGeneration:
         """Test report has all required metrics"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=15)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Check required metadata
         assert report["metadata"]["test_name"]
         assert report["metadata"]["node_count"] == 100
-        
+
         # Check required metrics
         assert all(k in report["beacon_latency_ms"] for k in ["p50", "p95", "p99"])
         assert report["summary"]["total_beacons_processed"] > 0
@@ -330,9 +329,9 @@ class TestProductionValidation:
         """Validate 100 nodes meets production target"""
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=30)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Production target: p99 < 10ms at 100 nodes (baseline from Phase 4)
         assert report["beacon_latency_ms"]["p99"] < 10
 
@@ -341,9 +340,9 @@ class TestProductionValidation:
         """Validate 500 nodes meets production target"""
         gen = DistributedLoadGenerator(node_count=500, duration_seconds=30)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Production target: p99 < 50ms at 500 nodes
         assert report["beacon_latency_ms"]["p99"] < 50
 
@@ -352,12 +351,13 @@ class TestProductionValidation:
         """Validate 1000 nodes meets production target"""
         gen = DistributedLoadGenerator(node_count=1000, duration_seconds=60)
         result = gen.run_steady_state_test()
-        
+
         report = result.generate_report()
-        
+
         # Production target: p99 < 100ms at 1000 nodes
-        assert report["beacon_latency_ms"]["p99"] < 100, \
-            f"1000-node target failed: {report['beacon_latency_ms']['p99']}ms > 100ms"
+        assert (
+            report["beacon_latency_ms"]["p99"] < 100
+        ), f"1000-node target failed: {report['beacon_latency_ms']['p99']}ms > 100ms"
 
     @pytest.mark.slow
     def test_zero_data_loss_under_failure(self):
@@ -368,7 +368,7 @@ class TestProductionValidation:
         ]
         gen = DistributedLoadGenerator(node_count=100, duration_seconds=70)
         result = gen.run_failure_injection_test(failures)
-        
+
         # Should process significant number of beacons without loss
         assert result.total_beacons > 100
 

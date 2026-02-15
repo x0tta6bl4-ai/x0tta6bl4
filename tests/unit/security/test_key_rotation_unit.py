@@ -62,7 +62,9 @@ def test_recover_key_returns_record_from_backup(monkeypatch, tmp_path):
             (b"sig-public-2", b"sig-private-2"),
         ]
     )
-    monkeypatch.setattr(manager, "generate_signature_keypair", lambda *_: next(keypairs))
+    monkeypatch.setattr(
+        manager, "generate_signature_keypair", lambda *_: next(keypairs)
+    )
 
     first = manager.rotate_signature_key()
     manager.rotate_signature_key()

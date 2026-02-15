@@ -1,0 +1,89 @@
+# Single-node deployment: app + redis + prometheus + grafana
+# Usage: docker compose -f docker-compose.node.yml up -d
+
+services:
+  node:
+    build: .
+    container_name: x0tta6bl4-node
+    env_file: .env
+    environment:
+      - NODE_ID=${NODE_ID:-node-1}
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - mesh
+    restart: unless-stopped
+    volumes:
+      - node-data:/app/data
+      - node-logs:/app/logs
+
+  redis:
+    image: redis:7-alpine
+    container_name: x0tta6bl4-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mesh
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: x0tta6bl4-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./deploy/prometheus-node.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - mesh
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: x0tta6bl4-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-x0tta6bl4}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - mesh
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+volumes:
+  node-data:
+  node-logs:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  mesh:
+    driver: bridge

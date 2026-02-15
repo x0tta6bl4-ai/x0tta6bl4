@@ -7,9 +7,12 @@ Tests the full alerting integration for error handler including:
 - AlertManager integration
 - Sync and async versions
 """
-import pytest
+
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
 from src.core.error_handler import ErrorHandler, ErrorSeverity
 
 
@@ -21,14 +24,12 @@ class TestErrorHandlerAlerting:
         """Test that critical errors trigger alerts."""
         mock_send_alert = AsyncMock()
 
-        with patch('src.core.error_handler.ALERTING_AVAILABLE', True):
-            with patch('src.core.error_handler.send_alert', mock_send_alert):
+        with patch("src.core.error_handler.ALERTING_AVAILABLE", True):
+            with patch("src.core.error_handler.send_alert", mock_send_alert):
                 error = ValueError("Critical system failure")
 
                 await ErrorHandler.handle_error(
-                    error,
-                    "test_context",
-                    ErrorSeverity.CRITICAL
+                    error, "test_context", ErrorSeverity.CRITICAL
                 )
 
                 # Verify alert was sent
@@ -41,14 +42,12 @@ class TestErrorHandlerAlerting:
         """Test that high severity errors trigger alerts."""
         mock_send_alert = AsyncMock()
 
-        with patch('src.core.error_handler.ALERTING_AVAILABLE', True):
-            with patch('src.core.error_handler.send_alert', mock_send_alert):
+        with patch("src.core.error_handler.ALERTING_AVAILABLE", True):
+            with patch("src.core.error_handler.send_alert", mock_send_alert):
                 error = RuntimeError("High severity error")
 
                 await ErrorHandler.handle_error(
-                    error,
-                    "test_context",
-                    ErrorSeverity.HIGH
+                    error, "test_context", ErrorSeverity.HIGH
                 )
 
                 # Verify alert was sent
@@ -61,14 +60,12 @@ class TestErrorHandlerAlerting:
         """Test that medium severity errors don't trigger alerts."""
         mock_send_alert = AsyncMock()
 
-        with patch('src.core.error_handler.ALERTING_AVAILABLE', True):
-            with patch('src.core.error_handler.send_alert', mock_send_alert):
+        with patch("src.core.error_handler.ALERTING_AVAILABLE", True):
+            with patch("src.core.error_handler.send_alert", mock_send_alert):
                 error = ValueError("Medium severity error")
 
                 await ErrorHandler.handle_error(
-                    error,
-                    "test_context",
-                    ErrorSeverity.MEDIUM
+                    error, "test_context", ErrorSeverity.MEDIUM
                 )
 
                 # Verify alert was NOT sent (medium severity doesn't trigger alerts)
@@ -79,14 +76,14 @@ class TestErrorHandlerAlerting:
         mock_alert_manager = Mock()
         mock_alert_manager.send_alert = AsyncMock()
 
-        with patch('src.core.error_handler.ALERTING_AVAILABLE', True):
-            with patch('src.monitoring.alerting.AlertManager', return_value=mock_alert_manager):
+        with patch("src.core.error_handler.ALERTING_AVAILABLE", True):
+            with patch(
+                "src.monitoring.alerting.AlertManager", return_value=mock_alert_manager
+            ):
                 error = ValueError("Critical sync error")
 
                 ErrorHandler.handle_error_sync(
-                    error,
-                    "test_context",
-                    ErrorSeverity.CRITICAL
+                    error, "test_context", ErrorSeverity.CRITICAL
                 )
 
                 # Sync version schedules async alert, may not complete immediately
@@ -97,8 +94,8 @@ class TestErrorHandlerAlerting:
         """Test that additional data is included in alert annotations."""
         mock_send_alert = AsyncMock()
 
-        with patch('src.core.error_handler.ALERTING_AVAILABLE', True):
-            with patch('src.core.error_handler.send_alert', mock_send_alert):
+        with patch("src.core.error_handler.ALERTING_AVAILABLE", True):
+            with patch("src.core.error_handler.send_alert", mock_send_alert):
                 error = ValueError("Error with context")
                 additional_data = {"user_id": "123", "action": "test"}
 
@@ -106,11 +103,11 @@ class TestErrorHandlerAlerting:
                     error,
                     "test_context",
                     ErrorSeverity.CRITICAL,
-                    additional_data=additional_data
+                    additional_data=additional_data,
                 )
 
                 # Verify alert was sent with annotations
                 assert mock_send_alert.called
                 call_args = mock_send_alert.call_args
-                annotations = call_args[1].get('annotations', {})
-                assert 'additional_data' in annotations
+                annotations = call_args[1].get("annotations", {})
+                assert "additional_data" in annotations

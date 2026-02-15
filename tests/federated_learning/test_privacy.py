@@ -8,19 +8,17 @@
 - Secure Aggregation
 - DP-SGD privacy guarantees
 """
-import pytest
+
 import math
 from typing import List
 
-from src.federated_learning.privacy import (
-    DifferentialPrivacy,
-    DPConfig,
-    PrivacyBudget,
-    GradientClipper,
-    GaussianNoiseGenerator,
-    SecureAggregation,
-    compute_dp_sgd_privacy,
-)
+import pytest
+
+from src.federated_learning.privacy import (DifferentialPrivacy, DPConfig,
+                                            GaussianNoiseGenerator,
+                                            GradientClipper, PrivacyBudget,
+                                            SecureAggregation,
+                                            compute_dp_sgd_privacy)
 
 
 class TestGradientClipper:
@@ -40,7 +38,7 @@ class TestGradientClipper:
         clipped, norm = gradient_clipper.clip(gradients)
 
         # Норма clipped должна быть 1.0
-        clipped_norm = math.sqrt(sum(g*g for g in clipped))
+        clipped_norm = math.sqrt(sum(g * g for g in clipped))
         assert abs(clipped_norm - 1.0) < 1e-6
         assert norm == 5.0
 
@@ -67,7 +65,7 @@ class TestGradientClipper:
         batch = [
             [0.3, 0.4],  # не обрежет
             [3.0, 4.0],  # обрежет
-            [0.6, 0.8]   # не обрежет
+            [0.6, 0.8],  # не обрежет
         ]
 
         clipped, norms = gradient_clipper.clip_batch(batch)
@@ -97,7 +95,7 @@ class TestGaussianNoiseGenerator:
 
         # Стандартное отклонение должно быть близко к scale
         mean = sum(noise) / len(noise)
-        variance = sum((n - mean)**2 for n in noise) / len(noise)
+        variance = sum((n - mean) ** 2 for n in noise) / len(noise)
         std = math.sqrt(variance)
 
         assert abs(std - 2.0) < 0.2  # С погрешностью
@@ -125,9 +123,7 @@ class TestGaussianNoiseGenerator:
     def test_calibrate_noise_positive_epsilon(self, noise_generator):
         """Калибровка шума требует положительный epsilon."""
         sigma = noise_generator.calibrate_noise(
-            sensitivity=1.0,
-            epsilon=1.0,
-            delta=1e-5
+            sensitivity=1.0, epsilon=1.0, delta=1e-5
         )
 
         assert sigma > 0
@@ -262,7 +258,9 @@ class TestDifferentialPrivacy:
         assert differential_privacy.can_continue_training() is True
 
         # Исчерпываем бюджет
-        differential_privacy.budget.epsilon = differential_privacy.config.target_epsilon + 1
+        differential_privacy.budget.epsilon = (
+            differential_privacy.config.target_epsilon + 1
+        )
 
         assert differential_privacy.can_continue_training() is False
 
@@ -287,10 +285,7 @@ class TestSecureAggregation:
 
     def test_generate_masks(self, secure_aggregation):
         """Генерация масок."""
-        mask, seeds = secure_aggregation.generate_masks(
-            party_id=0,
-            vector_size=10
-        )
+        mask, seeds = secure_aggregation.generate_masks(party_id=0, vector_size=10)
 
         assert len(mask) == 10
         assert len(seeds) == 4  # Для остальных 4 участников
@@ -329,10 +324,7 @@ class TestSecureAggregation:
         vector_size = 10
 
         # Создаём обновления
-        updates = [
-            [float(i) for _ in range(vector_size)]
-            for i in range(5)
-        ]
+        updates = [[float(i) for _ in range(vector_size)] for i in range(5)]
 
         # Маскируем
         masked_updates = [
@@ -361,10 +353,7 @@ class TestDPSGDPrivacy:
     def test_basic_computation(self):
         """Базовое вычисление privacy."""
         epsilon = compute_dp_sgd_privacy(
-            sample_rate=0.01,
-            noise_multiplier=1.0,
-            epochs=10,
-            delta=1e-5
+            sample_rate=0.01, noise_multiplier=1.0, epochs=10, delta=1e-5
         )
 
         assert epsilon > 0
@@ -372,16 +361,10 @@ class TestDPSGDPrivacy:
     def test_more_epochs_more_privacy_loss(self):
         """Больше эпох - больше потеря privacy."""
         epsilon_few = compute_dp_sgd_privacy(
-            sample_rate=0.01,
-            noise_multiplier=1.0,
-            epochs=10,
-            delta=1e-5
+            sample_rate=0.01, noise_multiplier=1.0, epochs=10, delta=1e-5
         )
         epsilon_many = compute_dp_sgd_privacy(
-            sample_rate=0.01,
-            noise_multiplier=1.0,
-            epochs=100,
-            delta=1e-5
+            sample_rate=0.01, noise_multiplier=1.0, epochs=100, delta=1e-5
         )
 
         assert epsilon_many > epsilon_few
@@ -389,16 +372,10 @@ class TestDPSGDPrivacy:
     def test_more_noise_less_privacy_loss(self):
         """Больше шума - меньше потеря privacy."""
         epsilon_low_noise = compute_dp_sgd_privacy(
-            sample_rate=0.01,
-            noise_multiplier=0.5,
-            epochs=10,
-            delta=1e-5
+            sample_rate=0.01, noise_multiplier=0.5, epochs=10, delta=1e-5
         )
         epsilon_high_noise = compute_dp_sgd_privacy(
-            sample_rate=0.01,
-            noise_multiplier=2.0,
-            epochs=10,
-            delta=1e-5
+            sample_rate=0.01, noise_multiplier=2.0, epochs=10, delta=1e-5
         )
 
         assert epsilon_high_noise < epsilon_low_noise
@@ -429,8 +406,7 @@ class TestDPIntegration:
         flat_weights = simple_weights.to_flat_vector()
 
         privatized, metadata = differential_privacy.privatize_model_update(
-            flat_weights,
-            num_samples=1000
+            flat_weights, num_samples=1000
         )
 
         assert len(privatized) == len(flat_weights)

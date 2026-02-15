@@ -4,8 +4,8 @@ Feature Flags для управления версиями приложения.
 Позволяет консолидировать все версии app в один с feature flags.
 """
 
-import os
 import logging
+import os
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -14,39 +14,42 @@ logger = logging.getLogger(__name__)
 class FeatureFlags:
     """
     Feature Flags для x0tta6bl4.
-    
+
     Управляет включением/выключением функций через environment variables.
     """
-    
+
     # Byzantine Protection
     BYZANTINE_PROTECTION = os.getenv("X0TTA6BL4_BYZANTINE", "false").lower() == "true"
-    
+
     # Failover
     FAILOVER_ENABLED = os.getenv("X0TTA6BL4_FAILOVER", "false").lower() == "true"
-    
+
     # PQC Beacons
     PQC_BEACONS = os.getenv("X0TTA6BL4_PQC_BEACONS", "false").lower() == "true"
-    
+
     # Minimal Mode
     MINIMAL_MODE = os.getenv("X0TTA6BL4_MINIMAL", "false").lower() == "true"
-    
+
     # GraphSAGE
     GRAPHSAGE_ENABLED = os.getenv("X0TTA6BL4_GRAPHSAGE", "true").lower() == "true"
-    
+
     # SPIFFE/mTLS - REQUIRED in production for Zero Trust
     # In production, SPIFFE is mandatory (can be disabled only explicitly)
     _production_mode = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
-    SPIFFE_ENABLED = os.getenv("X0TTA6BL4_SPIFFE", "true" if _production_mode else "true").lower() == "true"
-    
+    SPIFFE_ENABLED = (
+        os.getenv("X0TTA6BL4_SPIFFE", "true" if _production_mode else "true").lower()
+        == "true"
+    )
+
     # eBPF Observability
     EBPF_ENABLED = os.getenv("X0TTA6BL4_EBPF", "true").lower() == "true"
-    
+
     # Federated Learning
     FL_ENABLED = os.getenv("X0TTA6BL4_FL", "true").lower() == "true"
-    
+
     # DAO Governance
     DAO_ENABLED = os.getenv("X0TTA6BL4_DAO", "true").lower() == "true"
-    
+
     @classmethod
     def get_all_flags(cls) -> Dict[str, bool]:
         """Get all feature flags as dict."""
@@ -61,14 +64,17 @@ class FeatureFlags:
             "fl_enabled": cls.FL_ENABLED,
             "dao_enabled": cls.DAO_ENABLED,
         }
-    
+
     @classmethod
     def log_status(cls):
         """Log current feature flags status."""
         flags = cls.get_all_flags()
         enabled = [k for k, v in flags.items() if v]
         disabled = [k for k, v in flags.items() if not v]
-        
-        logger.info(f"Feature Flags - Enabled: {', '.join(enabled) if enabled else 'none'}")
-        logger.info(f"Feature Flags - Disabled: {', '.join(disabled) if disabled else 'none'}")
 
+        logger.info(
+            f"Feature Flags - Enabled: {', '.join(enabled) if enabled else 'none'}"
+        )
+        logger.info(
+            f"Feature Flags - Disabled: {', '.join(disabled) if disabled else 'none'}"
+        )

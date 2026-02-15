@@ -15,15 +15,16 @@ Key Features:
 import asyncio
 import logging
 import time
-from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # Import PARL components
 try:
     from src.swarm.parl.controller import PARLController
+
     HAS_PARL = True
 except ImportError:
     PARLController = None
@@ -33,6 +34,7 @@ except ImportError:
 
 class MAPEKPhase(Enum):
     """MAPE-K cycle phases."""
+
     MONITOR = "monitor"
     ANALYZE = "analyze"
     PLAN = "plan"
@@ -43,6 +45,7 @@ class MAPEKPhase(Enum):
 @dataclass
 class MAPEKContext:
     """Context for MAPE-K cycle execution."""
+
     cycle_id: str
     mesh_nodes: List[str]
     current_phase: MAPEKPhase = MAPEKPhase.MONITOR
@@ -54,6 +57,7 @@ class MAPEKContext:
 @dataclass
 class MonitorResult:
     """Result from Monitor phase."""
+
     node_id: str
     status: str
     metrics: Dict[str, Any]
@@ -64,6 +68,7 @@ class MonitorResult:
 @dataclass
 class AnalysisResult:
     """Result from Analyze phase."""
+
     anomaly_id: str
     anomaly_type: str
     severity: str
@@ -75,6 +80,7 @@ class AnalysisResult:
 @dataclass
 class PlanResult:
     """Result from Plan phase."""
+
     plan_id: str
     strategy: str
     actions: List[Dict[str, Any]] = field(default_factory=list)
@@ -85,6 +91,7 @@ class PlanResult:
 @dataclass
 class ExecuteResult:
     """Result from Execute phase."""
+
     action_id: str
     action_type: str
     success: bool
@@ -124,7 +131,7 @@ class PARLMAPEKExecutor:
             "total_anomalies_detected": 0,
             "total_actions_executed": 0,
             "avg_cycle_time_ms": 0.0,
-            "speedup_vs_sequential": 1.0
+            "speedup_vs_sequential": 1.0,
         }
 
         # Knowledge base
@@ -132,7 +139,7 @@ class PARLMAPEKExecutor:
             "historical_anomalies": [],
             "successful_recoveries": [],
             "failed_recoveries": [],
-            "node_health_history": {}
+            "node_health_history": {},
         }
 
     async def initialize(self) -> None:
@@ -141,11 +148,12 @@ class PARLMAPEKExecutor:
 
         if HAS_PARL and PARLController is not None:
             self.parl_controller = PARLController(
-                max_workers=self.max_workers,
-                max_parallel_steps=self.max_parallel_steps
+                max_workers=self.max_workers, max_parallel_steps=self.max_parallel_steps
             )
             await self.parl_controller.initialize()
-            logger.info(f"PARL MAPE-K executor initialized with {self.max_workers} workers")
+            logger.info(
+                f"PARL MAPE-K executor initialized with {self.max_workers} workers"
+            )
         else:
             logger.warning("PARL not available - using sequential MAPE-K execution")
 
@@ -175,7 +183,9 @@ class PARLMAPEKExecutor:
 
             # Phase 2: Analyze (parallel for different anomaly types)
             context.current_phase = MAPEKPhase.ANALYZE
-            analysis_results = await self._execute_analyze_phase(context, monitor_results)
+            analysis_results = await self._execute_analyze_phase(
+                context, monitor_results
+            )
             results["analyze"] = analysis_results
 
             # Phase 3: Plan (parallel evaluation of strategies)
@@ -203,7 +213,7 @@ class PARLMAPEKExecutor:
                 "nodes_monitored": len(monitor_results),
                 "anomalies_detected": len(analysis_results),
                 "plans_generated": len(plan_results),
-                "actions_executed": len(execute_results)
+                "actions_executed": len(execute_results),
             }
 
             # Update global metrics
@@ -211,10 +221,12 @@ class PARLMAPEKExecutor:
             self.metrics["total_anomalies_detected"] += len(analysis_results)
             self.metrics["total_actions_executed"] += len(execute_results)
             self.metrics["avg_cycle_time_ms"] = (
-                (self.metrics["avg_cycle_time_ms"] * (self.metrics["total_cycles"] - 1) + cycle_time_ms)
-                / self.metrics["total_cycles"]
-            )
-            self.metrics["speedup_vs_sequential"] = results["metrics"]["speedup_vs_sequential"]
+                self.metrics["avg_cycle_time_ms"] * (self.metrics["total_cycles"] - 1)
+                + cycle_time_ms
+            ) / self.metrics["total_cycles"]
+            self.metrics["speedup_vs_sequential"] = results["metrics"][
+                "speedup_vs_sequential"
+            ]
 
             logger.info(
                 f"MAPE-K cycle {context.cycle_id} completed in {cycle_time_ms:.2f}ms "
@@ -231,8 +243,7 @@ class PARLMAPEKExecutor:
         return results
 
     async def _execute_monitor_phase(
-        self,
-        context: MAPEKContext
+        self, context: MAPEKContext
     ) -> List[Dict[str, Any]]:
         """Execute Monitor phase in parallel across all nodes."""
         logger.debug(f"Monitor phase: {len(context.mesh_nodes)} nodes")
@@ -241,7 +252,7 @@ class PARLMAPEKExecutor:
             {
                 "task_id": f"{context.cycle_id}_monitor_{node_id}",
                 "task_type": "monitoring",
-                "payload": {"node_id": node_id}
+                "payload": {"node_id": node_id},
             }
             for node_id in context.mesh_nodes
         ]
@@ -254,9 +265,7 @@ class PARLMAPEKExecutor:
         return results
 
     async def _execute_analyze_phase(
-        self,
-        context: MAPEKContext,
-        monitor_results: List[Dict[str, Any]]
+        self, context: MAPEKContext, monitor_results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Execute Analyze phase in parallel for different anomaly types."""
         # Extract anomalies from monitor results
@@ -268,12 +277,14 @@ class PARLMAPEKExecutor:
                     # Check for simulated anomalies
                     metrics = result.get("result", {}).get("metrics", {})
                     if metrics.get("cpu", 0) > 80:
-                        anomalies.append({
-                            "anomaly_id": f"anomaly_{len(anomalies)}",
-                            "type": "high_cpu",
-                            "node_id": result.get("result", {}).get("node_id"),
-                            "severity": "medium"
-                        })
+                        anomalies.append(
+                            {
+                                "anomaly_id": f"anomaly_{len(anomalies)}",
+                                "type": "high_cpu",
+                                "node_id": result.get("result", {}).get("node_id"),
+                                "severity": "medium",
+                            }
+                        )
 
         if not anomalies:
             return []
@@ -284,7 +295,7 @@ class PARLMAPEKExecutor:
             {
                 "task_id": f"{context.cycle_id}_analyze_{a['anomaly_id']}",
                 "task_type": "analysis",
-                "payload": {"anomaly": a}
+                "payload": {"anomaly": a},
             }
             for a in anomalies
         ]
@@ -297,9 +308,7 @@ class PARLMAPEKExecutor:
         return results
 
     async def _execute_plan_phase(
-        self,
-        context: MAPEKContext,
-        analysis_results: List[Dict[str, Any]]
+        self, context: MAPEKContext, analysis_results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Execute Plan phase to generate recovery strategies."""
         if not analysis_results:
@@ -311,7 +320,7 @@ class PARLMAPEKExecutor:
             {
                 "task_id": f"{context.cycle_id}_plan_{i}",
                 "task_type": "optimization",
-                "payload": {"analysis": result}
+                "payload": {"analysis": result},
             }
             for i, result in enumerate(analysis_results)
         ]
@@ -324,9 +333,7 @@ class PARLMAPEKExecutor:
         return results
 
     async def _execute_execute_phase(
-        self,
-        context: MAPEKContext,
-        plan_results: List[Dict[str, Any]]
+        self, context: MAPEKContext, plan_results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Execute recovery actions in parallel."""
         if not plan_results:
@@ -348,7 +355,7 @@ class PARLMAPEKExecutor:
             {
                 "task_id": f"{context.cycle_id}_execute_{i}",
                 "task_type": "route_optimization",  # Using existing task type
-                "payload": {"action": action}
+                "payload": {"action": action},
             }
             for i, action in enumerate(actions)
         ]
@@ -361,9 +368,7 @@ class PARLMAPEKExecutor:
         return results
 
     async def _execute_tasks_sequential(
-        self,
-        tasks: List[Dict[str, Any]],
-        handler: Callable
+        self, tasks: List[Dict[str, Any]], handler: Callable
     ) -> List[Dict[str, Any]]:
         """Fallback sequential execution."""
         results = []
@@ -384,8 +389,8 @@ class PARLMAPEKExecutor:
                 "node_id": task["payload"]["node_id"],
                 "status": "healthy",
                 "metrics": {"cpu": 45, "memory": 62, "latency": 23},
-                "anomalies": []
-            }
+                "anomalies": [],
+            },
         }
 
     async def _analyze_anomaly(self, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -398,8 +403,8 @@ class PARLMAPEKExecutor:
                 "anomaly_id": anomaly.get("anomaly_id"),
                 "root_cause": "resource_contention",
                 "confidence": 0.85,
-                "recommendations": ["scale_horizontally", "optimize_queries"]
-            }
+                "recommendations": ["scale_horizontally", "optimize_queries"],
+            },
         }
 
     async def _generate_plan(self, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -412,10 +417,10 @@ class PARLMAPEKExecutor:
                 "strategy": "auto_recovery",
                 "actions": [
                     {"type": "restart_service", "target": "node_001"},
-                    {"type": "rebalance_load", "target": "cluster"}
+                    {"type": "rebalance_load", "target": "cluster"},
                 ],
-                "estimated_recovery_time": 30.0
-            }
+                "estimated_recovery_time": 30.0,
+            },
         }
 
     async def _execute_action(self, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -428,33 +433,32 @@ class PARLMAPEKExecutor:
                 "action_type": action.get("type", "unknown"),
                 "target": action.get("target", "unknown"),
                 "success": True,
-                "duration_ms": 50
-            }
+                "duration_ms": 50,
+            },
         }
 
     async def _update_knowledge(
-        self,
-        context: MAPEKContext,
-        results: Dict[str, Any]
+        self, context: MAPEKContext, results: Dict[str, Any]
     ) -> None:
         """Update knowledge base with cycle results."""
         # Store anomalies
         for analysis in results.get("analyze", []):
             if isinstance(analysis, dict):
-                self.knowledge_base["historical_anomalies"].append({
-                    "cycle_id": context.cycle_id,
-                    "analysis": analysis,
-                    "timestamp": time.time()
-                })
+                self.knowledge_base["historical_anomalies"].append(
+                    {
+                        "cycle_id": context.cycle_id,
+                        "analysis": analysis,
+                        "timestamp": time.time(),
+                    }
+                )
 
         # Keep only last 1000 entries
-        self.knowledge_base["historical_anomalies"] = \
-            self.knowledge_base["historical_anomalies"][-1000:]
+        self.knowledge_base["historical_anomalies"] = self.knowledge_base[
+            "historical_anomalies"
+        ][-1000:]
 
     def _estimate_sequential_time(
-        self,
-        context: MAPEKContext,
-        results: Dict[str, Any]
+        self, context: MAPEKContext, results: Dict[str, Any]
     ) -> float:
         """Estimate sequential execution time."""
         # Rough estimates based on operation counts
@@ -470,7 +474,7 @@ class PARLMAPEKExecutor:
         return {
             **self.metrics,
             "parl_enabled": self.parl_controller is not None,
-            "knowledge_base_size": len(self.knowledge_base["historical_anomalies"])
+            "knowledge_base_size": len(self.knowledge_base["historical_anomalies"]),
         }
 
     async def terminate(self) -> None:
@@ -486,17 +490,16 @@ class PARLMAPEKExecutor:
 
 # Convenience functions
 
+
 async def execute_mapek_cycle_with_parl(
-    mesh_nodes: List[str],
-    cycle_id: Optional[str] = None
+    mesh_nodes: List[str], cycle_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Execute a single MAPE-K cycle with PARL acceleration."""
     executor = PARLMAPEKExecutor()
     await executor.initialize()
 
     context = MAPEKContext(
-        cycle_id=cycle_id or f"cycle_{int(time.time())}",
-        mesh_nodes=mesh_nodes
+        cycle_id=cycle_id or f"cycle_{int(time.time())}", mesh_nodes=mesh_nodes
     )
 
     try:

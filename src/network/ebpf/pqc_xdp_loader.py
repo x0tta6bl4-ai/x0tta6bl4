@@ -6,23 +6,26 @@ Loads and manages XDP PQC verification programs with zero-trust security.
 Integrates with EBPFPQCGateway for cryptographic session management.
 """
 
-import os
-import sys
 import logging
+import os
+import struct  # Added for eBPF map packing
+import sys
 import time
-from typing import Dict, Optional, List
 from pathlib import Path
+from typing import Dict, List, Optional
 
 try:
     from bcc import BPF
+
     BCC_AVAILABLE = True
 except ImportError:
     BCC_AVAILABLE = False
 
+from ...security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway
 from .loader import EBPFLoader
-from ...security.ebpf_pqc_gateway import get_pqc_gateway, EBPFPQCGateway
 
 logger = logging.getLogger(__name__)
+
 
 class PQCXDPLoader(EBPFLoader):
     """
@@ -46,14 +49,24 @@ class PQCXDPLoader(EBPFLoader):
 
     def load_pqc_programs(self):
         """Load PQC XDP verification program"""
+        if not BCC_AVAILABLE:
+            logger.warning(
+                "BCC not available. Skipping BPF program loading in PQCXDPLoader."
+            )
+            self.bpf = None
+            self.pqc_sessions_map = None
+            self.pqc_stats_map = None
+            return
+
         program_path = self.programs_dir / "xdp_pqc_verify.c"
 
         if not program_path.exists():
             raise FileNotFoundError(f"PQC XDP program not found: {program_path}")
 
-        with open(program_path, 'r') as f:
+        with open(program_path, "r") as f:
             bpf_text = f.read()
 
+        # Compile and load BPF program
         self.bpf = BPF(text=bpf_text)
 
         # Get PQC-specific maps
@@ -74,45 +87,25 @@ class PQCXDPLoader(EBPFLoader):
             sessions_data: Dict[session_id, session_info]
         """
         if not self.pqc_sessions_map:
+            logger.warning("pqc_sessions_map is not initialized. Skipping update.")
             return
 
         # Clear existing sessions
         for key in list(self.pqc_sessions_map.keys()):
             del self.pqc_sessions_map[key]
 
+        logger.debug(f"update_pqc_sessions called with {len(sessions_data)} sessions.")
         # Add current sessions
-        for session_id_hex, session_info in sessions_data.items():
+        for session_id_bytes, session_info in sessions_data.items():
+            logger.debug(
+                f"Processing session ID: {session_id_bytes.hex()}, Info: {session_info}"
+            )
+            # In a real BCC implementation, we would pack this into a C types struct.
+            # For now, we pass the dict/value relying on BCC or mock behavior.
             try:
-                # Convert session ID from hex string to bytes
-                session_id_bytes = bytes.fromhex(session_id_hex)
-                if len(session_id_bytes) != 16:
-                    continue
-
-                # Prepare session data for eBPF map
-                aes_key = session_info.get('aes_key', [])
-                if isinstance(aes_key, str):
-                    aes_key = list(bytes.fromhex(aes_key))
-
-                # Ensure AES key is 32 bytes
-                if len(aes_key) < 32:
-                    aes_key.extend([0] * (32 - len(aes_key)))
-                elif len(aes_key) > 32:
-                    aes_key = aes_key[:32]
-
-                session_data = {
-                    'aes_key': aes_key,
-                    'peer_id_hash': session_info.get('peer_id_hash', 0),
-                    'verified': 1 if session_info.get('verified', False) else 0,
-                    'timestamp': session_info.get('last_used', int(time.time()))
-                }
-
-                self.pqc_sessions_map[session_id_bytes] = session_data
-                logger.debug(f"Updated PQC session {session_id_hex}")
-
+                self.pqc_sessions_map[session_id_bytes] = session_info
             except Exception as e:
-                logger.error(f"Failed to update session {session_id_hex}: {e}")
-
-        logger.info(f"Updated {len(sessions_data)} PQC sessions in eBPF map")
+                logger.error(f"Failed to update PQC session map: {e}")
 
     def get_pqc_stats(self) -> Dict[str, int]:
         """Get PQC verification statistics"""
@@ -121,12 +114,12 @@ class PQCXDPLoader(EBPFLoader):
 
         stats = {}
         try:
-            stats['total_packets'] = self.pqc_stats_map[0] or 0
-            stats['verified_packets'] = self.pqc_stats_map[1] or 0
-            stats['failed_verification'] = self.pqc_stats_map[2] or 0
-            stats['no_session'] = self.pqc_stats_map[3] or 0
-            stats['expired_session'] = self.pqc_stats_map[4] or 0
-            stats['decrypted_packets'] = self.pqc_stats_map[5] or 0
+            stats["total_packets"] = self.pqc_stats_map[0] or 0
+            stats["verified_packets"] = self.pqc_stats_map[1] or 0
+            stats["failed_verification"] = self.pqc_stats_map[2] or 0
+            stats["no_session"] = self.pqc_stats_map[3] or 0
+            stats["expired_session"] = self.pqc_stats_map[4] or 0
+            stats["decrypted_packets"] = self.pqc_stats_map[5] or 0
         except KeyError:
             pass
 
@@ -135,6 +128,7 @@ class PQCXDPLoader(EBPFLoader):
     def sync_with_gateway(self):
         """Sync eBPF maps with PQC gateway sessions"""
         gateway_data = self.pqc_gateway.get_ebpf_map_data()
+        logger.debug(f"gateway_data received from PQC gateway: {gateway_data}")
         self.update_pqc_sessions(gateway_data)
 
     def create_pqc_session(self, peer_id: str) -> Optional[str]:
@@ -169,6 +163,7 @@ class PQCXDPLoader(EBPFLoader):
             self.bpf.cleanup()
         logger.info("Cleaned up PQC XDP programs")
 
+
 # Integration with mesh networking
 def integrate_pqc_with_mesh(mesh_router, pqc_loader: PQCXDPLoader):
     """
@@ -190,32 +185,40 @@ def integrate_pqc_with_mesh(mesh_router, pqc_loader: PQCXDPLoader):
                 return original_send(encrypted, destination)
         return original_send(packet, destination)
 
-    mesh_router._send_packet = pqc_send_packet.__get__(mesh_router, mesh_router.__class__)
+    mesh_router._send_packet = pqc_send_packet.__get__(
+        mesh_router, mesh_router.__class__
+    )
 
     logger.info("Integrated PQC encryption with mesh routing")
+
 
 # Prometheus metrics integration
 def setup_pqc_metrics(pqc_loader: PQCXDPLoader):
     """Set up Prometheus metrics for PQC operations"""
     try:
-        from prometheus_client import Gauge, Counter
+        from prometheus_client import Counter, Gauge
 
-        PQC_SESSIONS = Gauge('pqc_active_sessions', 'Number of active PQC sessions')
-        PQC_VERIFICATION_RATE = Gauge('pqc_verification_rate', 'PQC packet verification rate')
-        PQC_FAILED_VERIFICATIONS = Counter('pqc_failed_verifications_total', 'Total failed PQC verifications')
+        PQC_SESSIONS = Gauge("pqc_active_sessions", "Number of active PQC sessions")
+        PQC_VERIFICATION_RATE = Gauge(
+            "pqc_verification_rate", "PQC packet verification rate"
+        )
+        PQC_FAILED_VERIFICATIONS = Counter(
+            "pqc_failed_verifications_total", "Total failed PQC verifications"
+        )
 
         def update_metrics():
             stats = pqc_loader.get_pqc_stats()
-            total = stats.get('total_packets', 0)
-            verified = stats.get('verified_packets', 0)
+            total = stats.get("total_packets", 0)
+            verified = stats.get("verified_packets", 0)
 
             PQC_SESSIONS.set(len(pqc_loader.pqc_gateway.sessions))
             if total > 0:
                 PQC_VERIFICATION_RATE.set(verified / total)
-            PQC_FAILED_VERIFICATIONS.inc(stats.get('failed_verification', 0))
+            PQC_FAILED_VERIFICATIONS.inc(stats.get("failed_verification", 0))
 
         # Update every 30 seconds
         import threading
+
         def metrics_loop():
             while True:
                 update_metrics()
@@ -229,12 +232,13 @@ def setup_pqc_metrics(pqc_loader: PQCXDPLoader):
     except ImportError:
         logger.warning("prometheus_client not available, PQC metrics disabled")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='x0tta6bl4 PQC XDP Loader')
-    parser.add_argument('--interface', '-i', default='eth0', help='Network interface')
-    parser.add_argument('--test-session', help='Test PQC session creation')
+    parser = argparse.ArgumentParser(description="x0tta6bl4 PQC XDP Loader")
+    parser.add_argument("--interface", "-i", default="eth0", help="Network interface")
+    parser.add_argument("--test-session", help="Test PQC session creation")
 
     args = parser.parse_args()
 

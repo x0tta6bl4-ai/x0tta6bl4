@@ -1,49 +1,65 @@
+import datetime
 import os
+
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
-import datetime
 
 from src.security.ebpf_pqc_gateway import EBPFPQCGateway, PQCSession
 from src.security.spiffe.certificate_validator import CertificateValidator
 
 
-def _create_ca_and_signed_cert(spiffe_uri: str = None, not_valid_after=None, not_valid_before=None):
+def _create_ca_and_signed_cert(
+    spiffe_uri: str = None, not_valid_after=None, not_valid_before=None
+):
     # Create CA key
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, u"Test CA"),
-    ])
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, "Test CA"),
+        ]
+    )
     ca_cert = (
         x509.CertificateBuilder()
         .subject_name(subject)
         .issuer_name(issuer)
         .public_key(ca_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(not_valid_before or datetime.datetime.utcnow() - datetime.timedelta(days=1))
-        .not_valid_after(not_valid_after or (datetime.datetime.utcnow() + datetime.timedelta(days=365)))
+        .not_valid_before(
+            not_valid_before or datetime.datetime.utcnow() - datetime.timedelta(days=1)
+        )
+        .not_valid_after(
+            not_valid_after
+            or (datetime.datetime.utcnow() + datetime.timedelta(days=365))
+        )
         .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
         .sign(ca_key, hashes.SHA256())
     )
 
     # Leaf key and cert
     leaf_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    leaf_subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"leaf")])
+    leaf_subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "leaf")])
     builder = (
         x509.CertificateBuilder()
         .subject_name(leaf_subject)
         .issuer_name(ca_cert.subject)
         .public_key(leaf_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(not_valid_before or datetime.datetime.utcnow() - datetime.timedelta(hours=1))
-        .not_valid_after(not_valid_after or (datetime.datetime.utcnow() + datetime.timedelta(days=90)))
+        .not_valid_before(
+            not_valid_before or datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        )
+        .not_valid_after(
+            not_valid_after
+            or (datetime.datetime.utcnow() + datetime.timedelta(days=90))
+        )
     )
 
     if spiffe_uri:
         builder = builder.add_extension(
-            x509.SubjectAlternativeName([x509.UniformResourceIdentifier(spiffe_uri)]), critical=False
+            x509.SubjectAlternativeName([x509.UniformResourceIdentifier(spiffe_uri)]),
+            critical=False,
         )
 
     leaf_cert = builder.sign(private_key=ca_key, algorithm=hashes.SHA256())
@@ -54,9 +70,13 @@ def _create_ca_and_signed_cert(spiffe_uri: str = None, not_valid_after=None, not
 
 
 def test_certificate_chain_validation_success():
-    ca_pem, leaf_pem = _create_ca_and_signed_cert(spiffe_uri="spiffe://x0tta6bl4.mesh/service")
+    ca_pem, leaf_pem = _create_ca_and_signed_cert(
+        spiffe_uri="spiffe://x0tta6bl4.mesh/service"
+    )
     cv = CertificateValidator()
-    valid, spiffe_id, err = cv.validate_certificate(leaf_pem, expected_spiffe_id=None, trust_bundle=[ca_pem])
+    valid, spiffe_id, err = cv.validate_certificate(
+        leaf_pem, expected_spiffe_id=None, trust_bundle=[ca_pem]
+    )
     assert valid is True
     assert spiffe_id and spiffe_id.startswith("spiffe://")
     assert err is None
@@ -125,10 +145,14 @@ def test_ebpf_encrypt_unverified_session_returns_none():
     gw = object.__new__(EBPFPQCGateway)
     gw.sessions = {}
     session = PQCSession(
-        session_id="s3", peer_id="p3",
-        kem_public_key=b"", dsa_public_key=b"",
-        aes_key=os.urandom(32), verified=False,
-        created_at=0, last_used=0,
+        session_id="s3",
+        peer_id="p3",
+        kem_public_key=b"",
+        dsa_public_key=b"",
+        aes_key=os.urandom(32),
+        verified=False,
+        created_at=0,
+        last_used=0,
     )
     gw.sessions[session.session_id] = session
     assert gw.encrypt_payload("s3", b"data") is None
@@ -138,10 +162,14 @@ def test_ebpf_decrypt_too_short_returns_none():
     gw = object.__new__(EBPFPQCGateway)
     gw.sessions = {}
     session = PQCSession(
-        session_id="s4", peer_id="p4",
-        kem_public_key=b"", dsa_public_key=b"",
-        aes_key=os.urandom(32), verified=True,
-        created_at=0, last_used=0,
+        session_id="s4",
+        peer_id="p4",
+        kem_public_key=b"",
+        dsa_public_key=b"",
+        aes_key=os.urandom(32),
+        verified=True,
+        created_at=0,
+        last_used=0,
     )
     gw.sessions[session.session_id] = session
     assert gw.decrypt_payload("s4", b"short") is None
@@ -150,19 +178,21 @@ def test_ebpf_decrypt_too_short_returns_none():
 # ---------------------------------------------------------------------------
 # ZeroTrustValidator tests (mock WorkloadAPIClient)
 # ---------------------------------------------------------------------------
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestZeroTrustValidator:
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_init_default_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
+
         ztv = ZeroTrustValidator()
         assert ztv.trust_domain == "x0tta6bl4.mesh"
 
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_validates_same_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
+
         ztv = ZeroTrustValidator()
         result = ztv.validate_connection("spiffe://x0tta6bl4.mesh/svc-a")
         assert result is True
@@ -170,6 +200,7 @@ class TestZeroTrustValidator:
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_rejects_different_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
+
         ztv = ZeroTrustValidator()
         result = ztv.validate_connection("spiffe://evil.domain/svc")
         assert result is False
@@ -177,6 +208,7 @@ class TestZeroTrustValidator:
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_stats_tracking(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
+
         ztv = ZeroTrustValidator()
         ztv.validate_connection("spiffe://x0tta6bl4.mesh/ok")
         ztv.validate_connection("spiffe://bad.domain/nope")
@@ -188,6 +220,7 @@ class TestZeroTrustValidator:
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_stats_zero_attempts(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
+
         ztv = ZeroTrustValidator()
         stats = ztv.get_validation_stats()
         assert stats["total_attempts"] == 0
@@ -198,9 +231,11 @@ class TestZeroTrustValidator:
 # DeviceAttestor tests
 # ---------------------------------------------------------------------------
 
+
 class TestDeviceAttestor:
     def test_create_fingerprint_structure(self):
         from src.security.device_attestation import DeviceAttestor
+
         da = DeviceAttestor(secret_salt="test-salt")
         fp = da.create_fingerprint()
         assert fp.fingerprint_hash
@@ -211,12 +246,18 @@ class TestDeviceAttestor:
 
     def test_fingerprint_same_salt_same_hash(self):
         from src.security.device_attestation import DeviceAttestor
+
         da1 = DeviceAttestor(secret_salt="stable-salt")
         da2 = DeviceAttestor(secret_salt="stable-salt")
-        assert da1.create_fingerprint().fingerprint_hash == da2.create_fingerprint().fingerprint_hash
+        assert (
+            da1.create_fingerprint().fingerprint_hash
+            == da2.create_fingerprint().fingerprint_hash
+        )
 
     def test_create_attestation_has_signature(self):
-        from src.security.device_attestation import DeviceAttestor, AttestationType
+        from src.security.device_attestation import (AttestationType,
+                                                     DeviceAttestor)
+
         da = DeviceAttestor(secret_salt="sig-salt")
         claim = da.create_attestation(AttestationType.COMPOSITE)
         assert claim.signature
@@ -225,6 +266,7 @@ class TestDeviceAttestor:
 
     def test_verify_valid_attestation(self):
         from src.security.device_attestation import DeviceAttestor
+
         da = DeviceAttestor(secret_salt="verify-salt")
         claim = da.create_attestation()
         valid, reason = da.verify_attestation(claim)
@@ -233,6 +275,7 @@ class TestDeviceAttestor:
 
     def test_verify_tampered_signature(self):
         from src.security.device_attestation import DeviceAttestor
+
         da = DeviceAttestor(secret_salt="tamper-salt")
         claim = da.create_attestation()
         claim.signature = "tampered" + claim.signature[8:]
@@ -245,19 +288,32 @@ class TestDeviceAttestor:
 # TrustScore tests
 # ---------------------------------------------------------------------------
 
+
 class TestTrustScore:
     def test_update_weighted_average(self):
-        from src.security.device_attestation import TrustScore, TrustLevel
-        ts = TrustScore(device_id="d1", score=0.5, level=TrustLevel.MEDIUM,
-                        factors={}, last_updated=0)
+        from src.security.device_attestation import TrustLevel, TrustScore
+
+        ts = TrustScore(
+            device_id="d1",
+            score=0.5,
+            level=TrustLevel.MEDIUM,
+            factors={},
+            last_updated=0,
+        )
         ts.update(1.0)
         # 0.7 * 1.0 + 0.3 * 0.5 = 0.85
         assert abs(ts.score - 0.85) < 0.01
 
     def test_level_boundaries(self):
-        from src.security.device_attestation import TrustScore, TrustLevel
-        ts = TrustScore(device_id="d2", score=0.95, level=TrustLevel.VERIFIED,
-                        factors={}, last_updated=0)
+        from src.security.device_attestation import TrustLevel, TrustScore
+
+        ts = TrustScore(
+            device_id="d2",
+            score=0.95,
+            level=TrustLevel.VERIFIED,
+            factors={},
+            last_updated=0,
+        )
         assert ts._calculate_level() == TrustLevel.VERIFIED
         ts.score = 0.75
         assert ts._calculate_level() == TrustLevel.HIGH
@@ -273,16 +329,21 @@ class TestTrustScore:
 # AdaptiveTrustManager tests
 # ---------------------------------------------------------------------------
 
+
 class TestAdaptiveTrustManager:
     def test_default_score_is_medium(self):
-        from src.security.device_attestation import AdaptiveTrustManager, TrustLevel
+        from src.security.device_attestation import (AdaptiveTrustManager,
+                                                     TrustLevel)
+
         atm = AdaptiveTrustManager()
         ts = atm.get_trust_score("new-device")
         assert ts.score == 0.5
         assert ts.level == TrustLevel.MEDIUM
 
     def test_is_trusted_default(self):
-        from src.security.device_attestation import AdaptiveTrustManager, TrustLevel
+        from src.security.device_attestation import (AdaptiveTrustManager,
+                                                     TrustLevel)
+
         atm = AdaptiveTrustManager()
         assert atm.is_trusted("dev1", TrustLevel.MEDIUM) is True
         assert atm.is_trusted("dev1", TrustLevel.VERIFIED) is False
@@ -292,26 +353,31 @@ class TestAdaptiveTrustManager:
 # PolicyEngine Attribute & Condition tests
 # ---------------------------------------------------------------------------
 
+
 class TestPolicyAttributes:
     def test_attribute_matches_wildcard(self):
         from src.security.policy_engine import Attribute, AttributeType
+
         attr = Attribute(type=AttributeType.SUBJECT, name="id", value="anything")
         assert attr.matches("*") is True
 
     def test_attribute_matches_regex(self):
         from src.security.policy_engine import Attribute, AttributeType
+
         attr = Attribute(type=AttributeType.SUBJECT, name="id", value="node-123")
         assert attr.matches("regex:node-\\d+") is True
         assert attr.matches("regex:service-\\d+") is False
 
     def test_attribute_matches_list(self):
         from src.security.policy_engine import Attribute, AttributeType
+
         attr = Attribute(type=AttributeType.ACTION, name="method", value="GET")
         assert attr.matches(["GET", "POST"]) is True
         assert attr.matches(["PUT", "DELETE"]) is False
 
     def test_attribute_matches_dict_comparison(self):
         from src.security.policy_engine import Attribute, AttributeType
+
         attr = Attribute(type=AttributeType.ENVIRONMENT, name="score", value=75)
         assert attr.matches({"gt": 50}) is True
         assert attr.matches({"lt": 50}) is False

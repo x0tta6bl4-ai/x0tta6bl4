@@ -4,13 +4,15 @@ Phase 3: PQC Stress Testing
 Tests PQC performance under high load and stress conditions.
 """
 
-import pytest
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
+
     PQC_AVAILABLE = True
 except ImportError:
     PQC_AVAILABLE = False
@@ -67,6 +69,7 @@ class TestPQCStress:
     @pytest.mark.asyncio
     async def test_pqc_concurrent_operations(self):
         """Test 100 concurrent PQC operations"""
+
         async def pqc_operation(task_id):
             pqc = PQMeshSecurityLibOQS(node_id=f"stress-concurrent-{task_id}")
             pk = pqc.generate_kem_keypair()
@@ -126,16 +129,14 @@ class TestPQCStress:
     @pytest.mark.slow
     def test_pqc_parallel_key_generation(self):
         """Test parallel key generation across threads"""
+
         def generate_keys(thread_id, num_keys=50):
             pqc = PQMeshSecurityLibOQS(node_id=f"stress-thread-{thread_id}")
             keys = [pqc.generate_kem_keypair() for _ in range(num_keys)]
             return len(keys)
 
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [
-                executor.submit(generate_keys, i)
-                for i in range(4)
-            ]
+            futures = [executor.submit(generate_keys, i) for i in range(4)]
             results = [f.result() for f in futures]
 
         total_keys = sum(results)

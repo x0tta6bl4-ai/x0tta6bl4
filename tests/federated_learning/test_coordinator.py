@@ -9,24 +9,19 @@
 - Callback'и
 - Byzantine detection и бан
 """
-import pytest
-import time
-import threading
-from unittest.mock import Mock, patch, MagicMock
 
-from src.federated_learning.coordinator import (
-    FederatedCoordinator,
-    CoordinatorConfig,
-    NodeInfo,
-    NodeStatus,
-    TrainingRound,
-    RoundStatus,
-)
-from src.federated_learning.protocol import (
-    ModelWeights,
-    ModelUpdate,
-    GlobalModel,
-)
+import threading
+import time
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from src.federated_learning.coordinator import (CoordinatorConfig,
+                                                FederatedCoordinator, NodeInfo,
+                                                NodeStatus, RoundStatus,
+                                                TrainingRound)
+from src.federated_learning.protocol import (GlobalModel, ModelUpdate,
+                                             ModelWeights)
 
 
 class TestNodeInfo:
@@ -53,19 +48,13 @@ class TestNodeInfo:
 
     def test_node_not_eligible_low_trust(self):
         """Нода с низким trust не eligible."""
-        node = NodeInfo(
-            node_id="node-001",
-            status=NodeStatus.ONLINE,
-            trust_score=0.3
-        )
+        node = NodeInfo(node_id="node-001", status=NodeStatus.ONLINE, trust_score=0.3)
         assert node.is_eligible(min_trust=0.5) is False
 
     def test_node_not_eligible_too_many_violations(self):
         """Нода с множеством нарушений не eligible."""
         node = NodeInfo(
-            node_id="node-001",
-            status=NodeStatus.ONLINE,
-            byzantine_violations=5
+            node_id="node-001", status=NodeStatus.ONLINE, byzantine_violations=5
         )
         assert node.is_eligible() is False
 
@@ -75,10 +64,7 @@ class TestTrainingRound:
 
     def test_create_round(self):
         """Создание раунда."""
-        round_obj = TrainingRound(
-            round_number=1,
-            min_participants=3
-        )
+        round_obj = TrainingRound(round_number=1, min_participants=3)
 
         assert round_obj.round_number == 1
         assert round_obj.status == RoundStatus.PENDING
@@ -86,10 +72,7 @@ class TestTrainingRound:
 
     def test_collection_complete(self):
         """Проверка завершения сбора."""
-        round_obj = TrainingRound(
-            round_number=1,
-            min_participants=2
-        )
+        round_obj = TrainingRound(round_number=1, min_participants=2)
 
         # Добавляем обновления
         round_obj.received_updates["node-1"] = Mock()
@@ -100,10 +83,7 @@ class TestTrainingRound:
 
     def test_deadline_check(self):
         """Проверка дедлайна."""
-        round_obj = TrainingRound(
-            round_number=1,
-            collection_deadline=time.time() + 10
-        )
+        round_obj = TrainingRound(round_number=1, collection_deadline=time.time() + 10)
         assert round_obj.is_deadline_passed() is False
 
         round_obj.collection_deadline = time.time() - 10
@@ -114,7 +94,7 @@ class TestTrainingRound:
         round_obj = TrainingRound(
             round_number=5,
             status=RoundStatus.COLLECTING,
-            selected_nodes={"node-1", "node-2"}
+            selected_nodes={"node-1", "node-2"},
         )
 
         data = round_obj.to_dict()
@@ -136,9 +116,7 @@ class TestCoordinatorConfig:
     def test_custom_config(self):
         """Кастомная конфигурация."""
         config = CoordinatorConfig(
-            min_participants=5,
-            aggregation_method="fedavg",
-            enable_privacy=False
+            min_participants=5, aggregation_method="fedavg", enable_privacy=False
         )
 
         assert config.min_participants == 5
@@ -225,7 +203,10 @@ class TestRoundManagement:
         assert round_obj is not None
         assert round_obj.round_number == 1
         assert round_obj.status == RoundStatus.STARTED
-        assert len(round_obj.selected_nodes) >= coordinator_with_nodes.config.min_participants
+        assert (
+            len(round_obj.selected_nodes)
+            >= coordinator_with_nodes.config.min_participants
+        )
 
     def test_start_round_not_enough_nodes(self, coordinator, simple_weights):
         """Запуск раунда без достаточного количества нод."""
@@ -276,7 +257,9 @@ class TestRoundManagement:
         assert result is True
         assert selected_node in round_obj.received_updates
 
-    def test_submit_update_from_non_selected(self, coordinator_with_nodes, model_update_factory):
+    def test_submit_update_from_non_selected(
+        self, coordinator_with_nodes, model_update_factory
+    ):
         """Обновление от невыбранной ноды отклоняется."""
         coordinator_with_nodes.start_round()
 
@@ -285,7 +268,9 @@ class TestRoundManagement:
 
         assert result is False
 
-    def test_submit_duplicate_update(self, coordinator_with_nodes, model_update_factory):
+    def test_submit_duplicate_update(
+        self, coordinator_with_nodes, model_update_factory
+    ):
         """Дублирующее обновление отклоняется."""
         round_obj = coordinator_with_nodes.start_round()
         selected_node = list(round_obj.selected_nodes)[0]
@@ -343,8 +328,11 @@ class TestAggregation:
 class TestCallbacks:
     """Тесты callback'ов."""
 
-    def test_on_round_complete_callback(self, coordinator_with_nodes, model_update_factory, event_tracker):
+    def test_on_round_complete_callback(
+        self, coordinator_with_nodes, model_update_factory, event_tracker
+    ):
         """Callback при завершении раунда."""
+
         def callback(round_obj):
             event_tracker.record("round_complete", round=round_obj.round_number)
 
@@ -360,8 +348,11 @@ class TestCallbacks:
         if round_obj.status == RoundStatus.COMPLETED:
             assert len(events) >= 1
 
-    def test_on_model_update_callback(self, coordinator_with_nodes, model_update_factory, event_tracker):
+    def test_on_model_update_callback(
+        self, coordinator_with_nodes, model_update_factory, event_tracker
+    ):
         """Callback при обновлении модели."""
+
         def callback(model):
             event_tracker.record("model_update", version=model.version)
 
@@ -450,7 +441,9 @@ class TestMetrics:
 class TestByzantineHandling:
     """Тесты обработки Byzantine поведения."""
 
-    def test_trust_score_decrease_on_byzantine(self, coordinator_with_nodes, model_update_factory):
+    def test_trust_score_decrease_on_byzantine(
+        self, coordinator_with_nodes, model_update_factory
+    ):
         """Trust score уменьшается при Byzantine detection."""
         round_obj = coordinator_with_nodes.start_round()
 
@@ -462,13 +455,14 @@ class TestByzantineHandling:
         initial_trust = coordinator_with_nodes.nodes[normal_node].trust_score
 
         # Имитируем Byzantine detection через aggregation result
-        with patch.object(coordinator_with_nodes.aggregator, 'aggregate') as mock_agg:
-            from src.federated_learning.protocol import AggregationResult, GlobalModel
+        with patch.object(coordinator_with_nodes.aggregator, "aggregate") as mock_agg:
+            from src.federated_learning.protocol import (AggregationResult,
+                                                         GlobalModel)
 
             mock_result = AggregationResult(
                 success=True,
                 global_model=coordinator_with_nodes.global_model,
-                suspected_byzantine=[normal_node]
+                suspected_byzantine=[normal_node],
             )
             mock_agg.return_value = mock_result
 

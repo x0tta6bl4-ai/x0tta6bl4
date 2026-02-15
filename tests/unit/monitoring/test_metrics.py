@@ -1,27 +1,20 @@
 """Unit tests for Prometheus metrics exporter."""
 
-import pytest
 from unittest.mock import MagicMock, patch
-from src.monitoring.metrics import (
-    http_requests_total,
-    http_request_duration_seconds,
-    mesh_peers_count,
-    mesh_latency_seconds,
-    mape_k_cycle_duration_seconds,
-    self_healing_events_total,
-    self_healing_mttr_seconds,
-    node_health_status,
-    node_uptime_seconds,
-    update_mesh_peer_count,
-    record_mesh_latency,
-    record_mape_k_cycle,
-    record_self_healing_event,
-    record_mttr,
-    set_node_health,
-    set_node_uptime,
-    get_metrics,
-    MetricsMiddleware,
-)
+
+import pytest
+
+from src.monitoring.metrics import (MetricsMiddleware, get_metrics,
+                                    http_request_duration_seconds,
+                                    http_requests_total,
+                                    mape_k_cycle_duration_seconds,
+                                    mesh_latency_seconds, mesh_peers_count,
+                                    node_health_status, node_uptime_seconds,
+                                    record_mape_k_cycle, record_mesh_latency,
+                                    record_mttr, record_self_healing_event,
+                                    self_healing_events_total,
+                                    self_healing_mttr_seconds, set_node_health,
+                                    set_node_uptime, update_mesh_peer_count)
 
 
 def test_update_mesh_peer_count():
@@ -54,7 +47,9 @@ def test_record_self_healing_event():
     record_self_healing_event("node_failure", "node-a")
     record_self_healing_event("node_failure", "node-a")
     # Verify counter incremented
-    metric = self_healing_events_total.labels(event_type="node_failure", node_id="node-a")
+    metric = self_healing_events_total.labels(
+        event_type="node_failure", node_id="node-a"
+    )
     assert metric._value._value == 2
 
 
@@ -71,7 +66,7 @@ def test_set_node_health():
     set_node_health("node-a", True)
     metric_healthy = node_health_status.labels(node_id="node-a")
     assert metric_healthy._value._value == 1
-    
+
     set_node_health("node-b", False)
     metric_unhealthy = node_health_status.labels(node_id="node-b")
     assert metric_unhealthy._value._value == 0
@@ -94,36 +89,42 @@ def test_get_metrics():
 @pytest.mark.asyncio
 async def test_metrics_middleware_http_request():
     """Test MetricsMiddleware records HTTP requests."""
+
     # Mock ASGI app
     async def mock_app(scope, receive, send):
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": b"OK",
-        })
-    
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"OK",
+            }
+        )
+
     middleware = MetricsMiddleware(mock_app)
-    
+
     scope = {
         "type": "http",
         "method": "GET",
         "path": "/test",
     }
-    
+
     async def mock_receive():
         return {"type": "http.request", "body": b""}
-    
+
     responses = []
+
     async def mock_send(message):
         responses.append(message)
-    
+
     # Execute middleware
     await middleware(scope, mock_receive, mock_send)
-    
+
     # Verify metrics were recorded
     metric = http_requests_total.labels(method="GET", endpoint="/test", status=200)
     assert metric._value._value >= 1
@@ -133,60 +134,63 @@ async def test_metrics_middleware_http_request():
 async def test_metrics_middleware_skips_metrics_endpoint():
     """Test MetricsMiddleware skips /metrics endpoint to avoid recursion."""
     call_count = 0
-    
+
     async def mock_app(scope, receive, send):
         nonlocal call_count
         call_count += 1
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [],
-        })
-    
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [],
+            }
+        )
+
     middleware = MetricsMiddleware(mock_app)
-    
+
     scope = {
         "type": "http",
         "method": "GET",
         "path": "/metrics",
     }
-    
+
     async def mock_receive():
         return {"type": "http.request"}
-    
+
     async def mock_send(message):
         pass
-    
+
     # Execute middleware (should not record metrics for /metrics)
     await middleware(scope, mock_receive, mock_send)
-    
+
     assert call_count == 1  # App was called
 
 
 @pytest.mark.asyncio
 async def test_metrics_middleware_handles_exception():
     """Test MetricsMiddleware records metrics even on exception."""
+
     async def mock_app_error(scope, receive, send):
         raise ValueError("Simulated error")
-    
+
     middleware = MetricsMiddleware(mock_app_error)
-    
+
     scope = {
         "type": "http",
         "method": "POST",
         "path": "/error",
     }
-    
+
     async def mock_receive():
         return {"type": "http.request"}
-    
+
     async def mock_send(message):
         pass
-    
+
     # Execute middleware (should catch exception and record metric)
     with pytest.raises(ValueError):
         await middleware(scope, mock_receive, mock_send)
-    
+
     # Verify metric was recorded with status=500 (default)
     metric = http_requests_total.labels(method="POST", endpoint="/error", status=500)
     assert metric._value._value >= 1
@@ -195,25 +199,27 @@ async def test_metrics_middleware_handles_exception():
 @pytest.mark.asyncio
 async def test_metrics_middleware_non_http_scope():
     """Test MetricsMiddleware passes through non-HTTP scopes."""
+
     async def mock_app(scope, receive, send):
         await send({"type": "websocket.accept"})
-    
+
     middleware = MetricsMiddleware(mock_app)
-    
+
     scope = {
         "type": "websocket",
         "path": "/ws",
     }
-    
+
     async def mock_receive():
         return {"type": "websocket.connect"}
-    
+
     messages = []
+
     async def mock_send(message):
         messages.append(message)
-    
+
     # Execute middleware (should pass through websocket)
     await middleware(scope, mock_receive, mock_send)
-    
+
     assert len(messages) == 1
     assert messages[0]["type"] == "websocket.accept"

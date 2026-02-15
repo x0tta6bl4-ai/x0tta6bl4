@@ -1,0 +1,67 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "f56fb669-32ec-4142-b2fe-8b65c4321102",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "dest": "google.com:443",
+          "serverNames": ["google.com", "www.google.com"],
+          "privateKey": "sARj3nxY80sVRmeCxqZbTHyw-bj6Si4vXb3Q-mlflFw",
+          "shortIds": ["6b"]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    },
+    {
+      "tag": "warp",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 40000
+          }
+        ]
+      }
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "outboundTag": "direct",
+        "domain": [
+          "geosite:google",
+          "geosite:spotify",
+          "domain:google.com",
+          "domain:googleapis.com",
+          "domain:googleusercontent.com",
+          "domain:spotify.com",
+          "domain:scdn.co",
+          "domain:spotifycdn.com"
+        ]
+      }
+    ]
+  }
+}

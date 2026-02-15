@@ -8,14 +8,15 @@ Provides clean shutdown with:
 - Background task cleanup
 - Resource cleanup (DB, Redis, etc.)
 """
+
 import asyncio
 import logging
 import signal
 import sys
 import time
-from typing import Optional, Callable, List, Set, Any
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from typing import Any, Callable, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ShutdownState:
     """Tracks shutdown state and active requests."""
+
     is_shutting_down: bool = False
     shutdown_started_at: Optional[float] = None
     active_requests: int = 0
@@ -63,7 +65,7 @@ class GracefulShutdownManager:
         self,
         shutdown_timeout: float = 30.0,
         drain_timeout: float = 10.0,
-        force_exit: bool = True
+        force_exit: bool = True,
     ):
         """
         Initialize shutdown manager.
@@ -98,7 +100,7 @@ class GracefulShutdownManager:
         try:
             self._loop.add_signal_handler(
                 signal.SIGTERM,
-                lambda: asyncio.create_task(self._handle_signal(signal.SIGTERM))
+                lambda: asyncio.create_task(self._handle_signal(signal.SIGTERM)),
             )
             logger.info("SIGTERM handler registered")
         except (ValueError, RuntimeError) as e:
@@ -108,7 +110,7 @@ class GracefulShutdownManager:
         try:
             self._loop.add_signal_handler(
                 signal.SIGINT,
-                lambda: asyncio.create_task(self._handle_signal(signal.SIGINT))
+                lambda: asyncio.create_task(self._handle_signal(signal.SIGINT)),
             )
             logger.info("SIGINT handler registered")
         except (ValueError, RuntimeError) as e:
@@ -227,10 +229,7 @@ class GracefulShutdownManager:
 
         # Wait for tasks to complete cancellation
         if self.state.active_tasks:
-            await asyncio.gather(
-                *self.state.active_tasks,
-                return_exceptions=True
-            )
+            await asyncio.gather(*self.state.active_tasks, return_exceptions=True)
 
         logger.info("Background tasks cancelled")
 
@@ -243,7 +242,7 @@ class GracefulShutdownManager:
         logger.info(f"Running {len(self.state.cleanup_handlers)} cleanup handlers...")
 
         for handler in self.state.cleanup_handlers:
-            name = getattr(handler, '_cleanup_name', handler.__name__)
+            name = getattr(handler, "_cleanup_name", handler.__name__)
             try:
                 logger.debug(f"Running cleanup: {name}")
                 if asyncio.iscoroutinefunction(handler):
@@ -296,10 +295,12 @@ class ShutdownMiddleware:
                 ],
             }
             await send(response)
-            await send({
-                "type": "http.response.body",
-                "body": b'{"error": "Service shutting down", "retry_after": 30}',
-            })
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": b'{"error": "Service shutting down", "retry_after": 30}',
+                }
+            )
             return
 
         # Track request
@@ -315,8 +316,7 @@ shutdown_manager = GracefulShutdownManager()
 
 
 def create_lifespan(
-    startup_handlers: List[Callable] = None,
-    cleanup_handlers: List[Callable] = None
+    startup_handlers: List[Callable] = None, cleanup_handlers: List[Callable] = None
 ):
     """
     Create a lifespan context manager for FastAPI.
@@ -327,6 +327,7 @@ def create_lifespan(
             cleanup_handlers=[close_database, close_redis]
         ))
     """
+
     @asynccontextmanager
     async def lifespan(app):
         # Startup
@@ -361,10 +362,12 @@ def create_lifespan(
 
 # Convenience functions for common cleanup operations
 
+
 async def close_database_connections():
     """Close database connections."""
     try:
         from src.database import engine
+
         engine.dispose()
         logger.info("Database connections closed")
     except Exception as e:
@@ -375,6 +378,7 @@ async def close_redis_connections():
     """Close Redis connections."""
     try:
         from src.core.cache import cache
+
         await cache.close()
         logger.info("Redis connections closed")
     except Exception as e:
@@ -385,6 +389,7 @@ async def close_http_clients():
     """Close HTTP client connections."""
     try:
         import httpx
+
         # httpx clients should be closed by their context managers
         logger.info("HTTP clients cleanup completed")
     except Exception as e:

@@ -13,20 +13,27 @@ Scenario taxonomy:
   - INTERFERENCE: RF interference causing SNR drop across region
   - PARTITION: network split (some links go down simultaneously)
 """
+
 from __future__ import annotations
 
+import logging
 import math
 import random
-import logging
-from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 FEATURE_NAMES = [
-    "rssi", "snr", "loss_rate", "link_age",
-    "latency", "throughput", "cpu", "memory",
+    "rssi",
+    "snr",
+    "loss_rate",
+    "link_age",
+    "latency",
+    "throughput",
+    "cpu",
+    "memory",
 ]
 
 
@@ -42,6 +49,7 @@ class ScenarioType(Enum):
 @dataclass
 class MeshSnapshot:
     """A single snapshot of mesh network state with labels."""
+
     node_features: List[Dict[str, float]]
     edge_index: List[Tuple[int, int]]
     labels: List[float]  # 1.0 = anomaly, 0.0 = normal
@@ -100,9 +108,7 @@ class MeshTelemetryGenerator:
         ]
         for i in range(num_anomaly):
             scenario = failure_types[i % len(failure_types)]
-            snapshots.append(
-                self._generate_snapshot(nodes_per_snapshot, scenario)
-            )
+            snapshots.append(self._generate_snapshot(nodes_per_snapshot, scenario))
 
         self.rng.shuffle(snapshots)
         return snapshots
@@ -232,7 +238,9 @@ class MeshTelemetryGenerator:
             # Latency increases due to processing delays
             f["latency"] = round(f["latency"] * self.rng.uniform(3.0, 10.0), 2)
             # Loss rate increases under load
-            f["loss_rate"] = round(min(0.5, f["loss_rate"] + self.rng.uniform(0.05, 0.2)), 4)
+            f["loss_rate"] = round(
+                min(0.5, f["loss_rate"] + self.rng.uniform(0.05, 0.2)), 4
+            )
             # Throughput drops from congestion
             f["throughput"] = round(max(0.1, f["throughput"] * 0.3), 2)
             labels[idx] = 1.0
@@ -269,9 +277,13 @@ class MeshTelemetryGenerator:
             if nbr < len(features):
                 nf = features[nbr]
                 cascade_severity = self.rng.uniform(0.3, 0.7)
-                nf["loss_rate"] = round(min(0.5, nf["loss_rate"] + cascade_severity * 0.1), 4)
+                nf["loss_rate"] = round(
+                    min(0.5, nf["loss_rate"] + cascade_severity * 0.1), 4
+                )
                 nf["latency"] = round(nf["latency"] * (1 + cascade_severity * 3), 2)
-                nf["throughput"] = round(max(0.1, nf["throughput"] * (1 - cascade_severity * 0.4)), 2)
+                nf["throughput"] = round(
+                    max(0.1, nf["throughput"] * (1 - cascade_severity * 0.4)), 2
+                )
                 nf["cpu"] = round(min(1.0, nf["cpu"] + cascade_severity * 0.2), 3)
                 labels[nbr] = 1.0
 
@@ -293,8 +305,12 @@ class MeshTelemetryGenerator:
             interference_db = self.rng.uniform(10, 25)
             f["snr"] = round(max(1.0, f["snr"] - interference_db), 2)
             f["rssi"] = round(f["rssi"] - interference_db * 0.5, 2)
-            f["loss_rate"] = round(min(0.6, f["loss_rate"] + 0.03 * interference_db / 10), 4)
-            f["throughput"] = round(max(0.1, f["throughput"] * (1 - interference_db / 40)), 2)
+            f["loss_rate"] = round(
+                min(0.6, f["loss_rate"] + 0.03 * interference_db / 10), 4
+            )
+            f["throughput"] = round(
+                max(0.1, f["throughput"] * (1 - interference_db / 40)), 2
+            )
             labels[idx] = 1.0
 
     def _apply_partition(

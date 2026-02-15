@@ -1,19 +1,19 @@
 {
   "telemetry_generation": {
     "100_snapshots": {
-      "elapsed_sec": 0.039,
+      "elapsed_sec": 0.044,
       "total_nodes": 2000,
-      "nodes_per_sec": 51762.0
+      "nodes_per_sec": 45673.0
     },
     "500_snapshots": {
-      "elapsed_sec": 0.202,
+      "elapsed_sec": 0.199,
       "total_nodes": 10000,
-      "nodes_per_sec": 49526.0
+      "nodes_per_sec": 50365.0
     },
     "1000_snapshots": {
-      "elapsed_sec": 0.372,
+      "elapsed_sec": 0.418,
       "total_nodes": 20000,
-      "nodes_per_sec": 53719.0
+      "nodes_per_sec": 47833.0
     }
   },
   "scenario_metrics": {
@@ -89,18 +89,18 @@
     "fp": 239,
     "tn": 9110,
     "fn": 257,
-    "inference_time_ms": 6.63,
-    "throughput_nodes_per_sec": 1509153.0
+    "inference_time_ms": 8.02,
+    "throughput_nodes_per_sec": 1247290.0
   },
   "dao_dispatch": {
-    "avg_dispatch_us": 21.8,
-    "max_dispatch_us": 25.3,
+    "avg_dispatch_us": 64.2,
+    "max_dispatch_us": 86.3,
     "actions_tested": 5,
     "iterations": 1000
   },
   "consciousness_scoring": {
-    "avg_decision_us": 21.7,
-    "max_decision_us": 31.2,
+    "avg_decision_us": 16.7,
+    "max_decision_us": 19.9,
     "scenarios_tested": 4,
     "iterations": 10000
   }

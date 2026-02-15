@@ -1,0 +1,97 @@
+Collecting fastapi==0.119.1
+  Using cached fastapi-0.119.1-py3-none-any.whl.metadata (28 kB)
+Collecting uvicorn==0.38.0
+  Using cached uvicorn-0.38.0-py3-none-any.whl.metadata (6.8 kB)
+Collecting starlette==0.39.0
+  Downloading starlette-0.39.0-py3-none-any.whl.metadata (6.0 kB)
+Collecting pydantic==2.12.3
+  Using cached pydantic-2.12.3-py3-none-any.whl.metadata (87 kB)
+Collecting python-dotenv==1.1.1
+  Using cached python_dotenv-1.1.1-py3-none-any.whl.metadata (24 kB)
+Requirement already satisfied: httpx==0.28.1 in ./venv/lib/python3.12/site-packages (0.28.1)
+Collecting requests==2.32.4
+  Using cached requests-2.32.4-py3-none-any.whl.metadata (4.9 kB)
+Collecting cryptography==46.0.3
+  Using cached cryptography-46.0.3-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting torch==2.9.0
+  Using cached torch-2.9.0-cp312-cp312-manylinux_2_28_x86_64.whl.metadata (30 kB)
+Collecting PyJWT==2.10.1
+  Using cached PyJWT-2.10.1-py3-none-any.whl.metadata (4.0 kB)
+Requirement already satisfied: bcrypt==5.0.0 in ./venv/lib/python3.12/site-packages (5.0.0)
+Requirement already satisfied: pyyaml==6.0.3 in ./venv/lib/python3.12/site-packages (6.0.3)
+Collecting click==8.3.0
+  Using cached click-8.3.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting numpy==2.3.4
+  Using cached numpy-2.3.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+Collecting psutil==7.1.1
+  Using cached psutil-7.1.1-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (23 kB)
+Collecting structlog==25.4.0
+  Using cached structlog-25.4.0-py3-none-any.whl.metadata (7.6 kB)
+Collecting orjson==3.11.3
+  Using cached orjson-3.11.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (41 kB)
+Collecting passlib==1.7.4
+  Using cached passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting redis==5.0.1
+  Using cached redis-5.0.1-py3-none-any.whl.metadata (8.9 kB)
+Collecting slowapi==0.1.9
+  Using cached slowapi-0.1.9-py3-none-any.whl.metadata (3.0 kB)
+Collecting networkx==3.2.1
+  Using cached networkx-3.2.1-py3-none-any.whl.metadata (5.2 kB)
+Collecting aiofiles==25.1.0
+  Using cached aiofiles-25.1.0-py3-none-any.whl.metadata (6.3 kB)
+Requirement already satisfied: aiohttp==3.13.3 in ./venv/lib/python3.12/site-packages (3.13.3)
+Collecting asyncio-mqtt==0.16.2
+  Using cached asyncio_mqtt-0.16.2-py3-none-any.whl.metadata (17 kB)
+Requirement already satisfied: python-multipart==0.0.22 in ./venv/lib/python3.12/site-packages (0.0.22)
+Collecting python-dateutil==2.9.0.post0
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pytz==2025.2
+  Using cached pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting sse-starlette==2.1.0
+  Using cached sse_starlette-2.1.0-py3-none-any.whl.metadata (5.8 kB)
+Requirement already satisfied: urllib3==2.6.3 in ./venv/lib/python3.12/site-packages (2.6.3)
+Collecting psycopg2-binary==2.9.9
+  Using cached psycopg2_binary-2.9.9-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.4 kB)
+Collecting alembic==1.13.1
+  Using cached alembic-1.13.1-py3-none-any.whl.metadata (7.4 kB)
+Collecting black==25.9.0
+  Using cached black-25.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl.metadata (83 kB)
+Collecting flake8==7.3.0
+  Using cached flake8-7.3.0-py2.py3-none-any.whl.metadata (3.8 kB)
+Collecting mypy==1.18.2
+  Using cached mypy-1.18.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.2 kB)
+Collecting pytest==8.4.2
+  Using cached pytest-8.4.2-py3-none-any.whl.metadata (7.7 kB)
+Collecting pytest-asyncio==1.2.0
+  Using cached pytest_asyncio-1.2.0-py3-none-any.whl.metadata (4.1 kB)
+Requirement already satisfied: pytest-cov==7.0.0 in ./venv/lib/python3.12/site-packages (7.0.0)
+Collecting pytest-benchmark==5.1.0
+  Using cached pytest_benchmark-5.1.0-py3-none-any.whl.metadata (25 kB)
+Collecting bandit==1.8.6
+  Using cached bandit-1.8.6-py3-none-any.whl.metadata (6.9 kB)
+Collecting safety==3.6.2
+  Using cached safety-3.6.2-py3-none-any.whl.metadata (11 kB)
+Collecting pre-commit==4.3.0
+  Using cached pre_commit-4.3.0-py2.py3-none-any.whl.metadata (1.2 kB)
+Collecting ruff
+  Using cached ruff-0.15.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (26 kB)
+Requirement already satisfied: pip-audit in ./venv/lib/python3.12/site-packages (2.10.0)
+Collecting spiffe==0.2.2
+  Using cached spiffe-0.2.2-py3-none-any.whl.metadata (3.5 kB)
+Collecting pytest-mock==3.12.0
+  Using cached pytest_mock-3.12.0-py3-none-any.whl.metadata (3.8 kB)
+Collecting pyelftools
+  Using cached pyelftools-0.32-py3-none-any.whl.metadata (372 bytes)
+INFO: pip is looking at multiple versions of fastapi to determine which version is compatible with other requirements. This could take a while.
+
+The conflict is caused by:
+    The user requested starlette==0.39.0
+    fastapi 0.119.1 depends on starlette<0.49.0 and >=0.40.0
+
+Additionally, some packages in these conflicts have no matching distributions available for your environment:
+    starlette
+
+To fix this you could try to:
+1. loosen the range of package versions you've specified
+2. remove package versions to allow pip to attempt to solve the dependency conflict
+

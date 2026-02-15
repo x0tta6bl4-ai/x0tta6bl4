@@ -4,19 +4,22 @@ Experimental VPN API Endpoints
 REST API endpoints for experimental VPN configuration and management.
 These endpoints use optimized parameters to bypass current blocking techniques.
 """
-from fastapi import APIRouter, HTTPException, Request, Header, status, Depends
-from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+
+import hmac
 import logging
 import os
-import hmac
+import sys
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from new_vpn_config_generator import generate_vless_link, generate_config_text
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+from new_vpn_config_generator import generate_config_text, generate_vless_link
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +31,14 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     """Verify admin token for protected endpoints"""
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Admin token not configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Admin token not configured",
+        )
     if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
 
 
 class VPNConfigRequest(BaseModel):
@@ -63,42 +71,45 @@ async def get_vpn_config(
     user_id: int,
     username: Optional[str] = None,
     server: Optional[str] = None,
-    port: Optional[int] = None
+    port: Optional[int] = None,
 ) -> VPNConfigResponse:
     """
     Generate experimental VPN configuration for a user.
-    
+
     Args:
         user_id: Telegram user ID
         username: Optional username for the VPN config
         server: Optional custom server address
         port: Optional custom server port
-        
+
     Returns:
         VPN configuration with VLESS link and detailed instructions
     """
     try:
         import uuid
+
         # Get default values from environment
         default_server = os.getenv("VPN_SERVER")
         default_port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or None
-        
+
         # Use custom values or defaults
         server = server or default_server
         port = port or default_port
-        
+
         # Generate user UUID
         user_uuid = str(uuid.uuid4())
-        
+
         # Generate config
-        config_text = generate_config_text(user_id, user_uuid=user_uuid, server=server, port=port)
+        config_text = generate_config_text(
+            user_id, user_uuid=user_uuid, server=server, port=port
+        )
         vless_link = generate_vless_link(user_uuid=user_uuid, server=server, port=port)
-        
+
         return VPNConfigResponse(
             user_id=user_id,
             username=username,
             vless_link=vless_link,
-            config_text=config_text
+            config_text=config_text,
         )
     except Exception as e:
         logger.error(f"Error generating experimental VPN config: {e}", exc_info=True)
@@ -108,23 +119,23 @@ async def get_vpn_config(
 @router.post("/config")
 @limiter.limit("30/minute")
 async def create_vpn_config(
-    request: Request,
-    config_request: VPNConfigRequest
+    request: Request, config_request: VPNConfigRequest
 ) -> VPNConfigResponse:
     """
     Create experimental VPN configuration for a user.
-    
+
     Args:
         request: VPN config request data
-        
+
     Returns:
         VPN configuration with VLESS link and detailed instructions
     """
     return await get_vpn_config(
+        request=request,
         user_id=config_request.user_id,
         username=config_request.username,
         server=config_request.server,
-        port=config_request.port
+        port=config_request.port,
     )
 
 
@@ -133,7 +144,7 @@ async def create_vpn_config(
 async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     Get experimental VPN server status.
-    
+
     Returns:
         Current VPN server status
     """
@@ -141,9 +152,10 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         # Get default values from environment
         server = os.getenv("VPN_SERVER", "")
         port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or 0
-        
+
         # Check if VPN is reachable (simple TCP connect test)
         import socket
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
         try:
@@ -153,18 +165,18 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
             status = "offline"
         finally:
             sock.close()
-        
+
         # Mock data for active users and uptime (in production, this should come from real stats)
         active_users = 2
         uptime = 3600  # 1 hour
-        
+
         return VPNStatusResponse(
             status=status,
             server=server,
             port=port,
             protocol="VLESS+Reality (Experimental)",
             active_users=active_users,
-            uptime=uptime
+            uptime=uptime,
         )
     except Exception as e:
         logger.error(f"Error getting experimental VPN status: {e}", exc_info=True)
@@ -173,24 +185,33 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
 
 @router.get("/users")
 @limiter.limit("10/minute")
-async def get_vpn_users(request: Request, admin=Depends(verify_admin_token)) -> Dict[str, Any]:
+async def get_vpn_users(
+    request: Request, admin=Depends(verify_admin_token)
+) -> Dict[str, Any]:
     """
     Get list of active VPN users for experimental config.
-    
+
     Returns:
         List of active VPN users
     """
     try:
         # Mock data (in production, this should come from x-ui API or database)
         users = [
-            {"user_id": 1001, "username": "experimental_user1", "vless_link": "vless://...", "last_connected": "2024-01-21 00:30:00"},
-            {"user_id": 1002, "username": "experimental_user2", "vless_link": "vless://...", "last_connected": "2024-01-21 00:25:00"}
+            {
+                "user_id": 1001,
+                "username": "experimental_user1",
+                "vless_link": "vless://...",
+                "last_connected": "2024-01-21 00:30:00",
+            },
+            {
+                "user_id": 1002,
+                "username": "experimental_user2",
+                "vless_link": "vless://...",
+                "last_connected": "2024-01-21 00:25:00",
+            },
         ]
-        
-        return {
-            "total": len(users),
-            "users": users
-        }
+
+        return {"total": len(users), "users": users}
     except Exception as e:
         logger.error(f"Error getting experimental VPN users: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -199,25 +220,23 @@ async def get_vpn_users(request: Request, admin=Depends(verify_admin_token)) -> 
 @router.delete("/user/{user_id}")
 @limiter.limit("5/minute")
 async def delete_vpn_user(
-    request: Request,
-    user_id: int,
-    admin=Depends(verify_admin_token)
+    request: Request, user_id: int, admin=Depends(verify_admin_token)
 ) -> Dict[str, Any]:
     """
     Delete experimental VPN user.
-    
+
     Args:
         user_id: User ID to delete
-        
+
     Returns:
         Confirmation of deletion
     """
     try:
         logger.info(f"Deleting experimental VPN user {user_id}")
-        
+
         return {
             "success": True,
-            "message": f"Experimental VPN user {user_id} deleted successfully"
+            "message": f"Experimental VPN user {user_id} deleted successfully",
         }
     except Exception as e:
         logger.error(f"Error deleting experimental VPN user: {e}", exc_info=True)

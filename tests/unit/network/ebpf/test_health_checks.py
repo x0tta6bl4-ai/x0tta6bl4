@@ -8,14 +8,13 @@ These tests cover:
 - Integration with orchestrator
 """
 
-import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
-from src.network.ebpf.health_checks import (
-    HealthStatus,
-    HealthCheckResult,
-    EBPFHealthChecker
-)
+
+import pytest
+
+from src.network.ebpf.health_checks import (EBPFHealthChecker,
+                                            HealthCheckResult, HealthStatus)
 
 
 class TestHealthCheckResult:
@@ -28,7 +27,7 @@ class TestHealthCheckResult:
             component="test-component",
             message="Test message",
             timestamp=1234567890.123,
-            duration_ms=100.5
+            duration_ms=100.5,
         )
         assert result.status == HealthStatus.HEALTHY
         assert result.component == "test-component"
@@ -44,7 +43,7 @@ class TestHealthCheckResult:
             message="Test message",
             timestamp=1234567890.123,
             duration_ms=100.5,
-            details={"key": "value"}
+            details={"key": "value"},
         )
         dict_result = result.to_dict()
         assert dict_result["status"] == "degraded"
@@ -72,12 +71,12 @@ class TestEBPFHealthChecker:
         metrics = MagicMock()
         metrics.get_metrics_summary.return_value = {
             "registered_maps": 0,
-            "prometheus_metrics": 0
+            "prometheus_metrics": 0,
         }
         metrics.get_degradation_status.return_value = {
             "prometheus_available": True,
             "consecutive_failures": 0,
-            "level": "full"
+            "level": "full",
         }
         return metrics
 
@@ -97,7 +96,7 @@ class TestEBPFHealthChecker:
             "fallback_count": 0,
             "last_fallback_time": None,
             "available_interfaces": [],
-            "unavailable_interfaces": []
+            "unavailable_interfaces": [],
         }
         return fallback
 
@@ -117,8 +116,15 @@ class TestEBPFHealthChecker:
         return ring_buffer
 
     @pytest.fixture
-    def health_checker(self, mock_loader, mock_metrics, mock_cilium,
-                      mock_fallback, mock_mapek, mock_ring_buffer):
+    def health_checker(
+        self,
+        mock_loader,
+        mock_metrics,
+        mock_cilium,
+        mock_fallback,
+        mock_mapek,
+        mock_ring_buffer,
+    ):
         """Create EBPFHealthChecker instance."""
         return EBPFHealthChecker(
             mock_loader,
@@ -126,19 +132,19 @@ class TestEBPFHealthChecker:
             mock_cilium,
             mock_fallback,
             mock_mapek,
-            mock_ring_buffer
+            mock_ring_buffer,
         )
 
     def test_initialization(self, health_checker):
         """Test initializing health checker."""
         assert health_checker is not None
-        assert hasattr(health_checker, 'check_all')
-        assert hasattr(health_checker, 'check_loader')
-        assert hasattr(health_checker, 'check_metrics')
-        assert hasattr(health_checker, 'check_cilium')
-        assert hasattr(health_checker, 'check_fallback')
-        assert hasattr(health_checker, 'check_mapek')
-        assert hasattr(health_checker, 'check_ring_buffer')
+        assert hasattr(health_checker, "check_all")
+        assert hasattr(health_checker, "check_loader")
+        assert hasattr(health_checker, "check_metrics")
+        assert hasattr(health_checker, "check_cilium")
+        assert hasattr(health_checker, "check_fallback")
+        assert hasattr(health_checker, "check_mapek")
+        assert hasattr(health_checker, "check_ring_buffer")
 
     @pytest.mark.asyncio
     async def test_check_loader_healthy(self, health_checker, mock_loader):
@@ -170,7 +176,7 @@ class TestEBPFHealthChecker:
         mock_metrics.get_degradation_status.return_value = {
             "prometheus_available": True,
             "consecutive_failures": 0,
-            "level": "full"
+            "level": "full",
         }
 
         result = await health_checker.check_metrics()
@@ -183,7 +189,7 @@ class TestEBPFHealthChecker:
         mock_metrics.get_degradation_status.return_value = {
             "prometheus_available": False,
             "consecutive_failures": 0,
-            "level": "degraded"
+            "level": "degraded",
         }
 
         result = await health_checker.check_metrics()
@@ -217,7 +223,7 @@ class TestEBPFHealthChecker:
             "fallback_count": 0,
             "last_fallback_time": None,
             "available_interfaces": ["eth0"],
-            "unavailable_interfaces": []
+            "unavailable_interfaces": [],
         }
 
         result = await health_checker.check_fallback()
@@ -234,7 +240,7 @@ class TestEBPFHealthChecker:
             "fallback_count": 1,
             "last_fallback_time": "2024-01-19T10:00:00Z",
             "available_interfaces": ["eth0"],
-            "unavailable_interfaces": ["eth1"]
+            "unavailable_interfaces": ["eth1"],
         }
 
         result = await health_checker.check_fallback()
@@ -311,7 +317,14 @@ class TestEBPFHealthChecker:
         assert "ebpf_health_degraded" in report
         assert "ebpf_health_unhealthy" in report
 
-        for component in ["loader", "metrics", "cilium", "fallback", "mapek", "ring_buffer"]:
+        for component in [
+            "loader",
+            "metrics",
+            "cilium",
+            "fallback",
+            "mapek",
+            "ring_buffer",
+        ]:
             assert f"ebpf_health_{component}" in report
 
     @pytest.mark.asyncio
@@ -339,14 +352,15 @@ class TestEBPFHealthChecker:
         assert "Test exception" in str(result.details["exception"])
 
     @pytest.mark.asyncio
-    async def test_combined_health_levels(self, health_checker, mock_loader,
-                                           mock_metrics, mock_cilium):
+    async def test_combined_health_levels(
+        self, health_checker, mock_loader, mock_metrics, mock_cilium
+    ):
         """Test health check correctly combines different component health levels."""
         mock_loader.list_loaded_programs.return_value = []
         mock_metrics.get_degradation_status.return_value = {
             "prometheus_available": True,
             "consecutive_failures": 0,
-            "level": "full"
+            "level": "full",
         }
         mock_cilium.get_flow_metrics.return_value = {"flows": []}
 

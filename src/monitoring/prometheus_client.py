@@ -5,4 +5,3 @@ class PrometheusExporter:
     def set_gauge(self, name: str, value: float):
         self.metrics[name] = value
         # In a real implementation, this would update prometheus client
-

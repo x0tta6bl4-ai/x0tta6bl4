@@ -13,15 +13,15 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from src.network.ebpf.ebpf_orchestrator import EBPFOrchestrator, OrchestratorConfig
-from src.network.ebpf.loader import EBPFProgramType, EBPFAttachMode
-
+from src.network.ebpf.ebpf_orchestrator import (EBPFOrchestrator,
+                                                OrchestratorConfig)
+from src.network.ebpf.loader import EBPFAttachMode, EBPFProgramType
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
+    handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -49,131 +49,89 @@ Examples:
         )
 
         subparsers = self.parser.add_subparsers(
-            dest="command",
-            help="Available commands",
-            metavar="COMMAND"
+            dest="command", help="Available commands", metavar="COMMAND"
         )
 
         # Status command
         status_parser = subparsers.add_parser(
-            "status",
-            help="Show eBPF orchestrator status"
+            "status", help="Show eBPF orchestrator status"
         )
 
         # List programs command
-        list_parser = subparsers.add_parser(
-            "list",
-            help="List loaded eBPF programs"
-        )
+        list_parser = subparsers.add_parser("list", help="List loaded eBPF programs")
 
         # Load program command
-        load_parser = subparsers.add_parser(
-            "load",
-            help="Load eBPF program from file"
-        )
+        load_parser = subparsers.add_parser("load", help="Load eBPF program from file")
+        load_parser.add_argument("program_path", help="Path to eBPF program file (.o)")
         load_parser.add_argument(
-            "program_path",
-            help="Path to eBPF program file (.o)"
-        )
-        load_parser.add_argument(
-            "-t", "--type",
+            "-t",
+            "--type",
             default="xdp",
             choices=["xdp", "tc", "cgroup_skb", "socket_filter"],
-            help="Program type (default: xdp)"
+            help="Program type (default: xdp)",
         )
 
         # Attach program command
         attach_parser = subparsers.add_parser(
-            "attach",
-            help="Attach eBPF program to interface"
+            "attach", help="Attach eBPF program to interface"
         )
+        attach_parser.add_argument("program_name", help="Name of program to attach")
+        attach_parser.add_argument("interface", help="Network interface to attach to")
         attach_parser.add_argument(
-            "program_name",
-            help="Name of program to attach"
-        )
-        attach_parser.add_argument(
-            "interface",
-            help="Network interface to attach to"
-        )
-        attach_parser.add_argument(
-            "-m", "--mode",
+            "-m",
+            "--mode",
             default="skb",
             choices=["skb", "drv", "hw"],
-            help="XDP attach mode (default: skb)"
+            help="XDP attach mode (default: skb)",
         )
 
         # Detach program command
         detach_parser = subparsers.add_parser(
-            "detach",
-            help="Detach eBPF program from interface"
+            "detach", help="Detach eBPF program from interface"
         )
-        detach_parser.add_argument(
-            "program_name",
-            help="Name of program to detach"
-        )
-        detach_parser.add_argument(
-            "interface",
-            help="Network interface to detach from"
-        )
+        detach_parser.add_argument("program_name", help="Name of program to detach")
+        detach_parser.add_argument("interface", help="Network interface to detach from")
 
         # Unload program command
-        unload_parser = subparsers.add_parser(
-            "unload",
-            help="Unload eBPF program"
-        )
-        unload_parser.add_argument(
-            "program_name",
-            help="Name of program to unload"
-        )
+        unload_parser = subparsers.add_parser("unload", help="Unload eBPF program")
+        unload_parser.add_argument("program_name", help="Name of program to unload")
 
         # Statistics command
-        stats_parser = subparsers.add_parser(
-            "stats",
-            help="Show eBPF statistics"
-        )
+        stats_parser = subparsers.add_parser("stats", help="Show eBPF statistics")
 
         # Flows command
-        flows_parser = subparsers.add_parser(
-            "flows",
-            help="Show network flow metrics"
-        )
+        flows_parser = subparsers.add_parser("flows", help="Show network flow metrics")
 
         # Routes command
-        routes_parser = subparsers.add_parser(
-            "routes",
-            help="Show routing table"
-        )
+        routes_parser = subparsers.add_parser("routes", help="Show routing table")
 
         # Update routes command
         update_routes_parser = subparsers.add_parser(
-            "update-routes",
-            help="Update routing table from file"
+            "update-routes", help="Update routing table from file"
         )
         update_routes_parser.add_argument(
-            "routes_file",
-            help="Path to CSV file with routes"
+            "routes_file", help="Path to CSV file with routes"
         )
 
         # Configuration
         self.parser.add_argument(
-            "-c", "--config",
-            help="Path to orchestrator configuration file"
+            "-c", "--config", help="Path to orchestrator configuration file"
         )
         self.parser.add_argument(
-            "-i", "--interface",
+            "-i",
+            "--interface",
             default="eth0",
-            help="Network interface (default: eth0)"
+            help="Network interface (default: eth0)",
         )
         self.parser.add_argument(
-            "-p", "--port",
+            "-p",
+            "--port",
             type=int,
             default=9090,
-            help="Metrics server port (default: 9090)"
+            help="Metrics server port (default: 9090)",
         )
         self.parser.add_argument(
-            "-v", "--verbose",
-            action="store_true",
-            help="Enable verbose output"
+            "-v", "--verbose", action="store_true", help="Enable verbose output"
         )
 
     async def run(self, args):
@@ -181,10 +139,7 @@ Examples:
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
 
-        config = OrchestratorConfig(
-            interface=args.interface,
-            metrics_port=args.port
-        )
+        config = OrchestratorConfig(interface=args.interface, metrics_port=args.port)
 
         try:
             async with EBPFOrchestrator(config) as orchestrator:
@@ -197,25 +152,16 @@ Examples:
                     await self._handle_list(orchestrator)
 
                 elif args.command == "load":
-                    await self._handle_load(
-                        orchestrator,
-                        args.program_path,
-                        args.type
-                    )
+                    await self._handle_load(orchestrator, args.program_path, args.type)
 
                 elif args.command == "attach":
                     await self._handle_attach(
-                        orchestrator,
-                        args.program_name,
-                        args.interface,
-                        args.mode
+                        orchestrator, args.program_name, args.interface, args.mode
                     )
 
                 elif args.command == "detach":
                     await self._handle_detach(
-                        orchestrator,
-                        args.program_name,
-                        args.interface
+                        orchestrator, args.program_name, args.interface
                     )
 
                 elif args.command == "unload":
@@ -231,10 +177,7 @@ Examples:
                     await self._handle_routes(orchestrator)
 
                 elif args.command == "update-routes":
-                    await self._handle_update_routes(
-                        orchestrator,
-                        args.routes_file
-                    )
+                    await self._handle_update_routes(orchestrator, args.routes_file)
 
                 else:
                     self.parser.print_help()
@@ -255,9 +198,9 @@ Examples:
         print(f"Components: {len(status['components'])}")
         print()
 
-        for comp_name, comp_status in status['components'].items():
+        for comp_name, comp_status in status["components"].items():
             print(f"  {comp_name}: {comp_status['status']}")
-            if 'error' in comp_status:
+            if "error" in comp_status:
                 print(f"    Error: {comp_status['error']}")
         print()
 
@@ -276,7 +219,9 @@ Examples:
                 print(f"  Attached to: {program['attached_to']}")
             print()
 
-    async def _handle_load(self, orchestrator: EBPFOrchestrator, program_path: str, program_type: str):
+    async def _handle_load(
+        self, orchestrator: EBPFOrchestrator, program_path: str, program_type: str
+    ):
         """Handle load command."""
         program_path = Path(program_path)
         if not program_path.exists():
@@ -287,43 +232,58 @@ Examples:
 
         try:
             result = await orchestrator.load_program(
-                program_path.name,
-                program_type=prog_type
+                program_path.name, program_type=prog_type
             )
             if result.get("success"):
                 logger.info(f"Successfully loaded program: {program_path.name}")
             else:
-                logger.error(f"Error loading program: {result.get('error', 'Unknown error')}")
+                logger.error(
+                    f"Error loading program: {result.get('error', 'Unknown error')}"
+                )
         except Exception as e:
             logger.error(f"Error loading program: {e}")
 
-    async def _handle_attach(self, orchestrator: EBPFOrchestrator, program_name: str, interface: str, mode: str):
+    async def _handle_attach(
+        self,
+        orchestrator: EBPFOrchestrator,
+        program_name: str,
+        interface: str,
+        mode: str,
+    ):
         """Handle attach command."""
         attach_mode = EBPFAttachMode(mode)
 
         try:
             result = await orchestrator.attach_program(
-                program_name,
-                interface=interface
+                program_name, interface=interface
             )
             if result.get("success"):
-                logger.info(f"Successfully attached program '{program_name}' to '{interface}'")
+                logger.info(
+                    f"Successfully attached program '{program_name}' to '{interface}'"
+                )
             else:
-                logger.error(f"Error attaching program: {result.get('error', 'Unknown error')}")
+                logger.error(
+                    f"Error attaching program: {result.get('error', 'Unknown error')}"
+                )
         except Exception as e:
             logger.error(f"Error attaching program: {e}")
 
-    async def _handle_detach(self, orchestrator: EBPFOrchestrator, program_name: str, interface: str):
+    async def _handle_detach(
+        self, orchestrator: EBPFOrchestrator, program_name: str, interface: str
+    ):
         """Handle detach command."""
         try:
             result = await orchestrator.detach_program(
-                program_name,
-                interface=interface
+                program_name, interface=interface
             )
             if result.get("success"):
-                logger.info(f"Successfully detached program '{program_name}' from '{interface}'")
+                logger.info(
+                    f"Successfully detached program '{program_name}' from '{interface}'"
+                )
             else:
-                logger.error(f"Error detaching program: {result.get('error', 'Unknown error')}")
+                logger.error(
+                    f"Error detaching program: {result.get('error', 'Unknown error')}"
+                )
         except Exception as e:
             logger.error(f"Error detaching program: {e}")
 
@@ -334,7 +294,9 @@ Examples:
             if result.get("success"):
                 logger.info(f"Successfully unloaded program: {program_name}")
             else:
-                logger.error(f"Error unloading program: {result.get('error', 'Unknown error')}")
+                logger.error(
+                    f"Error unloading program: {result.get('error', 'Unknown error')}"
+                )
         except Exception as e:
             logger.error(f"Error unloading program: {e}")
 
@@ -345,7 +307,7 @@ Examples:
         print()
 
         for comp_name, comp_stats in stats.items():
-            if isinstance(comp_stats, dict) and 'error' not in comp_stats:
+            if isinstance(comp_stats, dict) and "error" not in comp_stats:
                 print(f"  {comp_name}:")
                 for key, value in comp_stats.items():
                     if isinstance(value, (int, float)):
@@ -377,15 +339,17 @@ Examples:
         """Handle routes command."""
         try:
             import subprocess
+
             result = subprocess.run(
                 ["bpftool", "map", "dump", "name", "mesh_routes", "-j"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
                 import json
+
                 routes = json.loads(result.stdout)
                 print("=== Mesh Routing Table ===")
                 print()
@@ -400,7 +364,9 @@ Examples:
         except Exception as e:
             logger.error(f"Error getting routes: {e}")
 
-    async def _handle_update_routes(self, orchestrator: EBPFOrchestrator, routes_file: str):
+    async def _handle_update_routes(
+        self, orchestrator: EBPFOrchestrator, routes_file: str
+    ):
         """Handle update-routes command."""
         routes_file = Path(routes_file)
         if not routes_file.exists():
@@ -409,12 +375,13 @@ Examples:
 
         routes = {}
         try:
-            with open(routes_file, 'r') as f:
+            with open(routes_file, "r") as f:
                 import csv
+
                 reader = csv.DictReader(f)
                 for row in reader:
-                    dest_ip = row.get('destination')
-                    next_hop = row.get('next_hop')
+                    dest_ip = row.get("destination")
+                    next_hop = row.get("next_hop")
                     if dest_ip and next_hop:
                         routes[dest_ip] = next_hop
 

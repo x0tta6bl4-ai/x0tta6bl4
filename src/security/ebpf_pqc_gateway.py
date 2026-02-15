@@ -7,25 +7,29 @@ Provides post-quantum secure key exchange and verification for mesh networking.
 Integrates with eBPF XDP programs for kernel-space crypto operations.
 """
 
-import os
-import logging
 import asyncio
-from typing import Dict, Optional, Tuple, List
-from dataclasses import dataclass
 import hashlib
 import hmac
+import logging
+import os
 import secrets
+import struct
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 try:
     from liboqs import KeyEncapsulation, Signature
+
     PQC_AVAILABLE = True
 except ImportError:
     try:
         import oqs
         from oqs import KeyEncapsulation, Signature
+
         PQC_AVAILABLE = True
     except ImportError:
         PQC_AVAILABLE = False
@@ -33,9 +37,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class PQCSession:
     """PQC cryptographic session"""
+
     session_id: str
     peer_id: str
     kem_public_key: bytes
@@ -47,19 +53,22 @@ class PQCSession:
     mac_key: Optional[bytes] = None  # 16-byte SipHash key for eBPF fast-path
     packet_counter: int = 0
     created_at: float = None
-    last_used: float = None
+    last_used: float = 0.0
     verified: bool = False
 
     def __post_init__(self):
         if self.created_at is None:
             import time
+
             self.created_at = time.time()
 
     @property
     def is_expired(self) -> bool:
         """Check if session is expired (1 hour)"""
         import time
+
         return (time.time() - self.created_at) > 3600
+
 
 class EBPFPQCGateway:
     """
@@ -98,7 +107,7 @@ class EBPFPQCGateway:
             session_id=session_id,
             peer_id=peer_id,
             kem_public_key=self.our_kem_public_key,
-            dsa_public_key=self.our_dsa_public_key
+            dsa_public_key=self.our_dsa_public_key,
         )
 
         self.sessions[session_id] = session
@@ -121,7 +130,8 @@ class EBPFPQCGateway:
         session.shared_secret = shared_secret
 
         # Sign the kem_ciphertext
-        signature = self.dsa.sign(kem_ciphertext, self.our_dsa_secret_key)
+        signer = Signature("ML-DSA-65", self.our_dsa_secret_key)
+        signature = signer.sign(kem_ciphertext)
 
         # Derive AES key and MAC key from shared secret
         session.aes_key = self._derive_aes_key(shared_secret)
@@ -129,8 +139,13 @@ class EBPFPQCGateway:
 
         return session.session_id, kem_ciphertext, signature
 
-    def complete_key_exchange(self, session_id: str, kem_ciphertext: bytes,
-                            peer_signature: bytes, peer_public_key: bytes) -> bool:
+    def complete_key_exchange(
+        self,
+        session_id: str,
+        kem_ciphertext: bytes,
+        peer_signature: bytes,
+        peer_public_key: bytes,
+    ) -> bool:
         """
         Complete PQC key exchange.
 
@@ -158,6 +173,7 @@ class EBPFPQCGateway:
 
             session.verified = True
             import time
+
             session.last_used = time.time()
 
             logger.info(f"Completed PQC key exchange for session {session_id}")
@@ -185,7 +201,9 @@ class EBPFPQCGateway:
             logger.error(f"AES-256-GCM encryption failed: {e}")
             return None
 
-    def decrypt_payload(self, session_id: str, encrypted_payload: bytes) -> Optional[bytes]:
+    def decrypt_payload(
+        self, session_id: str, encrypted_payload: bytes
+    ) -> Optional[bytes]:
         """Decrypt AES-256-GCM payload (nonce || ciphertext+tag)."""
         session = self.sessions.get(session_id)
         if not session or not session.aes_key or not session.verified:
@@ -206,13 +224,17 @@ class EBPFPQCGateway:
 
     def sign_message(self, message: bytes) -> bytes:
         """Sign message with ML-DSA-65"""
-        return self.dsa.sign(message, self.our_dsa_secret_key)
+        signer = Signature("ML-DSA-65", self.our_dsa_secret_key)
+        return signer.sign(message)
 
-    def verify_signature(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
+    def verify_signature(
+        self, message: bytes, signature: bytes, public_key: bytes
+    ) -> bool:
         """Verify signature with ML-DSA-65"""
         try:
             return self.dsa.verify(message, signature, public_key)
-        except:
+        except Exception as e:
+            logger.error(f"Signature verification failed: {e}")
             return False
 
     def get_session_info(self, session_id: str) -> Optional[Dict]:
@@ -222,11 +244,11 @@ class EBPFPQCGateway:
             return None
 
         return {
-            'session_id': session.session_id,
-            'aes_key': session.aes_key.hex() if session.aes_key else None,
-            'peer_id': session.peer_id,
-            'verified': session.verified,
-            'last_used': session.last_used
+            "session_id": session.session_id,
+            "aes_key": session.aes_key.hex() if session.aes_key else None,
+            "peer_id": session.peer_id,
+            "verified": session.verified,
+            "last_used": session.last_used,
         }
 
     def cleanup_expired_sessions(self):
@@ -243,6 +265,7 @@ class EBPFPQCGateway:
         Note: In a real system this would trigger a re-handshake.
         """
         import time as _time
+
         session = self.sessions.get(session_id)
         if not session:
             return False
@@ -285,17 +308,29 @@ class EBPFPQCGateway:
             Dict suitable for eBPF map updates
         """
         ebpf_data = {}
+        logger.debug(
+            f"EBPFPQCGateway.get_ebpf_map_data() processing {len(self.sessions)} sessions."
+        )
 
         for session_id, session in self.sessions.items():
-            if session.verified and session.aes_key:
-                ebpf_data[session_id] = {
-                    'aes_key': list(session.aes_key),
-                    'peer_id_hash': int(hashlib.sha256(session.peer_id.encode()).hexdigest()[:16], 16),
-                    'verified': 1,
-                    'timestamp': int(session.last_used or session.created_at),
-                    'packet_counter': session.packet_counter,
+            if session.verified and session.mac_key:
+                # Ensure session_id is bytes for the eBPF map key
+                session_id_bytes = bytes.fromhex(session_id)
+
+                # Convert peer_id to __u64 hash
+                peer_id_hash_val = struct.unpack(
+                    "<Q", hashlib.sha256(session.peer_id.encode()).digest()[:8]
+                )[0]
+
+                ebpf_data[session_id_bytes] = {
+                    "mac_key": list(session.mac_key),  # `mac_key` is 16 bytes
+                    "peer_id_hash": peer_id_hash_val,
+                    "verified": 1,
+                    "timestamp": int(session.last_used or session.created_at),
+                    "packet_counter": session.packet_counter,
                 }
 
+        logger.debug(f"EBPFPQCGateway.get_ebpf_map_data() returning: {ebpf_data}")
         return ebpf_data
 
     def update_ebpf_maps(self, ebpf_loader):
@@ -308,13 +343,15 @@ class EBPFPQCGateway:
         map_data = self.get_ebpf_map_data()
 
         # Update eBPF maps (implementation depends on loader)
-        if hasattr(ebpf_loader, 'update_pqc_sessions'):
+        if hasattr(ebpf_loader, "update_pqc_sessions"):
             ebpf_loader.update_pqc_sessions(map_data)
 
         logger.debug(f"Updated eBPF maps with {len(map_data)} PQC sessions")
 
+
 # Global gateway instance
 _pqc_gateway = None
+
 
 def get_pqc_gateway() -> EBPFPQCGateway:
     """Get global PQC gateway instance"""

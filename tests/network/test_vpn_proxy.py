@@ -1,11 +1,13 @@
 """
 Tests for VPN Proxy (SOCKS5 Server) module.
 """
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
-from src.network.vpn_proxy import SOCKS5Server, ProxyStats
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+
+from src.network.vpn_proxy import ProxyStats, SOCKS5Server
 
 
 class TestProxyStats:
@@ -23,10 +25,7 @@ class TestProxyStats:
     def test_custom_values(self):
         """Test custom values for ProxyStats."""
         stats = ProxyStats(
-            connections=100,
-            bytes_sent=1024,
-            bytes_received=2048,
-            active_connections=5
+            connections=100, bytes_sent=1024, bytes_received=2048, active_connections=5
         )
 
         assert stats.connections == 100
