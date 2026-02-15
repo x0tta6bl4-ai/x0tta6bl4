@@ -1,31 +1,81 @@
+# =============================================================================
+# x0tta6bl4 Staging Node — Multi-stage Docker Build
+# Post-quantum mesh node with liboqs, FastAPI
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build liboqs from source + install Python deps
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+ARG LIBOQS_VERSION=0.19.0
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    libssl-dev \
+    pkg-config \
+    ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build liboqs (shared lib)
+WORKDIR /tmp
+RUN git clone --depth 1 --branch main \
+    https://github.com/open-quantum-safe/liboqs.git && \
+    cmake -GNinja -S liboqs -B liboqs/build \
+    -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    cmake --build liboqs/build --parallel "$(nproc)" && \
+    cmake --install liboqs/build && \
+    rm -rf /tmp/liboqs
+
+# Create virtualenv for clean site-packages copy
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy requirements
+WORKDIR /build
+COPY requirements-staging.txt .
+
+# Install dependencies (including liboqs-python from requirements-staging.txt)
+RUN pip install --no-cache-dir -r requirements-staging.txt
+
+# ---------------------------------------------------------------------------
+# Stage 2: Minimal runtime image
+# ---------------------------------------------------------------------------
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Runtime system deps (curl for healthcheck, libssl for crypto)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    build-essential \
+    libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements-staging.txt .
-RUN pip install --no-cache-dir -r requirements-staging.txt
+# Copy liboqs shared libraries from builder
+COPY --from=builder /usr/local/lib/liboqs* /usr/local/lib/
+COPY --from=builder /usr/local/include/oqs /usr/local/include/oqs
+RUN ldconfig
 
-# Copy source code
-COPY src ./src
-
-# Create required directories
-RUN mkdir -p /app/logs /app/data /app/cache
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
+# Copy Python virtualenv from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     ENVIRONMENT=staging \
     LOG_LEVEL=info
 
 # Expose port
 EXPOSE 8000
+
+# Copy source code
+COPY src ./src
+
+# Create required directories
+RUN mkdir -p /app/logs /app/data /app/cache
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

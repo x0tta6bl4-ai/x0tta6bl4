@@ -4,130 +4,121 @@ require_once 'dbconfig.php';
 require_once __DIR__ . '/../lib/SecurityUtils.php';
 
 class USER
-{	
+{
 
 	private $conn;
-	
+	private $conn_config;
+
 	public function __construct()
 	{
 		$database = new Database();
+		$this->conn_config = $database;
 		$db = $database->dbConnection();
 		$this->conn = $db;
-    }
-	
+	}
+
 	public function runQuery($sql)
 	{
 		$stmt = $this->conn->prepare($sql);
 		return $stmt;
 	}
-	
+
 	public function lasdID()
 	{
 		$stmt = $this->conn->lastInsertId();
 		return $stmt;
 	}
-	
-	public function register($uname,$email,$upass,$code)
+
+	public function register($uname, $email, $upass, $code)
 	{
-		try
-		{							
+		try {
 			$password = SecurityUtils::hashPassword($upass);
 			if ($password === false) {
 				throw new Exception('Failed to hash password');
 			}
 			$stmt = $this->conn->prepare("INSERT INTO tbl_users(userName,userEmail,userPass,tokenCode) 
 			                                             VALUES(:user_name, :user_mail, :user_pass, :active_code)");
-			$stmt->bindparam(":user_name",$uname);
-			$stmt->bindparam(":user_mail",$email);
-			$stmt->bindparam(":user_pass",$password);
-			$stmt->bindparam(":active_code",$code);
-			$stmt->execute();	
+			$stmt->bindparam(":user_name", $uname);
+			$stmt->bindparam(":user_mail", $email);
+			$stmt->bindparam(":user_pass", $password);
+			$stmt->bindparam(":active_code", $code);
+			$stmt->execute();
 			return $stmt;
 		}
-		catch(PDOException $ex)
-		{
+		catch (PDOException $ex) {
 			echo $ex->getMessage();
 		}
 	}
-	
-	public function login($email,$upass)
+
+	public function login($email, $upass)
 	{
-		try
-		{
+		try {
 			$stmt = $this->conn->prepare("SELECT * FROM tbl_users WHERE userEmail=:email_id");
-			$stmt->execute(array(":email_id"=>$email));
-			$userRow=$stmt->fetch(PDO::FETCH_ASSOC);
-			
-			if($stmt->rowCount() == 1)
-			{
-				if($userRow['userStatus']=="Y")
-				{
-					if(SecurityUtils::verifyPassword($upass, $userRow['userPass']))
-					{
+			$stmt->execute(array(":email_id" => $email));
+			$userRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+			if ($stmt->rowCount() == 1) {
+				if ($userRow['userStatus'] == "Y") {
+					if (SecurityUtils::verifyPassword($upass, $userRow['userPass'])) {
 						$_SESSION['userSession'] = $userRow['userID'];
 						return true;
 					}
-					else
-					{
+					else {
 						header("Location: index.php?error");
 						exit;
 					}
 				}
-				else
-				{
+				else {
 					header("Location: index.php?inactive");
 					exit;
-				}	
+				}
 			}
-			else
-			{
+			else {
 				header("Location: index.php?error");
 				exit;
-			}		
+			}
 		}
-		catch(PDOException $ex)
-		{
+		catch (PDOException $ex) {
 			echo $ex->getMessage();
 		}
 	}
-	
-	
+
+
 	public function is_logged_in()
 	{
-		if(isset($_SESSION['userSession']))
-		{
+		if (isset($_SESSION['userSession'])) {
 			return true;
 		}
 	}
-	
+
 	public function redirect($url)
 	{
 		header("Location: $url");
 	}
-	
+
 	public function logout()
 	{
 		session_destroy();
 		$_SESSION['userSession'] = false;
 	}
-	
-	function send_mail($email,$message,$subject)
-	{						
+
+	function send_mail($email, $message, $subject)
+	{
 		require_once('mailer/class.phpmailer.php');
 		$mail = new PHPMailer();
-		$mail->IsSMTP(); 
-		$mail->SMTPDebug  = 0;                     
-		$mail->SMTPAuth   = true;                  
-		$mail->SMTPSecure = "ssl";                 
-		$mail->Host       = "smtp.gmail.com";      
-		$mail->Port       = 465;             
+		$mail->IsSMTP();
+		$mail->SMTPDebug = 0;
+		$mail->SMTPAuth = true;
+		$mail->SMTPSecure = "ssl";
+		$mail->Host = $this->conn_config->smtp_host;
+		$mail->Port = $this->conn_config->smtp_port;
 		$mail->AddAddress($email);
-		$mail->Username="d0rmid0nt.db@gmail.com";  
-		$mail->Password="hliupik11288";            
-		$mail->SetFrom('you@yourdomain.com','Coding Cage');
-		$mail->AddReplyTo("you@yourdomain.com","Coding Cage");
-		$mail->Subject    = $subject;
+		$mail->Username = $this->conn_config->smtp_user;
+		$mail->Password = $this->conn_config->smtp_pass;
+		$mail->SetFrom('you@yourdomain.com', 'Coding Cage');
+		$mail->AddReplyTo("you@yourdomain.com", "Coding Cage");
+		$mail->Subject = $subject;
 		$mail->MsgHTML($message);
 		$mail->Send();
-	}	
+	}
 }

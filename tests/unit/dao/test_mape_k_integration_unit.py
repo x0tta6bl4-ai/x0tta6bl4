@@ -15,7 +15,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
@@ -41,11 +41,14 @@ def _mock_web3_ecosystem():
     mock_account.address = "0xTestAccountAddress"
     mock_eth_account.Account.from_key.return_value = mock_account
 
-    with patch.dict("sys.modules", {
-        "web3": mock_web3_mod,
-        "eth_account": mock_eth_account,
-        "eth_utils": mock_eth_utils,
-    }):
+    with patch.dict(
+        "sys.modules",
+        {
+            "web3": mock_web3_mod,
+            "eth_account": mock_eth_account,
+            "eth_utils": mock_eth_utils,
+        },
+    ):
         yield {
             "web3_mod": mock_web3_mod,
             "eth_account": mock_eth_account,
@@ -59,6 +62,7 @@ def _mock_web3_ecosystem():
 def _import_module(_mock_web3_ecosystem):
     """Import the module under test after mocks are in place."""
     import importlib
+
     mod = importlib.import_module("src.dao.mape_k_integration")
     return mod
 
@@ -303,7 +307,9 @@ class TestMLBasedGovernanceOracle:
         assert oracle.model is None
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_heuristic_pass(self, _import_module, sample_action):
+    async def test_should_execute_action_heuristic_pass(
+        self, _import_module, sample_action
+    ):
         """Heuristic fallback: desc > 50, delay >= 86400, targets <= 5"""
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
@@ -312,13 +318,20 @@ class TestMLBasedGovernanceOracle:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_heuristic_fail_short_desc(self, _import_module):
+    async def test_should_execute_action_heuristic_fail_short_desc(
+        self, _import_module
+    ):
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="a1", title="T", description="Short",
-            targets=["0x1"], values=[0], calldatas=["0x"],
-            votes_required=10, execution_delay=86400,
+            action_id="a1",
+            title="T",
+            description="Short",
+            targets=["0x1"],
+            values=[0],
+            calldatas=["0x"],
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         result = await oracle.should_execute_action(action)
@@ -329,31 +342,43 @@ class TestMLBasedGovernanceOracle:
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="a2", title="Title",
+            action_id="a2",
+            title="Title",
             description="A sufficiently long description for the heuristic check to be satisfied.",
-            targets=["0x1"], values=[0], calldatas=["0x"],
-            votes_required=10, execution_delay=3600,  # < 86400
+            targets=["0x1"],
+            values=[0],
+            calldatas=["0x"],
+            votes_required=10,
+            execution_delay=3600,  # < 86400
             created_at=datetime.now(),
         )
         result = await oracle.should_execute_action(action)
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_heuristic_fail_too_many_targets(self, _import_module):
+    async def test_should_execute_action_heuristic_fail_too_many_targets(
+        self, _import_module
+    ):
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="a3", title="Title",
+            action_id="a3",
+            title="Title",
             description="A sufficiently long description for the heuristic check to be satisfied fully.",
-            targets=[f"0x{i}" for i in range(10)], values=[0]*10, calldatas=["0x"]*10,
-            votes_required=10, execution_delay=86400,
+            targets=[f"0x{i}" for i in range(10)],
+            values=[0] * 10,
+            calldatas=["0x"] * 10,
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         result = await oracle.should_execute_action(action)
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_with_model(self, _import_module, sample_action):
+    async def test_should_execute_action_with_model(
+        self, _import_module, sample_action
+    ):
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         mock_model = MagicMock()
@@ -364,7 +389,9 @@ class TestMLBasedGovernanceOracle:
         mock_model.predict.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_model_predicts_no(self, _import_module, sample_action):
+    async def test_should_execute_action_model_predicts_no(
+        self, _import_module, sample_action
+    ):
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         mock_model = MagicMock()
@@ -374,7 +401,9 @@ class TestMLBasedGovernanceOracle:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_should_execute_action_model_exception_falls_back(self, _import_module, sample_action):
+    async def test_should_execute_action_model_exception_falls_back(
+        self, _import_module, sample_action
+    ):
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         mock_model = MagicMock()
@@ -434,10 +463,14 @@ class TestMLBasedGovernanceOracle:
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="p1", title="Fix critical bug",
+            action_id="p1",
+            title="Fix critical bug",
             description="Non-critical cosmetic changes",
-            targets=[], values=[], calldatas=[],
-            votes_required=10, execution_delay=86400,
+            targets=[],
+            values=[],
+            calldatas=[],
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         # base 0.5 + fix 0.15 + non-critical -0.15 = 0.5
@@ -449,10 +482,14 @@ class TestMLBasedGovernanceOracle:
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="p2", title="Patch vulnerability",
+            action_id="p2",
+            title="Patch vulnerability",
             description="Security hardening for mesh",
-            targets=[], values=[], calldatas=[],
-            votes_required=10, execution_delay=86400,
+            targets=[],
+            values=[],
+            calldatas=[],
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         # base 0.5 + security 0.2 + patch 0.15 = 0.85
@@ -465,10 +502,14 @@ class TestMLBasedGovernanceOracle:
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="p3", title="Fix patch emergency",
+            action_id="p3",
+            title="Fix patch emergency",
             description="Security critical fix patch vulnerability",
-            targets=[], values=[], calldatas=[],
-            votes_required=10, execution_delay=86400,
+            targets=[],
+            values=[],
+            calldatas=[],
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         priority = await oracle.get_execution_priority(action)
@@ -479,10 +520,14 @@ class TestMLBasedGovernanceOracle:
         mod = _import_module
         oracle = mod.MLBasedGovernanceOracle()
         action = mod.GovernanceAction(
-            action_id="p4", title="Routine update",
+            action_id="p4",
+            title="Routine update",
             description="Regular maintenance cycle",
-            targets=[], values=[], calldatas=[],
-            votes_required=10, execution_delay=86400,
+            targets=[],
+            values=[],
+            calldatas=[],
+            votes_required=10,
+            execution_delay=86400,
             created_at=datetime.now(),
         )
         # No keywords -> base 0.5
@@ -500,7 +545,9 @@ def mock_oracle(_import_module):
     """Create a mock GovernanceOracle."""
     oracle = AsyncMock()
     oracle.should_execute_action = AsyncMock(return_value=True)
-    oracle.get_voting_recommendation = AsyncMock(return_value=_import_module.VoteType.FOR)
+    oracle.get_voting_recommendation = AsyncMock(
+        return_value=_import_module.VoteType.FOR
+    )
     oracle.get_execution_priority = AsyncMock(return_value=0.8)
     return oracle
 
@@ -532,24 +579,32 @@ class TestMAEKGovernanceAdapter:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_submit_governance_action_oracle_rejects(self, adapter, sample_action, mock_oracle):
+    async def test_submit_governance_action_oracle_rejects(
+        self, adapter, sample_action, mock_oracle
+    ):
         mock_oracle.should_execute_action.return_value = False
         result = await adapter.submit_governance_action(sample_action)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_submit_governance_action_validate_only(self, adapter, sample_action):
-        result = await adapter.submit_governance_action(sample_action, submit_proposal=False)
+        result = await adapter.submit_governance_action(
+            sample_action, submit_proposal=False
+        )
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_submit_governance_action_exception(self, adapter, sample_action, _import_module):
+    async def test_submit_governance_action_exception(
+        self, adapter, sample_action, _import_module
+    ):
         """When Web3.keccak raises, should return None."""
         mod = _import_module
         # Patch the Web3 used by the module to raise
         with patch.object(adapter, "governor_address", side_effect=Exception("boom")):
             # Trigger exception in the try block by making keccak fail
-            orig_keccak = type(adapter.w3).keccak if hasattr(type(adapter.w3), 'keccak') else None
+            orig_keccak = (
+                type(adapter.w3).keccak if hasattr(type(adapter.w3), "keccak") else None
+            )
             # We can trigger the exception by making the string concatenation fail
             adapter.governor_address = None  # will cause TypeError in concatenation
             result = await adapter.submit_governance_action(sample_action)
@@ -652,7 +707,9 @@ class TestDAOIntegration:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_process_mapek_decision_oracle_rejects(self, dao_integration, mock_oracle):
+    async def test_process_mapek_decision_oracle_rejects(
+        self, dao_integration, mock_oracle
+    ):
         mock_oracle.should_execute_action.return_value = False
         decision = {
             "title": "Rejected action",
@@ -697,6 +754,7 @@ class TestDAOIntegration:
 class TestGovernanceActionSerialization:
     def test_asdict(self, _import_module, sample_action):
         from dataclasses import asdict
+
         d = asdict(sample_action)
         assert d["action_id"] == "test-action-001"
         assert d["votes_required"] == 50

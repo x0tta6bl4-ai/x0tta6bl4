@@ -6,6 +6,11 @@
 
 set -e
 
+export PYTHONFAULTHANDLER=1
+
+PYTEST_TIMEOUT="${PYTEST_TIMEOUT:-25m}"
+PYTHON_TEST_TIMEOUT="${PYTHON_TEST_TIMEOUT:-10m}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_DIR="${SCRIPT_DIR}/.zencoder"
@@ -17,6 +22,8 @@ echo "========================================================================"
 echo "Started: $(date)"
 echo "Report: ${REPORT_FILE}"
 echo "========================================================================"
+
+mkdir -p "${REPORT_DIR}"
 
 # Create report
 cat > "${REPORT_FILE}" << 'EOF'
@@ -37,7 +44,7 @@ echo "Timestamp: ${TIMESTAMP}" >> "${REPORT_FILE}"
 # Test 1: Quick Validation
 echo ""
 echo "Running Phase 1: Quick Validation Suite..."
-if python3 "${SCRIPT_DIR}/tests/quick_validation.py" > /tmp/test_quick.log 2>&1; then
+if timeout "$PYTHON_TEST_TIMEOUT" python3 "${SCRIPT_DIR}/tests/quick_validation.py" > /tmp/test_quick.log 2>&1; then
     echo "✅ Quick Validation: PASSED"
     echo "✅ **Quick Validation Suite**: PASSED (6/6 tests)" >> "${REPORT_FILE}"
     grep "Pass Rate" /tmp/test_quick.log >> "${REPORT_FILE}" || true
@@ -49,7 +56,7 @@ fi
 # Test 2: Database Resilience
 echo ""
 echo "Running Phase 2: Database Resilience Tests..."
-if python3 "${SCRIPT_DIR}/tests/integration/test_database_resilience.py" > /tmp/test_db.log 2>&1; then
+if timeout "$PYTHON_TEST_TIMEOUT" python3 "${SCRIPT_DIR}/tests/integration/test_database_resilience.py" > /tmp/test_db.log 2>&1; then
     echo "✅ Database Resilience: PASSED"
     echo "✅ **Database Resilience Tests**: PASSED (5/5 tests)" >> "${REPORT_FILE}"
     tail -10 /tmp/test_db.log | grep -E "Summary|PASSED" >> "${REPORT_FILE}" || true
@@ -61,7 +68,7 @@ fi
 # Test 3: Cache Resilience
 echo ""
 echo "Running Phase 3: Cache Resilience Tests..."
-if python3 "${SCRIPT_DIR}/tests/integration/test_cache_resilience.py" > /tmp/test_cache.log 2>&1; then
+if timeout "$PYTHON_TEST_TIMEOUT" python3 "${SCRIPT_DIR}/tests/integration/test_cache_resilience.py" > /tmp/test_cache.log 2>&1; then
     echo "✅ Cache Resilience: PASSED"
     echo "✅ **Cache Resilience Tests**: PASSED (4/4 tests)" >> "${REPORT_FILE}"
     tail -10 /tmp/test_cache.log | grep -E "Summary|PASSED" >> "${REPORT_FILE}" || true
@@ -73,7 +80,7 @@ fi
 # Test 4: E2E Critical Paths
 echo ""
 echo "Running Phase 4: E2E Critical Path Tests..."
-if python3 "${SCRIPT_DIR}/tests/integration/test_e2e_critical_paths.py" > /tmp/test_e2e.log 2>&1; then
+if timeout "$PYTHON_TEST_TIMEOUT" python3 "${SCRIPT_DIR}/tests/integration/test_e2e_critical_paths.py" > /tmp/test_e2e.log 2>&1; then
     echo "✅ E2E Critical Paths: PASSED"
     echo "✅ **E2E Critical Path Tests**: PASSED (5/5 tests)" >> "${REPORT_FILE}"
     tail -10 /tmp/test_e2e.log | grep -E "Summary|PASSED" >> "${REPORT_FILE}" || true
@@ -85,7 +92,7 @@ fi
 # Test 5: Advanced Chaos
 echo ""
 echo "Running Phase 5: Advanced Chaos Engineering Tests..."
-if python3 "${SCRIPT_DIR}/chaos/advanced_chaos_scenarios.py" > /tmp/test_chaos.log 2>&1; then
+if timeout "$PYTHON_TEST_TIMEOUT" python3 "${SCRIPT_DIR}/chaos/advanced_chaos_scenarios.py" > /tmp/test_chaos.log 2>&1; then
     echo "✅ Advanced Chaos: PASSED"
     echo "✅ **Advanced Chaos Scenarios**: PASSED (4/4 tests)" >> "${REPORT_FILE}"
     tail -5 /tmp/test_chaos.log | grep -E "SUMMARY|passed|failed" >> "${REPORT_FILE}" || true

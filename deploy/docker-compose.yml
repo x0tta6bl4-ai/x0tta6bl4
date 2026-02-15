@@ -1,17 +1,17 @@
-version: '3.8'
+# x0tta6bl4 Testnet: 3 mesh nodes + monitoring stack
+# Usage: cd deploy && docker compose up -d
 
 services:
-  # Prometheus
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: x0tta6bl4-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
       - '--web.enable-lifecycle'
     volumes:
-      - ./monitoring/prometheus-config.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - ./prometheus-testnet.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -19,18 +19,15 @@ services:
       - x0tta6bl4-net
     restart: unless-stopped
 
-  # Grafana
   grafana:
     image: grafana/grafana:10.4.0
     container_name: x0tta6bl4-grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=x0tta6bl4_admin
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-x0tta6bl4}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
     ports:
       - "3000:3000"
     networks:
@@ -39,7 +36,23 @@ services:
       - prometheus
     restart: unless-stopped
 
-  # Mesh Node (Consciousness-aware)
+  redis:
+    image: redis:7-alpine
+    container_name: x0tta6bl4-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - x0tta6bl4-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   mesh-node-1:
     build:
       context: ..
@@ -47,21 +60,21 @@ services:
     container_name: x0tta6bl4-node-1
     environment:
       - NODE_ID=node-1
-      - MESH_BACKEND=simulation
-      - PROMETHEUS_PUSHGATEWAY=http://prometheus:9091
-      - PHI_TARGET=1.618
-      - SACRED_FREQUENCY=108
-    volumes:
-      - ./configs/node-1.yaml:/etc/x0tta6bl4/config.yaml:ro
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
+      - RATE_LIMIT_ENABLED=true
     ports:
-      - "8001:8080"  # Metrics endpoint
-      - "7001:7000"  # Mesh protocol
+      - "8001:8080"
     networks:
       - x0tta6bl4-net
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     cap_add:
-      - NET_ADMIN  # For eBPF
-      - SYS_ADMIN
+      - NET_ADMIN
 
   mesh-node-2:
     build:
@@ -70,19 +83,20 @@ services:
     container_name: x0tta6bl4-node-2
     environment:
       - NODE_ID=node-2
-      - MESH_BACKEND=simulation
-      - PROMETHEUS_PUSHGATEWAY=http://prometheus:9091
-    volumes:
-      - ./configs/node-2.yaml:/etc/x0tta6bl4/config.yaml:ro
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
     ports:
       - "8002:8080"
-      - "7002:7000"
     networks:
       - x0tta6bl4-net
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     cap_add:
       - NET_ADMIN
-      - SYS_ADMIN
 
   mesh-node-3:
     build:
@@ -91,59 +105,26 @@ services:
     container_name: x0tta6bl4-node-3
     environment:
       - NODE_ID=node-3
-      - MESH_BACKEND=simulation
-      - PROMETHEUS_PUSHGATEWAY=http://prometheus:9091
-    volumes:
-      - ./configs/node-3.yaml:/etc/x0tta6bl4/config.yaml:ro
+      - REDIS_URL=redis://redis:6379/0
+      - TESTING=false
+      - MTLS_ENABLED=false
+      - TRACING_ENABLED=true
     ports:
       - "8003:8080"
-      - "7003:7000"
     networks:
       - x0tta6bl4-net
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     cap_add:
       - NET_ADMIN
-      - SYS_ADMIN
-
-  # IPFS Node (для DAO audit trail)
-  ipfs:
-    image: ipfs/kubo:latest
-    container_name: x0tta6bl4-ipfs
-    environment:
-      - IPFS_PROFILE=server
-    volumes:
-      - ipfs-data:/data/ipfs
-    ports:
-      - "4001:4001"  # Swarm
-      - "5001:5001"  # API
-      - "8080:8080"  # Gateway
-    networks:
-      - x0tta6bl4-net
-    restart: unless-stopped
-
-  # Redis (для Knowledge базы MAPE-K)
-  redis:
-    image: redis:7-alpine
-    container_name: x0tta6bl4-redis
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - x0tta6bl4-net
-    restart: unless-stopped
 
 networks:
   x0tta6bl4-net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
 
 volumes:
   prometheus-data:
   grafana-data:
-  ipfs-data:
   redis-data:
-

@@ -12,42 +12,48 @@ Covers:
 """
 
 import time
-import pytest
-import numpy as np
-from unittest.mock import patch, MagicMock, mock_open, call
 from dataclasses import asdict
+from unittest.mock import MagicMock, call, mock_open, patch
 
+import numpy as np
+import pytest
 import torch
 
 from src.ml.graphsage_anomaly_detector import (
-    AnomalyPrediction,
-    GraphSAGEAnomalyDetector,
-    GraphSAGEAnomalyDetectorV2,
-    create_graphsage_detector_for_mapek,
-    _TORCH_AVAILABLE,
-    _QUANTIZATION_AVAILABLE,
-)
-
+    _QUANTIZATION_AVAILABLE, _TORCH_AVAILABLE, AnomalyPrediction,
+    GraphSAGEAnomalyDetector, GraphSAGEAnomalyDetectorV2,
+    create_graphsage_detector_for_mapek)
 
 # -----------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------
 
+
 def _normal_features():
     """Return healthy node features."""
     return {
-        "rssi": -50.0, "snr": 20.0, "loss_rate": 0.01,
-        "link_age": 3600.0, "latency": 10.0, "throughput": 80.0,
-        "cpu": 0.3, "memory": 0.4,
+        "rssi": -50.0,
+        "snr": 20.0,
+        "loss_rate": 0.01,
+        "link_age": 3600.0,
+        "latency": 10.0,
+        "throughput": 80.0,
+        "cpu": 0.3,
+        "memory": 0.4,
     }
 
 
 def _anomalous_features():
     """Return clearly anomalous node features."""
     return {
-        "rssi": -92.0, "snr": 3.0, "loss_rate": 0.55,
-        "link_age": 5.0, "latency": 250.0, "throughput": 1.0,
-        "cpu": 0.96, "memory": 0.97,
+        "rssi": -92.0,
+        "snr": 3.0,
+        "loss_rate": 0.55,
+        "link_age": 5.0,
+        "latency": 250.0,
+        "throughput": 1.0,
+        "cpu": 0.96,
+        "memory": 0.97,
     }
 
 
@@ -61,18 +67,28 @@ def _make_neighbors(count=3):
     """Create a list of neighbor (id, features) tuples."""
     neighbors = []
     for i in range(count):
-        neighbors.append((
-            f"neighbor-{i}",
-            {"rssi": -55.0 - i, "snr": 18.0 - i, "loss_rate": 0.02 + 0.01 * i,
-             "link_age": 3000.0, "latency": 12.0, "throughput": 70.0,
-             "cpu": 0.35, "memory": 0.45}
-        ))
+        neighbors.append(
+            (
+                f"neighbor-{i}",
+                {
+                    "rssi": -55.0 - i,
+                    "snr": 18.0 - i,
+                    "loss_rate": 0.02 + 0.01 * i,
+                    "link_age": 3000.0,
+                    "latency": 12.0,
+                    "throughput": 70.0,
+                    "cpu": 0.35,
+                    "memory": 0.45,
+                },
+            )
+        )
     return neighbors
 
 
 # -----------------------------------------------------------------------
 # AnomalyPrediction dataclass
 # -----------------------------------------------------------------------
+
 
 class TestAnomalyPredictionDataclass:
     def test_create_prediction(self):
@@ -144,6 +160,7 @@ class TestAnomalyPredictionDataclass:
 # GraphSAGEAnomalyDetector initialization
 # -----------------------------------------------------------------------
 
+
 class TestDetectorInitialization:
     def test_default_parameters(self):
         det = _make_detector()
@@ -154,7 +171,10 @@ class TestDetectorInitialization:
 
     def test_custom_parameters(self):
         det = _make_detector(
-            input_dim=16, hidden_dim=128, num_layers=3, anomaly_threshold=0.75,
+            input_dim=16,
+            hidden_dim=128,
+            num_layers=3,
+            anomaly_threshold=0.75,
         )
         assert det.input_dim == 16
         assert det.hidden_dim == 128
@@ -201,6 +221,7 @@ class TestDetectorInitialization:
 # _features_to_tensor
 # -----------------------------------------------------------------------
 
+
 class TestFeaturesToTensor:
     def test_full_features(self):
         det = _make_detector()
@@ -241,8 +262,14 @@ class TestFeaturesToTensor:
         """Feature names must follow the canonical order."""
         det = _make_detector()
         features = {
-            "rssi": 1.0, "snr": 2.0, "loss_rate": 3.0, "link_age": 4.0,
-            "latency": 5.0, "throughput": 6.0, "cpu": 7.0, "memory": 8.0,
+            "rssi": 1.0,
+            "snr": 2.0,
+            "loss_rate": 3.0,
+            "link_age": 4.0,
+            "latency": 5.0,
+            "throughput": 6.0,
+            "cpu": 7.0,
+            "memory": 8.0,
         }
         tensor = det._features_to_tensor([features])
         for i in range(8):
@@ -252,6 +279,7 @@ class TestFeaturesToTensor:
 # -----------------------------------------------------------------------
 # _edges_to_tensor
 # -----------------------------------------------------------------------
+
 
 class TestEdgesToTensor:
     def test_basic_edges(self):
@@ -286,6 +314,7 @@ class TestEdgesToTensor:
 # -----------------------------------------------------------------------
 # _generate_labels
 # -----------------------------------------------------------------------
+
 
 class TestGenerateLabels:
     def test_healthy_node_label_zero(self):
@@ -387,9 +416,9 @@ class TestGenerateLabels:
         """SNR < 15 + throughput < 30 + RSSI > -75 adds 0.15."""
         det = _make_detector()
         features = _normal_features()
-        features["snr"] = 10.0       # < 15
+        features["snr"] = 10.0  # < 15
         features["throughput"] = 20.0  # < 30
-        features["rssi"] = -50.0      # > -75
+        features["rssi"] = -50.0  # > -75
         labels = det._generate_labels([features])
         # snr 10 < 12 -> 0.10, correlated -> 0.15, total 0.25 < 0.50
         assert labels == [0.0]
@@ -398,7 +427,7 @@ class TestGenerateLabels:
         """Latency > 30 + loss_rate > 0.03 adds 0.10."""
         det = _make_detector()
         features = _normal_features()
-        features["latency"] = 50.0    # > 30, adds 0.10 for > 40
+        features["latency"] = 50.0  # > 30, adds 0.10 for > 40
         features["loss_rate"] = 0.10  # > 0.03, > 0.05 adds 0.15
         labels = det._generate_labels([features])
         # latency > 40 = 0.10, loss_rate > 0.05 = 0.15, cascade = 0.10 => 0.35 < 0.50
@@ -408,14 +437,14 @@ class TestGenerateLabels:
         """Multiple signals together should cross threshold."""
         det = _make_detector()
         features = {
-            "rssi": -85.0,      # 0.30
-            "snr": 5.0,         # 0.25
+            "rssi": -85.0,  # 0.30
+            "snr": 5.0,  # 0.25
             "loss_rate": 0.20,  # 0.35
-            "link_age": 5.0,    # 0.15
-            "latency": 150.0,   # 0.25
+            "link_age": 5.0,  # 0.15
+            "latency": 150.0,  # 0.25
             "throughput": 1.0,  # 0.20
-            "cpu": 0.90,        # 0.25
-            "memory": 0.40,     # 0
+            "cpu": 0.90,  # 0.25
+            "memory": 0.40,  # 0
         }
         labels = det._generate_labels([features])
         assert labels == [1.0]
@@ -424,6 +453,7 @@ class TestGenerateLabels:
 # -----------------------------------------------------------------------
 # _score_to_severity
 # -----------------------------------------------------------------------
+
 
 class TestScoreToSeverity:
     def test_critical_severity(self):
@@ -469,7 +499,9 @@ class TestScoreToSeverity:
 
     def test_score_to_severity_without_causal(self):
         """When CAUSAL_ANALYSIS_AVAILABLE is False, returns None."""
-        with patch("src.ml.graphsage_anomaly_detector.CAUSAL_ANALYSIS_AVAILABLE", False):
+        with patch(
+            "src.ml.graphsage_anomaly_detector.CAUSAL_ANALYSIS_AVAILABLE", False
+        ):
             det = _make_detector()
             result = det._score_to_severity(0.95)
             assert result is None
@@ -478,6 +510,7 @@ class TestScoreToSeverity:
 # -----------------------------------------------------------------------
 # train method
 # -----------------------------------------------------------------------
+
 
 class TestTrainMethod:
     def test_train_empty_features_returns_early(self):
@@ -541,6 +574,7 @@ class TestTrainMethod:
 # predict method
 # -----------------------------------------------------------------------
 
+
 class TestPredictMethod:
     def test_predict_returns_anomaly_prediction(self):
         det = _make_detector()
@@ -559,22 +593,27 @@ class TestPredictMethod:
         det = _make_detector()
         features = _normal_features()
         pred = det.predict(
-            node_id="n1", node_features=features, neighbors=_make_neighbors(1),
+            node_id="n1",
+            node_features=features,
+            neighbors=_make_neighbors(1),
         )
         assert pred.features == features
 
     def test_predict_auto_generates_edge_index(self):
         det = _make_detector()
         pred = det.predict(
-            node_id="n1", node_features=_normal_features(),
-            neighbors=_make_neighbors(3), edge_index=None,
+            node_id="n1",
+            node_features=_normal_features(),
+            neighbors=_make_neighbors(3),
+            edge_index=None,
         )
         assert isinstance(pred, AnomalyPrediction)
 
     def test_predict_with_explicit_edge_index(self):
         det = _make_detector()
         pred = det.predict(
-            node_id="n1", node_features=_normal_features(),
+            node_id="n1",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(2),
             edge_index=[(0, 1), (1, 0), (0, 2), (2, 0)],
         )
@@ -583,7 +622,8 @@ class TestPredictMethod:
     def test_predict_no_neighbors(self):
         det = _make_detector()
         pred = det.predict(
-            node_id="lone", node_features=_normal_features(),
+            node_id="lone",
+            node_features=_normal_features(),
             neighbors=[],
         )
         assert isinstance(pred, AnomalyPrediction)
@@ -593,7 +633,8 @@ class TestPredictMethod:
         """Confidence should be abs(score - 0.5) * 2."""
         det = _make_detector()
         pred = det.predict(
-            node_id="c", node_features=_normal_features(),
+            node_id="c",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
         expected = abs(pred.anomaly_score - 0.5) * 2
@@ -603,17 +644,21 @@ class TestPredictMethod:
         """is_anomaly should be True iff anomaly_score >= threshold."""
         det = _make_detector()
         pred = det.predict(
-            node_id="t", node_features=_normal_features(),
+            node_id="t",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
         assert pred.is_anomaly == (pred.anomaly_score >= det.anomaly_threshold)
 
     def test_predict_records_metrics(self):
         """record_graphsage_inference should be called."""
-        with patch("src.ml.graphsage_anomaly_detector.record_graphsage_inference") as mock_record:
+        with patch(
+            "src.ml.graphsage_anomaly_detector.record_graphsage_inference"
+        ) as mock_record:
             det = _make_detector()
             pred = det.predict(
-                node_id="m", node_features=_normal_features(),
+                node_id="m",
+                node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
             mock_record.assert_called_once()
@@ -627,11 +672,13 @@ class TestPredictMethod:
 # predict_with_causal method
 # -----------------------------------------------------------------------
 
+
 class TestPredictWithCausal:
     def test_returns_tuple(self):
         det = _make_detector()
         result = det.predict_with_causal(
-            node_id="c1", node_features=_normal_features(),
+            node_id="c1",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(2),
         )
         assert isinstance(result, tuple)
@@ -642,12 +689,24 @@ class TestPredictWithCausal:
     def test_no_anomaly_returns_none_causal(self):
         """When prediction is not anomaly, causal result should be None."""
         det = _make_detector()
-        # Use a very high threshold so nothing is anomalous
-        det.anomaly_threshold = 0.99
-        pred, causal = det.predict_with_causal(
-            node_id="safe", node_features=_normal_features(),
-            neighbors=_make_neighbors(2),
-        )
+        with patch.object(
+            det,
+            "predict",
+            return_value=AnomalyPrediction(
+                is_anomaly=False,
+                anomaly_score=0.1,
+                confidence=0.8,
+                node_id="safe",
+                features=_normal_features(),
+                inference_time_ms=1.0,
+            ),
+        ):
+            pred, causal = det.predict_with_causal(
+                node_id="safe",
+                node_features=_normal_features(),
+                neighbors=_make_neighbors(2),
+            )
+        assert pred.is_anomaly is False
         assert causal is None
 
     def test_anomaly_with_causal_engine_none(self):
@@ -656,7 +715,8 @@ class TestPredictWithCausal:
         det.causal_engine = None
         det.anomaly_threshold = 0.0  # Force anomaly
         pred, causal = det.predict_with_causal(
-            node_id="no-causal", node_features=_normal_features(),
+            node_id="no-causal",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
         assert pred.is_anomaly is True
@@ -670,7 +730,8 @@ class TestPredictWithCausal:
         mock_engine.analyze.side_effect = RuntimeError("analysis failed")
         det.causal_engine = mock_engine
         pred, causal = det.predict_with_causal(
-            node_id="err", node_features=_normal_features(),
+            node_id="err",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
         assert pred.is_anomaly is True
@@ -690,7 +751,8 @@ class TestPredictWithCausal:
         det.causal_engine = mock_engine
 
         pred, causal = det.predict_with_causal(
-            node_id="anom", node_features=_normal_features(),
+            node_id="anom",
+            node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
         assert pred.is_anomaly is True
@@ -700,12 +762,15 @@ class TestPredictWithCausal:
 
     def test_causal_not_available_returns_none(self):
         """When CAUSAL_ANALYSIS_AVAILABLE is False, no causal analysis."""
-        with patch("src.ml.graphsage_anomaly_detector.CAUSAL_ANALYSIS_AVAILABLE", False):
+        with patch(
+            "src.ml.graphsage_anomaly_detector.CAUSAL_ANALYSIS_AVAILABLE", False
+        ):
             det = _make_detector()
             det.anomaly_threshold = 0.0
             det.causal_engine = MagicMock()
             pred, causal = det.predict_with_causal(
-                node_id="nc", node_features=_normal_features(),
+                node_id="nc",
+                node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
             assert causal is None
@@ -715,13 +780,15 @@ class TestPredictWithCausal:
 # explain_anomaly method
 # -----------------------------------------------------------------------
 
+
 class TestExplainAnomaly:
     def test_shap_not_available_returns_empty(self):
         """When SHAP_AVAILABLE is False, returns empty dict."""
         with patch("src.ml.graphsage_anomaly_detector.SHAP_AVAILABLE", False):
             det = _make_detector()
             result = det.explain_anomaly(
-                node_id="e1", node_features=_normal_features(),
+                node_id="e1",
+                node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
             assert result == {}
@@ -731,7 +798,8 @@ class TestExplainAnomaly:
         with patch("src.ml.graphsage_anomaly_detector._TORCH_AVAILABLE", False):
             det = GraphSAGEAnomalyDetector()
             result = det.explain_anomaly(
-                node_id="e2", node_features=_normal_features(),
+                node_id="e2",
+                node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
             assert result == {}
@@ -739,14 +807,19 @@ class TestExplainAnomaly:
     def test_explain_exception_returns_empty(self):
         """When SHAP explainer raises, returns empty dict."""
         import sys
+
         mock_shap = MagicMock()
         mock_shap.KernelExplainer.side_effect = ValueError("shap error")
         import src.ml.graphsage_anomaly_detector as gmod
-        with patch.object(gmod, "SHAP_AVAILABLE", True), \
-             patch.object(gmod, "shap", mock_shap, create=True):
+
+        with (
+            patch.object(gmod, "SHAP_AVAILABLE", True),
+            patch.object(gmod, "shap", mock_shap, create=True),
+        ):
             det = _make_detector()
             result = det.explain_anomaly(
-                node_id="e3", node_features=_normal_features(),
+                node_id="e3",
+                node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
             assert result == {}
@@ -755,6 +828,7 @@ class TestExplainAnomaly:
 # -----------------------------------------------------------------------
 # save_model / load_model
 # -----------------------------------------------------------------------
+
 
 class TestSaveLoadModel:
     def test_save_model_none_no_error(self):
@@ -804,6 +878,7 @@ class TestSaveLoadModel:
 # train_from_telemetry
 # -----------------------------------------------------------------------
 
+
 class TestTrainFromTelemetry:
     def test_calls_generate_training_data(self):
         det = _make_detector()
@@ -819,11 +894,19 @@ class TestTrainFromTelemetry:
                 return_value=(mock_features, mock_edges, mock_labels),
             ):
                 det.train_from_telemetry(
-                    num_snapshots=10, nodes_per_snapshot=5,
-                    anomaly_ratio=0.3, epochs=2, lr=0.001, seed=42,
+                    num_snapshots=10,
+                    nodes_per_snapshot=5,
+                    anomaly_ratio=0.3,
+                    epochs=2,
+                    lr=0.001,
+                    seed=42,
                 )
                 mock_train.assert_called_once_with(
-                    mock_features, mock_edges, mock_labels, epochs=2, lr=0.001,
+                    mock_features,
+                    mock_edges,
+                    mock_labels,
+                    epochs=2,
+                    lr=0.001,
                 )
 
     def test_no_torch_train_from_telemetry(self):
@@ -844,10 +927,12 @@ class TestTrainFromTelemetry:
 # create_graphsage_detector_for_mapek
 # -----------------------------------------------------------------------
 
+
 class TestCreateDetectorForMapek:
     def test_default_creation(self):
         det = create_graphsage_detector_for_mapek(
-            pretrain=False, use_quantization=False,
+            pretrain=False,
+            use_quantization=False,
         )
         assert isinstance(det, GraphSAGEAnomalyDetector)
         assert det.input_dim == 8
@@ -863,13 +948,17 @@ class TestCreateDetectorForMapek:
             GraphSAGEAnomalyDetector, "train_from_telemetry"
         ) as mock_train:
             det = create_graphsage_detector_for_mapek(
-                pretrain=True, num_snapshots=5, epochs=2, use_quantization=False,
+                pretrain=True,
+                num_snapshots=5,
+                epochs=2,
+                use_quantization=False,
             )
             mock_train.assert_called_once_with(num_snapshots=5, epochs=2)
 
     def test_quantization_flag_passed(self):
         det = create_graphsage_detector_for_mapek(
-            pretrain=False, use_quantization=False,
+            pretrain=False,
+            use_quantization=False,
         )
         assert det.use_quantization is False
 
@@ -883,6 +972,7 @@ class TestCreateDetectorForMapek:
 # -----------------------------------------------------------------------
 # GraphSAGEAnomalyDetectorV2 (nn.Module)
 # -----------------------------------------------------------------------
+
 
 class TestGraphSAGEAnomalyDetectorV2:
     def test_instantiation(self):
@@ -947,6 +1037,7 @@ class TestGraphSAGEAnomalyDetectorV2:
 # Integration: full predict cycle after training
 # -----------------------------------------------------------------------
 
+
 class TestIntegrationPredictAfterTrain:
     def test_predict_after_brief_training(self):
         det = _make_detector()
@@ -969,7 +1060,8 @@ class TestIntegrationPredictAfterTrain:
         det.train(node_features=features, edge_index=edges, epochs=3)
 
         pred, causal = det.predict_with_causal(
-            node_id="pc", node_features=_normal_features(),
+            node_id="pc",
+            node_features=_normal_features(),
             neighbors=[("nb", _normal_features())],
         )
         assert isinstance(pred, AnomalyPrediction)

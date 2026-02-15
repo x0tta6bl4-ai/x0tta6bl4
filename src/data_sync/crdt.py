@@ -12,13 +12,14 @@ Implements state-based (CvRDT) variants:
 - ORSet: observed-remove set with unique tags
 - LWWMap: last-writer-wins map (key -> LWWRegister)
 """
+
 from __future__ import annotations
 
-import time
-import uuid # Add uuid import
 import logging
-from typing import Dict, Set, Tuple, Any, Optional, FrozenSet
+import time
+import uuid  # Add uuid import
 from dataclasses import dataclass, field
+from typing import Any, Dict, FrozenSet, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,6 @@ class GCounter:
         for node, val in other.counters.items():
             self.counters[node] = max(self.counters.get(node, 0), val)
 
-    @property
     def value(self) -> int:
         return sum(self.counters.values())
 
@@ -97,13 +97,18 @@ class LWWRegister:
     Last-Writer-Wins Register. Stores a single value with a (timestamp, node_id) pair.
     On merge, the value with the higher (timestamp, node_id) pair wins.
     """
+
     _value: Any = None
     _timestamp: float = 0.0
-    _node_id: str = "" # Unique identifier for the node that last wrote the value
+    _node_id: str = ""  # Unique identifier for the node that last wrote the value
 
-    def __init__(self, node_id: str, value: Any = None, timestamp: Optional[float] = None):
+    def __init__(
+        self, node_id: str, value: Any = None, timestamp: Optional[float] = None
+    ):
         self._node_id = node_id
-        logger.debug(f"LWWRegister init for node {node_id}: initial _timestamp={self._timestamp} ({type(self._timestamp)})")
+        logger.debug(
+            f"LWWRegister init for node {node_id}: initial _timestamp={self._timestamp} ({type(self._timestamp)})"
+        )
         self.set(value, timestamp)
 
     @property
@@ -113,15 +118,17 @@ class LWWRegister:
     @property
     def timestamp(self) -> float:
         return self._timestamp
-    
+
     @property
     def node_id(self) -> str:
         return self._node_id
 
     def set(self, value: Any, timestamp: Optional[float] = None):
         current_time = timestamp if timestamp is not None else time.time()
-        logger.debug(f"LWWRegister set for node {self._node_id}: current_time={current_time} ({type(current_time)}), self._timestamp={self._timestamp} ({type(self._timestamp)})")
-        
+        logger.debug(
+            f"LWWRegister set for node {self._node_id}: current_time={current_time} ({type(current_time)}), self._timestamp={self._timestamp} ({type(self._timestamp)})"
+        )
+
         # A new value must have a strictly greater timestamp to overwrite
         # The node_id tie-breaking is handled only during merge operations.
         if current_time > self._timestamp:
@@ -135,18 +142,31 @@ class LWWRegister:
         if (other._timestamp, other._node_id) > (self._timestamp, self._node_id):
             self._value = other._value
             self._timestamp = other._timestamp
-            self._node_id = other._node_id # Update node_id to the winning one
+            self._node_id = other._node_id  # Update node_id to the winning one
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"value": self._value, "timestamp": self._timestamp, "node_id": self._node_id}
+        return {
+            "value": self._value,
+            "timestamp": self._timestamp,
+            "node_id": self._node_id,
+        }
 
     @classmethod
-    def from_dict(cls, data: dict, node_id: str = None) -> LWWRegister:
-        return cls(
-            node_id=data.get('node_id', node_id),
-            value=data['value'],
-            timestamp=float(data['timestamp']) # ensure float
-        )
+    def from_dict(cls, data: Dict[str, Any]) -> "LWWRegister":
+        # Создаем экземпляр, возможно, с дефолтными значениями, чтобы не триггерить логику "новой записи"
+        # Важно: node_id должен совпадать с тем, что в данных, чтобы корректно разрешать конфликты
+        instance = cls(node_id=data["node_id"])
+
+        # ПРЯМОЕ восстановление внутреннего состояния.
+        # Мы доверяем сохраненным данным (они уже прошли валидацию при записи).
+        instance._value = data["value"]
+        instance._timestamp = float(data["timestamp"])
+
+        # Если в классе есть поле _node_id, убеждаемся, что оно установлено
+        if hasattr(instance, "_node_id"):
+            instance._node_id = data["node_id"]
+
+        return instance
 
 
 class GSet:
@@ -233,7 +253,6 @@ class ORSet:
         for elem in empty:
             del self._adds[elem]
 
-    @property
     def value(self) -> FrozenSet[Any]:
         result = set()
         for elem, tags in self._adds.items():
@@ -275,8 +294,11 @@ class LWWMap:
     def set(self, key: str, value: Any, timestamp: Optional[float] = None):
         ts = timestamp if timestamp is not None else time.monotonic()
         if key not in self._registers:
-            self._registers[key] = LWWRegister()
-        self._registers[key].set(value, ts)
+            self._registers[key] = LWWRegister(
+                node_id=self._node_id, value=value, timestamp=ts
+            )
+        else:
+            self._registers[key].set(value, ts)
         self._keys.add(key, self._node_id)
 
     def get(self, key: str) -> Optional[Any]:
@@ -291,8 +313,13 @@ class LWWMap:
     def merge(self, other: LWWMap):
         for key, reg in other._registers.items():
             if key not in self._registers:
-                self._registers[key] = LWWRegister()
-            self._registers[key].merge(reg)
+                self._registers[key] = LWWRegister(
+                    node_id=reg._node_id,
+                    value=reg._value,
+                    timestamp=reg._timestamp,
+                )
+            else:
+                self._registers[key].merge(reg)
         self._keys.merge(other._keys)
 
     def keys(self) -> FrozenSet[str]:

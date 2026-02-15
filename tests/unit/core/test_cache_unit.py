@@ -3,33 +3,32 @@ Unit tests for src/core/cache.py
 Tests RedisCache singleton, InMemoryCacheBackend, CacheWarming, and @cached decorator.
 """
 
-import os
-import pytest
 import asyncio
+import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 try:
-    from src.core.cache import (
-        RedisCache,
-        InMemoryCacheBackend,
-        CacheWarming,
-        cached,
-        get_cache,
-        reset_cache,
-    )
+    from src.core.cache import (CacheWarming, InMemoryCacheBackend, RedisCache,
+                                cached, get_cache, reset_cache)
+
     CACHE_AVAILABLE = True
 except ImportError:
     CACHE_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(not CACHE_AVAILABLE, reason="cache module not available")
+pytestmark = pytest.mark.skipif(
+    not CACHE_AVAILABLE, reason="cache module not available"
+)
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _reset_singleton():
@@ -54,6 +53,7 @@ def cache_instance(backend):
 # ===========================================================================
 # InMemoryCacheBackend
 # ===========================================================================
+
 
 class TestInMemoryCacheBackend:
     """Tests for InMemoryCacheBackend."""
@@ -127,6 +127,7 @@ class TestInMemoryCacheBackend:
 # RedisCache singleton
 # ===========================================================================
 
+
 class TestRedisCacheSingleton:
     """Tests for RedisCache singleton behaviour and create_for_testing."""
 
@@ -154,6 +155,7 @@ class TestRedisCacheSingleton:
 # ===========================================================================
 # RedisCache get / set / delete with InMemoryBackend
 # ===========================================================================
+
 
 class TestRedisCacheOperations:
     """Test RedisCache async CRUD through InMemoryCacheBackend."""
@@ -230,6 +232,7 @@ class TestRedisCacheOperations:
 # RedisCache health_check
 # ===========================================================================
 
+
 class TestRedisCacheHealthCheck:
 
     @pytest.mark.asyncio
@@ -259,6 +262,7 @@ class TestRedisCacheHealthCheck:
 # ===========================================================================
 # @cached decorator
 # ===========================================================================
+
 
 class TestCachedDecorator:
 
@@ -317,7 +321,13 @@ class TestCachedDecorator:
             return x
 
         await compute(42)
-        assert await cache_instance.get(f"inv:compute:{hash(str((42,)) + str([])) % 10000000}") is not None or True  # key exists
+        assert (
+            await cache_instance.get(
+                f"inv:compute:{hash(str((42,)) + str([])) % 10000000}"
+            )
+            is not None
+            or True
+        )  # key exists
 
         deleted = await compute.invalidate(42)
         # After invalidation, next call should re-compute
@@ -328,6 +338,7 @@ class TestCachedDecorator:
 # ===========================================================================
 # CacheWarming
 # ===========================================================================
+
 
 class TestCacheWarming:
 
@@ -375,6 +386,7 @@ class TestCacheWarming:
 # ===========================================================================
 # Module-level helpers
 # ===========================================================================
+
 
 class TestModuleHelpers:
 

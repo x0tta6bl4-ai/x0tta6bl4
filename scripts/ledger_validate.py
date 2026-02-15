@@ -12,14 +12,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Прямой импорт helpers без использования __init__.py
-from src.ledger.helpers import (
-    validate_ledger_structure,
-    find_unconfirmed,
-    find_todos,
-    find_metrics,
-    get_ledger_summary,
-    extract_key_metrics
-)
+from src.ledger.helpers import (extract_key_metrics, find_metrics, find_todos,
+                                find_unconfirmed, get_ledger_summary,
+                                validate_ledger_structure)
 
 CONTINUITY_FILE = PROJECT_ROOT / "CONTINUITY.md"
 
@@ -29,26 +24,28 @@ def validate_ledger():
     if not CONTINUITY_FILE.exists():
         print(f"❌ Файл не найден: {CONTINUITY_FILE}")
         sys.exit(1)
-    
+
     content = CONTINUITY_FILE.read_text(encoding="utf-8")
-    
+
     print("=" * 60)
     print("🔍 ВАЛИДАЦИЯ CONTINUITY LEDGER")
     print("=" * 60)
-    
+
     # Валидация структуры
     print("\n📋 Структура:")
     validation = validate_ledger_structure(content)
-    
+
     if validation["valid"]:
         print("  ✅ Структура валидна")
     else:
         print("  ❌ Структура невалидна")
         if validation["missing_sections"]:
-            print(f"  ⚠️  Отсутствующие разделы: {', '.join(validation['missing_sections'])}")
-    
+            print(
+                f"  ⚠️  Отсутствующие разделы: {', '.join(validation['missing_sections'])}"
+            )
+
     print(f"  📊 Всего разделов: {validation['total_sections']}")
-    
+
     # Summary
     print("\n📊 Summary:")
     summary = get_ledger_summary(content)
@@ -60,7 +57,7 @@ def validate_ledger():
     print(f"  - UNCONFIRMED: {summary['total_unconfirmed']}")
     print(f"  - TODO/FIXME: {summary['total_todos']}")
     print(f"  - Дат: {summary['total_dates']}")
-    
+
     # UNCONFIRMED метки
     print("\n⚠️  UNCONFIRMED метки:")
     unconfirmed = find_unconfirmed(content)
@@ -72,7 +69,7 @@ def validate_ledger():
             print(f"       Контекст: {uc['context'][:80]}...")
     else:
         print("  ✅ UNCONFIRMED меток не найдено")
-    
+
     # TODO/FIXME
     print("\n📝 TODO/FIXME:")
     todos = find_todos(content)
@@ -84,7 +81,7 @@ def validate_ledger():
             print(f"       Раздел: {todo['section']}, строка: {todo['line']}")
     else:
         print("  ✅ TODO/FIXME не найдено")
-    
+
     # Ключевые метрики
     print("\n📈 Ключевые метрики:")
     key_metrics = extract_key_metrics(content)
@@ -95,11 +92,11 @@ def validate_ledger():
             print(f"  - {metric_name}: {value}{unit}")
     else:
         print("  ⚠️  Ключевые метрики не найдены")
-    
+
     # Общая оценка
     print("\n" + "=" * 60)
     print("📊 ОБЩАЯ ОЦЕНКА:")
-    
+
     issues = []
     if not validation["valid"]:
         issues.append("Структура невалидна")
@@ -107,7 +104,7 @@ def validate_ledger():
         issues.append(f"Много UNCONFIRMED меток ({len(unconfirmed)})")
     if len(todos) > 5:
         issues.append(f"Много TODO/FIXME ({len(todos)})")
-    
+
     if issues:
         print("  ⚠️  Обнаружены проблемы:")
         for issue in issues:
@@ -121,13 +118,12 @@ def validate_ledger():
             print("    - Решите TODO/FIXME задачи")
     else:
         print("  ✅ Ledger в хорошем состоянии")
-    
+
     print("=" * 60)
-    
+
     # Exit code
     sys.exit(0 if not issues else 1)
 
 
 if __name__ == "__main__":
     validate_ledger()
-

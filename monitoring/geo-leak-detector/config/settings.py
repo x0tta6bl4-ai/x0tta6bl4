@@ -92,7 +92,7 @@ class APISettings(BaseSettings):
     host: str = Field(default="0.0.0.0", env="GEO_API_HOST")
     port: int = Field(default=8080, env="GEO_API_PORT")
     debug: bool = Field(default=False, env="GEO_DEBUG")
-    secret_key: str = Field(default="your-secret-key-change-in-production", env="GEO_SECRET_KEY")
+    secret_key: str = Field(..., env="GEO_SECRET_KEY")  # Required in production
     cors_origins: List[str] = Field(default=["*"], env="GEO_CORS_ORIGINS")
 
 

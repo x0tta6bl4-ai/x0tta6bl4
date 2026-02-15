@@ -1,25 +1,30 @@
 """
 Memory profiling utilities for x0tta6bl4
 """
-import tracemalloc
-import psutil
+
 import logging
 import threading
 import time
-from typing import Dict, Any, Optional
+import tracemalloc
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+import psutil
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class MemoryStats:
     """Memory usage statistics."""
+
     rss_mb: float  # Resident Set Size
     vms_mb: float  # Virtual Memory Size
     tracemalloc_mb: float  # Tracemalloc current memory
     peak_tracemalloc_mb: float  # Tracemalloc peak memory
     cpu_percent: float  # CPU usage percentage
     timestamp: float
+
 
 class MemoryProfiler:
     """
@@ -67,7 +72,7 @@ class MemoryProfiler:
             tracemalloc_mb=tracemalloc_current,
             peak_tracemalloc_mb=tracemalloc_peak,
             cpu_percent=cpu_percent,
-            timestamp=time.time()
+            timestamp=time.time(),
         )
 
     def log_memory_usage(self, prefix: str = "Memory usage"):
@@ -94,9 +99,7 @@ class MemoryProfiler:
 
         self._monitoring = True
         self._monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            args=(interval_seconds,),
-            daemon=True
+            target=self._monitor_loop, args=(interval_seconds,), daemon=True
         )
         self._monitor_thread.start()
         logger.info(f"Started memory monitoring (interval: {interval_seconds}s)")
@@ -144,7 +147,7 @@ class MemoryProfiler:
 
         try:
             snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics('lineno')
+            top_stats = snapshot.statistics("lineno")
 
             report = {
                 "current_stats": self.get_current_stats(),
@@ -152,7 +155,9 @@ class MemoryProfiler:
                     {
                         "size_mb": stat.size / 1024 / 1024,
                         "count": stat.count,
-                        "file": stat.traceback[0].filename if stat.traceback else "unknown",
+                        "file": (
+                            stat.traceback[0].filename if stat.traceback else "unknown"
+                        ),
                         "line": stat.traceback[0].lineno if stat.traceback else 0,
                     }
                     for stat in top_stats[:10]  # Top 10 allocations
@@ -166,12 +171,15 @@ class MemoryProfiler:
             logger.error(f"Failed to generate memory report: {e}")
             return {"error": str(e)}
 
+
 # Global profiler instance
 _memory_profiler = MemoryProfiler()
+
 
 def get_memory_profiler() -> MemoryProfiler:
     """Get global memory profiler instance."""
     return _memory_profiler
+
 
 def log_memory_usage(prefix: str = "Memory usage"):
     """Convenience function to log current memory usage."""

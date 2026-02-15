@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 import httpx
 
-from ..workload import WorkloadAPIClient, X509SVID
+from ..workload import X509SVID, WorkloadAPIClient
 from .tls_context import MTLSContext, TLSRole, build_mtls_context
 
 logger = logging.getLogger(__name__)

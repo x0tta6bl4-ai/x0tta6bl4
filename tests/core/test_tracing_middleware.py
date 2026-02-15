@@ -1,17 +1,15 @@
 """
 Tests for Tracing Middleware.
 """
-import pytest
-from unittest.mock import Mock, patch
-from starlette.testclient import TestClient
-from fastapi import FastAPI
 
-from src.core.tracing_middleware import (
-    TracingMiddleware,
-    get_correlation_id,
-    db_tracer,
-    api_tracer,
-)
+from unittest.mock import Mock, patch
+
+import pytest
+from fastapi import FastAPI
+from starlette.testclient import TestClient
+
+from src.core.tracing_middleware import (TracingMiddleware, api_tracer,
+                                         db_tracer, get_correlation_id)
 
 
 class TestTracingMiddleware:
@@ -34,9 +32,7 @@ class TestTracingMiddleware:
             raise ValueError("Test error")
 
         self.app.add_middleware(
-            TracingMiddleware,
-            service_name="test-service",
-            excluded_paths=["/health"]
+            TracingMiddleware, service_name="test-service", excluded_paths=["/health"]
         )
         self.client = TestClient(self.app, raise_server_exceptions=False)
 
@@ -50,10 +46,7 @@ class TestTracingMiddleware:
     def test_preserves_correlation_id(self):
         """Test that provided correlation ID is preserved."""
         custom_id = "my-custom-correlation-id"
-        response = self.client.get(
-            "/test",
-            headers={"X-Correlation-ID": custom_id}
-        )
+        response = self.client.get("/test", headers={"X-Correlation-ID": custom_id})
         assert response.status_code == 200
         assert response.headers["X-Correlation-ID"] == custom_id
 

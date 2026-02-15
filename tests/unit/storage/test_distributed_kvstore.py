@@ -1,5 +1,7 @@
 import pytest
-from src.storage.distributed_kvstore import DistributedKVStore, ReplicatedKVStore
+
+from src.storage.distributed_kvstore import (DistributedKVStore,
+                                             ReplicatedKVStore)
 
 
 def test_kv_put_get():

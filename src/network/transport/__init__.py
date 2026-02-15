@@ -3,20 +3,10 @@
 Реализует сетевые протоколы с интегрированным шейпингом и обфускацией.
 """
 
-from .websocket_shaped import (
-    ShapedWebSocketClient,
-    ShapedWebSocketServer,
-    ConnectionState,
-    ShapedMessage
-)
-
-from .udp_shaped import (
-    ShapedUDPTransport,
-    UDPHolePuncher,
-    UDPPacket,
-    PacketType,
-    PeerInfo
-)
+from .udp_shaped import (PacketType, PeerInfo, ShapedUDPTransport,
+                         UDPHolePuncher, UDPPacket)
+from .websocket_shaped import (ConnectionState, ShapedMessage,
+                               ShapedWebSocketClient, ShapedWebSocketServer)
 
 __all__ = [
     # WebSocket

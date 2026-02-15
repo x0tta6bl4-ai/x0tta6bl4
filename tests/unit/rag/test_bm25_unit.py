@@ -1,7 +1,9 @@
 """
 Unit tests for BM25 keyword search and RRF hybrid fusion.
 """
+
 import pytest
+
 from src.rag.bm25 import BM25Index, reciprocal_rank_fusion, tokenize
 
 

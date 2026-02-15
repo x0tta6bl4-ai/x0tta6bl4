@@ -8,14 +8,11 @@ Connects FL components with other x0tta6bl4 modules:
 - Blockchain audit trail
 """
 
-from .twin_integration import (
-    TwinBackedRoutingEnv,
-    FederatedTrainingOrchestrator,
-    TwinMetricsCollector
-)
+from .twin_integration import (FederatedTrainingOrchestrator,
+                               TwinBackedRoutingEnv, TwinMetricsCollector)
 
 __all__ = [
     "TwinBackedRoutingEnv",
     "FederatedTrainingOrchestrator",
-    "TwinMetricsCollector"
+    "TwinMetricsCollector",
 ]

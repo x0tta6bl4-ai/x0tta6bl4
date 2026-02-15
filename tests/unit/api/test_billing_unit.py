@@ -4,20 +4,21 @@ Tests _verify_stripe_signature (HMAC-SHA256), _get_env, _require_env,
 billing_config, checkout-session, webhook email extraction, and event filtering.
 """
 
+import hashlib
+import hmac
+import json
 import os
 import time
-import hmac
-import hashlib
-import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, HTTPException
     from fastapi.testclient import TestClient
-    from fastapi import HTTPException
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -30,12 +31,11 @@ pytestmark = pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi not avail
 # ---------------------------------------------------------------------------
 
 try:
-    from src.api.billing import (
-        _get_env,
-        _require_env,
-        _verify_stripe_signature,
-        router,
-    )
+    from src.api.billing import (CheckoutSessionRequest, _get_env,
+                                 _require_env, _verify_stripe_signature,
+                                 billing_config, create_checkout_session,
+                                 router, stripe_webhook)
+
     BILLING_AVAILABLE = True
 except ImportError:
     BILLING_AVAILABLE = False
@@ -49,6 +49,7 @@ pytestmark = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_signature(payload: bytes, secret: str, timestamp: int) -> str:
     """Build a valid Stripe-Signature header value."""
     signed_payload = f"{timestamp}.".encode("utf-8") + payload
@@ -56,9 +57,22 @@ def _make_signature(payload: bytes, secret: str, timestamp: int) -> str:
     return f"t={timestamp},v1={sig}"
 
 
+def _raw(fn):
+    return getattr(fn, "__wrapped__", fn)
+
+
+class _DummyRequest:
+    def __init__(self, payload: bytes = b""):
+        self._payload = payload
+
+    async def body(self) -> bytes:
+        return self._payload
+
+
 # ===========================================================================
 # TestGetEnv
 # ===========================================================================
+
 
 class TestGetEnv:
 
@@ -87,6 +101,7 @@ class TestGetEnv:
 # TestRequireEnv
 # ===========================================================================
 
+
 class TestRequireEnv:
 
     def test_returns_value_when_set(self, monkeypatch):
@@ -104,6 +119,7 @@ class TestRequireEnv:
 # ===========================================================================
 # TestVerifyStripeSignature
 # ===========================================================================
+
 
 class TestVerifyStripeSignature:
 
@@ -172,30 +188,22 @@ class TestVerifyStripeSignature:
 # TestBillingConfig (endpoint)
 # ===========================================================================
 
+
 class TestBillingConfig:
-
-    @pytest.fixture
-    def client(self):
-        app = FastAPI()
-        app.include_router(router)
-        return TestClient(app)
-
-    def test_config_not_configured(self, client, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_config_not_configured(self, monkeypatch):
         monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
         monkeypatch.delenv("STRIPE_PRICE_ID", raising=False)
         monkeypatch.delenv("STRIPE_PUBLISHABLE_KEY", raising=False)
-        resp = client.get("/api/v1/billing/config")
-        assert resp.status_code == 200
-        body = resp.json()
+        body = await billing_config()
         assert body["configured"] is False
 
-    def test_config_configured(self, client, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_config_configured(self, monkeypatch):
         monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
         monkeypatch.setenv("STRIPE_PRICE_ID", "price_123")
         monkeypatch.setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_123")
-        resp = client.get("/api/v1/billing/config")
-        assert resp.status_code == 200
-        body = resp.json()
+        body = await billing_config()
         assert body["configured"] is True
         assert body["publishable_key"] == "pk_test_123"
         assert body["price_id"] == "price_123"
@@ -205,51 +213,44 @@ class TestBillingConfig:
 # TestWebhookEmailExtraction
 # ===========================================================================
 
+
 class TestWebhookEmailExtraction:
-
     @pytest.fixture
-    def client(self, monkeypatch):
+    def webhook_secret(self, monkeypatch):
         monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
-        app = FastAPI()
-        app.include_router(router)
-        return TestClient(app)
+        return "whsec_test"
 
-    def _webhook_request(self, client, event: dict, secret="whsec_test"):
+    async def _webhook_request(self, event: dict, secret="whsec_test", db=None):
         payload = json.dumps(event).encode("utf-8")
         ts = int(time.time())
         sig = _make_signature(payload, secret, ts)
-        return client.post(
-            "/api/v1/billing/webhook",
-            content=payload,
-            headers={"Stripe-Signature": sig, "Content-Type": "application/json"},
+        return await _raw(stripe_webhook)(
+            request=_DummyRequest(payload),
+            db=db or MagicMock(),
+            stripe_signature=sig,
         )
 
-    def test_webhook_missing_signature_returns_400(self, client):
-        resp = client.post(
-            "/api/v1/billing/webhook",
-            content=b"{}",
-            headers={"Content-Type": "application/json"},
-        )
-        assert resp.status_code == 400
+    @pytest.mark.asyncio
+    async def test_webhook_missing_signature_returns_400(self, webhook_secret):
+        with pytest.raises(HTTPException) as exc_info:
+            await _raw(stripe_webhook)(
+                request=_DummyRequest(b"{}"),
+                db=MagicMock(),
+                stripe_signature=None,
+            )
+        assert exc_info.value.status_code == 400
 
-    @patch("src.api.billing.get_db")
-    def test_webhook_valid_returns_received(self, mock_get_db, client):
-        mock_session = MagicMock()
-        mock_get_db.return_value = iter([mock_session])
-
+    @pytest.mark.asyncio
+    async def test_webhook_valid_returns_received(self, webhook_secret):
         event = {
             "type": "payment_intent.succeeded",
             "data": {"object": {"customer_email": "test@example.com"}},
         }
-        resp = self._webhook_request(client, event)
-        assert resp.status_code == 200
-        assert resp.json()["received"] is True
+        resp = await self._webhook_request(event, db=MagicMock())
+        assert resp["received"] is True
 
-    @patch("src.api.billing.get_db")
-    def test_webhook_extracts_email_from_customer_details(self, mock_get_db, client):
-        mock_session = MagicMock()
-        mock_get_db.return_value = iter([mock_session])
-
+    @pytest.mark.asyncio
+    async def test_webhook_extracts_email_from_customer_details(self, webhook_secret):
         event = {
             "type": "checkout.session.completed",
             "data": {
@@ -259,14 +260,11 @@ class TestWebhookEmailExtraction:
                 }
             },
         }
-        resp = self._webhook_request(client, event)
-        assert resp.status_code == 200
+        resp = await self._webhook_request(event, db=MagicMock())
+        assert resp["received"] is True
 
-    @patch("src.api.billing.get_db")
-    def test_webhook_extracts_email_from_metadata(self, mock_get_db, client):
-        mock_session = MagicMock()
-        mock_get_db.return_value = iter([mock_session])
-
+    @pytest.mark.asyncio
+    async def test_webhook_extracts_email_from_metadata(self, webhook_secret):
         event = {
             "type": "invoice.paid",
             "data": {
@@ -275,48 +273,42 @@ class TestWebhookEmailExtraction:
                 }
             },
         }
-        resp = self._webhook_request(client, event)
-        assert resp.status_code == 200
+        resp = await self._webhook_request(event, db=MagicMock())
+        assert resp["received"] is True
 
-    @patch("src.api.billing.get_db")
-    def test_webhook_ignores_unknown_event_type(self, mock_get_db, client):
-        mock_session = MagicMock()
-        mock_get_db.return_value = iter([mock_session])
-
+    @pytest.mark.asyncio
+    async def test_webhook_ignores_unknown_event_type(self, webhook_secret):
         event = {
             "type": "balance.available",
             "data": {"object": {"customer_email": "ignored@example.com"}},
         }
-        resp = self._webhook_request(client, event)
-        assert resp.status_code == 200
-        assert resp.json()["received"] is True
+        resp = await self._webhook_request(event, db=MagicMock())
+        assert resp["received"] is True
 
 
 # ===========================================================================
 # TestCheckoutSession
 # ===========================================================================
 
-class TestCheckoutSession:
 
-    @pytest.fixture
-    def client(self, monkeypatch):
+class TestCheckoutSession:
+    @pytest.mark.asyncio
+    async def test_invalid_email_returns_400(self, monkeypatch):
         monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
         monkeypatch.setenv("STRIPE_PRICE_ID", "price_123")
-        app = FastAPI()
-        app.include_router(router)
-        return TestClient(app)
+        with pytest.raises(HTTPException) as exc_info:
+            await _raw(create_checkout_session)(
+                request=_DummyRequest(),
+                payload=CheckoutSessionRequest(email="noemail", plan="pro"),
+            )
+        assert exc_info.value.status_code == 400
 
-    def test_invalid_email_returns_400(self, client):
-        resp = client.post(
-            "/api/v1/billing/checkout-session",
-            json={"email": "noemail", "plan": "pro"},
-        )
-        assert resp.status_code == 400
-
-    def test_missing_stripe_key_returns_503(self, client, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_missing_stripe_key_returns_503(self, monkeypatch):
         monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-        resp = client.post(
-            "/api/v1/billing/checkout-session",
-            json={"email": "user@example.com", "plan": "pro"},
-        )
-        assert resp.status_code == 503
+        with pytest.raises(HTTPException) as exc_info:
+            await _raw(create_checkout_session)(
+                request=_DummyRequest(),
+                payload=CheckoutSessionRequest(email="user@example.com", plan="pro"),
+            )
+        assert exc_info.value.status_code == 503

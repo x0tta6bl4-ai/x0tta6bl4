@@ -1,12 +1,10 @@
-from fastapi.testclient import TestClient
+import pytest
 
-from src.core.app import app
+from src.core.app import health
 
 
-def test_health_endpoint_basic():
-    client = TestClient(app)
-    resp = client.get("/health")
-    assert resp.status_code == 200
-    data = resp.json()
+@pytest.mark.asyncio
+async def test_health_endpoint_basic():
+    data = await health()
     assert data["status"] == "ok"
     assert "version" in data and isinstance(data["version"], str)

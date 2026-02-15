@@ -11,29 +11,21 @@ import socket
 import struct
 import time
 from collections import defaultdict
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
-from src.network.discovery.protocol import (
-    ANNOUNCE_INTERVAL,
-    DHT_K,
-    MULTICAST_GROUP,
-    MULTICAST_PORT,
-    PEER_TIMEOUT,
-    BootstrapDiscovery,
-    DiscoveryMessage,
-    KademliaNode,
-    MeshDiscovery,
-    MessageType,
-    MulticastDiscovery,
-    PeerInfo,
-)
-
+from src.network.discovery.protocol import (ANNOUNCE_INTERVAL, DHT_K,
+                                            MULTICAST_GROUP, MULTICAST_PORT,
+                                            PEER_TIMEOUT, BootstrapDiscovery,
+                                            DiscoveryMessage, KademliaNode,
+                                            MeshDiscovery, MessageType,
+                                            MulticastDiscovery, PeerInfo)
 
 # ---------------------------------------------------------------------------
 # MessageType
 # ---------------------------------------------------------------------------
+
 
 class TestMessageType:
     """Tests for the MessageType enum."""
@@ -68,6 +60,7 @@ class TestMessageType:
 # ---------------------------------------------------------------------------
 # PeerInfo
 # ---------------------------------------------------------------------------
+
 
 class TestPeerInfo:
     """Tests for PeerInfo dataclass."""
@@ -169,6 +162,7 @@ class TestPeerInfo:
 # DiscoveryMessage
 # ---------------------------------------------------------------------------
 
+
 class TestDiscoveryMessage:
     """Tests for DiscoveryMessage dataclass."""
 
@@ -228,12 +222,14 @@ class TestDiscoveryMessage:
         assert parsed["ts"] == 99999
 
     def test_from_bytes(self):
-        data = json.dumps({
-            "type": 0x03,
-            "sender": "responder",
-            "payload": {"peers": []},
-            "ts": 111111,
-        }).encode("utf-8")
+        data = json.dumps(
+            {
+                "type": 0x03,
+                "sender": "responder",
+                "payload": {"peers": []},
+                "ts": 111111,
+            }
+        ).encode("utf-8")
         msg = DiscoveryMessage.from_bytes(data)
         assert msg.msg_type == MessageType.RESPONSE
         assert msg.sender_id == "responder"
@@ -245,12 +241,14 @@ class TestDiscoveryMessage:
             DiscoveryMessage.from_bytes(b"not json")
 
     def test_from_bytes_invalid_type(self):
-        data = json.dumps({
-            "type": 0xFF,
-            "sender": "x",
-            "payload": {},
-            "ts": 0,
-        }).encode("utf-8")
+        data = json.dumps(
+            {
+                "type": 0xFF,
+                "sender": "x",
+                "payload": {},
+                "ts": 0,
+            }
+        ).encode("utf-8")
         with pytest.raises(ValueError):
             DiscoveryMessage.from_bytes(data)
 
@@ -271,6 +269,7 @@ class TestDiscoveryMessage:
 # ---------------------------------------------------------------------------
 # MulticastDiscovery
 # ---------------------------------------------------------------------------
+
 
 class TestMulticastDiscovery:
     """Tests for MulticastDiscovery."""
@@ -359,7 +358,11 @@ class TestMulticastDiscovery:
         msg = DiscoveryMessage(
             msg_type=MessageType.ANNOUNCE,
             sender_id="self-node",
-            payload={"peer": PeerInfo(node_id="self-node", addresses=[("1.1.1.1", 5000)]).to_dict()},
+            payload={
+                "peer": PeerInfo(
+                    node_id="self-node", addresses=[("1.1.1.1", 5000)]
+                ).to_dict()
+            },
             timestamp=1,
         )
         await md._handle_message(msg.to_bytes(), ("1.1.1.1", 5000))
@@ -547,7 +550,9 @@ class TestMulticastDiscovery:
 
         with patch.object(md, "_get_local_ip", return_value="192.168.1.1"):
             with patch("asyncio.get_event_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(side_effect=OSError("fail"))
+                mock_loop.return_value.run_in_executor = AsyncMock(
+                    side_effect=OSError("fail")
+                )
                 # Should not raise
                 await md._send_announce()
 
@@ -653,6 +658,7 @@ class TestMulticastDiscovery:
 # ---------------------------------------------------------------------------
 # BootstrapDiscovery
 # ---------------------------------------------------------------------------
+
 
 class TestBootstrapDiscovery:
     """Tests for BootstrapDiscovery."""
@@ -766,7 +772,10 @@ class TestBootstrapDiscovery:
         with patch("src.network.discovery.protocol.socket.socket") as mock_sock_cls:
             mock_sock = MagicMock()
             mock_sock_cls.return_value = mock_sock
-            mock_sock.recvfrom.return_value = (response_msg.to_bytes(), ("10.0.0.1", 7777))
+            mock_sock.recvfrom.return_value = (
+                response_msg.to_bytes(),
+                ("10.0.0.1", 7777),
+            )
 
             result = await bd._query_bootstrap("10.0.0.1", 7777)
 
@@ -792,7 +801,10 @@ class TestBootstrapDiscovery:
         with patch("src.network.discovery.protocol.socket.socket") as mock_sock_cls:
             mock_sock = MagicMock()
             mock_sock_cls.return_value = mock_sock
-            mock_sock.recvfrom.return_value = (non_response.to_bytes(), ("10.0.0.1", 7777))
+            mock_sock.recvfrom.return_value = (
+                non_response.to_bytes(),
+                ("10.0.0.1", 7777),
+            )
 
             result = await bd._query_bootstrap("10.0.0.1", 7777)
 
@@ -817,6 +829,7 @@ class TestBootstrapDiscovery:
 # ---------------------------------------------------------------------------
 # KademliaNode
 # ---------------------------------------------------------------------------
+
 
 class TestKademliaNode:
     """Tests for KademliaNode DHT implementation."""
@@ -969,6 +982,7 @@ class TestKademliaNode:
 # MeshDiscovery
 # ---------------------------------------------------------------------------
 
+
 class TestMeshDiscovery:
     """Tests for MeshDiscovery (composite discovery)."""
 
@@ -1039,9 +1053,15 @@ class TestMeshDiscovery:
 
     def test_find_peers_for_service(self):
         md = MeshDiscovery(node_id="m9", service_port=5000, enable_multicast=False)
-        md._peers["r1"] = PeerInfo(node_id="r1", addresses=[("1.1.1.1", 80)], services=["mesh", "relay"])
-        md._peers["e1"] = PeerInfo(node_id="e1", addresses=[("2.2.2.2", 80)], services=["mesh", "exit"])
-        md._peers["m_only"] = PeerInfo(node_id="m_only", addresses=[("3.3.3.3", 80)], services=["mesh"])
+        md._peers["r1"] = PeerInfo(
+            node_id="r1", addresses=[("1.1.1.1", 80)], services=["mesh", "relay"]
+        )
+        md._peers["e1"] = PeerInfo(
+            node_id="e1", addresses=[("2.2.2.2", 80)], services=["mesh", "exit"]
+        )
+        md._peers["m_only"] = PeerInfo(
+            node_id="m_only", addresses=[("3.3.3.3", 80)], services=["mesh"]
+        )
 
         assert len(md.find_peers_for_service("relay")) == 1
         assert len(md.find_peers_for_service("exit")) == 1
@@ -1190,7 +1210,9 @@ class TestMeshDiscovery:
         )
 
         peer = PeerInfo(node_id="bs-peer", addresses=[("10.0.0.99", 5000)])
-        with patch.object(md._bootstrap, "bootstrap", new_callable=AsyncMock) as mock_bs:
+        with patch.object(
+            md._bootstrap, "bootstrap", new_callable=AsyncMock
+        ) as mock_bs:
             mock_bs.return_value = [peer]
             await md.start()
 
@@ -1244,6 +1266,7 @@ class TestMeshDiscovery:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
 
 class TestConstants:
     """Verify module-level constants."""

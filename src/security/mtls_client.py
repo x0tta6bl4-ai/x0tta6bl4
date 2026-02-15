@@ -7,14 +7,16 @@ Provides mTLS support for inter-service communication with:
 - Automatic certificate rotation
 - Connection pooling with mTLS
 """
+
+import asyncio
+import logging
 import os
 import ssl
-import logging
-import asyncio
-from typing import Optional, Dict, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional
+
 import aiohttp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -50,15 +52,18 @@ class MTLSConfig:
     keepalive_timeout: float = 15.0
 
     @classmethod
-    def from_env(cls) -> 'MTLSConfig':
+    def from_env(cls) -> "MTLSConfig":
         """Create config from environment variables."""
         return cls(
             cert_path=os.getenv("MTLS_CERT_PATH", "/etc/certs/tls.crt"),
             key_path=os.getenv("MTLS_KEY_PATH", "/etc/certs/tls.key"),
             ca_path=os.getenv("MTLS_CA_PATH", "/etc/certs/ca.crt"),
-            spiffe_socket=os.getenv("SPIFFE_ENDPOINT_SOCKET", "/run/spire/sockets/agent.sock"),
+            spiffe_socket=os.getenv(
+                "SPIFFE_ENDPOINT_SOCKET", "/run/spire/sockets/agent.sock"
+            ),
             verify_hostname=os.getenv("MTLS_VERIFY_HOSTNAME", "true").lower() == "true",
-            rotation_enabled=os.getenv("MTLS_ROTATION_ENABLED", "true").lower() == "true",
+            rotation_enabled=os.getenv("MTLS_ROTATION_ENABLED", "true").lower()
+            == "true",
         )
 
 
@@ -107,7 +112,7 @@ class MTLSClient:
         self._rotation_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
 
-    async def __aenter__(self) -> 'MTLSClient':
+    async def __aenter__(self) -> "MTLSClient":
         await self._initialize()
         return self
 
@@ -143,8 +148,7 @@ class MTLSClient:
 
             # Load certificates
             self._ssl_context.load_cert_chain(
-                certfile=str(cert_path),
-                keyfile=str(key_path)
+                certfile=str(cert_path), keyfile=str(key_path)
             )
             self._ssl_context.load_verify_locations(cafile=str(ca_path))
 
@@ -160,7 +164,8 @@ class MTLSClient:
         """Load credentials from SPIFFE Workload API."""
         try:
             # Try to use py-spiffe if available
-            from pyspiffe.workloadapi.default_workload_api_client import DefaultWorkloadApiClient
+            from pyspiffe.workloadapi.default_workload_api_client import \
+                DefaultWorkloadApiClient
             from pyspiffe.workloadapi.x509_context import X509Context
 
             socket_path = self.config.spiffe_socket
@@ -168,7 +173,9 @@ class MTLSClient:
                 raise FileNotFoundError(f"SPIFFE socket not found: {socket_path}")
 
             client = DefaultWorkloadApiClient(socket_path=f"unix://{socket_path}")
-            x509_context: X509Context = await asyncio.to_thread(client.fetch_x509_context)
+            x509_context: X509Context = await asyncio.to_thread(
+                client.fetch_x509_context
+            )
 
             # Get first SVID
             svid = x509_context.default_svid()
@@ -179,8 +186,7 @@ class MTLSClient:
 
             # Load from memory (cert chain and key)
             self._ssl_context.load_cert_chain(
-                certfile=svid.cert_chain_path,
-                keyfile=svid.private_key_path
+                certfile=svid.cert_chain_path, keyfile=svid.private_key_path
             )
 
             # Load trust bundle
@@ -195,7 +201,7 @@ class MTLSClient:
                 not_before=svid.not_before,
                 not_after=svid.not_after,
                 serial_number=0,
-                spiffe_id=str(svid.spiffe_id)
+                spiffe_id=str(svid.spiffe_id),
             )
 
             logger.info(f"SPIFFE credentials loaded: {self._cert_info.spiffe_id}")
@@ -234,7 +240,7 @@ class MTLSClient:
             not_before=cert.not_valid_before_utc,
             not_after=cert.not_valid_after_utc,
             serial_number=cert.serial_number,
-            spiffe_id=spiffe_id
+            spiffe_id=spiffe_id,
         )
 
     async def _create_session(self) -> aiohttp.ClientSession:
@@ -244,13 +250,13 @@ class MTLSClient:
             limit=100,
             limit_per_host=20,
             keepalive_timeout=self.config.keepalive_timeout,
-            enable_cleanup_closed=True
+            enable_cleanup_closed=True,
         )
 
         timeout = aiohttp.ClientTimeout(
             total=self.config.read_timeout + self.config.connection_timeout,
             connect=self.config.connection_timeout,
-            sock_read=self.config.read_timeout
+            sock_read=self.config.read_timeout,
         )
 
         return aiohttp.ClientSession(
@@ -258,7 +264,7 @@ class MTLSClient:
             timeout=timeout,
             headers={
                 "User-Agent": "x0tta6bl4-mtls-client/1.0",
-            }
+            },
         )
 
     async def _rotation_loop(self):
@@ -294,12 +300,7 @@ class MTLSClient:
             # Keep old session on failure
             self._session = old_session
 
-    async def request(
-        self,
-        method: str,
-        url: str,
-        **kwargs
-    ) -> aiohttp.ClientResponse:
+    async def request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
         """Make HTTP request with mTLS."""
         if not self._session:
             await self._initialize()
@@ -343,9 +344,9 @@ class MTLSClient:
     def is_healthy(self) -> bool:
         """Check if client is healthy."""
         return (
-            self._session is not None and
-            self._cert_info is not None and
-            self._cert_info.is_valid
+            self._session is not None
+            and self._cert_info is not None
+            and self._cert_info.is_valid
         )
 
 

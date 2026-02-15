@@ -9,9 +9,9 @@ Example:
     ml_modules = lazy_import_group('ml')
 """
 
+import logging
 import sys
 from typing import Any, Dict, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class LazyModule:
     def __getattr__(self, name: str) -> Any:
         if not self._attempted:
             try:
-                self._module = __import__(self._module_name, fromlist=[''])
+                self._module = __import__(self._module_name, fromlist=[""])
                 self._attempted = True
                 logger.debug(f"✓ Lazy loaded: {self._module_name}")
             except ImportError as e:
@@ -75,43 +75,45 @@ def lazy_import_group(group_name: str) -> Dict[str, Any]:
         >>> detector = ml['graphsage_anomaly_detector'].GraphSAGEAnomalyDetector()
     """
     groups = {
-        'ml': {
-            'torch': 'torch',
-            'torch_nn': 'torch.nn',
-            'torch_f': 'torch.nn.functional',
-            'torch_geometric': 'torch_geometric.nn',
-            'transformers': 'transformers',
-            'sentence_transformers': 'sentence_transformers',
-            'numpy': 'numpy',
-            'scipy': 'scipy',
-            'sklearn': 'sklearn',
+        "ml": {
+            "torch": "torch",
+            "torch_nn": "torch.nn",
+            "torch_f": "torch.nn.functional",
+            "torch_geometric": "torch_geometric.nn",
+            "transformers": "transformers",
+            "sentence_transformers": "sentence_transformers",
+            "numpy": "numpy",
+            "scipy": "scipy",
+            "sklearn": "sklearn",
         },
-        'torch': {
-            'torch': 'torch',
-            'nn': 'torch.nn',
-            'optim': 'torch.optim',
-            'functional': 'torch.nn.functional',
+        "torch": {
+            "torch": "torch",
+            "nn": "torch.nn",
+            "optim": "torch.optim",
+            "functional": "torch.nn.functional",
         },
-        'tf': {
-            'tensorflow': 'tensorflow',
-            'keras': 'tensorflow.keras',
-            'layers': 'tensorflow.keras.layers',
+        "tf": {
+            "tensorflow": "tensorflow",
+            "keras": "tensorflow.keras",
+            "layers": "tensorflow.keras.layers",
         },
-        'data': {
-            'pandas': 'pandas',
-            'numpy': 'numpy',
-            'scipy': 'scipy',
-            'polars': 'polars',
+        "data": {
+            "pandas": "pandas",
+            "numpy": "numpy",
+            "scipy": "scipy",
+            "polars": "polars",
         },
-        'observability': {
-            'prometheus': 'prometheus_client',
-            'jaeger': 'jaeger_client',
-            'opentelemetry': 'opentelemetry',
-        }
+        "observability": {
+            "prometheus": "prometheus_client",
+            "jaeger": "jaeger_client",
+            "opentelemetry": "opentelemetry",
+        },
     }
 
     if group_name not in groups:
-        raise ValueError(f"Unknown group: {group_name}. Available: {list(groups.keys())}")
+        raise ValueError(
+            f"Unknown group: {group_name}. Available: {list(groups.keys())}"
+        )
 
     result = {}
     for alias, full_name in groups[group_name].items():
@@ -120,8 +122,8 @@ def lazy_import_group(group_name: str) -> Dict[str, Any]:
 
 
 # Pre-create common lazy loaders for convenience
-torch = lazy_import('torch')
-tf = lazy_import('tensorflow')
-transformers = lazy_import('transformers')
-numpy = lazy_import('numpy')
-pandas = lazy_import('pandas')
+torch = lazy_import("torch")
+tf = lazy_import("tensorflow")
+transformers = lazy_import("transformers")
+numpy = lazy_import("numpy")
+pandas = lazy_import("pandas")

@@ -1,13 +1,15 @@
+import os
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional
+
 import requests
 from flask import Flask, jsonify
-from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Optional, Any
-import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
 if not app.secret_key:
     raise RuntimeError("FLASK_SECRET_KEY is required for session security")
+
 
 def _load_nodes_from_env() -> List[Dict[str, str]]:
     """Load nodes from MESH_NODES environment variable."""
@@ -20,28 +22,31 @@ def _load_nodes_from_env() -> List[Dict[str, str]]:
                 nodes.append({"name": parts[0], "url": parts[1]})
     return nodes or [{"name": "Local", "url": "http://127.0.0.1:8080"}]
 
+
 NODES: List[Dict[str, str]] = _load_nodes_from_env()
+
 
 def check_node(node: Dict[str, str]) -> Optional[Dict[str, Any]]:
     try:
         r = requests.get(f"{node['url']}/api/stats", timeout=2)
         data = r.json()
-        data['status'] = 'ONLINE'
-        data['name'] = node['name']
-        data['url'] = node['url']
+        data["status"] = "ONLINE"
+        data["name"] = node["name"]
+        data["url"] = node["url"]
         return data
     except:
         return {
-            'name': node['name'],
-            'url': node['url'],
-            'status': 'OFFLINE',
-            'balance': '0',
-            'packets_relayed': 0,
-            'uptime': 0,
-            'earnings_today': '0'
+            "name": node["name"],
+            "url": node["url"],
+            "status": "OFFLINE",
+            "balance": "0",
+            "packets_relayed": 0,
+            "uptime": 0,
+            "earnings_today": "0",
         }
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return """
 <!DOCTYPE html>
@@ -133,12 +138,14 @@ def index():
 </html>
     """
 
-@app.route('/api/network')
+
+@app.route("/api/network")
 def network():
     with ThreadPoolExecutor(max_workers=5) as executor:
         results = list(executor.map(check_node, NODES))
-    return jsonify({'nodes': results})
+    return jsonify({"nodes": results})
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     print("Starting Aggregator on http://127.0.0.1:5000")
-    app.run(host='127.0.0.1', port=5000)
+    app.run(host="127.0.0.1", port=5000)

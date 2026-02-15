@@ -13,21 +13,22 @@ import asyncio
 import json
 import logging
 import os
-from dataclasses import dataclass, asdict
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from abc import ABC, abstractmethod
 
-from web3 import Web3
 from eth_account import Account
 from eth_utils import to_checksum_address
+from web3 import Web3
 
 logger = logging.getLogger(__name__)
 
 
 class ProposalStatus(Enum):
     """DAO Proposal status"""
+
     PENDING = 0
     ACTIVE = 1
     CANCELED = 2
@@ -40,6 +41,7 @@ class ProposalStatus(Enum):
 
 class VoteType(Enum):
     """Vote direction"""
+
     AGAINST = 0
     FOR = 1
     ABSTAIN = 2
@@ -48,11 +50,12 @@ class VoteType(Enum):
 @dataclass
 class GovernanceAction:
     """Action to be executed by MAPE-K through DAO governance"""
+
     action_id: str
     title: str
     description: str
     targets: List[str]  # Smart contract addresses to call
-    values: List[int]   # ETH values to send
+    values: List[int]  # ETH values to send
     calldatas: List[str]  # Encoded function calls
     votes_required: int  # Minimum votes to pass
     execution_delay: int  # Seconds to wait before execution
@@ -66,6 +69,7 @@ class GovernanceAction:
 @dataclass
 class GovernanceMetrics:
     """Metrics about DAO governance health"""
+
     total_proposals: int
     active_proposals: int
     passed_proposals: int
@@ -81,6 +85,7 @@ class GovernanceMetrics:
 @dataclass
 class SimpleLogisticModel:
     """Minimal JSON-serializable logistic model for safe loading."""
+
     weights: List[float]
     bias: float = 0.0
 
@@ -94,7 +99,10 @@ class SimpleLogisticModel:
         return [1 if self._score(features) >= 0.5 else 0 for features in features_batch]
 
     def predict_proba(self, features_batch: List[List[float]]) -> List[List[float]]:
-        return [[1.0 - self._score(features), self._score(features)] for features in features_batch]
+        return [
+            [1.0 - self._score(features), self._score(features)]
+            for features in features_batch
+        ]
 
 
 class GovernanceOracle(ABC):
@@ -122,7 +130,7 @@ class MLBasedGovernanceOracle(GovernanceOracle):
     def __init__(self, model_path: Optional[str] = None):
         """
         Initialize ML oracle
-        
+
         Args:
             model_path: Path to trained ML model for governance decisions
         """
@@ -137,7 +145,7 @@ class MLBasedGovernanceOracle(GovernanceOracle):
             if not self.model_path or not self.model_path.endswith(".json"):
                 raise ValueError("Model path must point to a JSON model file")
 
-            with open(self.model_path, 'r', encoding='utf-8') as f:
+            with open(self.model_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             model_type = data.get("type")
@@ -160,11 +168,11 @@ class MLBasedGovernanceOracle(GovernanceOracle):
         """Use ML to determine if action should be executed"""
         # Feature engineering
         features = {
-            'title_length': len(action.title),
-            'description_length': len(action.description),
-            'targets_count': len(action.targets),
-            'execution_delay': action.execution_delay,
-            'votes_required': action.votes_required,
+            "title_length": len(action.title),
+            "description_length": len(action.description),
+            "targets_count": len(action.targets),
+            "execution_delay": action.execution_delay,
+            "votes_required": action.votes_required,
         }
 
         if self.model:
@@ -177,9 +185,9 @@ class MLBasedGovernanceOracle(GovernanceOracle):
 
         # Fallback: simple heuristic
         return (
-            len(action.description) > 50 and
-            action.execution_delay >= 86400 and  # At least 1 day
-            len(action.targets) <= 5
+            len(action.description) > 50
+            and action.execution_delay >= 86400  # At least 1 day
+            and len(action.targets) <= 5
         )
 
     async def get_voting_recommendation(self, proposal_id: int) -> VoteType:
@@ -198,13 +206,13 @@ class MLBasedGovernanceOracle(GovernanceOracle):
         score = 0.5
 
         # Boost priority for critical network actions
-        if 'security' in action.description.lower():
+        if "security" in action.description.lower():
             score += 0.2
-        if 'fix' in action.title.lower() or 'patch' in action.title.lower():
+        if "fix" in action.title.lower() or "patch" in action.title.lower():
             score += 0.15
 
         # Reduce priority for low urgency
-        if 'non-critical' in action.description.lower():
+        if "non-critical" in action.description.lower():
             score -= 0.15
 
         return min(1.0, max(0.0, score))
@@ -213,7 +221,7 @@ class MLBasedGovernanceOracle(GovernanceOracle):
 class MAEKGovernanceAdapter:
     """
     Adapter connecting MAPE-K autonomic loop with DAO governance
-    
+
     Responsibilities:
     - Convert MAPE-K decisions into governance proposals
     - Execute DAO proposals through smart contracts
@@ -233,7 +241,7 @@ class MAEKGovernanceAdapter:
     ):
         """
         Initialize MAPE-K governance adapter
-        
+
         Args:
             w3: Web3 instance
             governor_address: Governor contract address
@@ -259,7 +267,9 @@ class MAEKGovernanceAdapter:
         self.treasury_contract = None
         self.timelock_contract = None
 
-        logger.info(f"Initialized MAPE-K Governance Adapter for account {self.account.address}")
+        logger.info(
+            f"Initialized MAPE-K Governance Adapter for account {self.account.address}"
+        )
 
     async def submit_governance_action(
         self,
@@ -268,11 +278,11 @@ class MAEKGovernanceAdapter:
     ) -> Optional[str]:
         """
         Submit MAPE-K action as governance proposal
-        
+
         Args:
             action: Governance action to submit
             submit_proposal: If True, submit to Governor; if False, just validate
-            
+
         Returns:
             Proposal ID if successful, None otherwise
         """
@@ -297,9 +307,9 @@ class MAEKGovernanceAdapter:
 
             # In production, would call Governor.propose() here
             proposal_id = Web3.keccak(
-                hexstr=self.governor_address + 
-                action.action_id + 
-                str(action.created_at.timestamp())
+                hexstr=self.governor_address
+                + action.action_id
+                + str(action.created_at.timestamp())
             ).hex()
 
             logger.info(f"Governance proposal submitted: {proposal_id}")
@@ -317,19 +327,21 @@ class MAEKGovernanceAdapter:
     ) -> bool:
         """
         Cast vote on governance proposal
-        
+
         Args:
             proposal_id: Proposal ID to vote on
             voter_address: Address of voter
             vote_type: Type of vote (None = get recommendation from oracle)
-            
+
         Returns:
             True if vote was cast successfully
         """
         try:
             if vote_type is None:
                 # Get voting recommendation from oracle
-                vote_type = await self.oracle.get_voting_recommendation(int(proposal_id, 16))
+                vote_type = await self.oracle.get_voting_recommendation(
+                    int(proposal_id, 16)
+                )
 
             logger.info(f"Casting {vote_type.name} vote on proposal {proposal_id}")
 
@@ -377,10 +389,12 @@ class MAEKGovernanceAdapter:
             timestamp=datetime.now(),
         )
 
-    async def monitor_proposal(self, proposal_id: str, check_interval: int = 300) -> None:
+    async def monitor_proposal(
+        self, proposal_id: str, check_interval: int = 300
+    ) -> None:
         """
         Monitor proposal and execute when conditions are met
-        
+
         Args:
             proposal_id: Proposal to monitor
             check_interval: Seconds between checks
@@ -427,7 +441,7 @@ class DAOIntegration:
     ):
         """
         Initialize DAO Integration
-        
+
         Args:
             w3: Web3 instance
             contracts: Dict with addresses for {governor, token, treasury, timelock}
@@ -437,10 +451,10 @@ class DAOIntegration:
         self.w3 = w3
         self.adapter = MAEKGovernanceAdapter(
             w3=w3,
-            governor_address=contracts['governor'],
-            governance_token_address=contracts['token'],
-            treasury_address=contracts['treasury'],
-            timelock_address=contracts['timelock'],
+            governor_address=contracts["governor"],
+            governance_token_address=contracts["token"],
+            treasury_address=contracts["treasury"],
+            timelock_address=contracts["timelock"],
             private_key=private_key,
             oracle=oracle,
         )
@@ -451,22 +465,22 @@ class DAOIntegration:
     ) -> Optional[str]:
         """
         Process MAPE-K decision and convert to governance proposal
-        
+
         Args:
             decision: MAPE-K decision output with {title, description, targets, values, calldatas}
-            
+
         Returns:
             Proposal ID if created, None otherwise
         """
         action = GovernanceAction(
-            action_id=decision.get('id', f"action-{datetime.now().timestamp()}"),
-            title=decision['title'],
-            description=decision['description'],
-            targets=decision.get('targets', []),
-            values=decision.get('values', []),
-            calldatas=decision.get('calldatas', []),
-            votes_required=decision.get('votes_required', 100),
-            execution_delay=decision.get('execution_delay', 172800),  # 2 days
+            action_id=decision.get("id", f"action-{datetime.now().timestamp()}"),
+            title=decision["title"],
+            description=decision["description"],
+            targets=decision.get("targets", []),
+            values=decision.get("values", []),
+            calldatas=decision.get("calldatas", []),
+            votes_required=decision.get("votes_required", 100),
+            execution_delay=decision.get("execution_delay", 172800),  # 2 days
             created_at=datetime.now(),
         )
 
@@ -500,29 +514,34 @@ async def main():
 
     # Contract addresses (from deployment)
     contracts = {
-        'governor': '0x...',
-        'token': '0x...',
-        'treasury': '0x...',
-        'timelock': '0x...',
+        "governor": "0x...",
+        "token": "0x...",
+        "treasury": "0x...",
+        "timelock": "0x...",
     }
+
+    private_key = os.getenv("PRIVATE_KEY")
+    if not private_key:
+        logger.error("PRIVATE_KEY not configured")
+        return
 
     # Create DAO integration
     dao = DAOIntegration(
         w3=w3,
         contracts=contracts,
-        private_key='0x...',
+        private_key=private_key,
         oracle=MLBasedGovernanceOracle(),
     )
 
     # Example MAPE-K decision
     decision = {
-        'id': 'security-patch-001',
-        'title': 'Security Patch: Update mTLS Certificates',
-        'description': 'Update X.509 certificates in mesh network nodes',
-        'targets': ['0x...'],
-        'values': [0],
-        'calldatas': ['0x...'],
-        'execution_delay': 172800,  # 2 days
+        "id": "security-patch-001",
+        "title": "Security Patch: Update mTLS Certificates",
+        "description": "Update X.509 certificates in mesh network nodes",
+        "targets": ["0x..."],
+        "values": [0],
+        "calldatas": ["0x..."],
+        "execution_delay": 172800,  # 2 days
     }
 
     # Submit governance proposal
@@ -530,6 +549,6 @@ async def main():
     logger.info(f"Created proposal: {proposal_id}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())

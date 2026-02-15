@@ -1,0 +1,120 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.4.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/mnt/projects/.hypothesis/examples'))
+rootdir: /mnt/projects
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, cov-7.0.0, xdist-3.8.0, anyio-4.12.0, mock-3.12.0, benchmark-5.1.0, hypothesis-6.98.15
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 26 items
+
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_loader_orchestrator_integration FAILED [  3%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_orchestrator_lifecycle_management PASSED [  7%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_cli_loader_integration PASSED [ 11%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_full_system_integration FAILED [ 15%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_error_handling_integration FAILED [ 19%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_performance_monitoring_integration FAILED [ 23%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_configuration_persistence PASSED [ 26%]
+tests/test_pqc_integration.py::TestEBPFPQCGateway::test_create_session PASSED [ 30%]
+tests/test_pqc_integration.py::TestEBPFPQCGateway::test_get_session PASSED [ 34%]
+tests/test_pqc_integration.py::TestEBPFPQCGateway::test_rotate_session_keys PASSED [ 38%]
+tests/test_pqc_integration.py::TestEBPFPQCGateway::test_encrypt_decrypt_payload PASSED [ 42%]
+tests/test_pqc_integration.py::TestEBPFPQCGateway::test_get_ebpf_map_data FAILED [ 46%]
+tests/test_pqc_integration.py::TestPQCXDPLoader::test_loader_initialization PASSED [ 50%]
+tests/test_pqc_integration.py::TestPQCXDPLoader::test_update_pqc_sessions PASSED [ 53%]
+tests/test_pqc_integration.py::TestPQCXDPLoader::test_get_pqc_stats PASSED [ 57%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_monitor_healthy_system PASSED [ 61%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_analyze_no_issues PASSED [ 65%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_plan_no_action PASSED [ 69%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_execute_empty_plan PASSED [ 73%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_anomaly_detection FAILED [ 76%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_health_score_calculation PASSED [ 80%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_cleanup_expired_sessions FAILED [ 84%]
+tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_rotate_expired_sessions FAILED [ 88%]
+tests/test_pqc_integration.py::TestPQCSessionAnomaly::test_anomaly_creation PASSED [ 92%]
+tests/test_pqc_integration.py::TestIntegration::test_full_healing_cycle PASSED [ 96%]
+tests/test_pqc_integration.py::TestIntegration::test_gateway_loader_integration FAILED [100%]/home/x0ttta6bl4/.local/lib/python3.12/site-packages/coverage/report_core.py:107: CoverageWarning: Couldn't parse Python file '/mnt/projects/src/network/обновление_алгоритмов.py' (couldnt-parse); see https://coverage.readthedocs.io/en/7.13.0/messages.html#warning-couldnt-parse
+  coverage._warn(msg, slug="couldnt-parse")
+
+ERROR: Coverage failure: total of 3 is less than fail-under=75
+
+
+=================================== FAILURES ===================================
+___________ TestEBPFIntegration.test_loader_orchestrator_integration ___________
+tests/test_ebpf_integration.py:81: in test_loader_orchestrator_integration
+    with patch.object(loader, '_attach_program', return_value=True):
+/usr/lib/python3.12/unittest/mock.py:1458: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/unittest/mock.py:1431: in get_original
+    raise AttributeError(
+E   AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x7625e9ded070> does not have the attribute '_attach_program'
+_______________ TestEBPFIntegration.test_full_system_integration _______________
+tests/test_ebpf_integration.py:171: in test_full_system_integration
+    with patch.object(loader, '_attach_program', return_value=True):
+/usr/lib/python3.12/unittest/mock.py:1458: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/unittest/mock.py:1431: in get_original
+    raise AttributeError(
+E   AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x7625e9deeb70> does not have the attribute '_attach_program'
+_____________ TestEBPFIntegration.test_error_handling_integration ______________
+tests/test_ebpf_integration.py:209: in test_error_handling_integration
+    with pytest.raises(Exception):
+E   Failed: DID NOT RAISE <class 'Exception'>
+_________ TestEBPFIntegration.test_performance_monitoring_integration __________
+tests/test_ebpf_integration.py:224: in test_performance_monitoring_integration
+    assert 'timestamp' in metrics
+E   AssertionError: assert 'timestamp' in {'ebpf_stats': {'total_packets': 0, 'passed_packets': 0, 'dropped_packets': 0, 'forwarded_packets': 0}, 'flow_metrics': <MagicMock name='CiliumLikeIntegration().get_flow_metrics()' id='129905244676912'>, 'performance_metrics': {'timestamp': 1770541256.6601446, 'metrics': {}, 'alerts': 0, 'trends': {}}}
+------------------------------ Captured log call -------------------------------
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_packets_processed_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_packets_dropped_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_processing_latency_microseconds
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_cpu_usage_percent
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_memory_usage_bytes
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_flows_active
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_errors_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_program_load_time_seconds
+__________________ TestEBPFPQCGateway.test_get_ebpf_map_data ___________________
+tests/test_pqc_integration.py:94: in test_get_ebpf_map_data
+    assert 'aes_key' in session_data
+E   AssertionError: assert 'aes_key' in {'mac_key': [93, 168, 50, 13, 157, 59, 138, 234, 92, 58, 165, 95, 156, 235, 60, 23], 'peer_id_hash': 3193010506247983426, 'verified': 1, 'timestamp': 1770541256, 'packet_counter': 0}
+________________ TestPQCZeroTrustHealer.test_anomaly_detection _________________
+tests/test_pqc_integration.py:254: in test_anomaly_detection
+    anomalies = self.healer.monitor._detect_anomalies(mock_sessions, mock_ebpf_stats, current_time)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/self_healing/pqc_zero_trust_healer.py:136: in _detect_anomalies
+    current_time = datetime.fromtimestamp(current_ts)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: 'datetime.datetime' object cannot be interpreted as an integer
+_____________ TestPQCZeroTrustHealer.test_cleanup_expired_sessions _____________
+tests/test_pqc_integration.py:304: in test_cleanup_expired_sessions
+    assert result['success'] is True
+E   assert False is True
+_____________ TestPQCZeroTrustHealer.test_rotate_expired_sessions ______________
+tests/test_pqc_integration.py:321: in test_rotate_expired_sessions
+    assert result['success'] is True
+E   assert False is True
+_______________ TestIntegration.test_gateway_loader_integration ________________
+tests/test_pqc_integration.py:394: in test_gateway_loader_integration
+    assert key in session_data
+E   AssertionError: assert 'aes_key' in {'mac_key': [239, 23, 49, 160, 143, 231, 68, 31, 49, 225, 134, 203, 155, 250, 135, 63], 'peer_id_hash': 11558308285189802510, 'verified': 1, 'timestamp': 1770541257, 'packet_counter': 0}
+----------------- generated xml file: /mnt/projects/junit.xml ------------------
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+FAIL Required test coverage of 75% not reached. Total coverage: 3.37%
+=========================== short test summary info ============================
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_loader_orchestrator_integration - AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x7625e9ded070> does not have the attribute '_attach_program'
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_full_system_integration - AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x7625e9deeb70> does not have the attribute '_attach_program'
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_error_handling_integration - Failed: DID NOT RAISE <class 'Exception'>
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_performance_monitoring_integration - AssertionError: assert 'timestamp' in {'ebpf_stats': {'total_packets': 0, 'passed_packets': 0, 'dropped_packets': 0, 'forwarded_packets': 0}, 'flow_metrics': <MagicMock name='CiliumLikeIntegration().get_flow_metrics()' id='129905244676912'>, 'performance_metrics': {'timestamp': 1770541256.6601446, 'metrics': {}, 'alerts': 0, 'trends': {}}}
+FAILED tests/test_pqc_integration.py::TestEBPFPQCGateway::test_get_ebpf_map_data - AssertionError: assert 'aes_key' in {'mac_key': [93, 168, 50, 13, 157, 59, 138, 234, 92, 58, 165, 95, 156, 235, 60, 23], 'peer_id_hash': 3193010506247983426, 'verified': 1, 'timestamp': 1770541256, 'packet_counter': 0}
+FAILED tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_anomaly_detection - TypeError: 'datetime.datetime' object cannot be interpreted as an integer
+FAILED tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_cleanup_expired_sessions - assert False is True
+FAILED tests/test_pqc_integration.py::TestPQCZeroTrustHealer::test_rotate_expired_sessions - assert False is True
+FAILED tests/test_pqc_integration.py::TestIntegration::test_gateway_loader_integration - AssertionError: assert 'aes_key' in {'mac_key': [239, 23, 49, 160, 143, 231, 68, 31, 49, 225, 134, 203, 155, 250, 135, 63], 'peer_id_hash': 11558308285189802510, 'verified': 1, 'timestamp': 1770541257, 'packet_counter': 0}
+======================== 9 failed, 17 passed in 29.65s =========================

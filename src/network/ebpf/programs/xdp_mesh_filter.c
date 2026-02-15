@@ -2,12 +2,17 @@
 // XDP Program for Mesh Packet Filtering and Routing Decisions
 // Integrates with batman-adv style mesh routing
 
-#include <linux/bpf.h>
-#include <linux/if_ether.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+
+#ifndef IPPROTO_UDP
+#define IPPROTO_UDP 17
+#endif
+
+#ifndef ETH_P_IP
+#define ETH_P_IP 0x0800
+#endif
 
 // Map for mesh node destinations (IP -> next hop interface)
 // Key: destination IP (u32), Value: next hop interface index (u32)

@@ -1,10 +1,12 @@
 """
 Tests for Mesh Router module.
 """
-import pytest
+
 import asyncio
 import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 
 class TestMeshPeer:
@@ -19,7 +21,7 @@ class TestMeshPeer:
             host="192.168.1.100",
             port=10809,
             latency=50.0,
-            is_exit=True
+            is_exit=True,
         )
 
         assert peer.node_id == "test-node-1"
@@ -33,11 +35,7 @@ class TestMeshPeer:
         """Test address property returns host:port."""
         from src.network.mesh_router import MeshPeer
 
-        peer = MeshPeer(
-            node_id="test-node",
-            host="10.0.0.1",
-            port=8080
-        )
+        peer = MeshPeer(node_id="test-node", host="10.0.0.1", port=8080)
 
         assert peer.address == "10.0.0.1:8080"
 
@@ -46,10 +44,7 @@ class TestMeshPeer:
         from src.network.mesh_router import MeshPeer
 
         peer = MeshPeer(
-            node_id="test-node",
-            host="10.0.0.1",
-            port=8080,
-            last_seen=time.time()
+            node_id="test-node", host="10.0.0.1", port=8080, last_seen=time.time()
         )
 
         assert peer.is_alive(timeout=60.0) is True
@@ -62,7 +57,7 @@ class TestMeshPeer:
             node_id="test-node",
             host="10.0.0.1",
             port=8080,
-            last_seen=time.time() - 120  # 2 minutes ago
+            last_seen=time.time() - 120,  # 2 minutes ago
         )
 
         assert peer.is_alive(timeout=60.0) is False
@@ -71,12 +66,7 @@ class TestMeshPeer:
         """Test is_alive for peer never seen."""
         from src.network.mesh_router import MeshPeer
 
-        peer = MeshPeer(
-            node_id="test-node",
-            host="10.0.0.1",
-            port=8080,
-            last_seen=0.0
-        )
+        peer = MeshPeer(node_id="test-node", host="10.0.0.1", port=8080, last_seen=0.0)
 
         assert peer.is_alive(timeout=60.0) is False
 
@@ -84,11 +74,7 @@ class TestMeshPeer:
         """Test default values for MeshPeer."""
         from src.network.mesh_router import MeshPeer
 
-        peer = MeshPeer(
-            node_id="test-node",
-            host="10.0.0.1",
-            port=8080
-        )
+        peer = MeshPeer(node_id="test-node", host="10.0.0.1", port=8080)
 
         assert peer.latency == 0.0
         assert peer.last_seen == 0.0
@@ -103,7 +89,7 @@ class TestMeshRouter:
         """Test MeshRouter initialization."""
         from src.network.mesh_router import MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node", local_port=10809)
 
         assert router.node_id == "my-node"
@@ -115,7 +101,7 @@ class TestMeshRouter:
         from src.network.mesh_router import MeshRouter
 
         bootstrap = "192.168.1.1:10809:node-1,192.168.1.2:10810:node-2"
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         assert len(router.peers) == 2
@@ -130,7 +116,7 @@ class TestMeshRouter:
         from src.network.mesh_router import MeshRouter
 
         bootstrap = "192.168.1.1:10809:my-node"  # Same as router node_id
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         assert "my-node" not in router.peers
@@ -139,7 +125,7 @@ class TestMeshRouter:
         """Test get_route with no alive peers."""
         from src.network.mesh_router import MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         route = router.get_route("example.com:443")
@@ -147,9 +133,9 @@ class TestMeshRouter:
 
     def test_get_route_with_alive_peers(self):
         """Test get_route with alive peers."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Add some alive peers
@@ -159,7 +145,7 @@ class TestMeshRouter:
             port=10809,
             latency=50.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
         router.peers["node-2"] = MeshPeer(
             node_id="node-2",
@@ -167,7 +153,7 @@ class TestMeshRouter:
             port=10809,
             latency=30.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
 
         route = router.get_route("example.com:443", hops=1)
@@ -178,9 +164,9 @@ class TestMeshRouter:
 
     def test_get_route_destination_is_peer(self):
         """Test get_route returns empty when destination is a peer."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Add peer with specific host
@@ -190,7 +176,7 @@ class TestMeshRouter:
             port=10809,
             latency=50.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
 
         # Try to route to the peer's host
@@ -199,9 +185,9 @@ class TestMeshRouter:
 
     def test_get_route_sorts_by_latency(self):
         """Test get_route prefers lower latency peers."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Add peers with different latencies
@@ -211,7 +197,7 @@ class TestMeshRouter:
             port=10809,
             latency=200.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
         router.peers["fast-node"] = MeshPeer(
             node_id="fast-node",
@@ -219,7 +205,7 @@ class TestMeshRouter:
             port=10809,
             latency=20.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
 
         route = router.get_route("example.com:443", hops=1)
@@ -229,9 +215,9 @@ class TestMeshRouter:
 
     def test_get_route_filters_dead_peers(self):
         """Test get_route excludes stale peers."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Add alive and dead peers
@@ -241,7 +227,7 @@ class TestMeshRouter:
             port=10809,
             latency=50.0,
             last_seen=time.time(),
-            is_exit=True
+            is_exit=True,
         )
         router.peers["dead-node"] = MeshPeer(
             node_id="dead-node",
@@ -249,7 +235,7 @@ class TestMeshRouter:
             port=10809,
             latency=30.0,
             last_seen=time.time() - 120,  # Dead
-            is_exit=True
+            is_exit=True,
         )
 
         route = router.get_route("example.com:443", hops=1)
@@ -260,9 +246,9 @@ class TestMeshRouter:
 
     def test_get_route_respects_hop_count(self):
         """Test get_route respects maximum hops."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Add many peers
@@ -271,9 +257,9 @@ class TestMeshRouter:
                 node_id=f"node-{i}",
                 host=f"192.168.1.{i+1}",
                 port=10809,
-                latency=50.0 + i*10,
+                latency=50.0 + i * 10,
                 last_seen=time.time(),
-                is_exit=True
+                is_exit=True,
             )
 
         route = router.get_route("example.com:443", hops=2)
@@ -286,12 +272,12 @@ class TestMeshRouter:
         """Test router start and stop."""
         from src.network.mesh_router import MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         # Mock health check and discovery loops to exit quickly
-        with patch.object(router, '_health_check_loop', new_callable=AsyncMock):
-            with patch.object(router, '_peer_discovery_loop', new_callable=AsyncMock):
+        with patch.object(router, "_health_check_loop", new_callable=AsyncMock):
+            with patch.object(router, "_peer_discovery_loop", new_callable=AsyncMock):
                 await router.start()
                 assert router._running is True
 
@@ -307,7 +293,7 @@ class TestBootstrapNodeParsing:
         from src.network.mesh_router import MeshRouter
 
         bootstrap = "10.0.0.1:8080:node-a"
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         assert "node-a" in router.peers
@@ -319,7 +305,7 @@ class TestBootstrapNodeParsing:
         from src.network.mesh_router import MeshRouter
 
         bootstrap = "10.0.0.1:8080:node-a,10.0.0.2:8081:node-b,10.0.0.3:8082:node-c"
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         assert len(router.peers) == 3
@@ -332,7 +318,7 @@ class TestBootstrapNodeParsing:
         from src.network.mesh_router import MeshRouter
 
         bootstrap = "  10.0.0.1:8080:node-a  ,  10.0.0.2:8081:node-b  "
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         assert len(router.peers) == 2
@@ -343,7 +329,7 @@ class TestBootstrapNodeParsing:
 
         # Only host:port, no node_id
         bootstrap = "10.0.0.1:8080"
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': bootstrap}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": bootstrap}):
             router = MeshRouter(node_id="my-node")
 
         # Should have auto-generated node ID
@@ -356,7 +342,9 @@ class TestBootstrapNodeParsing:
         """Test empty bootstrap nodes in production."""
         from src.network.mesh_router import MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': '', 'ENVIRONMENT': 'production'}):
+        with patch.dict(
+            "os.environ", {"BOOTSTRAP_NODES": "", "ENVIRONMENT": "production"}
+        ):
             router = MeshRouter(node_id="my-node")
 
         assert len(router.peers) == 0
@@ -369,7 +357,7 @@ class TestRouteCaching:
         """Test routes cache is initialized."""
         from src.network.mesh_router import MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         assert router.routes_cache == {}
@@ -381,16 +369,16 @@ class TestPeerDiscovery:
     @pytest.mark.asyncio
     async def test_get_peers_from_dead_peer(self):
         """Test _get_peers_from returns empty for dead peer."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         dead_peer = MeshPeer(
             node_id="dead-node",
             host="192.168.1.1",
             port=10809,
-            last_seen=0.0  # Never seen
+            last_seen=0.0,  # Never seen
         )
 
         result = await router._get_peers_from(dead_peer)
@@ -399,15 +387,15 @@ class TestPeerDiscovery:
     @pytest.mark.asyncio
     async def test_ping_peer_unreachable(self):
         """Test _ping_peer returns -1 for unreachable peer."""
-        from src.network.mesh_router import MeshRouter, MeshPeer
+        from src.network.mesh_router import MeshPeer, MeshRouter
 
-        with patch.dict('os.environ', {'BOOTSTRAP_NODES': ''}):
+        with patch.dict("os.environ", {"BOOTSTRAP_NODES": ""}):
             router = MeshRouter(node_id="my-node")
 
         peer = MeshPeer(
             node_id="unreachable",
             host="192.0.2.1",  # TEST-NET-1, should be unreachable
-            port=99999
+            port=99999,
         )
 
         latency = await router._ping_peer(peer)

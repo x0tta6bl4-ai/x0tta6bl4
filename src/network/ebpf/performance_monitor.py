@@ -14,18 +14,19 @@ Integrates with Prometheus for metrics export and alerting.
 """
 
 import asyncio
-import logging
-import time
 import json
-from typing import Dict, List, Any, Optional, Callable
+import logging
+import statistics
+import threading
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import threading
-import statistics
+from typing import Any, Callable, Dict, List, Optional
 
 try:
-    from prometheus_client import Gauge, Counter, Histogram, AlertManager
+    from prometheus_client import AlertManager, Counter, Gauge, Histogram
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -43,6 +45,7 @@ class AlertSeverity(Enum):
 
 class MetricType(Enum):
     """Types of performance metrics"""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -52,6 +55,7 @@ class MetricType(Enum):
 @dataclass
 class PerformanceMetric:
     """Performance metric definition"""
+
     name: str
     type: MetricType
     description: str
@@ -62,6 +66,7 @@ class PerformanceMetric:
 @dataclass
 class AlertRule:
     """Alert rule definition"""
+
     name: str
     condition: str  # PromQL expression
     duration: str = "5m"
@@ -73,6 +78,7 @@ class AlertRule:
 @dataclass
 class PerformanceThreshold:
     """Performance threshold for alerting"""
+
     metric: str
     warning_threshold: float
     critical_threshold: float
@@ -112,51 +118,51 @@ class EBPFPerformanceMonitor:
                 name="ebpf_packets_processed_total",
                 type=MetricType.COUNTER,
                 description="Total packets processed by eBPF programs",
-                labels=["program", "interface"]
+                labels=["program", "interface"],
             ),
             PerformanceMetric(
                 name="ebpf_packets_dropped_total",
                 type=MetricType.COUNTER,
                 description="Total packets dropped by eBPF programs",
-                labels=["program", "interface", "reason"]
+                labels=["program", "interface", "reason"],
             ),
             PerformanceMetric(
                 name="ebpf_processing_latency_microseconds",
                 type=MetricType.HISTOGRAM,
                 description="eBPF packet processing latency",
                 labels=["program", "interface"],
-                unit="microseconds"
+                unit="microseconds",
             ),
             PerformanceMetric(
                 name="ebpf_cpu_usage_percent",
                 type=MetricType.GAUGE,
                 description="CPU usage percentage by eBPF programs",
-                labels=["program", "interface"]
+                labels=["program", "interface"],
             ),
             PerformanceMetric(
                 name="ebpf_memory_usage_bytes",
                 type=MetricType.GAUGE,
                 description="Memory usage by eBPF maps and programs",
-                labels=["program", "map_type"]
+                labels=["program", "map_type"],
             ),
             PerformanceMetric(
                 name="ebpf_flows_active",
                 type=MetricType.GAUGE,
                 description="Number of active network flows",
-                labels=["interface"]
+                labels=["interface"],
             ),
             PerformanceMetric(
                 name="ebpf_errors_total",
                 type=MetricType.COUNTER,
                 description="Total eBPF program errors",
-                labels=["program", "error_type"]
+                labels=["program", "error_type"],
             ),
             PerformanceMetric(
                 name="ebpf_program_load_time_seconds",
                 type=MetricType.HISTOGRAM,
                 description="Time taken to load eBPF programs",
-                labels=["program"]
-            )
+                labels=["program"],
+            ),
         ]
 
         for metric in standard_metrics:
@@ -170,21 +176,15 @@ class EBPFPerformanceMonitor:
 
         if metric.type == MetricType.COUNTER:
             self.metrics[metric.name] = Counter(
-                metric.name,
-                metric.description,
-                metric.labels
+                metric.name, metric.description, metric.labels
             )
         elif metric.type == MetricType.GAUGE:
             self.metrics[metric.name] = Gauge(
-                metric.name,
-                metric.description,
-                metric.labels
+                metric.name, metric.description, metric.labels
             )
         elif metric.type == MetricType.HISTOGRAM:
             self.metrics[metric.name] = Histogram(
-                metric.name,
-                metric.description,
-                metric.labels
+                metric.name, metric.description, metric.labels
             )
 
     def _init_standard_alerts(self):
@@ -196,7 +196,7 @@ class EBPFPerformanceMonitor:
                 duration="5m",
                 severity=AlertSeverity.WARNING,
                 description="eBPF packet processing latency is above 100µs (95th percentile)",
-                summary="High eBPF processing latency detected"
+                summary="High eBPF processing latency detected",
             ),
             AlertRule(
                 name="EBPFPacketDrops",
@@ -204,7 +204,7 @@ class EBPFPerformanceMonitor:
                 duration="2m",
                 severity=AlertSeverity.CRITICAL,
                 description="Packet drop rate exceeds 5%",
-                summary="High packet drop rate in eBPF programs"
+                summary="High packet drop rate in eBPF programs",
             ),
             AlertRule(
                 name="EBPFHighCPUUsage",
@@ -212,7 +212,7 @@ class EBPFPerformanceMonitor:
                 duration="5m",
                 severity=AlertSeverity.WARNING,
                 description="eBPF CPU usage above 80%",
-                summary="High CPU usage by eBPF programs"
+                summary="High CPU usage by eBPF programs",
             ),
             AlertRule(
                 name="EBPFMemoryPressure",
@@ -220,7 +220,7 @@ class EBPFPerformanceMonitor:
                 duration="10m",
                 severity=AlertSeverity.WARNING,
                 description="eBPF memory usage above 100MB",
-                summary="High memory usage by eBPF programs"
+                summary="High memory usage by eBPF programs",
             ),
             AlertRule(
                 name="EBPFProgramErrors",
@@ -228,8 +228,8 @@ class EBPFPerformanceMonitor:
                 duration="5m",
                 severity=AlertSeverity.ERROR,
                 description="More than 10 eBPF errors in 10 minutes",
-                summary="High error rate in eBPF programs"
-            )
+                summary="High error rate in eBPF programs",
+            ),
         ]
 
     def _init_standard_thresholds(self):
@@ -239,20 +239,20 @@ class EBPFPerformanceMonitor:
                 metric="ebpf_processing_latency_microseconds",
                 warning_threshold=50000,  # 50µs
                 critical_threshold=100000,  # 100µs
-                description="Packet processing latency"
+                description="Packet processing latency",
             ),
             PerformanceThreshold(
                 metric="ebpf_cpu_usage_percent",
                 warning_threshold=70.0,
                 critical_threshold=90.0,
-                description="CPU usage percentage"
+                description="CPU usage percentage",
             ),
             PerformanceThreshold(
                 metric="ebpf_memory_usage_bytes",
                 warning_threshold=50000000,  # 50MB
                 critical_threshold=100000000,  # 100MB
-                description="Memory usage"
-            )
+                description="Memory usage",
+            ),
         ]
 
     async def start_monitoring(self):
@@ -334,13 +334,13 @@ class EBPFPerformanceMonitor:
                 await self._generate_alert(
                     f"CRITICAL: {threshold.description}",
                     f"Value {current_value} exceeds critical threshold {threshold.critical_threshold}",
-                    AlertSeverity.CRITICAL
+                    AlertSeverity.CRITICAL,
                 )
             elif current_value > threshold.warning_threshold:
                 await self._generate_alert(
                     f"WARNING: {threshold.description}",
                     f"Value {current_value} exceeds warning threshold {threshold.warning_threshold}",
-                    AlertSeverity.WARNING
+                    AlertSeverity.WARNING,
                 )
 
     async def _generate_alert(self, title: str, message: str, severity: AlertSeverity):
@@ -350,7 +350,7 @@ class EBPFPerformanceMonitor:
             "message": message,
             "severity": severity.value,
             "timestamp": time.time(),
-            "source": "ebpf_performance_monitor"
+            "source": "ebpf_performance_monitor",
         }
 
         logger.warning(f"Alert generated: {alert}")
@@ -377,25 +377,30 @@ class EBPFPerformanceMonitor:
     def _get_mock_latency(self) -> float:
         """Mock processing latency in microseconds"""
         import random
+
         return random.gauss(25.0, 5.0)  # Normal distribution around 25µs
 
     def _get_mock_cpu_usage(self) -> float:
         """Mock CPU usage percentage"""
         import random
+
         return random.uniform(5.0, 15.0)
 
     def _get_mock_memory_usage(self) -> float:
         """Mock memory usage in bytes"""
         import random
-        return random.uniform(10*1024*1024, 50*1024*1024)  # 10-50MB
+
+        return random.uniform(10 * 1024 * 1024, 50 * 1024 * 1024)  # 10-50MB
 
     def get_performance_report(self) -> Dict[str, Any]:
         """Generate comprehensive performance report"""
         report = {
             "timestamp": time.time(),
             "metrics": {},
-            "alerts": len([r for r in self.alert_rules if self._check_alert_condition(r)]),
-            "trends": {}
+            "alerts": len(
+                [r for r in self.alert_rules if self._check_alert_condition(r)]
+            ),
+            "trends": {},
         }
 
         # Current metrics
@@ -411,7 +416,11 @@ class EBPFPerformanceMonitor:
                     "average": statistics.mean(values),
                     "min": min(values),
                     "max": max(values),
-                    "trend": "increasing" if values[-1] > statistics.mean(values) else "decreasing"
+                    "trend": (
+                        "increasing"
+                        if values[-1] > statistics.mean(values)
+                        else "decreasing"
+                    ),
                 }
 
         return report
@@ -438,9 +447,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "rate(ebpf_packets_processed_total[5m])",
-                                "legendFormat": "{{program}} on {{interface}}"
+                                "legendFormat": "{{program}} on {{interface}}",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Processing Latency (95th percentile)",
@@ -449,9 +458,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "histogram_quantile(0.95, rate(ebpf_processing_latency_microseconds_bucket[5m]))",
-                                "legendFormat": "{{program}} latency"
+                                "legendFormat": "{{program}} latency",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Packet Drop Rate",
@@ -460,9 +469,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "rate(ebpf_packets_dropped_total[5m]) / rate(ebpf_packets_processed_total[5m])",
-                                "legendFormat": "{{program}} drop rate"
+                                "legendFormat": "{{program}} drop rate",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "CPU Usage",
@@ -471,9 +480,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "ebpf_cpu_usage_percent",
-                                "legendFormat": "{{program}} CPU usage"
+                                "legendFormat": "{{program}} CPU usage",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Memory Usage",
@@ -482,9 +491,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "ebpf_memory_usage_bytes",
-                                "legendFormat": "{{program}} memory"
+                                "legendFormat": "{{program}} memory",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Active Flows",
@@ -493,9 +502,9 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "ebpf_flows_active",
-                                "legendFormat": "Active flows"
+                                "legendFormat": "Active flows",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Error Rate",
@@ -504,11 +513,11 @@ class EBPFPerformanceMonitor:
                         "targets": [
                             {
                                 "expr": "rate(ebpf_errors_total[5m])",
-                                "legendFormat": "{{program}} {{error_type}}"
+                                "legendFormat": "{{program}} {{error_type}}",
                             }
-                        ]
-                    }
-                ]
+                        ],
+                    },
+                ],
             }
         }
 
@@ -523,16 +532,14 @@ class EBPFPerformanceMonitor:
                             "alert": rule.name,
                             "expr": rule.condition,
                             "for": rule.duration,
-                            "labels": {
-                                "severity": rule.severity.value
-                            },
+                            "labels": {"severity": rule.severity.value},
                             "annotations": {
                                 "summary": rule.summary,
-                                "description": rule.description
-                            }
+                                "description": rule.description,
+                            },
                         }
                         for rule in self.alert_rules
-                    ]
+                    ],
                 }
             ]
         }

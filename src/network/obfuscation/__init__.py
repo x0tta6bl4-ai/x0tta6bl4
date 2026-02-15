@@ -1,12 +1,14 @@
 """
 Obfuscation Module Init.
 """
-from .base import TransportManager, ObfuscationTransport
-from .simple import SimpleXORTransport
+
+from .base import ObfuscationTransport, TransportManager
+from .domain_fronting import DomainFrontingTransport
 from .faketls import FakeTLSTransport
 from .shadowsocks import ShadowsocksTransport
-from .domain_fronting import DomainFrontingTransport
-from .traffic_shaping import TrafficShaper, TrafficProfile, TrafficAnalyzer, TRAFFIC_PROFILES
+from .simple import SimpleXORTransport
+from .traffic_shaping import (TRAFFIC_PROFILES, TrafficAnalyzer,
+                              TrafficProfile, TrafficShaper)
 
 # Register default transports
 TransportManager.register("xor", SimpleXORTransport)

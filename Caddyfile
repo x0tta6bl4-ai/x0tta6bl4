@@ -1,0 +1,35 @@
+{
+    auto_https disable_redirects
+}
+
+{$DOMAIN}:80 {
+    redir https://{host}{uri}
+}
+
+{$DOMAIN}:443 {
+    # API Backend
+    handle /api/* {
+        reverse_proxy localhost:8080
+    }
+    
+    handle /docs {
+        reverse_proxy localhost:8080
+    }
+    
+    handle /openapi.json {
+        reverse_proxy localhost:8080
+    }
+
+    # Xray VLESS WebSocket
+    handle /vless {
+        reverse_proxy localhost:10000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    # Landing Page (Default)
+    handle {
+        reverse_proxy localhost:8081
+    }
+}

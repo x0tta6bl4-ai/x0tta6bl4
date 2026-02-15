@@ -15,8 +15,10 @@ import time
 from dataclasses import dataclass
 
 try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+    from telegram.ext import (Application, CallbackQueryHandler,
+                              CommandHandler, ContextTypes)
+
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -30,19 +32,21 @@ logger = logging.getLogger(__name__)
 # CONFIG
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class Config:
     BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
     USDT_WALLET: str = os.getenv("USDT_TRC20_WALLET", "TYourWallet")
     TON_WALLET: str = os.getenv("TON_WALLET", "UQYourTonWallet")
-    
+
     # Цены в рублях (для Крыма)
-    PRICE_SOLO: int = 100      # 1 человек
-    PRICE_FAMILY: int = 50     # 2-3 человека (за каждого)
+    PRICE_SOLO: int = 100  # 1 человек
+    PRICE_FAMILY: int = 50  # 2-3 человека (за каждого)
     PRICE_APARTMENT: int = 30  # 4+ человек
     PRICE_NEIGHBORHOOD: int = 20  # 8+ человек
-    
+
     DOWNLOAD_URL: str = os.getenv("DOWNLOAD_URL", "")
+
 
 config = Config()
 
@@ -204,18 +208,37 @@ REFERRAL_MESSAGE = """
 # TOKEN GENERATOR
 # ═══════════════════════════════════════════════════════════════
 
+
 def generate_code() -> str:
     """Простой код активации."""
     return f"FREE-{secrets.token_hex(4).upper()}"
+
 
 def generate_ref_link(user_id: int) -> str:
     """Реферальная ссылка."""
     return f"https://t.me/x0tta6bl4_bot?start=ref{user_id}"
 
 
+async def notify_gtm(user_id: int, action: str):
+    """Notify GTM Agent about user action (async)."""
+    try:
+        from src.agents.gtm_agent import GTMAgent
+
+        agent = GTMAgent()
+        stats = agent.get_kpi_stats()
+        report = (
+            f"🔔 *НОВОЕ ДЕЙСТВИЕ:* {action}\nUser ID: `{user_id}`\n\n"
+            + agent.format_report(stats)
+        )
+        await agent.send_to_telegram(report)
+    except Exception as e:
+        logger.error(f"GTM Notification failed: {e}")
+
+
 # ═══════════════════════════════════════════════════════════════
 # HANDLERS
 # ═══════════════════════════════════════════════════════════════
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Главный экран — РЕЗУЛЬТАТЫ."""
@@ -223,30 +246,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 Попробовать БЕСПЛАТНО", callback_data="try")],
         [
             InlineKeyboardButton("💰 Цены", callback_data="pricing"),
-            InlineKeyboardButton("❓ Как работает", callback_data="how")
+            InlineKeyboardButton("❓ Как работает", callback_data="how"),
         ],
     ]
     await update.message.reply_text(
         START_MESSAGE,
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
     logger.info(f"START: user={update.effective_user.id}")
+    await notify_gtm(update.effective_user.id, "Запуск бота (/start)")
 
 
 async def try_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Попробовать — главная кнопка."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
         [InlineKeyboardButton("📥 Скачать", callback_data="download")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back")],
     ]
     await query.edit_message_text(
-        TRY_MESSAGE,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        TRY_MESSAGE, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -254,27 +276,25 @@ async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Выдать код и ссылку."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = query.from_user.id
     code = generate_code()
-    
+
     # Логируем выдачу кода
     logger.info(f"DOWNLOAD: user={user_id}, code={code}")
-    
+    await notify_gtm(user_id, f"Запрос Триала (код: {code})")
+
     text = DOWNLOAD_MESSAGE.format(
-        download_url=config.DOWNLOAD_URL,
-        activation_code=code
+        download_url=config.DOWNLOAD_URL, activation_code=code
     )
-    
+
     keyboard = [
         [InlineKeyboardButton("🎁 Пригласить друга", callback_data="referral")],
         [InlineKeyboardButton("💬 Поддержка", url="https://t.me/x0tta6bl4_support")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back")],
     ]
     await query.edit_message_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -282,7 +302,7 @@ async def pricing_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Цены."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
         [InlineKeyboardButton("🚀 Попробовать БЕСПЛАТНО", callback_data="try")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back")],
@@ -290,7 +310,7 @@ async def pricing_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         PRICING_MESSAGE,
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
@@ -298,15 +318,13 @@ async def how_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Как работает."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
         [InlineKeyboardButton("🚀 Попробовать БЕСПЛАТНО", callback_data="try")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back")],
     ]
     await query.edit_message_text(
-        HOW_MESSAGE,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        HOW_MESSAGE, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -314,21 +332,23 @@ async def referral_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Реферальная программа."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = query.from_user.id
     ref_link = generate_ref_link(user_id)
-    
+
     text = REFERRAL_MESSAGE.format(ref_link=ref_link)
-    
+
     keyboard = [
-        [InlineKeyboardButton("📤 Поделиться", 
-            switch_inline_query=f"YouTube работает! Попробуй бесплатно: {ref_link}")],
+        [
+            InlineKeyboardButton(
+                "📤 Поделиться",
+                switch_inline_query=f"YouTube работает! Попробуй бесплатно: {ref_link}",
+            )
+        ],
         [InlineKeyboardButton("⬅️ Назад", callback_data="download")],
     ]
     await query.edit_message_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -336,18 +356,18 @@ async def back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Назад к главному."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
         [InlineKeyboardButton("🚀 Попробовать БЕСПЛАТНО", callback_data="try")],
         [
             InlineKeyboardButton("💰 Цены", callback_data="pricing"),
-            InlineKeyboardButton("❓ Как работает", callback_data="how")
+            InlineKeyboardButton("❓ Как работает", callback_data="how"),
         ],
     ]
     await query.edit_message_text(
         START_MESSAGE,
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
@@ -357,10 +377,9 @@ async def cmd_try(update: Update, context: ContextTypes.DEFAULT_TYPE):
     code = generate_code()
     user_id = update.effective_user.id
     logger.info(f"CMD_TRY: user={user_id}, code={code}")
-    
+
     text = DOWNLOAD_MESSAGE.format(
-        download_url=config.DOWNLOAD_URL,
-        activation_code=code
+        download_url=config.DOWNLOAD_URL, activation_code=code
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -379,11 +398,12 @@ async def cmd_how(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
+
 def main():
     if not TELEGRAM_AVAILABLE:
         print("❌ pip install python-telegram-bot")
         return
-    
+
     if config.BOT_TOKEN == "YOUR_BOT_TOKEN":
         print("❌ Установи TELEGRAM_BOT_TOKEN")
         print("")
@@ -391,19 +411,19 @@ def main():
         print("2. export TELEGRAM_BOT_TOKEN='твой_токен'")
         print("3. python3 telegram_bot_v2.py")
         return
-    
+
     print("🚀 Бот запущен!")
     print("   YouTube работает. Точка.")
     print("")
-    
+
     app = Application.builder().token(config.BOT_TOKEN).build()
-    
+
     # Команды
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("try", cmd_try))
     app.add_handler(CommandHandler("pricing", cmd_pricing))
     app.add_handler(CommandHandler("how", cmd_how))
-    
+
     # Кнопки
     app.add_handler(CallbackQueryHandler(try_handler, pattern="^try$"))
     app.add_handler(CallbackQueryHandler(download_handler, pattern="^download$"))
@@ -411,7 +431,7 @@ def main():
     app.add_handler(CallbackQueryHandler(how_handler, pattern="^how$"))
     app.add_handler(CallbackQueryHandler(referral_handler, pattern="^referral$"))
     app.add_handler(CallbackQueryHandler(back_handler, pattern="^back$"))
-    
+
     app.run_polling()
 
 

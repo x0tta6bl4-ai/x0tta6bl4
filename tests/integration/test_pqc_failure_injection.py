@@ -8,6 +8,7 @@ import pytest
 
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
+
     PQC_AVAILABLE = True
 except ImportError:
     PQC_AVAILABLE = False
@@ -28,7 +29,7 @@ class TestPQCFailureInjection:
 
         try:
             result = pqc.kem_decapsulate(invalid_ciphertext)
-            assert result is None or 'error' in str(result).lower()
+            assert result is None or "error" in str(result).lower()
         except Exception:
             pass
 
@@ -98,7 +99,7 @@ class TestPQCFailureInjection:
 
         try:
             result = pqc.kem_encapsulate(invalid_key)
-            assert result is None or 'error' in str(result).lower()
+            assert result is None or "error" in str(result).lower()
         except (TypeError, ValueError):
             pass
 
@@ -178,6 +179,7 @@ class TestPQCFailureInjection:
         pqc = PQMeshSecurityLibOQS(node_id="failure-timeout")
 
         import time
+
         start = time.time()
 
         pk = pqc.generate_kem_keypair()
@@ -195,7 +197,7 @@ class TestPQCFailureInjection:
 
         if len(sig) > 2:
             partial_corrupt = bytearray(sig)
-            partial_corrupt[len(sig)//2] ^= 0xFF
+            partial_corrupt[len(sig) // 2] ^= 0xFF
             partial_corrupt = bytes(partial_corrupt)
 
             verified = pqc.verify(msg, partial_corrupt)

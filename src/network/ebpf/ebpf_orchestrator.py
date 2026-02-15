@@ -5,18 +5,18 @@ EBPF Orchestrator - единая точка управления eBPF подси
 мониторинга и управления.
 """
 
-from typing import Dict, Any, Optional
 import asyncio
+import logging
 from dataclasses import dataclass
 from enum import Enum
-import logging
+from typing import Any, Dict, Optional
 
-from src.network.ebpf.loader import EBPFLoader
 from src.network.ebpf.bcc_probes import MeshNetworkProbes
-from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.network.ebpf.cilium_integration import CiliumLikeIntegration
 from src.network.ebpf.dynamic_fallback import DynamicFallbackController
+from src.network.ebpf.loader import EBPFLoader
 from src.network.ebpf.mape_k_integration import EBPFMAPEKIntegration
+from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.network.ebpf.ringbuf_reader import RingBufferReader
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorStatus(Enum):
     """Статус оркестратора."""
+
     STOPPED = "stopped"
     STARTING = "starting"
     RUNNING = "running"
@@ -34,6 +35,7 @@ class OrchestratorStatus(Enum):
 @dataclass
 class OrchestratorConfig:
     """Конфигурация для EBPFOrchestrator."""
+
     interface: str = "eth0"
     enable_metrics: bool = True
     enable_cilium: bool = True
@@ -65,8 +67,7 @@ class EBPFOrchestrator:
         self.loader = EBPFLoader()
         self.probes = MeshNetworkProbes(self.config.interface)
         self.metrics = EBPFMetricsExporter(
-            port=self.config.metrics_port,
-            path=self.config.metrics_path
+            port=self.config.metrics_port, path=self.config.metrics_path
         )
         self.cilium = CiliumLikeIntegration(self.config.interface)
         self.fallback = DynamicFallbackController()
@@ -80,7 +81,7 @@ class EBPFOrchestrator:
             ("cilium", self.cilium),
             ("fallback", self.fallback),
             ("mapek", self.mapek),
-            ("ring_buffer", self.ring_buffer)
+            ("ring_buffer", self.ring_buffer),
         ]
 
     async def start(self) -> None:
@@ -105,17 +106,21 @@ class EBPFOrchestrator:
                     "metrics",
                     "cilium",
                     "fallback",
-                    "mapek"
+                    "mapek",
                 ]
 
                 for component_name in component_order:
-                    component = next(c[1] for c in self._components if c[0] == component_name)
+                    component = next(
+                        c[1] for c in self._components if c[0] == component_name
+                    )
                     logger.debug(f"Starting {component_name}")
                     await self._start_component(component)
 
                 # Запуск health checks
                 if self.config.health_check_interval > 0:
-                    self._health_check_task = asyncio.create_task(self._health_check_loop())
+                    self._health_check_task = asyncio.create_task(
+                        self._health_check_loop()
+                    )
 
                 self.status = OrchestratorStatus.RUNNING
                 logger.info("eBPF orchestrator started successfully")
@@ -156,11 +161,13 @@ class EBPFOrchestrator:
                     "metrics",
                     "probes",
                     "ring_buffer",
-                    "loader"
+                    "loader",
                 ]
 
                 for component_name in component_order:
-                    component = next(c[1] for c in self._components if c[0] == component_name)
+                    component = next(
+                        c[1] for c in self._components if c[0] == component_name
+                    )
                     logger.debug(f"Stopping {component_name}")
                     await self._stop_component(component)
 
@@ -228,10 +235,7 @@ class EBPFOrchestrator:
         Returns:
             Словарь с информацией о состоянии каждой подсистемы.
         """
-        status = {
-            "orchestrator_status": self.status.value,
-            "components": {}
-        }
+        status = {"orchestrator_status": self.status.value, "components": {}}
 
         for name, component in self._components:
             comp_status = {"status": "unknown"}
@@ -282,7 +286,9 @@ class EBPFOrchestrator:
         """
         return self.cilium.get_flow_metrics()
 
-    async def load_program(self, program_name: str, program_path: str, **kwargs) -> Dict[str, Any]:
+    async def load_program(
+        self, program_name: str, program_path: str, **kwargs
+    ) -> Dict[str, Any]:
         """
         Загрузить eBPF программу.
 
@@ -295,7 +301,9 @@ class EBPFOrchestrator:
             Словарь с результатами загрузки.
         """
         try:
-            result = await self.loader.load_program(program_name, program_path, **kwargs)
+            result = await self.loader.load_program(
+                program_name, program_path, **kwargs
+            )
             logger.info(f"Program {program_name} loaded successfully")
             return result
         except Exception as e:
@@ -320,7 +328,9 @@ class EBPFOrchestrator:
             logger.error(f"Failed to unload program {program_name}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def attach_program(self, program_name: str, interface: str = None) -> Dict[str, Any]:
+    async def attach_program(
+        self, program_name: str, interface: str = None
+    ) -> Dict[str, Any]:
         """
         Подключить eBPF программу к интерфейсу.
 
@@ -333,8 +343,7 @@ class EBPFOrchestrator:
         """
         try:
             result = await self.loader.attach_program(
-                program_name,
-                interface or self.config.interface
+                program_name, interface or self.config.interface
             )
             logger.info(f"Program {program_name} attached successfully")
             return result
@@ -342,7 +351,9 @@ class EBPFOrchestrator:
             logger.error(f"Failed to attach program {program_name}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def detach_program(self, program_name: str, interface: str = None) -> Dict[str, Any]:
+    async def detach_program(
+        self, program_name: str, interface: str = None
+    ) -> Dict[str, Any]:
         """
         Отключить eBPF программу от интерфейса.
 
@@ -355,8 +366,7 @@ class EBPFOrchestrator:
         """
         try:
             result = await self.loader.detach_program(
-                program_name,
-                interface or self.config.interface
+                program_name, interface or self.config.interface
             )
             logger.info(f"Program {program_name} detached successfully")
             return result
@@ -380,7 +390,7 @@ async def main():
     # Настройка логирования
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Создание конфигурации
@@ -389,7 +399,7 @@ async def main():
         enable_metrics=True,
         enable_cilium=True,
         enable_fallback=True,
-        metrics_port=9091
+        metrics_port=9091,
     )
 
     # Создание и запуск оркестратора

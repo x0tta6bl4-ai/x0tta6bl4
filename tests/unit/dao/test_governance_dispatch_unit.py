@@ -1,18 +1,15 @@
 """
 Unit tests for DAO governance action dispatcher and ledger.
 """
+
 import json
 import time
-import pytest
 from pathlib import Path
 
-from src.dao.governance import (
-    GovernanceEngine,
-    ActionDispatcher,
-    ActionResult,
-    VoteType,
-    ProposalState,
-)
+import pytest
+
+from src.dao.governance import (ActionDispatcher, ActionResult,
+                                GovernanceEngine, ProposalState, VoteType)
 
 
 class TestActionResult:
@@ -61,7 +58,9 @@ class TestActionDispatcher:
         assert result.success is False
 
     def test_update_config(self):
-        result = self.dispatcher.dispatch({"type": "update_config", "key": "ttl", "value": 60})
+        result = self.dispatcher.dispatch(
+            {"type": "update_config", "key": "ttl", "value": 60}
+        )
         assert result.success is True
         assert "ttl" in result.detail
 

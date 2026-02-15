@@ -142,8 +142,8 @@ int trace_syscall_exit(struct pt_regs *ctx)
     __u64 syscall_nr = 0;
     
     #ifdef __TARGET_ARCH_x86
-    // x86_64: syscall number in orig_ax
-    bpf_core_read(&syscall_nr, sizeof(syscall_nr), &((struct pt_regs *)ctx)->orig_ax);
+    // x86_64: syscall number in orig_rax
+    bpf_core_read(&syscall_nr, sizeof(syscall_nr), &((struct pt_regs *)ctx)->orig_rax);
     #elif defined(__TARGET_ARCH_arm64)
     // ARM64: syscall number in regs[8]
     bpf_core_read(&syscall_nr, sizeof(syscall_nr), &((struct pt_regs *)ctx)->regs[8]);

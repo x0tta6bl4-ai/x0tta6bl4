@@ -19,9 +19,10 @@ Each example includes:
 """
 
 from pathlib import Path
-from typing import Dict, Any, List
-from src.network.ebpf.orchestrator import OrchestratorConfig, EBPFOrchestrator
-from src.network.ebpf.loader import EBPFProgramType, EBPFAttachMode
+from typing import Any, Dict, List
+
+from src.network.ebpf.loader import EBPFAttachMode, EBPFProgramType
+from src.network.ebpf.orchestrator import EBPFOrchestrator, OrchestratorConfig
 
 
 # Example 1: Basic Network Monitoring
@@ -42,7 +43,7 @@ def get_basic_monitoring_config() -> OrchestratorConfig:
         prometheus_port=9090,
         latency_threshold_ms=50.0,  # Lower threshold for monitoring
         monitoring_interval_seconds=5.0,
-        auto_load_programs=True
+        auto_load_programs=True,
     )
 
 
@@ -63,7 +64,7 @@ def get_firewall_config() -> OrchestratorConfig:
         prometheus_port=9090,
         latency_threshold_ms=10.0,  # Very low latency requirement
         monitoring_interval_seconds=1.0,  # Frequent monitoring
-        auto_load_programs=True
+        auto_load_programs=True,
     )
 
 
@@ -84,7 +85,7 @@ def get_qos_config() -> OrchestratorConfig:
         prometheus_port=9090,
         latency_threshold_ms=100.0,  # Higher tolerance for QoS
         monitoring_interval_seconds=10.0,
-        auto_load_programs=True
+        auto_load_programs=True,
     )
 
 
@@ -105,7 +106,7 @@ def get_container_networking_config() -> OrchestratorConfig:
         prometheus_port=9090,
         latency_threshold_ms=25.0,  # Container networking latency
         monitoring_interval_seconds=5.0,
-        auto_load_programs=False  # Manual control for containers
+        auto_load_programs=False,  # Manual control for containers
     )
 
 
@@ -126,26 +127,26 @@ class EBPFProgramConfigs:
                     "action": "drop",
                     "protocol": "tcp",
                     "source_ip": "192.168.1.100",
-                    "description": "Block suspicious IP"
+                    "description": "Block suspicious IP",
                 },
                 {
                     "id": 2,
                     "action": "allow",
                     "protocol": "tcp",
                     "port": 443,
-                    "description": "Allow HTTPS traffic"
+                    "description": "Allow HTTPS traffic",
                 },
                 {
                     "id": 3,
                     "action": "allow",
                     "protocol": "tcp",
                     "port": 80,
-                    "description": "Allow HTTP traffic"
-                }
+                    "description": "Allow HTTP traffic",
+                },
             ],
             "default_action": "drop",  # Zero-trust: drop by default
             "max_rules": 1000,
-            "update_interval_seconds": 30
+            "update_interval_seconds": 30,
         }
 
     @staticmethod
@@ -159,24 +160,24 @@ class EBPFProgramConfigs:
                     "id": 1,
                     "bandwidth_mbps": 100,
                     "priority": 1,
-                    "description": "High priority traffic"
+                    "description": "High priority traffic",
                 },
                 {
                     "id": 2,
                     "bandwidth_mbps": 50,
                     "priority": 2,
-                    "description": "Medium priority traffic"
+                    "description": "Medium priority traffic",
                 },
                 {
                     "id": 3,
                     "bandwidth_mbps": 10,
                     "priority": 3,
-                    "description": "Low priority traffic"
-                }
+                    "description": "Low priority traffic",
+                },
             ],
             "default_class": 3,
             "buffer_size_kb": 1024,
-            "ecn_enabled": True
+            "ecn_enabled": True,
         }
 
     @staticmethod
@@ -190,12 +191,7 @@ class EBPFProgramConfigs:
             "max_flows": 100000,
             "sampling_rate": 1.0,  # 100% sampling
             "export_interval_seconds": 10,
-            "metrics": [
-                "packets_total",
-                "bytes_total",
-                "flow_duration",
-                "tcp_flags"
-            ]
+            "metrics": ["packets_total", "bytes_total", "flow_duration", "tcp_flags"],
         }
 
     @staticmethod
@@ -209,11 +205,8 @@ class EBPFProgramConfigs:
             "udp_flood_threshold": 5000,
             "icmp_flood_threshold": 100,
             "block_duration_seconds": 300,
-            "whitelist": [
-                "10.0.0.0/8",      # Internal networks
-                "192.168.0.0/16"
-            ],
-            "auto_mitigation": True
+            "whitelist": ["10.0.0.0/8", "192.168.0.0/16"],  # Internal networks
+            "auto_mitigation": True,
         }
 
 
@@ -239,7 +232,7 @@ class CLIExamples:
             "x0tta6bl4-ebpf stats",
             "",
             "# Export metrics",
-            "x0tta6bl4-ebpf metrics --export monitoring_metrics.json"
+            "x0tta6bl4-ebpf metrics --export monitoring_metrics.json",
         ]
 
     @staticmethod
@@ -259,7 +252,7 @@ class CLIExamples:
             "x0tta6bl4-ebpf watch --filter 'action=drop'",
             "",
             "# Health check",
-            "x0tta6bl4-ebpf health"
+            "x0tta6bl4-ebpf health",
         ]
 
     @staticmethod
@@ -279,7 +272,7 @@ class CLIExamples:
             "x0tta6bl4-ebpf memory --maps",
             "",
             "# Generate performance report",
-            "x0tta6bl4-ebpf report --output perf_report.html"
+            "x0tta6bl4-ebpf report --output perf_report.html",
         ]
 
 
@@ -291,23 +284,14 @@ class MonitoringConfigs:
     def prometheus_config() -> Dict[str, Any]:
         """Prometheus configuration for eBPF metrics"""
         return {
-            "global": {
-                "scrape_interval": "15s",
-                "evaluation_interval": "15s"
-            },
+            "global": {"scrape_interval": "15s", "evaluation_interval": "15s"},
             "scrape_configs": [
                 {
                     "job_name": "ebpf-metrics",
-                    "static_configs": [
-                        {
-                            "targets": ["localhost:9090"]
-                        }
-                    ]
+                    "static_configs": [{"targets": ["localhost:9090"]}],
                 }
             ],
-            "rule_files": [
-                "ebpf_alerts.yml"
-            ]
+            "rule_files": ["ebpf_alerts.yml"],
         }
 
     @staticmethod
@@ -322,39 +306,33 @@ class MonitoringConfigs:
                             "alert": "EBPFHighLatency",
                             "expr": "ebpf_latency_microseconds > 100000",
                             "for": "5m",
-                            "labels": {
-                                "severity": "warning"
-                            },
+                            "labels": {"severity": "warning"},
                             "annotations": {
                                 "summary": "High eBPF processing latency",
-                                "description": "eBPF packet processing latency is {{ $value }}µs"
-                            }
+                                "description": "eBPF packet processing latency is {{ $value }}µs",
+                            },
                         },
                         {
                             "alert": "EBPFPacketDrops",
                             "expr": "rate(ebpf_packets_dropped_total[5m]) > 0.05",
                             "for": "2m",
-                            "labels": {
-                                "severity": "critical"
-                            },
+                            "labels": {"severity": "critical"},
                             "annotations": {
                                 "summary": "High packet drop rate",
-                                "description": "Packet drop rate is {{ $value | humanizePercentage }}"
-                            }
+                                "description": "Packet drop rate is {{ $value | humanizePercentage }}",
+                            },
                         },
                         {
                             "alert": "EBPFMemoryUsage",
                             "expr": "ebpf_memory_usage_bytes / ebpf_memory_limit_bytes > 0.8",
                             "for": "10m",
-                            "labels": {
-                                "severity": "warning"
-                            },
+                            "labels": {"severity": "warning"},
                             "annotations": {
                                 "summary": "High eBPF memory usage",
-                                "description": "eBPF memory usage is {{ $value | humanizePercentage }}"
-                            }
-                        }
-                    ]
+                                "description": "eBPF memory usage is {{ $value | humanizePercentage }}",
+                            },
+                        },
+                    ],
                 }
             ]
         }
@@ -374,9 +352,9 @@ class MonitoringConfigs:
                         "targets": [
                             {
                                 "expr": "rate(ebpf_packets_processed_total[5m])",
-                                "legendFormat": "Packets/sec"
+                                "legendFormat": "Packets/sec",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Processing Latency",
@@ -384,9 +362,9 @@ class MonitoringConfigs:
                         "targets": [
                             {
                                 "expr": "ebpf_latency_microseconds",
-                                "legendFormat": "Latency (µs)"
+                                "legendFormat": "Latency (µs)",
                             }
-                        ]
+                        ],
                     },
                     {
                         "title": "Active Flows",
@@ -394,11 +372,11 @@ class MonitoringConfigs:
                         "targets": [
                             {
                                 "expr": "ebpf_flows_active",
-                                "legendFormat": "Active Flows"
+                                "legendFormat": "Active Flows",
                             }
-                        ]
-                    }
-                ]
+                        ],
+                    },
+                ],
             }
         }
 

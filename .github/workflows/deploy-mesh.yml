@@ -1,0 +1,25 @@
+name: Deploy x0tta6bl4 Mesh
+on:
+  push:
+    branches: [main]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # Use v4 for actions/checkout
+      - name: Snyk + Trivy scan
+        run: ./scripts/security-scan.sh --severity high
+      - name: Sigstore sign
+        run: cosign sign --key ${{ secrets.COSIGN_KEY }} mesh-image:${{ github.sha }}
+
+  deploy-production:
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to mesh cluster
+        run: |
+          ./deploy.sh --mode production 
+            --target vps:${{ secrets.VPS_IP }} 
+            --vault-token ${{ secrets.VAULT_TOKEN }}

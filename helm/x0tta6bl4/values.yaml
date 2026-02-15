@@ -9,7 +9,7 @@ image:
   tag: "3.4.0"
 
 imagePullSecrets: []
-nameOverride: ""
+nameOverride: "x0tta6bl4-node"
 fullnameOverride: ""
 
 serviceAccount:
