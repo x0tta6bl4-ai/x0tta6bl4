@@ -17,6 +17,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.services.xray_manager import XrayManager
+from src.api.maas import mesh_provisioner
 
 # Simplified import
 try:
@@ -230,7 +231,20 @@ async def stripe_webhook(
                 logger.info(f"Generated pro license {license_token} for user {email}")
 
                 # Update Xray Config
-                await XrayManager.add_user(db_user.vpn_uuid, email)
+                if XrayManager:
+                    await XrayManager.add_user(db_user.vpn_uuid, email)
+
+                # TRIGGER PROVISIONING (Phase 3)
+                try:
+                    # Default provisioning for new Pro users
+                    mesh_id = mesh_provisioner.create(
+                        name=f"auto-mesh-{db_user.id[:8]}",
+                        nodes=5, # Default for Pro
+                        pqc_enabled=True
+                    )
+                    logger.info(f"Auto-provisioned mesh {mesh_id} for user {email}")
+                except Exception as ex:
+                    logger.error(f"Failed to auto-provision mesh for {email}: {ex}")
 
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
