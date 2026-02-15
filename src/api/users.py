@@ -188,6 +188,9 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    # Propagate user identity to request state for metrics/middleware
+    request.state.user_id = user.id
+
     return UserResponse(
         id=user.id,
         email=user.email,

@@ -1,4 +1,10 @@
-const hre = require("hardhat");
+import hre from "hardhat";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function main() {
   console.log("🚀 Deploying MeshGovernance...\n");
@@ -9,16 +15,14 @@ async function main() {
   console.log("💰 Account balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "ETH\n");
 
   // Get X0TToken address from latest deployment
-  const fs = require("fs");
-  const path = require("path");
   const deploymentsDir = path.join(__dirname, "../deployments");
-  
+
   let tokenAddress;
   const deploymentFiles = fs.readdirSync(deploymentsDir)
     .filter(f => f.endsWith(".json") && f.includes("localhost"))
     .sort()
     .reverse();
-  
+
   if (deploymentFiles.length > 0) {
     const latestDeployment = JSON.parse(
       fs.readFileSync(path.join(deploymentsDir, deploymentFiles[0]), "utf8")
