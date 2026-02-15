@@ -1,14 +1,12 @@
 """
 Unit tests for mesh telemetry generator.
 """
+
 import pytest
-from src.ml.mesh_telemetry import (
-    MeshTelemetryGenerator,
-    MeshSnapshot,
-    ScenarioType,
-    generate_training_data,
-    FEATURE_NAMES,
-)
+
+from src.ml.mesh_telemetry import (FEATURE_NAMES, MeshSnapshot,
+                                   MeshTelemetryGenerator, ScenarioType,
+                                   generate_training_data)
 
 
 class TestMeshTelemetryGenerator:

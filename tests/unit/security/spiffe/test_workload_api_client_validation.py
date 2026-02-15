@@ -1,18 +1,21 @@
-from datetime import datetime, timedelta
 import os
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest  # Import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-import pytest # Import pytest
+from src.security.spiffe.workload.api_client import (  # Import SPIFFE_SDK_AVAILABLE
+    SPIFFE_SDK_AVAILABLE, X509SVID, WorkloadAPIClient)
 
-from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID, SPIFFE_SDK_AVAILABLE # Import SPIFFE_SDK_AVAILABLE
 
-@pytest.mark.skipif(SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests")
+@pytest.mark.skipif(
+    SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests"
+)
 def _create_test_certificate(
     spiffe_id: str,
     *,
@@ -87,7 +90,10 @@ def test_validate_peer_svid_valid_with_expected_prefix(tmp_path):
         add_spiffe_san=True,
     )
 
-    assert client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh/service") is True
+    assert (
+        client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh/service")
+        is True
+    )
 
 
 def test_validate_peer_svid_expired_svid_rejected(tmp_path):
@@ -100,7 +106,9 @@ def test_validate_peer_svid_expired_svid_rejected(tmp_path):
         add_spiffe_san=True,
     )
 
-    assert client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh") is False
+    assert (
+        client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh") is False
+    )
 
 
 def test_validate_peer_svid_missing_san_fails_when_expected_id(tmp_path):
@@ -113,7 +121,9 @@ def test_validate_peer_svid_missing_san_fails_when_expected_id(tmp_path):
         add_spiffe_san=False,
     )
 
-    assert client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh") is False
+    assert (
+        client.validate_peer_svid(svid, expected_id="spiffe://x0tta6bl4.mesh") is False
+    )
 
 
 def test_validate_peer_svid_san_mismatch_fails(tmp_path):
@@ -202,7 +212,9 @@ def test_validate_peer_svid_with_trust_bundle_valid():
             expiry=datetime.utcnow() + timedelta(hours=1),
         )
 
-        assert client.validate_peer_svid(svid, expected_id="spiffe://test.domain") is True
+        assert (
+            client.validate_peer_svid(svid, expected_id="spiffe://test.domain") is True
+        )
     finally:
         os.unlink(bundle_path)
 
@@ -226,7 +238,9 @@ def test_validate_peer_svid_with_trust_bundle_wrong_ca():
             expiry=datetime.utcnow() + timedelta(hours=1),
         )
 
-        assert client.validate_peer_svid(svid, expected_id="spiffe://test.domain") is False
+        assert (
+            client.validate_peer_svid(svid, expected_id="spiffe://test.domain") is False
+        )
     finally:
         os.unlink(bundle_path)
 

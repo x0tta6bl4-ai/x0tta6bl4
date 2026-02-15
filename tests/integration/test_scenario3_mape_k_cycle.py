@@ -9,25 +9,24 @@ Integration Tests for Scenario 3: MAPE-K Cycle Integration
 4. Execute применяет исправления автоматически
 5. Knowledge сохраняет опыт
 """
+
+import asyncio
+import time
+from typing import Dict, List
+from unittest.mock import AsyncMock, MagicMock, Mock
+
 import pytest
 import pytest_asyncio
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock
-from typing import Dict, List
-import time
 
+from src.core.consciousness import (ConsciousnessEngine, ConsciousnessMetrics,
+                                    ConsciousnessState)
 from src.core.mape_k_loop import MAPEKLoop, MAPEKState
-from src.core.consciousness import (
-    ConsciousnessEngine, 
-    ConsciousnessMetrics, 
-    ConsciousnessState
-)
 
 
 # Mock classes for dependencies
 class MockMeshNetworkManager:
     """Mock MeshNetworkManager for testing."""
-    
+
     def __init__(self):
         self.route_preference = "balanced"
         self.healing_triggered = False
@@ -36,23 +35,23 @@ class MockMeshNetworkManager:
             "active_peers": 5,
             "avg_latency_ms": 50,
             "packet_loss_percent": 1.0,
-            "mttr_minutes": 2.0
+            "mttr_minutes": 2.0,
         }
-    
+
     async def get_statistics(self) -> Dict:
         """Return mock mesh statistics."""
         return self.stats
-    
+
     async def set_route_preference(self, preference: str) -> bool:
         """Set route preference."""
         self.route_preference = preference
         return True
-    
+
     async def trigger_aggressive_healing(self) -> int:
         """Trigger aggressive healing."""
         self.healing_triggered = True
         return 3  # 3 nodes healed
-    
+
     async def trigger_preemptive_checks(self):
         """Trigger preemptive checks."""
         self.preemptive_checks_triggered = True
@@ -60,14 +59,14 @@ class MockMeshNetworkManager:
 
 class MockPrometheusExporter:
     """Mock PrometheusExporter for testing."""
-    
+
     def __init__(self):
         self.metrics = {}
-    
+
     def set_gauge(self, name: str, value: float):
         """Set gauge metric."""
         self.metrics[name] = value
-    
+
     def get_metric(self, name: str) -> float:
         """Get metric value."""
         return self.metrics.get(name, 0.0)
@@ -75,20 +74,18 @@ class MockPrometheusExporter:
 
 class MockZeroTrustValidator:
     """Mock ZeroTrustValidator for testing."""
-    
+
     def get_validation_stats(self) -> Dict:
         """Return mock validation stats."""
-        return {
-            "success_rate": 0.98
-        }
+        return {"success_rate": 0.98}
 
 
 class MockDAOAuditLogger:
     """Mock DAOAuditLogger for testing."""
-    
+
     def __init__(self):
         self.logged_events = []
-    
+
     async def log_consciousness_event(self, event_data: Dict) -> str:
         """Log consciousness event."""
         self.logged_events.append(event_data)
@@ -104,23 +101,23 @@ async def mapek_loop():
     prometheus = MockPrometheusExporter()
     zero_trust = MockZeroTrustValidator()
     dao_logger = MockDAOAuditLogger()
-    
+
     # Create MAPE-K loop
     loop = MAPEKLoop(
         consciousness_engine=consciousness,
         mesh_manager=mesh_manager,
         prometheus=prometheus,
         zero_trust=zero_trust,
-        dao_logger=dao_logger
+        dao_logger=dao_logger,
     )
-    
+
     yield {
         "loop": loop,
         "consciousness": consciousness,
         "mesh": mesh_manager,
         "prometheus": prometheus,
         "zero_trust": zero_trust,
-        "dao_logger": dao_logger
+        "dao_logger": dao_logger,
     }
 
 
@@ -128,10 +125,10 @@ async def mapek_loop():
 async def test_monitor_collects_metrics(mapek_loop):
     """Test that Monitor phase collects metrics."""
     loop = mapek_loop["loop"]
-    
+
     # Execute monitor phase
     metrics = await loop._monitor()
-    
+
     # Check that metrics are collected
     assert "cpu_percent" in metrics
     assert "memory_percent" in metrics
@@ -140,7 +137,7 @@ async def test_monitor_collects_metrics(mapek_loop):
     assert "packet_loss" in metrics
     assert "mttr_minutes" in metrics
     assert "zero_trust_success_rate" in metrics
-    
+
     # Check that metrics have reasonable values
     assert 0 <= metrics["cpu_percent"] <= 100
     assert 0 <= metrics["memory_percent"] <= 100
@@ -154,7 +151,7 @@ async def test_monitor_collects_metrics(mapek_loop):
 async def test_analyze_detects_anomalies(mapek_loop):
     """Test that Analyze phase detects anomalies."""
     loop = mapek_loop["loop"]
-    
+
     # Create metrics with anomaly (high CPU)
     raw_metrics = {
         "cpu_percent": 95.0,  # High CPU
@@ -163,12 +160,12 @@ async def test_analyze_detects_anomalies(mapek_loop):
         "latency_ms": 100,
         "packet_loss": 2.0,
         "mttr_minutes": 5.0,
-        "zero_trust_success_rate": 0.95
+        "zero_trust_success_rate": 0.95,
     }
-    
+
     # Execute analyze phase
-    consciousness_metrics = loop._analyze(raw_metrics)
-    
+    consciousness_metrics = await loop._analyze(raw_metrics)
+
     # Check that consciousness metrics are generated
     assert isinstance(consciousness_metrics, ConsciousnessMetrics)
     assert consciousness_metrics.phi_ratio >= 0
@@ -180,7 +177,7 @@ async def test_plan_generates_directives(mapek_loop):
     """Test that Plan phase generates directives."""
     loop = mapek_loop["loop"]
     consciousness = mapek_loop["consciousness"]
-    
+
     # Create consciousness metrics
     raw_metrics = {
         "cpu_percent": 50.0,
@@ -189,13 +186,13 @@ async def test_plan_generates_directives(mapek_loop):
         "latency_ms": 50,
         "packet_loss": 1.0,
         "mttr_minutes": 2.0,
-        "zero_trust_success_rate": 0.98
+        "zero_trust_success_rate": 0.98,
     }
     consciousness_metrics = consciousness.get_consciousness_metrics(raw_metrics)
-    
+
     # Execute plan phase
     directives = loop._plan(consciousness_metrics)
-    
+
     # Check that directives are generated
     assert isinstance(directives, dict)
     assert "route_preference" in directives or "monitoring_interval_sec" in directives
@@ -206,21 +203,21 @@ async def test_execute_applies_actions(mapek_loop):
     """Test that Execute phase applies actions."""
     loop = mapek_loop["loop"]
     mesh = mapek_loop["mesh"]
-    
+
     # Create directives with actions
     directives = {
         "route_preference": "low_latency",
         "enable_aggressive_healing": True,
-        "preemptive_healing": True
+        "preemptive_healing": True,
     }
-    
+
     # Execute execute phase
     actions = await loop._execute(directives)
-    
+
     # Check that actions were taken
     assert isinstance(actions, list)
     assert len(actions) > 0
-    
+
     # Check that mesh manager was called
     assert mesh.route_preference == "low_latency"
     assert mesh.healing_triggered is True
@@ -234,7 +231,7 @@ async def test_knowledge_stores_experience(mapek_loop):
     prometheus = mapek_loop["prometheus"]
     dao_logger = mapek_loop["dao_logger"]
     consciousness = mapek_loop["consciousness"]
-    
+
     # Create test data
     raw_metrics = {
         "cpu_percent": 50.0,
@@ -243,18 +240,18 @@ async def test_knowledge_stores_experience(mapek_loop):
         "latency_ms": 50,
         "packet_loss": 1.0,
         "mttr_minutes": 2.0,
-        "zero_trust_success_rate": 0.98
+        "zero_trust_success_rate": 0.98,
     }
     consciousness_metrics = consciousness.get_consciousness_metrics(raw_metrics)
     directives = {"route_preference": "balanced"}
     actions = ["route_preference=balanced"]
-    
+
     # Execute knowledge phase
     await loop._knowledge(consciousness_metrics, directives, actions, raw_metrics)
-    
+
     # Check that metrics were exported to Prometheus
     assert len(prometheus.metrics) > 0
-    
+
     # Check that state was stored in history
     assert len(loop.state_history) > 0
     state = loop.state_history[-1]
@@ -271,19 +268,19 @@ async def test_full_cycle_execution(mapek_loop):
     mesh = mapek_loop["mesh"]
     prometheus = mapek_loop["prometheus"]
     dao_logger = mapek_loop["dao_logger"]
-    
+
     # Execute one complete cycle
     await loop._execute_cycle()
-    
+
     # Check that all phases were executed
     assert len(loop.state_history) > 0
-    
+
     # Check that metrics were collected
     state = loop.state_history[-1]
     assert state.metrics is not None
     assert state.directives is not None
     assert state.actions_taken is not None
-    
+
     # Check that Prometheus metrics were updated
     assert len(prometheus.metrics) > 0
 
@@ -293,17 +290,17 @@ async def test_cycle_with_anomaly_detection(mapek_loop):
     """Test cycle with anomaly detection and automatic healing."""
     loop = mapek_loop["loop"]
     mesh = mapek_loop["mesh"]
-    
+
     # Simulate anomaly by modifying mesh stats
     mesh.stats["packet_loss_percent"] = 10.0  # High packet loss
     mesh.stats["avg_latency_ms"] = 500  # High latency
-    
+
     # Execute cycle
     await loop._execute_cycle()
-    
+
     # Check that cycle completed
     assert len(loop.state_history) > 0
-    
+
     # Check that healing might have been triggered
     # (depends on consciousness state)
     state = loop.state_history[-1]
@@ -316,7 +313,7 @@ async def test_dao_logging_for_critical_events(mapek_loop):
     loop = mapek_loop["loop"]
     dao_logger = mapek_loop["dao_logger"]
     consciousness = mapek_loop["consciousness"]
-    
+
     # Create metrics that trigger EUPHORIC or MYSTICAL state
     # (simplified - in real scenario would need specific metrics)
     raw_metrics = {
@@ -326,16 +323,16 @@ async def test_dao_logging_for_critical_events(mapek_loop):
         "latency_ms": 10,  # Low latency
         "packet_loss": 0.1,  # Low packet loss
         "mttr_minutes": 1.0,  # Fast recovery
-        "zero_trust_success_rate": 0.99  # High success rate
+        "zero_trust_success_rate": 0.99,  # High success rate
     }
-    
+
     consciousness_metrics = consciousness.get_consciousness_metrics(raw_metrics)
     directives = {"message": "System in optimal state"}
     actions = []
-    
+
     # Execute knowledge phase
     await loop._knowledge(consciousness_metrics, directives, actions, raw_metrics)
-    
+
     # Check if DAO logging was triggered (depends on state)
     # In this test, we just verify the method exists and can be called
     assert hasattr(dao_logger, "log_consciousness_event")
@@ -345,12 +342,12 @@ async def test_dao_logging_for_critical_events(mapek_loop):
 async def test_cycle_interval_adjustment(mapek_loop):
     """Test that cycle interval is adjusted based on directives."""
     loop = mapek_loop["loop"]
-    
+
     initial_interval = loop.loop_interval
-    
+
     # Execute cycle
     await loop._execute_cycle()
-    
+
     # Check that interval might have changed
     # (depends on directives)
     assert loop.loop_interval > 0
@@ -360,15 +357,15 @@ async def test_cycle_interval_adjustment(mapek_loop):
 async def test_multiple_cycles_accumulate_history(mapek_loop):
     """Test that multiple cycles accumulate state history."""
     loop = mapek_loop["loop"]
-    
+
     # Execute multiple cycles
     for _ in range(3):
         await loop._execute_cycle()
         await asyncio.sleep(0.1)  # Small delay
-    
+
     # Check that history accumulated
     assert len(loop.state_history) == 3
-    
+
     # Check that each state is unique
     timestamps = [state.timestamp for state in loop.state_history]
     assert len(set(timestamps)) == 3  # All unique
@@ -379,15 +376,15 @@ async def test_cycle_error_handling(mapek_loop):
     """Test that cycle handles errors gracefully."""
     loop = mapek_loop["loop"]
     mesh = mapek_loop["mesh"]
-    
+
     # Make mesh.get_statistics raise an error
     original_get_stats = mesh.get_statistics
     mesh.get_statistics = AsyncMock(side_effect=Exception("Test error"))
-    
+
     try:
         # Execute cycle - should handle error gracefully
         await loop._execute_cycle()
-        
+
         # If we get here, error was handled
         # (in real implementation, errors are caught and logged)
     except Exception:
@@ -400,4 +397,3 @@ async def test_cycle_error_handling(mapek_loop):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

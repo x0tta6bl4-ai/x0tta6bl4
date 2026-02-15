@@ -13,11 +13,13 @@ References:
 - Farhi et al., "A Quantum Approximate Optimization Algorithm" (2014)
 - NIST Post-Quantum Standardization
 """
+
 import logging
 import math
 import time
-from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -26,11 +28,12 @@ logger = logging.getLogger(__name__)
 try:
     from qiskit import QuantumCircuit
     from qiskit.circuit import Parameter
+    from qiskit.primitives import Sampler
     from qiskit_algorithms import QAOA
     from qiskit_algorithms.optimizers import COBYLA, SPSA
-    from qiskit.primitives import Sampler
     from qiskit_optimization import QuadraticProgram
     from qiskit_optimization.algorithms import MinimumEigenOptimizer
+
     QISKIT_AVAILABLE = True
     logger.info("Qiskit QAOA available - using real quantum simulation")
 except ImportError:
@@ -41,6 +44,7 @@ except ImportError:
 @dataclass
 class QAOAResult:
     """Result from QAOA optimization."""
+
     configuration: List[int]
     cost: float
     execution_time: float
@@ -62,7 +66,7 @@ class QAOAOptimizer:
         num_qubits: int,
         p_depth: int = 1,
         optimizer: str = "COBYLA",
-        max_iterations: int = 100
+        max_iterations: int = 100,
     ):
         """
         Initialize QAOA optimizer.
@@ -103,9 +107,7 @@ class QAOAOptimizer:
         self.cooling_rate = 0.95
 
     def optimize_maxcut(
-        self,
-        adjacency_matrix: np.ndarray,
-        weights: Optional[np.ndarray] = None
+        self, adjacency_matrix: np.ndarray, weights: Optional[np.ndarray] = None
     ) -> QAOAResult:
         """
         Solve Max-Cut problem using QAOA.
@@ -133,11 +135,7 @@ class QAOAOptimizer:
         result.execution_time = time.time() - start_time
         return result
 
-    def _qiskit_maxcut(
-        self,
-        adjacency: np.ndarray,
-        weights: np.ndarray
-    ) -> QAOAResult:
+    def _qiskit_maxcut(self, adjacency: np.ndarray, weights: np.ndarray) -> QAOAResult:
         """Solve Max-Cut using Qiskit QAOA."""
         convergence = []
 
@@ -167,11 +165,7 @@ class QAOAOptimizer:
         qp.maximize(linear=linear, quadratic=quadratic)
 
         # Create QAOA instance
-        qaoa = QAOA(
-            sampler=self.sampler,
-            optimizer=self.optimizer,
-            reps=self.p_depth
-        )
+        qaoa = QAOA(sampler=self.sampler, optimizer=self.optimizer, reps=self.p_depth)
 
         # Solve
         algorithm = MinimumEigenOptimizer(qaoa)
@@ -187,13 +181,11 @@ class QAOAOptimizer:
             execution_time=0,  # Will be set by caller
             num_iterations=self.max_iterations,
             method="qiskit",
-            convergence_history=convergence
+            convergence_history=convergence,
         )
 
     def _classical_maxcut(
-        self,
-        adjacency: np.ndarray,
-        weights: np.ndarray
+        self, adjacency: np.ndarray, weights: np.ndarray
     ) -> QAOAResult:
         """Solve Max-Cut using classical simulated annealing."""
         convergence = []
@@ -235,7 +227,7 @@ class QAOAOptimizer:
             execution_time=0,
             num_iterations=self.max_iterations,
             method="classical",
-            convergence_history=convergence
+            convergence_history=convergence,
         )
 
     def _calculate_cut(self, config: List[int], weights: np.ndarray) -> float:
@@ -248,9 +240,7 @@ class QAOAOptimizer:
         return cut
 
     def benchmark(
-        self,
-        adjacency_matrix: np.ndarray,
-        num_trials: int = 10
+        self, adjacency_matrix: np.ndarray, num_trials: int = 10
     ) -> Dict[str, Any]:
         """
         Benchmark QAOA performance.
@@ -266,11 +256,13 @@ class QAOAOptimizer:
 
         for _ in range(num_trials):
             result = self.optimize_maxcut(adjacency_matrix)
-            results.append({
-                "cost": result.cost,
-                "time": result.execution_time,
-                "method": result.method
-            })
+            results.append(
+                {
+                    "cost": result.cost,
+                    "time": result.execution_time,
+                    "method": result.method,
+                }
+            )
 
         costs = [r["cost"] for r in results]
         times = [r["time"] for r in results]
@@ -285,7 +277,8 @@ class QAOAOptimizer:
             "cost_max": np.max(costs),
             "time_mean": np.mean(times),
             "time_std": np.std(times),
-            "optimal_found_ratio": sum(1 for c in costs if c == max(costs)) / num_trials
+            "optimal_found_ratio": sum(1 for c in costs if c == max(costs))
+            / num_trials,
         }
 
     @staticmethod
@@ -317,7 +310,9 @@ def run_qaoa_benchmark(num_nodes: int = 10, p_depth: int = 1) -> Dict[str, Any]:
     logger.info(f"QAOA Benchmark ({num_nodes} nodes, p={p_depth}):")
     logger.info(f"  Method: {results['method']}")
     logger.info(f"  Cost: {results['cost_mean']:.2f} ± {results['cost_std']:.2f}")
-    logger.info(f"  Time: {results['time_mean']*1000:.1f}ms ± {results['time_std']*1000:.1f}ms")
+    logger.info(
+        f"  Time: {results['time_mean']*1000:.1f}ms ± {results['time_std']*1000:.1f}ms"
+    )
     logger.info(f"  Optimal ratio: {results['optimal_found_ratio']:.1%}")
 
     return results

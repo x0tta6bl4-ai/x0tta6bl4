@@ -6,15 +6,16 @@ Dynamically adjusts MAPE-K cycle parameters based on system state and performanc
 
 import logging
 import time
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class SystemState(Enum):
     """System operational state"""
+
     HEALTHY = "healthy"  # All metrics normal
     DEGRADED = "degraded"  # Some metrics elevated
     CRITICAL = "critical"  # Multiple issues
@@ -25,6 +26,7 @@ class SystemState(Enum):
 @dataclass
 class DynamicParameters:
     """MAPE-K cycle parameters"""
+
     monitoring_interval: float  # Seconds between monitor cycles
     analysis_depth: int  # Number of historical points to analyze
     planning_lookahead: float  # Seconds to plan ahead
@@ -36,6 +38,7 @@ class DynamicParameters:
 @dataclass
 class PerformanceMetrics:
     """Metrics for MAPE-K cycle performance"""
+
     cpu_usage: float
     memory_usage: float
     cycle_latency: float
@@ -57,7 +60,7 @@ class DynamicOptimizer:
             planning_lookahead=300.0,
             execution_parallelism=4,
             knowledge_retention=7,
-            learning_rate=0.1
+            learning_rate=0.1,
         )
 
         self.current_parameters = self._copy_params(self.base_parameters)
@@ -78,7 +81,7 @@ class DynamicOptimizer:
             planning_lookahead=params.planning_lookahead,
             execution_parallelism=params.execution_parallelism,
             knowledge_retention=params.knowledge_retention,
-            learning_rate=params.learning_rate
+            learning_rate=params.learning_rate,
         )
 
     def record_performance(self, metrics: PerformanceMetrics):
@@ -186,14 +189,14 @@ class DynamicOptimizer:
     def _record_transition(self, new_state: SystemState):
         """Record state transition event"""
         event = {
-            'timestamp': time.time(),
-            'from_state': self.current_state.value,
-            'to_state': new_state.value,
-            'parameters': {
-                'monitoring_interval': self.current_parameters.monitoring_interval,
-                'analysis_depth': self.current_parameters.analysis_depth,
-                'execution_parallelism': self.current_parameters.execution_parallelism
-            }
+            "timestamp": time.time(),
+            "from_state": self.current_state.value,
+            "to_state": new_state.value,
+            "parameters": {
+                "monitoring_interval": self.current_parameters.monitoring_interval,
+                "analysis_depth": self.current_parameters.analysis_depth,
+                "execution_parallelism": self.current_parameters.execution_parallelism,
+            },
         }
         self.optimization_events.append(event)
         if len(self.optimization_events) > 500:
@@ -206,18 +209,18 @@ class DynamicOptimizer:
     def get_optimization_stats(self) -> Dict[str, Any]:
         """Get optimization statistics"""
         return {
-            'current_state': self.current_state.value,
-            'total_state_transitions': self.state_transitions,
-            'total_optimizations': self.optimization_count,
-            'performance_history_size': len(self.performance_history),
-            'optimization_events': len(self.optimization_events),
-            'current_parameters': {
-                'monitoring_interval': self.current_parameters.monitoring_interval,
-                'analysis_depth': self.current_parameters.analysis_depth,
-                'planning_lookahead': self.current_parameters.planning_lookahead,
-                'execution_parallelism': self.current_parameters.execution_parallelism,
-                'learning_rate': self.current_parameters.learning_rate
-            }
+            "current_state": self.current_state.value,
+            "total_state_transitions": self.state_transitions,
+            "total_optimizations": self.optimization_count,
+            "performance_history_size": len(self.performance_history),
+            "optimization_events": len(self.optimization_events),
+            "current_parameters": {
+                "monitoring_interval": self.current_parameters.monitoring_interval,
+                "analysis_depth": self.current_parameters.analysis_depth,
+                "planning_lookahead": self.current_parameters.planning_lookahead,
+                "execution_parallelism": self.current_parameters.execution_parallelism,
+                "learning_rate": self.current_parameters.learning_rate,
+            },
         }
 
     def get_optimization_history(self) -> List[Dict[str, Any]]:

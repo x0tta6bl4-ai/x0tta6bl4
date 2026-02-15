@@ -1,0 +1,24 @@
+# Development dependencies - aligned with pyproject.toml [project.optional-dependencies.dev]
+black==25.9.0
+flake8==7.3.0
+mypy==1.18.2
+pytest==8.4.2
+pytest-asyncio==1.2.0
+pytest-cov==7.0.0
+pytest-benchmark==5.1.0
+bandit==1.8.6
+safety==3.6.2
+pre-commit==4.3.0
+ruff==0.15.0
+pip-audit==2.10.0
+spiffe==0.2.2
+pytest-mock==3.12.0
+pyelftools>=0.30
+
+# Additional runtime/test dependencies for CI
+httpx==0.28.1
+numpy==2.4.2
+sqlalchemy==2.0.46
+slowapi==0.1.9
+hvac==2.4.0
+bcrypt==5.0.0

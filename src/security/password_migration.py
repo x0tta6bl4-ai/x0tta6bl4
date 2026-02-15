@@ -6,21 +6,22 @@ to industry-standard bcrypt hashing.
 
 Usage:
     migrator = PasswordMigrator()
-    
+
     # For existing MD5 hashes (one-way migration to bcrypt)
     bcrypt_hash = migrator.rehash_md5_to_bcrypt(md5_hash)
-    
+
     # For plaintext passwords (during registration/reset)
     bcrypt_hash = migrator.hash_password(plaintext_password)
-    
+
     # For verification (handles both old MD5 and new bcrypt)
     is_valid = migrator.verify_legacy_or_bcrypt(provided_password, stored_hash)
 """
 
-import bcrypt
 import logging
-from typing import Optional, Tuple
 from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import bcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ BCRYPT_PREFIX = "$2b$"  # Bcrypt identifier
 @dataclass
 class MigrationStats:
     """Statistics for password migration"""
+
     total_processed: int = 0
     successfully_migrated: int = 0
     failed_migrations: int = 0
@@ -41,48 +43,48 @@ class MigrationStats:
 class PasswordMigrator:
     """
     Securely migrates from MD5 to bcrypt hashing.
-    
+
     ⚠️ CRITICAL SECURITY NOTES:
     1. MD5 is cryptographically broken - never use for password hashing
     2. Bcrypt is slow-by-design, providing protection against brute-force attacks
     3. Always verify passwords during login and re-hash on successful verification
     4. Never log or store plaintext passwords
     """
-    
+
     def __init__(self):
         self.stats = MigrationStats()
-    
+
     def hash_password(self, plaintext: str) -> str:
         """
         Hash a plaintext password using bcrypt.
-        
+
         Args:
             plaintext: Raw password string
-            
+
         Returns:
             Bcrypt hash (always starts with $2b$)
         """
         if not isinstance(plaintext, str):
             raise TypeError("Password must be a string")
-        
+
         if not plaintext or len(plaintext) < 8:
             raise ValueError("Password must be at least 8 characters")
-        
+
         # Encode to bytes and hash with bcrypt
-        password_bytes = plaintext.encode('utf-8')
+        password_bytes = plaintext.encode("utf-8")
         salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
         hashed = bcrypt.hashpw(password_bytes, salt)
-        
-        return hashed.decode('utf-8')
-    
+
+        return hashed.decode("utf-8")
+
     def verify_password(self, plaintext: str, bcrypt_hash: str) -> bool:
         """
         Verify a plaintext password against a bcrypt hash.
-        
+
         Args:
             plaintext: User-provided password
             bcrypt_hash: Stored bcrypt hash
-            
+
         Returns:
             True if password matches, False otherwise
         """
@@ -90,50 +92,52 @@ class PasswordMigrator:
             if not bcrypt_hash.startswith(BCRYPT_PREFIX):
                 logger.warning("⚠️ Not a bcrypt hash, rejecting for security")
                 return False
-            
-            password_bytes = plaintext.encode('utf-8')
-            return bcrypt.checkpw(password_bytes, bcrypt_hash.encode('utf-8'))
+
+            password_bytes = plaintext.encode("utf-8")
+            return bcrypt.checkpw(password_bytes, bcrypt_hash.encode("utf-8"))
         except Exception as e:
             logger.error(f"Password verification error: {e}")
             return False
-    
+
     def is_md5_hash(self, hash_str: str) -> bool:
         """
         Detect if a string is likely an MD5 hash.
-        
+
         MD5 characteristics:
         - 32 hexadecimal characters
         - No special prefix like bcrypt ($2b$)
         """
         if not hash_str:
             return False
-        
+
         # Check if already bcrypt
         if hash_str.startswith(BCRYPT_PREFIX):
             return False
-        
+
         # MD5 is 32 hex chars
-        if len(hash_str) == 32 and all(c in '0123456789abcdef' for c in hash_str.lower()):
+        if len(hash_str) == 32 and all(
+            c in "0123456789abcdef" for c in hash_str.lower()
+        ):
             return True
-        
+
         return False
-    
+
     def legacy_verify_md5(self, plaintext: str, md5_hash: str) -> bool:
         """
         Legacy verification for MD5 hashes (for migration period only).
-        
+
         ⚠️ DEPRECATED: Remove after migration is complete
-        
+
         Args:
             plaintext: User-provided password
             md5_hash: Legacy MD5 hash (32 hex chars)
-            
+
         Returns:
             True if password matches MD5 hash
         """
         if not self.is_md5_hash(md5_hash):
             return False
-        
+
         # SECURITY FIX: MD5 is cryptographically broken
         # We NO LONGER verify MD5 hashes - force password reset instead
         # This ensures all users migrate to bcrypt
@@ -142,11 +146,13 @@ class PasswordMigrator:
             "MD5 is cryptographically broken and has been disabled."
         )
         return False  # Always return False to force password reset
-    
-    def verify_legacy_or_bcrypt(self, plaintext: str, stored_hash: str) -> Tuple[bool, bool]:
+
+    def verify_legacy_or_bcrypt(
+        self, plaintext: str, stored_hash: str
+    ) -> Tuple[bool, bool]:
         """
         Verify password against legacy MD5 or modern bcrypt hash.
-        
+
         Returns:
             (is_valid: bool, needs_rehashing: bool)
             - is_valid: Whether password matches
@@ -154,56 +160,56 @@ class PasswordMigrator:
         """
         if not stored_hash:
             return False, False
-        
+
         # Try bcrypt first
         if stored_hash.startswith(BCRYPT_PREFIX):
             is_valid = self.verify_password(plaintext, stored_hash)
             return is_valid, False
-        
+
         # Fall back to MD5 (legacy)
         if self.is_md5_hash(stored_hash):
             logger.warning("🔴 MD5 hash detected - should be migrated to bcrypt!")
             is_valid = self.legacy_verify_md5(plaintext, stored_hash)
             return is_valid, True
-        
+
         # Unknown hash format
         logger.error(f"Unknown hash format in verify_legacy_or_bcrypt")
         return False, False
-    
+
     def rehash_md5_to_bcrypt(self, md5_hash: str) -> Optional[str]:
         """
         ⚠️ IMPORTANT: This is a one-way conversion suitable for storage migration.
-        
+
         MD5 cannot be inverted, so we can only convert if we have the plaintext.
         This method is for marking MD5 hashes that need re-hashing on next login.
-        
+
         For proper migration:
         1. During login, verify with MD5 using legacy_verify_md5()
         2. If valid, re-hash password with hash_password()
         3. Update database with new bcrypt hash
-        
+
         Args:
             md5_hash: Legacy MD5 hash (this alone cannot be converted)
-            
+
         Returns:
             Marker string indicating migration is needed
         """
         if not self.is_md5_hash(md5_hash):
             return None
-        
+
         # Return a marker that this hash needs re-hashing
         # (actual rehashing requires plaintext password at login time)
         return f"__NEEDS_MIGRATION__{md5_hash}"
-    
+
     @staticmethod
     def verify_is_migration_marker(value: str) -> bool:
         """Check if value is a migration marker."""
         return isinstance(value, str) and value.startswith("__NEEDS_MIGRATION__")
-    
+
     def reset_stats(self) -> None:
         """Reset migration statistics."""
         self.stats = MigrationStats()
-    
+
     def get_stats(self) -> MigrationStats:
         """Get current migration statistics."""
         return self.stats

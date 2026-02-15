@@ -3,10 +3,11 @@ MeshNetworkManager - aggregates mesh network metrics from real subsystems.
 
 Provides statistics, route management, and healing operations for MAPE-K loop.
 """
+
 import logging
 import time
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class MeshNetworkManager:
         if self._router is None:
             try:
                 from ..network.routing.mesh_router import MeshRouter
+
                 self._router = MeshRouter(self.node_id)
                 logger.info(f"MeshRouter initialized for node {self.node_id}")
             except Exception as e:
@@ -54,7 +56,9 @@ class MeshNetworkManager:
         if router is not None:
             try:
                 router_metrics = await router.get_mape_k_metrics()
-                stats["packet_loss_percent"] = router_metrics.get("packet_drop_rate", 0) * 100
+                stats["packet_loss_percent"] = (
+                    router_metrics.get("packet_drop_rate", 0) * 100
+                )
                 stats["active_peers"] = router_metrics.get("total_routes_known", 0)
                 hop_count = router_metrics.get("avg_route_hop_count", 0)
                 # Estimate latency from hop count (rough: ~15ms per hop)
@@ -66,6 +70,7 @@ class MeshNetworkManager:
         # Yggdrasil peer count (supplement)
         try:
             from ..network.yggdrasil_client import get_yggdrasil_peers
+
             peer_data = get_yggdrasil_peers()
             if peer_data and "count" in peer_data:
                 ygg_count = peer_data["count"]
@@ -120,11 +125,13 @@ class MeshNetworkManager:
             logger.error(f"Aggressive healing failed: {e}")
 
         elapsed = (time.time() - start_time) / 60.0
-        self._healing_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "healed": healed,
-            "duration_minutes": elapsed,
-        })
+        self._healing_log.append(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "healed": healed,
+                "duration_minutes": elapsed,
+            }
+        )
         return healed
 
     async def trigger_preemptive_checks(self):
@@ -154,7 +161,9 @@ class MeshNetworkManager:
             return 0.0
         # Use last 10 entries
         recent = self._healing_log[-10:]
-        durations = [entry["duration_minutes"] for entry in recent if entry["healed"] > 0]
+        durations = [
+            entry["duration_minutes"] for entry in recent if entry["healed"] > 0
+        ]
         if not durations:
             return 0.0
         return sum(durations) / len(durations)

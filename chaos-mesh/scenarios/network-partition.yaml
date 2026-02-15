@@ -1,0 +1,75 @@
+---
+# Chaos Mesh Scenario 1: Network Partition
+# Tests MAPE-K response to split-brain conditions
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-network-partition
+  namespace: x0tta6bl4
+  labels:
+    app: x0tta6bl4
+    chaos-scenario: network-partition
+    phase: "1"
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app: mesh-node
+      zone: zone-a
+  direction: both
+  target:
+    selector:
+      namespaces:
+        - x0tta6bl4
+      labelSelectors:
+        app: mesh-node
+        zone: zone-b
+    mode: all
+  duration: "60s"
+---
+# Verification job - runs after chaos to check MAPE-K response
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify-partition-healing
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: network-partition
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: verifier
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for chaos to complete..."
+              sleep 70
+
+              echo "Checking MAPE-K metrics..."
+              METRICS=$(curl -s http://mesh-node:8080/metrics)
+
+              # Check for partition detection
+              if echo "$METRICS" | grep -q 'mapek_anomalies_detected.*network_partition'; then
+                echo "✓ Network partition detected by MAPE-K"
+              else
+                echo "✗ Network partition NOT detected"
+                exit 1
+              fi
+
+              # Check for route recalculation
+              if echo "$METRICS" | grep -q 'mesh_routes_recalculated'; then
+                echo "✓ Routes recalculated after partition"
+              else
+                echo "✗ Routes NOT recalculated"
+                exit 1
+              fi
+
+              echo "=== Partition healing verified ==="

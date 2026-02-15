@@ -16,19 +16,21 @@ via gRPC or an external SDK) without exposing that dependency here.
 
 import logging
 import os
-from typing import Optional, List, Dict, Tuple
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from cryptography import x509
-from cryptography.x509.oid import ExtensionOID
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.x509.oid import ExtensionOID
 
 logger = logging.getLogger(__name__)
 
 try:  # Optional SPIFFE SDK integration
-    from spiffe import WorkloadApiClient as SpiffeWorkloadApiClient  # type: ignore[import]
+    from spiffe import \
+        WorkloadApiClient as SpiffeWorkloadApiClient  # type: ignore[import]
 
     SPIFFE_SDK_AVAILABLE = True
 except Exception:  # pragma: no cover - SDK is optional
@@ -39,11 +41,12 @@ except Exception:  # pragma: no cover - SDK is optional
 @dataclass
 class X509SVID:
     """X.509 SPIFFE Verifiable Identity Document"""
+
     spiffe_id: str  # e.g., "spiffe://trust.domain/workload/web"
     cert_chain: List[bytes]  # Certificate chain (leaf → intermediate → root)
     private_key: bytes
     expiry: datetime
-    
+
     def is_expired(self) -> bool:
         """Check if SVID has expired"""
         return datetime.utcnow() > self.expiry
@@ -52,11 +55,12 @@ class X509SVID:
 @dataclass
 class JWTSVID:
     """JWT SPIFFE Verifiable Identity Document"""
+
     spiffe_id: str
     token: str
     expiry: datetime
     audience: List[str]
-    
+
     def is_expired(self) -> bool:
         """Check if JWT has expired"""
         return datetime.utcnow() > self.expiry
@@ -65,20 +69,20 @@ class JWTSVID:
 class WorkloadAPIClient:
     """
     Client for SPIFFE Workload API.
-    
+
     Connects to SPIRE Agent Unix socket to fetch SVIDs for workload identity.
     Handles automatic credential rotation and validation.
-    
+
     This client requires the `spiffe` SDK to be installed and the
     `SPIFFE_ENDPOINT_SOCKET` environment variable to be set.
-    
+
     Example:
         >>> client = WorkloadAPIClient()
         >>> svid = client.fetch_x509_svid()
         >>> print(svid.spiffe_id)
         spiffe://x0tta6bl4.mesh/node/worker-1
     """
-    
+
     def __init__(
         self,
         socket_path: Optional[Path] = None,
@@ -102,8 +106,10 @@ class WorkloadAPIClient:
         """
         # Check production mode
         PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
-        self._force_mock_spiffe = os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
-        
+        self._force_mock_spiffe = (
+            os.getenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "false").lower() == "true"
+        )
+
         # In production, mock mode is not allowed
         if PRODUCTION_MODE and self._force_mock_spiffe:
             raise RuntimeError(
@@ -142,9 +148,11 @@ class WorkloadAPIClient:
                     "Set SPIFFE_ENDPOINT_SOCKET or X0TTA6BL4_FORCE_MOCK_SPIFFE=true"
                 )
                 self._force_mock_spiffe = True
-        
+
         if self._force_mock_spiffe:
-            logger.warning("⚠️ Workload API client initialized in MOCK mode (not for production)")
+            logger.warning(
+                "⚠️ Workload API client initialized in MOCK mode (not for production)"
+            )
         else:
             logger.info(
                 "✅ Workload API client initialized with endpoint %s",
@@ -161,14 +169,14 @@ class WorkloadAPIClient:
                 self.trust_bundle_path = Path(env_bundle)
 
         self._trust_bundle_cas: Optional[List[x509.Certificate]] = None
-    
+
     def _mock_fetch_x509_svid(self) -> X509SVID:
         # Simple mock X509SVID for testing
         return X509SVID(
             spiffe_id="spiffe://mock.domain/workload/mock-app",
             cert_chain=[b"MOCK_CERT_CHAIN"],
             private_key=b"MOCK_PRIVATE_KEY",
-            expiry=datetime.utcnow() + timedelta(days=1)
+            expiry=datetime.utcnow() + timedelta(days=1),
         )
 
     def _mock_fetch_jwt_svid(self, audience: List[str]) -> JWTSVID:
@@ -177,7 +185,7 @@ class WorkloadAPIClient:
             spiffe_id="spiffe://mock.domain/workload/mock-app",
             token="MOCK_JWT_TOKEN",
             expiry=datetime.utcnow() + timedelta(hours=1),
-            audience=audience
+            audience=audience,
         )
 
     def fetch_x509_svid(self) -> X509SVID:
@@ -191,7 +199,9 @@ class WorkloadAPIClient:
             ConnectionError: If the SPIFFE Workload API call fails.
         """
         if self._force_mock_spiffe:
-            return self._mock_fetch_x509_svid()
+            svid = self._mock_fetch_x509_svid()
+            self.current_svid = svid  # Set current_svid in mock mode
+            return svid
 
         if self.current_svid and not self.current_svid.is_expired():
             logger.debug("Reusing cached X.509 SVID for workload")
@@ -208,7 +218,7 @@ class WorkloadAPIClient:
         svid = self._convert_sdk_x509_svid(sdk_svid)
         self.current_svid = svid
         return svid
-    
+
     def fetch_jwt_svid(self, audience: List[str]) -> JWTSVID:
         """
         Fetch a JWT SVID for a specific audience via the SPIFFE Workload API.
@@ -218,19 +228,22 @@ class WorkloadAPIClient:
 
         Returns:
             JWTSVID token for authentication.
-            
+
         Raises:
             ConnectionError: If the SPIFFE Workload API call fails.
         """
         if self._force_mock_spiffe:
-            return self._mock_fetch_jwt_svid(audience)
-        
+            jwt_svid = self._mock_fetch_jwt_svid(audience)
+            cache_key = tuple(sorted(audience))
+            self._jwt_cache[cache_key] = jwt_svid  # Set cache in mock mode
+            return jwt_svid
+
         cache_key = tuple(sorted(audience))
         cached = self._jwt_cache.get(cache_key)
         if cached and not cached.is_expired():
             logger.debug("Reusing cached JWT SVID for audience %s", audience)
             return cached
-            
+
         logger.info(
             "Fetching JWT SVID via SPIFFE Workload API for audience: %s",
             audience,
@@ -363,7 +376,9 @@ class WorkloadAPIClient:
             )
         return self._trust_bundle_cas
 
-    def validate_peer_svid(self, peer_svid: X509SVID, expected_id: Optional[str] = None) -> bool:
+    def validate_peer_svid(
+        self, peer_svid: X509SVID, expected_id: Optional[str] = None
+    ) -> bool:
         """Validate a peer's X.509 SVID.
 
         Validation is performed in two layers:
@@ -426,7 +441,9 @@ class WorkloadAPIClient:
             except ValueError:
                 cert = x509.load_der_x509_certificate(leaf_bytes)
         except ValueError:
-            logger.debug("Failed to parse peer SVID certificate; skipping deep validation")
+            logger.debug(
+                "Failed to parse peer SVID certificate; skipping deep validation"
+            )
             return True
 
         # Certificate validity window.
@@ -510,7 +527,7 @@ class WorkloadAPIClient:
             logger.warning("No trust bundle configured; skipping chain verification")
 
         return True
-    
+
     def watch_svid_updates(self, callback):
         """
         Observe SVID updates and trigger a callback.
@@ -532,31 +549,33 @@ class WorkloadAPIClient:
                 callback(self.current_svid)
             except Exception:
                 logger.exception("SVID update callback raised an exception")
-    
-    def enable_auto_renew(self, renewal_threshold: float = 0.5, check_interval: float = 300.0):
+
+    def enable_auto_renew(
+        self, renewal_threshold: float = 0.5, check_interval: float = 300.0
+    ):
         """
         Enable automatic credential renewal.
-        
+
         This is a convenience method that creates and starts an auto-renewal
         service. For more control, use SPIFFEAutoRenew directly.
-        
+
         Args:
             renewal_threshold: Renew at this fraction of TTL (default: 0.5 = 50%)
             check_interval: Check interval in seconds (default: 300 = 5 minutes)
-        
+
         Returns:
             SPIFFEAutoRenew instance (already started)
         """
         try:
-            from src.security.spiffe.workload.auto_renew import create_auto_renew
             import asyncio
-            
+
+            from src.security.spiffe.workload.auto_renew import \
+                create_auto_renew
+
             auto_renew = create_auto_renew(
-                self,
-                renewal_threshold=renewal_threshold,
-                check_interval=check_interval
+                self, renewal_threshold=renewal_threshold, check_interval=check_interval
             )
-            
+
             # Start in background if event loop is running
             try:
                 loop = asyncio.get_event_loop()
@@ -566,12 +585,13 @@ class WorkloadAPIClient:
                     loop.run_until_complete(auto_renew.start())
             except RuntimeError:
                 # No event loop, will need to start manually
-                logger.warning("No event loop available, auto-renew will need to be started manually")
-            
+                logger.warning(
+                    "No event loop available, auto-renew will need to be started manually"
+                )
+
             logger.info("✅ Auto-renewal enabled for WorkloadAPIClient")
             return auto_renew
-            
+
         except ImportError as e:
             logger.warning(f"Auto-renewal not available: {e}")
             return None
-

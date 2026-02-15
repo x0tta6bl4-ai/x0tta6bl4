@@ -6,11 +6,9 @@ from unittest.mock import patch
 import pytest
 
 try:
-    from src.network.byzantine.quorum_validation import (
-        CriticalEvent,
-        CriticalEventType,
-        QuorumValidator,
-    )
+    from src.network.byzantine.quorum_validation import (CriticalEvent,
+                                                         CriticalEventType,
+                                                         QuorumValidator)
 except ImportError:
     pytest.skip(
         "quorum_validation module not available",
@@ -21,6 +19,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def validator():
@@ -37,13 +36,16 @@ def validator_10():
 @pytest.fixture
 def mock_time():
     """Patch time.time() to return a deterministic value."""
-    with patch("src.network.byzantine.quorum_validation.time.time", return_value=1700000000.0):
+    with patch(
+        "src.network.byzantine.quorum_validation.time.time", return_value=1700000000.0
+    ):
         yield
 
 
 # ===========================================================================
 # TestCriticalEventType
 # ===========================================================================
+
 
 class TestCriticalEventType:
     """Tests for the CriticalEventType enum."""
@@ -72,6 +74,7 @@ class TestCriticalEventType:
 # ===========================================================================
 # TestCriticalEvent
 # ===========================================================================
+
 
 class TestCriticalEvent:
     """Tests for the CriticalEvent dataclass."""
@@ -141,6 +144,7 @@ class TestCriticalEvent:
 # TestQuorumValidatorInit
 # ===========================================================================
 
+
 class TestQuorumValidatorInit:
     """Tests for QuorumValidator.__init__."""
 
@@ -172,6 +176,7 @@ class TestQuorumValidatorInit:
 # ===========================================================================
 # TestReportCriticalEvent
 # ===========================================================================
+
 
 class TestReportCriticalEvent:
     """Tests for QuorumValidator.report_critical_event."""
@@ -224,6 +229,7 @@ class TestReportCriticalEvent:
 # ===========================================================================
 # TestValidateEvent
 # ===========================================================================
+
 
 class TestValidateEvent:
     """Tests for QuorumValidator.validate_event."""
@@ -297,7 +303,9 @@ class TestValidateEvent:
         # before calling add_signature (early return path)
         assert "v-extra" not in event.signatures
 
-    def test_increases_source_reputation_on_quorum_capped_at_1(self, validator, mock_time):
+    def test_increases_source_reputation_on_quorum_capped_at_1(
+        self, validator, mock_time
+    ):
         event = validator.report_critical_event(
             event_type=CriticalEventType.NODE_FAILURE,
             target="node-x",
@@ -315,6 +323,7 @@ class TestValidateEvent:
 # ===========================================================================
 # TestIsValidated
 # ===========================================================================
+
 
 class TestIsValidated:
     """Tests for QuorumValidator.is_validated."""
@@ -343,6 +352,7 @@ class TestIsValidated:
 # TestQuorumProgress
 # ===========================================================================
 
+
 class TestQuorumProgress:
     """Tests for QuorumValidator.get_quorum_progress."""
 
@@ -370,6 +380,7 @@ class TestQuorumProgress:
 # ===========================================================================
 # TestReputation
 # ===========================================================================
+
 
 class TestReputation:
     """Tests for reputation-related methods."""

@@ -8,11 +8,12 @@ Usage:
     python3 scripts/check_crdt_sync_status.py --json
 """
 import argparse
-import sys
 import json
+import sys
 
 try:
     from src.data_sync.crdt_optimizations import get_crdt_optimizer
+
     CRDT_OPTIMIZATIONS_AVAILABLE = True
 except ImportError:
     CRDT_OPTIMIZATIONS_AVAILABLE = False
@@ -25,11 +26,11 @@ def main():
     parser.add_argument("--node-id", type=str, default="node-1", help="Node ID")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
-    
+
     optimizer = get_crdt_optimizer(args.node_id)
-    
+
     metrics = optimizer.get_metrics()
-    
+
     if args.json:
         print(json.dumps(metrics, indent=2))
     else:
@@ -45,7 +46,7 @@ def main():
         print(f"Bytes Sent: {metrics['bytes_sent']:,}")
         print(f"Bytes Received: {metrics['bytes_received']:,}")
         print(f"Conflicts Resolved: {metrics['conflicts_resolved']}")
-        
+
         # Show CRDT state
         state = optimizer.sync_manager.get_crdt_state()
         if state:
@@ -58,4 +59,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

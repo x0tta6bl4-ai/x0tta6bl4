@@ -6,21 +6,23 @@ Tests HTTP-based obfuscation/deobfuscation and domain fronting transport.
 import os
 import socket
 import ssl
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 try:
     from src.network.obfuscation.domain_fronting import (
-        DomainFrontingTransport,
-        DomainFrontingSocket,
-    )
+        DomainFrontingSocket, DomainFrontingTransport)
+
     DF_AVAILABLE = True
 except ImportError as exc:
     DF_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(not DF_AVAILABLE, reason="domain_fronting module not available")
+pytestmark = pytest.mark.skipif(
+    not DF_AVAILABLE, reason="domain_fronting module not available"
+)
 
 FRONT = "cdn.example.com"
 BACKEND = "secret-backend.mesh.local"
@@ -29,6 +31,7 @@ BACKEND = "secret-backend.mesh.local"
 # ===========================================================================
 # TestDomainFrontingTransportInit
 # ===========================================================================
+
 
 class TestDomainFrontingTransportInit:
 
@@ -50,6 +53,7 @@ class TestDomainFrontingTransportInit:
 # ===========================================================================
 # TestObfuscate
 # ===========================================================================
+
 
 class TestObfuscate:
 
@@ -79,13 +83,14 @@ class TestObfuscate:
         out = self.t.obfuscate(data)
         header_end = out.find(b"\r\n\r\n")
         assert header_end > 0
-        body = out[header_end + 4:]
+        body = out[header_end + 4 :]
         assert body == data
 
 
 # ===========================================================================
 # TestDeobfuscate
 # ===========================================================================
+
 
 class TestDeobfuscate:
 
@@ -114,6 +119,7 @@ class TestDeobfuscate:
 # TestObfuscateDeobfuscateRoundTrip
 # ===========================================================================
 
+
 class TestObfuscateDeobfuscateRoundTrip:
 
     def setup_method(self):
@@ -135,6 +141,7 @@ class TestObfuscateDeobfuscateRoundTrip:
 # ===========================================================================
 # TestWrapSocket
 # ===========================================================================
+
 
 class TestWrapSocket:
     """Test wrap_socket method.
@@ -173,6 +180,7 @@ class TestWrapSocket:
 # TestDomainFrontingSocket
 # ===========================================================================
 
+
 class TestDomainFrontingSocket:
 
     def test_is_subclass_of_socket(self):
@@ -184,4 +192,5 @@ class TestDomainFrontingSocket:
 
     def test_transport_extends_obfuscation_base(self):
         from src.network.obfuscation.base import ObfuscationTransport
+
         assert issubclass(DomainFrontingTransport, ObfuscationTransport)

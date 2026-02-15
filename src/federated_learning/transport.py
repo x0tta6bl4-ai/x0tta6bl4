@@ -4,14 +4,16 @@ FL Transport Layer - HTTP-based communication for Federated Learning.
 FLTransportServer: Runs on coordinator node, exposes FL API endpoints.
 FLTransportClient: Runs on worker nodes, communicates with coordinator.
 """
-import logging
+
 import json
-from typing import Optional, Dict, Any
+import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 try:
     from aiohttp import web
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     AIOHTTP_AVAILABLE = False
@@ -19,6 +21,7 @@ except ImportError:
 
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
@@ -28,7 +31,9 @@ except ImportError:
 class FLTransportServer:
     """HTTP server for FL coordinator (runs on coordinator node)."""
 
-    def __init__(self, coordinator, host: str = "0.0.0.0", port: int = 8090):
+    def __init__(
+        self, coordinator, host: str = "0.0.0.0", port: int = 8090  # nosec B104
+    ):
         """
         Args:
             coordinator: FederatedCoordinator instance
@@ -100,6 +105,7 @@ class FLTransportServer:
 
             if hasattr(self.coordinator, "submit_update"):
                 from .protocol import ModelUpdate, ModelWeights
+
                 weights_data = data.get("weights", {})
                 weights = ModelWeights(
                     layer_weights=weights_data.get("layer_weights", {}),

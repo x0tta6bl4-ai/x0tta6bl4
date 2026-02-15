@@ -1,6 +1,7 @@
 import pytest
 
-from src.network.proxy_selection_algorithm import AdaptiveLoadBalancer, ProxySelectionAlgorithm
+from src.network.proxy_selection_algorithm import (AdaptiveLoadBalancer,
+                                                   ProxySelectionAlgorithm)
 from src.network.residential_proxy_manager import ProxyEndpoint
 
 

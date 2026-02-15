@@ -8,24 +8,19 @@
 - Median - покоординатная медиана
 - Byzantine-robustness всех агрегаторов
 """
-import pytest
+
 import math
 from typing import List
 
-from src.federated_learning.protocol import (
-    ModelWeights,
-    ModelUpdate,
-    GlobalModel,
-    AggregationResult,
-)
-from src.federated_learning.aggregators import (
-    Aggregator,
-    FedAvgAggregator,
-    KrumAggregator,
-    TrimmedMeanAggregator,
-    MedianAggregator,
-    get_aggregator,
-)
+import pytest
+
+from src.federated_learning.aggregators import (Aggregator, FedAvgAggregator,
+                                                KrumAggregator,
+                                                MedianAggregator,
+                                                TrimmedMeanAggregator,
+                                                get_aggregator)
+from src.federated_learning.protocol import (AggregationResult, GlobalModel,
+                                             ModelUpdate, ModelWeights)
 
 
 class TestAggregatorBase:
@@ -47,10 +42,7 @@ class TestAggregatorBase:
 
     def test_weighted_average(self, fedavg_aggregator):
         """Взвешенное среднее."""
-        vectors = [
-            [1.0, 2.0],
-            [3.0, 4.0]
-        ]
+        vectors = [[1.0, 2.0], [3.0, 4.0]]
         weights = [1.0, 1.0]  # равные веса
 
         avg = fedavg_aggregator._weighted_average(vectors, weights)
@@ -58,10 +50,7 @@ class TestAggregatorBase:
 
     def test_weighted_average_different_weights(self, fedavg_aggregator):
         """Взвешенное среднее с разными весами."""
-        vectors = [
-            [0.0, 0.0],
-            [10.0, 10.0]
-        ]
+        vectors = [[0.0, 0.0], [10.0, 10.0]]
         weights = [3.0, 1.0]  # 3:1 в пользу первого
 
         avg = fedavg_aggregator._weighted_average(vectors, weights)
@@ -112,9 +101,13 @@ class TestFedAvgAggregator:
         assert result.success is True
         assert result.global_model.total_samples == 1000
 
-    def test_fedavg_version_increment(self, fedavg_aggregator, sample_updates, initial_global_model):
+    def test_fedavg_version_increment(
+        self, fedavg_aggregator, sample_updates, initial_global_model
+    ):
         """FedAvg увеличивает версию модели."""
-        result = fedavg_aggregator.aggregate(sample_updates, previous_model=initial_global_model)
+        result = fedavg_aggregator.aggregate(
+            sample_updates, previous_model=initial_global_model
+        )
 
         assert result.success is True
         assert result.global_model.version == 1  # 0 + 1
@@ -154,12 +147,13 @@ class TestKrumAggregator:
         # byzantine_updates содержит 4 честных + 1 Byzantine
         # Нужно добавить ещё честную ноду для минимума
         from tests.federated_learning.conftest import model_update_factory
+
         # Добавляем фикстуру вручную
         extra = ModelUpdate(
             node_id="honest-extra",
             round_number=1,
             weights=byzantine_updates[0].weights,
-            num_samples=100
+            num_samples=100,
         )
         all_updates = byzantine_updates + [extra]
 
@@ -182,7 +176,9 @@ class TestKrumAggregator:
 class TestTrimmedMeanAggregator:
     """Тесты для TrimmedMean агрегатора."""
 
-    def test_trimmed_mean_requires_three_updates(self, trimmed_mean_aggregator, model_update_factory):
+    def test_trimmed_mean_requires_three_updates(
+        self, trimmed_mean_aggregator, model_update_factory
+    ):
         """TrimmedMean требует минимум 3 обновления."""
         updates = [model_update_factory(node_id=f"node-{i}", seed=i) for i in range(2)]
 
@@ -205,14 +201,15 @@ class TestTrimmedMeanAggregator:
 
         # Создаём обновления где одно - явный выброс
         normal_updates = [
-            model_update_factory(node_id=f"normal-{i}", seed=i)
-            for i in range(4)
+            model_update_factory(node_id=f"normal-{i}", seed=i) for i in range(4)
         ]
 
         # Выброс с экстремальными значениями
         outlier = model_update_factory(node_id="outlier", seed=999)
         for layer in outlier.weights.layer_weights:
-            outlier.weights.layer_weights[layer] = [v * 100 for v in outlier.weights.layer_weights[layer]]
+            outlier.weights.layer_weights[layer] = [
+                v * 100 for v in outlier.weights.layer_weights[layer]
+            ]
 
         all_updates = normal_updates + [outlier]
 
@@ -276,7 +273,9 @@ class TestMedianAggregator:
 
         outlier = model_update_factory(node_id="outlier", seed=999)
         for layer in outlier.weights.layer_weights:
-            outlier.weights.layer_weights[layer] = [1000.0] * len(outlier.weights.layer_weights[layer])
+            outlier.weights.layer_weights[layer] = [1000.0] * len(
+                outlier.weights.layer_weights[layer]
+            )
 
         all_updates = normal + [outlier]
 
@@ -330,7 +329,7 @@ class TestAggregatorConsistency:
                 node_id=f"extra-{i}",
                 round_number=1,
                 weights=sample_updates[0].weights,
-                num_samples=100
+                num_samples=100,
             )
             for i in range(3)
         ]
@@ -339,15 +338,15 @@ class TestAggregatorConsistency:
             FedAvgAggregator(),
             KrumAggregator(f=1),
             TrimmedMeanAggregator(beta=0.1),
-            MedianAggregator()
+            MedianAggregator(),
         ]
 
         for agg in aggregators:
             result = agg.aggregate(extra_updates)
 
-            assert hasattr(result, 'success')
-            assert hasattr(result, 'global_model')
-            assert hasattr(result, 'aggregation_time_seconds')
+            assert hasattr(result, "success")
+            assert hasattr(result, "global_model")
+            assert hasattr(result, "aggregation_time_seconds")
 
             if result.success:
                 assert result.global_model.version is not None
@@ -379,7 +378,9 @@ class TestByzantineRobustness:
         # Byzantine с экстремальными весами
         byzantine = model_update_factory(node_id="byzantine", seed=999)
         for layer in byzantine.weights.layer_weights:
-            byzantine.weights.layer_weights[layer] = [1e6] * len(byzantine.weights.layer_weights[layer])
+            byzantine.weights.layer_weights[layer] = [1e6] * len(
+                byzantine.weights.layer_weights[layer]
+            )
 
         all_updates = honest + [byzantine]
 
@@ -399,7 +400,9 @@ class TestByzantineRobustness:
         # Byzantine с экстремальными весами
         byzantine = model_update_factory(node_id="byzantine", seed=999)
         for layer in byzantine.weights.layer_weights:
-            byzantine.weights.layer_weights[layer] = [1e6] * len(byzantine.weights.layer_weights[layer])
+            byzantine.weights.layer_weights[layer] = [1e6] * len(
+                byzantine.weights.layer_weights[layer]
+            )
 
         all_updates = honest + [byzantine]
 

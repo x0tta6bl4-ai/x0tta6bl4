@@ -1,7 +1,8 @@
 import time
 
-from src.dao.governance import GovernanceEngine, VoteType, ProposalState
-from src.dao.incident_workflow import Incident, IncidentSeverity, IncidentDAOWorkflow
+from src.dao.governance import GovernanceEngine, ProposalState, VoteType
+from src.dao.incident_workflow import (Incident, IncidentDAOWorkflow,
+                                       IncidentSeverity)
 
 
 def test_incident_creates_proposal_and_executes():

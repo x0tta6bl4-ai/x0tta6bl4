@@ -7,13 +7,15 @@ Provides:
 - Redis-backed distributed rate limiting
 - Graceful degradation to in-memory when Redis unavailable
 """
-import os
-import time
+
 import asyncio
 import logging
-from typing import Optional, Dict
+import os
+import time
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import Dict, Optional
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -24,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RateLimitConfig:
     """Rate limit configuration."""
+
     requests_per_second: int = 100
     requests_per_minute: int = 1000
     burst_size: int = 50
@@ -103,7 +106,8 @@ class InMemoryRateLimiter:
 
             # Remove inactive buckets (no activity for 5 minutes)
             inactive = [
-                ip for ip, bucket in self._buckets.items()
+                ip
+                for ip, bucket in self._buckets.items()
                 if now - bucket.last_update > 300
             ]
             for ip in inactive:
@@ -131,7 +135,7 @@ class InMemoryRateLimiter:
             if client_ip not in self._buckets:
                 self._buckets[client_ip] = TokenBucket(
                     rate=self.config.requests_per_second,
-                    capacity=self.config.burst_size
+                    capacity=self.config.burst_size,
                 )
 
             bucket = self._buckets[client_ip]
@@ -140,7 +144,9 @@ class InMemoryRateLimiter:
 
             # Rate limit exceeded - block IP temporarily
             self._blocked[client_ip] = now + self.config.block_duration
-            logger.warning(f"Rate limit exceeded for {client_ip}, blocked for {self.config.block_duration}s")
+            logger.warning(
+                f"Rate limit exceeded for {client_ip}, blocked for {self.config.block_duration}s"
+            )
             return False, self.config.block_duration
 
     def get_stats(self) -> Dict:
@@ -151,8 +157,8 @@ class InMemoryRateLimiter:
             "config": {
                 "requests_per_second": self.config.requests_per_second,
                 "burst_size": self.config.burst_size,
-                "block_duration": self.config.block_duration
-            }
+                "block_duration": self.config.block_duration,
+            },
         }
 
 
@@ -168,7 +174,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         config: Optional[RateLimitConfig] = None,
-        excluded_paths: Optional[list] = None
+        excluded_paths: Optional[list] = None,
     ):
         super().__init__(app)
         self.config = config or RateLimitConfig()
@@ -211,16 +217,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 content={
                     "error": "Too Many Requests",
                     "message": "Rate limit exceeded. Please slow down.",
-                    "retry_after": retry_after
+                    "retry_after": retry_after,
                 },
-                headers={"Retry-After": str(retry_after)}
+                headers={"Retry-After": str(retry_after)},
             )
 
         # Add rate limit headers to response
         response = await call_next(request)
         response.headers["X-RateLimit-Limit"] = str(self.config.requests_per_second)
         response.headers["X-RateLimit-Remaining"] = str(
-            int(self.limiter._buckets.get(client_ip, TokenBucket(1, 1)).available_tokens)
+            int(
+                self.limiter._buckets.get(client_ip, TokenBucket(1, 1)).available_tokens
+            )
         )
 
         return response
@@ -247,7 +255,5 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 # Default instance for easy import
 default_config = RateLimitConfig(
-    requests_per_second=100,
-    burst_size=50,
-    block_duration=60
+    requests_per_second=100, burst_size=50, block_duration=60
 )

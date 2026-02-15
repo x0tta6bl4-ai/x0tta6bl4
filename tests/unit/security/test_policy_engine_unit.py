@@ -13,26 +13,20 @@ Tests:
 
 import json
 import time
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
-from src.security.policy_engine import (
-    Attribute,
-    AttributeType,
-    Policy,
-    PolicyCondition,
-    PolicyDecision,
-    PolicyEffect,
-    PolicyEngine,
-    PolicyEnforcer,
-    PolicyPriority,
-    PolicyRule,
-)
-
+from src.security.policy_engine import (Attribute, AttributeType, Policy,
+                                        PolicyCondition, PolicyDecision,
+                                        PolicyEffect, PolicyEnforcer,
+                                        PolicyEngine, PolicyPriority,
+                                        PolicyRule)
 
 # ---------------------------------------------------------------------------
 # Attribute.matches
 # ---------------------------------------------------------------------------
+
 
 class TestAttributeMatches:
     """Tests for Attribute.matches()."""
@@ -91,6 +85,7 @@ class TestAttributeMatches:
 # PolicyCondition.evaluate
 # ---------------------------------------------------------------------------
 
+
 class TestPolicyConditionEvaluate:
     """Tests for PolicyCondition.evaluate()."""
 
@@ -138,15 +133,25 @@ class TestPolicyConditionEvaluate:
         assert cond.evaluate(self._attrs(subject_trust=51)) is False
 
     def test_in_operator(self):
-        cond = PolicyCondition(AttributeType.RESOURCE, "endpoint", "in", ["/health", "/ready"])
-        attrs = {"resource.endpoint": Attribute(AttributeType.RESOURCE, "endpoint", "/health")}
+        cond = PolicyCondition(
+            AttributeType.RESOURCE, "endpoint", "in", ["/health", "/ready"]
+        )
+        attrs = {
+            "resource.endpoint": Attribute(
+                AttributeType.RESOURCE, "endpoint", "/health"
+            )
+        }
         assert cond.evaluate(attrs) is True
 
-        attrs2 = {"resource.endpoint": Attribute(AttributeType.RESOURCE, "endpoint", "/api")}
+        attrs2 = {
+            "resource.endpoint": Attribute(AttributeType.RESOURCE, "endpoint", "/api")
+        }
         assert cond.evaluate(attrs2) is False
 
     def test_not_in_operator(self):
-        cond = PolicyCondition(AttributeType.ACTION, "type", "not_in", ["health", "metrics"])
+        cond = PolicyCondition(
+            AttributeType.ACTION, "type", "not_in", ["health", "metrics"]
+        )
         attrs = {"action.type": Attribute(AttributeType.ACTION, "type", "write")}
         assert cond.evaluate(attrs) is True
 
@@ -163,10 +168,14 @@ class TestPolicyConditionEvaluate:
 
     def test_contains_operator(self):
         cond = PolicyCondition(AttributeType.SUBJECT, "path", "contains", "admin")
-        attrs = {"subject.path": Attribute(AttributeType.SUBJECT, "path", "/api/admin/users")}
+        attrs = {
+            "subject.path": Attribute(AttributeType.SUBJECT, "path", "/api/admin/users")
+        }
         assert cond.evaluate(attrs) is True
 
-        attrs2 = {"subject.path": Attribute(AttributeType.SUBJECT, "path", "/api/public")}
+        attrs2 = {
+            "subject.path": Attribute(AttributeType.SUBJECT, "path", "/api/public")
+        }
         assert cond.evaluate(attrs2) is False
 
     def test_exists_operator_true(self):
@@ -202,6 +211,7 @@ class TestPolicyConditionEvaluate:
 # ---------------------------------------------------------------------------
 # PolicyRule
 # ---------------------------------------------------------------------------
+
 
 class TestPolicyRule:
     """Tests for PolicyRule evaluation and serialization."""
@@ -277,6 +287,7 @@ class TestPolicyRule:
 # Policy
 # ---------------------------------------------------------------------------
 
+
 class TestPolicy:
     """Tests for Policy target matching and serialization."""
 
@@ -325,6 +336,7 @@ class TestPolicy:
 # PolicyDecision
 # ---------------------------------------------------------------------------
 
+
 class TestPolicyDecision:
     """Tests for PolicyDecision serialization."""
 
@@ -348,6 +360,7 @@ class TestPolicyDecision:
 # ---------------------------------------------------------------------------
 # PolicyEngine
 # ---------------------------------------------------------------------------
+
 
 class TestPolicyEngine:
     """Tests for PolicyEngine core functionality."""
@@ -377,8 +390,12 @@ class TestPolicyEngine:
     def test_add_policy(self):
         engine = self._engine()
         p = Policy(
-            id="custom-1", name="Custom", description="test",
-            version=1, rules=[], target={"resource": "*", "action": "*"},
+            id="custom-1",
+            name="Custom",
+            description="test",
+            version=1,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p)
         assert "custom-1" in engine.policies
@@ -386,14 +403,22 @@ class TestPolicyEngine:
     def test_add_policy_update_stores_version(self):
         engine = self._engine()
         p1 = Policy(
-            id="v-test", name="V", description="v1",
-            version=1, rules=[], target={"resource": "*", "action": "*"},
+            id="v-test",
+            name="V",
+            description="v1",
+            version=1,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p1)
 
         p2 = Policy(
-            id="v-test", name="V", description="v2",
-            version=2, rules=[], target={"resource": "*", "action": "*"},
+            id="v-test",
+            name="V",
+            description="v2",
+            version=2,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p2)
 
@@ -431,13 +456,21 @@ class TestPolicyEngine:
     def test_rollback_policy_to_previous(self):
         engine = self._engine()
         p1 = Policy(
-            id="rb-test", name="RB", description="v1",
-            version=1, rules=[], target={"resource": "*", "action": "*"},
+            id="rb-test",
+            name="RB",
+            description="v1",
+            version=1,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p1)
         p2 = Policy(
-            id="rb-test", name="RB", description="v2",
-            version=2, rules=[], target={"resource": "*", "action": "*"},
+            id="rb-test",
+            name="RB",
+            description="v2",
+            version=2,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p2)
         assert engine.policies["rb-test"].version == 2
@@ -450,8 +483,12 @@ class TestPolicyEngine:
         engine = self._engine()
         for v in range(1, 4):
             p = Policy(
-                id="rb-v", name="RB", description=f"v{v}",
-                version=v, rules=[], target={"resource": "*", "action": "*"},
+                id="rb-v",
+                name="RB",
+                description=f"v{v}",
+                version=v,
+                rules=[],
+                target={"resource": "*", "action": "*"},
             )
             engine.add_policy(p)
         # versions list has v1, v2 (v3 is current)
@@ -471,13 +508,21 @@ class TestPolicyEngine:
     def test_rollback_policy_version_not_found(self):
         engine = self._engine()
         p1 = Policy(
-            id="rb-nf", name="RB", description="v1",
-            version=1, rules=[], target={"resource": "*", "action": "*"},
+            id="rb-nf",
+            name="RB",
+            description="v1",
+            version=1,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p1)
         p2 = Policy(
-            id="rb-nf", name="RB", description="v2",
-            version=2, rules=[], target={"resource": "*", "action": "*"},
+            id="rb-nf",
+            name="RB",
+            description="v2",
+            version=2,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p2)
         assert engine.rollback_policy("rb-nf", version=99) is False
@@ -579,8 +624,12 @@ class TestPolicyEngine:
         assert len(engine._decision_cache) > 0
         # Add policy clears cache
         p = Policy(
-            id="new-pol", name="New", description="test",
-            version=1, rules=[], target={"resource": "*", "action": "*"},
+            id="new-pol",
+            name="New",
+            description="test",
+            version=1,
+            rules=[],
+            target={"resource": "*", "action": "*"},
         )
         engine.add_policy(p)
         assert len(engine._decision_cache) == 0
@@ -634,12 +683,16 @@ class TestPolicyEngine:
             engine.remove_policy(pid)
 
         p = Policy(
-            id="disabled-pol", name="Disabled", description="test",
+            id="disabled-pol",
+            name="Disabled",
+            description="test",
             version=1,
             rules=[
                 PolicyRule(
-                    id="allow-r", description="allow",
-                    conditions=[], effect=PolicyEffect.ALLOW,
+                    id="allow-r",
+                    description="allow",
+                    conditions=[],
+                    effect=PolicyEffect.ALLOW,
                 )
             ],
             target={"resource": "*", "action": "*"},
@@ -662,24 +715,32 @@ class TestPolicyEngine:
 
         # Add two policies: one ALLOW at NORMAL, one DENY at HIGH
         allow_policy = Policy(
-            id="low-pri", name="Allow", description="low priority allow",
+            id="low-pri",
+            name="Allow",
+            description="low priority allow",
             version=1,
             rules=[
                 PolicyRule(
-                    id="allow-r", description="allow",
-                    conditions=[], effect=PolicyEffect.ALLOW,
+                    id="allow-r",
+                    description="allow",
+                    conditions=[],
+                    effect=PolicyEffect.ALLOW,
                     priority=PolicyPriority.NORMAL,
                 )
             ],
             target={"resource": "*", "action": "*"},
         )
         deny_policy = Policy(
-            id="high-pri", name="Deny", description="high priority deny",
+            id="high-pri",
+            name="Deny",
+            description="high priority deny",
             version=1,
             rules=[
                 PolicyRule(
-                    id="deny-r", description="deny",
-                    conditions=[], effect=PolicyEffect.DENY,
+                    id="deny-r",
+                    description="deny",
+                    conditions=[],
+                    effect=PolicyEffect.DENY,
                     priority=PolicyPriority.HIGH,
                 )
             ],
@@ -806,6 +867,7 @@ class TestPolicyEngine:
 # PolicyEnforcer
 # ---------------------------------------------------------------------------
 
+
 class TestPolicyEnforcer:
     """Tests for PolicyEnforcer decorator."""
 
@@ -814,16 +876,24 @@ class TestPolicyEnforcer:
         # Remove all defaults, add a universal allow
         for pid in list(engine.policies.keys()):
             engine.remove_policy(pid)
-        engine.add_policy(Policy(
-            id="allow-all", name="Allow All", description="allow",
-            version=1,
-            rules=[PolicyRule(
-                id="allow-all-r", description="allow",
-                conditions=[], effect=PolicyEffect.ALLOW,
-                priority=PolicyPriority.EMERGENCY,
-            )],
-            target={"resource": "*", "action": "*"},
-        ))
+        engine.add_policy(
+            Policy(
+                id="allow-all",
+                name="Allow All",
+                description="allow",
+                version=1,
+                rules=[
+                    PolicyRule(
+                        id="allow-all-r",
+                        description="allow",
+                        conditions=[],
+                        effect=PolicyEffect.ALLOW,
+                        priority=PolicyPriority.EMERGENCY,
+                    )
+                ],
+                target={"resource": "*", "action": "*"},
+            )
+        )
         return engine
 
     def _engine_with_deny_all(self):
@@ -883,16 +953,24 @@ class TestPolicyEnforcer:
         engine = PolicyEngine(node_id="test-node")
         for pid in list(engine.policies.keys()):
             engine.remove_policy(pid)
-        engine.add_policy(Policy(
-            id="audit-pol", name="Audit", description="audit",
-            version=1,
-            rules=[PolicyRule(
-                id="audit-r", description="audit everything",
-                conditions=[], effect=PolicyEffect.AUDIT,
-                priority=PolicyPriority.EMERGENCY,
-            )],
-            target={"resource": "*", "action": "*"},
-        ))
+        engine.add_policy(
+            Policy(
+                id="audit-pol",
+                name="Audit",
+                description="audit",
+                version=1,
+                rules=[
+                    PolicyRule(
+                        id="audit-r",
+                        description="audit everything",
+                        conditions=[],
+                        effect=PolicyEffect.AUDIT,
+                        priority=PolicyPriority.EMERGENCY,
+                    )
+                ],
+                target={"resource": "*", "action": "*"},
+            )
+        )
         enforcer = PolicyEnforcer(engine)
 
         @enforcer.enforce("resource", "read")
@@ -905,16 +983,24 @@ class TestPolicyEnforcer:
         engine = PolicyEngine(node_id="test-node")
         for pid in list(engine.policies.keys()):
             engine.remove_policy(pid)
-        engine.add_policy(Policy(
-            id="challenge-pol", name="Challenge", description="challenge",
-            version=1,
-            rules=[PolicyRule(
-                id="challenge-r", description="challenge everything",
-                conditions=[], effect=PolicyEffect.CHALLENGE,
-                priority=PolicyPriority.EMERGENCY,
-            )],
-            target={"resource": "*", "action": "*"},
-        ))
+        engine.add_policy(
+            Policy(
+                id="challenge-pol",
+                name="Challenge",
+                description="challenge",
+                version=1,
+                rules=[
+                    PolicyRule(
+                        id="challenge-r",
+                        description="challenge everything",
+                        conditions=[],
+                        effect=PolicyEffect.CHALLENGE,
+                        priority=PolicyPriority.EMERGENCY,
+                    )
+                ],
+                target={"resource": "*", "action": "*"},
+            )
+        )
         enforcer = PolicyEnforcer(engine)
 
         @enforcer.enforce("resource", "read")
@@ -937,6 +1023,7 @@ class TestPolicyEnforcer:
 # ---------------------------------------------------------------------------
 # Enum sanity checks
 # ---------------------------------------------------------------------------
+
 
 class TestEnums:
     """Quick sanity checks on enum values."""

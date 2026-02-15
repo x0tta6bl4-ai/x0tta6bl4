@@ -10,19 +10,20 @@ Tests:
 - Rollback functionality
 - Action history and metrics
 """
-import pytest
-import time
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
 
-from src.self_healing.recovery_actions import (
-    RecoveryActionType,
-    RecoveryResult,
-    RecoveryActionExecutor,
-    RateLimiter,
-    CircuitBreaker as RecoveryCircuitBreaker,
-    CircuitBreakerState,
-)
+import time
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from src.self_healing.recovery_actions import \
+    CircuitBreaker as RecoveryCircuitBreaker
+from src.self_healing.recovery_actions import (CircuitBreakerState,
+                                               RateLimiter,
+                                               RecoveryActionExecutor,
+                                               RecoveryActionType,
+                                               RecoveryResult)
 
 
 class TestRecoveryActionType:
@@ -49,7 +50,7 @@ class TestRecoveryResult:
             success=True,
             action_type=RecoveryActionType.RESTART_SERVICE,
             duration_seconds=1.5,
-            details={"method": "docker"}
+            details={"method": "docker"},
         )
         assert result.success is True
         assert result.error_message is None
@@ -61,7 +62,7 @@ class TestRecoveryResult:
             success=False,
             action_type=RecoveryActionType.FAILOVER,
             duration_seconds=0.5,
-            error_message="Connection refused"
+            error_message="Connection refused",
         )
         assert result.success is False
         assert result.error_message == "Connection refused"
@@ -72,41 +73,92 @@ class TestActionTypeParsing:
 
     def test_parse_restart_actions(self, recovery_executor):
         """Parse restart-related action strings."""
-        assert recovery_executor._parse_action_type("Restart service") == RecoveryActionType.RESTART_SERVICE
-        assert recovery_executor._parse_action_type("REBOOT node") == RecoveryActionType.RESTART_SERVICE
-        assert recovery_executor._parse_action_type("restart x0tta6bl4") == RecoveryActionType.RESTART_SERVICE
+        assert (
+            recovery_executor._parse_action_type("Restart service")
+            == RecoveryActionType.RESTART_SERVICE
+        )
+        assert (
+            recovery_executor._parse_action_type("REBOOT node")
+            == RecoveryActionType.RESTART_SERVICE
+        )
+        assert (
+            recovery_executor._parse_action_type("restart x0tta6bl4")
+            == RecoveryActionType.RESTART_SERVICE
+        )
 
     def test_parse_route_actions(self, recovery_executor):
         """Parse route-related action strings."""
-        assert recovery_executor._parse_action_type("Switch route") == RecoveryActionType.SWITCH_ROUTE
-        assert recovery_executor._parse_action_type("change route to backup") == RecoveryActionType.SWITCH_ROUTE
+        assert (
+            recovery_executor._parse_action_type("Switch route")
+            == RecoveryActionType.SWITCH_ROUTE
+        )
+        assert (
+            recovery_executor._parse_action_type("change route to backup")
+            == RecoveryActionType.SWITCH_ROUTE
+        )
 
     def test_parse_cache_actions(self, recovery_executor):
         """Parse cache-related action strings."""
-        assert recovery_executor._parse_action_type("Clear cache") == RecoveryActionType.CLEAR_CACHE
-        assert recovery_executor._parse_action_type("invalidate cache") == RecoveryActionType.CLEAR_CACHE
+        assert (
+            recovery_executor._parse_action_type("Clear cache")
+            == RecoveryActionType.CLEAR_CACHE
+        )
+        assert (
+            recovery_executor._parse_action_type("invalidate cache")
+            == RecoveryActionType.CLEAR_CACHE
+        )
 
     def test_parse_scale_actions(self, recovery_executor):
         """Parse scaling action strings."""
-        assert recovery_executor._parse_action_type("Scale up") == RecoveryActionType.SCALE_UP
-        assert recovery_executor._parse_action_type("scale-up pods") == RecoveryActionType.SCALE_UP
-        assert recovery_executor._parse_action_type("Scale down") == RecoveryActionType.SCALE_DOWN
-        assert recovery_executor._parse_action_type("scale-down replicas") == RecoveryActionType.SCALE_DOWN
+        assert (
+            recovery_executor._parse_action_type("Scale up")
+            == RecoveryActionType.SCALE_UP
+        )
+        assert (
+            recovery_executor._parse_action_type("scale-up pods")
+            == RecoveryActionType.SCALE_UP
+        )
+        assert (
+            recovery_executor._parse_action_type("Scale down")
+            == RecoveryActionType.SCALE_DOWN
+        )
+        assert (
+            recovery_executor._parse_action_type("scale-down replicas")
+            == RecoveryActionType.SCALE_DOWN
+        )
 
     def test_parse_failover_action(self, recovery_executor):
         """Parse failover action strings."""
-        assert recovery_executor._parse_action_type("Failover to backup") == RecoveryActionType.FAILOVER
-        assert recovery_executor._parse_action_type("trigger failover") == RecoveryActionType.FAILOVER
+        assert (
+            recovery_executor._parse_action_type("Failover to backup")
+            == RecoveryActionType.FAILOVER
+        )
+        assert (
+            recovery_executor._parse_action_type("trigger failover")
+            == RecoveryActionType.FAILOVER
+        )
 
     def test_parse_quarantine_action(self, recovery_executor):
         """Parse quarantine action strings."""
-        assert recovery_executor._parse_action_type("Quarantine node") == RecoveryActionType.QUARANTINE_NODE
-        assert recovery_executor._parse_action_type("quarantine-node-123") == RecoveryActionType.QUARANTINE_NODE
+        assert (
+            recovery_executor._parse_action_type("Quarantine node")
+            == RecoveryActionType.QUARANTINE_NODE
+        )
+        assert (
+            recovery_executor._parse_action_type("quarantine-node-123")
+            == RecoveryActionType.QUARANTINE_NODE
+        )
 
     def test_parse_unknown_returns_no_action(self, recovery_executor):
         """Unknown actions return NO_ACTION."""
-        assert recovery_executor._parse_action_type("unknown action") == RecoveryActionType.NO_ACTION
-        assert recovery_executor._parse_action_type("do something") == RecoveryActionType.NO_ACTION
+        assert (
+            recovery_executor._parse_action_type("unknown action")
+            == RecoveryActionType.NO_ACTION
+        )
+        assert (
+            recovery_executor._parse_action_type("do something")
+            == RecoveryActionType.NO_ACTION
+        )
 
 
 class TestRestartService:
@@ -114,17 +166,21 @@ class TestRestartService:
 
     def test_restart_with_systemd(self, recovery_executor, mock_subprocess):
         """Restart using systemd succeeds."""
-        result = recovery_executor.execute("Restart service", {"service_name": "x0tta6bl4"})
+        result = recovery_executor.execute(
+            "Restart service", {"service_name": "x0tta6bl4"}
+        )
 
         assert result is True
         mock_subprocess.assert_called()
 
     def test_restart_simulated_fallback(self, recovery_executor):
         """Restart falls back to simulated mode."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("systemctl not found")
 
-            result = recovery_executor.execute("Restart service", {"service_name": "test-service"})
+            result = recovery_executor.execute(
+                "Restart service", {"service_name": "test-service"}
+            )
 
             # Should succeed with simulated fallback
             assert result is True
@@ -137,10 +193,7 @@ class TestSwitchRoute:
         """Switch route action succeeds."""
         result = recovery_executor.execute(
             "Switch route",
-            {
-                "target_node": "node-001",
-                "alternative_route": "backup-route"
-            }
+            {"target_node": "node-001", "alternative_route": "backup-route"},
         )
         assert result is True
 
@@ -151,8 +204,8 @@ class TestSwitchRoute:
             {
                 "target_node": "node-001",
                 "old_route": "primary-route",
-                "alternative_route": "backup-route"
-            }
+                "alternative_route": "backup-route",
+            },
         )
 
         # Check rollback stack
@@ -179,22 +232,20 @@ class TestScaleActions:
     def test_scale_up(self, recovery_executor, mock_kubernetes):
         """Scale up action."""
         result = recovery_executor.execute(
-            "Scale up",
-            {"service_name": "api", "replicas": 5}
+            "Scale up", {"service_name": "api", "replicas": 5}
         )
         assert result is True
 
     def test_scale_down(self, recovery_executor, mock_kubernetes):
         """Scale down action."""
         result = recovery_executor.execute(
-            "Scale down",
-            {"service_name": "api", "replicas": 2}
+            "Scale down", {"service_name": "api", "replicas": 2}
         )
         assert result is True
 
     def test_scale_simulated_fallback(self, recovery_executor):
         """Scale falls back to simulated when kubectl not available."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("kubectl not found")
 
             result = recovery_executor.execute("Scale up", {"replicas": 3})
@@ -207,11 +258,7 @@ class TestFailover:
     def test_failover_success(self, recovery_executor):
         """Failover action succeeds."""
         result = recovery_executor.execute(
-            "Failover",
-            {
-                "primary_node": "node-001",
-                "backup_node": "node-002"
-            }
+            "Failover", {"primary_node": "node-001", "backup_node": "node-002"}
         )
         assert result is True
 
@@ -222,8 +269,7 @@ class TestQuarantineNode:
     def test_quarantine_node(self, recovery_executor):
         """Quarantine node action succeeds."""
         result = recovery_executor.execute(
-            "Quarantine node",
-            {"node_id": "suspicious-node-123"}
+            "Quarantine node", {"node_id": "suspicious-node-123"}
         )
         assert result is True
 
@@ -271,6 +317,7 @@ class TestRecoveryCircuitBreaker:
 
     def test_circuit_breaker_closed_allows_calls(self, recovery_circuit_breaker):
         """Closed circuit allows calls."""
+
         def successful_func():
             return "success"
 
@@ -280,6 +327,7 @@ class TestRecoveryCircuitBreaker:
 
     def test_circuit_breaker_opens_on_failures(self, recovery_circuit_breaker):
         """Circuit opens after failure threshold."""
+
         def failing_func():
             raise Exception("failure")
 
@@ -291,6 +339,7 @@ class TestRecoveryCircuitBreaker:
 
     def test_circuit_breaker_rejects_when_open(self, recovery_circuit_breaker):
         """Open circuit rejects calls."""
+
         def failing_func():
             raise Exception("failure")
 
@@ -342,7 +391,9 @@ class TestRetryLogic:
             call_count[0] += 1
             raise Exception("temporary failure")
 
-        with patch.object(recovery_executor_no_protection, '_execute_action_internal', failing_action):
+        with patch.object(
+            recovery_executor_no_protection, "_execute_action_internal", failing_action
+        ):
             result = recovery_executor_no_protection.execute("Restart service", {})
 
         assert result is False
@@ -355,7 +406,7 @@ class TestRetryLogic:
             enable_circuit_breaker=False,
             enable_rate_limiting=False,
             max_retries=3,
-            retry_delay=0.1
+            retry_delay=0.1,
         )
 
         start_times = []
@@ -364,7 +415,7 @@ class TestRetryLogic:
             start_times.append(time.time())
             raise Exception("failure")
 
-        with patch.object(executor, '_execute_action_internal', timing_action):
+        with patch.object(executor, "_execute_action_internal", timing_action):
             executor.execute("Restart service", {})
 
         # Should have 3 attempts
@@ -388,12 +439,14 @@ class TestRetryLogic:
             if attempt[0] < 2:
                 raise Exception("temporary failure")
             return RecoveryResult(
-                success=True,
-                action_type=action_type,
-                duration_seconds=0.1
+                success=True, action_type=action_type, duration_seconds=0.1
             )
 
-        with patch.object(recovery_executor_no_protection, '_execute_action_internal', eventually_succeeds):
+        with patch.object(
+            recovery_executor_no_protection,
+            "_execute_action_internal",
+            eventually_succeeds,
+        ):
             # Need more retries for this test
             recovery_executor_no_protection.max_retries = 3
             result = recovery_executor_no_protection.execute("Restart service", {})
@@ -409,8 +462,7 @@ class TestRollback:
         initial_stack_size = len(recovery_executor.rollback_stack)
 
         recovery_executor.execute(
-            "Switch route",
-            {"old_route": "route-a", "alternative_route": "route-b"}
+            "Switch route", {"old_route": "route-a", "alternative_route": "route-b"}
         )
 
         assert len(recovery_executor.rollback_stack) > initial_stack_size
@@ -419,8 +471,7 @@ class TestRollback:
         """Rollback reverses last action."""
         # Execute an action
         recovery_executor.execute(
-            "Scale up",
-            {"deployment_name": "api", "replicas": 5, "old_replicas": 3}
+            "Scale up", {"deployment_name": "api", "replicas": 5, "old_replicas": 3}
         )
 
         # Rollback
@@ -561,10 +612,7 @@ class TestAsyncWrappers:
     @pytest.mark.asyncio
     async def test_async_execute_action(self, recovery_executor):
         """Async execute_action wrapper."""
-        result = await recovery_executor.execute_action(
-            "Clear cache",
-            cache_type="all"
-        )
+        result = await recovery_executor.execute_action("Clear cache", cache_type="all")
         assert result is True
 
 

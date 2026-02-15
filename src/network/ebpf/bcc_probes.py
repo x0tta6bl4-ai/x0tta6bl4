@@ -12,21 +12,29 @@ Usage:
 """
 
 import argparse
+import logging
 import signal
 import sys
-from typing import Dict
-from bcc import BPF
-from prometheus_client import start_http_server, Gauge, Counter
 import time
-import logging
+from typing import Dict
+
+from bcc import BPF
+from prometheus_client import Counter, Gauge, start_http_server
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Prometheus metrics
-PACKET_LATENCY = Gauge('mesh_packet_latency_ns', 'Packet latency in nanoseconds', ['interface'])
-QUEUE_CONGESTION = Gauge('mesh_queue_congestion', 'Queue congestion level', ['interface'])
-PACKET_DROPS = Counter('mesh_packet_drops_total', 'Total packet drops', ['interface', 'reason'])
+PACKET_LATENCY = Gauge(
+    "mesh_packet_latency_ns", "Packet latency in nanoseconds", ["interface"]
+)
+QUEUE_CONGESTION = Gauge(
+    "mesh_queue_congestion", "Queue congestion level", ["interface"]
+)
+PACKET_DROPS = Counter(
+    "mesh_packet_drops_total", "Total packet drops", ["interface", "reason"]
+)
+
 
 class MeshNetworkProbes:
     def __init__(self, interface: str, prometheus_port: int = 9090):
@@ -111,17 +119,17 @@ int queue_congestion(struct pt_regs *ctx) {
             while True:
                 # Read latency events
                 for event in self.latency_bpf.trace_read():
-                    if 'latency:' in event:
-                        latency_ns = int(event.split(':')[1])
+                    if "latency:" in event:
+                        latency_ns = int(event.split(":")[1])
                         PACKET_LATENCY.labels(interface=self.interface).set(latency_ns)
                         self.current_latency = latency_ns
 
                 # Read congestion events
                 for event in self.congestion_bpf.trace_read():
-                    if 'queue_len' in event:
+                    if "queue_len" in event:
                         parts = event.split()
-                        ifindex = int(parts[1].split('=')[1])
-                        qlen = int(parts[2].split('=')[1])
+                        ifindex = int(parts[1].split("=")[1])
+                        qlen = int(parts[2].split("=")[1])
                         QUEUE_CONGESTION.labels(interface=self.interface).set(qlen)
                         self.current_congestion = qlen
 
@@ -135,21 +143,30 @@ int queue_congestion(struct pt_regs *ctx) {
         """Get current metrics snapshot"""
         # Note: In real implementation, these would be thread-safe shared variables
         return {
-            'avg_latency_ns': getattr(self, 'current_latency', 0),
-            'queue_congestion': getattr(self, 'current_congestion', 0),
+            "avg_latency_ns": getattr(self, "current_latency", 0),
+            "queue_congestion": getattr(self, "current_congestion", 0),
         }
 
     def cleanup(self):
         """Clean up eBPF programs"""
-        if hasattr(self, 'latency_bpf'):
+        if hasattr(self, "latency_bpf"):
             self.latency_bpf.cleanup()
-        if hasattr(self, 'congestion_bpf'):
+        if hasattr(self, "congestion_bpf"):
             self.congestion_bpf.cleanup()
 
+
 def main():
-    parser = argparse.ArgumentParser(description='x0tta6bl4 Mesh Network eBPF Probes')
-    parser.add_argument('--interface', '-i', required=True, help='Network interface to monitor')
-    parser.add_argument('--prometheus-port', '-p', type=int, default=9090, help='Prometheus metrics port')
+    parser = argparse.ArgumentParser(description="x0tta6bl4 Mesh Network eBPF Probes")
+    parser.add_argument(
+        "--interface", "-i", required=True, help="Network interface to monitor"
+    )
+    parser.add_argument(
+        "--prometheus-port",
+        "-p",
+        type=int,
+        default=9090,
+        help="Prometheus metrics port",
+    )
 
     args = parser.parse_args()
 
@@ -164,5 +181,6 @@ def main():
 
     probes.run()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

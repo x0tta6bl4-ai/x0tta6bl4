@@ -13,31 +13,27 @@ Covers:
 """
 
 import asyncio
+import hashlib
 import json
 import time
-import hashlib
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
-from src.security.vault_rotation import (
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitBreakerOpenError,
-    CircuitBreakerState,
-    EnhancedDatabaseCredentialRotator,
-    RotationResult,
-    RotationScheduler,
-    RotationStatus,
-    RotationStrategy,
-    RotationValidator,
-)
+import pytest
+
+from src.security.vault_rotation import (CircuitBreaker, CircuitBreakerConfig,
+                                         CircuitBreakerOpenError,
+                                         CircuitBreakerState,
+                                         EnhancedDatabaseCredentialRotator,
+                                         RotationResult, RotationScheduler,
+                                         RotationStatus, RotationStrategy,
+                                         RotationValidator)
 from src.security.vault_secrets import DatabaseCredentials
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def cb_config():
@@ -57,14 +53,16 @@ def circuit_breaker(cb_config):
 @pytest.fixture
 def mock_vault_client():
     client = MagicMock()
-    client.get_secret = AsyncMock(return_value={
-        "username": "old_user",
-        "password": "old_pass",
-        "host": "localhost",
-        "port": 5432,
-        "database": "testdb",
-        "connection_string": "postgresql://old_user:old_pass@localhost:5432/testdb",
-    })
+    client.get_secret = AsyncMock(
+        return_value={
+            "username": "old_user",
+            "password": "old_pass",
+            "host": "localhost",
+            "port": 5432,
+            "database": "testdb",
+            "connection_string": "postgresql://old_user:old_pass@localhost:5432/testdb",
+        }
+    )
     client.put_secret = AsyncMock()
     return client
 
@@ -72,6 +70,7 @@ def mock_vault_client():
 # ---------------------------------------------------------------------------
 # Enum / Dataclass Tests
 # ---------------------------------------------------------------------------
+
 
 class TestEnums:
     def test_rotation_strategy_values(self):
@@ -126,6 +125,7 @@ class TestCircuitBreakerConfig:
 # ---------------------------------------------------------------------------
 # CircuitBreaker Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCircuitBreaker:
     def test_initial_state_is_closed(self, circuit_breaker):
@@ -241,6 +241,7 @@ class TestCircuitBreaker:
 
         async def fail():
             raise RuntimeError("boom")
+
         async def ok():
             return True
 
@@ -264,6 +265,7 @@ class TestCircuitBreaker:
     async def test_success_resets_failure_count(self, circuit_breaker):
         async def fail():
             raise RuntimeError("boom")
+
         async def ok():
             return True
 
@@ -291,6 +293,7 @@ class TestCircuitBreaker:
 # ---------------------------------------------------------------------------
 # CircuitBreaker async context manager tests
 # ---------------------------------------------------------------------------
+
 
 class TestCircuitBreakerContextManager:
     @pytest.mark.asyncio
@@ -330,6 +333,7 @@ class TestCircuitBreakerContextManager:
 # ---------------------------------------------------------------------------
 # RotationValidator Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRotationValidator:
     @pytest.mark.asyncio
@@ -381,6 +385,7 @@ class TestRotationValidator:
 # ---------------------------------------------------------------------------
 # EnhancedDatabaseCredentialRotator Tests
 # ---------------------------------------------------------------------------
+
 
 class TestEnhancedDatabaseCredentialRotator:
     def _make_rotator(self, vault_client, strategy=RotationStrategy.IMMEDIATE):
@@ -573,6 +578,7 @@ class TestEnhancedDatabaseCredentialRotator:
 # Rollback Tests
 # ---------------------------------------------------------------------------
 
+
 class TestRollback:
     @pytest.mark.asyncio
     async def test_rollback_drops_new_user_and_restores_old_creds(self):
@@ -720,6 +726,7 @@ class TestRollback:
 # ---------------------------------------------------------------------------
 # RotationScheduler Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRotationScheduler:
     def test_schedule_database_rotation(self, mock_vault_client):
@@ -908,6 +915,7 @@ class TestRotationScheduler:
 # ---------------------------------------------------------------------------
 # CircuitBreakerOpenError
 # ---------------------------------------------------------------------------
+
 
 class TestCircuitBreakerOpenError:
     def test_is_exception(self):

@@ -3,14 +3,17 @@ Distributed Key-Value Store (P1)
 --------------------------------
 Local store + Raft-integrated replication facade. Snapshots for recovery.
 """
+
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, Callable
-from datetime import datetime
+
 import json
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Snapshot
@@ -29,6 +32,7 @@ class KVSnapshot:
             "data": self.data,
             "timestamp": self.timestamp.isoformat(),
         }
+
 
 # ---------------------------------------------------------------------------
 # Local Store
@@ -96,7 +100,9 @@ class DistributedKVStore:
             for cb in self.write_callbacks:
                 cb({"op": "atomic_update", "key": key, "success": True})
             return True
-        logger.warning(f"[{self.node_id}] CAS failed {key}: expected {check_value} got {current}")
+        logger.warning(
+            f"[{self.node_id}] CAS failed {key}: expected {check_value} got {current}"
+        )
         return False
 
     def batch_put(self, updates: Dict[str, Any]) -> bool:
@@ -123,7 +129,9 @@ class DistributedKVStore:
         try:
             self.store = snapshot.data.copy()
             self.last_applied = snapshot.index
-            logger.info(f"[{self.node_id}] Restored snapshot term={snapshot.term} index={snapshot.index}")
+            logger.info(
+                f"[{self.node_id}] Restored snapshot term={snapshot.term} index={snapshot.index}"
+            )
             return True
         except Exception as e:  # pragma: no cover
             logger.error(f"Restore error: {e}")
@@ -157,6 +165,7 @@ class DistributedKVStore:
         self.versions.clear()
         logger.info(f"[{self.node_id}] Cleared store")
 
+
 # ---------------------------------------------------------------------------
 # Replicated facade (to be integrated with Raft cluster)
 # ---------------------------------------------------------------------------
@@ -171,7 +180,11 @@ class ReplicatedKVStore:
         self.remote_stores[peer_id] = store
 
     def put(self, key: str, value: Any) -> bool:
-        if self.raft_node and getattr(self.raft_node, "state", None) and self.raft_node.state.value == "leader":
+        if (
+            self.raft_node
+            and getattr(self.raft_node, "state", None)
+            and self.raft_node.state.value == "leader"
+        ):
             command: Dict[str, Any] = {"op": "put", "key": key, "value": value}
             return bool(self.raft_node.append_entry(command))
         logger.warning(f"[{self.node_id}] Reject put: not leader")
@@ -185,4 +198,3 @@ class ReplicatedKVStore:
             remote = self.remote_stores[peer_id]
             for k, v in self.local_store.get_all().items():
                 remote.put(k, v)
-

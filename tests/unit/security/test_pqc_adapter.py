@@ -1,12 +1,15 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from src.security.pqc.pqc_adapter import PQCAdapter
 
 # Check if oqs has KeyEncapsulation and Signature
 try:
     import oqs
-    HAS_KEYENCAPSULATION = hasattr(oqs, 'KeyEncapsulation')
-    HAS_SIGNATURE = hasattr(oqs, 'Signature')
+
+    HAS_KEYENCAPSULATION = hasattr(oqs, "KeyEncapsulation")
+    HAS_SIGNATURE = hasattr(oqs, "Signature")
 except ImportError:
     oqs = None
     HAS_KEYENCAPSULATION = False
@@ -17,6 +20,7 @@ except ImportError:
 def adapter():
     """Фикстура для создания экземпляра PQCAdapter."""
     return PQCAdapter()
+
 
 @pytest.fixture
 def kyber_keypair():
@@ -30,6 +34,7 @@ def kyber_keypair():
         # Mock keypair for testing
         return b"mock_public_key", b"mock_private_key"
 
+
 @pytest.fixture
 def dilithium_keypair():
     """Фикстура для генерации пары ключей Dilithium/ML-DSA."""
@@ -41,6 +46,7 @@ def dilithium_keypair():
     else:
         # Mock keypair for testing
         return b"mock_public_key", b"mock_private_key"
+
 
 class TestPQCAdapter:
     # --- Тесты для __init__ ---
@@ -82,7 +88,9 @@ class TestPQCAdapter:
 
     # --- Тесты для KEM (Kyber) ---
 
-    @pytest.mark.skipif(not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available")
+    @pytest.mark.skipif(
+        not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available"
+    )
     def test_kem_generate_keypair(self, adapter):
         """Проверяет генерацию пары ключей Kyber."""
         public_key, private_key = adapter.kem_generate_keypair()
@@ -91,7 +99,9 @@ class TestPQCAdapter:
         assert len(public_key) > 0
         assert len(private_key) > 0
 
-    @pytest.mark.skipif(not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available")
+    @pytest.mark.skipif(
+        not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available"
+    )
     def test_kem_encapsulate_decapsulate_end_to_end(self, adapter):
         """Проверяет инкапсуляцию и декапсуляцию Kyber в сквозном тесте."""
         public_key, private_key = adapter.kem_generate_keypair()
@@ -103,22 +113,27 @@ class TestPQCAdapter:
         assert isinstance(shared_secret_receiver, bytes)
         assert shared_secret_sender == shared_secret_receiver
 
-    @pytest.mark.skipif(not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available")
+    @pytest.mark.skipif(
+        not HAS_KEYENCAPSULATION, reason="oqs.KeyEncapsulation not available"
+    )
     def test_kem_decapsulate_invalid_ciphertext_or_key(self, adapter, kyber_keypair):
         """Проверяет декапсуляцию с неверным шифротекстом или ключом."""
         public_key, private_key = kyber_keypair
         ciphertext, shared_secret_sender = adapter.kem_encapsulate(public_key)
 
         # Тест с измененным шифротекстом
-        modified_ciphertext = ciphertext[:-1] + b'\x00' # Немного изменяем шифротекст
-        shared_secret_receiver_modified = adapter.kem_decapsulate(private_key, modified_ciphertext)
+        modified_ciphertext = ciphertext[:-1] + b"\x00"  # Немного изменяем шифротекст
+        shared_secret_receiver_modified = adapter.kem_decapsulate(
+            private_key, modified_ciphertext
+        )
         assert shared_secret_sender != shared_secret_receiver_modified
 
         # Тест с неверным приватным ключом (тот же шифротекст, но другой приватный ключ)
         _, wrong_private_key = adapter.kem_generate_keypair()
-        shared_secret_receiver_wrong_key = adapter.kem_decapsulate(wrong_private_key, ciphertext)
+        shared_secret_receiver_wrong_key = adapter.kem_decapsulate(
+            wrong_private_key, ciphertext
+        )
         assert shared_secret_sender != shared_secret_receiver_wrong_key
-
 
     # --- Тесты для подписи (Dilithium) ---
 
@@ -157,7 +172,7 @@ class TestPQCAdapter:
         """Проверяет, что неверная подпись не проходит верификацию."""
         public_key, _ = dilithium_keypair
         message = b"Another test message."
-        invalid_signature = b"malicious_signature" # Произвольная неверная подпись
+        invalid_signature = b"malicious_signature"  # Произвольная неверная подпись
 
         assert adapter.sig_verify(public_key, message, invalid_signature) is False
 
@@ -165,7 +180,9 @@ class TestPQCAdapter:
     def test_sig_verify_incorrect_public_key(self, adapter):
         """Проверяет, что неверный публичный ключ не проходит верификацию."""
         _, private_key = adapter.sig_generate_keypair()
-        wrong_public_key, _ = adapter.sig_generate_keypair() # Генерируем другую пару ключей
+        wrong_public_key, _ = (
+            adapter.sig_generate_keypair()
+        )  # Генерируем другую пару ключей
         message = b"Message for verification with wrong key."
         signature = adapter.sig_sign(private_key, message)
 
@@ -188,17 +205,19 @@ class TestPQCAdapter:
         class MockSignature:
             def __init__(self, alg, secret_key=None):
                 pass
+
             def verify(self, msg, sig, pk):
                 raise MockMechanismNotSupportedError("Mocked error")
+
             def __enter__(self):
                 return self
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
 
         # Mock oqs module
-        with patch('src.security.pqc.pqc_adapter.oqs') as mock_oqs:
+        with patch("src.security.pqc.pqc_adapter.oqs") as mock_oqs:
             mock_oqs.Signature = MockSignature
             mock_oqs.MechanismNotSupportedError = MockMechanismNotSupportedError
             # Test that error is caught and returns False
             assert adapter.sig_verify(public_key, message, signature) is False
-

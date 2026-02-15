@@ -4,22 +4,25 @@ VPN API Endpoints
 
 REST API endpoints for VPN configuration and management.
 """
-from fastapi import APIRouter, HTTPException, Depends, Request, Header, status
-from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+
+import hmac
 import logging
 import os
-import hmac
+import sys
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from vpn_config_generator import generate_vless_link, generate_config_text
-from src.database import get_db, User
-from src.core.cache import cached, cache
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+from src.core.cache import cache, cached
+from src.database import User, get_db
+from vpn_config_generator import generate_config_text, generate_vless_link
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +34,14 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     """Verify admin token for protected endpoints"""
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin token not configured (access forbidden)")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin token not configured (access forbidden)",
+        )
     if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
 
 
 class VPNConfigRequest(BaseModel):
@@ -66,42 +74,45 @@ async def get_vpn_config(
     user_id: int,
     username: Optional[str] = None,
     server: Optional[str] = None,
-    port: Optional[int] = None
+    port: Optional[int] = None,
 ) -> VPNConfigResponse:
     """
     Generate VPN configuration for a user.
-    
+
     Args:
         user_id: Telegram user ID
         username: Optional username for the VPN config
         server: Optional custom server address
         port: Optional custom server port
-        
+
     Returns:
         VPN configuration with VLESS link and detailed instructions
     """
     try:
         import uuid
+
         # Get default values from environment
         default_server = os.getenv("VPN_SERVER")
         default_port = int(os.getenv("VPN_PORT", "0")) or None
-        
+
         # Use custom values or defaults
         server = server or default_server
         port = port or default_port
-        
+
         # Generate user UUID
         user_uuid = str(uuid.uuid4())
-        
+
         # Generate config
-        config_text = generate_config_text(user_id, user_uuid=user_uuid, server=server, port=port)
+        config_text = generate_config_text(
+            user_id, user_uuid=user_uuid, server=server, port=port
+        )
         vless_link = generate_vless_link(user_uuid=user_uuid, server=server, port=port)
-        
+
         return VPNConfigResponse(
             user_id=user_id,
             username=username,
             vless_link=vless_link,
-            config_text=config_text
+            config_text=config_text,
         )
     except Exception as e:
         logger.error(f"Error generating VPN config: {e}", exc_info=True)
@@ -111,8 +122,7 @@ async def get_vpn_config(
 @router.post("/config")
 @limiter.limit("30/minute")
 async def create_vpn_config(
-    request: Request,
-    config_request: VPNConfigRequest
+    request: Request, config_request: VPNConfigRequest
 ) -> VPNConfigResponse:
     """
     Create VPN configuration for a user.
@@ -128,17 +138,17 @@ async def create_vpn_config(
         user_id=config_request.user_id,
         username=config_request.username,
         server=config_request.server,
-        port=config_request.port
+        port=config_request.port,
     )
 
 
 async def _check_vpn_connectivity(server: str, port: int) -> str:
     """Check VPN server connectivity."""
     import asyncio
+
     try:
         reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(server, port),
-            timeout=2.0
+            asyncio.open_connection(server, port), timeout=2.0
         )
         writer.close()
         await writer.wait_closed()
@@ -163,7 +173,7 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
         "port": port,
         "protocol": "VLESS+Reality",
         "active_users": active_users,
-        "uptime": uptime
+        "uptime": uptime,
     }
 
 
@@ -195,7 +205,7 @@ async def _fetch_vpn_users_from_db(db: Session) -> Dict[str, Any]:
             "user_id": u.id,
             "username": u.email.split("@")[0] if u.email else "unknown",
             "vless_link": "vless://...",
-            "last_connected": "2024-01-20 10:30:00"
+            "last_connected": "2024-01-20 10:30:00",
         }
         for u in db_users
     ]
@@ -205,9 +215,7 @@ async def _fetch_vpn_users_from_db(db: Session) -> Dict[str, Any]:
 @router.get("/users")
 @limiter.limit("10/minute")
 async def get_vpn_users(
-    request: Request,
-    admin=Depends(verify_admin_token),
-    db: Session = Depends(get_db)
+    request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get list of active VPN users.
@@ -241,7 +249,7 @@ async def delete_vpn_user(
     request: Request,
     user_id: int,
     admin=Depends(verify_admin_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Delete VPN user.
@@ -264,13 +272,10 @@ async def delete_vpn_user(
 
             return {
                 "success": True,
-                "message": f"User {user_id} downgraded to free plan"
+                "message": f"User {user_id} downgraded to free plan",
             }
         else:
-            return {
-                "success": False,
-                "message": f"User {user_id} not found"
-            }
+            return {"success": False, "message": f"User {user_id} not found"}
     except Exception as e:
         logger.error(f"Error deleting VPN user: {e}", exc_info=True)
         db.rollback()

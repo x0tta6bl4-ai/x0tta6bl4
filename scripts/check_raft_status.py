@@ -8,12 +8,13 @@ Usage:
     python3 scripts/check_raft_status.py --json
 """
 import argparse
-import sys
 import json
+import sys
 from pathlib import Path
 
 try:
     from src.consensus.raft_production import get_production_raft_node
+
     RAFT_PRODUCTION_AVAILABLE = True
 except ImportError:
     RAFT_PRODUCTION_AVAILABLE = False
@@ -26,7 +27,7 @@ def format_state(state) -> str:
     state_map = {
         "follower": "👤 FOLLOWER",
         "candidate": "🗳️ CANDIDATE",
-        "leader": "👑 LEADER"
+        "leader": "👑 LEADER",
     }
     return state_map.get(state, f"❓ {state.upper()}")
 
@@ -34,22 +35,26 @@ def format_state(state) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Check Raft consensus status")
     parser.add_argument("--node-id", type=str, default="node-1", help="Node ID")
-    parser.add_argument("--peers", type=str, nargs="+", default=["node-2", "node-3"], help="Peer node IDs")
+    parser.add_argument(
+        "--peers",
+        type=str,
+        nargs="+",
+        default=["node-2", "node-3"],
+        help="Peer node IDs",
+    )
     parser.add_argument("--storage-path", type=str, help="Storage path")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
-    
+
     storage_path = args.storage_path or f"/var/lib/x0tta6bl4/raft/{args.node_id}"
-    
+
     try:
         node = get_production_raft_node(
-            node_id=args.node_id,
-            peers=args.peers,
-            storage_path=storage_path
+            node_id=args.node_id, peers=args.peers, storage_path=storage_path
         )
-        
+
         status = node.get_status()
-        
+
         if args.json:
             print(json.dumps(status, indent=2, default=str))
         else:
@@ -63,18 +68,22 @@ def main():
             print(f"Last Applied: {status['last_applied']}")
             print(f"Log Length: {status['log_length']}")
             print(f"Peers: {', '.join(status['peers'])}")
-            
+
             # Check storage
             storage = node.storage
             state_file = storage.state_file
             log_file = storage.log_file
-            
+
             print("\n" + "=" * 60)
             print("Persistent Storage")
             print("=" * 60)
-            print(f"State File: {state_file} ({'✅ EXISTS' if state_file.exists() else '❌ MISSING'})")
-            print(f"Log File: {log_file} ({'✅ EXISTS' if log_file.exists() else '❌ MISSING'})")
-            
+            print(
+                f"State File: {state_file} ({'✅ EXISTS' if state_file.exists() else '❌ MISSING'})"
+            )
+            print(
+                f"Log File: {log_file} ({'✅ EXISTS' if log_file.exists() else '❌ MISSING'})"
+            )
+
             if state_file.exists():
                 state = storage.load_state()
                 if state:
@@ -87,4 +96,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

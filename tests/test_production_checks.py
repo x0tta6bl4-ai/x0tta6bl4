@@ -1,15 +1,15 @@
 """
 Tests for production dependency checks
 """
-import pytest
-from unittest.mock import patch, MagicMock
 
-from src.core.production_checks import (
-    check_production_dependencies,
-    get_dependency_status,
-    ProductionDependencyError,
-    PRODUCTION_MODE
-)
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.core.production_checks import (PRODUCTION_MODE,
+                                        ProductionDependencyError,
+                                        check_production_dependencies,
+                                        get_dependency_status)
 
 
 class TestProductionChecks:
@@ -21,17 +21,22 @@ class TestProductionChecks:
         # Should not raise
         check_production_dependencies()
 
-    def test_production_checks_production_missing_deps(self, monkeypatch, production_mode):
+    def test_production_checks_production_missing_deps(
+        self, monkeypatch, production_mode
+    ):
         """Should raise error when critical deps missing in production."""
-        with patch.dict('sys.modules', {
-            'src.security.post_quantum_liboqs': None,
-            'torch': None,
-            'src.ml.graphsage_anomaly_detector': None,
-            'bcc': None,
-            'redis': None,
-            'prometheus_client': None,
-            'opentelemetry': None,
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "src.security.post_quantum_liboqs": None,
+                "torch": None,
+                "src.ml.graphsage_anomaly_detector": None,
+                "bcc": None,
+                "redis": None,
+                "prometheus_client": None,
+                "opentelemetry": None,
+            },
+        ):
             with pytest.raises(ProductionDependencyError) as exc_info:
                 check_production_dependencies()
 

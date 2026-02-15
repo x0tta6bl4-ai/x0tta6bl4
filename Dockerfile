@@ -17,10 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Build liboqs (shared lib)
 WORKDIR /tmp
 RUN git clone --depth 1 --branch "${LIBOQS_VERSION}" \
-        https://github.com/open-quantum-safe/liboqs.git && \
+    https://github.com/open-quantum-safe/liboqs.git && \
     cmake -S liboqs -B liboqs/build \
-        -DBUILD_SHARED_LIBS=ON \
-        -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_INSTALL_PREFIX=/usr/local && \
     cmake --build liboqs/build --parallel "$(nproc)" && \
     cmake --install liboqs/build && \
     rm -rf /tmp/liboqs
@@ -56,8 +56,8 @@ RUN grep -iv '^torch' requirements.txt > /tmp/requirements-no-torch.txt && \
 FROM python:3.12-slim AS runtime
 
 LABEL maintainer="x0tta6bl4 Team" \
-      version="3.2.0" \
-      description="Self-healing mesh node with post-quantum cryptography"
+    version="3.2.1" \
+    description="Self-healing mesh node with post-quantum cryptography"
 
 # Runtime system deps (curl for healthcheck, libssl for crypto)
 RUN apt-get update && apt-get install -y --no-install-recommends \

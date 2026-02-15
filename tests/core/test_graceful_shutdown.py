@@ -1,16 +1,15 @@
 """
 Tests for Graceful Shutdown module.
 """
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch
 
-from src.core.graceful_shutdown import (
-    GracefulShutdownManager,
-    ShutdownMiddleware,
-    ShutdownState,
-    create_lifespan,
-)
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from src.core.graceful_shutdown import (GracefulShutdownManager,
+                                        ShutdownMiddleware, ShutdownState,
+                                        create_lifespan)
 
 
 class TestShutdownState:
@@ -32,9 +31,7 @@ class TestGracefulShutdownManager:
     def test_initialization(self):
         """Test manager initialization."""
         manager = GracefulShutdownManager(
-            shutdown_timeout=60.0,
-            drain_timeout=20.0,
-            force_exit=False
+            shutdown_timeout=60.0, drain_timeout=20.0, force_exit=False
         )
         assert manager.shutdown_timeout == 60.0
         assert manager.drain_timeout == 20.0
@@ -221,11 +218,7 @@ class TestShutdownMiddleware:
 
         middleware = ShutdownMiddleware(mock_app, manager)
 
-        await middleware(
-            {"type": "http"},
-            AsyncMock(),
-            AsyncMock()
-        )
+        await middleware({"type": "http"}, AsyncMock(), AsyncMock())
 
         assert app_called is True
         assert manager.active_requests == 0  # Should be decremented after
@@ -245,11 +238,7 @@ class TestShutdownMiddleware:
         send_mock = AsyncMock()
         middleware = ShutdownMiddleware(mock_app, manager)
 
-        await middleware(
-            {"type": "http"},
-            AsyncMock(),
-            send_mock
-        )
+        await middleware({"type": "http"}, AsyncMock(), send_mock)
 
         assert app_called is False
         # Should have sent 503 response
@@ -269,11 +258,7 @@ class TestShutdownMiddleware:
 
         middleware = ShutdownMiddleware(mock_app, manager)
 
-        await middleware(
-            {"type": "websocket"},
-            AsyncMock(),
-            AsyncMock()
-        )
+        await middleware({"type": "websocket"}, AsyncMock(), AsyncMock())
 
         assert app_called is True
 
@@ -314,6 +299,7 @@ class TestLifespanFactory:
     @pytest.mark.asyncio
     async def test_create_lifespan_startup_error(self):
         """Test that startup errors propagate."""
+
         async def failing_startup():
             raise ValueError("Startup failed")
 

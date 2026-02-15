@@ -1,0 +1,62 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: x0tta6bl4-chaos-alerts
+  namespace: x0tta6bl4
+  labels:
+    app: x0tta6bl4
+    release: prometheus-operator # Adjust if using a different Prometheus setup
+spec:
+  groups:
+  - name: x0tta6bl4-chaos-alerts
+    rules:
+    - alert: MeshNodeDown
+      expr: up{app="x0tta6bl4-node", chaos_scenario!="node-crash"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        chaos_impact: high
+      annotations:
+        summary: "x0tta6bl4 mesh node down"
+        description: "A x0tta6bl4 mesh node {{ $labels.instance }} is down. MAPE-K should initiate self-healing."
+    
+    - alert: NetworkPartitionDetected
+      expr: sum(irate(net_chaos_delay_packets_total[5m])) by (instance) > 0 and chaos_delay_active{app="x0tta6bl4-node"} == 1
+      for: 30s
+      labels:
+        severity: warning
+        chaos_impact: medium
+      annotations:
+        summary: "Network partition or high latency detected in mesh"
+        description: "Network latency/partition is affecting node {{ $labels.instance }}. MAPE-K should adjust routing."
+
+    - alert: PQCVerificationFailed
+      expr: sum(rate(pqc_stats_failed_verification_total[5m])) by (instance) > 5 # More than 5 failures in 5 minutes
+      for: 1m
+      labels:
+        severity: critical
+        chaos_impact: high
+      annotations:
+        summary: "PQC verification failures detected"
+        description: "Node {{ $labels.instance }} is experiencing PQC verification failures. Potential attack or key compromise. MAPE-K should trigger key rotation or session invalidation."
+
+    - alert: HighCPULoadOnMeshNode
+      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle", app="x0tta6bl4-node"}[5m])) * 100) > 80 # CPU usage > 80%
+      for: 2m
+      labels:
+        severity: warning
+        chaos_impact: medium
+      annotations:
+        summary: "High CPU load on x0tta6bl4 mesh node"
+        description: "Node {{ $labels.instance }} has high CPU usage. MAPE-K should consider load redistribution or scaling."
+
+    - alert: HighMemoryUsageOnMeshNode
+      expr: (node_memory_MemTotal_bytes{app="x0tta6bl4-node"} - node_memory_MemAvailable_bytes{app="x0tta6bl4-node"}) / node_memory_MemTotal_bytes{app="x0tta6bl4-node"} * 100 > 90 # Memory usage > 90%
+      for: 2m
+      labels:
+        severity: warning
+        chaos_impact: high
+      annotations:
+        summary: "High memory usage on x0tta6bl4 mesh node"
+        description: "Node {{ $labels.instance }} has high memory usage. MAPE-K should consider session migration or node restart."

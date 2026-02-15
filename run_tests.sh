@@ -4,6 +4,10 @@
 
 set -e
 
+export PYTHONFAULTHANDLER=1
+
+PYTEST_TIMEOUT="${PYTEST_TIMEOUT:-10m}"
+
 echo "🧪 Running x0tta6bl4 v2.0 Tests"
 echo "================================"
 echo ""
@@ -34,7 +38,7 @@ for test_file in "${TEST_DIRS[@]}"; do
     if [ -f "$test_file" ]; then
         echo ""
         echo -e "${GREEN}Testing: $test_file${NC}"
-        pytest "$test_file" -v --tb=short || {
+        timeout "$PYTEST_TIMEOUT" pytest "$test_file" -v --tb=short || {
             echo -e "${RED}❌ Tests failed in $test_file${NC}"
             exit 1
         }

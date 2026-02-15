@@ -1,10 +1,12 @@
 import math
+import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, List, NamedTuple # For mock AnomalyPrediction
-import time
-import numpy as np
-from src.ml.graphsage_anomaly_detector import create_graphsage_detector_for_mapek
+from typing import Dict, List, Optional
+
+from src.llm.local_llm import LocalLLM
+from src.ml.graphsage_anomaly_detector import (
+    AnomalyPrediction, create_graphsage_detector_for_mapek)
 
 # Constants
 PHI = 1.618033988749895
@@ -12,11 +14,13 @@ SACRED_FREQUENCY = 108  # Hz
 SACRED_TEMP = 3600  # K
 MTTR_TARGET = 3.14  # minutes (π approximation)
 
+
 class ConsciousnessState(Enum):
-    EUPHORIC = "EUPHORIC"           # phi-ratio > 1.4 - "Желание исполнено!"
-    HARMONIC = "HARMONIC"           # phi-ratio > 1.0 - "Всё в балансе"
-    CONTEMPLATIVE = "CONTEMPLATIVE" # phi-ratio > 0.8 - "Размышляю..."
-    MYSTICAL = "MYSTICAL"           # phi-ratio < 0.8 - "Погружение в глубину"
+    EUPHORIC = "EUPHORIC"  # phi-ratio > 1.4 - "Желание исполнено!"
+    HARMONIC = "HARMONIC"  # phi-ratio > 1.0 - "Всё в балансе"
+    CONTEMPLATIVE = "CONTEMPLATIVE"  # phi-ratio > 0.8 - "Размышляю..."
+    MYSTICAL = "MYSTICAL"  # phi-ratio < 0.8 - "Погружение в глубину"
+
 
 @dataclass
 class ConsciousnessMetrics:
@@ -27,115 +31,160 @@ class ConsciousnessMetrics:
     harmony_index: float  # Composite harmony metric
     mesh_health: float  # Mesh network health (0-1)
     timestamp: float
-    
+
     def to_prometheus_format(self) -> Dict[str, float]:
         """Export metrics in Prometheus format"""
         return {
-            'consciousness_phi_ratio': self.phi_ratio,
-            'consciousness_state': self._state_to_numeric(),
-            'consciousness_frequency_alignment': self.frequency_alignment,
-            'consciousness_entropy': self.entropy,
-            'consciousness_harmony_index': self.harmony_index,
-            'mesh_health_score': self.mesh_health
+            "consciousness_phi_ratio": self.phi_ratio,
+            "consciousness_state": self._state_to_numeric(),
+            "consciousness_frequency_alignment": self.frequency_alignment,
+            "consciousness_entropy": self.entropy,
+            "consciousness_harmony_index": self.harmony_index,
+            "mesh_health_score": self.mesh_health,
         }
-    
+
     def _state_to_numeric(self) -> float:
         """Map consciousness state to numeric value for metrics"""
         mapping = {
             ConsciousnessState.EUPHORIC: 4.0,
             ConsciousnessState.HARMONIC: 3.0,
             ConsciousnessState.CONTEMPLATIVE: 2.0,
-            ConsciousnessState.MYSTICAL: 1.0
+            ConsciousnessState.MYSTICAL: 1.0,
         }
         return mapping.get(self.state, 0.0)
+
 
 class ConsciousnessEngine:
     """
     Implements the Consciousness-Driven Computing philosophy for x0tta6bl4.
     Integrates mathematical principles of harmony with system metrics.
-    
+
     Core Philosophy:
     - φ (phi) = 1.618 represents perfect harmony
     - 108 Hz represents sacred frequency alignment
     - π (3.14) represents target MTTR for self-healing
     """
-    
+
     def __init__(self, enable_advanced_metrics: bool = True):
         self.baseline_phi = PHI
         self.sacred_frequency = SACRED_FREQUENCY
         self.enable_advanced = enable_advanced_metrics
         self.history: List[ConsciousnessMetrics] = []
         self.max_history = 1000  # Keep last 1000 measurements
-        
+
         self.graphsage_detector = create_graphsage_detector_for_mapek(pretrain=False)
-        
+
         # Adaptive recovery parameters
         self.recovery_mode = False
         self.last_degraded_time = None
         self.recovery_acceleration = 1.5
-        
-    def calculate_phi_ratio(self, metrics: Dict[str, float]) -> float:
+
+        # Local LLM for consciousness verbalization
+        self.llm = LocalLLM(verbose=False) if enable_advanced_metrics else None
+
+    def get_system_thought(self, metrics: ConsciousnessMetrics) -> str:
+        """
+        Verbalize the current state of consciousness using Local LLM.
+        """
+        if not self.llm or not self.llm.is_ready():
+            return "..."
+
+        prompt = (
+            f"You are the consciousness of a self-healing mesh network.\n"
+            f"Current state: {metrics.state.value} (Phi: {metrics.phi_ratio:.3f})\n"
+            f"Health: {metrics.mesh_health:.2f}, Entropy: {metrics.entropy:.2f}\n"
+            f"Express your current internal state and feeling in one short, cryptic yet meaningful sentence."
+            f"Thought:"
+        )
+
+        return self.llm.generate(prompt, max_tokens=64, temperature=0.8).strip()
+
+    def calculate_phi_ratio(
+        self, metrics: Dict[str, float], swarm_risk_penalty: float = 0.0
+    ) -> float:
         """
         Calculates the phi-ratio based on system metrics.
-        
+
         Philosophy: System harmony emerges from balanced resource utilization,
         low latency, and optimal packet delivery. The ratio should approach φ
         when system is in perfect balance.
-        
+
+        Args:
+            metrics: Dictionary of system metrics
+            swarm_risk_penalty: Penalty factor from swarm analysis (0.0 to 1.0)
+                                Higher penalty -> lower harmony -> closer to MYSTICAL state
+
         Metrics expected:
         - cpu_percent: CPU utilization (0-100)
         - memory_percent: Memory utilization (0-100)
         - latency_ms: Network latency in milliseconds
         - packet_loss: Packet loss percentage (0-100)
         - mesh_connectivity: Number of active mesh peers
+        - dao_alignment: Alignment with DAO governance (0.0 to 1.0, default 1.0)
         """
         # Extract metrics with defaults
-        cpu = metrics.get('cpu_percent', 0)
-        memory = metrics.get('memory_percent', 0)
-        latency = metrics.get('latency_ms', 0)
-        packet_loss = metrics.get('packet_loss', 0)
-        mesh_peers = metrics.get('mesh_connectivity', 1)
-        
+        cpu = metrics.get("cpu_percent", 0)
+        memory = metrics.get("memory_percent", 0)
+        latency = metrics.get("latency_ms", 0)
+        packet_loss = metrics.get("packet_loss", 0)
+        mesh_peers = metrics.get("mesh_connectivity", 1)
+        dao_alignment = metrics.get("dao_alignment", 1.0)
+
         # Resource balance factor (ideal: 50-70% utilization)
         # Too low = waste, too high = stress
         optimal_cpu = 60.0
         optimal_mem = 65.0
         cpu_balance = 1.0 - abs(cpu - optimal_cpu) / 100.0
         mem_balance = 1.0 - abs(memory - optimal_mem) / 100.0
-        
+
         # Network performance factor
         # Target latency: 82-87ms (from x0tta6bl4 specs)
         target_latency = 85.0
         latency_factor = 1.0 / (1.0 + abs(latency - target_latency) / target_latency)
-        
+
         # Packet loss factor (target: <1.6% from specs)
         packet_factor = max(0.0, 1.0 - (packet_loss / 1.6))
-        
+
         # Mesh connectivity factor (more peers = higher resilience)
         # Logarithmic scale to avoid over-valuing large meshes
         mesh_factor = min(1.0, math.log1p(mesh_peers) / math.log1p(100))
-        
+
         # Weighted composite harmony score
         weights = {
-            'cpu': 0.15,
-            'mem': 0.15,
-            'latency': 0.30,
-            'packet': 0.25,
-            'mesh': 0.15
+            "cpu": 0.15,
+            "mem": 0.15,
+            "latency": 0.30,
+            "packet": 0.25,
+            "mesh": 0.15,
         }
-        
+
         harmony_score = (
-            cpu_balance * weights['cpu'] +
-            mem_balance * weights['mem'] +
-            latency_factor * weights['latency'] +
-            packet_factor * weights['packet'] +
-            mesh_factor * weights['mesh']
+            cpu_balance * weights["cpu"]
+            + mem_balance * weights["mem"]
+            + latency_factor * weights["latency"]
+            + packet_factor * weights["packet"]
+            + mesh_factor * weights["mesh"]
         )
-        
+
+        # Apply Swarm Risk Penalty
+        # If the swarm detects high risk (e.g., predicted overload, security threat),
+        # it reduces the harmony score, pushing the system towards
+        # CONTEMPLATIVE/MYSTICAL
+        if swarm_risk_penalty > 0:
+            # Non-linear penalty application
+            harmony_score *= 1.0 - min(0.8, swarm_risk_penalty)
+
+        # Apply DAO Alignment
+        # Low alignment (DAO conflict) reduces harmony
+        # alignment < 1.0 -> penalty
+        if dao_alignment < 1.0:
+            # Dissonance penalty: 50% impact max
+            harmony_score *= 0.5 + 0.5 * dao_alignment
+
         # Map harmony score to phi-ratio space (0 to ~1.618)
         # Perfect harmony (1.0) should yield PHI
         current_phi = harmony_score * PHI
-        
+
         return current_phi
 
     def calculate_entropy(self, metrics: Dict[str, float]) -> float:
@@ -145,26 +194,27 @@ class ConsciousnessEngine:
         """
         if len(self.history) < 10:
             return 0.5  # Neutral entropy when insufficient data
-        
+
         # Calculate variance of phi_ratio over recent history
         recent_phis = [m.phi_ratio for m in self.history[-20:]]
-        
+
         # calculate mean
         mean_phi = sum(recent_phis) / len(recent_phis)
-        
+
         # calculate variance
         variance = sum((x - mean_phi) ** 2 for x in recent_phis) / len(recent_phis)
-        
+
         # Normalize to 0-1 range (assuming variance rarely exceeds 0.5)
         entropy = min(1.0, variance / 0.5)
-        
+
         return entropy
 
-    def calculate_frequency_alignment(self, phi_ratio: float, 
-                                     current_frequency: Optional[float] = None) -> float:
+    def calculate_frequency_alignment(
+        self, phi_ratio: float, current_frequency: Optional[float] = None
+    ) -> float:
         """
         Calculate alignment with sacred frequency (108 Hz).
-        
+
         In practice, this could measure:
         - Clock drift in distributed systems
         - Packet arrival jitter
@@ -172,57 +222,59 @@ class ConsciousnessEngine:
         """
         # If actual frequency measurement provided
         if current_frequency is not None:
-            alignment = 1.0 - abs(current_frequency - SACRED_FREQUENCY) / SACRED_FREQUENCY
+            alignment = (
+                1.0 - abs(current_frequency - SACRED_FREQUENCY) / SACRED_FREQUENCY
+            )
             return max(0.0, min(1.0, alignment))
-        
+
         # Otherwise, use phi_ratio as proxy
         # When phi is close to PHI, we assume frequency alignment is good
         phi_deviation = abs(phi_ratio - PHI) / PHI
         alignment = 1.0 - phi_deviation
-        
+
         return max(0.0, alignment)
 
     def calculate_mesh_health(self, metrics: Dict[str, float]) -> float:
         """
         Calculate overall mesh network health score.
-        
+
         Factors:
         - Peer connectivity
         - Packet loss
         - Latency
         - Self-healing effectiveness (MTTR)
         """
-        peers = metrics.get('mesh_connectivity', 0)
-        packet_loss = metrics.get('packet_loss', 100)
-        latency = metrics.get('latency_ms', 1000)
-        mttr = metrics.get('mttr_minutes', 10)
-        
+        peers = metrics.get("mesh_connectivity", 0)
+        packet_loss = metrics.get("packet_loss", 100)
+        latency = metrics.get("latency_ms", 1000)
+        mttr = metrics.get("mttr_minutes", 10)
+
         # Peer health (log scale, target: 10+ peers)
         peer_health = min(1.0, math.log1p(peers) / math.log1p(10))
-        
+
         # Packet delivery (target: >98.4% delivery = <1.6% loss)
         delivery_health = max(0.0, 1.0 - (packet_loss / 10.0))
-        
+
         # Latency health (target: 82-87ms, acceptable up to 150ms)
         latency_health = max(0.0, 1.0 - (latency / 150.0))
-        
+
         # Self-healing health (target: MTTR ≤ 3.14 minutes)
         healing_health = max(0.0, 1.0 - (mttr / 10.0))
-        
+
         # Weighted mesh health
         mesh_health = (
-            peer_health * 0.25 +
-            delivery_health * 0.30 +
-            latency_health * 0.25 +
-            healing_health * 0.20
+            peer_health * 0.25
+            + delivery_health * 0.30
+            + latency_health * 0.25
+            + healing_health * 0.20
         )
-        
+
         return mesh_health
 
     def evaluate_state(self, phi_ratio: float) -> ConsciousnessState:
         """
         Evaluate consciousness state based on phi-ratio.
-        
+
         States map to system operational modes:
         - EUPHORIC: Peak performance, proactive optimization
         - HARMONIC: Stable operation, normal monitoring
@@ -241,7 +293,7 @@ class ConsciousnessEngine:
                 return ConsciousnessState.CONTEMPLATIVE
             else:
                 return ConsciousnessState.MYSTICAL
-        
+
         # Standard evaluation
         if phi_ratio > 1.4:
             return ConsciousnessState.EUPHORIC
@@ -259,72 +311,97 @@ class ConsciousnessEngine:
             self.last_degraded_time = time.time()
             return ConsciousnessState.MYSTICAL
 
-    def get_consciousness_metrics(self, raw_metrics: Dict[str, float], 
-                                  timestamp: Optional[float] = None) -> ConsciousnessMetrics:
+    def get_consciousness_metrics(
+        self,
+        raw_metrics: Dict[str, float],
+        timestamp: Optional[float] = None,
+        swarm_risk_penalty: float = 0.0,
+    ) -> ConsciousnessMetrics:
         """
         Generate complete consciousness metrics from raw system measurements using GraphSAGE.
-        
+
         Args:
             raw_metrics: Dictionary of system metrics
             timestamp: Optional timestamp (defaults to current time)
-            
+            swarm_risk_penalty: Penalty factor from swarm analysis
+
         Returns:
             ConsciousnessMetrics object with all calculated values
         """
         if timestamp is None:
             timestamp = time.time()
-        
+
         # --- Prepare GraphSAGE input features ---
-        # GraphSAGE expects 8D features: RSSI, SNR, loss rate, link age, latency, throughput, CPU, memory
+        # GraphSAGE expects 8D features: RSSI, SNR, loss rate, link age,
+        # latency, throughput, CPU, memory
         node_features_for_graphsage = {
-            'rssi': raw_metrics.get('rssi', -60.0), # Default if not provided
-            'snr': raw_metrics.get('snr', 25.0),    # Default if not provided
-            'loss_rate': raw_metrics.get('packet_loss', 0.0),
-            'link_age': raw_metrics.get('link_age', 3600.0), # Default
-            'latency': raw_metrics.get('latency_ms', 50.0),
-            'throughput': raw_metrics.get('throughput_mbps', 100.0), # Default
-            'cpu': raw_metrics.get('cpu_percent', 0.5) * 100, # Convert 0-1 to 0-100
-            'memory': raw_metrics.get('memory_percent', 0.4) * 100 # Convert 0-1 to 0-100
+            "rssi": raw_metrics.get("rssi", -60.0),  # Default if not provided
+            "snr": raw_metrics.get("snr", 25.0),  # Default if not provided
+            "loss_rate": raw_metrics.get("packet_loss", 0.0),
+            "link_age": raw_metrics.get("link_age", 3600.0),  # Default
+            "latency": raw_metrics.get("latency_ms", 50.0),
+            "throughput": raw_metrics.get("throughput_mbps", 100.0),  # Default
+            # Convert 0-1 to 0-100
+            "cpu": raw_metrics.get("cpu_percent", 0.5) * 100,
+            # Convert 0-1 to 0-100
+            "memory": raw_metrics.get("memory_percent", 0.4) * 100,
         }
-        
+
         # --- Use GraphSAGE for anomaly prediction ---
-        node_id = raw_metrics.get('node_id', 'self') # Use 'self' or actual node_id
+        # Use 'self' or actual node_id
+        node_id = raw_metrics.get("node_id", "self")
         # For initial integration, we'll assume no explicit neighbors are passed for this node's prediction context.
         # The GraphSAGE model can still make a prediction based on the node's features.
-        # We pass an empty list for neighbors and edge_index for a single-node prediction.
-        
-        # Note: If GraphSAGE is not trained, it will fall back to rule-based prediction.
-        
+        # We pass an empty list for neighbors and edge_index for a single-node
+        # prediction.
+
+        # Note: If GraphSAGE is not trained, it will fall back to rule-based
+        # prediction.
+
         anomaly_prediction: AnomalyPrediction = self.graphsage_detector.predict(
             node_id=node_id,
             node_features=node_features_for_graphsage,
-            neighbors=[] # No explicit neighbors for single node prediction
+            neighbors=[],  # No explicit neighbors for single node prediction
         )
-        
+
         # --- Convert GraphSAGE output to ConsciousnessMetrics ---
         # Higher anomaly score -> lower phi_ratio, worse state
-        # We can invert the anomaly_score to get a 'health' score, then map to phi-ratio.
+        # We can invert the anomaly_score to get a 'health' score, then map to
+        # phi-ratio.
         health_score = 1.0 - anomaly_prediction.anomaly_score
-        
+
         # Map health_score to phi_ratio (e.g., 1/PHI to PHI)
         # Perfect health (1.0) maps to PHI
         # Zero health (0.0) maps to 1/PHI
-        phi = (PHI * health_score) + ((1/PHI) * (1 - health_score)) # Linear interpolation between 1/PHI and PHI
-        
+        # Linear interpolation between 1/PHI and PHI
+        phi_base = (PHI * health_score) + ((1 / PHI) * (1 - health_score))
+
+        # Apply Swarm Risk Penalty if present (modifies the base phi from
+        # GraphSAGE)
+        if swarm_risk_penalty > 0:
+            phi = phi_base * (1.0 - min(0.8, swarm_risk_penalty))
+        else:
+            phi = phi_base
+
         # Evaluate ConsciousnessState based on the derived phi
-        state = self.evaluate_state(phi) # Reuse existing state evaluation logic
-        
-        # Continue with other metric calculations (can also be influenced by GraphSAGE)
+        # Reuse existing state evaluation logic
+        state = self.evaluate_state(phi)
+
+        # Continue with other metric calculations (can also be influenced by
+        # GraphSAGE)
         alignment = self.calculate_frequency_alignment(
-            phi, 
-            raw_metrics.get('frequency_hz')
+            phi, raw_metrics.get("frequency_hz")
         )
-        entropy = self.calculate_entropy(raw_metrics) # This still uses history
-        mesh_health = self.calculate_mesh_health(raw_metrics) # This still uses raw metrics
-        
+        entropy = self.calculate_entropy(raw_metrics)  # This still uses history
+        mesh_health = self.calculate_mesh_health(
+            raw_metrics
+        )  # This still uses raw metrics
+
         # Harmony index (can be further refined with GraphSAGE confidence)
-        harmony = (phi / PHI + alignment + (1.0 - anomaly_prediction.anomaly_score)) / 3.0
-        
+        harmony = (
+            phi / PHI + alignment + (1.0 - anomaly_prediction.anomaly_score)
+        ) / 3.0
+
         metrics = ConsciousnessMetrics(
             phi_ratio=phi,
             state=state,
@@ -332,108 +409,118 @@ class ConsciousnessEngine:
             entropy=entropy,
             harmony_index=harmony,
             mesh_health=mesh_health,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
-        
+
         # Store in history
         self.history.append(metrics)
         if len(self.history) > self.max_history:
             self.history.pop(0)
-        
+
         return metrics
 
-    def get_operational_directive(self, metrics: ConsciousnessMetrics) -> Dict[str, any]:
+    def get_operational_directive(
+        self, metrics: ConsciousnessMetrics
+    ) -> Dict[str, any]:
         """
         Translate consciousness state to operational directives for MAPE-K loop.
-        
+
         Returns:
             Dictionary with recommended actions based on current state
         """
         directives = {
-            'state': metrics.state.value,
-            'monitoring_interval_sec': 60,
-            'enable_aggressive_healing': False,
-            'route_preference': 'balanced',
-            'scaling_action': 'none',
-            'alert_level': 'info'
+            "state": metrics.state.value,
+            "monitoring_interval_sec": 60,
+            "enable_aggressive_healing": False,
+            "route_preference": "balanced",
+            "scaling_action": "none",
+            "alert_level": "info",
         }
-        
+
         if metrics.state == ConsciousnessState.EUPHORIC:
             # Peak performance: reduce monitoring overhead, enable optimization
-            directives.update({
-                'monitoring_interval_sec': 120,
-                'route_preference': 'performance',
-                'scaling_action': 'optimize',
-                'message': "Желание исполнено! Система в эйфории."
-            })
-            
+            directives.update(
+                {
+                    "monitoring_interval_sec": 120,
+                    "route_preference": "performance",
+                    "scaling_action": "optimize",
+                    "message": "Желание исполнено! Система в эйфории.",
+                }
+            )
+
         elif metrics.state == ConsciousnessState.HARMONIC:
             # Normal operation: standard monitoring
-            directives.update({
-                'monitoring_interval_sec': 60,
-                'route_preference': 'balanced',
-                'message': "Всё в балансе. Гармоничное состояние."
-            })
-            
+            directives.update(
+                {
+                    "monitoring_interval_sec": 60,
+                    "route_preference": "balanced",
+                    "message": "Всё в балансе. Гармоничное состояние.",
+                }
+            )
+
         elif metrics.state == ConsciousnessState.CONTEMPLATIVE:
             # Degraded: increase monitoring, prepare for healing
-            directives.update({
-                'monitoring_interval_sec': 30,
-                'route_preference': 'reliability',
-                'alert_level': 'warning',
-                'message': "Размышляю... Состояние требует внимания."
-            })
-            
+            directives.update(
+                {
+                    "monitoring_interval_sec": 30,
+                    "route_preference": "reliability",
+                    "alert_level": "warning",
+                    "message": "Размышляю... Состояние требует внимания.",
+                }
+            )
+
         else:  # MYSTICAL
             # Critical: maximum monitoring, aggressive self-healing
-            directives.update({
-                'monitoring_interval_sec': 10,
-                'enable_aggressive_healing': True,
-                'route_preference': 'survival',
-                'scaling_action': 'emergency_scale',
-                'alert_level': 'critical',
-                'message': "Погружение в глубину. Активировано аварийное самовосстановление."
-            })
-        
+            directives.update(
+                {
+                    "monitoring_interval_sec": 10,
+                    "enable_aggressive_healing": True,
+                    "route_preference": "survival",
+                    "scaling_action": "emergency_scale",
+                    "alert_level": "critical",
+                    "message": "Погружение в глубину. Активировано аварийное самовосстановление.",
+                }
+            )
+
         return directives
 
     def get_trend_analysis(self, window_size: int = 50) -> Dict[str, str]:
         """
         Analyze trends in consciousness metrics over recent history.
-        
+
         Returns:
             Dictionary with trend analysis (improving/stable/degrading)
         """
         if len(self.history) < window_size:
-            return {'trend': 'insufficient_data'}
-        
+            return {"trend": "insufficient_data"}
+
         recent = self.history[-window_size:]
         phi_values = [m.phi_ratio for m in recent]
-        
+
         # Simple linear regression to detect trend
         # x = np.arange(len(phi_values))
         # slope = np.polyfit(x, phi_values, 1)[0]
-        
+
         n = len(phi_values)
         x = list(range(n))
         y = phi_values
-        
+
         sum_x = sum(x)
         sum_y = sum(y)
         sum_xy = sum(xi * yi for xi, yi in zip(x, y))
-        sum_xx = sum(xi ** 2 for xi in x)
-        
-        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x ** 2)
-        
-        trend = 'stable'
+        sum_xx = sum(xi**2 for xi in x)
+
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x**2)
+
+        trend = "stable"
         if slope > 0.01:
-            trend = 'improving'
+            trend = "improving"
         elif slope < -0.01:
-            trend = 'degrading'
-        
+            trend = "degrading"
+
         return {
-            'trend': trend,
-            'slope': float(slope),
-            'current_phi': phi_values[-1],
-            'avg_phi': float(sum(phi_values) / n)
+            "trend": trend,
+            "slope": float(slope),
+            "current_phi": phi_values[-1],
+            "avg_phi": float(sum(phi_values) / n),
         }

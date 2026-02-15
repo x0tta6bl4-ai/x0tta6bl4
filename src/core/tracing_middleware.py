@@ -8,11 +8,13 @@ Provides automatic request/response tracing with:
 - Error tracking
 - Correlation ID propagation
 """
-import time
+
 import logging
+import time
 import uuid
-from typing import Optional, Callable
 from contextvars import ContextVar
+from typing import Callable, Optional
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -20,14 +22,18 @@ from starlette.responses import Response
 logger = logging.getLogger(__name__)
 
 # Context variable for request correlation ID
-correlation_id_var: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)
+correlation_id_var: ContextVar[Optional[str]] = ContextVar(
+    "correlation_id", default=None
+)
 
 # OpenTelemetry imports (optional)
 OTEL_AVAILABLE = False
 try:
     from opentelemetry import trace
     from opentelemetry.trace import Status, StatusCode
-    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+    from opentelemetry.trace.propagation.tracecontext import \
+        TraceContextTextMapPropagator
+
     OTEL_AVAILABLE = True
 except ImportError:
     logger.debug("OpenTelemetry not available - tracing middleware will be no-op")
@@ -56,7 +62,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         service_name: str = "x0tta6bl4",
         excluded_paths: Optional[list] = None,
         record_request_body: bool = False,
-        record_response_body: bool = False
+        record_response_body: bool = False,
     ):
         super().__init__(app)
         self.service_name = service_name
@@ -71,7 +77,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
         else:
             self.tracer = None
             self.propagator = None
-            logger.warning("Tracing middleware running in no-op mode (OpenTelemetry not available)")
+            logger.warning(
+                "Tracing middleware running in no-op mode (OpenTelemetry not available)"
+            )
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Skip tracing for excluded paths
@@ -107,9 +115,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         span_name = f"{request.method} {path}"
 
         with self.tracer.start_as_current_span(
-            span_name,
-            context=ctx,
-            kind=trace.SpanKind.SERVER
+            span_name, context=ctx, kind=trace.SpanKind.SERVER
         ) as span:
             # Set request attributes
             span.set_attribute("http.method", request.method)
@@ -139,14 +145,20 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
                 # Set response attributes
                 span.set_attribute("http.status_code", response.status_code)
-                span.set_attribute("http.response_content_type",
-                                   response.headers.get("content-type", "unknown"))
+                span.set_attribute(
+                    "http.response_content_type",
+                    response.headers.get("content-type", "unknown"),
+                )
 
                 # Mark span status based on HTTP status
                 if response.status_code >= 500:
-                    span.set_status(Status(StatusCode.ERROR, f"HTTP {response.status_code}"))
+                    span.set_status(
+                        Status(StatusCode.ERROR, f"HTTP {response.status_code}")
+                    )
                 elif response.status_code >= 400:
-                    span.set_status(Status(StatusCode.ERROR, f"Client error {response.status_code}"))
+                    span.set_status(
+                        Status(StatusCode.ERROR, f"Client error {response.status_code}")
+                    )
                 else:
                     span.set_status(Status(StatusCode.OK))
 
@@ -158,7 +170,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 trace_context = {}
                 self.propagator.inject(trace_context)
                 if "traceparent" in trace_context:
-                    response.headers["X-Trace-ID"] = trace_context.get("traceparent", "")
+                    response.headers["X-Trace-ID"] = trace_context.get(
+                        "traceparent", ""
+                    )
 
                 span.set_attribute("http.duration_ms", duration * 1000)
 
@@ -198,12 +212,10 @@ class DatabaseTracingMiddleware:
         """Context manager for tracing database queries."""
         if not OTEL_AVAILABLE or not self.tracer:
             from contextlib import nullcontext
+
             return nullcontext()
 
-        span = self.tracer.start_span(
-            f"db.{operation}",
-            kind=trace.SpanKind.CLIENT
-        )
+        span = self.tracer.start_span(f"db.{operation}", kind=trace.SpanKind.CLIENT)
         span.set_attribute("db.system", "postgresql")
         span.set_attribute("db.operation", operation)
         span.set_attribute("db.table", table)
@@ -233,11 +245,11 @@ class ExternalAPITracingMiddleware:
         """Context manager for tracing external API calls."""
         if not OTEL_AVAILABLE or not self.tracer:
             from contextlib import nullcontext
+
             return nullcontext()
 
         span = self.tracer.start_span(
-            f"external.{service}.{operation}",
-            kind=trace.SpanKind.CLIENT
+            f"external.{service}.{operation}", kind=trace.SpanKind.CLIENT
         )
         span.set_attribute("external.service", service)
         span.set_attribute("external.operation", operation)

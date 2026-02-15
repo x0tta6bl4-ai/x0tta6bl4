@@ -1,0 +1,34 @@
+services:
+  torrserver:
+    image: ghcr.io/yourok/torrserver:latest
+    container_name: torrserver
+    restart: unless-stopped
+    expose:
+      - "8090"
+    volumes:
+      - ./torrserver/db:/opt/torrserver/db
+    command: ["/usr/bin/torrserver", "--port", "8090", "--path", "/opt/torrserver/db"]
+    networks:
+      - torrnet
+
+  caddy:
+    image: caddy:alpine
+    container_name: caddy
+    ports:
+      - "8090:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - torrserver
+    networks:
+      - torrnet
+
+networks:
+  torrnet:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

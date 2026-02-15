@@ -1,16 +1,20 @@
 """Unit tests for FL Transport (client/server roundtrip)."""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 import pytest_asyncio
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
 
 try:
     from aiohttp import web
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     AIOHTTP_AVAILABLE = False
 
-from src.federated_learning.transport import FLTransportServer, FLTransportClient
+from src.federated_learning.transport import (FLTransportClient,
+                                              FLTransportServer)
 
 
 @pytest.fixture
@@ -51,8 +55,16 @@ class TestFLTransportRoundtrip:
     @pytest_asyncio.fixture
     async def server_and_client(self, mock_coordinator, monkeypatch):
         # Clear proxy env vars that interfere with local httpx requests
-        for var in ("ALL_PROXY", "HTTP_PROXY", "HTTPS_PROXY",
-                    "all_proxy", "http_proxy", "https_proxy", "NO_PROXY", "no_proxy"):
+        for var in (
+            "ALL_PROXY",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "all_proxy",
+            "http_proxy",
+            "https_proxy",
+            "NO_PROXY",
+            "no_proxy",
+        ):
             monkeypatch.delenv(var, raising=False)
         """Start server on ephemeral port, create client."""
         server = FLTransportServer(mock_coordinator, host="127.0.0.1", port=0)
@@ -68,7 +80,11 @@ class TestFLTransportRoundtrip:
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, "127.0.0.1", 0)
-        await site.start()
+        try:
+            await site.start()
+        except OSError as exc:
+            await runner.cleanup()
+            pytest.skip(f"socket bind unavailable in test environment: {exc}")
 
         # Get actual port
         port = site._server.sockets[0].getsockname()[1]

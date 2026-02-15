@@ -15,12 +15,17 @@
 // This design keeps expensive PQC operations in userspace while using
 // eBPF for wire-speed packet filtering with O(1) session lookup.
 
-#include <linux/bpf.h>
-#include <linux/if_ether.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+
+#ifndef IPPROTO_UDP
+#define IPPROTO_UDP 17
+#endif
+
+#ifndef ETH_P_IP
+#define ETH_P_IP 0x0800
+#endif
 
 // --- Session State ---
 

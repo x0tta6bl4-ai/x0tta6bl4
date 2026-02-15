@@ -1,0 +1,33 @@
+---
+# Chaos Mesh Scenario 4: Latency Injection
+# Tests MAPE-K response to increased network latency
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: mesh-latency-injection
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: latency-injection
+spec:
+  action: delay
+  mode: one # or 'all', 'fixed', 'fixed-percent', 'random-max-percent'
+  selector:
+    labelSelectors:
+      app: x0tta6bl4-node # Target all x0tta6bl4 nodes
+  delay:
+    latency: "100ms" # Inject 100ms latency
+    correlation: "100" # 100% of packets affected
+    reorder:
+      reorder: "0" # No reordering
+      correlation: "0"
+    gap: "0" # No gap
+  duration: "30s" # Inject latency for 30 seconds
+  scheduler:
+    cron: "@every 5m" # Repeat every 5 minutes
+  # Pod selector to exclude certain pods if necessary
+  # podSelector:
+  #   namespaces:
+  #     - x0tta6bl4
+  #   labelSelectors:
+  #     app: x0tta6bl4-node
+  #     component: core

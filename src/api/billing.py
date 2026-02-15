@@ -1,20 +1,32 @@
-import os
-import time
-import hmac
 import hashlib
+import hmac
 import json
 import logging
-from typing import Optional, Dict, Any
+import os
+import sys
+import time
+import uuid
+import datetime
+from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Header, status, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.database import get_db, User, License
-from src.core.circuit_breaker import stripe_circuit, CircuitBreakerOpen
+from src.services.xray_manager import XrayManager
+
+# Simplified import
+try:
+    from vpn_config_generator import generate_vless_link
+except ImportError:
+    generate_vless_link = None
+
+
+from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
+from src.database import License, Payment, User, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +77,10 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
 
     secret_key = _require_env("STRIPE_SECRET_KEY")
     price_id = _require_env("STRIPE_PRICE_ID")
-    success_url = _get_env("STRIPE_SUCCESS_URL") or "http://localhost:8080/?success=1"
+    success_url = (
+        _get_env("STRIPE_SUCCESS_URL")
+        or "http://localhost:8080/?success=1&session_id={CHECKOUT_SESSION_ID}"
+    )
     cancel_url = _get_env("STRIPE_CANCEL_URL") or "http://localhost:8080/?canceled=1"
 
     data: Dict[str, Any] = {
@@ -102,11 +117,13 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
         logger.error("Stripe API circuit breaker is open")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment service temporarily unavailable. Please try again later."
+            detail="Payment service temporarily unavailable. Please try again later.",
         )
 
 
-def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str, tolerance_seconds: int = 300) -> None:
+def _verify_stripe_signature(
+    payload: bytes, signature_header: str, secret: str, tolerance_seconds: int = 300
+) -> None:
     parts: Dict[str, str] = {}
     for item in signature_header.split(","):
         item = item.strip()
@@ -125,7 +142,9 @@ def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str,
         raise HTTPException(status_code=400, detail="Invalid signature timestamp")
 
     if abs(int(time.time()) - ts_int) > tolerance_seconds:
-        raise HTTPException(status_code=400, detail="Signature timestamp outside tolerance")
+        raise HTTPException(
+            status_code=400, detail="Signature timestamp outside tolerance"
+        )
 
     signed = f"{timestamp}.".encode("utf-8") + payload
     expected = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
@@ -139,7 +158,7 @@ def _verify_stripe_signature(payload: bytes, signature_header: str, secret: str,
 async def stripe_webhook(
     request: Request,
     db: Session = Depends(get_db),
-    stripe_signature: Optional[str] = Header(default=None, alias="Stripe-Signature")
+    stripe_signature: Optional[str] = Header(default=None, alias="Stripe-Signature"),
 ):
     secret = _require_env("STRIPE_WEBHOOK_SECRET")
     if not stripe_signature:
@@ -154,7 +173,7 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     event_type = event.get("type")
-    obj = ((event.get("data") or {}).get("object") or {})
+    obj = (event.get("data") or {}).get("object") or {}
 
     email = None
     customer_details = obj.get("customer_details") if isinstance(obj, dict) else None
@@ -167,32 +186,42 @@ async def stripe_webhook(
         if isinstance(metadata, dict):
             email = metadata.get("user_email")
 
-    if email and event_type in {"checkout.session.completed", "invoice.paid", "customer.subscription.created"}:
+    if email and event_type in {
+        "checkout.session.completed",
+        "invoice.paid",
+        "customer.subscription.created",
+    }:
         try:
-            from src.api.users import users_db
             from src.sales.telegram_bot import TokenGenerator
-
-            # Update in-memory user (for backward compatibility)
-            user = users_db.get(email)
-            if user is not None:
-                user["plan"] = "pro"
-                user["stripe_customer_id"] = obj.get("customer")
-                user["stripe_subscription_id"] = obj.get("subscription")
 
             # Update database using injected session
             db_user = db.query(User).filter(User.email == email).first()
+            if not db_user:
+                # Create user if not exists (e.g. direct buy)
+                db_user = User(
+                    id=str(uuid.uuid4()),
+                    email=email,
+                    password_hash="stripe_managed",  # Placeholder
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add(db_user)
+                db.commit()
+
             if db_user:
                 db_user.plan = "pro"
                 db_user.stripe_customer_id = obj.get("customer")
-                db_user.stripe_subscription_id = obj.get("subscription")
+                db_user.stripe_subscription_id = obj.get("subscription") or obj.get(
+                    "id"
+                )
 
-                # Generate license for pro plan
+                # Generate VPN UUID if missing
+                if not db_user.vpn_uuid:
+                    db_user.vpn_uuid = str(uuid.uuid4())
+
+                # Generate license for pro plan (legacy)
                 license_token = TokenGenerator.generate(tier="pro")
                 new_license = License(
-                    token=license_token,
-                    user_id=db_user.id,
-                    tier="pro",
-                    is_active=True
+                    token=license_token, user_id=db_user.id, tier="pro", is_active=True
                 )
                 db.add(new_license)
                 db.commit()
@@ -200,8 +229,59 @@ async def stripe_webhook(
 
                 logger.info(f"Generated pro license {license_token} for user {email}")
 
+                # Update Xray Config
+                await XrayManager.add_user(db_user.vpn_uuid, email)
+
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
             db.rollback()
 
     return {"received": True}
+
+
+@router.get("/order-status")
+async def get_order_status(session_id: str, db: Session = Depends(get_db)):
+    """Check order status and return VLESS link if paid."""
+    # Since we don't track session_id in User directly in this simple MVP,
+    # we verify against Stripe API or assume if User exists and is PRO, it's done.
+    # But for MVP, session_id is key. We should query Stripe to get customer_email.
+
+    secret_key = _require_env("STRIPE_SECRET_KEY")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"https://api.stripe.com/v1/checkout/sessions/{session_id}",
+            auth=(secret_key, ""),
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_data = resp.json()
+
+    payment_status = session_data.get("payment_status")
+    if payment_status == "paid":
+        customer_email = session_data.get("customer_details", {}).get("email")
+        if not customer_email:
+            return {"status": "processing", "message": "Email missing from payment"}
+
+        db_user = db.query(User).filter(User.email == customer_email).first()
+        if db_user and db_user.plan == "pro" and db_user.vpn_uuid:
+            # Generate link
+            host = os.getenv(
+                "XRAY_HOST", "localhost"
+            )  # For client side, should be public IP
+            # Ideally get public IP or domain
+            public_host = os.getenv("PUBLIC_DOMAIN", host)
+
+            link = generate_vless_link(db_user.vpn_uuid, server=public_host, port=443)
+            return {
+                "status": "paid",
+                "vless_link": link,
+                "instructions": "Copy this link into V2Ray/Xray client.",
+            }
+        else:
+            return {
+                "status": "processing",
+                "message": "Payment received, provisioning account...",
+            }
+    else:
+        return {"status": payment_status}

@@ -5,9 +5,9 @@ Check benchmark results against baseline thresholds.
 Blocks CI/CD if degradation exceeds threshold.
 """
 
+import argparse
 import json
 import sys
-import argparse
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -18,11 +18,13 @@ def load_json(filepath: Path) -> Dict:
         return json.load(f)
 
 
-def compare_metrics(baseline: Dict, current: Dict, threshold: float = 0.10) -> tuple[bool, list]:
+def compare_metrics(
+    baseline: Dict, current: Dict, threshold: float = 0.10
+) -> tuple[bool, list]:
     """Compare current metrics against baseline"""
     issues = []
     all_pass = True
-    
+
     metrics_to_check = [
         "pqc_encrypt_latency_ms",
         "pqc_decrypt_latency_ms",
@@ -30,17 +32,17 @@ def compare_metrics(baseline: Dict, current: Dict, threshold: float = 0.10) -> t
         "latency_p95_ms",
         "latency_p99_ms",
     ]
-    
+
     for metric in metrics_to_check:
         baseline_val = baseline.get(metric)
         current_val = current.get(metric)
-        
+
         if baseline_val is None or current_val is None:
             continue  # Skip if not available
-        
+
         # Calculate degradation (positive = worse)
         degradation = (current_val - baseline_val) / baseline_val
-        
+
         if degradation > threshold:
             all_pass = False
             issues.append(
@@ -53,7 +55,7 @@ def compare_metrics(baseline: Dict, current: Dict, threshold: float = 0.10) -> t
                 f"✅ {metric}: {abs(degradation)*100:.1f}% improvement "
                 f"(baseline: {baseline_val:.2f}ms, current: {current_val:.2f}ms)"
             )
-    
+
     return all_pass, issues
 
 
@@ -62,26 +64,23 @@ def main():
         description="Check benchmark results against baseline"
     )
     parser.add_argument(
-        "--baseline",
-        type=Path,
-        required=True,
-        help="Path to baseline JSON file"
+        "--baseline", type=Path, required=True, help="Path to baseline JSON file"
     )
     parser.add_argument(
         "--current",
         type=Path,
         required=True,
-        help="Path to current benchmark JSON file"
+        help="Path to current benchmark JSON file",
     )
     parser.add_argument(
         "--threshold",
         type=float,
         default=0.10,
-        help="Maximum allowed degradation (default: 0.10 = 10%%)"
+        help="Maximum allowed degradation (default: 0.10 = 10%%)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Load files
     try:
         baseline = load_json(args.baseline)
@@ -92,27 +91,27 @@ def main():
     except json.JSONDecodeError as e:
         print(f"❌ Error parsing JSON: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     # Compare
     all_pass, issues = compare_metrics(baseline, current, args.threshold)
-    
+
     # Print results
-    print("="*60)
+    print("=" * 60)
     print("BENCHMARK THRESHOLD CHECK")
-    print("="*60)
+    print("=" * 60)
     print(f"Baseline: {args.baseline}")
     print(f"Current: {args.current}")
     print(f"Threshold: {args.threshold*100:.1f}%")
-    print("="*60)
-    
+    print("=" * 60)
+
     if issues:
         for issue in issues:
             print(issue)
     else:
         print("✅ No significant changes detected")
-    
-    print("="*60)
-    
+
+    print("=" * 60)
+
     # Exit code
     if all_pass:
         print("✅ All metrics within threshold")
@@ -124,4 +123,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

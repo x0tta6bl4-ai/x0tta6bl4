@@ -4,27 +4,21 @@ Unit tests for FederatedCoordinator.
 Covers: node management, round lifecycle, model updates, aggregation,
 heartbeat monitoring, callbacks, metrics, and edge cases.
 """
+
 import time
+from unittest.mock import MagicMock, PropertyMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
 
-from src.federated_learning.coordinator import (
-    FederatedCoordinator,
-    CoordinatorConfig,
-    NodeInfo,
-    NodeStatus,
-    RoundStatus,
-    TrainingRound,
-)
-from src.federated_learning.protocol import (
-    ModelUpdate,
-    ModelWeights,
-    GlobalModel,
-    AggregationResult,
-)
-
+from src.federated_learning.coordinator import (CoordinatorConfig,
+                                                FederatedCoordinator, NodeInfo,
+                                                NodeStatus, RoundStatus,
+                                                TrainingRound)
+from src.federated_learning.protocol import (AggregationResult, GlobalModel,
+                                             ModelUpdate, ModelWeights)
 
 # --------------- Helpers ---------------
+
 
 def _make_weights(values=None):
     """Create a simple ModelWeights for testing."""
@@ -32,7 +26,9 @@ def _make_weights(values=None):
     return ModelWeights(layer_weights={"flat": values})
 
 
-def _make_update(node_id, round_number=1, num_samples=100, weights=None, training_time=1.0):
+def _make_update(
+    node_id, round_number=1, num_samples=100, weights=None, training_time=1.0
+):
     """Create a ModelUpdate with sensible defaults."""
     return ModelUpdate(
         node_id=node_id,
@@ -70,6 +66,7 @@ def _register_nodes(coord, count=5, prefix="node"):
 
 
 # --------------- NodeInfo Tests ---------------
+
 
 class TestNodeInfo:
     """Tests for the NodeInfo dataclass."""
@@ -114,6 +111,7 @@ class TestNodeInfo:
 
 # --------------- TrainingRound Tests ---------------
 
+
 class TestTrainingRound:
     def test_collection_complete(self):
         r = TrainingRound(round_number=1, min_participants=2)
@@ -144,6 +142,7 @@ class TestTrainingRound:
 
 # --------------- CoordinatorConfig Tests ---------------
 
+
 class TestCoordinatorConfig:
     def test_defaults(self):
         cfg = CoordinatorConfig()
@@ -158,6 +157,7 @@ class TestCoordinatorConfig:
 
 
 # --------------- Node Management ---------------
+
 
 class TestNodeManagement:
     def test_register_node(self):
@@ -209,6 +209,7 @@ class TestNodeManagement:
 
 # --------------- Heartbeat ---------------
 
+
 class TestHeartbeat:
     def test_update_heartbeat_resets_missed(self):
         coord = _make_coordinator()
@@ -257,6 +258,7 @@ class TestHeartbeat:
 
 
 # --------------- Round Management ---------------
+
 
 class TestStartRound:
     def test_start_round_success(self):
@@ -321,6 +323,7 @@ class TestStartRound:
 
 # --------------- Submit Update ---------------
 
+
 class TestSubmitUpdate:
     def _setup_round(self, coord):
         """Start a round and return selected node IDs."""
@@ -379,6 +382,7 @@ class TestSubmitUpdate:
 
 # --------------- Aggregation Trigger ---------------
 
+
 class TestAggregation:
     def _fill_round(self, coord, count):
         """Submit `count` updates to the current round from selected nodes."""
@@ -398,7 +402,8 @@ class TestAggregation:
         self._fill_round(coord, 3)
         # After meeting min_participants, aggregation triggers
         assert coord.current_round.status in (
-            RoundStatus.COMPLETED, RoundStatus.AGGREGATING
+            RoundStatus.COMPLETED,
+            RoundStatus.AGGREGATING,
         )
 
     def test_aggregation_success_creates_global_model(self):
@@ -422,9 +427,7 @@ class TestAggregation:
         coord.start_round()
         # Patch aggregator to fail
         coord.aggregator.aggregate = MagicMock(
-            return_value=AggregationResult(
-                success=False, error_message="boom"
-            )
+            return_value=AggregationResult(success=False, error_message="boom")
         )
         self._fill_round(coord, 3)
         assert coord.current_round.status == RoundStatus.FAILED
@@ -506,6 +509,7 @@ class TestAggregation:
 
 # --------------- Round Timeout ---------------
 
+
 class TestRoundTimeout:
     def test_timeout_no_round(self):
         coord = _make_coordinator()
@@ -557,6 +561,7 @@ class TestRoundTimeout:
 
 # --------------- Model Management ---------------
 
+
 class TestModelManagement:
     def test_initialize_model(self):
         coord = _make_coordinator()
@@ -578,6 +583,7 @@ class TestModelManagement:
 
 # --------------- Callbacks ---------------
 
+
 class TestCallbacks:
     def _run_successful_round(self, coord):
         _register_nodes(coord, 5)
@@ -588,7 +594,8 @@ class TestCallbacks:
 
     def test_on_round_complete_callback(self):
         coord = _make_coordinator(
-            aggregation_method="fedavg", min_participants=3,
+            aggregation_method="fedavg",
+            min_participants=3,
         )
         callback = MagicMock()
         coord.on_round_complete(callback)
@@ -597,7 +604,8 @@ class TestCallbacks:
 
     def test_on_model_update_callback(self):
         coord = _make_coordinator(
-            aggregation_method="fedavg", min_participants=3,
+            aggregation_method="fedavg",
+            min_participants=3,
         )
         callback = MagicMock()
         coord.on_model_update(callback)
@@ -606,7 +614,8 @@ class TestCallbacks:
 
     def test_callback_exception_does_not_crash(self):
         coord = _make_coordinator(
-            aggregation_method="fedavg", min_participants=3,
+            aggregation_method="fedavg",
+            min_participants=3,
         )
         bad_cb = MagicMock(side_effect=ValueError("cb error"))
         coord.on_round_complete(bad_cb)
@@ -616,7 +625,8 @@ class TestCallbacks:
 
     def test_model_update_callback_exception_does_not_crash(self):
         coord = _make_coordinator(
-            aggregation_method="fedavg", min_participants=3,
+            aggregation_method="fedavg",
+            min_participants=3,
         )
         bad_cb = MagicMock(side_effect=RuntimeError("boom"))
         coord.on_model_update(bad_cb)
@@ -625,6 +635,7 @@ class TestCallbacks:
 
 
 # --------------- Lifecycle ---------------
+
 
 class TestLifecycle:
     def test_start_and_stop(self):
@@ -649,6 +660,7 @@ class TestLifecycle:
 
 
 # --------------- Metrics ---------------
+
 
 class TestMetrics:
     def test_get_metrics_initial(self):
@@ -690,6 +702,7 @@ class TestMetrics:
 
 # --------------- Aggregator Initialization ---------------
 
+
 class TestAggregatorInit:
     def test_krum_aggregator(self):
         coord = _make_coordinator(aggregation_method="krum")
@@ -706,6 +719,7 @@ class TestAggregatorInit:
 
 
 # --------------- End-to-End Round Flow ---------------
+
 
 class TestEndToEndRound:
     """Full round lifecycle: register -> start -> submit -> aggregate."""

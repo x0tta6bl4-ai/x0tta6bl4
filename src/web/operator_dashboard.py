@@ -2,8 +2,10 @@
 x0tta6bl4 Operator Dashboard.
 Visual interface for node stats and earnings.
 """
-import os
+
 import json
+import os
+
 from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -13,21 +15,18 @@ if not app.secret_key:
 
 STATS_FILE = "node_stats.json"
 
+
 def get_stats():
     if os.path.exists(STATS_FILE):
         try:
-            with open(STATS_FILE, 'r') as f:
+            with open(STATS_FILE, "r") as f:
                 return json.load(f)
         except:
             pass
-    return {
-        'balance': '1000.0',
-        'packets': 0,
-        'uptime': 0,
-        'earnings_today': '0.0'
-    }
+    return {"balance": "1000.0", "packets": 0, "uptime": 0, "earnings_today": "0.0"}
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return """
 <!DOCTYPE html>
@@ -109,29 +108,32 @@ def index():
 </html>
     """
 
-@app.route('/api/stats')
+
+@app.route("/api/stats")
 def stats():
     data = get_stats()
-    return jsonify({
-        'node_id': data.get('node_id', 'unknown'),
-        'balance': data.get('balance', '0'),
-        'packets_relayed': data.get('packets', 0),
-        'uptime': data.get('uptime', 0),
-        'earnings_today': data.get('earnings_today', '0'),
-        'mesh': data.get('mesh', {})
-    })
+    return jsonify(
+        {
+            "node_id": data.get("node_id", "unknown"),
+            "balance": data.get("balance", "0"),
+            "packets_relayed": data.get("packets", 0),
+            "uptime": data.get("uptime", 0),
+            "earnings_today": data.get("earnings_today", "0"),
+            "mesh": data.get("mesh", {}),
+        }
+    )
 
-@app.route('/api/peers')
+
+@app.route("/api/peers")
 def peers():
     """Return list of mesh peers for discovery."""
     data = get_stats()
-    mesh = data.get('mesh', {})
-    return jsonify({
-        'node_id': data.get('node_id', 'unknown'),
-        'peers': mesh.get('peers', [])
-    })
+    mesh = data.get("mesh", {})
+    return jsonify(
+        {"node_id": data.get("node_id", "unknown"), "peers": mesh.get("peers", [])}
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Starting Dashboard on http://0.0.0.0:8080")
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host="0.0.0.0", port=8080)  # nosec B104

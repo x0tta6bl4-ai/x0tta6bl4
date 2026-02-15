@@ -1,18 +1,16 @@
 """
 Tests for Request Validation Middleware.
 """
+
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
-from src.core.request_validation import (
-    RequestValidationMiddleware,
-    ValidationConfig,
-    is_suspicious,
-    sanitize_string,
-    sanitize_dict,
-)
+from src.core.request_validation import (RequestValidationMiddleware,
+                                         ValidationConfig, is_suspicious,
+                                         sanitize_dict, sanitize_string)
 
 
 class TestIsSuspicious:
@@ -129,9 +127,7 @@ class TestValidationConfig:
     def test_custom_config(self):
         """Test custom configuration."""
         config = ValidationConfig(
-            max_content_length=1024,
-            max_url_length=500,
-            validate_content_type=False
+            max_content_length=1024, max_url_length=500, validate_content_type=False
         )
         assert config.max_content_length == 1024
         assert config.max_url_length == 500
@@ -192,9 +188,7 @@ class TestRequestValidationMiddleware:
     def test_invalid_content_type(self):
         """Test content type validation."""
         response = self.client.post(
-            "/data",
-            content="test data",
-            headers={"Content-Type": "text/xml"}
+            "/data", content="test data", headers={"Content-Type": "text/xml"}
         )
         assert response.status_code == 415
 
@@ -227,7 +221,7 @@ class TestMiddlewareIntegration:
         response = client.post(
             "/submit",
             json={"name": "test"},
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 200
 
@@ -271,8 +265,7 @@ class TestMiddlewareIntegration:
         client = TestClient(app)
 
         response = client.post(
-            "/api/data",
-            json={"name": "John", "email": "john@example.com"}
+            "/api/data", json={"name": "John", "email": "john@example.com"}
         )
         assert response.status_code == 200
 

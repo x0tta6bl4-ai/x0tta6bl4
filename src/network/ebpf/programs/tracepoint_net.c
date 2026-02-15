@@ -14,9 +14,23 @@
  *         -c tracepoint_net.c -o tracepoint_net.o
  */
 
-#include <linux/bpf.h>
-#include <linux/netdevice.h>
-#include <linux/skbuff.h>
+/*
+ * x0tta6bl4 Tracepoint Hooks for Network Events
+ * 
+ * Uses kernel tracepoints for network event observability.
+ * 
+ * Features:
+ * - Trace net:net_dev_xmit (egress)
+ * - Trace net:netif_receive_skb (ingress)
+ * - Trace sched:sched_switch (context switching)
+ * - Low overhead (tracepoints are static, no kprobe overhead)
+ * 
+ * Compile with CO-RE:
+ *   clang -O2 -g -target bpf -D__TARGET_ARCH_x86 \
+ *         -c tracepoint_net.c -o tracepoint_net.o
+ */
+
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
@@ -53,7 +67,8 @@ int trace_net_dev_xmit(struct trace_event_raw_net_dev_template *ctx)
     
     // CO-RE: Read ifindex from tracepoint context
     __u32 ifindex = 0;
-    bpf_core_read(&ifindex, sizeof(ifindex), &ctx->skb->dev->ifindex);
+    struct sk_buff *skb = (struct sk_buff *)ctx->skbaddr;
+    bpf_core_read(&ifindex, sizeof(ifindex), &skb->dev->ifindex);
     
     // Update per-CPU stats
     __u64 *count = bpf_map_lookup_elem(&net_dev_stats, &ifindex);
@@ -81,14 +96,15 @@ int trace_net_dev_xmit(struct trace_event_raw_net_dev_template *ctx)
 
 /* Trace network receive (ingress) */
 SEC("tracepoint/net/netif_receive_skb")
-int trace_netif_receive_skb(struct trace_event_raw_netif_receive_skb *ctx)
+int trace_netif_receive_skb(struct trace_event_raw_net_dev_template *ctx)
 {
     struct net_event event = {};
     __u64 timestamp = bpf_ktime_get_ns();
     
     // CO-RE: Read ifindex
     __u32 ifindex = 0;
-    bpf_core_read(&ifindex, sizeof(ifindex), &ctx->skb->dev->ifindex);
+    struct sk_buff *skb = (struct sk_buff *)ctx->skbaddr;
+    bpf_core_read(&ifindex, sizeof(ifindex), &skb->dev->ifindex);
     
     // Update stats
     __u64 *count = bpf_map_lookup_elem(&net_dev_stats, &ifindex);

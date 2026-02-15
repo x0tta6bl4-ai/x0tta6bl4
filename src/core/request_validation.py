@@ -8,10 +8,12 @@ Provides security validation for incoming requests:
 - Injection attack prevention
 - Header validation
 """
-import re
+
 import logging
-from typing import Optional, Set, List, Dict, Any
+import re
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -22,31 +24,34 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationConfig:
     """Configuration for request validation."""
+
     # Size limits
     max_content_length: int = 10 * 1024 * 1024  # 10MB default
     max_header_size: int = 8 * 1024  # 8KB for headers
     max_url_length: int = 2048  # 2KB for URL
 
     # Content-Type validation
-    allowed_content_types: Set[str] = field(default_factory=lambda: {
-        "application/json",
-        "application/x-www-form-urlencoded",
-        "multipart/form-data",
-        "text/plain",
-    })
+    allowed_content_types: Set[str] = field(
+        default_factory=lambda: {
+            "application/json",
+            "application/x-www-form-urlencoded",
+            "multipart/form-data",
+            "text/plain",
+        }
+    )
 
     # Methods that require body validation
-    body_methods: Set[str] = field(default_factory=lambda: {
-        "POST", "PUT", "PATCH"
-    })
+    body_methods: Set[str] = field(default_factory=lambda: {"POST", "PUT", "PATCH"})
 
     # Paths to exclude from validation
-    excluded_paths: List[str] = field(default_factory=lambda: [
-        "/health",
-        "/metrics",
-        "/docs",
-        "/openapi.json",
-    ])
+    excluded_paths: List[str] = field(
+        default_factory=lambda: [
+            "/health",
+            "/metrics",
+            "/docs",
+            "/openapi.json",
+        ]
+    )
 
     # Enable specific validations
     validate_content_type: bool = True
@@ -62,23 +67,18 @@ SUSPICIOUS_PATTERNS = [
     r"(?i)(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b.*\b(from|into|table|database)\b)",
     r"(?i)(--|#|/\*|\*/|;)\s*(select|insert|update|delete|drop)",
     r"(?i)'\s*(or|and)\s*'",  # ' OR ' or ' AND ' patterns
-
     # NoSQL injection
     r"(?i)\$where|\$gt|\$lt|\$ne|\$regex",
-
     # Command injection
     r"[;&|`$]",
     r"(?i)(bash|sh|cmd|powershell)\s*[<>|&;]",
-
     # Path traversal
     r"\.\./|\.\.\\",
     r"(?i)(etc/passwd|etc/shadow|proc/self)",
-
     # XSS patterns
     r"<script[^>]*>",
     r"javascript:",
     r"on\w+\s*=",
-
     # LDAP injection - more specific pattern to avoid matching Accept: */*
     r"\)\s*\(\s*\w+\s*=",  # )(uid= pattern
     r"\*\)\s*\(",  # *)( pattern
@@ -125,8 +125,8 @@ def sanitize_string(value: str, max_length: int = 10000) -> str:
     # Truncate
     value = value[:max_length]
 
-    # Remove null bytes
-    value = value.replace("\x00", "")
+    # Replace null bytes with spaces so token boundaries are preserved.
+    value = value.replace("\x00", " ")
 
     # Normalize excessive whitespace
     value = " ".join(value.split())
@@ -134,7 +134,9 @@ def sanitize_string(value: str, max_length: int = 10000) -> str:
     return value
 
 
-def sanitize_dict(data: Dict[str, Any], max_depth: int = 10, current_depth: int = 0) -> Dict[str, Any]:
+def sanitize_dict(
+    data: Dict[str, Any], max_depth: int = 10, current_depth: int = 0
+) -> Dict[str, Any]:
     """Recursively sanitize dictionary values."""
     if current_depth >= max_depth:
         return {}
@@ -151,9 +153,15 @@ def sanitize_dict(data: Dict[str, Any], max_depth: int = 10, current_depth: int 
             result[clean_key] = sanitize_dict(value, max_depth, current_depth + 1)
         elif isinstance(value, list):
             result[clean_key] = [
-                sanitize_string(str(v)) if isinstance(v, str)
-                else sanitize_dict(v, max_depth, current_depth + 1) if isinstance(v, dict)
-                else v
+                (
+                    sanitize_string(str(v))
+                    if isinstance(v, str)
+                    else (
+                        sanitize_dict(v, max_depth, current_depth + 1)
+                        if isinstance(v, dict)
+                        else v
+                    )
+                )
                 for v in value[:1000]  # Limit list size
             ]
         else:
@@ -192,10 +200,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
         # Validate URL length
         if len(str(request.url)) > self.config.max_url_length:
             logger.warning(f"URL too long: {len(str(request.url))} bytes")
-            return JSONResponse(
-                status_code=414,
-                content={"error": "URI Too Long"}
-            )
+            return JSONResponse(status_code=414, content={"error": "URI Too Long"})
 
         # Validate Content-Length
         if self.config.validate_content_length:
@@ -209,13 +214,13 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                             status_code=413,
                             content={
                                 "error": "Payload Too Large",
-                                "max_size": self.config.max_content_length
-                            }
+                                "max_size": self.config.max_content_length,
+                            },
                         )
                 except ValueError:
                     return JSONResponse(
                         status_code=400,
-                        content={"error": "Invalid Content-Length header"}
+                        content={"error": "Invalid Content-Length header"},
                     )
 
         # Validate Content-Type for body methods
@@ -231,8 +236,8 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                         status_code=415,
                         content={
                             "error": "Unsupported Media Type",
-                            "allowed": list(self.config.allowed_content_types)
-                        }
+                            "allowed": list(self.config.allowed_content_types),
+                        },
                     )
 
         # Validate headers
@@ -247,8 +252,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
             if is_suspicious(request.url.path):
                 logger.warning(f"Suspicious pattern in path: {request.url.path}")
                 return JSONResponse(
-                    status_code=400,
-                    content={"error": "Invalid request path"}
+                    status_code=400, content={"error": "Invalid request path"}
                 )
 
             # Check query params
@@ -256,8 +260,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 if is_suspicious(key) or is_suspicious(value):
                     logger.warning(f"Suspicious pattern in query: {key}={value}")
                     return JSONResponse(
-                        status_code=400,
-                        content={"error": "Invalid query parameters"}
+                        status_code=400, content={"error": "Invalid query parameters"}
                     )
 
         return await call_next(request)
@@ -275,15 +278,14 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 logger.warning(f"Headers too large: {total_header_size} bytes")
                 return JSONResponse(
                     status_code=431,
-                    content={"error": "Request Header Fields Too Large"}
+                    content={"error": "Request Header Fields Too Large"},
                 )
 
             # Check for blocked headers
             if name.lower() in BLOCKED_HEADERS:
                 logger.warning(f"Blocked header: {name}")
                 return JSONResponse(
-                    status_code=400,
-                    content={"error": f"Header not allowed: {name}"}
+                    status_code=400, content={"error": f"Header not allowed: {name}"}
                 )
 
             # Check for suspicious patterns in headers
@@ -291,8 +293,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 if is_suspicious(value):
                     logger.warning(f"Suspicious pattern in header {name}")
                     return JSONResponse(
-                        status_code=400,
-                        content={"error": "Invalid header value"}
+                        status_code=400, content={"error": "Invalid header value"}
                     )
 
         return None
@@ -310,10 +311,7 @@ class JSONSanitizationMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(
-        self,
-        app,
-        max_body_size: int = 1024 * 1024,  # 1MB
-        max_depth: int = 10
+        self, app, max_body_size: int = 1024 * 1024, max_depth: int = 10  # 1MB
     ):
         super().__init__(app)
         self.max_body_size = max_body_size
@@ -335,12 +333,12 @@ class JSONSanitizationMiddleware(BaseHTTPMiddleware):
 
             if len(body) > self.max_body_size:
                 return JSONResponse(
-                    status_code=413,
-                    content={"error": "JSON body too large"}
+                    status_code=413, content={"error": "JSON body too large"}
                 )
 
             if body:
                 import json
+
                 try:
                     data = json.loads(body)
                     if isinstance(data, dict):
@@ -350,15 +348,16 @@ class JSONSanitizationMiddleware(BaseHTTPMiddleware):
                         # So we just validate here
                         for key, value in sanitized.items():
                             if isinstance(value, str) and is_suspicious(value):
-                                logger.warning(f"Suspicious content in JSON field: {key}")
+                                logger.warning(
+                                    f"Suspicious content in JSON field: {key}"
+                                )
                                 return JSONResponse(
                                     status_code=400,
-                                    content={"error": f"Invalid value in field: {key}"}
+                                    content={"error": f"Invalid value in field: {key}"},
                                 )
                 except json.JSONDecodeError:
                     return JSONResponse(
-                        status_code=400,
-                        content={"error": "Invalid JSON"}
+                        status_code=400, content={"error": "Invalid JSON"}
                     )
 
         except Exception as e:

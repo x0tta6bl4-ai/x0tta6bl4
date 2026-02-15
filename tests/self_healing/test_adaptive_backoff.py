@@ -8,19 +8,20 @@
 - Adaptive timeout
 - Graceful degradation
 """
-import pytest
-import time
+
 import asyncio
 import random
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
+import time
 from collections import deque
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
 
-from src.self_healing.recovery_actions import (
-    RecoveryActionExecutor,
-    RateLimiter,
-    CircuitBreaker as RecoveryCircuitBreaker,
-)
+import pytest
+
+from src.self_healing.recovery_actions import \
+    CircuitBreaker as RecoveryCircuitBreaker
+from src.self_healing.recovery_actions import (RateLimiter,
+                                               RecoveryActionExecutor)
 
 
 class TestExponentialBackoff:
@@ -33,7 +34,7 @@ class TestExponentialBackoff:
             enable_circuit_breaker=False,
             enable_rate_limiting=False,
             max_retries=5,
-            retry_delay=0.1
+            retry_delay=0.1,
         )
 
         delays = []
@@ -42,7 +43,7 @@ class TestExponentialBackoff:
             delays.append(time.time())
             raise Exception("Simulated failure")
 
-        with patch.object(executor, '_execute_action_internal', failing_action):
+        with patch.object(executor, "_execute_action_internal", failing_action):
             executor.execute("Restart service", {})
 
         # Проверяем экспоненциальный рост задержек
@@ -71,7 +72,7 @@ class TestExponentialBackoff:
             enable_circuit_breaker=False,
             enable_rate_limiting=False,
             max_retries=max_retries,
-            retry_delay=0.01
+            retry_delay=0.01,
         )
 
         call_count = [0]
@@ -80,7 +81,7 @@ class TestExponentialBackoff:
             call_count[0] += 1
             raise Exception("Always fails")
 
-        with patch.object(executor, '_execute_action_internal', counting_fail):
+        with patch.object(executor, "_execute_action_internal", counting_fail):
             executor.execute("Restart", {})
 
         assert call_count[0] == max_retries
@@ -195,10 +196,7 @@ class TestRateLimiting:
             result = rate_limiter.allow()
             results.append(result)
 
-        threads = [
-            threading.Thread(target=make_request)
-            for _ in range(150)
-        ]
+        threads = [threading.Thread(target=make_request) for _ in range(150)]
 
         for t in threads:
             t.start()
@@ -259,16 +257,14 @@ class TestGracefulDegradation:
     def test_degraded_mode_on_failures(self):
         """Переход в degraded mode при ошибках."""
         executor = RecoveryActionExecutor(
-            node_id="test",
-            enable_circuit_breaker=True,
-            enable_rate_limiting=True
+            node_id="test", enable_circuit_breaker=True, enable_rate_limiting=True
         )
 
         # Имитируем несколько ошибок
         def failing(action_type, context):
             raise Exception("Service unavailable")
 
-        with patch.object(executor, '_execute_action_internal', failing):
+        with patch.object(executor, "_execute_action_internal", failing):
             for _ in range(5):
                 executor.execute("Restart", {})
 
@@ -278,12 +274,11 @@ class TestGracefulDegradation:
 
     def test_fallback_to_simulated_mode(self, recovery_executor):
         """Fallback на simulated mode при недоступности сервисов."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("systemctl not found")
 
             result = recovery_executor.execute(
-                "Restart service",
-                {"service_name": "test-service"}
+                "Restart service", {"service_name": "test-service"}
             )
 
             # Должен успешно выполниться в simulated mode
@@ -302,10 +297,9 @@ class TestGracefulDegradation:
                 return Mock(returncode=0, stdout="ok", stderr="")
             return Mock(returncode=1)
 
-        with patch('subprocess.run', intermittent_failure):
+        with patch("subprocess.run", intermittent_failure):
             result = recovery_executor.execute(
-                "Restart service",
-                {"service_name": "test-service"}
+                "Restart service", {"service_name": "test-service"}
             )
 
             # Должен найти работающий метод
@@ -328,7 +322,7 @@ class TestBackoffStrategies:
         # Проверяем линейный рост
         for i in range(1, len(delays) - 1):
             if delays[i] < max_delay:
-                assert delays[i] - delays[i-1] == base_delay
+                assert delays[i] - delays[i - 1] == base_delay
 
     def test_exponential_backoff(self):
         """Экспоненциальный backoff."""
@@ -338,13 +332,13 @@ class TestBackoffStrategies:
 
         delays = []
         for attempt in range(10):
-            delay = min(base_delay * (multiplier ** attempt), max_delay)
+            delay = min(base_delay * (multiplier**attempt), max_delay)
             delays.append(delay)
 
         # Проверяем экспоненциальный рост (до max)
         for i in range(1, len(delays)):
-            if delays[i-1] < max_delay and delays[i] < max_delay:
-                ratio = delays[i] / delays[i-1]
+            if delays[i - 1] < max_delay and delays[i] < max_delay:
+                ratio = delays[i] / delays[i - 1]
                 assert abs(ratio - multiplier) < 0.1
 
     def test_fibonacci_backoff(self):
@@ -427,16 +421,14 @@ class TestBackpressure:
 
         # Запускаем много запросов
         import threading
+
         results = []
 
         def make_request(rid):
             result = handle_request(rid)
             results.append((rid, result))
 
-        threads = [
-            threading.Thread(target=make_request, args=(i,))
-            for i in range(20)
-        ]
+        threads = [threading.Thread(target=make_request, args=(i,)) for i in range(20)]
 
         for t in threads:
             t.start()
