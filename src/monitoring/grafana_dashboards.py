@@ -49,8 +49,37 @@ class GrafanaDashboardBuilder:
         self.uid = uid
         self.description = description
         self.panels: List[Dict[str, Any]] = []
+        self.templating: List[Dict[str, Any]] = []
         self.row_counter = 0
         self.panel_id_counter = 1
+
+    def add_variable(
+        self,
+        name: str,
+        label: str,
+        query: str,
+        type: str = "query",
+        multi: bool = True,
+        include_all: bool = True,
+    ) -> "GrafanaDashboardBuilder":
+        """Add a template variable"""
+        variable = {
+            "current": {"selected": False, "text": "All", "value": "$__all"},
+            "hide": 0,
+            "includeAll": include_all,
+            "label": label,
+            "multi": multi,
+            "name": name,
+            "options": [],
+            "query": query,
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": False,
+            "sort": 1,
+            "type": type,
+        }
+        self.templating.append(variable)
+        return self
 
     def add_row(self, title: str) -> "GrafanaDashboardBuilder":
         """Add a collapsible row"""
@@ -181,7 +210,9 @@ class GrafanaDashboardBuilder:
             "schemaVersion": 38,
             "style": "dark",
             "tags": ["x0tta6bl4"],
-            "templating": {"list": []},
+            "tags": ["x0tta6bl4"],
+            "templating": {"list": self.templating},
+            "time": {"from": "now-6h", "to": "now"},
             "time": {"from": "now-6h", "to": "now"},
             "timepicker": {},
             "timezone": "browser",
@@ -200,6 +231,40 @@ def create_system_health_dashboard() -> Dict[str, Any]:
         title="x0tta6bl4 System Health",
         uid="system_health",
         description="Overall system health, CPU, memory, and network metrics",
+    )
+
+    # Add Tenant Variable
+    builder.add_variable(
+        name="tenant",
+        label="Tenant",
+        query="label_values(x0tta6bl4_requests_total, tenant_id)",
+    )
+
+    builder.add_row("Request Stats (Per Tenant)")
+    builder.add_stat_panel(
+        "Request Count",
+        'sum(x0tta6bl4_requests_total{tenant_id=~"$tenant"})',
+        decimals=0,
+    )
+    builder.add_time_series(
+        "Request Rate",
+        [
+            {
+                "expr": 'sum(rate(x0tta6bl4_requests_total{tenant_id=~"$tenant"}[5m])) by (tenant_id)',
+                "legendFormat": "{{tenant_id}}",
+                "refId": "A",
+            }
+        ],
+    )
+    builder.add_time_series(
+        "Latency P95",
+        [
+            {
+                "expr": 'histogram_quantile(0.95, sum(rate(x0tta6bl4_request_duration_seconds_bucket{tenant_id=~"$tenant"}[5m])) by (le, tenant_id))',
+                "legendFormat": "P95 {{tenant_id}}",
+                "refId": "A",
+            }
+        ],
     )
 
     builder.add_row("System Resources")

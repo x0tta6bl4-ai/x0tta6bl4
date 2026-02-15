@@ -1,0 +1,232 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "id": 0,
+        "title": "Mesh Topology",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "title": "Active Nodes",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(x0tta6bl4_mesh_nodes_active)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Active Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(x0tta6bl4_mesh_active_connections)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Mesh Health",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_mesh_health_percent",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "percentage",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 1,
+        "title": "Routing Performance",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 4,
+        "title": "Message Latency Distribution",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, x0tta6bl4_mesh_message_latency_ms)",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, x0tta6bl4_mesh_message_latency_ms)",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, x0tta6bl4_mesh_message_latency_ms)",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "eBPF Network Programs",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 5,
+        "title": "eBPF Programs Loaded",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(x0tta6bl4_ebpf_programs_loaded)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "eBPF Program Execution Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_ebpf_execution_time_microseconds[5m])",
+            "legendFormat": "Execution Rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [
+      "x0tta6bl4"
+    ],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "x0tta6bl4 Network & Mesh",
+    "uid": "network_mesh",
+    "version": 0,
+    "description": "Mesh network topology, routing, and connectivity metrics"
+  }
+}
