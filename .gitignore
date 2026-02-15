@@ -127,6 +127,7 @@ project_files_list.txt
 # IDE
 **/.idea/
 **/.windsurf/
+**/.worktrees/
 **/*.swp
 **/*.swo
 **/*~
