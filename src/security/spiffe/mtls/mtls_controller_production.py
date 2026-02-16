@@ -149,8 +149,9 @@ class MTLSControllerProduction:
             # Update metrics if Prometheus is available
             if PROMETHEUS_AVAILABLE:
                 try:
-                    from src.core.app import (mtls_certificate_age_seconds,
-                                              mtls_certificate_expiry_seconds)
+                    from src.monitoring.metrics import MetricsRegistry
+                    mtls_certificate_age_seconds = MetricsRegistry.mtls_certificate_age_seconds
+                    mtls_certificate_expiry_seconds = MetricsRegistry.mtls_certificate_expiry_seconds
 
                     # Extract SVID expiry if available
                     if hasattr(svid, "expiry"):
@@ -290,10 +291,9 @@ class MTLSControllerProduction:
                 # Update metrics if Prometheus is available
                 if PROMETHEUS_AVAILABLE:
                     try:
-                        from src.core.app import \
-                            mtls_certificate_rotations_total
+                        from src.monitoring.metrics import MetricsRegistry
 
-                        mtls_certificate_rotations_total.inc()
+                        MetricsRegistry.mtls_certificate_rotations_total.inc()
                         logger.debug("📊 Certificate rotation metric incremented")
                     except Exception as e:
                         logger.debug(f"Failed to update rotation metric: {e}")

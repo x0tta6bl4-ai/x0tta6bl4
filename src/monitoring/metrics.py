@@ -360,6 +360,9 @@ class MetricsRegistry:
         registry=_metrics_registry,
     )
 
+    # Alias used by certificate_validator and mtls_controller_production
+    mtls_certificate_validation_failures_total = mtls_validation_failures
+
     spiffe_svid_issuance = Counter(
         "x0tta6bl4_spiffe_svid_issuance_total",
         "Всего выданных SPIFFE SVIDs",

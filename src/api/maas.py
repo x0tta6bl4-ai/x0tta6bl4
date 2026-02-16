@@ -1,6 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+import secrets
 import uuid
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -83,7 +84,7 @@ async def deploy_mesh(request: MeshDeployRequest, db: Session = Depends(get_db))
         "mesh_id": mesh_id,
         "join_config": {
             "peers": [f"tcp://node1.{mesh_id}.x0tta6bl4.net:9001"],
-            "password": "change-me-securely"
+            "token": secrets.token_urlsafe(32)
         },
         "dashboard_url": f"https://observability.x0tta6bl4.net/{mesh_id}",
         "status": "provisioning"
