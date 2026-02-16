@@ -86,7 +86,7 @@ class SPIFFEHttpClient:
         workload_api: Optional[WorkloadAPIClient] = None,
         *,
         expected_peer_id: Optional[str] = None,
-        verify_peer: bool = False,
+        verify_peer: bool = True,
         timeout: Optional[float] = None,
         transport: Optional[httpx.AsyncBaseTransport] = None,
     ) -> None:
