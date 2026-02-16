@@ -5,27 +5,31 @@ Tests ChaCha20-Poly1305 AEAD obfuscation with real crypto round-trips.
 
 import os
 import socket
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 try:
-    from src.network.obfuscation.shadowsocks import (
-        ShadowsocksTransport,
-        ShadowsocksSocket,
-    )
     from cryptography.exceptions import InvalidTag
+
+    from src.network.obfuscation.shadowsocks import (ShadowsocksSocket,
+                                                     ShadowsocksTransport)
+
     SS_AVAILABLE = True
 except ImportError as exc:
     SS_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(not SS_AVAILABLE, reason="shadowsocks module not available")
+pytestmark = pytest.mark.skipif(
+    not SS_AVAILABLE, reason="shadowsocks module not available"
+)
 
 
 # ===========================================================================
 # TestShadowsocksTransportInit
 # ===========================================================================
+
 
 class TestShadowsocksTransportInit:
 
@@ -55,6 +59,7 @@ class TestShadowsocksTransportInit:
 # TestKdf
 # ===========================================================================
 
+
 class TestKdf:
 
     def test_returns_bytes_of_requested_length(self):
@@ -74,6 +79,7 @@ class TestKdf:
 # TestDeriveSessionKey
 # ===========================================================================
 
+
 class TestDeriveSessionKey:
 
     def test_returns_32_byte_key(self):
@@ -91,6 +97,7 @@ class TestDeriveSessionKey:
 # ===========================================================================
 # TestObfuscate
 # ===========================================================================
+
 
 class TestObfuscate:
 
@@ -125,6 +132,7 @@ class TestObfuscate:
 # TestDeobfuscate
 # ===========================================================================
 
+
 class TestDeobfuscate:
 
     def test_raises_on_data_too_short(self):
@@ -151,6 +159,7 @@ class TestDeobfuscate:
 # ===========================================================================
 # TestObfuscateDeobfuscateRoundTrip
 # ===========================================================================
+
 
 class TestObfuscateDeobfuscateRoundTrip:
 
@@ -186,6 +195,7 @@ class TestObfuscateDeobfuscateRoundTrip:
 # ===========================================================================
 # TestWrapSocket
 # ===========================================================================
+
 
 class TestWrapSocket:
 

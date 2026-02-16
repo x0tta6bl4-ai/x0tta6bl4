@@ -1,9 +1,11 @@
 """
 Tests for Zero Trust Validator module.
 """
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 
 class TestZeroTrustValidator:
@@ -11,7 +13,7 @@ class TestZeroTrustValidator:
 
     def test_validator_initialization(self):
         """Test ZeroTrustValidator initialization."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="example.mesh")
@@ -23,7 +25,7 @@ class TestZeroTrustValidator:
 
     def test_validator_default_trust_domain(self):
         """Test default trust domain."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
@@ -32,20 +34,20 @@ class TestZeroTrustValidator:
 
     def test_get_validation_stats_initial(self):
         """Test initial validation stats."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
             stats = validator.get_validation_stats()
 
-            assert stats['success_rate'] == 1.0
-            assert stats['total_attempts'] == 0
-            assert stats['successes'] == 0
-            assert stats['failures'] == 0
+            assert stats["success_rate"] == 1.0
+            assert stats["total_attempts"] == 0
+            assert stats["successes"] == 0
+            assert stats["failures"] == 0
 
     def test_get_validation_stats_after_validations(self):
         """Test validation stats after some validations."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
@@ -57,14 +59,14 @@ class TestZeroTrustValidator:
 
             stats = validator.get_validation_stats()
 
-            assert stats['success_rate'] == 0.8
-            assert stats['total_attempts'] == 10
-            assert stats['successes'] == 8
-            assert stats['failures'] == 2
+            assert stats["success_rate"] == 0.8
+            assert stats["total_attempts"] == 10
+            assert stats["successes"] == 8
+            assert stats["failures"] == 2
 
     def test_validate_connection_wrong_trust_domain(self):
         """Test validation fails for wrong trust domain."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
@@ -78,21 +80,23 @@ class TestZeroTrustValidator:
 
     def test_validate_connection_correct_trust_domain(self):
         """Test validation passes for correct trust domain."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
 
             # Mock policy check to succeed
-            with patch.object(validator, '_check_policy', return_value=True):
-                result = validator.validate_connection("spiffe://x0tta6bl4.mesh/workload")
+            with patch.object(validator, "_check_policy", return_value=True):
+                result = validator.validate_connection(
+                    "spiffe://x0tta6bl4.mesh/workload"
+                )
 
                 assert result is True
                 assert validator._validation_successes == 1
 
     def test_validate_connection_increments_attempts(self):
         """Test validation always increments attempts."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
@@ -106,7 +110,7 @@ class TestZeroTrustValidator:
 
     def test_validate_connection_with_svid(self):
         """Test validation with SVID object."""
-        with patch('src.security.zero_trust.WorkloadAPIClient') as mock_client_class:
+        with patch("src.security.zero_trust.WorkloadAPIClient") as mock_client_class:
             from src.security.zero_trust import ZeroTrustValidator
 
             mock_client = Mock()
@@ -117,10 +121,9 @@ class TestZeroTrustValidator:
 
             mock_svid = Mock()
 
-            with patch.object(validator, '_check_policy', return_value=True):
+            with patch.object(validator, "_check_policy", return_value=True):
                 result = validator.validate_connection(
-                    "spiffe://x0tta6bl4.mesh/workload",
-                    peer_svid=mock_svid
+                    "spiffe://x0tta6bl4.mesh/workload", peer_svid=mock_svid
                 )
 
                 assert result is True
@@ -128,7 +131,7 @@ class TestZeroTrustValidator:
 
     def test_validate_connection_svid_validation_fails(self):
         """Test validation fails when SVID validation fails."""
-        with patch('src.security.zero_trust.WorkloadAPIClient') as mock_client_class:
+        with patch("src.security.zero_trust.WorkloadAPIClient") as mock_client_class:
             from src.security.zero_trust import ZeroTrustValidator
 
             mock_client = Mock()
@@ -139,8 +142,7 @@ class TestZeroTrustValidator:
 
             mock_svid = Mock()
             result = validator.validate_connection(
-                "spiffe://x0tta6bl4.mesh/workload",
-                peer_svid=mock_svid
+                "spiffe://x0tta6bl4.mesh/workload", peer_svid=mock_svid
             )
 
             assert result is False
@@ -148,13 +150,15 @@ class TestZeroTrustValidator:
 
     def test_validate_connection_policy_check_fails(self):
         """Test validation fails when policy check fails."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
 
-            with patch.object(validator, '_check_policy', return_value=False):
-                result = validator.validate_connection("spiffe://x0tta6bl4.mesh/workload")
+            with patch.object(validator, "_check_policy", return_value=False):
+                result = validator.validate_connection(
+                    "spiffe://x0tta6bl4.mesh/workload"
+                )
 
                 assert result is False
                 assert validator._validation_failures == 1
@@ -165,7 +169,7 @@ class TestGetMyIdentity:
 
     def test_get_my_identity_success(self):
         """Test successful identity fetch."""
-        with patch('src.security.zero_trust.WorkloadAPIClient') as mock_client_class:
+        with patch("src.security.zero_trust.WorkloadAPIClient") as mock_client_class:
             from src.security.zero_trust import ZeroTrustValidator
 
             mock_svid = Mock()
@@ -186,7 +190,7 @@ class TestGetMyIdentity:
 
     def test_get_my_identity_caches_identity(self):
         """Test that identity is cached."""
-        with patch('src.security.zero_trust.WorkloadAPIClient') as mock_client_class:
+        with patch("src.security.zero_trust.WorkloadAPIClient") as mock_client_class:
             from src.security.zero_trust import ZeroTrustValidator
 
             mock_svid = Mock()
@@ -204,11 +208,13 @@ class TestGetMyIdentity:
 
     def test_get_my_identity_failure(self):
         """Test identity fetch failure."""
-        with patch('src.security.zero_trust.WorkloadAPIClient') as mock_client_class:
+        with patch("src.security.zero_trust.WorkloadAPIClient") as mock_client_class:
             from src.security.zero_trust import ZeroTrustValidator
 
             mock_client = Mock()
-            mock_client.fetch_x509_svid.side_effect = Exception("SPIFFE agent unavailable")
+            mock_client.fetch_x509_svid.side_effect = Exception(
+                "SPIFFE agent unavailable"
+            )
             mock_client_class.return_value = mock_client
 
             validator = ZeroTrustValidator()
@@ -223,29 +229,35 @@ class TestPolicyCheck:
 
     def test_check_policy_fallback_allows(self):
         """Test policy check fallback allows when engine not available."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
 
             # Mock ImportError for policy engine
-            with patch.dict('sys.modules', {'src.security.zero_trust.policy_engine': None}):
-                with patch('src.security.zero_trust.ZeroTrustValidator._check_policy') as mock_check:
+            with patch.dict(
+                "sys.modules", {"src.security.zero_trust.policy_engine": None}
+            ):
+                with patch(
+                    "src.security.zero_trust.ZeroTrustValidator._check_policy"
+                ) as mock_check:
                     mock_check.return_value = True
                     result = mock_check("spiffe://x0tta6bl4.mesh/workload")
                     assert result is True
 
     def test_check_policy_with_resource(self):
         """Test policy check with resource parameter."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator()
 
             # The method accepts a resource parameter
             # Just verify it doesn't raise an exception
-            with patch.object(validator, '_check_policy', return_value=True):
-                result = validator._check_policy("spiffe://x0tta6bl4.mesh/workload", resource="/api/data")
+            with patch.object(validator, "_check_policy", return_value=True):
+                result = validator._check_policy(
+                    "spiffe://x0tta6bl4.mesh/workload", resource="/api/data"
+                )
                 assert result is True
 
 
@@ -254,14 +266,14 @@ class TestSpiffeIdParsing:
 
     def test_spiffe_id_format_validation(self):
         """Test SPIFFE ID format validation."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="example.com")
 
             # Valid format
             valid_id = "spiffe://example.com/workload/service-a"
-            with patch.object(validator, '_check_policy', return_value=True):
+            with patch.object(validator, "_check_policy", return_value=True):
                 assert validator.validate_connection(valid_id) is True
 
             # Invalid - missing spiffe:// prefix
@@ -270,14 +282,14 @@ class TestSpiffeIdParsing:
 
     def test_trust_domain_extraction(self):
         """Test trust domain is correctly extracted from SPIFFE ID."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="prod.example.com")
 
             # Must start with spiffe://trust_domain/
             valid_id = "spiffe://prod.example.com/namespace/workload"
-            with patch.object(validator, '_check_policy', return_value=True):
+            with patch.object(validator, "_check_policy", return_value=True):
                 result = validator.validate_connection(valid_id)
                 assert result is True
 
@@ -292,12 +304,12 @@ class TestValidationMetrics:
 
     def test_metrics_track_successes(self):
         """Test metrics track successful validations."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
 
-            with patch.object(validator, '_check_policy', return_value=True):
+            with patch.object(validator, "_check_policy", return_value=True):
                 for _ in range(5):
                     validator.validate_connection("spiffe://x0tta6bl4.mesh/workload")
 
@@ -307,7 +319,7 @@ class TestValidationMetrics:
 
     def test_metrics_track_failures(self):
         """Test metrics track failed validations."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
@@ -322,12 +334,12 @@ class TestValidationMetrics:
 
     def test_success_rate_calculation(self):
         """Test success rate is calculated correctly."""
-        with patch('src.security.zero_trust.WorkloadAPIClient'):
+        with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
             validator = ZeroTrustValidator(trust_domain="x0tta6bl4.mesh")
 
-            with patch.object(validator, '_check_policy', return_value=True):
+            with patch.object(validator, "_check_policy", return_value=True):
                 # 7 successes
                 for _ in range(7):
                     validator.validate_connection("spiffe://x0tta6bl4.mesh/workload")
@@ -337,5 +349,5 @@ class TestValidationMetrics:
                 validator.validate_connection("spiffe://wrong.domain/workload")
 
             stats = validator.get_validation_stats()
-            assert stats['success_rate'] == 0.7  # 7/10
-            assert stats['total_attempts'] == 10
+            assert stats["success_rate"] == 0.7  # 7/10
+            assert stats["total_attempts"] == 10

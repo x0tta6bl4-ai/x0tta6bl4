@@ -1,16 +1,14 @@
 """
 Tests for Policy Engine module.
 """
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 
-from src.security.policy_engine import (
-    PolicyEffect,
-    PolicyPriority,
-    AttributeType,
-    Attribute,
-    PolicyCondition,
-)
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from src.security.policy_engine import (Attribute, AttributeType,
+                                        PolicyCondition, PolicyEffect,
+                                        PolicyPriority)
 
 
 class TestPolicyEffect:
@@ -93,11 +91,7 @@ class TestAttribute:
 
     def test_attribute_creation(self):
         """Test Attribute creation."""
-        attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="user_id",
-            value="user123"
-        )
+        attr = Attribute(type=AttributeType.SUBJECT, name="user_id", value="user123")
 
         assert attr.type == AttributeType.SUBJECT
         assert attr.name == "user_id"
@@ -105,31 +99,21 @@ class TestAttribute:
 
     def test_matches_exact_value(self):
         """Test matches with exact value."""
-        attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="role",
-            value="admin"
-        )
+        attr = Attribute(type=AttributeType.SUBJECT, name="role", value="admin")
 
         assert attr.matches("admin") is True
         assert attr.matches("user") is False
 
     def test_matches_wildcard(self):
         """Test matches with wildcard pattern."""
-        attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="role",
-            value="any-value"
-        )
+        attr = Attribute(type=AttributeType.SUBJECT, name="role", value="any-value")
 
         assert attr.matches("*") is True
 
     def test_matches_regex_pattern(self):
         """Test matches with regex pattern."""
         attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="email",
-            value="user@example.com"
+            type=AttributeType.SUBJECT, name="email", value="user@example.com"
         )
 
         assert attr.matches("regex:.*@example\\.com") is True
@@ -137,77 +121,49 @@ class TestAttribute:
 
     def test_matches_list(self):
         """Test matches with list of values."""
-        attr = Attribute(
-            type=AttributeType.ACTION,
-            name="method",
-            value="GET"
-        )
+        attr = Attribute(type=AttributeType.ACTION, name="method", value="GET")
 
         assert attr.matches(["GET", "POST", "PUT"]) is True
         assert attr.matches(["DELETE", "PATCH"]) is False
 
     def test_matches_gt_operator(self):
         """Test matches with greater than operator."""
-        attr = Attribute(
-            type=AttributeType.ENVIRONMENT,
-            name="risk_score",
-            value=75
-        )
+        attr = Attribute(type=AttributeType.ENVIRONMENT, name="risk_score", value=75)
 
         assert attr.matches({"gt": 50}) is True
         assert attr.matches({"gt": 80}) is False
 
     def test_matches_lt_operator(self):
         """Test matches with less than operator."""
-        attr = Attribute(
-            type=AttributeType.ENVIRONMENT,
-            name="latency",
-            value=50
-        )
+        attr = Attribute(type=AttributeType.ENVIRONMENT, name="latency", value=50)
 
         assert attr.matches({"lt": 100}) is True
         assert attr.matches({"lt": 25}) is False
 
     def test_matches_gte_operator(self):
         """Test matches with greater than or equal operator."""
-        attr = Attribute(
-            type=AttributeType.ENVIRONMENT,
-            name="trust_level",
-            value=5
-        )
+        attr = Attribute(type=AttributeType.ENVIRONMENT, name="trust_level", value=5)
 
         assert attr.matches({"gte": 5}) is True
         assert attr.matches({"gte": 6}) is False
 
     def test_matches_lte_operator(self):
         """Test matches with less than or equal operator."""
-        attr = Attribute(
-            type=AttributeType.ENVIRONMENT,
-            name="connections",
-            value=10
-        )
+        attr = Attribute(type=AttributeType.ENVIRONMENT, name="connections", value=10)
 
         assert attr.matches({"lte": 10}) is True
         assert attr.matches({"lte": 5}) is False
 
     def test_matches_in_operator(self):
         """Test matches with in operator."""
-        attr = Attribute(
-            type=AttributeType.RESOURCE,
-            name="region",
-            value="us-east-1"
-        )
+        attr = Attribute(type=AttributeType.RESOURCE, name="region", value="us-east-1")
 
         assert attr.matches({"in": ["us-east-1", "us-west-2"]}) is True
         assert attr.matches({"in": ["eu-west-1", "ap-south-1"]}) is False
 
     def test_matches_not_in_operator(self):
         """Test matches with not_in operator."""
-        attr = Attribute(
-            type=AttributeType.RESOURCE,
-            name="status",
-            value="active"
-        )
+        attr = Attribute(type=AttributeType.RESOURCE, name="status", value="active")
 
         assert attr.matches({"not_in": ["blocked", "suspended"]}) is True
         assert attr.matches({"not_in": ["active", "pending"]}) is False
@@ -222,7 +178,7 @@ class TestPolicyCondition:
             attribute_type=AttributeType.SUBJECT,
             attribute_name="role",
             operator="eq",
-            value="admin"
+            value="admin",
         )
 
         assert condition.attribute_type == AttributeType.SUBJECT
@@ -236,15 +192,11 @@ class TestPolicyCondition:
             attribute_type=AttributeType.SUBJECT,
             attribute_name="user_id",
             operator="exists",
-            value=True
+            value=True,
         )
 
         # Create an attribute that should match
-        attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="user_id",
-            value="user123"
-        )
+        attr = Attribute(type=AttributeType.SUBJECT, name="user_id", value="user123")
         attributes = {"subject.user_id": attr}
 
         result = condition.evaluate(attributes)
@@ -256,7 +208,7 @@ class TestPolicyCondition:
             attribute_type=AttributeType.SUBJECT,
             attribute_name="user_id",
             operator="exists",
-            value=True
+            value=True,
         )
 
         # Empty attributes - should not match
@@ -271,7 +223,7 @@ class TestPolicyCondition:
             attribute_type=AttributeType.SUBJECT,
             attribute_name="missing_attr",
             operator="eq",
-            value="some_value"
+            value="some_value",
         )
 
         attributes = {}
@@ -286,17 +238,13 @@ class TestPolicyIntegration:
 
     def test_attribute_in_condition(self):
         """Test using attribute with condition evaluation."""
-        attr = Attribute(
-            type=AttributeType.SUBJECT,
-            name="role",
-            value="admin"
-        )
+        attr = Attribute(type=AttributeType.SUBJECT, name="role", value="admin")
 
         condition = PolicyCondition(
             attribute_type=AttributeType.SUBJECT,
             attribute_name="role",
             operator="exists",
-            value=True
+            value=True,
         )
 
         attributes = {"subject.role": attr}
@@ -308,7 +256,9 @@ class TestPolicyIntegration:
         """Test with multiple attributes."""
         attrs = {
             "subject.role": Attribute(AttributeType.SUBJECT, "role", "admin"),
-            "subject.department": Attribute(AttributeType.SUBJECT, "department", "engineering"),
+            "subject.department": Attribute(
+                AttributeType.SUBJECT, "department", "engineering"
+            ),
             "resource.type": Attribute(AttributeType.RESOURCE, "type", "database"),
             "action.method": Attribute(AttributeType.ACTION, "method", "read"),
         }
@@ -318,7 +268,7 @@ class TestPolicyIntegration:
             attribute_type=AttributeType.SUBJECT,
             attribute_name="role",
             operator="exists",
-            value=True
+            value=True,
         )
 
         assert condition.evaluate(attrs) is True

@@ -15,22 +15,21 @@ Tests cover:
 - Edge cases and error handling
 """
 
-import pytest
 import time
-from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
-from src.monitoring.production_monitoring import (
-    AlertThreshold,
-    MonitoringConfig,
-    ProductionMonitor,
-    get_production_monitor,
-)
+import pytest
 
+from src.monitoring.production_monitoring import (AlertThreshold,
+                                                  MonitoringConfig,
+                                                  ProductionMonitor,
+                                                  get_production_monitor)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_process(memory_rss=500 * 1024 * 1024, cpu_percent=25.0):
     """Create a mock psutil.Process object."""
@@ -55,6 +54,7 @@ def _patch_psutil(memory_rss=500 * 1024 * 1024, cpu=25.0):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def monitor():
@@ -83,6 +83,7 @@ def custom_config():
 # ---------------------------------------------------------------------------
 # AlertThreshold dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestAlertThreshold:
     def test_creation(self):
@@ -114,6 +115,7 @@ class TestAlertThreshold:
 # MonitoringConfig dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestMonitoringConfig:
     def test_defaults(self):
         cfg = MonitoringConfig()
@@ -136,6 +138,7 @@ class TestMonitoringConfig:
 # ---------------------------------------------------------------------------
 # ProductionMonitor initialisation
 # ---------------------------------------------------------------------------
+
 
 class TestProductionMonitorInit:
     def test_default_config(self, monitor):
@@ -167,6 +170,7 @@ class TestProductionMonitorInit:
 # record_* methods (Prometheus gauge / counter / histogram)
 # ---------------------------------------------------------------------------
 
+
 class TestRecordMethods:
     @patch("src.monitoring.production_monitoring.production_requests_total")
     @patch("src.monitoring.production_monitoring.production_request_duration")
@@ -176,9 +180,7 @@ class TestRecordMethods:
             method="GET", endpoint="/health", status=200
         )
         mock_counter.labels().inc.assert_called_once()
-        mock_duration.labels.assert_called_once_with(
-            method="GET", endpoint="/health"
-        )
+        mock_duration.labels.assert_called_once_with(method="GET", endpoint="/health")
         mock_duration.labels().observe.assert_called_once_with(0.05)
 
     @patch("src.monitoring.production_monitoring.production_active_connections")
@@ -216,6 +218,7 @@ class TestRecordMethods:
 # record_gtm_stats
 # ---------------------------------------------------------------------------
 
+
 class TestRecordGtmStats:
     @patch("src.monitoring.production_monitoring.gtm_conversion_rate")
     @patch("src.monitoring.production_monitoring.gtm_total_revenue")
@@ -242,7 +245,9 @@ class TestRecordGtmStats:
     @patch("src.monitoring.production_monitoring.gtm_active_licenses")
     @patch("src.monitoring.production_monitoring.gtm_new_users_24h")
     @patch("src.monitoring.production_monitoring.gtm_total_users")
-    def test_record_empty_stats_defaults_to_zero(self, m_users, m_new, m_lic, m_rev, m_conv, monitor):
+    def test_record_empty_stats_defaults_to_zero(
+        self, m_users, m_new, m_lic, m_rev, m_conv, monitor
+    ):
         monitor.record_gtm_stats({})
         m_users.set.assert_called_once_with(0)
         m_new.set.assert_called_once_with(0)
@@ -255,14 +260,19 @@ class TestRecordGtmStats:
 # collect_metrics
 # ---------------------------------------------------------------------------
 
+
 class TestCollectMetrics:
     def test_collect_returns_expected_keys(self, monitor):
         patcher, _ = _patch_psutil()
         with patcher:
             result = monitor.collect_metrics()
         expected_keys = {
-            "timestamp", "memory_usage_mb", "cpu_usage_percent",
-            "active_connections", "error_rate", "throughput_per_sec",
+            "timestamp",
+            "memory_usage_mb",
+            "cpu_usage_percent",
+            "active_connections",
+            "error_rate",
+            "throughput_per_sec",
             "uptime_seconds",
         }
         assert expected_keys == set(result.keys())
@@ -293,11 +303,13 @@ class TestCollectMetrics:
         """Metrics older than metrics_retention_hours should be pruned."""
         monitor.config.metrics_retention_hours = 1
         old_ts = (datetime.now() - timedelta(hours=2)).isoformat()
-        monitor.metrics_history.append({
-            "timestamp": old_ts,
-            "memory_usage_mb": 100,
-            "cpu_usage_percent": 10,
-        })
+        monitor.metrics_history.append(
+            {
+                "timestamp": old_ts,
+                "memory_usage_mb": 100,
+                "cpu_usage_percent": 10,
+            }
+        )
 
         patcher, _ = _patch_psutil()
         with patcher:
@@ -330,6 +342,7 @@ class TestCollectMetrics:
 # _check_alerts
 # ---------------------------------------------------------------------------
 
+
 class TestCheckAlerts:
     def test_gt_triggered(self, monitor):
         monitor.config.alert_thresholds = [
@@ -351,7 +364,9 @@ class TestCheckAlerts:
 
     def test_lt_triggered(self, monitor):
         monitor.config.alert_thresholds = [
-            AlertThreshold("throughput_per_sec", 5000.0, "lt", "warning", "low throughput"),
+            AlertThreshold(
+                "throughput_per_sec", 5000.0, "lt", "warning", "low throughput"
+            ),
         ]
         metrics = {"throughput_per_sec": 3000.0}
         monitor._check_alerts(metrics)
@@ -360,7 +375,9 @@ class TestCheckAlerts:
 
     def test_lt_not_triggered(self, monitor):
         monitor.config.alert_thresholds = [
-            AlertThreshold("throughput_per_sec", 5000.0, "lt", "warning", "low throughput"),
+            AlertThreshold(
+                "throughput_per_sec", 5000.0, "lt", "warning", "low throughput"
+            ),
         ]
         metrics = {"throughput_per_sec": 6000.0}
         monitor._check_alerts(metrics)
@@ -429,6 +446,7 @@ class TestCheckAlerts:
 # get_dashboard_data
 # ---------------------------------------------------------------------------
 
+
 class TestGetDashboardData:
     def _run_dashboard(self, monitor, memory_rss=500 * 1024 * 1024, cpu=25.0):
         patcher, _ = _patch_psutil(memory_rss, cpu)
@@ -462,14 +480,16 @@ class TestGetDashboardData:
     def test_alerts_limited_to_ten(self, monitor):
         # Populate 15 alerts manually
         for i in range(15):
-            monitor.alerts.append({
-                "timestamp": datetime.now().isoformat(),
-                "metric_name": "test",
-                "metric_value": i,
-                "threshold": 0,
-                "severity": "warning",
-                "description": f"alert {i}",
-            })
+            monitor.alerts.append(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "metric_name": "test",
+                    "metric_value": i,
+                    "threshold": 0,
+                    "severity": "warning",
+                    "description": f"alert {i}",
+                }
+            )
         data = self._run_dashboard(monitor)
         assert len(data["alerts"]) == 10
         # Should be the LAST 10
@@ -489,6 +509,7 @@ class TestGetDashboardData:
 # get_health_status
 # ---------------------------------------------------------------------------
 
+
 class TestGetHealthStatus:
     def _run_health(self, monitor, memory_rss=500 * 1024 * 1024, cpu=25.0):
         patcher, _ = _patch_psutil(memory_rss, cpu)
@@ -496,18 +517,24 @@ class TestGetHealthStatus:
             return monitor.get_health_status()
 
     def test_healthy_when_normal(self, monitor_no_alerts):
-        result = self._run_health(monitor_no_alerts, memory_rss=500 * 1024 * 1024, cpu=25.0)
+        result = self._run_health(
+            monitor_no_alerts, memory_rss=500 * 1024 * 1024, cpu=25.0
+        )
         assert result["status"] == "healthy"
         assert result["issues"] == []
 
     def test_unhealthy_high_memory(self, monitor_no_alerts):
         # 2500 MB > 2400 threshold
-        result = self._run_health(monitor_no_alerts, memory_rss=2500 * 1024 * 1024, cpu=10.0)
+        result = self._run_health(
+            monitor_no_alerts, memory_rss=2500 * 1024 * 1024, cpu=10.0
+        )
         assert result["status"] == "unhealthy"
         assert "High memory usage" in result["issues"]
 
     def test_unhealthy_high_cpu(self, monitor_no_alerts):
-        result = self._run_health(monitor_no_alerts, memory_rss=100 * 1024 * 1024, cpu=96.0)
+        result = self._run_health(
+            monitor_no_alerts, memory_rss=100 * 1024 * 1024, cpu=96.0
+        )
         assert result["status"] == "unhealthy"
         assert "High CPU usage" in result["issues"]
 
@@ -521,7 +548,10 @@ class TestGetHealthStatus:
         mock_err_gauge._value.get.return_value = 0.10
 
         with patch("psutil.Process", return_value=mock_proc):
-            with patch("src.monitoring.production_monitoring.production_error_rate", mock_err_gauge):
+            with patch(
+                "src.monitoring.production_monitoring.production_error_rate",
+                mock_err_gauge,
+            ):
                 # Force the REGISTRY iteration to raise so we hit the fallback
                 mock_registry = MagicMock()
                 mock_registry._collector_to_names = {}  # empty - no collectors
@@ -541,7 +571,9 @@ class TestGetHealthStatus:
 
     def test_health_multiple_issues(self, monitor_no_alerts):
         # 2500 MB memory AND 96% CPU
-        result = self._run_health(monitor_no_alerts, memory_rss=2500 * 1024 * 1024, cpu=96.0)
+        result = self._run_health(
+            monitor_no_alerts, memory_rss=2500 * 1024 * 1024, cpu=96.0
+        )
         assert result["status"] == "unhealthy"
         assert len(result["issues"]) >= 2
 
@@ -557,15 +589,18 @@ class TestGetHealthStatus:
 # Global singleton: get_production_monitor
 # ---------------------------------------------------------------------------
 
+
 class TestGetProductionMonitor:
     def test_returns_production_monitor(self):
         import src.monitoring.production_monitoring as mod
+
         mod._production_monitor = None
         m = get_production_monitor()
         assert isinstance(m, ProductionMonitor)
 
     def test_returns_same_instance(self):
         import src.monitoring.production_monitoring as mod
+
         mod._production_monitor = None
         m1 = get_production_monitor()
         m2 = get_production_monitor()
@@ -573,6 +608,7 @@ class TestGetProductionMonitor:
 
     def test_reset_singleton(self):
         import src.monitoring.production_monitoring as mod
+
         mod._production_monitor = None
         m1 = get_production_monitor()
         mod._production_monitor = None
@@ -583,6 +619,7 @@ class TestGetProductionMonitor:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     def test_collect_metrics_with_mesh_router_attr(self, monitor):
@@ -653,8 +690,12 @@ class TestEdgeCases:
 
     def test_record_request_various_status_codes(self, monitor):
         """Record requests with different status codes."""
-        with patch("src.monitoring.production_monitoring.production_requests_total") as mock_c:
-            with patch("src.monitoring.production_monitoring.production_request_duration") as mock_d:
+        with patch(
+            "src.monitoring.production_monitoring.production_requests_total"
+        ) as mock_c:
+            with patch(
+                "src.monitoring.production_monitoring.production_request_duration"
+            ) as mock_d:
                 for code in [200, 201, 400, 404, 500, 503]:
                     monitor.record_request("POST", "/api", code, 0.1)
                 assert mock_c.labels.call_count == 6
@@ -729,9 +770,15 @@ class TestEdgeCases:
         """Partial stats should use defaults for missing keys."""
         with patch("src.monitoring.production_monitoring.gtm_total_users") as m_u:
             with patch("src.monitoring.production_monitoring.gtm_new_users_24h") as m_n:
-                with patch("src.monitoring.production_monitoring.gtm_active_licenses") as m_l:
-                    with patch("src.monitoring.production_monitoring.gtm_total_revenue") as m_r:
-                        with patch("src.monitoring.production_monitoring.gtm_conversion_rate") as m_c:
+                with patch(
+                    "src.monitoring.production_monitoring.gtm_active_licenses"
+                ) as m_l:
+                    with patch(
+                        "src.monitoring.production_monitoring.gtm_total_revenue"
+                    ) as m_r:
+                        with patch(
+                            "src.monitoring.production_monitoring.gtm_conversion_rate"
+                        ) as m_c:
                             monitor.record_gtm_stats({"total_users": 5})
                             m_u.set.assert_called_once_with(5)
                             m_n.set.assert_called_once_with(0)

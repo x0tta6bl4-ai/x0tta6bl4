@@ -2,29 +2,24 @@
 Pytest fixtures for Vault integration tests.
 """
 
-import pytest
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from typing import Generator
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
+
+from src.config.vault_config import (VaultClientConfig, VaultIntegrationConfig,
+                                     VaultMonitorConfig)
+from src.security.vault_auth import K8sAuthConfig, K8sAuthHandler
 # Import the modules under test
-from src.security.vault_client import VaultClient, VaultAuthError, VaultSecretError
-from src.security.vault_auth import K8sAuthHandler, K8sAuthConfig
-from src.security.vault_secrets import (
-    VaultSecretManager,
-    SecretInjector,
-    SecretType,
-    DatabaseCredentials,
-    ApiCredentials,
-    TLSCertificate,
-)
-from src.security.vault_monitoring import VaultHealthMonitor, VaultMetricsReporter
-from src.config.vault_config import (
-    VaultClientConfig,
-    VaultMonitorConfig,
-    VaultIntegrationConfig,
-)
+from src.security.vault_client import (VaultAuthError, VaultClient,
+                                       VaultSecretError)
+from src.security.vault_monitoring import (VaultHealthMonitor,
+                                           VaultMetricsReporter)
+from src.security.vault_secrets import (ApiCredentials, DatabaseCredentials,
+                                        SecretInjector, SecretType,
+                                        TLSCertificate, VaultSecretManager)
 
 
 @pytest.fixture
@@ -56,11 +51,11 @@ def vault_client_config():
 def mock_hvac_client():
     """Create a mock hvac Client."""
     mock_client = Mock()
-    
+
     # Mock adapter for Kubernetes auth
     mock_adapter = Mock()
     mock_client.adapter = mock_adapter
-    
+
     # Mock secrets KV v2
     mock_secrets = Mock()
     mock_kv = Mock()
@@ -68,11 +63,11 @@ def mock_hvac_client():
     mock_secrets.kv = mock_kv
     mock_kv.v2 = mock_v2
     mock_client.secrets = mock_secrets
-    
+
     # Mock sys for health checks
     mock_sys = Mock()
     mock_client.sys = mock_sys
-    
+
     return mock_client
 
 
@@ -81,9 +76,9 @@ def mock_kubernetes_auth():
     """Create a mock Kubernetes auth method."""
     mock_auth = Mock()
     mock_auth.login.return_value = {
-        'auth': {
-            'client_token': 'test-token-12345',
-            'lease_duration': 3600,
+        "auth": {
+            "client_token": "test-token-12345",
+            "lease_duration": 3600,
         }
     }
     return mock_auth
@@ -92,11 +87,11 @@ def mock_kubernetes_auth():
 @pytest.fixture
 def vault_client(vault_client_config, mock_hvac_client, mock_kubernetes_auth):
     """Create a VaultClient with mocked dependencies."""
-    with patch('src.security.vault_client.hvac.Client') as mock_hvac:
-        with patch('src.security.vault_client.Kubernetes') as mock_k8s_class:
+    with patch("src.security.vault_client.hvac.Client") as mock_hvac:
+        with patch("src.security.vault_client.Kubernetes") as mock_k8s_class:
             mock_hvac.return_value = mock_hvac_client
             mock_k8s_class.return_value = mock_kubernetes_auth
-            
+
             client = VaultClient(
                 vault_addr=vault_client_config.vault_addr,
                 vault_namespace=vault_client_config.vault_namespace,
@@ -118,7 +113,7 @@ def authenticated_vault_client(vault_client, mock_hvac_client, mock_kubernetes_a
     # Set up the client as if connect() was called
     vault_client.client = mock_hvac_client
     vault_client._k8s_auth = mock_kubernetes_auth
-    vault_client.token = 'test-token-12345'
+    vault_client.token = "test-token-12345"
     vault_client.token_ttl = 3600
     vault_client.token_expiry = datetime.now() + timedelta(seconds=2880)  # 80% of 3600
     vault_client._authenticated = True
@@ -144,20 +139,20 @@ def k8s_auth_handler(k8s_auth_config, tmp_path):
     # Create temporary files
     jwt_file = tmp_path / "test-jwt"
     jwt_file.write_text("test-jwt-token")
-    
+
     ca_file = tmp_path / "test-ca.crt"
     ca_file.write_text("test-ca-cert")
-    
+
     ns_file = tmp_path / "test-namespace"
     ns_file.write_text("test-namespace")
-    
+
     config = K8sAuthConfig(
         role=k8s_auth_config.role,
         jwt_path=str(jwt_file),
         ca_cert_path=str(ca_file),
         namespace_path=str(ns_file),
     )
-    
+
     return K8sAuthHandler(config)
 
 
@@ -192,12 +187,12 @@ def metrics_reporter(authenticated_vault_client):
 def sample_database_credentials():
     """Create sample database credentials."""
     return {
-        'username': 'dbuser',
-        'password': 'dbpass123',
-        'host': 'db.example.com',
-        'port': 5432,
-        'database': 'mydb',
-        'connection_string': 'postgresql://dbuser:dbpass123@db.example.com:5432/mydb',
+        "username": "dbuser",
+        "password": "dbpass123",
+        "host": "db.example.com",
+        "port": 5432,
+        "database": "mydb",
+        "connection_string": "postgresql://dbuser:dbpass123@db.example.com:5432/mydb",
     }
 
 
@@ -205,10 +200,10 @@ def sample_database_credentials():
 def sample_api_credentials():
     """Create sample API credentials."""
     return {
-        'api_key': 'api-key-12345',
-        'api_secret': 'api-secret-67890',
-        'client_id': 'client-123',
-        'client_secret': 'client-secret-456',
+        "api_key": "api-key-12345",
+        "api_secret": "api-secret-67890",
+        "client_id": "client-123",
+        "client_secret": "client-secret-456",
     }
 
 
@@ -216,9 +211,9 @@ def sample_api_credentials():
 def sample_tls_certificate():
     """Create sample TLS certificate."""
     return {
-        'certificate': '-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----',
-        'private_key': '-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----',
-        'ca_chain': '-----BEGIN CERTIFICATE-----\nCA\n-----END CERTIFICATE-----',
+        "certificate": "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----",
+        "ca_chain": "-----BEGIN CERTIFICATE-----\nCA\n-----END CERTIFICATE-----",
     }
 
 
@@ -226,12 +221,12 @@ def sample_tls_certificate():
 def mock_secret_response(sample_database_credentials):
     """Create a mock secret response from Vault."""
     return {
-        'data': {
-            'data': sample_database_credentials,
-            'metadata': {
-                'version': 1,
-                'created_time': datetime.now().isoformat(),
-            }
+        "data": {
+            "data": sample_database_credentials,
+            "metadata": {
+                "version": 1,
+                "created_time": datetime.now().isoformat(),
+            },
         }
     }
 
@@ -242,6 +237,7 @@ def reset_prometheus_registry():
     # Import here to avoid issues if prometheus_client is not installed
     try:
         from prometheus_client import REGISTRY
+
         # Collect all collectors to clear
         collectors = list(REGISTRY._collector_to_names.keys())
         for collector in collectors:

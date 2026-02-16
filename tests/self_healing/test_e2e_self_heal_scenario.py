@@ -8,29 +8,22 @@ End-to-End тесты сценариев self-healing.
 - Mesh reconvergence после отказов
 - Координация между компонентами
 """
-import pytest
-import asyncio
-import time
-import threading
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
 
-from src.core.circuit_breaker import (
-    CircuitBreaker,
-    CircuitState,
-    CircuitBreakerOpen,
-)
-from src.self_healing.recovery_actions import (
-    RecoveryActionType,
-    RecoveryActionExecutor,
-    RateLimiter,
-)
-from src.security.auto_isolation import (
-    IsolationLevel,
-    IsolationReason,
-    AutoIsolationManager,
-    QuarantineZone,
-)
+import asyncio
+import threading
+import time
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+
+from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerOpen,
+                                      CircuitState)
+from src.security.auto_isolation import (AutoIsolationManager, IsolationLevel,
+                                         IsolationReason, QuarantineZone)
+from src.self_healing.recovery_actions import (RateLimiter,
+                                               RecoveryActionExecutor,
+                                               RecoveryActionType)
 
 
 class TestAnomalyToRecoveryScenario:
@@ -51,7 +44,7 @@ class TestAnomalyToRecoveryScenario:
             record = isolation_manager.isolate(
                 node_id=node_id,
                 reason=IsolationReason.ANOMALY_DETECTED,
-                details="Необычный паттерн трафика"
+                details="Необычный паттерн трафика",
             )
 
         # 3. Проверяем изоляцию
@@ -76,8 +69,7 @@ class TestAnomalyToRecoveryScenario:
 
         for i in range(5):
             record = isolation_manager.isolate(
-                node_id=node_id,
-                reason=IsolationReason.THREAT_DETECTED
+                node_id=node_id, reason=IsolationReason.THREAT_DETECTED
             )
             levels_observed.append(record.level)
 
@@ -171,7 +163,7 @@ class TestHealthProbeScenario:
             isolation_manager.isolate(
                 node_id=node_id,
                 reason=IsolationReason.ANOMALY_DETECTED,
-                details="Health check failed 3 times"
+                details="Health check failed 3 times",
             )
 
         # 3. Нода изолирована
@@ -212,8 +204,7 @@ class TestMeshReconvergenceScenario:
 
         # 2. Изолируем failed node
         isolation_manager.isolate(
-            node_id=failed_node,
-            reason=IsolationReason.ANOMALY_DETECTED
+            node_id=failed_node, reason=IsolationReason.ANOMALY_DETECTED
         )
         quarantine_zone.add_node(failed_node)
 
@@ -247,8 +238,7 @@ class TestMeshReconvergenceScenario:
 
         for node in failed_nodes:
             isolation_manager.isolate(
-                node_id=node,
-                reason=IsolationReason.THREAT_DETECTED
+                node_id=node, reason=IsolationReason.THREAT_DETECTED
             )
             quarantine_zone.add_node(node)
 
@@ -285,12 +275,7 @@ class TestCoordinatedRecoveryScenario:
         """Откат при частичном сбое."""
         # Выполняем действие
         recovery_executor.execute(
-            "Scale up",
-            {
-                "deployment_name": "api",
-                "replicas": 5,
-                "old_replicas": 3
-            }
+            "Scale up", {"deployment_name": "api", "replicas": 5, "old_replicas": 3}
         )
 
         # Откатываем
@@ -310,8 +295,7 @@ class TestRaceConditionScenario:
         def isolate():
             try:
                 record = isolation_manager.isolate(
-                    node_id=node_id,
-                    reason=IsolationReason.ANOMALY_DETECTED
+                    node_id=node_id, reason=IsolationReason.ANOMALY_DETECTED
                 )
                 results.append(record)
             except Exception as e:
@@ -337,16 +321,14 @@ class TestRaceConditionScenario:
 
         # Сначала изолируем
         isolation_manager.isolate(
-            node_id=node_id,
-            reason=IsolationReason.ANOMALY_DETECTED
+            node_id=node_id, reason=IsolationReason.ANOMALY_DETECTED
         )
 
         results = {"isolate": [], "release": []}
 
         def isolate():
             record = isolation_manager.isolate(
-                node_id=node_id,
-                reason=IsolationReason.THREAT_DETECTED
+                node_id=node_id, reason=IsolationReason.THREAT_DETECTED
             )
             results["isolate"].append(record)
 
@@ -399,7 +381,7 @@ class TestGracefulDegradationScenario:
         isolation_manager.isolate(
             node_id="restricted-node",
             reason=IsolationReason.ANOMALY_DETECTED,
-            level_override=IsolationLevel.RESTRICTED
+            level_override=IsolationLevel.RESTRICTED,
         )
 
         # Health check должен быть разрешён
@@ -451,7 +433,7 @@ class TestEndToEndSelfHealingFlow:
         isolation_manager.isolate(
             node_id=node_id,
             reason=IsolationReason.ANOMALY_DETECTED,
-            details="Circuit breaker opened"
+            details="Circuit breaker opened",
         )
         quarantine_zone.add_node(node_id)
 

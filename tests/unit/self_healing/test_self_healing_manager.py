@@ -2,8 +2,10 @@
 Unit tests for SelfHealingManager
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+
 from src.self_healing.mape_k import SelfHealingManager
 
 
@@ -31,9 +33,9 @@ class TestSelfHealingManager:
         manager = SelfHealingManager()
 
         # Mock monitor to return no anomalies
-        with patch.object(manager.monitor, 'check', return_value=False):
+        with patch.object(manager.monitor, "check", return_value=False):
             # Should not trigger analysis/planning/execution
-            manager.run_cycle({'cpu_percent': 10, 'memory_percent': 20})
+            manager.run_cycle({"cpu_percent": 10, "memory_percent": 20})
 
             # Knowledge should still be empty (no incidents recorded)
             assert len(manager.knowledge.incidents) == 0
@@ -43,20 +45,22 @@ class TestSelfHealingManager:
         manager = SelfHealingManager()
 
         # Mock components
-        with patch.object(manager.monitor, 'check', return_value=True), \
-             patch.object(manager.analyzer, 'analyze', return_value='High CPU'), \
-             patch.object(manager.planner, 'plan', return_value='Restart service'), \
-             patch.object(manager.executor, 'execute', return_value=True):
+        with (
+            patch.object(manager.monitor, "check", return_value=True),
+            patch.object(manager.analyzer, "analyze", return_value="High CPU"),
+            patch.object(manager.planner, "plan", return_value="Restart service"),
+            patch.object(manager.executor, "execute", return_value=True),
+        ):
 
-            metrics = {'cpu_percent': 95, 'memory_percent': 20}
+            metrics = {"cpu_percent": 95, "memory_percent": 20}
             manager.run_cycle(metrics)
 
             # Should have recorded the incident
             assert len(manager.knowledge.incidents) == 1
             incident = manager.knowledge.incidents[0]
-            assert incident['issue'] == 'High CPU'
-            assert incident['action'] == 'Restart service'
-            assert incident['success'] == True
+            assert incident["issue"] == "High CPU"
+            assert incident["action"] == "Restart service"
+            assert incident["success"] == True
 
     def test_feedback_loop_tracking(self):
         """Test that feedback loop statistics are tracked"""
@@ -67,12 +71,14 @@ class TestSelfHealingManager:
         initial_improvements = manager.strategy_improvements
 
         # Run a cycle
-        with patch.object(manager.monitor, 'check', return_value=True), \
-             patch.object(manager.analyzer, 'analyze', return_value='High CPU'), \
-             patch.object(manager.planner, 'plan', return_value='Restart service'), \
-             patch.object(manager.executor, 'execute', return_value=True):
+        with (
+            patch.object(manager.monitor, "check", return_value=True),
+            patch.object(manager.analyzer, "analyze", return_value="High CPU"),
+            patch.object(manager.planner, "plan", return_value="Restart service"),
+            patch.object(manager.executor, "execute", return_value=True),
+        ):
 
-            manager.run_cycle({'cpu_percent': 95})
+            manager.run_cycle({"cpu_percent": 95})
 
         # Feedback should be updated
         assert manager.feedback_updates > initial_updates
@@ -83,12 +89,12 @@ class TestSelfHealingManager:
         stats = manager.get_feedback_stats()
 
         required_keys = [
-            'feedback_updates',
-            'threshold_adjustments',
-            'strategy_improvements',
-            'knowledge_base_size',
-            'successful_patterns',
-            'failed_patterns'
+            "feedback_updates",
+            "threshold_adjustments",
+            "strategy_improvements",
+            "knowledge_base_size",
+            "successful_patterns",
+            "failed_patterns",
         ]
 
         for key in required_keys:

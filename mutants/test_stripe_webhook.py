@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+import os
 import json
 import time
 import hmac
 import hashlib
 import httpx
 
-WEBHOOK_SECRET = "whsec_test_secret_key_for_testing_only"
+WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 WEBHOOK_URL = "http://localhost:8080/api/v1/billing/webhook"
 
 def generate_signature(payload: bytes, secret: str) -> str:

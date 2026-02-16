@@ -1,6 +1,8 @@
 """Unit tests for MeshNetworkManager."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.mesh.network_manager import MeshNetworkManager
 
@@ -31,11 +33,13 @@ class TestGetStatistics:
     async def test_with_mocked_router(self):
         mgr = MeshNetworkManager(node_id="test")
         mock_router = MagicMock()
-        mock_router.get_mape_k_metrics = AsyncMock(return_value={
-            "packet_drop_rate": 0.05,
-            "total_routes_known": 3,
-            "avg_route_hop_count": 2.0,
-        })
+        mock_router.get_mape_k_metrics = AsyncMock(
+            return_value={
+                "packet_drop_rate": 0.05,
+                "total_routes_known": 3,
+                "avg_route_hop_count": 2.0,
+            }
+        )
         mgr._router = mock_router
 
         stats = await mgr.get_statistics()

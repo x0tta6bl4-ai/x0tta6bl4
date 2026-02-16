@@ -10,23 +10,24 @@ SignedGossip and SignedMessage use our configured mock.
 
 import os
 import time as _real_time
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
 try:
-    from src.network.byzantine.signed_gossip import (
-        SignedGossip,
-        SignedMessage,
-        MessageType,
-        LIBOQS_AVAILABLE,
-    )
+    from src.network.byzantine.signed_gossip import (LIBOQS_AVAILABLE,
+                                                     MessageType, SignedGossip,
+                                                     SignedMessage)
+
     GOSSIP_AVAILABLE = True
 except ImportError as exc:
     GOSSIP_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(not GOSSIP_AVAILABLE, reason="signed_gossip not available")
+pytestmark = pytest.mark.skipif(
+    not GOSSIP_AVAILABLE, reason="signed_gossip not available"
+)
 
 MODULE_PATH = "src.network.byzantine.signed_gossip"
 
@@ -34,6 +35,7 @@ MODULE_PATH = "src.network.byzantine.signed_gossip"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_sig_mock():
     """Create a pre-configured MagicMock mimicking oqs.Signature instance."""
@@ -70,6 +72,7 @@ def gossip_pair(sig_mock):
 # TestMessageType
 # ===========================================================================
 
+
 class TestMessageType:
 
     def test_all_values_exist(self):
@@ -85,6 +88,7 @@ class TestMessageType:
 # ===========================================================================
 # TestSignedMessage
 # ===========================================================================
+
 
 class TestSignedMessage:
 
@@ -126,6 +130,7 @@ class TestSignedMessage:
 # TestSignedGossipInit
 # ===========================================================================
 
+
 class TestSignedGossipInit:
 
     def test_node_id_stored(self, gossip):
@@ -145,6 +150,7 @@ class TestSignedGossipInit:
 # ===========================================================================
 # TestSignMessage
 # ===========================================================================
+
 
 class TestSignMessage:
 
@@ -175,6 +181,7 @@ class TestSignMessage:
 # ===========================================================================
 # TestVerifyMessage
 # ===========================================================================
+
 
 class TestVerifyMessage:
 
@@ -212,6 +219,7 @@ class TestVerifyMessage:
 # TestRateLimiting
 # ===========================================================================
 
+
 class TestRateLimiting:
 
     def test_rate_limit_exceeded(self, gossip, sig_mock):
@@ -231,6 +239,7 @@ class TestRateLimiting:
 # ===========================================================================
 # TestQuarantine
 # ===========================================================================
+
 
 class TestQuarantine:
 
@@ -261,6 +270,7 @@ class TestQuarantine:
 # TestReputation
 # ===========================================================================
 
+
 class TestReputation:
 
     def test_default_reputation_is_1(self, gossip):
@@ -284,6 +294,7 @@ class TestReputation:
 # ===========================================================================
 # TestKeyRotation
 # ===========================================================================
+
 
 class TestKeyRotation:
 

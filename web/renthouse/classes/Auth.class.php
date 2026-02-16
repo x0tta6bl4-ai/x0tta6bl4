@@ -38,27 +38,25 @@ class User
         return false;
     }
 
+    /**
+     * DEPRECATED: Use SecurityUtils::hashPassword() instead.
+     * Kept for backward compatibility if needed, but should not be used for new auth.
+     */
     public function passwordHash($password, $salt = null, $iterations = 10)
     {
-        // DEPRECATED: Old MD5-based hashing - INSECURE
-        // For NEW passwords, use SecurityUtils::hashPassword()
-        // For EXISTING passwords during migration, this function is kept for verification only
-        
-        // Using bcrypt with cost=12 (recommended by OWASP)
         return array(
             'hash' => \SecurityUtils::hashPassword($password),
-            'salt' => null  // bcrypt handles salt internally
+            'salt' => null
         );
     }
 
+    /**
+     * DEPRECATED: Salts are now handled internally by bcrypt/sodium.
+     */
     public function getSalt($username) {
         $query = "select salt from users where username = :username limit 1";
         $sth = $this->db->prepare($query);
-        $sth->execute(
-            array(
-                ":username" => $username
-            )
-        );
+        $sth->execute(array(":username" => $username));
         $row = $sth->fetch();
         if (!$row) {
             return false;
@@ -68,33 +66,49 @@ class User
 
     public function authorize($username, $password, $remember=false)
     {
-        $query = "select id, username from users where
-            username = :username and password = :password limit 1";
+        // Correct secure flow: Fetch hash by username, then verify in PHP
+        $query = "select id, username, password, salt from users where username = :username limit 1";
         $sth = $this->db->prepare($query);
-        $salt = $this->getSalt($username);
+        $sth->execute(array(":username" => $username));
+        $user = $sth->fetch();
 
-        if (!$salt) {
+        if (!$user) {
+            $this->is_authorized = false;
             return false;
         }
 
-        $hashes = $this->passwordHash($password, $salt);
-        $sth->execute(
-            array(
-                ":username" => $username,
-                ":password" => $hashes['hash'],
-            )
-        );
-        $this->user = $sth->fetch();
-        
-        if (!$this->user) {
-            $this->is_authorized = false;
-        } else {
+        // Verify password
+        // 1. Try standard verify (works for bcrypt/argon2)
+        if (\SecurityUtils::verifyPassword($password, $user['password'])) {
+            $this->user = $user;
             $this->is_authorized = true;
             $this->user_id = $this->user['id'];
             $this->saveSession($remember);
+            return true;
+        }
+        
+        // 2. Legacy fallback (if migration is needed and supported)
+        // Check if old hash format is MD5 and migrate if so
+        if (function_exists('isMD5Hash') && isMD5Hash($user['password'])) {
+            // Check legacy salt handling if applicable, or assume raw MD5
+            // Implementation depends on legacy logic. 
+            // For now, we assume standard migration helper
+            $newHash = migrateFromMD5($password, $user['password']);
+            if ($newHash) {
+                // Password matches legacy hash, update to new hash
+                $update = $this->db->prepare("UPDATE users SET password = :pass WHERE id = :id");
+                $update->execute([':pass' => $newHash, ':id' => $user['id']]);
+                
+                $this->user = $user;
+                $this->is_authorized = true;
+                $this->user_id = $this->user['id'];
+                $this->saveSession($remember);
+                return true;
+            }
         }
 
-        return $this->is_authorized;
+        $this->is_authorized = false;
+        return false;
     }
 
     public function logout()
@@ -138,8 +152,8 @@ class User
             $result = $sth->execute(
                 array(
                     ':username' => $username,
-                    ':password' => $hashes['hash'],
-                    ':salt' => $hashes['salt'],
+                    ':password' => \SecurityUtils::hashPassword($password),
+                    ':salt' => 'bcrypt', // Dummy value for NOT NULL constraint
                 )
             );
             $this->db->commit();

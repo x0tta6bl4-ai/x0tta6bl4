@@ -4,16 +4,19 @@ Post-Quantum Cryptography Module.
 Uses liboqs Kyber KEM for key encapsulation with AES-GCM for symmetric encryption.
 Falls back to mock (AES-GCM only) if liboqs is not available.
 """
-import os
+
 import logging
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+import os
+
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 logger = logging.getLogger(__name__)
 
 # Try to import real PQC adapter
 try:
     from src.security.pqc.pqc_adapter import PQCAdapter
+
     LIBOQS_AVAILABLE = True
     logger.info("liboqs PQC available - using real post-quantum cryptography")
 except ImportError:
@@ -47,14 +50,18 @@ class PQCCrypto:
             try:
                 self._adapter = PQCAdapter(kem_alg=kem_alg)
                 # Generate session keypair
-                self.public_key, self._private_key = self._adapter.kem_generate_keypair()
+                self.public_key, self._private_key = (
+                    self._adapter.kem_generate_keypair()
+                )
                 # For local encrypt/decrypt, we use a derived key
                 # In real usage, peer would encapsulate to our public_key
                 _, self._shared_secret = self._adapter.kem_encapsulate(self.public_key)
                 self.key = self._shared_secret[:32]  # Use first 32 bytes for AES-256
                 logger.debug(f"PQC initialized with real {kem_alg}")
             except Exception as e:
-                logger.warning(f"Failed to initialize real PQC: {e}, falling back to mock")
+                logger.warning(
+                    f"Failed to initialize real PQC: {e}, falling back to mock"
+                )
                 self.use_real_pqc = False
                 self.key = os.urandom(32)
                 self.public_key = None
@@ -77,7 +84,9 @@ class PQCCrypto:
             Encrypted bytes: iv (12) + tag (16) + ciphertext
         """
         iv = os.urandom(12)
-        cipher = Cipher(algorithms.AES(self.key), modes.GCM(iv), backend=default_backend())
+        cipher = Cipher(
+            algorithms.AES(self.key), modes.GCM(iv), backend=default_backend()
+        )
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(data) + encryptor.finalize()
         return iv + encryptor.tag + ciphertext
@@ -99,7 +108,9 @@ class PQCCrypto:
         tag = data[12:28]
         ciphertext = data[28:]
 
-        cipher = Cipher(algorithms.AES(self.key), modes.GCM(iv, tag), backend=default_backend())
+        cipher = Cipher(
+            algorithms.AES(self.key), modes.GCM(iv, tag), backend=default_backend()
+        )
         decryptor = cipher.decryptor()
         return decryptor.update(ciphertext) + decryptor.finalize()
 

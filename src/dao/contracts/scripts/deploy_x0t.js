@@ -11,7 +11,13 @@
  *   POLYGONSCAN_API_KEY - For contract verification (optional)
  */
 
-const hre = require("hardhat");
+import hre from "hardhat";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function main() {
     console.log("🚀 Deploying X0T Token...\n");
@@ -19,7 +25,7 @@ async function main() {
     // Get deployer
     const [deployer] = await hre.ethers.getSigners();
     console.log("Deployer address:", deployer.address);
-    
+
     const balance = await hre.ethers.provider.getBalance(deployer.address);
     console.log("Deployer balance:", hre.ethers.formatEther(balance), "ETH/MATIC\n");
 
@@ -36,7 +42,7 @@ async function main() {
     const totalSupply = await token.totalSupply();
     const symbol = await token.symbol();
     const name = await token.name();
-    
+
     console.log("\n📊 Token Info:");
     console.log("  Name:", name);
     console.log("  Symbol:", symbol);
@@ -67,14 +73,15 @@ async function main() {
         blockNumber: await hre.ethers.provider.getBlockNumber()
     };
 
-    const fs = require("fs");
-    const path = require("path");
-    
+    // Use imported fs/path
+    // const fs = require("fs");
+    // const path = require("path");
+
     const deploymentsDir = path.join(__dirname, "..", "deployments");
     if (!fs.existsSync(deploymentsDir)) {
         fs.mkdirSync(deploymentsDir, { recursive: true });
     }
-    
+
     const filename = `x0t_${hre.network.name}_${Date.now()}.json`;
     fs.writeFileSync(
         path.join(deploymentsDir, filename),
@@ -86,7 +93,7 @@ async function main() {
     if (hre.network.name !== "localhost" && hre.network.name !== "hardhat") {
         console.log("\n🔍 Waiting for block confirmations...");
         await token.deploymentTransaction().wait(5);
-        
+
         console.log("Verifying contract on block explorer...");
         try {
             await hre.run("verify:verify", {

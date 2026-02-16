@@ -3,18 +3,20 @@ DAO Governance Module for x0tta6bl4.
 Implements decentralized decision making via weighted voting.
 Now with Quadratic Voting support and action dispatch.
 """
+
 import json
 import logging
 import time
 import uuid
-from enum import Enum
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Callable, Any
+from typing import Any, Callable, Dict, List, Optional
 
 from src.dao.quadratic_voting import QuadraticVoting, Vote
 
 logger = logging.getLogger(__name__)
+
 
 class ProposalState(Enum):
     PENDING = "pending"
@@ -23,10 +25,12 @@ class ProposalState(Enum):
     REJECTED = "rejected"
     EXECUTED = "executed"
 
+
 class VoteType(Enum):
     YES = "yes"
     NO = "no"
     ABSTAIN = "abstain"
+
 
 @dataclass
 class Proposal:
@@ -38,7 +42,9 @@ class Proposal:
     end_time: float
     actions: List[Dict] = field(default_factory=list)
     votes: Dict[str, VoteType] = field(default_factory=dict)
-    voter_tokens: Dict[str, float] = field(default_factory=dict)  # Quadratic voting: tokens per voter
+    voter_tokens: Dict[str, float] = field(
+        default_factory=dict
+    )  # Quadratic voting: tokens per voter
     state: ProposalState = ProposalState.PENDING
     quorum: float = 0.5  # 50% participation required
     threshold: float = 0.5  # 50% + 1 support required
@@ -52,9 +58,11 @@ class Proposal:
             counts[vote] += 1
         return counts
 
+
 @dataclass
 class ActionResult:
     """Result of executing a governance action."""
+
     action_type: str
     success: bool
     detail: str = ""
@@ -84,7 +92,9 @@ class ActionDispatcher:
         self._handlers["update_config"] = self._handle_update_config
         self._handlers["ban_node"] = self._handle_ban_node
 
-    def register(self, action_type: str, handler: Callable[[Dict[str, Any]], ActionResult]):
+    def register(
+        self, action_type: str, handler: Callable[[Dict[str, Any]], ActionResult]
+    ):
         """Register a custom action handler."""
         self._handlers[action_type] = handler
 
@@ -118,7 +128,9 @@ class ActionDispatcher:
     def _handle_rotate_keys(action: Dict[str, Any]) -> ActionResult:
         scope = action.get("scope", "all")
         logger.info(f"PQC key rotation triggered (scope={scope})")
-        return ActionResult("rotate_keys", True, f"key rotation initiated (scope={scope})")
+        return ActionResult(
+            "rotate_keys", True, f"key rotation initiated (scope={scope})"
+        )
 
     @staticmethod
     def _handle_update_threshold(action: Dict[str, Any]) -> ActionResult:
@@ -151,8 +163,13 @@ class GovernanceEngine:
     Manages proposals and voting for the Mesh DAO.
     Now with Quadratic Voting support and action dispatch.
     """
-    def __init__(self, node_id: str, ledger_path: Optional[Path] = None,
-                 dispatcher: Optional[ActionDispatcher] = None):
+
+    def __init__(
+        self,
+        node_id: str,
+        ledger_path: Optional[Path] = None,
+        dispatcher: Optional[ActionDispatcher] = None,
+    ):
         self.node_id = node_id
         self.proposals: Dict[str, Proposal] = {}
         # Initialize voting power from a simulated node list
@@ -186,7 +203,7 @@ class GovernanceEngine:
         duration_seconds: float = 3600,
         actions: Optional[List[Dict]] = None,
         quorum: float = 0.5,
-        threshold: float = 0.5
+        threshold: float = 0.5,
     ) -> Proposal:
         """Create a new governance proposal.
 
@@ -214,35 +231,37 @@ class GovernanceEngine:
             actions=actions or [],
             state=ProposalState.ACTIVE,
             quorum=quorum,
-            threshold=threshold
+            threshold=threshold,
         )
         self.proposals[proposal_id] = proposal
         logger.info(f"Created proposal {proposal_id}: {title}")
         return proposal
 
-    def cast_vote(self, proposal_id: str, voter_id: str, vote: VoteType, tokens: float = 1.0) -> bool:
+    def cast_vote(
+        self, proposal_id: str, voter_id: str, vote: VoteType, tokens: float = 1.0
+    ) -> bool:
         """
         Cast a vote on a proposal with quadratic voting support.
-        
+
         Args:
             proposal_id: ID of the proposal
             voter_id: ID of the voter
             vote: Vote type (YES, NO, ABSTAIN)
             tokens: Number of tokens held by voter (for quadratic voting)
-        
+
         Returns:
             True if vote was recorded, False otherwise
         """
         if proposal_id not in self.proposals:
             logger.warning(f"Unknown proposal: {proposal_id}")
             return False
-            
+
         proposal = self.proposals[proposal_id]
-        
+
         if proposal.state != ProposalState.ACTIVE:
             logger.warning(f"Voting closed for {proposal_id} (State: {proposal.state})")
             return False
-            
+
         if time.time() > proposal.end_time:
             self._tally_votes(proposal)
             logger.warning(f"Voting period ended for {proposal_id}")
@@ -251,11 +270,12 @@ class GovernanceEngine:
         # Record vote and tokens for quadratic voting
         proposal.votes[voter_id] = vote
         proposal.voter_tokens[voter_id] = max(0.0, tokens)  # Ensure non-negative
-        
+
         # Calculate quadratic voting power for logging
         from math import sqrt
+
         voting_power = sqrt(tokens) if tokens > 0 else 0.0
-        
+
         logger.info(
             f"Vote cast by {voter_id} on {proposal_id}: {vote.value} "
             f"(tokens={tokens:.1f}, voting_power={voting_power:.2f})"
@@ -272,48 +292,48 @@ class GovernanceEngine:
     def _tally_votes(self, proposal: Proposal):
         """
         Tally votes using Quadratic Voting algorithm.
-        
+
         Quadratic Voting: Each voter's voting power = sqrt(tokens_held)
         This reduces the influence of large token holders and promotes
         more democratic decision-making.
-        
+
         Example:
             - Voter A: 100 tokens → √100 = 10 voting power
             - Voter B: 10000 tokens → √10000 = 100 voting power (not 100x)
         """
         from math import sqrt
-        
+
         counts = proposal.vote_counts()
         total = proposal.total_votes()
-        
+
         if total == 0:
             proposal.state = ProposalState.REJECTED
             logger.info(f"Proposal {proposal.id} rejected (no votes)")
             return
-        
+
         # Quadratic Voting: Calculate weighted votes
         yes_weighted = 0.0
         no_weighted = 0.0
         total_weighted = 0.0
-        
+
         for voter_id, vote in proposal.votes.items():
             # Get tokens from proposal (set during cast_vote) or fallback to voting_power
             tokens = proposal.voter_tokens.get(voter_id)
             if tokens is None:
                 # Fallback: use voting_power from engine (for backward compatibility)
                 tokens = self.voting_power.get(voter_id, 0.0)
-            
+
             # Quadratic Voting: voting_power = sqrt(tokens)
             voting_power = sqrt(tokens) if tokens > 0 else 0.0
-            
+
             total_weighted += voting_power
-            
+
             if vote == VoteType.YES:
                 yes_weighted += voting_power
             elif vote == VoteType.NO:
                 no_weighted += voting_power
             # ABSTAIN doesn't count toward weighted total
-        
+
         # Calculate support ratio using weighted votes
         if total_weighted == 0:
             proposal.state = ProposalState.REJECTED
@@ -322,7 +342,11 @@ class GovernanceEngine:
 
         # Check quorum: participation must meet minimum threshold
         # Calculate total possible voting power from all known voters
-        total_possible = sum(sqrt(t) for t in self.voting_power.values()) if self.voting_power else total_weighted
+        total_possible = (
+            sum(sqrt(t) for t in self.voting_power.values())
+            if self.voting_power
+            else total_weighted
+        )
         participation = total_weighted / total_possible if total_possible > 0 else 0.0
         if participation < proposal.quorum:
             proposal.state = ProposalState.REJECTED
@@ -341,13 +365,17 @@ class GovernanceEngine:
             f"Total={total_weighted:.2f}, Support={support:.1%}, "
             f"Participation={participation:.1%}"
         )
-        
+
         if support > proposal.threshold:
             proposal.state = ProposalState.PASSED
-            logger.info(f"Proposal {proposal.id} PASSED ({support:.1%} weighted support)")
+            logger.info(
+                f"Proposal {proposal.id} PASSED ({support:.1%} weighted support)"
+            )
         else:
             proposal.state = ProposalState.REJECTED
-            logger.info(f"Proposal {proposal.id} REJECTED ({support:.1%} weighted support)")
+            logger.info(
+                f"Proposal {proposal.id} REJECTED ({support:.1%} weighted support)"
+            )
 
     def execute_proposal(self, proposal_id: str) -> List[ActionResult]:
         """Execute actions of a passed proposal via the dispatcher.

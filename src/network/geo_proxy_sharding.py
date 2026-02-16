@@ -9,29 +9,28 @@ Provides:
 - Health monitoring per region
 - Metrics and analytics
 """
+
 import asyncio
 import logging
-import time
 import random
 import statistics
-from typing import Optional, List, Dict, Any, Set, Callable
+import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional, Set
 
-from src.network.residential_proxy_manager import (
-    ProxyEndpoint,
-    ProxyStatus,
-    ResidentialProxyManager,
-    DomainReputation,
-    TLSFingerprintRandomizer,
-)
+from src.network.residential_proxy_manager import (DomainReputation,
+                                                   ProxyEndpoint, ProxyStatus,
+                                                   ResidentialProxyManager,
+                                                   TLSFingerprintRandomizer)
 
 logger = logging.getLogger(__name__)
 
 
 class Region(Enum):
     """Geographic regions for proxy sharding."""
+
     US_EAST = "us-east-1"
     US_WEST = "us-west-2"
     EU_WEST = "eu-west-1"
@@ -74,6 +73,7 @@ def get_region_latency(from_region: Region, to_region: Region) -> int:
 @dataclass
 class RegionalQuota:
     """Rate limiting quota for a region."""
+
     region: Region
     max_requests_per_minute: int = 1000
     max_requests_per_hour: int = 50000
@@ -106,8 +106,8 @@ class RegionalQuota:
     def is_rate_limited(self) -> bool:
         """Check if region is rate limited."""
         return (
-            self.requests_this_minute >= self.max_requests_per_minute or
-            self.requests_this_hour >= self.max_requests_per_hour
+            self.requests_this_minute >= self.max_requests_per_minute
+            or self.requests_this_hour >= self.max_requests_per_hour
         )
 
     @property
@@ -121,9 +121,12 @@ class RegionalQuota:
 @dataclass
 class RegionalProxyPool:
     """Proxy pool for a specific geographic region."""
+
     region: Region
     proxies: List[ProxyEndpoint] = field(default_factory=list)
-    quota: RegionalQuota = field(default_factory=lambda: RegionalQuota(region=Region.US_EAST))
+    quota: RegionalQuota = field(
+        default_factory=lambda: RegionalQuota(region=Region.US_EAST)
+    )
 
     # Health metrics
     healthy_count: int = 0
@@ -151,10 +154,7 @@ class RegionalProxyPool:
 
     def get_available_proxies(self) -> List[ProxyEndpoint]:
         """Get healthy proxies that are not rate limited."""
-        return [
-            p for p in self.get_healthy_proxies()
-            if not p.is_rate_limited()
-        ]
+        return [p for p in self.get_healthy_proxies() if not p.is_rate_limited()]
 
     def update_metrics(self):
         """Update pool metrics."""
@@ -192,10 +192,7 @@ class RegionalProxyPool:
     @property
     def is_available(self) -> bool:
         """Check if pool has available capacity."""
-        return (
-            self.healthy_count > 0 and
-            not self.quota.is_rate_limited
-        )
+        return self.healthy_count > 0 and not self.quota.is_rate_limited
 
     @property
     def health_score(self) -> float:
@@ -335,7 +332,7 @@ class GeoProxyShardManager:
                     "https://httpbin.org/ip",
                     proxy=proxy.to_url(),
                     timeout=aiohttp.ClientTimeout(total=10),
-                    ssl=False
+                    ssl=False,
                 ) as response:
                     elapsed_ms = (time.time() - start_time) * 1000
                     proxy.response_time_ms = elapsed_ms
@@ -346,7 +343,9 @@ class GeoProxyShardManager:
 
                         if proxy.status != ProxyStatus.HEALTHY:
                             proxy.status = ProxyStatus.HEALTHY
-                            logger.info(f"Proxy {proxy.id} in {pool.region.value} recovered")
+                            logger.info(
+                                f"Proxy {proxy.id} in {pool.region.value} recovered"
+                            )
                     else:
                         proxy.failure_count += 1
                         if proxy.failure_count >= 3:
@@ -403,9 +402,9 @@ class GeoProxyShardManager:
 
             # Determine target region
             target_region = (
-                preferred_region or
-                self.get_domain_region(target_domain) if target_domain else None or
-                self.default_region
+                preferred_region or self.get_domain_region(target_domain)
+                if target_domain
+                else None or self.default_region
             )
 
             # Try primary region first
@@ -417,13 +416,17 @@ class GeoProxyShardManager:
             # Failover to other regions
             if allow_failover:
                 self.failover_count += 1
-                logger.warning(f"Primary region {target_region.value} unavailable, failing over")
+                logger.warning(
+                    f"Primary region {target_region.value} unavailable, failing over"
+                )
 
                 # Get regions sorted by proximity
                 fallback_regions = self.get_nearest_regions(target_region)
 
                 for fallback_region in fallback_regions:
-                    proxy = await self._select_from_region(fallback_region, require_healthy)
+                    proxy = await self._select_from_region(
+                        fallback_region, require_healthy
+                    )
                     if proxy:
                         logger.info(f"Failed over to region {fallback_region.value}")
                         return proxy
@@ -432,9 +435,7 @@ class GeoProxyShardManager:
             return None
 
     async def _select_from_region(
-        self,
-        region: Region,
-        require_healthy: bool = True
+        self, region: Region, require_healthy: bool = True
     ) -> Optional[ProxyEndpoint]:
         """Select proxy from a specific region."""
         pool = self.pools.get(region)
@@ -443,7 +444,9 @@ class GeoProxyShardManager:
             return None
 
         if pool.health_score < self.failover_threshold:
-            logger.warning(f"Region {region.value} health score too low: {pool.health_score:.2f}")
+            logger.warning(
+                f"Region {region.value} health score too low: {pool.health_score:.2f}"
+            )
             return None
 
         candidates = pool.get_available_proxies() if require_healthy else pool.proxies
@@ -460,7 +463,7 @@ class GeoProxyShardManager:
             success_total = proxy.success_count + proxy.failure_count
             if success_total > 0:
                 success_rate = proxy.success_count / success_total
-                weight *= (0.5 + success_rate * 0.5)
+                weight *= 0.5 + success_rate * 0.5
 
             # Prefer proxies with lower latency
             if proxy.response_time_ms > 0:
@@ -508,8 +511,7 @@ class GeoProxyShardManager:
     def get_all_stats(self) -> Dict[str, Any]:
         """Get statistics for all regions."""
         regions_stats = {
-            region.value: self.get_region_stats(region)
-            for region in Region
+            region.value: self.get_region_stats(region) for region in Region
         }
 
         return {
@@ -518,7 +520,8 @@ class GeoProxyShardManager:
             "failover_count": self.failover_count,
             "success_rate": (
                 self.successful_requests / self.total_requests
-                if self.total_requests > 0 else 0.0
+                if self.total_requests > 0
+                else 0.0
             ),
             "regions": regions_stats,
         }
@@ -555,10 +558,18 @@ class GeoProxyShardManager:
 
         for region, pool in self.pools.items():
             region_label = f'region="{region.value}"'
-            lines.append(f"geo_proxy_pool_health_score{{{region_label}}} {pool.health_score:.4f}")
-            lines.append(f"geo_proxy_pool_proxies_total{{{region_label}}} {pool.total_count}")
-            lines.append(f"geo_proxy_pool_proxies_healthy{{{region_label}}} {pool.healthy_count}")
-            lines.append(f"geo_proxy_pool_latency_avg{{{region_label}}} {pool.avg_latency_ms:.2f}")
+            lines.append(
+                f"geo_proxy_pool_health_score{{{region_label}}} {pool.health_score:.4f}"
+            )
+            lines.append(
+                f"geo_proxy_pool_proxies_total{{{region_label}}} {pool.total_count}"
+            )
+            lines.append(
+                f"geo_proxy_pool_proxies_healthy{{{region_label}}} {pool.healthy_count}"
+            )
+            lines.append(
+                f"geo_proxy_pool_latency_avg{{{region_label}}} {pool.avg_latency_ms:.2f}"
+            )
 
         return "\n".join(lines)
 
@@ -609,7 +620,8 @@ class GeoCrossRegionLoadBalancer:
     ) -> Region:
         """Select optimal region based on strategy."""
         available_regions = [
-            region for region, pool in self.shard_manager.pools.items()
+            region
+            for region, pool in self.shard_manager.pools.items()
             if pool.is_available
         ]
 

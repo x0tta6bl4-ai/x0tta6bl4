@@ -1,0 +1,65 @@
+---
+# Chaos Mesh Scenario 3: Node Crash and Recovery
+# Tests MAPE-K self-healing when mesh nodes crash unexpectedly
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: mesh-node-crash
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: node-crash
+    phase: "1"
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app: mesh-node
+  gracePeriod: 0  # Immediate kill (simulates crash)
+---
+# Recurring chaos for sustained testing
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: mesh-node-crash-schedule
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: node-crash
+    phase: "1"
+spec:
+  schedule: "@every 5m"
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces:
+        - x0tta6bl4
+      labelSelectors:
+        app: mesh-node
+    gracePeriod: 0
+  concurrencyPolicy: Forbid
+  historyLimit: 3
+---
+# Pod failure (container crash, not full pod kill)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: mesh-container-failure
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: node-crash
+    phase: "1"
+spec:
+  action: container-kill
+  mode: one
+  selector:
+    namespaces:
+      - x0tta6bl4
+    labelSelectors:
+      app: mesh-node
+  containerNames:
+    - mesh-node
+  gracePeriod: 0

@@ -7,21 +7,22 @@ from unittest.mock import MagicMock
 
 # Mock optional dependencies before imports
 _mocked_modules = {
-    'hvac': MagicMock(),
-    'hvac.exceptions': MagicMock(),
-    'hvac.api': MagicMock(),
-    'hvac.api.auth_methods': MagicMock(),
-    'hvac.api.auth_methods.Kubernetes': MagicMock(),
-    'torch': MagicMock(),
-    'torch.nn': MagicMock(),
+    "hvac": MagicMock(),
+    "hvac.exceptions": MagicMock(),
+    "hvac.api": MagicMock(),
+    "hvac.api.auth_methods": MagicMock(),
+    "hvac.api.auth_methods.Kubernetes": MagicMock(),
+    "torch": MagicMock(),
+    "torch.nn": MagicMock(),
 }
 
 for mod_name, mock_obj in _mocked_modules.items():
     if mod_name not in sys.modules:
         sys.modules[mod_name] = mock_obj
 
-import pytest
 import asyncio
+
+import pytest
 
 
 class TestPARLFLIntegration:
@@ -30,9 +31,8 @@ class TestPARLFLIntegration:
     def test_import_parl_fl(self):
         """Test PARL FL integration imports."""
         from src.federated_learning.parl_integration import (
-            PARLFederatedOrchestrator,
-            PARLFLConfig
-        )
+            PARLFederatedOrchestrator, PARLFLConfig)
+
         assert PARLFederatedOrchestrator is not None
         assert PARLFLConfig is not None
 
@@ -52,9 +52,7 @@ class TestPARLFLIntegration:
         from src.federated_learning.parl_integration import PARLFLConfig
 
         config = PARLFLConfig(
-            max_workers=50,
-            max_parallel_steps=500,
-            aggregation_method="krum"
+            max_workers=50, max_parallel_steps=500, aggregation_method="krum"
         )
         assert config.max_workers == 50
         assert config.max_parallel_steps == 500
@@ -63,7 +61,8 @@ class TestPARLFLIntegration:
     @pytest.mark.asyncio
     async def test_parl_fl_orchestrator_init(self):
         """Test PARL FL orchestrator initialization."""
-        from src.federated_learning.parl_integration import PARLFederatedOrchestrator
+        from src.federated_learning.parl_integration import \
+            PARLFederatedOrchestrator
 
         orchestrator = PARLFederatedOrchestrator()
         assert orchestrator.current_round == 0
@@ -73,7 +72,8 @@ class TestPARLFLIntegration:
     @pytest.mark.asyncio
     async def test_parl_fl_training_round(self):
         """Test executing a training round."""
-        from src.federated_learning.parl_integration import PARLFederatedOrchestrator
+        from src.federated_learning.parl_integration import \
+            PARLFederatedOrchestrator
 
         orchestrator = PARLFederatedOrchestrator()
         await orchestrator.initialize()
@@ -94,7 +94,8 @@ class TestPARLFLIntegration:
     @pytest.mark.asyncio
     async def test_parl_fl_metrics(self):
         """Test PARL FL metrics collection."""
-        from src.federated_learning.parl_integration import PARLFederatedOrchestrator
+        from src.federated_learning.parl_integration import \
+            PARLFederatedOrchestrator
 
         orchestrator = PARLFederatedOrchestrator()
         await orchestrator.initialize()
@@ -117,11 +118,9 @@ class TestPARLMAPEKIntegration:
 
     def test_import_parl_mapek(self):
         """Test PARL MAPE-K integration imports."""
-        from src.core.parl_mapek_integration import (
-            PARLMAPEKExecutor,
-            MAPEKContext,
-            MAPEKPhase
-        )
+        from src.core.parl_mapek_integration import (MAPEKContext, MAPEKPhase,
+                                                     PARLMAPEKExecutor)
+
         assert PARLMAPEKExecutor is not None
         assert MAPEKContext is not None
         assert MAPEKPhase is not None
@@ -141,8 +140,7 @@ class TestPARLMAPEKIntegration:
         from src.core.parl_mapek_integration import MAPEKContext, MAPEKPhase
 
         context = MAPEKContext(
-            cycle_id="test_cycle",
-            mesh_nodes=["node_1", "node_2", "node_3"]
+            cycle_id="test_cycle", mesh_nodes=["node_1", "node_2", "node_3"]
         )
 
         assert context.cycle_id == "test_cycle"
@@ -161,10 +159,8 @@ class TestPARLMAPEKIntegration:
     @pytest.mark.asyncio
     async def test_parl_mapek_cycle(self):
         """Test executing a MAPE-K cycle."""
-        from src.core.parl_mapek_integration import (
-            PARLMAPEKExecutor,
-            MAPEKContext
-        )
+        from src.core.parl_mapek_integration import (MAPEKContext,
+                                                     PARLMAPEKExecutor)
 
         executor = PARLMAPEKExecutor()
         await executor.initialize()
@@ -172,7 +168,7 @@ class TestPARLMAPEKIntegration:
         try:
             context = MAPEKContext(
                 cycle_id="test_cycle_001",
-                mesh_nodes=["node_001", "node_002", "node_003"]
+                mesh_nodes=["node_001", "node_002", "node_003"],
             )
 
             result = await executor.execute_cycle(context)
@@ -190,19 +186,14 @@ class TestPARLMAPEKIntegration:
     @pytest.mark.asyncio
     async def test_parl_mapek_metrics(self):
         """Test PARL MAPE-K metrics collection."""
-        from src.core.parl_mapek_integration import (
-            PARLMAPEKExecutor,
-            MAPEKContext
-        )
+        from src.core.parl_mapek_integration import (MAPEKContext,
+                                                     PARLMAPEKExecutor)
 
         executor = PARLMAPEKExecutor()
         await executor.initialize()
 
         try:
-            context = MAPEKContext(
-                cycle_id="metrics_test",
-                mesh_nodes=["node_001"]
-            )
+            context = MAPEKContext(cycle_id="metrics_test", mesh_nodes=["node_001"])
 
             await executor.execute_cycle(context)
 
@@ -216,10 +207,8 @@ class TestPARLMAPEKIntegration:
     @pytest.mark.asyncio
     async def test_parl_mapek_knowledge_update(self):
         """Test knowledge base updates."""
-        from src.core.parl_mapek_integration import (
-            PARLMAPEKExecutor,
-            MAPEKContext
-        )
+        from src.core.parl_mapek_integration import (MAPEKContext,
+                                                     PARLMAPEKExecutor)
 
         executor = PARLMAPEKExecutor()
         await executor.initialize()
@@ -229,8 +218,7 @@ class TestPARLMAPEKIntegration:
             assert len(executor.knowledge_base["historical_anomalies"]) == 0
 
             context = MAPEKContext(
-                cycle_id="knowledge_test",
-                mesh_nodes=["node_001", "node_002"]
+                cycle_id="knowledge_test", mesh_nodes=["node_001", "node_002"]
             )
 
             await executor.execute_cycle(context)
@@ -247,11 +235,11 @@ class TestConvenienceFunctions:
     @pytest.mark.asyncio
     async def test_execute_parallel_fl_round(self):
         """Test convenience function for FL round."""
-        from src.federated_learning.parl_integration import execute_parallel_fl_round
+        from src.federated_learning.parl_integration import \
+            execute_parallel_fl_round
 
         result = await execute_parallel_fl_round(
-            node_ids=["node_001", "node_002"],
-            training_config={"epochs": 1}
+            node_ids=["node_001", "node_002"], training_config={"epochs": 1}
         )
 
         assert "round_id" in result
@@ -260,11 +248,11 @@ class TestConvenienceFunctions:
     @pytest.mark.asyncio
     async def test_execute_mapek_cycle_with_parl(self):
         """Test convenience function for MAPE-K cycle."""
-        from src.core.parl_mapek_integration import execute_mapek_cycle_with_parl
+        from src.core.parl_mapek_integration import \
+            execute_mapek_cycle_with_parl
 
         result = await execute_mapek_cycle_with_parl(
-            mesh_nodes=["node_001", "node_002"],
-            cycle_id="convenience_test"
+            mesh_nodes=["node_001", "node_002"], cycle_id="convenience_test"
         )
 
         assert result.get("success") is True
