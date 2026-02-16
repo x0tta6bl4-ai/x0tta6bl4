@@ -15,27 +15,31 @@ Triggers self-healing actions when anomalies detected.
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional, Callable, List
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
-from ..network.ebpf.loader import EBPFLoader
 from ..network.ebpf.bcc_probes import MeshNetworkProbes
-from .mape_k import MAPEKMonitor, MAPEKAnalyzer, MAPEKPlanner, MAPEKExecutor
+from ..network.ebpf.loader import EBPFLoader
+from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
 logger = logging.getLogger(__name__)
 
+
 class EBPFAnomalyType(Enum):
     """Types of eBPF-detected anomalies"""
+
     HIGH_PACKET_DROPS = "high_packet_drops"
     LATENCY_SPIKE = "latency_spike"
     QUEUE_CONGESTION = "queue_congestion"
     ROUTE_FAILURE = "route_failure"
     LOW_THROUGHPUT = "low_throughput"
 
+
 @dataclass
 class EBPFAnomaly:
     """Represents a detected anomaly"""
+
     anomaly_type: EBPFAnomalyType
     severity: str  # LOW, MEDIUM, HIGH, CRITICAL
     metric_value: float
@@ -43,6 +47,7 @@ class EBPFAnomaly:
     interface: str
     timestamp: float
     description: str
+
 
 class EBPFAnalyzer(MAPEKAnalyzer):
     """
@@ -53,10 +58,10 @@ class EBPFAnalyzer(MAPEKAnalyzer):
         super().__init__()
         self.anomaly_history: List[EBPFAnomaly] = []
         self.baseline_metrics = {
-            'packet_drop_rate': 0.01,  # 1%
-            'avg_latency_ms': 10.0,
-            'queue_congestion': 50,   # 50% full
-            'throughput_mbps': 100.0
+            "packet_drop_rate": 0.01,  # 1%
+            "avg_latency_ms": 10.0,
+            "queue_congestion": 50,  # 50% full
+            "throughput_mbps": 100.0,
         }
 
     def analyze(self, metrics: Dict[str, Any]) -> Optional[EBPFAnomaly]:
@@ -71,56 +76,57 @@ class EBPFAnalyzer(MAPEKAnalyzer):
         """
         # Check packet drops
         drop_rate = self._calculate_drop_rate(metrics)
-        if drop_rate > self.baseline_metrics['packet_drop_rate'] * 5:  # 5% threshold
+        if drop_rate > self.baseline_metrics["packet_drop_rate"] * 5:  # 5% threshold
             severity = "HIGH" if drop_rate > 0.1 else "MEDIUM"
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.HIGH_PACKET_DROPS,
                 severity=severity,
                 metric_value=drop_rate,
-                threshold=self.baseline_metrics['packet_drop_rate'] * 5,
-                interface=metrics.get('interface', 'unknown'),
+                threshold=self.baseline_metrics["packet_drop_rate"] * 5,
+                interface=metrics.get("interface", "unknown"),
                 timestamp=time.time(),
-                description=f"Packet drop rate {drop_rate:.2%} exceeds threshold"
+                description=f"Packet drop rate {drop_rate:.2%} exceeds threshold",
             )
 
         # Check latency
-        avg_latency = metrics.get('avg_latency_ns', 0) / 1e6  # Convert to ms
-        if avg_latency > self.baseline_metrics['avg_latency_ms'] * 3:  # 3x baseline
+        avg_latency = metrics.get("avg_latency_ns", 0) / 1e6  # Convert to ms
+        if avg_latency > self.baseline_metrics["avg_latency_ms"] * 3:  # 3x baseline
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.LATENCY_SPIKE,
                 severity="HIGH",
                 metric_value=avg_latency,
-                threshold=self.baseline_metrics['avg_latency_ms'] * 3,
-                interface=metrics.get('interface', 'unknown'),
+                threshold=self.baseline_metrics["avg_latency_ms"] * 3,
+                interface=metrics.get("interface", "unknown"),
                 timestamp=time.time(),
-                description=f"Latency spike: {avg_latency:.1f}ms"
+                description=f"Latency spike: {avg_latency:.1f}ms",
             )
 
         # Check queue congestion
-        queue_cong = metrics.get('queue_congestion', 0)
-        if queue_cong > self.baseline_metrics['queue_congestion']:
+        queue_cong = metrics.get("queue_congestion", 0)
+        if queue_cong > self.baseline_metrics["queue_congestion"]:
             severity = "CRITICAL" if queue_cong > 90 else "HIGH"
             return EBPFAnomaly(
                 anomaly_type=EBPFAnomalyType.QUEUE_CONGESTION,
                 severity=severity,
                 metric_value=queue_cong,
-                threshold=self.baseline_metrics['queue_congestion'],
-                interface=metrics.get('interface', 'unknown'),
+                threshold=self.baseline_metrics["queue_congestion"],
+                interface=metrics.get("interface", "unknown"),
                 timestamp=time.time(),
-                description=f"Queue congestion: {queue_cong:.1f}%"
+                description=f"Queue congestion: {queue_cong:.1f}%",
             )
 
         return None
 
     def _calculate_drop_rate(self, metrics: Dict[str, Any]) -> float:
         """Calculate packet drop rate from stats"""
-        total = metrics.get('total_packets', 0)
-        dropped = metrics.get('dropped_packets', 0)
+        total = metrics.get("total_packets", 0)
+        dropped = metrics.get("dropped_packets", 0)
 
         if total == 0:
             return 0.0
 
         return dropped / total
+
 
 class EBPFPlanner(MAPEKPlanner):
     """
@@ -137,54 +143,61 @@ class EBPFPlanner(MAPEKPlanner):
         actions = []
 
         if anomaly.anomaly_type == EBPFAnomalyType.HIGH_PACKET_DROPS:
-            actions.extend([
-                {
-                    'action': 'clear_packet_queues',
-                    'interface': anomaly.interface,
-                    'priority': 'HIGH',
-                    'description': 'Flush packet queues to reduce drops'
-                },
-                {
-                    'action': 'adjust_route_weights',
-                    'interface': anomaly.interface,
-                    'priority': 'MEDIUM',
-                    'description': 'Redistribute traffic to less congested routes'
-                }
-            ])
+            actions.extend(
+                [
+                    {
+                        "action": "clear_packet_queues",
+                        "interface": anomaly.interface,
+                        "priority": "HIGH",
+                        "description": "Flush packet queues to reduce drops",
+                    },
+                    {
+                        "action": "adjust_route_weights",
+                        "interface": anomaly.interface,
+                        "priority": "MEDIUM",
+                        "description": "Redistribute traffic to less congested routes",
+                    },
+                ]
+            )
 
         elif anomaly.anomaly_type == EBPFAnomalyType.LATENCY_SPIKE:
-            actions.extend([
-                {
-                    'action': 'optimize_ebpf_program',
-                    'interface': anomaly.interface,
-                    'priority': 'HIGH',
-                    'description': 'Reload optimized eBPF program'
-                },
-                {
-                    'action': 'enable_hw_offload',
-                    'interface': anomaly.interface,
-                    'priority': 'MEDIUM',
-                    'description': 'Enable hardware offload if available'
-                }
-            ])
+            actions.extend(
+                [
+                    {
+                        "action": "optimize_ebpf_program",
+                        "interface": anomaly.interface,
+                        "priority": "HIGH",
+                        "description": "Reload optimized eBPF program",
+                    },
+                    {
+                        "action": "enable_hw_offload",
+                        "interface": anomaly.interface,
+                        "priority": "MEDIUM",
+                        "description": "Enable hardware offload if available",
+                    },
+                ]
+            )
 
         elif anomaly.anomaly_type == EBPFAnomalyType.QUEUE_CONGESTION:
-            actions.extend([
-                {
-                    'action': 'increase_queue_size',
-                    'interface': anomaly.interface,
-                    'priority': 'HIGH',
-                    'description': 'Dynamically increase queue buffer size'
-                },
-                {
-                    'action': 'throttle_traffic',
-                    'interface': anomaly.interface,
-                    'priority': 'MEDIUM',
-                    'description': 'Apply traffic shaping to prevent overflow'
-                }
-            ])
+            actions.extend(
+                [
+                    {
+                        "action": "increase_queue_size",
+                        "interface": anomaly.interface,
+                        "priority": "HIGH",
+                        "description": "Dynamically increase queue buffer size",
+                    },
+                    {
+                        "action": "throttle_traffic",
+                        "interface": anomaly.interface,
+                        "priority": "MEDIUM",
+                        "description": "Apply traffic shaping to prevent overflow",
+                    },
+                ]
+            )
 
         return actions
+
 
 class EBPFExecutor(MAPEKExecutor):
     """
@@ -202,26 +215,26 @@ class EBPFExecutor(MAPEKExecutor):
         Returns:
             True if successful, False otherwise
         """
-        action_type = action['action']
-        interface = action['interface']
+        action_type = action["action"]
+        interface = action["interface"]
 
         try:
-            if action_type == 'clear_packet_queues':
+            if action_type == "clear_packet_queues":
                 return self._clear_queues(interface)
 
-            elif action_type == 'adjust_route_weights':
+            elif action_type == "adjust_route_weights":
                 return self._adjust_routes(interface)
 
-            elif action_type == 'optimize_ebpf_program':
+            elif action_type == "optimize_ebpf_program":
                 return self._reload_ebpf(interface)
 
-            elif action_type == 'enable_hw_offload':
+            elif action_type == "enable_hw_offload":
                 return self._enable_hw_offload(interface)
 
-            elif action_type == 'increase_queue_size':
+            elif action_type == "increase_queue_size":
                 return self._increase_queue_size(interface)
 
-            elif action_type == 'throttle_traffic':
+            elif action_type == "throttle_traffic":
                 return self._throttle_traffic(interface)
 
             else:
@@ -236,9 +249,12 @@ class EBPFExecutor(MAPEKExecutor):
         """Clear packet queues"""
         # Use tc command to flush queues
         import subprocess
+
         try:
-            subprocess.run(['tc', 'qdisc', 'del', 'dev', interface, 'root'], check=True)
-            subprocess.run(['tc', 'qdisc', 'add', 'dev', interface, 'root', 'fq'], check=True)
+            subprocess.run(["tc", "qdisc", "del", "dev", interface, "root"], check=True)
+            subprocess.run(
+                ["tc", "qdisc", "add", "dev", interface, "root", "fq"], check=True
+            )
             logger.info(f"Cleared queues on {interface}")
             return True
         except subprocess.CalledProcessError:
@@ -270,9 +286,12 @@ class EBPFExecutor(MAPEKExecutor):
     def _increase_queue_size(self, interface: str) -> bool:
         """Increase queue buffer size"""
         import subprocess
+
         try:
             # Increase txqueuelen
-            subprocess.run(['ip', 'link', 'set', interface, 'txqueuelen', '1000'], check=True)
+            subprocess.run(
+                ["ip", "link", "set", interface, "txqueuelen", "1000"], check=True
+            )
             logger.info(f"Increased queue size on {interface}")
             return True
         except subprocess.CalledProcessError:
@@ -283,6 +302,7 @@ class EBPFExecutor(MAPEKExecutor):
         # Use tc for traffic shaping
         logger.info(f"Applying traffic throttling on {interface}")
         return True  # Placeholder
+
 
 class EBPFSelfHealingController:
     """
@@ -344,7 +364,7 @@ class EBPFSelfHealingController:
                 current_metrics = {
                     **ebpf_stats,
                     **probe_metrics,
-                    'interface': self.interface
+                    "interface": self.interface,
                 }
 
                 # Run monitoring
@@ -362,6 +382,7 @@ class EBPFSelfHealingController:
         self.loader.cleanup()
         self.probes.cleanup()
         logger.info("Stopped eBPF self-healing monitoring")
+
 
 # Integration with main MAPE-K
 def integrate_ebpf_self_healing(mape_k_manager, interface: str = "eth0"):

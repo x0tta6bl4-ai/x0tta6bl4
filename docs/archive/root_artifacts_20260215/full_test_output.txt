@@ -1,0 +1,78 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.4.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/mnt/projects/.hypothesis/examples'))
+rootdir: /mnt/projects
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, cov-7.0.0, xdist-3.8.0, anyio-4.12.0, mock-3.12.0, benchmark-5.1.0, hypothesis-6.98.15
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 7 items
+
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_loader_orchestrator_integration FAILED [ 14%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_orchestrator_lifecycle_management PASSED [ 28%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_cli_loader_integration PASSED [ 42%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_full_system_integration FAILED [ 57%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_error_handling_integration FAILED [ 71%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_performance_monitoring_integration FAILED [ 85%]
+tests/test_ebpf_integration.py::TestEBPFIntegration::test_configuration_persistence PASSED [100%]/home/x0ttta6bl4/.local/lib/python3.12/site-packages/coverage/report_core.py:107: CoverageWarning: Couldn't parse Python file '/mnt/projects/src/network/обновление_алгоритмов.py' (couldnt-parse); see https://coverage.readthedocs.io/en/7.13.0/messages.html#warning-couldnt-parse
+  coverage._warn(msg, slug="couldnt-parse")
+
+ERROR: Coverage failure: total of 2 is less than fail-under=75
+
+
+=================================== FAILURES ===================================
+___________ TestEBPFIntegration.test_loader_orchestrator_integration ___________
+tests/test_ebpf_integration.py:80: in test_loader_orchestrator_integration
+    with patch.object(loader, '_load_program_binary', return_value={'id': 'test_prog'}):
+/usr/lib/python3.12/unittest/mock.py:1458: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/unittest/mock.py:1431: in get_original
+    raise AttributeError(
+E   AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1c76d50> does not have the attribute '_load_program_binary'
+_______________ TestEBPFIntegration.test_full_system_integration _______________
+tests/test_ebpf_integration.py:170: in test_full_system_integration
+    with patch.object(loader, '_load_program_binary'):
+/usr/lib/python3.12/unittest/mock.py:1458: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/unittest/mock.py:1431: in get_original
+    raise AttributeError(
+E   AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1d12210> does not have the attribute '_load_program_binary'
+_____________ TestEBPFIntegration.test_error_handling_integration ______________
+tests/test_ebpf_integration.py:203: in test_error_handling_integration
+    with patch.object(loader, '_load_program_binary', side_effect=Exception("Load failed")):
+/usr/lib/python3.12/unittest/mock.py:1458: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/unittest/mock.py:1431: in get_original
+    raise AttributeError(
+E   AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1d12570> does not have the attribute '_load_program_binary'
+_________ TestEBPFIntegration.test_performance_monitoring_integration __________
+tests/test_ebpf_integration.py:222: in test_performance_monitoring_integration
+    metrics = orchestrator.get_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'EBPFOrchestrator' object has no attribute 'get_metrics'
+------------------------------ Captured log call -------------------------------
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_packets_processed_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_packets_dropped_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_processing_latency_microseconds
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_cpu_usage_percent
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_memory_usage_bytes
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_flows_active
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_errors_total
+WARNING  src.network.ebpf.performance_monitor:performance_monitor.py:168 Prometheus not available, skipping metric: ebpf_program_load_time_seconds
+----------------- generated xml file: /mnt/projects/junit.xml ------------------
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+FAIL Required test coverage of 75% not reached. Total coverage: 2.42%
+=========================== short test summary info ============================
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_loader_orchestrator_integration - AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1c76d50> does not have the attribute '_load_program_binary'
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_full_system_integration - AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1d12210> does not have the attribute '_load_program_binary'
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_error_handling_integration - AttributeError: <src.network.ebpf.loader.EBPFLoader object at 0x718ae1d12570> does not have the attribute '_load_program_binary'
+FAILED tests/test_ebpf_integration.py::TestEBPFIntegration::test_performance_monitoring_integration - AttributeError: 'EBPFOrchestrator' object has no attribute 'get_metrics'
+========================= 4 failed, 3 passed in 28.53s =========================

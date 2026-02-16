@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -10,17 +10,20 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from src.security.spiffe.mtls.http_client import SPIFFEHttpClient
-from src.security.spiffe.workload.api_client import WorkloadAPIClient, X509SVID, SPIFFE_SDK_AVAILABLE # Import SPIFFE_SDK_AVAILABLE
+from src.security.spiffe.workload.api_client import (  # Import SPIFFE_SDK_AVAILABLE
+    SPIFFE_SDK_AVAILABLE, X509SVID, WorkloadAPIClient)
 
 
-@pytest.mark.skipif(SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests")
+@pytest.mark.skipif(
+    SPIFFE_SDK_AVAILABLE, reason="spiffe SDK is installed, skipping mock client tests"
+)
 @pytest.mark.asyncio
 async def test_client_fetches_svid_and_performs_get_post(tmp_path, monkeypatch):
     """Client fetches an SVID and can perform basic GET/POST requests."""
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     # Prepare a mock SPIRE Agent socket so WorkloadAPIClient works in
     # its filesystem-based mock mode.
     sock = tmp_path / "agent.sock"
@@ -32,44 +35,51 @@ async def test_client_fetches_svid_and_performs_get_post(tmp_path, monkeypatch):
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
-    
+
     # Generate a test certificate
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    
-    cert = x509.CertificateBuilder().subject_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).issuer_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).public_key(public_key).serial_number(
-        x509.random_serial_number()
-    ).not_valid_before(
-        datetime.utcnow()
-    ).not_valid_after(
-        datetime.utcnow() + timedelta(days=1)
-    ).add_extension(
-        x509.SubjectAlternativeName([x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]),
-        critical=False,
-    ).sign(private_key, hashes.SHA256())
-    
+
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]
+            ),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
+
     cert_pem = cert.public_bytes(serialization.Encoding.PEM)
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
-    
+
     # Create a valid SVID with real certificate
     svid = X509SVID(
         spiffe_id="spiffe://test.domain/workload/test",
         cert_chain=[cert_pem],
         private_key=key_pem,
-        expiry=datetime.utcnow() + timedelta(hours=1)
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    
+
     # Mock fetch_x509_svid to return our valid SVID
     from unittest.mock import patch
-    with patch.object(workload, 'fetch_x509_svid', return_value=svid):
+
+    with patch.object(workload, "fetch_x509_svid", return_value=svid):
         # Use httpx.MockTransport to avoid real network calls.
         def handler(request: httpx.Request) -> httpx.Response:
             if request.method == "GET":
@@ -80,7 +90,9 @@ async def test_client_fetches_svid_and_performs_get_post(tmp_path, monkeypatch):
 
         transport = httpx.MockTransport(handler)
 
-        async with SPIFFEHttpClient(workload_api=workload, transport=transport) as client:
+        async with SPIFFEHttpClient(
+            workload_api=workload, transport=transport
+        ) as client:
             resp_get = await client.get("https://example.test/health")
             assert resp_get.status_code == 200
             assert resp_get.json()["method"] == "GET"
@@ -100,48 +112,55 @@ async def test_automatic_rotation_on_svid_expiry(tmp_path, monkeypatch):
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     sock = tmp_path / "agent.sock"
     sock.write_text("")
     workload = WorkloadAPIClient(socket_path=sock)
 
     # Create valid test certificates for rotation
+    from unittest.mock import patch
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
-    from unittest.mock import patch
-    
+
     def create_svid(spiffe_id: str, hours: int):
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         public_key = private_key.public_key()
-        cert = x509.CertificateBuilder().subject_name(
-            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-        ).issuer_name(
-            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-        ).public_key(public_key).serial_number(
-            x509.random_serial_number()
-        ).not_valid_before(
-            datetime.utcnow()
-        ).not_valid_after(
-            datetime.utcnow() + timedelta(days=1)
-        ).add_extension(
-            x509.SubjectAlternativeName([x509.UniformResourceIdentifier(spiffe_id)]),
-            critical=False,
-        ).sign(private_key, hashes.SHA256())
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(
+                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+            )
+            .issuer_name(
+                x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+            )
+            .public_key(public_key)
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.utcnow())
+            .not_valid_after(datetime.utcnow() + timedelta(days=1))
+            .add_extension(
+                x509.SubjectAlternativeName(
+                    [x509.UniformResourceIdentifier(spiffe_id)]
+                ),
+                critical=False,
+            )
+            .sign(private_key, hashes.SHA256())
+        )
         cert_pem = cert.public_bytes(serialization.Encoding.PEM)
         key_pem = private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.NoEncryption(),
         )
         return X509SVID(
             spiffe_id=spiffe_id,
             cert_chain=[cert_pem],
             private_key=key_pem,
-            expiry=datetime.utcnow() + timedelta(hours=hours)
+            expiry=datetime.utcnow() + timedelta(hours=hours),
         )
-    
+
     # Prepare two distinct SVIDs to observe rotation.
     svid1 = create_svid("spiffe://x0tta6bl4.mesh/node/one", hours=0)
     svid1.expiry = datetime.utcnow() + timedelta(seconds=5)
@@ -152,12 +171,15 @@ async def test_automatic_rotation_on_svid_expiry(tmp_path, monkeypatch):
         "fetch_x509_svid",
         side_effect=[svid1, svid2],
     ) as fetch_mock:
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"ok": True})
 
         transport = httpx.MockTransport(handler)
 
-        async with SPIFFEHttpClient(workload_api=workload, transport=transport) as client:
+        async with SPIFFEHttpClient(
+            workload_api=workload, transport=transport
+        ) as client:
             # First request should use the first SVID.
             resp1 = await client.get("https://example.test/one")
             assert resp1.status_code == 200
@@ -180,7 +202,7 @@ async def test_peer_validation_toggle_controls_hook_invocation(tmp_path, monkeyp
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     sock = tmp_path / "agent.sock"
     sock.write_text("")
     workload = WorkloadAPIClient(socket_path=sock)
@@ -188,35 +210,43 @@ async def test_peer_validation_toggle_controls_hook_invocation(tmp_path, monkeyp
     # Create valid test certificate
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    cert = x509.CertificateBuilder().subject_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).issuer_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).public_key(public_key).serial_number(
-        x509.random_serial_number()
-    ).not_valid_before(
-        datetime.utcnow()
-    ).not_valid_after(
-        datetime.utcnow() + timedelta(days=1)
-    ).add_extension(
-        x509.SubjectAlternativeName([x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]),
-        critical=False,
-    ).sign(private_key, hashes.SHA256())
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]
+            ),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
     cert_pem = cert.public_bytes(serialization.Encoding.PEM)
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
     svid = X509SVID(
         spiffe_id="spiffe://test.domain/workload/test",
         cert_chain=[cert_pem],
         private_key=key_pem,
-        expiry=datetime.utcnow() + timedelta(hours=1)
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    
+
     from unittest.mock import patch
-    with patch.object(workload, 'fetch_x509_svid', return_value=svid):
+
+    with patch.object(workload, "fetch_x509_svid", return_value=svid):
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"ok": True})
 
@@ -264,7 +294,7 @@ async def test_context_manager_closes_client(tmp_path, monkeypatch):
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     sock = tmp_path / "agent.sock"
     sock.write_text("")
     workload = WorkloadAPIClient(socket_path=sock)
@@ -272,42 +302,52 @@ async def test_context_manager_closes_client(tmp_path, monkeypatch):
     # Create valid test certificate
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    cert = x509.CertificateBuilder().subject_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).issuer_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).public_key(public_key).serial_number(
-        x509.random_serial_number()
-    ).not_valid_before(
-        datetime.utcnow()
-    ).not_valid_after(
-        datetime.utcnow() + timedelta(days=1)
-    ).add_extension(
-        x509.SubjectAlternativeName([x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]),
-        critical=False,
-    ).sign(private_key, hashes.SHA256())
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.UniformResourceIdentifier("spiffe://test.domain/workload/test")]
+            ),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
     cert_pem = cert.public_bytes(serialization.Encoding.PEM)
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
     svid = X509SVID(
         spiffe_id="spiffe://test.domain/workload/test",
         cert_chain=[cert_pem],
         private_key=key_pem,
-        expiry=datetime.utcnow() + timedelta(hours=1)
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    
+
     from unittest.mock import patch
-    with patch.object(workload, 'fetch_x509_svid', return_value=svid):
+
+    with patch.object(workload, "fetch_x509_svid", return_value=svid):
+
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"ok": True})
 
         transport = httpx.MockTransport(handler)
 
         client_ref: SPIFFEHttpClient
-        async with SPIFFEHttpClient(workload_api=workload, transport=transport) as client:
+        async with SPIFFEHttpClient(
+            workload_api=workload, transport=transport
+        ) as client:
             client_ref = client
             assert client_ref._closed is False
             resp = await client.get("https://example.test/once")
@@ -387,7 +427,7 @@ async def test_peer_validation_with_trust_bundle_success(tmp_path, monkeypatch):
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     ca_pem, leaf_pem = _create_ca_and_leaf_chain()
 
     with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".pem") as f:
@@ -401,35 +441,42 @@ async def test_peer_validation_with_trust_bundle_success(tmp_path, monkeypatch):
     # Create valid test certificate for client identity
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    cert = x509.CertificateBuilder().subject_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).issuer_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).public_key(public_key).serial_number(
-        x509.random_serial_number()
-    ).not_valid_before(
-        datetime.utcnow()
-    ).not_valid_after(
-        datetime.utcnow() + timedelta(days=1)
-    ).add_extension(
-        x509.SubjectAlternativeName([x509.UniformResourceIdentifier("spiffe://test.domain/workload/client")]),
-        critical=False,
-    ).sign(private_key, hashes.SHA256())
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.UniformResourceIdentifier("spiffe://test.domain/workload/client")]
+            ),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
     cert_pem = cert.public_bytes(serialization.Encoding.PEM)
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
     svid = X509SVID(
         spiffe_id="spiffe://test.domain/workload/client",
         cert_chain=[cert_pem],
         private_key=key_pem,
-        expiry=datetime.utcnow() + timedelta(hours=1)
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    
+
     from unittest.mock import patch
-    with patch.object(workload, 'fetch_x509_svid', return_value=svid):
+
+    with patch.object(workload, "fetch_x509_svid", return_value=svid):
         transport = FakePeerCertTransport(leaf_pem)
 
         async with SPIFFEHttpClient(
@@ -448,7 +495,7 @@ async def test_peer_validation_with_trust_bundle_failure(tmp_path, monkeypatch):
 
     # Use force mock mode for WorkloadAPIClient
     monkeypatch.setenv("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
-    
+
     trusted_ca_pem, _ = _create_ca_and_leaf_chain(ca_cn="Trusted CA")
     _, leaf_pem = _create_ca_and_leaf_chain(ca_cn="Untrusted CA")
 
@@ -463,35 +510,42 @@ async def test_peer_validation_with_trust_bundle_failure(tmp_path, monkeypatch):
     # Create valid test certificate for client identity
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    cert = x509.CertificateBuilder().subject_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).issuer_name(
-        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
-    ).public_key(public_key).serial_number(
-        x509.random_serial_number()
-    ).not_valid_before(
-        datetime.utcnow()
-    ).not_valid_after(
-        datetime.utcnow() + timedelta(days=1)
-    ).add_extension(
-        x509.SubjectAlternativeName([x509.UniformResourceIdentifier("spiffe://test.domain/workload/client")]),
-        critical=False,
-    ).sign(private_key, hashes.SHA256())
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .issuer_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test.example.com")])
+        )
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=1))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.UniformResourceIdentifier("spiffe://test.domain/workload/client")]
+            ),
+            critical=False,
+        )
+        .sign(private_key, hashes.SHA256())
+    )
     cert_pem = cert.public_bytes(serialization.Encoding.PEM)
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
     svid = X509SVID(
         spiffe_id="spiffe://test.domain/workload/client",
         cert_chain=[cert_pem],
         private_key=key_pem,
-        expiry=datetime.utcnow() + timedelta(hours=1)
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    
+
     from unittest.mock import patch
-    with patch.object(workload, 'fetch_x509_svid', return_value=svid):
+
+    with patch.object(workload, "fetch_x509_svid", return_value=svid):
         transport = FakePeerCertTransport(leaf_pem)
 
         async with SPIFFEHttpClient(

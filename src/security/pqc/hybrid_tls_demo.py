@@ -10,7 +10,10 @@ x0tta6bl4 Hybrid TLS Proof of Concept
 import json
 import time
 from datetime import datetime
-from .hybrid_tls import HybridTLSContext, hybrid_handshake, hybrid_encrypt, hybrid_decrypt, hybrid_sign, hybrid_verify, measure_handshake_overhead
+
+from .hybrid_tls import (HybridTLSContext, hybrid_decrypt, hybrid_encrypt,
+                         hybrid_handshake, hybrid_sign, hybrid_verify,
+                         measure_handshake_overhead)
 
 
 def demo_mesh_handshake_and_encryption():
@@ -56,7 +59,7 @@ def demo_mesh_handshake_and_encryption():
     if message != decrypted_data:
         raise RuntimeError("Decrypted data does not match original message!")
     print("    ✓ Encryption/Decryption successful.")
-    
+
     print("\n[5] Performance Metrics")
     overhead_ms = measure_handshake_overhead()
     print(f"    • Average handshake time: {overhead_ms:.2f}ms (target <100ms)")
@@ -76,7 +79,9 @@ def generate_report(path: str = "reports/pqc/hybrid_tls_report.json"):
         "test": "Hybrid TLS (ECDHE + Kyber + Dilithium)",
         "results": {
             "handshake": "✓ PASS" if result["keys_match"] else "✗ FAIL",
-            "signature_verification": "✓ PASS" if result["signature_valid"] else "✗ FAIL",
+            "signature_verification": (
+                "✓ PASS" if result["signature_valid"] else "✗ FAIL"
+            ),
             "handshake_ms": result["handshake_ms"],
         },
     }
@@ -87,6 +92,7 @@ def generate_report(path: str = "reports/pqc/hybrid_tls_report.json"):
     print(json.dumps(report, indent=2))
 
     import os
+
     os.makedirs("reports/pqc", exist_ok=True)
     with open(path, "w") as f:
         json.dump(report, f, indent=2)

@@ -13,67 +13,22 @@ Components:
 - Agent: PPO for routing decisions
 """
 
-from .protocol import (
-    ModelUpdate,
-    GlobalModel,
-    ModelWeights,
-    FLMessage,
-    FLMessageType,
-    SignedMessage,
-    AggregationResult
-)
-
-from .aggregators import (
-    Aggregator,
-    FedAvgAggregator,
-    KrumAggregator,
-    TrimmedMeanAggregator,
-    MedianAggregator,
-    get_aggregator
-)
-
-from .coordinator import (
-    FederatedCoordinator,
-    CoordinatorConfig,
-    TrainingRound,
-    NodeStatus
-)
-
-from .privacy import (
-    DifferentialPrivacy,
-    DPConfig,
-    PrivacyBudget,
-    GradientClipper,
-    SecureAggregation
-)
-
-from .consensus import (
-    PBFTConsensus,
-    PBFTConfig,
-    ConsensusMessage,
-    ConsensusProposal,
-    ConsensusPhase,
-    ConsensusNetwork
-)
-
-from .ppo_agent import (
-    PPOAgent,
-    PPOConfig,
-    MeshRoutingEnv,
-    MeshState,
-    TrajectoryBuffer,
-    train_ppo
-)
-
-from .blockchain import (
-    ModelBlockchain,
-    Block,
-    BlockType,
-    ModelMetadata,
-    ConsensusProof,
-    WeightStorage,
-    create_genesis_blockchain
-)
+from .aggregators import (Aggregator, FedAvgAggregator, KrumAggregator,
+                          MedianAggregator, TrimmedMeanAggregator,
+                          get_aggregator)
+from .blockchain import (Block, BlockType, ConsensusProof, ModelBlockchain,
+                         ModelMetadata, WeightStorage,
+                         create_genesis_blockchain)
+from .consensus import (ConsensusMessage, ConsensusNetwork, ConsensusPhase,
+                        ConsensusProposal, PBFTConfig, PBFTConsensus)
+from .coordinator import (CoordinatorConfig, FederatedCoordinator, NodeStatus,
+                          TrainingRound)
+from .ppo_agent import (MeshRoutingEnv, MeshState, PPOAgent, PPOConfig,
+                        TrajectoryBuffer, train_ppo)
+from .privacy import (DifferentialPrivacy, DPConfig, GradientClipper,
+                      PrivacyBudget, SecureAggregation)
+from .protocol import (AggregationResult, FLMessage, FLMessageType,
+                       GlobalModel, ModelUpdate, ModelWeights, SignedMessage)
 
 __all__ = [
     # Protocol
@@ -84,7 +39,6 @@ __all__ = [
     "FLMessageType",
     "SignedMessage",
     "AggregationResult",
-    
     # Aggregators
     "Aggregator",
     "FedAvgAggregator",
@@ -92,20 +46,17 @@ __all__ = [
     "TrimmedMeanAggregator",
     "MedianAggregator",
     "get_aggregator",
-    
     # Coordinator
     "FederatedCoordinator",
     "CoordinatorConfig",
     "TrainingRound",
     "NodeStatus",
-    
     # Privacy
     "DifferentialPrivacy",
     "DPConfig",
     "PrivacyBudget",
     "GradientClipper",
     "SecureAggregation",
-    
     # Consensus
     "PBFTConsensus",
     "PBFTConfig",
@@ -113,7 +64,6 @@ __all__ = [
     "ConsensusProposal",
     "ConsensusPhase",
     "ConsensusNetwork",
-    
     # PPO Agent
     "PPOAgent",
     "PPOConfig",
@@ -121,12 +71,11 @@ __all__ = [
     "MeshState",
     "TrajectoryBuffer",
     "train_ppo",
-    
     # Blockchain
     "ModelBlockchain",
     "Block",
     "BlockType",
     "ModelMetadata",
     "WeightStorage",
-    "create_genesis_blockchain"
+    "create_genesis_blockchain",
 ]

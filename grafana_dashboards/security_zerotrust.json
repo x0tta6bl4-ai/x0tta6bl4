@@ -1,0 +1,222 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "id": 0,
+        "title": "SPIFFE/SPIRE Identity",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "title": "Active SVIDs",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(x0tta6bl4_spiffe_svid_active)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "SVID Renewal Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_spiffe_svid_renewals_total[5m])",
+            "legendFormat": "Renewals",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 1,
+        "title": "mTLS & TLS 1.3",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 3,
+        "title": "mTLS Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(x0tta6bl4_mtls_connections_active)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "TLS Handshake Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_tls_handshake_success_total[5m]) / rate(x0tta6bl4_tls_handshake_total[5m]) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "percentage",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Zero Trust Enforcement",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 5,
+        "title": "Policy Decisions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(x0tta6bl4_zerotrust_decisions_total[1h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Denied Requests",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_zerotrust_denied_total[5m])",
+            "legendFormat": "Denied Rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [
+      "x0tta6bl4"
+    ],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "x0tta6bl4 Security & Zero Trust",
+    "uid": "security_zerotrust",
+    "version": 0,
+    "description": "Security metrics, SPIFFE/SPIRE, mTLS, and policy enforcement"
+  }
+}

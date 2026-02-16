@@ -14,25 +14,23 @@ Coverage:
 7. Performance and scaling (5 tests)
 """
 
-import pytest
-import numpy as np
-from typing import List
 import logging
+from typing import List
 
-from src.ai.fl_orchestrator_scaling import (
-    ModelUpdate,
-    ByzantineDetector,
-    ConvergenceDetector,
-    AdaptiveLearningRate,
-    BatchAsyncOrchestrator,
-    StreamingOrchestrator,
-    HierarchicalOrchestrator,
-    FLTrainingSession,
-    AggregationMethod,
-    LearningRateSchedule,
-    TrainingRoundStats,
-    create_orchestrator,
-)
+import numpy as np
+import pytest
+
+from src.ai.fl_orchestrator_scaling import (AdaptiveLearningRate,
+                                            AggregationMethod,
+                                            BatchAsyncOrchestrator,
+                                            ByzantineDetector,
+                                            ConvergenceDetector,
+                                            FLTrainingSession,
+                                            HierarchicalOrchestrator,
+                                            LearningRateSchedule, ModelUpdate,
+                                            StreamingOrchestrator,
+                                            TrainingRoundStats,
+                                            create_orchestrator)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,7 @@ def sample_updates(sample_model) -> List[ModelUpdate]:
             gradient=gradient,
             svid=f"spiffe://x0tta6bl4.mesh/node/node-{i}",
             signature=b"signature_" + str(i).encode(),
-            round_number=0
+            round_number=0,
         )
         updates.append(update)
     return updates
@@ -64,7 +62,7 @@ def sample_updates(sample_model) -> List[ModelUpdate]:
 def byzantine_updates(sample_model) -> List[ModelUpdate]:
     """Create updates with Byzantine (bad) nodes mixed in"""
     updates = []
-    
+
     # 7 honest nodes
     for i in range(7):
         gradient = np.random.randn(*sample_model.shape) * 0.01
@@ -73,10 +71,10 @@ def byzantine_updates(sample_model) -> List[ModelUpdate]:
             gradient=gradient,
             svid=f"spiffe://x0tta6bl4.mesh/node/honest-{i}",
             signature=b"sig_honest_" + str(i).encode(),
-            round_number=0
+            round_number=0,
         )
         updates.append(update)
-    
+
     # 3 Byzantine nodes (send bad gradients)
     for i in range(3):
         # Byzantine nodes send large random gradients
@@ -86,10 +84,10 @@ def byzantine_updates(sample_model) -> List[ModelUpdate]:
             gradient=gradient,
             svid=f"spiffe://x0tta6bl4.mesh/node/byzantine-{i}",
             signature=b"sig_byz_" + str(i).encode(),
-            round_number=0
+            round_number=0,
         )
         updates.append(update)
-    
+
     return updates
 
 
@@ -100,7 +98,7 @@ class TestAggregationCorrectness:
         """Test mean aggregation"""
         detector = ByzantineDetector()
         result = detector.filter_and_aggregate(sample_updates, AggregationMethod.MEAN)
-        
+
         # Result should be roughly mean of updates (may filter some)
         # Just verify result has correct shape and magnitude
         assert result.shape == sample_updates[0].gradient.shape
@@ -110,7 +108,7 @@ class TestAggregationCorrectness:
         """Test median aggregation"""
         detector = ByzantineDetector()
         result = detector.filter_and_aggregate(sample_updates, AggregationMethod.MEDIAN)
-        
+
         # Result should be approximately median of updates
         assert result.shape == sample_updates[0].gradient.shape
         assert np.isfinite(result).all()  # No NaN or Inf
@@ -119,7 +117,7 @@ class TestAggregationCorrectness:
         """Test aggregation preserves shape"""
         detector = ByzantineDetector()
         result = detector.filter_and_aggregate(sample_updates)
-        
+
         assert result.shape == sample_model.shape
 
     def test_aggregation_with_single_update(self, sample_model):
@@ -129,9 +127,9 @@ class TestAggregationCorrectness:
             node_id="node-0",
             gradient=np.ones_like(sample_model) * 0.1,
             svid="spiffe://x0tta6bl4.mesh/node/node-0",
-            signature=b"sig"
+            signature=b"sig",
         )
-        
+
         result = detector.filter_and_aggregate([single_update])
         np.testing.assert_allclose(result, single_update.gradient)
 
@@ -143,11 +141,11 @@ class TestAggregationCorrectness:
                 node_id="node-0",
                 gradient=np.zeros_like(sample_model),
                 svid="spiffe://x0tta6bl4.mesh/node/node-0",
-                signature=b"sig"
+                signature=b"sig",
             )
             for _ in range(5)
         ]
-        
+
         result = detector.filter_and_aggregate(updates)
         np.testing.assert_allclose(result, np.zeros_like(sample_model))
 
@@ -159,10 +157,10 @@ class TestByzantineFaultTolerance:
         """Test detection of Byzantine nodes"""
         detector = ByzantineDetector(tolerance_fraction=0.3)
         malicious_idx = detector.detect_malicious_updates(byzantine_updates)
-        
+
         # Should detect at least 2 of 3 Byzantine nodes
         assert len(malicious_idx) >= 2
-        
+
         # Detected ones should be Byzantine (indices 7, 8, 9)
         byzantine_indices = {7, 8, 9}
         detected_byzantine = sum(1 for idx in malicious_idx if idx in byzantine_indices)
@@ -172,47 +170,51 @@ class TestByzantineFaultTolerance:
         """Test that Byzantine updates are filtered out"""
         detector = ByzantineDetector(tolerance_fraction=0.3)
         result = detector.filter_and_aggregate(byzantine_updates)
-        
+
         # Result should be close to honest updates (smaller magnitude)
         honest_updates = [u.gradient for u in byzantine_updates[:7]]
         honest_mean = np.mean(honest_updates, axis=0)
-        
+
         # Result should be closer to honest mean than Byzantine mean
         dist_to_honest = np.linalg.norm(result - honest_mean)
-        
+
         byzantine_mean = np.mean([u.gradient for u in byzantine_updates[7:]], axis=0)
         dist_to_byzantine = np.linalg.norm(result - byzantine_mean)
-        
+
         assert dist_to_honest < dist_to_byzantine
 
     def test_byzantine_tolerance_30_percent(self, sample_model):
         """Test tolerance of 30% Byzantine nodes"""
         # Create 70 honest + 30 Byzantine = 100 nodes
         updates = []
-        
+
         # 70 honest nodes
         for i in range(70):
             gradient = np.random.randn(*sample_model.shape) * 0.01
-            updates.append(ModelUpdate(
-                node_id=f"honest-{i}",
-                gradient=gradient,
-                svid=f"spiffe://x0tta6bl4.mesh/node/honest-{i}",
-                signature=b"sig"
-            ))
-        
+            updates.append(
+                ModelUpdate(
+                    node_id=f"honest-{i}",
+                    gradient=gradient,
+                    svid=f"spiffe://x0tta6bl4.mesh/node/honest-{i}",
+                    signature=b"sig",
+                )
+            )
+
         # 30 Byzantine nodes
         for i in range(30):
             gradient = np.random.randn(*sample_model.shape) * 5.0  # Bad gradients
-            updates.append(ModelUpdate(
-                node_id=f"byzantine-{i}",
-                gradient=gradient,
-                svid=f"spiffe://x0tta6bl4.mesh/node/byzantine-{i}",
-                signature=b"sig"
-            ))
-        
+            updates.append(
+                ModelUpdate(
+                    node_id=f"byzantine-{i}",
+                    gradient=gradient,
+                    svid=f"spiffe://x0tta6bl4.mesh/node/byzantine-{i}",
+                    signature=b"sig",
+                )
+            )
+
         detector = ByzantineDetector(tolerance_fraction=0.30)
         result = detector.filter_and_aggregate(updates)
-        
+
         # Should not crash and should return reasonable result
         assert result is not None
         assert result.shape == sample_model.shape
@@ -221,7 +223,7 @@ class TestByzantineFaultTolerance:
         """Test aggregation with all honest updates"""
         detector = ByzantineDetector()
         malicious_idx = detector.detect_malicious_updates(sample_updates)
-        
+
         # Should detect 0 Byzantine nodes
         assert len(malicious_idx) == 0
 
@@ -229,36 +231,40 @@ class TestByzantineFaultTolerance:
         """Test Krum aggregation method"""
         detector = ByzantineDetector()
         result = detector.filter_and_aggregate(sample_updates, AggregationMethod.KRUM)
-        
+
         # Krum selects one gradient, so result should match one of them
         gradient_set = [np.linalg.norm(u.gradient) for u in sample_updates]
         result_norm = np.linalg.norm(result)
-        
+
         # Result norm should be close to one of the input norms
         assert any(abs(result_norm - gn) < 0.1 for gn in gradient_set)
 
     def test_gradient_norm_bounds(self, sample_model):
         """Test gradient norm bounds for Byzantine detection"""
         detector = ByzantineDetector()
-        
+
         updates = []
         # Mix of normal and very large gradients
         for i in range(5):
-            updates.append(ModelUpdate(
-                node_id=f"normal-{i}",
-                gradient=np.random.randn(*sample_model.shape) * 0.1,
-                svid=f"spiffe://x0tta6bl4.mesh/node/normal-{i}",
-                signature=b"sig"
-            ))
-        
+            updates.append(
+                ModelUpdate(
+                    node_id=f"normal-{i}",
+                    gradient=np.random.randn(*sample_model.shape) * 0.1,
+                    svid=f"spiffe://x0tta6bl4.mesh/node/normal-{i}",
+                    signature=b"sig",
+                )
+            )
+
         # Add outlier
-        updates.append(ModelUpdate(
-            node_id="outlier",
-            gradient=np.random.randn(*sample_model.shape) * 100,
-            svid=f"spiffe://x0tta6bl4.mesh/node/outlier",
-            signature=b"sig"
-        ))
-        
+        updates.append(
+            ModelUpdate(
+                node_id="outlier",
+                gradient=np.random.randn(*sample_model.shape) * 100,
+                svid=f"spiffe://x0tta6bl4.mesh/node/outlier",
+                signature=b"sig",
+            )
+        )
+
         # Should detect the outlier
         malicious_idx = detector.detect_malicious_updates(updates)
         assert len(malicious_idx) > 0
@@ -270,11 +276,11 @@ class TestConvergenceDetection:
     def test_convergence_on_stable_loss(self):
         """Test convergence detection with stable loss"""
         detector = ConvergenceDetector(window_size=3, threshold=0.001)
-        
+
         # Simulate stable loss
         for i in range(5):
             detector.update(loss=1.0, accuracy=0.5, gradient_norm=0.001)
-        
+
         converged, reason = detector.check_convergence()
         assert converged is True
         assert "improvement" in reason.lower()
@@ -282,12 +288,14 @@ class TestConvergenceDetection:
     def test_convergence_on_plateau(self):
         """Test convergence when loss plateaus"""
         detector = ConvergenceDetector(window_size=3)
-        
+
         # Simulate loss plateau
         detector.update(loss=1.0, accuracy=0.5, gradient_norm=1.0)
         detector.update(loss=0.9, accuracy=0.55, gradient_norm=0.9)
-        detector.update(loss=0.89, accuracy=0.56, gradient_norm=0.01)  # Low gradient norm
-        
+        detector.update(
+            loss=0.89, accuracy=0.56, gradient_norm=0.01
+        )  # Low gradient norm
+
         converged, reason = detector.check_convergence()
         # Should detect convergence due to low gradient norm
         assert "gradient norm" in reason.lower()
@@ -295,23 +303,23 @@ class TestConvergenceDetection:
     def test_no_convergence_on_improvement(self):
         """Test no convergence when loss is improving"""
         detector = ConvergenceDetector(window_size=3, threshold=0.01)
-        
+
         # Simulate improving loss
         detector.update(loss=1.0, accuracy=0.5, gradient_norm=1.0)
         detector.update(loss=0.8, accuracy=0.6, gradient_norm=0.8)
         detector.update(loss=0.6, accuracy=0.7, gradient_norm=0.6)
-        
+
         converged, reason = detector.check_convergence()
         assert converged is False
 
     def test_insufficient_history(self):
         """Test convergence check with insufficient history"""
         detector = ConvergenceDetector(window_size=5)
-        
+
         # Only 3 updates
         for i in range(3):
             detector.update(loss=1.0, accuracy=0.5, gradient_norm=0.1)
-        
+
         converged, reason = detector.check_convergence()
         assert converged is False
         assert "history" in reason.lower()
@@ -319,12 +327,12 @@ class TestConvergenceDetection:
     def test_convergence_accuracy_plateau(self):
         """Test convergence on accuracy plateau"""
         detector = ConvergenceDetector(window_size=3, threshold=0.001)
-        
+
         # Accuracy plateaus
         detector.update(loss=1.0, accuracy=0.5, gradient_norm=1.0)
         detector.update(loss=0.99, accuracy=0.500, gradient_norm=0.99)
         detector.update(loss=0.98, accuracy=0.500, gradient_norm=0.98)
-        
+
         converged, reason = detector.check_convergence()
         # May converge due to no accuracy improvement
         assert converged is not None  # Either True or False is valid
@@ -336,27 +344,25 @@ class TestLearningRateScheduling:
     def test_constant_lr(self):
         """Test constant learning rate"""
         scheduler = AdaptiveLearningRate(
-            initial_lr=0.1,
-            schedule=LearningRateSchedule.CONSTANT
+            initial_lr=0.1, schedule=LearningRateSchedule.CONSTANT
         )
-        
+
         lr1 = scheduler.get_lr()
         lr2 = scheduler.get_lr()
         lr3 = scheduler.get_lr()
-        
+
         assert lr1 == lr2 == lr3 == 0.1
 
     def test_step_decay(self):
         """Test step decay learning rate"""
         scheduler = AdaptiveLearningRate(
-            initial_lr=0.1,
-            schedule=LearningRateSchedule.STEP_DECAY
+            initial_lr=0.1, schedule=LearningRateSchedule.STEP_DECAY
         )
-        
+
         lrs = []
         for _ in range(25):
             lrs.append(scheduler.get_lr())
-        
+
         # Should decay at round 10 and 20
         assert lrs[0] > lrs[10]  # Decayed
         assert lrs[10] > lrs[20]  # Decayed again
@@ -364,14 +370,13 @@ class TestLearningRateScheduling:
     def test_exponential_decay(self):
         """Test exponential decay learning rate"""
         scheduler = AdaptiveLearningRate(
-            initial_lr=0.1,
-            schedule=LearningRateSchedule.EXPONENTIAL
+            initial_lr=0.1, schedule=LearningRateSchedule.EXPONENTIAL
         )
-        
+
         lrs = []
         for _ in range(10):
             lrs.append(scheduler.get_lr())
-        
+
         # Learning rate should decrease monotonically
         for i in range(len(lrs) - 1):
             assert lrs[i] >= lrs[i + 1]
@@ -379,14 +384,14 @@ class TestLearningRateScheduling:
     def test_lr_staleness_adjustment(self):
         """Test learning rate adjustment for staleness"""
         scheduler = AdaptiveLearningRate(initial_lr=0.1)
-        
+
         # Fresh update
         lr_fresh = scheduler.get_lr(staleness=0.0)
-        
+
         # Reset and get stale update rate
         scheduler.reset()
         lr_stale = scheduler.get_lr(staleness=0.5)
-        
+
         # Stale updates should use lower learning rate
         assert lr_stale < lr_fresh
 
@@ -397,24 +402,19 @@ class TestBatchAsyncOrchestrator:
     def test_batch_aggregation(self, sample_model, sample_updates):
         """Test batch async aggregation"""
         orchestrator = BatchAsyncOrchestrator(
-            sample_model,
-            k_threshold=0.8,
-            timeout=60.0
+            sample_model, k_threshold=0.8, timeout=60.0
         )
-        
+
         # Aggregate updates
         gradient = orchestrator.aggregate_updates(sample_updates)
-        
+
         assert gradient is not None
         assert gradient.shape == sample_model.shape
 
     def test_threshold_check(self, sample_model):
         """Test threshold checking for aggregation"""
-        orchestrator = BatchAsyncOrchestrator(
-            sample_model,
-            k_threshold=0.9
-        )
-        
+        orchestrator = BatchAsyncOrchestrator(sample_model, k_threshold=0.9)
+
         # With 10 nodes, need 9 to aggregate
         assert orchestrator.should_aggregate(9, 10) is True
         assert orchestrator.should_aggregate(8, 10) is False
@@ -423,26 +423,25 @@ class TestBatchAsyncOrchestrator:
     def test_timeout_aggregation(self, sample_model):
         """Test timeout triggering aggregation"""
         orchestrator = BatchAsyncOrchestrator(
-            sample_model,
-            k_threshold=0.9,
-            timeout=0.1  # Very short timeout
+            sample_model, k_threshold=0.9, timeout=0.1  # Very short timeout
         )
-        
+
         # Should aggregate after timeout
         import time
+
         time.sleep(0.15)
-        
+
         assert orchestrator.should_aggregate(5, 10) is True
 
     def test_model_update(self, sample_model):
         """Test model update after aggregation"""
         orchestrator = BatchAsyncOrchestrator(sample_model)
-        
+
         gradient = np.ones_like(sample_model) * 0.1
         old_model = orchestrator.model.copy()
-        
+
         orchestrator.update_model(gradient, learning_rate=0.01)
-        
+
         expected = old_model - 0.01 * gradient
         np.testing.assert_allclose(orchestrator.model, expected)
 
@@ -453,40 +452,40 @@ class TestHierarchicalAggregation:
     def test_zone_creation(self, sample_model):
         """Test zone aggregator creation"""
         orchestrator = HierarchicalOrchestrator(sample_model, num_zones=10)
-        
+
         assert len(orchestrator.zone_updates) == 10
         assert len(orchestrator.zone_aggregates) == 10
 
     def test_zone_aggregation(self, sample_model, sample_updates):
         """Test aggregation within a zone"""
         orchestrator = HierarchicalOrchestrator(sample_model, num_zones=3)
-        
+
         # Add updates to zone 0
         for update in sample_updates:
             orchestrator.add_update_to_zone(0, update)
-        
+
         # Aggregate zone
         zone_gradient = orchestrator.aggregate_zone(0)
-        
+
         assert zone_gradient is not None
         assert zone_gradient.shape == sample_model.shape
 
     def test_global_aggregation(self, sample_model, sample_updates):
         """Test global aggregation across zones"""
         orchestrator = HierarchicalOrchestrator(sample_model, num_zones=2)
-        
+
         # Add updates to different zones
         for i, update in enumerate(sample_updates):
             zone = i % 2
             orchestrator.add_update_to_zone(zone, update)
-        
+
         # Aggregate each zone
         for z in range(2):
             orchestrator.aggregate_zone(z)
-        
+
         # Global aggregation
         global_gradient = orchestrator.aggregate_updates(sample_updates)
-        
+
         assert global_gradient is not None
 
     def test_bandwidth_savings(self, sample_model):
@@ -494,14 +493,14 @@ class TestHierarchicalAggregation:
         # Without hierarchy: N gradients transmitted
         num_nodes = 1000
         gradient_size_mb = 1  # 1MB per gradient
-        
+
         flat_bandwidth = num_nodes * gradient_size_mb  # 1000 MB
-        
+
         # With hierarchy: 10 zones, 100 nodes per zone
         # Level 1: 100 gradients per zone × 10 zones = 1000 MB
         # Level 2: 10 zone aggregates = 10 MB
         # Total reduction: in central coordination
-        
+
         # Just verify hierarchical orchestrator works without errors
         orchestrator = HierarchicalOrchestrator(sample_model, num_zones=10)
         assert orchestrator.num_zones == 10
@@ -514,13 +513,9 @@ class TestFLTrainingSession:
         """Test single training round"""
         orchestrator = BatchAsyncOrchestrator(sample_model)
         session = FLTrainingSession(sample_model, orchestrator, max_rounds=10)
-        
-        stats = session.training_round(
-            sample_updates,
-            loss=1.0,
-            accuracy=0.5
-        )
-        
+
+        stats = session.training_round(sample_updates, loss=1.0, accuracy=0.5)
+
         assert stats.round_number == 0
         assert stats.updates_received == len(sample_updates)
         assert stats.learning_rate > 0
@@ -530,14 +525,14 @@ class TestFLTrainingSession:
         """Test convergence detection in training session"""
         orchestrator = BatchAsyncOrchestrator(sample_model)
         session = FLTrainingSession(sample_model, orchestrator, max_rounds=100)
-        
+
         # Simulate converging training
         round_count = 0
         while session.should_continue() and round_count < 10:
             # Simulate improving loss
             loss = 1.0 / (1 + round_count * 0.1)
             accuracy = 0.5 + round_count * 0.05
-            
+
             # Create mock updates
             updates = []
             for i in range(5):
@@ -545,16 +540,16 @@ class TestFLTrainingSession:
                     node_id=f"node-{i}",
                     gradient=np.ones_like(sample_model) * 0.001,
                     svid=f"spiffe://x0tta6bl4.mesh/node/node-{i}",
-                    signature=b"sig"
+                    signature=b"sig",
                 )
                 updates.append(update)
-            
+
             stats = session.training_round(updates, loss, accuracy)
             round_count += 1
-            
+
             if round_count >= 5:  # Force convergence after some rounds
                 break
-        
+
         assert session.current_round > 0
 
 
@@ -597,13 +592,13 @@ class TestProductionScaling:
                 node_id=f"node-{i}",
                 gradient=gradient,
                 svid=f"spiffe://x0tta6bl4.mesh/node/node-{i}",
-                signature=b"sig"
+                signature=b"sig",
             )
             updates.append(update)
-        
+
         orchestrator = BatchAsyncOrchestrator(sample_model, k_threshold=0.85)
         gradient = orchestrator.aggregate_updates(updates)
-        
+
         assert gradient is not None
         assert gradient.shape == sample_model.shape
 
@@ -612,7 +607,7 @@ class TestProductionScaling:
         """Test convergence speed in distributed setting"""
         orchestrator = BatchAsyncOrchestrator(sample_model)
         session = FLTrainingSession(sample_model, orchestrator, max_rounds=50)
-        
+
         round_count = 0
         while session.should_continue() and round_count < 20:
             # Create updates
@@ -623,17 +618,17 @@ class TestProductionScaling:
                     node_id=f"node-{i}",
                     gradient=gradient,
                     svid=f"spiffe://x0tta6bl4.mesh/node/node-{i}",
-                    signature=b"sig"
+                    signature=b"sig",
                 )
                 updates.append(update)
-            
+
             # Simulate improving metrics
             loss = 1.0 / (1 + round_count * 0.2)
             accuracy = 0.5 + round_count * 0.01
-            
+
             session.training_round(updates, loss, accuracy)
             round_count += 1
-        
+
         # Should complete in reasonable time
         assert round_count > 0
 

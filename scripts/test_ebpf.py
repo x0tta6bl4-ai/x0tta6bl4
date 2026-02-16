@@ -1,6 +1,7 @@
 #!/usr/bin/python3
-from bcc import BPF
 import time
+
+from bcc import BPF
 
 # 1. Load BPF program
 cflags = ["-I/usr/src/linux-headers-6.14.0-37-generic/include"]

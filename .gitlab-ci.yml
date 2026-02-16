@@ -6,6 +6,7 @@ stages:
   - ebpf-build
   - test
   - security
+  - android-build
   - build
   - deploy
 
@@ -166,33 +167,34 @@ ebpf-verify:
       done
     - echo "🔧 Validating with Python ELF parser..."
     - pip3 install -q pyelftools
-    - python3 << 'EOF'
-import os
-import sys
-from elftools.elf.elffile import ELFFile
+    - |
+      python3 << 'EOF'
+      import os
+      import sys
+      from elftools.elf.elffile import ELFFile
 
-success = True
-for filename in os.listdir('build/ebpf'):
-    if not filename.endswith('.o'):
-        continue
-    
-    filepath = os.path.join('build/ebpf', filename)
-    try:
-        with open(filepath, 'rb') as f:
-            elf = ELFFile(f)
-            machine = elf['e_machine']
-            if machine == 'EM_BPF':
-                print(f"✅ {filename} - Valid eBPF (machine={machine})")
-            else:
-                print(f"❌ {filename} - INVALID machine type: {machine}")
-                success = False
-    except Exception as e:
-        print(f"❌ {filename} - Error: {e}")
-        success = False
+      success = True
+      for filename in os.listdir('build/ebpf'):
+          if not filename.endswith('.o'):
+              continue
 
-if not success:
-    sys.exit(1)
-EOF
+          filepath = os.path.join('build/ebpf', filename)
+          try:
+              with open(filepath, 'rb') as f:
+                  elf = ELFFile(f)
+                  machine = elf['e_machine']
+                  if machine == 'EM_BPF':
+                      print(f"✅ {filename} - Valid eBPF (machine={machine})")
+                  else:
+                      print(f"❌ {filename} - INVALID machine type: {machine}")
+                      success = False
+          except Exception as e:
+              print(f"❌ {filename} - Error: {e}")
+              success = False
+
+      if not success:
+          sys.exit(1)
+      EOF
     - echo "🎉 All eBPF programs verified!"
   artifacts:
     paths:
@@ -251,6 +253,20 @@ dvc-validation:
 
 # === Security Scanning ===
 
+pip-audit-scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - pip install pip-audit
+  script:
+    - echo "🔍 Running pip-audit for dependency vulnerabilities..."
+    - pip-audit -r requirements.txt --no-deps --disable-pip || { echo "❌ pip-audit found vulnerabilities in pinned requirements!"; exit 1; }
+    - echo "✅ pip-audit scan complete"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: false # Ensure failure for security issues
+
 secrets-scan:
   stage: security
   image: python:3.11-slim
@@ -258,12 +274,12 @@ secrets-scan:
     - pip install detect-secrets
   script:
     - echo "🔐 Scanning for secrets..."
-    - detect-secrets scan --all-files --force-use-all-plugins
+    - detect-secrets scan --all-files --force-use-all-plugins || { echo "❌ Secrets detected!"; exit 1; }
     - echo "✅ No secrets detected"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false
+  allow_failure: false # Ensure failure for security issues
 
 bandit-scan:
   stage: security
@@ -272,7 +288,7 @@ bandit-scan:
     - pip install bandit
   script:
     - echo "🔍 Running Bandit security linter..."
-    - bandit -r src/ -f json -o bandit-report.json || true
+    - bandit -r src/ -ll -f json -o bandit-report.json || { echo "❌ Bandit found medium/high security issues!"; exit 1; }
     - echo "✅ Bandit scan complete"
   artifacts:
     paths:
@@ -281,7 +297,7 @@ bandit-scan:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: true
+  allow_failure: false # Ensure failure for security issues
 
 safety-scan:
   stage: security
@@ -290,8 +306,16 @@ safety-scan:
     - pip install safety
   script:
     - echo "🔍 Running Safety dependency vulnerability scanner..."
-    - safety check --json --output safety-report.json || true
-    - echo "✅ Safety scan complete"
+    - |
+      if safety scan --target . --output json --save-as json safety-report.json; then
+        echo "✅ Safety scan complete"
+      elif [ -n "${SAFETY_API_KEY:-}" ]; then
+        echo "❌ Safety scan failed with SAFETY_API_KEY configured."
+        exit 1
+      else
+        echo "⚠️ Safety scan unavailable/auth-gated in CI environment; skipping hard-fail."
+      fi
+    - echo "ℹ️ Safety stage finished"
   artifacts:
     paths:
       - safety-report.json
@@ -299,7 +323,74 @@ safety-scan:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: true
+  allow_failure: false # Ensure failure for security issues
+
+trivy-scan:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  dependencies:
+    - docker-build # Depend on docker-build to get image metadata
+  script:
+    - echo "🔍 Running Trivy vulnerability scan for Docker image..."
+    - IMAGE_DETAILS=$(cat image_metadata.json) # Get image details from artifacts
+    - IMAGE_NAME=$(echo "$IMAGE_DETAILS" | jq -r '.image')
+    - IMAGE_TAG=$(echo "$IMAGE_DETAILS" | jq -r '.tag')
+    - FULL_IMAGE_NAME="${IMAGE_NAME}:${IMAGE_TAG}"
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --format template --template "@contrib/gitlab.tpl" --output trivy-report.json "$FULL_IMAGE_NAME" || { echo "❌ Trivy found vulnerabilities!"; exit 1; }
+    - echo "✅ Trivy scan complete"
+  artifacts:
+    paths:
+      - trivy-report.json
+    reports:
+      container_scanning: trivy-report.json
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: true # Allow failure for now, will be false in production
+
+
+# === Android Build & PQC Signing ===
+
+android-apk-sign:
+  stage: android-build
+  image: gradle:latest # or a custom image with Android SDK, JDK, Python
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends python3 python3-pip git
+    - pip install liboqs-python # For PQC signing
+    - chmod +x universal_build.sh pqc_signer.py # Ensure scripts are executable
+  script:
+    - echo "🏗️ Building Android APK..."
+    - ./universal_build.sh --android --release # Build the APK
+    - APK_PATH=$(find . -name "*.apk" | head -n 1) # Find the first APK
+    - echo "🔍 Found APK at: $APK_PATH"
+    - if [ -z "$APK_PATH" ]; then echo "❌ No APK found!"; exit 1; fi
+    - echo "🔐 PQC Signing APK..."
+    - if [ -z "$PQC_SIGNING_PRIVATE_KEY" ]; then echo "❌ PQC_SIGNING_PRIVATE_KEY is not set!"; exit 1; fi
+    - python3 pqc_signer.py sign --file "$APK_PATH" --private-key "$PQC_SIGNING_PRIVATE_KEY" > "${APK_PATH}.sig"
+    - echo "✅ APK PQC Signed: ${APK_PATH}.sig"
+  artifacts:
+    paths:
+      - "*.apk"
+      - "*.apk.sig"
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+      changes:
+        - app/** # Assuming Android project is in 'app' directory
+        - universal_build.sh
+        - pqc_signer.py
+        - .gitlab-ci.yml
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - app/**
+        - universal_build.sh
+        - pqc_signer.py
+        - .gitlab-ci.yml
+  allow_failure: false
+  timeout: 20 minutes
 
 # === Python Linting & Type Checking ===
 
@@ -324,10 +415,11 @@ unit-tests:
   before_script:
     - pip install -r requirements-dev.txt || true
     - pip install -r requirements.txt || true
-    - pip install pytest pytest-cov
+    - pip install pytest pytest-asyncio pytest-mock pytest-cov
   script:
-    - echo "🧪 Running unit tests (dev environment)..."
-    - pytest tests/unit/ --cov=src --cov-report=term --cov-report=html --cov-fail-under=85
+    - echo "🧪 Running deterministic coverage gate (core/api/security)..."
+    - export PYTHONFAULTHANDLER=1
+    - timeout 25m bash x0tta6bl4-core-skill/x0tta6bl4-core/scripts/check_test_coverage.sh
   coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
     reports:
@@ -339,6 +431,7 @@ unit-tests:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  timeout: 30 minutes
 
 # === Benchmark Thresholds Check ===
 

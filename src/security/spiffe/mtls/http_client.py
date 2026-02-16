@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 import httpx
 
-from ..workload import WorkloadAPIClient, X509SVID
+from ..workload import X509SVID, WorkloadAPIClient
 from .tls_context import MTLSContext, TLSRole, build_mtls_context
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class SPIFFEHttpClient:
         workload_api: Optional[WorkloadAPIClient] = None,
         *,
         expected_peer_id: Optional[str] = None,
-        verify_peer: bool = False,
+        verify_peer: bool = True,
         timeout: Optional[float] = None,
         transport: Optional[httpx.AsyncBaseTransport] = None,
     ) -> None:

@@ -1,10 +1,13 @@
-from src.consensus.raft_consensus import RaftCluster, RaftConfig, RaftNode
 from datetime import datetime, timedelta
+
+from src.consensus.raft_consensus import RaftCluster, RaftConfig, RaftNode
 
 
 def _force_timeout(node: RaftNode):
     """Force node's last_activity far enough in past to trigger election immediately."""
-    node.last_activity = datetime.now() - timedelta(milliseconds=node.election_timeout + 10)
+    node.last_activity = datetime.now() - timedelta(
+        milliseconds=node.election_timeout + 10
+    )
 
 
 def _drive_until_leader(cluster: RaftCluster, max_rounds: int = 5):
@@ -20,21 +23,36 @@ def _drive_until_leader(cluster: RaftCluster, max_rounds: int = 5):
 
 
 def test_leader_election_occurs():
-    cluster = RaftCluster(['n1','n2','n3'], config=RaftConfig(election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100))
+    cluster = RaftCluster(
+        ["n1", "n2", "n3"],
+        config=RaftConfig(
+            election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100
+        ),
+    )
     leader = _drive_until_leader(cluster)
-    assert leader in ['n1','n2','n3']
+    assert leader in ["n1", "n2", "n3"]
 
 
 def test_follower_timeout_triggers_election():
-    cluster = RaftCluster(['a','b'], config=RaftConfig(election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100))
+    cluster = RaftCluster(
+        ["a", "b"],
+        config=RaftConfig(
+            election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100
+        ),
+    )
     leader = _drive_until_leader(cluster)
-    assert leader in ['a','b']
+    assert leader in ["a", "b"]
 
 
 def test_append_entry_requires_leader():
-    cluster = RaftCluster(['x','y','z'], config=RaftConfig(election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100))
+    cluster = RaftCluster(
+        ["x", "y", "z"],
+        config=RaftConfig(
+            election_timeout_min=50, election_timeout_max=60, heartbeat_interval=100
+        ),
+    )
     # initially no leader
-    assert cluster.add_command({'op':'set','k':'v'}) is False
+    assert cluster.add_command({"op": "set", "k": "v"}) is False
     leader = _drive_until_leader(cluster)
-    assert leader in ['x','y','z']
-    assert cluster.add_command({'op':'set','k':'v'}) is True
+    assert leader in ["x", "y", "z"]
+    assert cluster.add_command({"op": "set", "k": "v"}) is True

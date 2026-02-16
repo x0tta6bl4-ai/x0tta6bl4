@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 name = "x0tta6bl4"
 # Version is read from VERSION file at build time
 # For development, update VERSION file: echo "3.2.0" > VERSION
-version = "3.2.0"
+version = "3.2.1"
 description = "PRODUCTION READY: Self-healing mesh-architecture with Zero-Trust, Post-Quantum Cryptography (FIPS 203/204), DAO-governance, CI/CD automation, 17 ML/AI components (94-98% accuracy), and complete DevOps infrastructure. Logical completion: Jan 20, 2026."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,7 +26,7 @@ dependencies = [
     "python-dotenv==1.1.1",
     "httpx==0.28.1",
     "requests==2.32.4",
-    "cryptography==46.0.3",
+    "cryptography==46.0.5",
     "torch==2.9.0",
     "PyJWT==2.10.1",
     "bcrypt==5.0.0",
@@ -57,6 +57,7 @@ dependencies = [
     "pyasn1>=0.6.2",
     "pynacl>=1.6.2",
     "werkzeug>=3.1.5",
+    "oqs>=0.8.0.0", # Added for Post-Quantum Cryptography Python bindings
 ]
 
 [project.optional-dependencies]
@@ -74,7 +75,7 @@ dev = [
     "pre-commit==4.3.0",
     "ruff", # From roadmap
     "pip-audit", # From roadmap
-    "spiffe==0.2.2",
+
     "pytest-mock==3.12.0",
     "pyelftools>=0.30",  # For eBPF ELF parsing
     "virtualenv>=20.36.1",
@@ -135,15 +136,15 @@ Repository = "https://github.com/x0tta6bl4/x0tta6bl4"
 "Bug Tracker" = "https://github.com/x0tta6bl4/x0tta6bl4/issues"
 
 
-
 [tool.pytest.ini_options]
 pytest_plugins = ["pytest_mock"]
-addopts = "-v --tb=short --strict-markers -ra --junitxml=junit.xml --cov=src --cov-report=html --cov-report=xml --cov-fail-under=75"
+addopts = "-v --tb=short --strict-markers -ra --durations=25 --durations-min=1 --junitxml=junit.xml --cov --cov-report=html --cov-report=xml --cov-fail-under=75"
 testpaths = "tests"
 pythonpath = "."
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+faulthandler_timeout = 60
 markers = [
     "benchmark: Benchmark tests",
     "chaos: Chaos engineering tests",
@@ -172,7 +173,16 @@ filterwarnings = [
 
 
 
-source = ["src"]
+source = [
+    "src/core",
+    "src/api",
+    "src/monitoring",
+    "src/optimization",
+    "src/resilience",
+    "src/storage",
+    "src/security",
+    "src/self_healing",
+]
 
 
 
@@ -193,6 +203,9 @@ omit = [
 
 
     "*/site-packages/*",
+    "src/experiments/*",
+    "src/legacy/*",
+    "src/manual_scripts/*",
 
 
 
@@ -261,7 +274,6 @@ exclude_lines = [
 
 
 directory = "htmlcov"
-
 
 
 

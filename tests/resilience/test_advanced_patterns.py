@@ -1,40 +1,37 @@
 import pytest
-from src.resilience.advanced_patterns import (
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitState,
-    RetryStrategy,
-    BulkheadIsolation,
-    FallbackHandler,
-    ResilientExecutor,
-)
+
+from src.resilience.advanced_patterns import (BulkheadIsolation,
+                                              CircuitBreaker,
+                                              CircuitBreakerConfig,
+                                              CircuitState, FallbackHandler,
+                                              ResilientExecutor, RetryStrategy)
 
 
 class TestCircuitBreaker:
     def test_circuit_closed_by_default(self):
         breaker = CircuitBreaker(CircuitBreakerConfig())
         assert breaker.get_state() == CircuitState.CLOSED.value
-    
+
     def test_circuit_opens_on_failures(self):
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config)
-        
+
         def failing_func():
             raise Exception("failure")
-        
+
         for _ in range(2):
             with pytest.raises(Exception):
                 breaker.call(failing_func)
-        
+
         assert breaker.get_state() == CircuitState.OPEN.value
-    
+
     def test_circuit_rejects_when_open(self):
         config = CircuitBreakerConfig(failure_threshold=1)
         breaker = CircuitBreaker(config)
-        
+
         with pytest.raises(Exception):
-            breaker.call(lambda: 1/0)
-        
+            breaker.call(lambda: 1 / 0)
+
         with pytest.raises(Exception):
             breaker.call(lambda: "ok")
 
@@ -44,17 +41,17 @@ class TestRetryStrategy:
         strategy = RetryStrategy()
         result = strategy.execute(lambda: "success")
         assert result == "success"
-    
+
     def test_retry_on_failure(self):
         call_count = 0
-        
+
         def flaky_func():
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise Exception("fail")
             return "success"
-        
+
         strategy = RetryStrategy()
         result = strategy.execute(flaky_func)
         assert result == "success"
@@ -71,20 +68,14 @@ class TestBulkheadIsolation:
 class TestFallbackHandler:
     def test_primary_succeeds(self):
         handler = FallbackHandler()
-        result = handler.execute_with_fallback(
-            "key", 
-            lambda: "primary"
-        )
+        result = handler.execute_with_fallback("key", lambda: "primary")
         assert result == "primary"
-    
+
     def test_fallback_on_failure(self):
         handler = FallbackHandler()
         handler.register_fallback("key", lambda: "fallback")
-        
-        result = handler.execute_with_fallback(
-            "key",
-            lambda: 1/0
-        )
+
+        result = handler.execute_with_fallback("key", lambda: 1 / 0)
         assert result == "fallback"
 
 

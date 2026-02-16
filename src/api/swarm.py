@@ -16,15 +16,16 @@ Endpoints:
 - POST /swarm/{swarm_id}/vision/analyze - Visual analysis
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request, Header, status, UploadFile, File
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+import asyncio
+import hmac
 import logging
 import os
-import hmac
-import asyncio
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+from fastapi import (APIRouter, Depends, File, Header, HTTPException, Request,
+                     UploadFile, status)
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -44,16 +45,16 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
     if not admin_token:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Admin token not configured"
+            detail="Admin token not configured",
         )
     if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
 
 
 # Request/Response Models
+
 
 class SwarmConstraints(BaseModel):
     max_parallel_steps: int = Field(default=1500, ge=1, le=1500)
@@ -113,12 +114,11 @@ class TerminateRequest(BaseModel):
 
 # Endpoints
 
+
 @router.post("/create", response_model=SwarmResponse)
 @limiter.limit("10/minute")
 async def create_swarm(
-    request: Request,
-    body: SwarmCreateRequest,
-    _: None = Depends(verify_admin_token)
+    request: Request, body: SwarmCreateRequest, _: None = Depends(verify_admin_token)
 ):
     """
     Create a new agent swarm.
@@ -127,20 +127,24 @@ async def create_swarm(
     Uses PARL for parallel task execution with up to 4.5x speedup.
     """
     try:
-        from src.swarm import SwarmOrchestrator, SwarmConfig
+        import src.swarm.orchestrator as orchestrator
 
-        config = SwarmConfig(
+        config = orchestrator.SwarmConfig(
             name=body.name,
             max_agents=body.num_agents,
             min_agents=min(body.num_agents, 3),
-            max_parallel_steps=body.constraints.max_parallel_steps if body.constraints else 1500,
-            target_latency_ms=body.constraints.target_latency_ms if body.constraints else 100.0,
+            max_parallel_steps=(
+                body.constraints.max_parallel_steps if body.constraints else 1500
+            ),
+            target_latency_ms=(
+                body.constraints.target_latency_ms if body.constraints else 100.0
+            ),
             enable_parl=True,
             enable_vision=True,
-            ttl_seconds=body.ttl_seconds
+            ttl_seconds=body.ttl_seconds,
         )
 
-        swarm = SwarmOrchestrator(config)
+        swarm = orchestrator.SwarmOrchestrator(config)
         await swarm.initialize()
 
         async with _swarm_lock:
@@ -157,15 +161,15 @@ async def create_swarm(
             endpoints={
                 "status": f"/api/v3/swarm/{swarm.swarm_id}/status",
                 "tasks": f"/api/v3/swarm/{swarm.swarm_id}/tasks",
-                "agents": f"/api/v3/swarm/{swarm.swarm_id}/agents"
-            }
+                "agents": f"/api/v3/swarm/{swarm.swarm_id}/agents",
+            },
         )
 
     except Exception as e:
         logger.error(f"Failed to create swarm: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create swarm: {str(e)}"
+            detail=f"Failed to create swarm: {str(e)}",
         )
 
 
@@ -176,8 +180,7 @@ async def get_swarm_status(request: Request, swarm_id: str):
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     return swarm.get_status()
@@ -189,14 +192,13 @@ async def submit_task(
     request: Request,
     swarm_id: str,
     body: TaskSubmitRequest,
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """Submit a task for execution by the swarm."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     try:
@@ -206,7 +208,7 @@ async def submit_task(
             task_type=body.task_type,
             payload=body.payload,
             priority=body.priority,
-            timeout_seconds=body.timeout_seconds
+            timeout_seconds=body.timeout_seconds,
         )
 
         task_id = await swarm.submit_task(task)
@@ -216,19 +218,14 @@ async def submit_task(
             swarm_id=swarm_id,
             status="queued",
             created_at=datetime.fromtimestamp(task.created_at).isoformat(),
-            progress={
-                "total": 1,
-                "completed": 0,
-                "failed": 0,
-                "percent": 0
-            }
+            progress={"total": 1, "completed": 0, "failed": 0, "percent": 0},
         )
 
     except Exception as e:
         logger.error(f"Failed to submit task: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit task: {str(e)}"
+            detail=f"Failed to submit task: {str(e)}",
         )
 
 
@@ -238,14 +235,13 @@ async def submit_tasks_batch(
     request: Request,
     swarm_id: str,
     tasks: List[TaskSubmitRequest],
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """Submit multiple tasks for parallel execution."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     try:
@@ -256,7 +252,7 @@ async def submit_tasks_batch(
                 task_type=t.task_type,
                 payload=t.payload,
                 priority=t.priority,
-                timeout_seconds=t.timeout_seconds
+                timeout_seconds=t.timeout_seconds,
             )
             for t in tasks
         ]
@@ -267,14 +263,14 @@ async def submit_tasks_batch(
             "swarm_id": swarm_id,
             "tasks_submitted": len(task_ids),
             "task_ids": task_ids,
-            "status": "queued"
+            "status": "queued",
         }
 
     except Exception as e:
         logger.error(f"Failed to submit batch tasks: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit batch tasks: {str(e)}"
+            detail=f"Failed to submit batch tasks: {str(e)}",
         )
 
 
@@ -285,15 +281,13 @@ async def get_task_status(request: Request, swarm_id: str, task_id: str):
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     task_status = await swarm.get_task_status(task_id)
     if not task_status:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task not found: {task_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Task not found: {task_id}"
         )
 
     return task_status
@@ -306,14 +300,13 @@ async def list_agents(
     swarm_id: str,
     status_filter: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
 ):
     """List all agents in a swarm."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     agents = []
@@ -325,13 +318,13 @@ async def list_agents(
 
     # Apply pagination
     total = len(agents)
-    agents = agents[offset:offset + limit]
+    agents = agents[offset : offset + limit]
 
     return {
         "swarm_id": swarm_id,
         "total_agents": total,
         "returned": len(agents),
-        "agents": agents
+        "agents": agents,
     }
 
 
@@ -342,15 +335,13 @@ async def get_agent_status(request: Request, swarm_id: str, agent_id: str):
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     agent = swarm.agents.get(agent_id)
     if not agent:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent not found: {agent_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Agent not found: {agent_id}"
         )
 
     return agent.get_status()
@@ -363,21 +354,19 @@ async def control_agent(
     swarm_id: str,
     agent_id: str,
     action: str,
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """Control agent state (pause, resume, restart, terminate)."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     agent = swarm.agents.get(agent_id)
     if not agent:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent not found: {agent_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Agent not found: {agent_id}"
         )
 
     if action == "pause":
@@ -389,14 +378,13 @@ async def control_agent(
         del swarm.agents[agent_id]
     else:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid action: {action}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid action: {action}"
         )
 
     return {
         "agent_id": agent_id,
         "action": action,
-        "status": agent.state.value if action != "terminate" else "terminated"
+        "status": agent.state.value if action != "terminate" else "terminated",
     }
 
 
@@ -406,14 +394,13 @@ async def scale_swarm(
     request: Request,
     swarm_id: str,
     body: ScaleRequest,
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """Scale the swarm up or down."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     previous_count = len(swarm.agents)
@@ -430,7 +417,7 @@ async def scale_swarm(
         "action": body.action,
         "previous_count": previous_count,
         "new_count": len(swarm.agents),
-        "scaling_status": "completed"
+        "scaling_status": "completed",
     }
 
 
@@ -441,8 +428,7 @@ async def get_swarm_metrics(request: Request, swarm_id: str):
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     metrics = await swarm.get_metrics()
@@ -452,10 +438,7 @@ async def get_swarm_metrics(request: Request, swarm_id: str):
         parl_metrics = swarm.parl_controller.get_metrics()
         metrics["parl"] = parl_metrics
 
-    return {
-        "swarm_id": swarm_id,
-        "metrics": metrics
-    }
+    return {"swarm_id": swarm_id, "metrics": metrics}
 
 
 @router.delete("/{swarm_id}")
@@ -464,14 +447,13 @@ async def terminate_swarm(
     request: Request,
     swarm_id: str,
     body: Optional[TerminateRequest] = None,
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """Terminate a swarm and release resources."""
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     graceful = body.graceful if body else True
@@ -483,11 +465,7 @@ async def terminate_swarm(
 
     logger.info(f"Swarm terminated: {swarm_id}")
 
-    return {
-        "swarm_id": swarm_id,
-        "status": "terminated",
-        "graceful": graceful
-    }
+    return {"swarm_id": swarm_id, "status": "terminated", "graceful": graceful}
 
 
 @router.get("")
@@ -496,7 +474,7 @@ async def list_swarms(
     request: Request,
     status_filter: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
 ):
     """List all active swarms."""
     swarms_list = []
@@ -505,21 +483,20 @@ async def list_swarms(
         swarm_status = swarm.get_status()
         if status_filter and swarm_status["status"] != status_filter:
             continue
-        swarms_list.append({
-            "swarm_id": swarm_id,
-            "name": swarm.config.name,
-            "status": swarm_status["status"],
-            "num_agents": len(swarm.agents),
-            "created_at": datetime.fromtimestamp(swarm.created_at).isoformat()
-        })
+        swarms_list.append(
+            {
+                "swarm_id": swarm_id,
+                "name": swarm.config.name,
+                "status": swarm_status["status"],
+                "num_agents": len(swarm.agents),
+                "created_at": datetime.fromtimestamp(swarm.created_at).isoformat(),
+            }
+        )
 
     total = len(swarms_list)
-    swarms_list = swarms_list[offset:offset + limit]
+    swarms_list = swarms_list[offset : offset + limit]
 
-    return {
-        "total": total,
-        "swarms": swarms_list
-    }
+    return {"total": total, "swarms": swarms_list}
 
 
 @router.post("/{swarm_id}/vision/analyze")
@@ -529,7 +506,7 @@ async def analyze_visual(
     swarm_id: str,
     analysis_type: str = "mesh_topology",
     image: UploadFile = File(...),
-    _: None = Depends(verify_admin_token)
+    _: None = Depends(verify_admin_token),
 ):
     """
     Analyze an image using the swarm's vision module.
@@ -542,14 +519,13 @@ async def analyze_visual(
     swarm = _swarms.get(swarm_id)
     if not swarm:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Swarm not found: {swarm_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Swarm not found: {swarm_id}"
         )
 
     if not swarm.config.enable_vision:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vision module not enabled for this swarm"
+            detail="Vision module not enabled for this swarm",
         )
 
     try:
@@ -569,9 +545,7 @@ async def analyze_visual(
         elif analysis_type == "routing_visualization":
             # For routing, we need start/end positions - use defaults or from context
             results = await engine.analyze_maze(
-                image_content,
-                start_pos=(0, 0),
-                end_pos=(100, 100)
+                image_content, start_pos=(0, 0), end_pos=(100, 100)
             )
         else:
             # Default to mesh topology analysis
@@ -583,14 +557,14 @@ async def analyze_visual(
             "status": "completed",
             "analysis_type": analysis_type,
             "image_size": len(image_content),
-            "results": results
+            "results": results,
         }
 
     except Exception as e:
         logger.error(f"Vision analysis failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Vision analysis failed: {str(e)}"
+            detail=f"Vision analysis failed: {str(e)}",
         )
 
 
@@ -601,5 +575,5 @@ async def swarm_health():
     return {
         "status": "healthy",
         "active_swarms": len(_swarms),
-        "total_agents": sum(len(s.agents) for s in _swarms.values())
+        "total_agents": sum(len(s.agents) for s in _swarms.values()),
     }

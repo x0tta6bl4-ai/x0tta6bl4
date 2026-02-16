@@ -1,14 +1,16 @@
 """
 Unit tests for CRDT implementations
 """
-import pytest
-import time
-from src.data_sync.crdt import (
-    GCounter, PNCounter, LWWRegister, GSet, ORSet, LWWMap,
-)
 
+import time
+
+import pytest
+
+from src.data_sync.crdt import (GCounter, GSet, LWWMap, LWWRegister, ORSet,
+                                PNCounter)
 
 # === GCounter ===
+
 
 class TestGCounter:
     def test_increment(self):
@@ -71,6 +73,7 @@ class TestGCounter:
 
 # === PNCounter ===
 
+
 class TestPNCounter:
     def test_increment_and_decrement(self):
         c = PNCounter()
@@ -128,54 +131,46 @@ class TestPNCounter:
 
 # === LWWRegister ===
 
+
 class TestLWWRegister:
     def test_set_and_get(self):
-        r = LWWRegister()
-        r.set("hello", timestamp=1.0)
+        r = LWWRegister(node_id="n1", value="hello", timestamp=1.0)
         assert r.value == "hello"
 
     def test_later_timestamp_wins(self):
-        r = LWWRegister()
-        r.set("old", timestamp=1.0)
+        r = LWWRegister(node_id="n1", value="old", timestamp=1.0)
         r.set("new", timestamp=2.0)
         assert r.value == "new"
 
     def test_earlier_timestamp_ignored(self):
-        r = LWWRegister()
-        r.set("new", timestamp=2.0)
+        r = LWWRegister(node_id="n1", value="new", timestamp=2.0)
         r.set("old", timestamp=1.0)
         assert r.value == "new"
 
     def test_tie_break_deterministic(self):
-        r = LWWRegister()
-        r.set("aaa", timestamp=1.0)
-        r.set("zzz", timestamp=1.0)
-        assert r.value == "zzz"
+        """Merge uses (timestamp, node_id) tuple comparison for tie-breaking."""
+        r1 = LWWRegister(node_id="aaa", value="aaa-val", timestamp=1.0)
+        r2 = LWWRegister(node_id="zzz", value="zzz-val", timestamp=1.0)
+        r1.merge(r2)
+        assert r1.value == "zzz-val"
 
     def test_merge(self):
-        r1 = LWWRegister()
-        r2 = LWWRegister()
-        r1.set("old", timestamp=1.0)
-        r2.set("new", timestamp=2.0)
+        r1 = LWWRegister(node_id="n1", value="old", timestamp=1.0)
+        r2 = LWWRegister(node_id="n2", value="new", timestamp=2.0)
         r1.merge(r2)
         assert r1.value == "new"
 
     def test_merge_commutative(self):
-        r1 = LWWRegister()
-        r2 = LWWRegister()
-        r1.set("A", timestamp=1.0)
-        r2.set("B", timestamp=2.0)
-        a = LWWRegister()
-        b = LWWRegister()
-        a.set("A", timestamp=1.0)
-        b.set("B", timestamp=2.0)
+        r1 = LWWRegister(node_id="n1", value="A", timestamp=1.0)
+        r2 = LWWRegister(node_id="n2", value="B", timestamp=2.0)
+        a = LWWRegister(node_id="n1", value="A", timestamp=1.0)
+        b = LWWRegister(node_id="n2", value="B", timestamp=2.0)
         r1.merge(r2)
         b.merge(a)
         assert r1.value == b.value
 
     def test_serialization(self):
-        r = LWWRegister()
-        r.set("data", timestamp=42.0)
+        r = LWWRegister(node_id="n1", value="data", timestamp=42.0)
         data = r.to_dict()
         r2 = LWWRegister.from_dict(data)
         assert r2.value == "data"
@@ -183,6 +178,7 @@ class TestLWWRegister:
 
 
 # === GSet ===
+
 
 class TestGSet:
     def test_add_and_contains(self):
@@ -228,6 +224,7 @@ class TestGSet:
 
 
 # === ORSet ===
+
 
 class TestORSet:
     def test_add_and_contains(self):
@@ -303,6 +300,7 @@ class TestORSet:
 
 
 # === LWWMap ===
+
 
 class TestLWWMap:
     def test_set_and_get(self):

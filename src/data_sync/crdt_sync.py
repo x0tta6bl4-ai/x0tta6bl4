@@ -4,14 +4,21 @@ CRDT Synchronization (P1)
 Implements several CRDT types and a lightweight sync manager abstraction.
 Designed for integration with mesh networking layer in later phases.
 """
+
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, Set, Callable
-from datetime import datetime
-from abc import ABC, abstractmethod
+
+import asyncio  # Add this import
 import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Callable, Dict, Set
+
+# Import CRDT implementations from crdt.py
+from .crdt import GCounter, GSet, LWWMap, LWWRegister, ORSet, PNCounter
 
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Base Interface
@@ -25,120 +32,33 @@ class CRDT(ABC):
     def value(self) -> Any:
         pass
 
-# ---------------------------------------------------------------------------
-# LWW Register
-# ---------------------------------------------------------------------------
-@dataclass
-class LWWRegister(CRDT):
-    value_data: Any = None
-    timestamp: datetime = field(default_factory=datetime.now)
-    node_id: str = ""
-
-    def set(self, value: Any, node_id: str):
-        now = datetime.now()
-        # last-writer-wins: higher timestamp or tie-break by node id
-        if (now > self.timestamp) or (now == self.timestamp and node_id > self.node_id):
-            self.value_data = value
-            self.timestamp = now
-            self.node_id = node_id
-            logger.debug(f"LWWRegister updated value={value} node={node_id}")
-
-    def merge(self, other: "CRDT"):
-        # Accept any CRDT; only merge if compatible type
-        if isinstance(other, LWWRegister):
-            if (other.timestamp > self.timestamp) or (
-                other.timestamp == self.timestamp and other.node_id > self.node_id
-            ):
-                self.value_data = other.value_data
-                self.timestamp = other.timestamp
-                self.node_id = other.node_id
-
-    def value(self) -> Any:
-        return self.value_data
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to JSON-serializable dict."""
-        return {
-            "value_data": self.value_data,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "node_id": self.node_id
-        }
-
-# ---------------------------------------------------------------------------
-# Counter (G-Counter style - grow only, merge by max per node then sum)
-# ---------------------------------------------------------------------------
-@dataclass
-class Counter(CRDT):
-    values: Dict[str, int] = field(default_factory=lambda: {})  # Dict[str,int]
-
-    def increment(self, node_id: str, amount: int = 1):
-        self.values[node_id] = self.values.get(node_id, 0) + amount
-        logger.debug(f"Counter increment node={node_id} amount={amount}")
-
-    def merge(self, other: "CRDT"):
-        if isinstance(other, Counter):
-            for nid, val in other.values.items():
-                if nid not in self.values:
-                    self.values[nid] = val
-                else:
-                    self.values[nid] = max(self.values[nid], val)
-
-    def value(self) -> int:
-        return sum(self.values.values())
-
-# ---------------------------------------------------------------------------
-# OR-Set (Observed-Remove Set)
-# ---------------------------------------------------------------------------
-@dataclass
-class ORSet(CRDT):
-    elements: Dict[Any, Set[str]] = field(default_factory=lambda: {})  # element -> set[str]
-    tombstones: Set[str] = field(default_factory=lambda: set())
-
-    def add(self, element: Any, tag_id: str):
-        if element not in self.elements:
-            self.elements[element] = set()
-        self.elements[element].add(tag_id)
-        logger.debug(f"ORSet add element={element} tag={tag_id}")
-
-    def remove(self, element: Any):
-        if element in self.elements:
-            # tombstone all tags for that element
-            self.tombstones.update(self.elements[element])
-            del self.elements[element]
-            logger.debug(f"ORSet remove element={element}")
-
-    def merge(self, other: "CRDT"):
-        if isinstance(other, ORSet):
-            # merge additions
-            for element, tags in other.elements.items():
-                if element not in self.elements:
-                    self.elements[element] = set()
-                self.elements[element].update(tags)
-            # merge tombstones
-            self.tombstones.update(other.tombstones)
-            # purge fully tombstoned elements
-            for element in list(self.elements.keys()):
-                if self.elements[element].issubset(self.tombstones):
-                    del self.elements[element]
-
-    def value(self) -> Set[Any]:
-        return set(self.elements.keys())
 
 # ---------------------------------------------------------------------------
 # Sync Manager
 # ---------------------------------------------------------------------------
 class CRDTSync:
-    def __init__(self, node_id: str):
+    def __init__(
+        self, node_id: str, mesh_router: Optional[Any] = None
+    ):  # Optional[Any] to avoid circular dependency for type hint
         self.node_id = node_id
         self.crdts: Dict[str, CRDT] = {}
         self.sync_callbacks: Set[Callable[[Dict[str, Any]], None]] = set()
+        self.mesh_router = mesh_router  # Store the mesh router instance
+
+        if self.mesh_router:
+            self.mesh_router.set_crdt_sync_callback(self._receive_updates_from_peer)
+            logger.info(f"[{self.node_id}] CRDTSync registered with MeshRouter.")
 
     def register_crdt(self, key: str, crdt: CRDT):
         self.crdts[key] = crdt
-        logger.info(f"[{self.node_id}] Registered CRDT key={key} type={crdt.__class__.__name__}")
+        logger.info(
+            f"[{self.node_id}] Registered CRDT key={key} type={crdt.__class__.__name__}"
+        )
 
     def merge_from_peer(self, peer_id: str, updates: Dict[str, CRDT]):
-        logger.info(f"[{self.node_id}] Merge from peer={peer_id} keys={list(updates.keys())}")
+        logger.info(
+            f"[{self.node_id}] Merge from peer={peer_id} keys={list(updates.keys())}"
+        )
         for key, peer_crdt in updates.items():
             if key in self.crdts:
                 self.crdts[key].merge(peer_crdt)
@@ -158,3 +78,96 @@ class CRDTSync:
     def register_sync_callback(self, cb: Callable[[Dict[str, Any]], None]):
         self.sync_callbacks.add(cb)
 
+    async def start_sync(self, interval_sec: int = 5):
+        """Запустить периодическую синхронизацию CRDT с другими узлами."""
+        if not self.mesh_router:
+            logger.warning(
+                f"[{self.node_id}] MeshRouter not provided, CRDT sync will not start."
+            )
+            return
+
+        self._sync_task = asyncio.create_task(self._periodic_sync_loop(interval_sec))
+        logger.info(
+            f"[{self.node_id}] CRDT sync started with interval {interval_sec} seconds."
+        )
+
+    async def stop_sync(self):
+        """Остановить периодическую синхронизацию CRDT."""
+        if hasattr(self, "_sync_task") and self._sync_task:
+            self._sync_task.cancel()
+            try:
+                await self._sync_task
+            except asyncio.CancelledError:
+                pass
+        logger.info(f"[{self.node_id}] CRDT sync stopped.")
+
+    async def _periodic_sync_loop(self, interval_sec: int):
+        """Периодический цикл для отправки CRDT-обновлений."""
+        while True:
+            await asyncio.sleep(interval_sec)
+            await self._send_updates_to_peers()
+
+    async def _send_updates_to_peers(self):
+        """Отправить текущее состояние CRDT всем известным пирам."""
+        if not self.mesh_router:
+            return
+
+        current_state_data = {key: crdt.to_dict() for key, crdt in self.crdts.items()}
+        if not current_state_data:
+            logger.debug(f"[{self.node_id}] No CRDTs to send updates for.")
+            return
+
+        # Получаем список всех известных пиров из MeshRouter
+        known_peers = [
+            route.destination
+            for routes in self.mesh_router.get_routes().values()
+            for route in routes
+        ]
+        known_peers = list(set(known_peers) - {self.node_id})  # Исключаем самого себя
+
+        if not known_peers:
+            logger.debug(f"[{self.node_id}] No known peers to send CRDT updates to.")
+            return
+
+        logger.debug(
+            f"[{self.node_id}] Sending CRDT updates to {len(known_peers)} peers: {known_peers}"
+        )
+        for peer_id in known_peers:
+            await self.mesh_router.send_crdt_update(peer_id, current_state_data)
+
+    async def _receive_updates_from_peer(
+        self, peer_id: str, updates_data: Dict[str, Any]
+    ):
+        """
+        Обработать полученные CRDT-обновления от пира.
+        Этот метод вызывается MeshRouter через _crdt_sync_callback.
+        """
+        logger.debug(
+            f"[{self.node_id}] Received CRDT updates from {peer_id} with keys: {updates_data.keys()}"
+        )
+
+        # Для каждого CRDT в полученных обновлениях
+        for key, crdt_dict in updates_data.items():
+            if key in self.crdts:
+                # Десериализуем CRDT из словаря (нужен метод from_dict для каждого CRDT)
+                # Предполагаем, что crdt_dict содержит тип CRDT
+                crdt_type = self.crdts[key].__class__
+                try:
+                    # Создаем временный объект CRDT из полученных данных, используя from_dict
+                    received_crdt = crdt_type.from_dict(crdt_dict)
+                    self.crdts[key].merge(received_crdt)
+                    logger.debug(
+                        f"[{self.node_id}] Merged CRDT '{key}' from {peer_id}. New value: {self.crdts[key].value()}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"[{self.node_id}] Failed to merge CRDT '{key}' from {peer_id}: {e}"
+                    )
+            else:
+                logger.debug(
+                    f"[{self.node_id}] Received update for unknown CRDT '{key}' from {peer_id}. Ignoring."
+                )
+
+        # После слияния, возможно, потребуется вызвать callback для локальных потребителей
+        # Но пока не делаем broadcast, чтобы избежать шторма
+        # self.broadcast()

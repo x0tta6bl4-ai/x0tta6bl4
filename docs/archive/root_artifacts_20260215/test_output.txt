@@ -1,0 +1,68 @@
+DEBUG: PARL executed 50 tasks
+DEBUG: Result: {'task_id': 'train_1_node_38', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_000'}, 'execution_time': 0.10413169860839844}
+DEBUG: Result: {'task_id': 'train_1_node_26', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_001'}, 'execution_time': 0.10414910316467285}
+DEBUG: Result: {'task_id': 'train_1_node_14', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_002'}, 'execution_time': 0.10415363311767578}
+DEBUG: Result: {'task_id': 'train_1_node_43', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_003'}, 'execution_time': 0.1041557788848877}
+DEBUG: Result: {'task_id': 'train_1_node_32', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_004'}, 'execution_time': 0.10415363311767578}
+DEBUG: Result: {'task_id': 'train_1_node_27', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_005'}, 'execution_time': 0.10408759117126465}
+DEBUG: Result: {'task_id': 'train_1_node_12', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_006'}, 'execution_time': 0.10407447814941406}
+DEBUG: Result: {'task_id': 'train_1_node_42', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_007'}, 'execution_time': 0.1040656566619873}
+DEBUG: Result: {'task_id': 'train_1_node_17', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_008'}, 'execution_time': 0.1040642261505127}
+DEBUG: Result: {'task_id': 'train_1_node_44', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_009'}, 'execution_time': 0.10405993461608887}
+DEBUG: Result: {'task_id': 'train_1_node_4', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_010'}, 'execution_time': 0.10405087471008301}
+DEBUG: Result: {'task_id': 'train_1_node_1', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_011'}, 'execution_time': 0.10404753684997559}
+DEBUG: Result: {'task_id': 'train_1_node_41', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_012'}, 'execution_time': 0.10404539108276367}
+DEBUG: Result: {'task_id': 'train_1_node_3', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_013'}, 'execution_time': 0.10404300689697266}
+DEBUG: Result: {'task_id': 'train_1_node_29', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_014'}, 'execution_time': 0.10403728485107422}
+DEBUG: Result: {'task_id': 'train_1_node_24', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_015'}, 'execution_time': 0.10403180122375488}
+DEBUG: Result: {'task_id': 'train_1_node_49', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_016'}, 'execution_time': 0.1040349006652832}
+DEBUG: Result: {'task_id': 'train_1_node_18', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_017'}, 'execution_time': 0.10402989387512207}
+DEBUG: Result: {'task_id': 'train_1_node_7', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_018'}, 'execution_time': 0.10402584075927734}
+DEBUG: Result: {'task_id': 'train_1_node_19', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_019'}, 'execution_time': 0.10402345657348633}
+DEBUG: Result: {'task_id': 'train_1_node_15', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_020'}, 'execution_time': 0.10402059555053711}
+DEBUG: Result: {'task_id': 'train_1_node_31', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_021'}, 'execution_time': 0.10400652885437012}
+DEBUG: Result: {'task_id': 'train_1_node_21', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_022'}, 'execution_time': 0.10400199890136719}
+DEBUG: Result: {'task_id': 'train_1_node_39', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_023'}, 'execution_time': 0.10399961471557617}
+DEBUG: Result: {'task_id': 'train_1_node_6', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_024'}, 'execution_time': 0.10399460792541504}
+DEBUG: Result: {'task_id': 'train_1_node_20', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_025'}, 'execution_time': 0.10391855239868164}
+DEBUG: Result: {'task_id': 'train_1_node_10', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_026'}, 'execution_time': 0.10390973091125488}
+DEBUG: Result: {'task_id': 'train_1_node_9', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_027'}, 'execution_time': 0.10390186309814453}
+DEBUG: Result: {'task_id': 'train_1_node_0', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_028'}, 'execution_time': 0.10388636589050293}
+DEBUG: Result: {'task_id': 'train_1_node_35', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_029'}, 'execution_time': 0.1038823127746582}
+DEBUG: Result: {'task_id': 'train_1_node_11', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_030'}, 'execution_time': 0.10387492179870605}
+DEBUG: Result: {'task_id': 'train_1_node_36', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_031'}, 'execution_time': 0.10387158393859863}
+DEBUG: Result: {'task_id': 'train_1_node_8', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_032'}, 'execution_time': 0.10390472412109375}
+DEBUG: Result: {'task_id': 'train_1_node_34', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_033'}, 'execution_time': 0.10391569137573242}
+DEBUG: Result: {'task_id': 'train_1_node_37', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_034'}, 'execution_time': 0.10390853881835938}
+DEBUG: Result: {'task_id': 'train_1_node_25', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_035'}, 'execution_time': 0.10390591621398926}
+DEBUG: Result: {'task_id': 'train_1_node_40', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_036'}, 'execution_time': 0.10390162467956543}
+DEBUG: Result: {'task_id': 'train_1_node_48', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_037'}, 'execution_time': 0.10389995574951172}
+DEBUG: Result: {'task_id': 'train_1_node_47', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_038'}, 'execution_time': 0.1038963794708252}
+DEBUG: Result: {'task_id': 'train_1_node_45', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_039'}, 'execution_time': 0.10389542579650879}
+DEBUG: Result: {'task_id': 'train_1_node_16', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_040'}, 'execution_time': 0.10389494895935059}
+DEBUG: Result: {'task_id': 'train_1_node_33', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_041'}, 'execution_time': 0.10389256477355957}
+DEBUG: Result: {'task_id': 'train_1_node_13', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_042'}, 'execution_time': 0.10388612747192383}
+DEBUG: Result: {'task_id': 'train_1_node_5', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_043'}, 'execution_time': 0.10388469696044922}
+DEBUG: Result: {'task_id': 'train_1_node_2', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_044'}, 'execution_time': 0.1038820743560791}
+DEBUG: Result: {'task_id': 'train_1_node_30', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_045'}, 'execution_time': 0.10388016700744629}
+DEBUG: Result: {'task_id': 'train_1_node_28', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_046'}, 'execution_time': 0.10387897491455078}
+DEBUG: Result: {'task_id': 'train_1_node_22', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_047'}, 'execution_time': 0.10387778282165527}
+DEBUG: Result: {'task_id': 'train_1_node_23', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_048'}, 'execution_time': 0.10387444496154785}
+DEBUG: Result: {'task_id': 'train_1_node_46', 'success': True, 'result': {'task_type': 'train_model', 'status': 'completed', 'worker_id': 'worker_049'}, 'execution_time': 0.10386395454406738}
+DEBUG: Submitted 0 updates. Round status: started
+Traceback (most recent call last):
+  File "/mnt/projects/tests/integration/test_swarm_fl.py", line 55, in <module>
+    asyncio.run(test_parl_federated_learning_speedup())
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/mnt/projects/tests/integration/test_swarm_fl.py", line 40, in test_parl_federated_learning_speedup
+    assert round_obj.status.value == "completed"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
