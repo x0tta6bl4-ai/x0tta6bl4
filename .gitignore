@@ -201,3 +201,10 @@ metrics/
 x0tta6bl4-mesh-mvp/
 x0tta6bl4_paradox_zone/
 LocalDesk
+
+# ML model files (use DVC/LFS for large models)
+**/*.gguf
+**/*.bin
+**/*.safetensors
+**/*.onnx
+models/
