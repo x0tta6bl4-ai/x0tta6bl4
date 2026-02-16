@@ -1,49 +1,92 @@
-version: '3.8'
+version: '3.9'
 
 services:
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080" # FastAPI API
+      - "9090:9090" # Prometheus metrics endpoint
+    env_file:
+      - .env
+    environment:
+      # Override REDIS_URL to point to the Redis service within the compose network
+      REDIS_URL: redis://redis:6379/0
+      # Ensure production mode is set for security and performance
+      X0TTA6BL4_PRODUCTION: "true"
+      # NODE_ID can be set in .env or dynamically in testnet override
+      # ADMIN_TOKEN for specific admin operations, set in .env
+    volumes:
+      - ./data:/app/data # For any persistent data like SQLite DB or logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://node:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s # Give the app some time to start
+    networks:
+      - x0tta6bl4_mesh_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - x0tta6bl4_mesh_network
+
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "9090:9090" # Prometheus UI
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alerts/:/etc/prometheus/rules/:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-lifecycle'
+    command: --config.file=/etc/prometheus/prometheus.yml --web.enable-lifecycle
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://prometheus:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     networks:
-      - monitoring
+      - x0tta6bl4_mesh_network
 
-  alertmanager:
-    image: prom/alertmanager:latest
+  grafana:
+    image: grafana/grafana:latest
     ports:
-      - "9093:9093"
+      - "3000:3000" # Grafana UI
     volumes:
-      - ./alertmanager/config.yml:/etc/alertmanager/config.yml:ro
-      - alertmanager_data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/config.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-      - '--web.enable-admin-api'
+      - grafana_data:/var/lib/grafana
+      # Optional: custom Grafana dashboards and datasources
+      # - ./grafana/provisioning:/etc/grafana/provisioning
+    env_file:
+      - .env # For Grafana admin credentials or other settings
+    environment:
+      # Default Grafana admin user/password if not set in .env
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: changeme
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://grafana:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
-      - monitoring
-    depends_on:
-      - prometheus
-
-  webhook-receiver:
-    image: webhook.site
-    ports:
-      - "8080:3000"
-    networks:
-      - monitoring
-
-volumes:
-  prometheus_data:
-  alertmanager_data:
+      - x0tta6bl4_mesh_network
 
 networks:
-  monitoring:
+  x0tta6bl4_mesh_network:
     driver: bridge
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:

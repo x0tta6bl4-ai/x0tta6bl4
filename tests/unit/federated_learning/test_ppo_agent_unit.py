@@ -24,25 +24,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.federated_learning.ppo_agent import (
-    Layer,
-    MLP,
-    MeshRoutingEnv,
-    MeshState,
-    PPOAgent,
-    PPOConfig,
-    RoutingAction,
-    StepResult,
-    Transition,
-    TrajectoryBuffer,
-    train_episode,
-    train_ppo,
-)
-
+from src.federated_learning.ppo_agent import (MLP, Layer, MeshRoutingEnv,
+                                              MeshState, PPOAgent, PPOConfig,
+                                              RoutingAction, StepResult,
+                                              TrajectoryBuffer, Transition,
+                                              train_episode, train_ppo)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_state(num_neighbors=3, node_id="node_0"):
     """Create a deterministic MeshState for testing."""
@@ -62,6 +53,7 @@ def _make_state(num_neighbors=3, node_id="node_0"):
 # ===================================================================
 # MeshState
 # ===================================================================
+
 
 class TestMeshState:
     def test_to_vector_length(self):
@@ -125,6 +117,7 @@ class TestMeshState:
 # RoutingAction
 # ===================================================================
 
+
 class TestRoutingAction:
     def test_default_next_hop_id(self):
         action = RoutingAction(next_hop_index=2)
@@ -138,6 +131,7 @@ class TestRoutingAction:
 # ===================================================================
 # StepResult
 # ===================================================================
+
 
 class TestStepResult:
     def test_defaults(self):
@@ -155,11 +149,17 @@ class TestStepResult:
 # Transition (NamedTuple)
 # ===================================================================
 
+
 class TestTransition:
     def test_fields(self):
         t = Transition(
-            state=[1.0], action=0, reward=1.0,
-            next_state=[2.0], done=False, log_prob=-0.5, value=0.8,
+            state=[1.0],
+            action=0,
+            reward=1.0,
+            next_state=[2.0],
+            done=False,
+            log_prob=-0.5,
+            value=0.8,
         )
         assert t.action == 0
         assert t.done is False
@@ -168,6 +168,7 @@ class TestTransition:
 # ===================================================================
 # MeshRoutingEnv
 # ===================================================================
+
 
 class TestMeshRoutingEnv:
     def test_observation_and_action_dims(self):
@@ -287,9 +288,12 @@ class TestMeshRoutingEnv:
         node_tgt = MagicMock(trust_score=0.7)
         twin.nodes = {"src": node_src, "tgt": node_tgt}
         link = MagicMock(
-            source="src", target="tgt",
-            rssi=-60.0, latency_ms=25.0,
-            packet_loss=0.05, bandwidth_mbps=80.0,
+            source="src",
+            target="tgt",
+            rssi=-60.0,
+            latency_ms=25.0,
+            packet_loss=0.05,
+            bandwidth_mbps=80.0,
         )
         twin.links = {"link1": link}
         env = MeshRoutingEnv(digital_twin=twin)
@@ -314,6 +318,7 @@ class TestMeshRoutingEnv:
 # ===================================================================
 # TrajectoryBuffer
 # ===================================================================
+
 
 class TestTrajectoryBuffer:
     def test_add_and_len(self):
@@ -392,6 +397,7 @@ class TestTrajectoryBuffer:
 # Layer
 # ===================================================================
 
+
 class TestLayer:
     def test_init_dimensions(self):
         layer = Layer(4, 3, activation="relu")
@@ -445,6 +451,7 @@ class TestLayer:
 # MLP
 # ===================================================================
 
+
 class TestMLP:
     def test_forward_shape(self):
         mlp = MLP(layer_sizes=[4, 8, 2], activations=["relu", "softmax"])
@@ -471,6 +478,7 @@ class TestMLP:
 # PPOConfig
 # ===================================================================
 
+
 class TestPPOConfig:
     def test_defaults(self):
         cfg = PPOConfig()
@@ -484,6 +492,7 @@ class TestPPOConfig:
 # ===================================================================
 # PPOAgent
 # ===================================================================
+
 
 class TestPPOAgent:
     def _make_agent(self, state_dim=7, action_dim=3):
@@ -522,7 +531,9 @@ class TestPPOAgent:
 
     def test_store_transition(self):
         agent = self._make_agent()
-        agent.store_transition([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], 1, 2.0, -0.3, 0.5, False)
+        agent.store_transition(
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], 1, 2.0, -0.3, 0.5, False
+        )
         assert len(agent.buffer) == 1
 
     def test_update_empty_buffer(self):
@@ -595,6 +606,7 @@ class TestPPOAgent:
 # train_episode
 # ===================================================================
 
+
 class TestTrainEpisode:
     def test_returns_metrics(self):
         random.seed(0)
@@ -643,6 +655,7 @@ class TestTrainEpisode:
 # train_ppo
 # ===================================================================
 
+
 class TestTrainPPO:
     def test_returns_history(self):
         random.seed(42)
@@ -674,6 +687,7 @@ class TestTrainPPO:
 # ===================================================================
 # Edge cases
 # ===================================================================
+
 
 class TestEdgeCases:
     def test_layer_zero_input(self):
@@ -723,7 +737,8 @@ class TestEdgeCases:
     def test_ppo_multiple_updates(self):
         random.seed(7)
         agent = PPOAgent(
-            state_dim=7, action_dim=3,
+            state_dim=7,
+            action_dim=3,
             config=PPOConfig(hidden_sizes=[8], epochs_per_update=1, batch_size=2),
         )
         for _ in range(2):
@@ -741,8 +756,12 @@ class TestEdgeCases:
         node_b = MagicMock(cpu_usage=30, trust_score=0.8)
         twin.nodes = {"node_a": node_a, "neighbor_0": node_b}
         link_ab = MagicMock(
-            source="neighbor_0", target="node_a",
-            rssi=-50.0, latency_ms=10.0, packet_loss=0.0, bandwidth_mbps=50.0,
+            source="neighbor_0",
+            target="node_a",
+            rssi=-50.0,
+            latency_ms=10.0,
+            packet_loss=0.0,
+            bandwidth_mbps=50.0,
         )
         twin.links = {"l1": link_ab}
         env = MeshRoutingEnv(max_hops=100, digital_twin=twin)

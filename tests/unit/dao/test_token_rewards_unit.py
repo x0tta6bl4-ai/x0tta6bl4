@@ -8,12 +8,12 @@ WEB3_AVAILABLE is True in the module under test. We rely on the
 private_key guard to keep self.web3 = None for non-blockchain tests.
 """
 
-import pytest
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-from src.dao.token_rewards import TokenRewards
+import pytest
 
+from src.dao.token_rewards import TokenRewards
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -32,6 +32,7 @@ def _make_rewards(private_key=None, rpc_url=None):
 # ===========================================================================
 # TestTokenRewardsInit
 # ===========================================================================
+
 
 class TestTokenRewardsInit:
     """Tests for TokenRewards.__init__ default values and parameter handling."""
@@ -64,6 +65,7 @@ class TestTokenRewardsInit:
 # ===========================================================================
 # TestRewardRelay
 # ===========================================================================
+
 
 class TestRewardRelay:
     """Tests for the reward_relay method - reward calculation and settlement."""
@@ -113,6 +115,7 @@ class TestRewardRelay:
 # TestSettleRewards
 # ===========================================================================
 
+
 class TestSettleRewards:
     """Tests for _settle_rewards - balance and distribution tracking."""
 
@@ -146,6 +149,7 @@ class TestSettleRewards:
 # TestGetBalance
 # ===========================================================================
 
+
 class TestGetBalance:
     """Tests for get_balance - formatted string output."""
 
@@ -167,6 +171,7 @@ class TestGetBalance:
 # TestGetDailyEarnings
 # ===========================================================================
 
+
 class TestGetDailyEarnings:
     """Tests for get_daily_earnings - formatted daily earnings."""
 
@@ -187,6 +192,7 @@ class TestGetDailyEarnings:
 # ===========================================================================
 # TestGetMonthlyProjection
 # ===========================================================================
+
 
 class TestGetMonthlyProjection:
     """Tests for get_monthly_projection - daily * 30 calculation."""
@@ -210,6 +216,7 @@ class TestGetMonthlyProjection:
 # TestGetBlockchainBalance
 # ===========================================================================
 
+
 class TestGetBlockchainBalance:
     """Tests for get_blockchain_balance - fallback and blockchain paths."""
 
@@ -231,6 +238,7 @@ class TestGetBlockchainBalance:
 # ===========================================================================
 # TestBlockchainIntegration
 # ===========================================================================
+
 
 class TestBlockchainIntegration:
     """Tests for blockchain-related behavior and edge cases."""

@@ -1,0 +1,173 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "id": 0,
+        "title": "Span Metrics",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "title": "Total Spans",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(x0tta6bl4_spans_total[1h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "",
+            "decimals": 0,
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Span Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "rate(x0tta6bl4_spans_success_total[5m]) / rate(x0tta6bl4_spans_total[5m]) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "percentage",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 1,
+        "title": "Latency Analysis",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 3,
+        "title": "Span Latency Heatmap",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_span_duration_ms",
+            "refId": "A",
+            "format": "heatmap"
+          }
+        ],
+        "options": {
+          "bucketOffset": 0,
+          "bucketSize": 10
+        }
+      },
+      {
+        "id": 2,
+        "title": "MAPE-K Loop Tracing",
+        "type": "row",
+        "collapsed": false
+      },
+      {
+        "id": 4,
+        "title": "MAPE-K Phase Durations",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "x0tta6bl4_mapek_monitor_duration_ms",
+            "legendFormat": "Monitor",
+            "refId": "A"
+          },
+          {
+            "expr": "x0tta6bl4_mapek_analyze_duration_ms",
+            "legendFormat": "Analyze",
+            "refId": "B"
+          },
+          {
+            "expr": "x0tta6bl4_mapek_plan_duration_ms",
+            "legendFormat": "Plan",
+            "refId": "C"
+          },
+          {
+            "expr": "x0tta6bl4_mapek_execute_duration_ms",
+            "legendFormat": "Execute",
+            "refId": "D"
+          }
+        ],
+        "options": {
+          "legend": {
+            "showLegend": true,
+            "placement": "right"
+          },
+          "tooltip": {
+            "mode": "multi"
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "tooltip": false,
+                "viz": false,
+                "legend": false
+              }
+            }
+          }
+        }
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [
+      "x0tta6bl4"
+    ],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "x0tta6bl4 Distributed Tracing",
+    "uid": "distributed_tracing",
+    "version": 0,
+    "description": "OpenTelemetry traces, span latency, and service dependencies"
+  }
+}

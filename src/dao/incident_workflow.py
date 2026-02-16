@@ -1,9 +1,9 @@
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Callable, Optional
+from typing import Callable, Dict, Optional
 
-from src.dao.governance import GovernanceEngine, VoteType, Proposal
+from src.dao.governance import GovernanceEngine, Proposal, VoteType
 
 
 class IncidentSeverity(Enum):
@@ -26,11 +26,17 @@ class Incident:
 class IncidentDAOWorkflow:
     """Maps incidents to DAO proposals and executes approved actions."""
 
-    def __init__(self, governance: GovernanceEngine, executor: Optional[Callable[[Dict], None]] = None):
+    def __init__(
+        self,
+        governance: GovernanceEngine,
+        executor: Optional[Callable[[Dict], None]] = None,
+    ):
         self.governance = governance
         self.executor = executor or (lambda action: None)
 
-    def create_proposal_from_incident(self, incident: Incident, duration_seconds: float = 60.0) -> Proposal:
+    def create_proposal_from_incident(
+        self, incident: Incident, duration_seconds: float = 60.0
+    ) -> Proposal:
         title = f"Incident: {incident.incident_type} ({incident.severity.value})"
         description = f"Auto-generated from incident {incident.incident_id}: {incident.description}"
         action = {
@@ -48,7 +54,9 @@ class IncidentDAOWorkflow:
         )
         return proposal
 
-    def auto_vote_and_execute(self, proposal_id: str, voters: Dict[str, VoteType]) -> bool:
+    def auto_vote_and_execute(
+        self, proposal_id: str, voters: Dict[str, VoteType]
+    ) -> bool:
         for node_id, vote in voters.items():
             tokens = self.governance.voting_power.get(node_id, 100.0)
             self.governance.cast_vote(proposal_id, node_id, vote, tokens=tokens)
@@ -61,9 +69,12 @@ class IncidentDAOWorkflow:
         if proposal.state.name.lower() == "active":
             # Время могло ещё не истечь — форсируем подсчёт голосов.
             from src.dao.governance import Proposal  # type: ignore
+
             if isinstance(proposal, Proposal):
                 # Используем внутренний метод tally для текущего объекта.
-                self.governance._tally_votes(proposal)  # noqa: SLF001 (осознанный вызов приватного метода в тестовом воркфлоу)
+                self.governance._tally_votes(
+                    proposal
+                )  # noqa: SLF001 (осознанный вызов приватного метода в тестовом воркфлоу)
 
         if proposal.state.name.lower() != "passed":
             return False

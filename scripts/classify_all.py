@@ -60,8 +60,25 @@ CATEGORY_MAP = [
 ]
 
 CRITICALITY_PATTERNS = {
-    "High": ["ARCHITECTURE", "SECURITY", "ROADMAP", "spire", "mtls", "envoy", "MAPE_K", "auto-recovery", "unified-reliability"],
-    "Medium": ["benchmark", "drift", "governance", "optimizer", "rag_core", "lora_adapter"],
+    "High": [
+        "ARCHITECTURE",
+        "SECURITY",
+        "ROADMAP",
+        "spire",
+        "mtls",
+        "envoy",
+        "MAPE_K",
+        "auto-recovery",
+        "unified-reliability",
+    ],
+    "Medium": [
+        "benchmark",
+        "drift",
+        "governance",
+        "optimizer",
+        "rag_core",
+        "lora_adapter",
+    ],
     "Experimental": ["quantum", "paradox", "snapshot", "prototype"],
 }
 
@@ -107,7 +124,7 @@ def build_inventory(root: Path):
         for fn in filenames:
             rel_path = os.path.relpath(os.path.join(dirpath, fn), root)
             # Skip .git dir
-            if rel_path.startswith('.git/'):
+            if rel_path.startswith(".git/"):
                 continue
             p = Path(dirpath) / fn
             try:
@@ -117,25 +134,28 @@ def build_inventory(root: Path):
             cat = infer_category(rel_path)
             ftype = infer_type(p)
             crit = infer_criticality(rel_path)
-            entries.append({
-                "path": rel_path,
-                "category": cat,
-                "criticality": crit,
-                "type": ftype,
-                "size": size,
-            })
+            entries.append(
+                {
+                    "path": rel_path,
+                    "category": cat,
+                    "criticality": crit,
+                    "type": ftype,
+                    "size": size,
+                }
+            )
     return entries
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--output', default='INVENTORY.json')
+    ap.add_argument("--output", default="INVENTORY.json")
     args = ap.parse_args()
-    root = Path('.')
+    root = Path(".")
     inventory = build_inventory(root)
-    with open(args.output, 'w', encoding='utf-8') as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         json.dump(inventory, f, ensure_ascii=False, indent=2)
     print(f"Inventory written: {args.output} (items={len(inventory)})")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

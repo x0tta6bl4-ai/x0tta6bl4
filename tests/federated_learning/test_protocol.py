@@ -8,22 +8,18 @@
 - SignedMessage криптография
 - FLMessage фабричные методы
 """
-import pytest
+
 import hashlib
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from src.federated_learning.protocol import (
-    ModelWeights,
-    ModelUpdate,
-    GlobalModel,
-    AggregationResult,
-    FLMessage,
-    FLMessageType,
-    SignedMessage,
-    generate_keypair,
-    PROTOCOL_VERSION,
-)
+import pytest
+
+from src.federated_learning.protocol import (PROTOCOL_VERSION,
+                                             AggregationResult, FLMessage,
+                                             FLMessageType, GlobalModel,
+                                             ModelUpdate, ModelWeights,
+                                             SignedMessage, generate_keypair)
 
 
 class TestModelWeights:
@@ -62,15 +58,18 @@ class TestModelWeights:
         flat = simple_weights.to_flat_vector()
 
         # Определяем структуру слоёв
-        layer_shapes = {
-            "layer1": (4, 2),  # weights size, biases size
-            "layer2": (2, 1)
-        }
+        layer_shapes = {"layer1": (4, 2), "layer2": (2, 1)}  # weights size, biases size
 
         reconstructed = ModelWeights.from_flat_vector(flat, layer_shapes)
 
-        assert reconstructed.layer_weights["layer1"] == simple_weights.layer_weights["layer1"]
-        assert reconstructed.layer_biases["layer1"] == simple_weights.layer_biases["layer1"]
+        assert (
+            reconstructed.layer_weights["layer1"]
+            == simple_weights.layer_weights["layer1"]
+        )
+        assert (
+            reconstructed.layer_biases["layer1"]
+            == simple_weights.layer_biases["layer1"]
+        )
 
     def test_compute_hash(self, simple_weights):
         """Вычисление хеша весов."""
@@ -78,13 +77,15 @@ class TestModelWeights:
 
         # Хеш должен быть SHA256 hex (64 символа)
         assert len(hash1) == 64
-        assert all(c in '0123456789abcdef' for c in hash1)
+        assert all(c in "0123456789abcdef" for c in hash1)
 
         # Тот же хеш при повторном вызове
         hash2 = simple_weights.compute_hash()
         assert hash1 == hash2
 
-    def test_different_weights_different_hash(self, simple_weights, random_weights_factory):
+    def test_different_weights_different_hash(
+        self, simple_weights, random_weights_factory
+    ):
         """Разные веса - разные хеши."""
         other_weights = random_weights_factory(seed=123)
 
@@ -107,11 +108,7 @@ class TestModelUpdate:
 
     def test_update_default_values(self, simple_weights):
         """Значения по умолчанию."""
-        update = ModelUpdate(
-            node_id="node-1",
-            round_number=1,
-            weights=simple_weights
-        )
+        update = ModelUpdate(node_id="node-1", round_number=1, weights=simple_weights)
 
         assert update.num_samples == 0
         assert update.training_loss == 0.0
@@ -142,11 +139,7 @@ class TestModelUpdate:
     def test_update_timestamp_auto(self, simple_weights):
         """Timestamp устанавливается автоматически."""
         before = time.time()
-        update = ModelUpdate(
-            node_id="node-1",
-            round_number=1,
-            weights=simple_weights
-        )
+        update = ModelUpdate(node_id="node-1", round_number=1, weights=simple_weights)
         after = time.time()
 
         assert before <= update.timestamp <= after
@@ -162,7 +155,7 @@ class TestGlobalModel:
             round_number=5,
             weights=simple_weights,
             num_contributors=10,
-            aggregation_method="krum"
+            aggregation_method="krum",
         )
 
         assert model.version == 1
@@ -172,11 +165,7 @@ class TestGlobalModel:
 
     def test_auto_hash_computation(self, simple_weights):
         """Автоматическое вычисление хеша."""
-        model = GlobalModel(
-            version=1,
-            round_number=1,
-            weights=simple_weights
-        )
+        model = GlobalModel(version=1, round_number=1, weights=simple_weights)
 
         # Хеш должен быть вычислен автоматически
         assert model.weights_hash != ""
@@ -201,17 +190,13 @@ class TestGlobalModel:
 
     def test_chain_integrity(self, simple_weights):
         """Цепочка хешей для целостности."""
-        model1 = GlobalModel(
-            version=1,
-            round_number=1,
-            weights=simple_weights
-        )
+        model1 = GlobalModel(version=1, round_number=1, weights=simple_weights)
 
         model2 = GlobalModel(
             version=2,
             round_number=2,
             weights=simple_weights,
-            previous_hash=model1.weights_hash
+            previous_hash=model1.weights_hash,
         )
 
         assert model2.previous_hash == model1.weights_hash
@@ -226,7 +211,7 @@ class TestAggregationResult:
             success=True,
             global_model=initial_global_model,
             updates_received=5,
-            updates_accepted=5
+            updates_accepted=5,
         )
 
         assert result.success is True
@@ -236,8 +221,7 @@ class TestAggregationResult:
     def test_failed_result(self):
         """Неуспешный результат агрегации."""
         result = AggregationResult(
-            success=False,
-            error_message="Not enough participants"
+            success=False, error_message="Not enough participants"
         )
 
         assert result.success is False
@@ -252,7 +236,7 @@ class TestAggregationResult:
             updates_received=5,
             updates_accepted=4,
             updates_rejected=1,
-            suspected_byzantine=["malicious-node"]
+            suspected_byzantine=["malicious-node"],
         )
 
         assert len(result.suspected_byzantine) == 1
@@ -263,7 +247,7 @@ class TestAggregationResult:
         result = AggregationResult(
             success=True,
             global_model=initial_global_model,
-            aggregation_time_seconds=1.5
+            aggregation_time_seconds=1.5,
         )
 
         data = result.to_dict()
@@ -313,7 +297,7 @@ class TestFLMessage:
         msg = FLMessage.error(
             error_code="INVALID_UPDATE",
             message="Update validation failed",
-            details={"reason": "gradient too large"}
+            details={"reason": "gradient too large"},
         )
 
         assert msg.msg_type == FLMessageType.ERROR
@@ -339,7 +323,7 @@ class TestSignedMessage:
             message_id="msg-001",
             sender_id="node-1",
             message_type=FLMessageType.LOCAL_UPDATE,
-            payload={"data": "test"}
+            payload={"data": "test"},
         )
 
         # Подписываем
@@ -357,7 +341,7 @@ class TestSignedMessage:
             message_id="msg-002",
             sender_id="node-2",
             message_type=FLMessageType.HEARTBEAT,
-            payload={}
+            payload={},
         )
 
         msg.sign(private_key1)
@@ -373,7 +357,7 @@ class TestSignedMessage:
             message_id="msg-003",
             sender_id="node-3",
             message_type=FLMessageType.VOTE,
-            payload={"vote": "yes"}
+            payload={"vote": "yes"},
         )
 
         msg.sign(private_key)
@@ -388,7 +372,7 @@ class TestSignedMessage:
         import src.federated_learning.protocol as protocol_module
 
         # Используем JSON fallback вместо замоканного msgpack
-        original_has_msgpack = getattr(protocol_module, 'HAS_MSGPACK', False)
+        original_has_msgpack = getattr(protocol_module, "HAS_MSGPACK", False)
         protocol_module.HAS_MSGPACK = False
 
         try:
@@ -398,7 +382,7 @@ class TestSignedMessage:
                 message_id="msg-004",
                 sender_id="node-4",
                 message_type=FLMessageType.COMMIT,
-                payload={"commit_hash": "abc123"}
+                payload={"commit_hash": "abc123"},
             )
             original.sign(private_key)
 
@@ -422,7 +406,7 @@ class TestSignedMessage:
             message_id="msg-005",
             sender_id="node-5",
             message_type=FLMessageType.STATUS_REQUEST,
-            payload={}
+            payload={},
         )
 
         assert msg.protocol_version == PROTOCOL_VERSION

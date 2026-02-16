@@ -1,8 +1,11 @@
 """
 Tests for Stego-Mesh Protocol
 """
-import pytest
+
 import secrets
+
+import pytest
+
 from src.anti_censorship.stego_mesh import StegoMeshProtocol
 
 
@@ -35,26 +38,26 @@ def test_stego_protocol_initialization_short_key():
 def test_encode_packet_http(stego_protocol, sample_payload):
     """Тест кодирования пакета под HTTP"""
     encoded = stego_protocol.encode_packet(sample_payload, "http")
-    
+
     assert encoded is not None
     assert len(encoded) > len(sample_payload)
-    assert b'HTTP/1.1' in encoded
-    assert b'GET' in encoded
+    assert b"HTTP/1.1" in encoded
+    assert b"GET" in encoded
 
 
 def test_encode_packet_icmp(stego_protocol, sample_payload):
     """Тест кодирования пакета под ICMP"""
     encoded = stego_protocol.encode_packet(sample_payload, "icmp")
-    
+
     assert encoded is not None
     assert len(encoded) > len(sample_payload)
-    assert encoded[:2] == b'\x08\x00'  # ICMP Echo Request
+    assert encoded[:2] == b"\x08\x00"  # ICMP Echo Request
 
 
 def test_encode_packet_dns(stego_protocol, sample_payload):
     """Тест кодирования пакета под DNS"""
     encoded = stego_protocol.encode_packet(sample_payload, "dns")
-    
+
     assert encoded is not None
     assert len(encoded) > len(sample_payload)
     assert len(encoded) > 12  # Минимальный размер DNS заголовка
@@ -64,7 +67,7 @@ def test_decode_packet_http(stego_protocol, sample_payload):
     """Тест декодирования HTTP пакета"""
     encoded = stego_protocol.encode_packet(sample_payload, "http")
     decoded = stego_protocol.decode_packet(encoded)
-    
+
     # Декодирование может не работать идеально из-за логики с payload_prefix
     # Но должно возвращать что-то или None
     assert decoded is None or isinstance(decoded, bytes)
@@ -92,12 +95,11 @@ def test_encode_decode_roundtrip(stego_protocol):
     """Тест полного цикла encode-decode"""
     # Используем простой payload для теста
     payload = b"TEST_DATA_12345"
-    
+
     for protocol in ["http", "icmp", "dns"]:
         encoded = stego_protocol.encode_packet(payload, protocol)
         assert encoded is not None
-        
+
         decoded = stego_protocol.decode_packet(encoded)
         # Декодирование может не работать идеально, но не должно падать
         assert decoded is None or isinstance(decoded, bytes)
-

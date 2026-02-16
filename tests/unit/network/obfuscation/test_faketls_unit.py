@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 try:
-    from src.network.obfuscation.faketls import FakeTLSTransport, FakeTLSSocket
+    from src.network.obfuscation.faketls import FakeTLSSocket, FakeTLSTransport
 except ImportError as exc:
     pytest.skip(f"Cannot import faketls module: {exc}", allow_module_level=True)
 
@@ -15,6 +15,7 @@ except ImportError as exc:
 # ---------------------------------------------------------------------------
 # TestFakeTLSTransportInit
 # ---------------------------------------------------------------------------
+
 
 class TestFakeTLSTransportInit:
     """Tests for FakeTLSTransport constructor."""
@@ -32,6 +33,7 @@ class TestFakeTLSTransportInit:
 # ---------------------------------------------------------------------------
 # TestObfuscate
 # ---------------------------------------------------------------------------
+
 
 class TestObfuscate:
     """Tests for FakeTLSTransport.obfuscate."""
@@ -65,6 +67,7 @@ class TestObfuscate:
 # TestDeobfuscate
 # ---------------------------------------------------------------------------
 
+
 class TestDeobfuscate:
     """Tests for FakeTLSTransport.deobfuscate."""
 
@@ -92,6 +95,7 @@ class TestDeobfuscate:
 # ---------------------------------------------------------------------------
 # TestObfuscateDeobfuscateRoundTrip
 # ---------------------------------------------------------------------------
+
 
 class TestObfuscateDeobfuscateRoundTrip:
     """Round-trip tests for obfuscate -> deobfuscate."""
@@ -130,6 +134,7 @@ class TestObfuscateDeobfuscateRoundTrip:
 # TestGenerateClientHello
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateClientHello:
     """Tests for FakeTLSTransport.generate_client_hello."""
 
@@ -166,6 +171,7 @@ class TestGenerateClientHello:
 # TestFakeTLSSocket
 # ---------------------------------------------------------------------------
 
+
 class TestFakeTLSSocket:
     """Tests for FakeTLSSocket class structure.
 
@@ -180,6 +186,7 @@ class TestFakeTLSSocket:
     def test_is_subclass_of_transport_base(self):
         """FakeTLSTransport extends ObfuscationTransport."""
         from src.network.obfuscation.base import ObfuscationTransport
+
         assert issubclass(FakeTLSTransport, ObfuscationTransport)
 
     def test_transport_has_wrap_socket_method(self):

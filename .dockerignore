@@ -28,6 +28,7 @@ venv/
 ENV/
 env/
 .venv
+node_modules/ # Exclude node_modules
 
 # Testing
 .pytest_cache/

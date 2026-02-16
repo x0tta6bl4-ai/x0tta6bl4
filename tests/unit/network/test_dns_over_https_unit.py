@@ -12,7 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 try:
-    from src.network.dns_over_https import DoHResolver, DOH_SERVERS, get_doh_resolver
+    from src.network.dns_over_https import (DOH_SERVERS, DoHResolver,
+                                            get_doh_resolver)
 except ImportError:
     pytest.skip("dns_over_https module not available", allow_module_level=True)
 
@@ -20,6 +21,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Helper: build a mock aiohttp session + response for DoH HTTP tests
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_session(status=200, json_data=None, json_side_effect=None):
     """Create a mock aiohttp ClientSession whose .get returns a context manager.
@@ -39,7 +41,11 @@ def _make_mock_session(status=200, json_data=None, json_side_effect=None):
         mock_response.text = AsyncMock(return_value="bad data")
     else:
         mock_response.json = AsyncMock(return_value=json_data or {})
-    mock_response.text = mock_response.text if hasattr(mock_response, "text") and mock_response.text._mock_name != "text" else AsyncMock(return_value="")
+    mock_response.text = (
+        mock_response.text
+        if hasattr(mock_response, "text") and mock_response.text._mock_name != "text"
+        else AsyncMock(return_value="")
+    )
 
     mock_cm = AsyncMock()
     mock_cm.__aenter__ = AsyncMock(return_value=mock_response)
@@ -56,6 +62,7 @@ def _make_mock_session(status=200, json_data=None, json_side_effect=None):
 # ===========================================================================
 # TestDoHResolverInit
 # ===========================================================================
+
 
 class TestDoHResolverInit:
     """Tests for DoHResolver.__init__."""
@@ -84,6 +91,7 @@ class TestDoHResolverInit:
 # ===========================================================================
 # TestRotateServer
 # ===========================================================================
+
 
 class TestRotateServer:
     """Tests for DoHResolver._rotate_server."""
@@ -115,6 +123,7 @@ class TestRotateServer:
 # TestShouldUseSystemDns
 # ===========================================================================
 
+
 class TestShouldUseSystemDns:
     """Tests for DoHResolver._should_use_system_dns."""
 
@@ -144,6 +153,7 @@ class TestShouldUseSystemDns:
 # TestSystemDnsResolve
 # ===========================================================================
 
+
 class TestSystemDnsResolve:
     """Tests for DoHResolver._system_dns_resolve (mocks socket.getaddrinfo)."""
 
@@ -164,7 +174,13 @@ class TestSystemDnsResolve:
         """AAAA record resolution should return IPv6 addresses."""
         resolver = DoHResolver()
         fake_addrinfo = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:2800:220:1:248:1893:25c8:1946", 0, 0, 0)),
+            (
+                socket.AF_INET6,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("2606:2800:220:1:248:1893:25c8:1946", 0, 0, 0),
+            ),
         ]
         with patch("socket.getaddrinfo", return_value=fake_addrinfo):
             result = await resolver._system_dns_resolve("example.com", "AAAA")
@@ -183,6 +199,7 @@ class TestSystemDnsResolve:
 # TestResolve
 # ===========================================================================
 
+
 class TestResolve:
     """Tests for DoHResolver.resolve (the main async resolution method)."""
 
@@ -190,7 +207,12 @@ class TestResolve:
     async def test_google_domain_delegates_to_system_dns(self):
         """Google Cloud domains should be resolved via _system_dns_resolve."""
         resolver = DoHResolver()
-        with patch.object(resolver, "_system_dns_resolve", new_callable=AsyncMock, return_value=["142.250.80.46"]) as mock_sys:
+        with patch.object(
+            resolver,
+            "_system_dns_resolve",
+            new_callable=AsyncMock,
+            return_value=["142.250.80.46"],
+        ) as mock_sys:
             result = await resolver.resolve("apis.googleapis.com", "A")
         mock_sys.assert_awaited_once_with("apis.googleapis.com", "A")
         assert result == ["142.250.80.46"]
@@ -220,7 +242,11 @@ class TestResolve:
         json_data = {
             "Status": 0,
             "Answer": [
-                {"name": "example.com", "type": 28, "data": "2606:2800:220:1:248:1893:25c8:1946"},
+                {
+                    "name": "example.com",
+                    "type": 28,
+                    "data": "2606:2800:220:1:248:1893:25c8:1946",
+                },
             ],
         }
         mock_session, _ = _make_mock_session(status=200, json_data=json_data)
@@ -234,9 +260,11 @@ class TestResolve:
     @pytest.mark.asyncio
     async def test_dns_error_status_returns_empty(self):
         """Non-zero DNS Status (e.g., NXDOMAIN) should yield an empty list."""
-        resolver = DoHResolver(servers=[
-            {"name": "Only", "url": "https://only.dns/query", "params": {}},
-        ])
+        resolver = DoHResolver(
+            servers=[
+                {"name": "Only", "url": "https://only.dns/query", "params": {}},
+            ]
+        )
         json_data = {"Status": 3}  # NXDOMAIN
         mock_session, _ = _make_mock_session(status=200, json_data=json_data)
         resolver.session = mock_session
@@ -249,7 +277,9 @@ class TestResolve:
     @pytest.mark.asyncio
     async def test_http_error_rotates_and_returns_empty(self):
         """HTTP non-200 should trigger rotation; if all fail, return empty."""
-        single_server = [{"name": "Fail", "url": "https://fail.dns/query", "params": {}}]
+        single_server = [
+            {"name": "Fail", "url": "https://fail.dns/query", "params": {}}
+        ]
         resolver = DoHResolver(servers=single_server)
         mock_session, _ = _make_mock_session(status=503)
         resolver.session = mock_session
@@ -367,6 +397,7 @@ class TestResolve:
 # TestConvenienceMethods
 # ===========================================================================
 
+
 class TestConvenienceMethods:
     """Tests for resolve_a, resolve_aaaa, resolve_mx, resolve_txt."""
 
@@ -374,7 +405,9 @@ class TestConvenienceMethods:
     async def test_resolve_a(self):
         """resolve_a should delegate to resolve with record_type='A'."""
         resolver = DoHResolver()
-        with patch.object(resolver, "resolve", new_callable=AsyncMock, return_value=["1.1.1.1"]) as mock_resolve:
+        with patch.object(
+            resolver, "resolve", new_callable=AsyncMock, return_value=["1.1.1.1"]
+        ) as mock_resolve:
             result = await resolver.resolve_a("example.com")
         mock_resolve.assert_awaited_once_with("example.com", "A")
         assert result == ["1.1.1.1"]
@@ -383,7 +416,9 @@ class TestConvenienceMethods:
     async def test_resolve_aaaa(self):
         """resolve_aaaa should delegate to resolve with record_type='AAAA'."""
         resolver = DoHResolver()
-        with patch.object(resolver, "resolve", new_callable=AsyncMock, return_value=["::1"]) as mock_resolve:
+        with patch.object(
+            resolver, "resolve", new_callable=AsyncMock, return_value=["::1"]
+        ) as mock_resolve:
             result = await resolver.resolve_aaaa("example.com")
         mock_resolve.assert_awaited_once_with("example.com", "AAAA")
         assert result == ["::1"]
@@ -393,6 +428,7 @@ class TestConvenienceMethods:
 # TestReverseLookup
 # ===========================================================================
 
+
 class TestReverseLookup:
     """Tests for DoHResolver.reverse_lookup."""
 
@@ -400,7 +436,9 @@ class TestReverseLookup:
     async def test_ipv4_reverse(self):
         """IPv4 address should be converted to in-addr.arpa and resolved as PTR."""
         resolver = DoHResolver()
-        with patch.object(resolver, "resolve", new_callable=AsyncMock, return_value=["dns.google"]) as mock_resolve:
+        with patch.object(
+            resolver, "resolve", new_callable=AsyncMock, return_value=["dns.google"]
+        ) as mock_resolve:
             result = await resolver.reverse_lookup("1.2.3.4")
         mock_resolve.assert_awaited_once_with("4.3.2.1.in-addr.arpa", "PTR")
         assert result == ["dns.google"]
@@ -414,7 +452,12 @@ class TestReverseLookup:
         test_ip = "2001:db8::1"
         expected_arpa = ipaddress.IPv6Address(test_ip).reverse_pointer
 
-        with patch.object(resolver, "resolve", new_callable=AsyncMock, return_value=["host.example.com"]) as mock_resolve:
+        with patch.object(
+            resolver,
+            "resolve",
+            new_callable=AsyncMock,
+            return_value=["host.example.com"],
+        ) as mock_resolve:
             result = await resolver.reverse_lookup(test_ip)
         mock_resolve.assert_awaited_once_with(expected_arpa, "PTR")
         assert result == ["host.example.com"]
@@ -423,6 +466,7 @@ class TestReverseLookup:
 # ===========================================================================
 # TestClose
 # ===========================================================================
+
 
 class TestClose:
     """Tests for DoHResolver.close."""
@@ -444,6 +488,7 @@ class TestClose:
 # ===========================================================================
 # TestGetStats
 # ===========================================================================
+
 
 class TestGetStats:
     """Tests for DoHResolver.get_stats."""

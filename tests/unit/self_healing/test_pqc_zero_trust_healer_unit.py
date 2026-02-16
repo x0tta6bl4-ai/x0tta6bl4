@@ -12,15 +12,16 @@ Tests cover:
 
 import asyncio
 import time
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers – build mock sessions / gateways / loaders used by many tests
 # ---------------------------------------------------------------------------
+
 
 def _make_session(peer_id="peer-1", created_offset=0, last_used_offset=0):
     """Return a SimpleNamespace that looks like a PQCSession.
@@ -54,6 +55,7 @@ def _make_loader(stats=None):
 # Import the module under test  (after conftest mocks liboqs / bcc)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def _import_module():
     """Import the healer module; patch get_pqc_gateway so constructors
@@ -63,14 +65,10 @@ def _import_module():
         return_value=_make_gateway(),
     ):
         from src.self_healing.pqc_zero_trust_healer import (
-            PQCSessionAnomaly,
-            PQCHealthMetrics,
-            PQCZeroTrustMonitor,
-            PQCZeroTrustAnalyzer,
-            PQCZeroTrustPlanner,
-            PQCZeroTrustExecutor,
-            PQCZeroTrustHealer,
-        )
+            PQCHealthMetrics, PQCSessionAnomaly, PQCZeroTrustAnalyzer,
+            PQCZeroTrustExecutor, PQCZeroTrustHealer, PQCZeroTrustMonitor,
+            PQCZeroTrustPlanner)
+
         yield {
             "PQCSessionAnomaly": PQCSessionAnomaly,
             "PQCHealthMetrics": PQCHealthMetrics,
@@ -85,6 +83,7 @@ def _import_module():
 # ===================================================================
 # Dataclass smoke tests
 # ===================================================================
+
 
 class TestDataclasses:
 
@@ -134,6 +133,7 @@ class TestDataclasses:
 # PQCZeroTrustMonitor
 # ===================================================================
 
+
 class TestPQCZeroTrustMonitor:
 
     def _make_monitor(self, mod, gateway=None, loader=None):
@@ -180,8 +180,9 @@ class TestPQCZeroTrustMonitor:
 
     @pytest.mark.asyncio
     async def test_monitor_with_ebpf_loader(self, _import_module):
-        loader = _make_loader({"total_packets": 100, "verified_packets": 90,
-                               "failed_verification": 10})
+        loader = _make_loader(
+            {"total_packets": 100, "verified_packets": 90, "failed_verification": 10}
+        )
         mon = self._make_monitor(_import_module, loader=loader)
         result = await mon.monitor()
         loader.get_pqc_stats.assert_called_once()
@@ -237,9 +238,13 @@ class TestPQCZeroTrustMonitor:
         # Seed anomalies list with > max_anomalies_per_hour recent ones
         now = datetime.now()
         mon.anomalies = [
-            cls(session_id=f"s{i}", anomaly_type="expired",
-                severity="medium", description="old",
-                timestamp=now - timedelta(minutes=5))
+            cls(
+                session_id=f"s{i}",
+                anomaly_type="expired",
+                severity="medium",
+                description="old",
+                timestamp=now - timedelta(minutes=5),
+            )
             for i in range(15)
         ]
         anomalies = mon._detect_anomalies({}, {}, time.time())
@@ -271,9 +276,13 @@ class TestPQCZeroTrustMonitor:
         mon = self._make_monitor(_import_module)
         old_ts = datetime.now() - timedelta(hours=48)
         mon.anomalies = [
-            cls(session_id="old", anomaly_type="expired",
-                severity="low", description="ancient",
-                timestamp=old_ts)
+            cls(
+                session_id="old",
+                anomaly_type="expired",
+                severity="low",
+                description="ancient",
+                timestamp=old_ts,
+            )
         ]
         mon._detect_anomalies({}, {}, time.time())
         # Old anomalies should be pruned (> 24h)
@@ -284,6 +293,7 @@ class TestPQCZeroTrustMonitor:
 # PQCZeroTrustAnalyzer
 # ===================================================================
 
+
 class TestPQCZeroTrustAnalyzer:
 
     def _make_analyzer(self, mod):
@@ -291,9 +301,13 @@ class TestPQCZeroTrustAnalyzer:
 
     def _make_metrics(self, mod, **kwargs):
         defaults = dict(
-            total_sessions=10, active_sessions=8, expired_sessions=2,
-            failed_verifications=0, verification_rate=0.95,
-            average_session_age=100.0, anomaly_count=0,
+            total_sessions=10,
+            active_sessions=8,
+            expired_sessions=2,
+            failed_verifications=0,
+            verification_rate=0.95,
+            average_session_age=100.0,
+            anomaly_count=0,
             last_updated=datetime.now(),
         )
         defaults.update(kwargs)
@@ -314,10 +328,12 @@ class TestPQCZeroTrustAnalyzer:
     async def test_analyze_healthy(self, _import_module):
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(_import_module)
-        result = await analyzer.analyze({
-            "anomalies": [],
-            "health_metrics": metrics,
-        })
+        result = await analyzer.analyze(
+            {
+                "anomalies": [],
+                "health_metrics": metrics,
+            }
+        )
         assert result["requires_action"] is False
         assert result["severity"] == "low"
 
@@ -328,13 +344,19 @@ class TestPQCZeroTrustAnalyzer:
         cls = _import_module["PQCSessionAnomaly"]
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(_import_module)
-        anomaly = cls(session_id="s1", anomaly_type="anomaly_storm",
-                      severity="critical", description="storm",
-                      timestamp=datetime.now())
-        result = await analyzer.analyze({
-            "anomalies": [anomaly],
-            "health_metrics": metrics,
-        })
+        anomaly = cls(
+            session_id="s1",
+            anomaly_type="anomaly_storm",
+            severity="critical",
+            description="storm",
+            timestamp=datetime.now(),
+        )
+        result = await analyzer.analyze(
+            {
+                "anomalies": [anomaly],
+                "health_metrics": metrics,
+            }
+        )
         assert result["requires_action"] is True
         assert result["severity"] == "critical"
 
@@ -345,13 +367,19 @@ class TestPQCZeroTrustAnalyzer:
         cls = _import_module["PQCSessionAnomaly"]
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(_import_module)
-        anomaly = cls(session_id="s1", anomaly_type="high_failure_rate",
-                      severity="high", description="fail",
-                      timestamp=datetime.now())
-        result = await analyzer.analyze({
-            "anomalies": [anomaly],
-            "health_metrics": metrics,
-        })
+        anomaly = cls(
+            session_id="s1",
+            anomaly_type="high_failure_rate",
+            severity="high",
+            description="fail",
+            timestamp=datetime.now(),
+        )
+        result = await analyzer.analyze(
+            {
+                "anomalies": [anomaly],
+                "health_metrics": metrics,
+            }
+        )
         assert result["severity"] == "high"
         assert result["requires_action"] is True
 
@@ -362,13 +390,19 @@ class TestPQCZeroTrustAnalyzer:
         cls = _import_module["PQCSessionAnomaly"]
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(_import_module)
-        anomaly = cls(session_id="s1", anomaly_type="expired",
-                      severity="medium", description="expired",
-                      timestamp=datetime.now())
-        result = await analyzer.analyze({
-            "anomalies": [anomaly],
-            "health_metrics": metrics,
-        })
+        anomaly = cls(
+            session_id="s1",
+            anomaly_type="expired",
+            severity="medium",
+            description="expired",
+            timestamp=datetime.now(),
+        )
+        result = await analyzer.analyze(
+            {
+                "anomalies": [anomaly],
+                "health_metrics": metrics,
+            }
+        )
         assert result["severity"] == "medium"
         assert result["requires_action"] is True
 
@@ -380,12 +414,16 @@ class TestPQCZeroTrustAnalyzer:
         # Many anomalies => low health score
         metrics = self._make_metrics(
             _import_module,
-            expired_sessions=9, active_sessions=1, anomaly_count=10,
+            expired_sessions=9,
+            active_sessions=1,
+            anomaly_count=10,
         )
-        result = await analyzer.analyze({
-            "anomalies": [],
-            "health_metrics": metrics,
-        })
+        result = await analyzer.analyze(
+            {
+                "anomalies": [],
+                "health_metrics": metrics,
+            }
+        )
         assert result["requires_action"] is True
         assert result["severity"] in ("high", "medium")
 
@@ -396,12 +434,15 @@ class TestPQCZeroTrustAnalyzer:
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(
             _import_module,
-            expired_sessions=7, active_sessions=3,
+            expired_sessions=7,
+            active_sessions=3,
         )
-        result = await analyzer.analyze({
-            "anomalies": [],
-            "health_metrics": metrics,
-        })
+        result = await analyzer.analyze(
+            {
+                "anomalies": [],
+                "health_metrics": metrics,
+            }
+        )
         assert result["requires_action"] is True
         assert "More expired than active sessions" in result["issues"]
 
@@ -411,14 +452,16 @@ class TestPQCZeroTrustAnalyzer:
     async def test_analyze_exception(self, _import_module):
         analyzer = self._make_analyzer(_import_module)
         # Pass bad data that will cause analysis to fail
-        result = await analyzer.analyze({
-            "anomalies": "not-a-list",
-            "health_metrics": MagicMock(
-                expired_sessions=1,
-                active_sessions=1,
-                total_sessions=PropertyMock(side_effect=TypeError("bad")),
-            ),
-        })
+        result = await analyzer.analyze(
+            {
+                "anomalies": "not-a-list",
+                "health_metrics": MagicMock(
+                    expired_sessions=1,
+                    active_sessions=1,
+                    total_sessions=PropertyMock(side_effect=TypeError("bad")),
+                ),
+            }
+        )
         assert result["severity"] == "critical"
         assert result["requires_action"] is True
 
@@ -426,8 +469,9 @@ class TestPQCZeroTrustAnalyzer:
 
     def test_health_score_perfect(self, _import_module):
         analyzer = self._make_analyzer(_import_module)
-        metrics = self._make_metrics(_import_module, anomaly_count=0,
-                                     expired_sessions=0)
+        metrics = self._make_metrics(
+            _import_module, anomaly_count=0, expired_sessions=0
+        )
         score = analyzer._calculate_health_score(metrics)
         assert score == 1.0
 
@@ -446,8 +490,10 @@ class TestPQCZeroTrustAnalyzer:
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(
             _import_module,
-            total_sessions=10, expired_sessions=10,
-            active_sessions=0, anomaly_count=0,
+            total_sessions=10,
+            expired_sessions=10,
+            active_sessions=0,
+            anomaly_count=0,
         )
         score = analyzer._calculate_health_score(metrics)
         # expiry_ratio=1.0 => penalty 0.3
@@ -457,8 +503,10 @@ class TestPQCZeroTrustAnalyzer:
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(
             _import_module,
-            total_sessions=0, expired_sessions=0,
-            active_sessions=0, anomaly_count=0,
+            total_sessions=0,
+            expired_sessions=0,
+            active_sessions=0,
+            anomaly_count=0,
         )
         score = analyzer._calculate_health_score(metrics)
         assert score == 1.0
@@ -467,8 +515,10 @@ class TestPQCZeroTrustAnalyzer:
         analyzer = self._make_analyzer(_import_module)
         metrics = self._make_metrics(
             _import_module,
-            total_sessions=10, expired_sessions=10,
-            active_sessions=0, anomaly_count=100,
+            total_sessions=10,
+            expired_sessions=10,
+            active_sessions=0,
+            anomaly_count=100,
         )
         score = analyzer._calculate_health_score(metrics)
         assert score >= 0.0
@@ -477,6 +527,7 @@ class TestPQCZeroTrustAnalyzer:
 # ===================================================================
 # PQCZeroTrustPlanner
 # ===================================================================
+
 
 class TestPQCZeroTrustPlanner:
 
@@ -498,11 +549,13 @@ class TestPQCZeroTrustPlanner:
     @pytest.mark.asyncio
     async def test_plan_critical(self, _import_module):
         planner = self._make_planner(_import_module)
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": "critical",
-            "analysis_data": {"anomaly_count": 2, "health_score": 0.3},
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": "critical",
+                "analysis_data": {"anomaly_count": 2, "health_score": 0.3},
+            }
+        )
         assert "Emergency: Rotate all PQC keys immediately" in result["actions"]
         assert "Isolate compromised sessions" in result["actions"]
         assert result["priority"] == "high"
@@ -514,11 +567,13 @@ class TestPQCZeroTrustPlanner:
     @pytest.mark.asyncio
     async def test_plan_high(self, _import_module):
         planner = self._make_planner(_import_module)
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": "high",
-            "analysis_data": {"anomaly_count": 1, "health_score": 0.8},
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": "high",
+                "analysis_data": {"anomaly_count": 1, "health_score": 0.8},
+            }
+        )
         assert "Rotate expired PQC sessions" in result["actions"]
         assert result["priority"] == "high"
 
@@ -527,11 +582,13 @@ class TestPQCZeroTrustPlanner:
     @pytest.mark.asyncio
     async def test_plan_medium(self, _import_module):
         planner = self._make_planner(_import_module)
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": "medium",
-            "analysis_data": {"anomaly_count": 1, "health_score": 0.9},
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": "medium",
+                "analysis_data": {"anomaly_count": 1, "health_score": 0.9},
+            }
+        )
         assert "Clean up expired sessions" in result["actions"]
         assert result["priority"] == "medium"
 
@@ -540,11 +597,13 @@ class TestPQCZeroTrustPlanner:
     @pytest.mark.asyncio
     async def test_plan_many_anomalies(self, _import_module):
         planner = self._make_planner(_import_module)
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": "medium",
-            "analysis_data": {"anomaly_count": 10, "health_score": 0.9},
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": "medium",
+                "analysis_data": {"anomaly_count": 10, "health_score": 0.9},
+            }
+        )
         assert "Analyze anomaly patterns for attack detection" in result["actions"]
 
     # -- estimated_duration correct ----------------------------------
@@ -552,11 +611,13 @@ class TestPQCZeroTrustPlanner:
     @pytest.mark.asyncio
     async def test_plan_estimated_duration(self, _import_module):
         planner = self._make_planner(_import_module)
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": "medium",
-            "analysis_data": {"anomaly_count": 0, "health_score": 0.9},
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": "medium",
+                "analysis_data": {"anomaly_count": 0, "health_score": 0.9},
+            }
+        )
         num_actions = len(result["actions"])
         assert result["estimated_duration"] == num_actions * 30
 
@@ -566,11 +627,13 @@ class TestPQCZeroTrustPlanner:
     async def test_plan_exception(self, _import_module):
         planner = self._make_planner(_import_module)
         # severity lookup on None should raise
-        result = await planner.plan({
-            "requires_action": True,
-            "severity": None,
-            "analysis_data": None,
-        })
+        result = await planner.plan(
+            {
+                "requires_action": True,
+                "severity": None,
+                "analysis_data": None,
+            }
+        )
         # When analysis_data is None, .get() fails => exception path
         assert result["priority"] == "critical"
         assert "Manual intervention required" in result["actions"][0]
@@ -579,6 +642,7 @@ class TestPQCZeroTrustPlanner:
 # ===================================================================
 # PQCZeroTrustExecutor
 # ===================================================================
+
 
 class TestPQCZeroTrustExecutor:
 
@@ -627,7 +691,9 @@ class TestPQCZeroTrustExecutor:
         sessions = {"s1": _make_session(), "s2": _make_session()}
         gw = _make_gateway(sessions)
         executor = self._make_executor(_import_module, gateway=gw)
-        result = await executor._execute_action("Emergency: Rotate all PQC keys immediately")
+        result = await executor._execute_action(
+            "Emergency: Rotate all PQC keys immediately"
+        )
         assert result["success"] is True
         assert result["rotated_sessions"] == 2
         assert gw.rotate_session_keys.call_count == 2
@@ -645,7 +711,9 @@ class TestPQCZeroTrustExecutor:
         gw = _make_gateway({"s1": _make_session()})
         gw.rotate_session_keys.side_effect = RuntimeError("rotate fail")
         executor = self._make_executor(_import_module, gateway=gw)
-        result = await executor._execute_action("Emergency: Rotate all PQC keys immediately")
+        result = await executor._execute_action(
+            "Emergency: Rotate all PQC keys immediately"
+        )
         # Individual rotation failures are caught, overall succeeds
         assert result["success"] is True
         assert result["rotated_sessions"] == 0
@@ -741,9 +809,11 @@ class TestPQCZeroTrustExecutor:
             return await original(action)
 
         executor._execute_action = side_effect
-        result = await executor.execute({
-            "actions": ["Action 1", "Action 2", "Action 3"],
-        })
+        result = await executor.execute(
+            {
+                "actions": ["Action 1", "Action 2", "Action 3"],
+            }
+        )
         assert result["success"] is False  # not all succeeded
         assert result["success_count"] == 2
         assert result["failed_actions"] == 1
@@ -826,16 +896,20 @@ class TestPQCZeroTrustExecutor:
 # PQCZeroTrustHealer (full MAPE-K integration)
 # ===================================================================
 
+
 class TestPQCZeroTrustHealer:
 
     @pytest.mark.asyncio
     async def test_healer_initialization(self, _import_module):
         cls = _import_module["PQCZeroTrustHealer"]
         gw = _make_gateway()
-        with patch(
-            "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
-            return_value=gw,
-        ), patch("asyncio.create_task"):
+        with (
+            patch(
+                "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
+                return_value=gw,
+            ),
+            patch("asyncio.create_task"),
+        ):
             healer = cls(pqc_gateway=gw)
             assert healer.monitor is not None
             assert healer.analyzer is not None
@@ -847,10 +921,13 @@ class TestPQCZeroTrustHealer:
         """Simulate a full cycle where no healing is required."""
         cls = _import_module["PQCZeroTrustHealer"]
         gw = _make_gateway()
-        with patch(
-            "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
-            return_value=gw,
-        ), patch("asyncio.create_task"):
+        with (
+            patch(
+                "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
+                return_value=gw,
+            ),
+            patch("asyncio.create_task"),
+        ):
             healer = cls(pqc_gateway=gw)
 
         monitoring = await healer.monitor.monitor()
@@ -863,10 +940,13 @@ class TestPQCZeroTrustHealer:
         cls = _import_module["PQCZeroTrustHealer"]
         sessions = {"s1": _make_session(last_used_offset=7200)}
         gw = _make_gateway(sessions)
-        with patch(
-            "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
-            return_value=gw,
-        ), patch("asyncio.create_task"):
+        with (
+            patch(
+                "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
+                return_value=gw,
+            ),
+            patch("asyncio.create_task"),
+        ):
             healer = cls(pqc_gateway=gw)
 
         monitoring = await healer.monitor.monitor()
@@ -885,10 +965,13 @@ class TestPQCZeroTrustHealer:
         cls = _import_module["PQCZeroTrustHealer"]
         gw = _make_gateway()
 
-        with patch(
-            "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
-            return_value=gw,
-        ), patch("asyncio.create_task"):
+        with (
+            patch(
+                "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
+                return_value=gw,
+            ),
+            patch("asyncio.create_task"),
+        ):
             healer = cls(pqc_gateway=gw)
 
         # Patch asyncio.sleep to raise after first call so the loop stops
@@ -912,10 +995,13 @@ class TestPQCZeroTrustHealer:
         cls = _import_module["PQCZeroTrustHealer"]
         gw = _make_gateway()
 
-        with patch(
-            "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
-            return_value=gw,
-        ), patch("asyncio.create_task"):
+        with (
+            patch(
+                "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
+                return_value=gw,
+            ),
+            patch("asyncio.create_task"),
+        ):
             healer = cls(pqc_gateway=gw)
 
         # Make monitor raise, then stop after the error-path sleep

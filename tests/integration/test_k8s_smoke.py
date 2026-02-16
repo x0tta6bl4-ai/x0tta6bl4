@@ -10,13 +10,15 @@ Tests for verifying the x0tta6bl4 deployment in Kubernetes staging environment:
 - Mesh connectivity
 """
 
+import json
+import os
+import shutil
 import subprocess
 import time
-import os
-import json
+from pathlib import Path
+
 import pytest
 import requests
-from pathlib import Path
 
 
 class TestK8sDeployment:
@@ -27,7 +29,28 @@ class TestK8sDeployment:
         """Setup test environment"""
         self.namespace = "x0tta6bl4-staging"
         self.deployment_name = "staging-x0tta6bl4"
-        
+
+        if shutil.which("kubectl") is None:
+            pytest.skip("kubectl is not available in this environment")
+
+        try:
+            cluster = subprocess.run(
+                ["kubectl", "cluster-info"], capture_output=True, text=True, timeout=10
+            )
+            if cluster.returncode != 0:
+                pytest.skip("kubernetes cluster is not reachable")
+        except Exception:
+            pytest.skip("kubernetes cluster is not reachable")
+
+        ns_check = subprocess.run(
+            ["kubectl", "get", "namespace", self.namespace],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if ns_check.returncode != 0:
+            pytest.skip(f"staging namespace '{self.namespace}' not found")
+
     def run_kubectl(self, *args):
         """Run kubectl command and return output"""
         cmd = ["kubectl"] + list(args)
@@ -54,32 +77,46 @@ class TestK8sDeployment:
     def test_deployment_replicas_ready(self):
         """Test that deployment replicas are ready"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         replicas = deployment["spec"]["replicas"]
         ready_replicas = deployment["status"].get("readyReplicas", 0)
-        
-        assert ready_replicas == replicas, \
-            f"Expected {replicas} ready replicas, got {ready_replicas}"
+
+        assert (
+            ready_replicas == replicas
+        ), f"Expected {replicas} ready replicas, got {ready_replicas}"
 
     def test_pods_running(self):
         """Test that pods are running"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         assert len(pods) > 0, "Should have at least one pod"
-        
+
         for pod in pods:
             status = pod["status"]["phase"]
-            assert status == "Running", f"Pod {pod['metadata']['name']} not running (status: {status})"
+            assert (
+                status == "Running"
+            ), f"Pod {pod['metadata']['name']} not running (status: {status})"
 
     def test_service_exists(self):
         """Test that service exists"""
@@ -94,7 +131,7 @@ class TestK8sDeployment:
             "get", "svc", "staging-x0tta6bl4", "-n", self.namespace, "-o", "json"
         )
         assert rc == 0
-        
+
         svc = json.loads(stdout)
         cluster_ip = svc["spec"]["clusterIP"]
         assert cluster_ip and cluster_ip != "None"
@@ -109,13 +146,19 @@ class TestK8sDeployment:
     def test_configmap_has_correct_values(self):
         """Test that configmap contains expected values"""
         stdout, _, rc = self.run_kubectl(
-            "get", "configmap", "staging-x0tta6bl4-config", "-n", self.namespace, "-o", "json"
+            "get",
+            "configmap",
+            "staging-x0tta6bl4-config",
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         cm = json.loads(stdout)
         data = cm["data"]
-        
+
         assert data["SPIFFE_TRUST_DOMAIN"] == "x0tta6bl4.mesh"
         assert data["METRICS_ENABLED"] == "true"
         assert "mape_k_config.yaml" in data
@@ -123,12 +166,17 @@ class TestK8sDeployment:
     def test_pod_has_metrics_annotation(self):
         """Test that pods have metrics scraping annotations"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         for pod in pods:
             annotations = pod["metadata"]["annotations"]
@@ -138,12 +186,17 @@ class TestK8sDeployment:
     def test_pod_security_context(self):
         """Test that pods have correct security context"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         for pod in pods:
             spec = pod["spec"]
@@ -153,12 +206,17 @@ class TestK8sDeployment:
     def test_pod_resource_limits(self):
         """Test that pods have resource limits"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         for pod in pods:
             for container in pod["spec"]["containers"]:
@@ -176,9 +234,7 @@ class TestK8sDeployment:
 
     def test_rbac_role_exists(self):
         """Test that RBAC role exists"""
-        stdout, _, rc = self.run_kubectl(
-            "get", "clusterrole", "x0tta6bl4-staging"
-        )
+        stdout, _, rc = self.run_kubectl("get", "clusterrole", "x0tta6bl4-staging")
         assert rc == 0, "ClusterRole should exist"
 
     def test_rbac_rolebinding_exists(self):
@@ -191,12 +247,17 @@ class TestK8sDeployment:
     def test_pods_have_volume_mounts(self):
         """Test that pods have required volume mounts"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         for pod in pods:
             for container in pod["spec"]["containers"]:
@@ -215,22 +276,41 @@ class TestK8sDeployment:
     def test_anti_affinity_configured(self):
         """Test that pod anti-affinity is configured"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         affinity = deployment["spec"]["template"]["spec"]["affinity"]
         assert "podAntiAffinity" in affinity
-        assert len(affinity["podAntiAffinity"]["preferredDuringSchedulingIgnoredDuringExecution"]) > 0
+        assert (
+            len(
+                affinity["podAntiAffinity"][
+                    "preferredDuringSchedulingIgnoredDuringExecution"
+                ]
+            )
+            > 0
+        )
 
     def test_rolling_update_strategy(self):
         """Test that deployment uses RollingUpdate strategy"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         strategy = deployment["spec"]["strategy"]
         assert strategy["type"] == "RollingUpdate"
@@ -238,10 +318,16 @@ class TestK8sDeployment:
     def test_liveness_probe_configured(self):
         """Test that liveness probe is configured"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         for container in deployment["spec"]["template"]["spec"]["containers"]:
             if container["name"] == "x0tta6bl4":
@@ -251,10 +337,16 @@ class TestK8sDeployment:
     def test_readiness_probe_configured(self):
         """Test that readiness probe is configured"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         for container in deployment["spec"]["template"]["spec"]["containers"]:
             if container["name"] == "x0tta6bl4":
@@ -264,10 +356,16 @@ class TestK8sDeployment:
     def test_ports_exposed(self):
         """Test that all required ports are exposed"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         for container in deployment["spec"]["template"]["spec"]["containers"]:
             if container["name"] == "x0tta6bl4":
@@ -279,10 +377,16 @@ class TestK8sDeployment:
     def test_environment_variables_set(self):
         """Test that environment variables are properly set"""
         stdout, _, rc = self.run_kubectl(
-            "get", "deployment", self.deployment_name, "-n", self.namespace, "-o", "json"
+            "get",
+            "deployment",
+            self.deployment_name,
+            "-n",
+            self.namespace,
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         deployment = json.loads(stdout)
         for container in deployment["spec"]["template"]["spec"]["containers"]:
             if container["name"] == "x0tta6bl4":
@@ -294,12 +398,17 @@ class TestK8sDeployment:
     def test_kustomization_labels_applied(self):
         """Test that kustomization labels are applied"""
         stdout, _, rc = self.run_kubectl(
-            "get", "pods", "-n", self.namespace,
-            "-l", "app.kubernetes.io/name=x0tta6bl4",
-            "-o", "json"
+            "get",
+            "pods",
+            "-n",
+            self.namespace,
+            "-l",
+            "app.kubernetes.io/name=x0tta6bl4",
+            "-o",
+            "json",
         )
         assert rc == 0
-        
+
         pods = json.loads(stdout)["items"]
         for pod in pods:
             labels = pod["metadata"]["labels"]
@@ -323,6 +432,7 @@ class TestKustomizeOverlay:
     def test_kustomization_file_valid(self):
         """Test that kustomization file is valid YAML"""
         import yaml
+
         kustomization_path = Path("infra/k8s/overlays/staging/kustomization.yaml")
         with open(kustomization_path) as f:
             content = yaml.safe_load(f)

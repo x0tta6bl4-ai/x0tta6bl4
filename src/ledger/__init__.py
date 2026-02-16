@@ -14,11 +14,7 @@ try:
 except ImportError:
     LedgerDriftDetector = None
 
-__all__ = [
-    "LedgerRAGSearch",
-    "get_ledger_rag"
-]
+__all__ = ["LedgerRAGSearch", "get_ledger_rag"]
 
 if LedgerDriftDetector:
     __all__.append("LedgerDriftDetector")
-

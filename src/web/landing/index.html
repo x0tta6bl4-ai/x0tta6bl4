@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 VPN - Self-Healing Privacy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f0f; color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { max-width: 800px; text-align: center; }
+        h1 { color: #00ff9d; font-size: 3rem; margin-bottom: 0.5rem; text-shadow: 0 0 10px rgba(0, 255, 157, 0.5); }
+        p { font-size: 1.2rem; line-height: 1.6; color: #aaa; }
+        .cta-button { background: #00ff9d; color: #0f0f0f; padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; display: inline-block; margin-top: 20px; }
+        .cta-button:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(0, 255, 157, 0.8); }
+        .features { display: flex; justify-content: space-around; margin-top: 50px; flex-wrap: wrap; }
+        .feature { background: #1a1a1a; padding: 20px; border-radius: 10px; width: 220px; margin: 10px; text-align: left; border: 1px solid #333; }
+        .feature h3 { color: #fff; margin-top: 0; }
+        .status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .status-active { background-color: #00ff9d; box-shadow: 0 0 5px #00ff9d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>x0tta6bl4 VPN</h1>
+        <p>The world's first self-healing, post-quantum secure mesh VPN.</p>
+        <p>Powered by Consciousness-Driven AI.</p>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>🛡️ Unblock Everything</h3>
+                <p>Bypasses DPI and restrictions automatically using Xray Reality protocol.</p>
+            </div>
+            <div class="feature">
+                <h3>🧠 Self-Healing</h3>
+                <p>AI agents detected <span id="outages">0</span> outages healed in the last 24h.</p>
+            </div>
+            <div class="feature">
+                <h3>⚛️ Quantum Safe</h3>
+                <p>Protected by NIST-standard Post-Quantum Cryptography.</p>
+            </div>
+        </div>
+
+        <a href="#" class="cta-button" onclick="startPayment()">Get Access - $5/mo</a>
+        
+        <p style="margin-top: 20px; font-size: 0.9rem;">
+            <span id="system-status" class="status-dot"></span> System Status: <span id="status-text">Checking...</span>
+        </p>
+    </div>
+
+    <script src="payment.js"></script>
+    <script>
+        // Simple status fetch
+        async function checkStatus() {
+            try {
+                // In production this would hit the API
+                const statusDot = document.getElementById('system-status');
+                const statusText = document.getElementById('status-text');
+                
+                // MOCK
+                statusDot.classList.add('status-active');
+                statusText.innerText = 'Operational (AI Active)';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        checkStatus();
+    </script>
+</body>
+</html>

@@ -9,13 +9,14 @@
  * - base: Base mainnet
  */
 
-require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
+import "@nomicfoundation/hardhat-toolbox";
+import dotenv from "dotenv";
+dotenv.config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 /** @type import('hardhat/config').HardhatUserConfig */
-module.exports = {
+export default {
     solidity: {
         version: "0.8.20",
         settings: {
@@ -25,7 +26,7 @@ module.exports = {
             }
         }
     },
-    
+
     networks: {
         // Local development
         localhost: {
@@ -34,7 +35,7 @@ module.exports = {
         hardhat: {
             chainId: 31337
         },
-        
+
         // Polygon (recommended for low fees)
         polygon_mumbai: {
             url: process.env.POLYGON_MUMBAI_RPC || "https://rpc-mumbai.maticvigil.com",
@@ -48,7 +49,7 @@ module.exports = {
             chainId: 137,
             gasPrice: 50000000000 // 50 gwei
         },
-        
+
         // Base (Coinbase L2, very low fees)
         base_sepolia: {
             url: process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org",
@@ -62,7 +63,7 @@ module.exports = {
             chainId: 8453,
             gasPrice: 1000000000 // 1 gwei
         },
-        
+
         // Arbitrum (alternative L2)
         arbitrum_sepolia: {
             url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
@@ -75,7 +76,7 @@ module.exports = {
             chainId: 42161
         }
     },
-    
+
     etherscan: {
         apiKey: {
             polygon: process.env.POLYGONSCAN_API_KEY || "",
@@ -104,7 +105,7 @@ module.exports = {
             }
         ]
     },
-    
+
     paths: {
         sources: "./contracts",
         tests: "./test",

@@ -1,19 +1,15 @@
 """
 Integration tests: GraphSAGE + MeshTelemetry + MAPE-K wiring.
 """
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from src.ml.graphsage_anomaly_detector import (
-    GraphSAGEAnomalyDetector,
-    create_graphsage_detector_for_mapek,
-)
-from src.ml.mesh_telemetry import (
-    MeshTelemetryGenerator,
-    ScenarioType,
-    generate_training_data,
-    FEATURE_NAMES,
-)
+    GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
+from src.ml.mesh_telemetry import (FEATURE_NAMES, MeshTelemetryGenerator,
+                                   ScenarioType, generate_training_data)
 
 
 class TestTrainFromTelemetry:
@@ -72,21 +68,26 @@ class TestGenerateLabelsQuality:
 
     def test_normal_low_false_positive_rate(self):
         """Normal scenario should have < 10% FPR."""
-        snapshots = [self.gen._generate_snapshot(20, ScenarioType.NORMAL) for _ in range(50)]
+        snapshots = [
+            self.gen._generate_snapshot(20, ScenarioType.NORMAL) for _ in range(50)
+        ]
         fp = sum(
-            1 for snap in snapshots
-            for pred, actual in zip(self.detector._generate_labels(snap.node_features), snap.labels)
+            1
+            for snap in snapshots
+            for pred, actual in zip(
+                self.detector._generate_labels(snap.node_features), snap.labels
+            )
             if pred > 0.5 and actual <= 0.5
         )
-        total_normal = sum(
-            1 for snap in snapshots for l in snap.labels if l <= 0.5
-        )
+        total_normal = sum(1 for snap in snapshots for l in snap.labels if l <= 0.5)
         fpr = fp / total_normal if total_normal > 0 else 0.0
         assert fpr < 0.10, f"Normal FPR too high: {fpr:.1%}"
 
     def test_partition_high_recall(self):
         """Partition anomalies should be detected with high recall."""
-        snapshots = [self.gen._generate_snapshot(20, ScenarioType.PARTITION) for _ in range(50)]
+        snapshots = [
+            self.gen._generate_snapshot(20, ScenarioType.PARTITION) for _ in range(50)
+        ]
         tp = fn = 0
         for snap in snapshots:
             predicted = self.detector._generate_labels(snap.node_features)
@@ -101,7 +102,10 @@ class TestGenerateLabelsQuality:
 
     def test_node_overload_high_recall(self):
         """Node overload should be detected with high recall."""
-        snapshots = [self.gen._generate_snapshot(20, ScenarioType.NODE_OVERLOAD) for _ in range(50)]
+        snapshots = [
+            self.gen._generate_snapshot(20, ScenarioType.NODE_OVERLOAD)
+            for _ in range(50)
+        ]
         tp = fn = 0
         for snap in snapshots:
             predicted = self.detector._generate_labels(snap.node_features)
@@ -116,7 +120,10 @@ class TestGenerateLabelsQuality:
 
     def test_interference_detected(self):
         """Interference scenario should have non-zero recall."""
-        snapshots = [self.gen._generate_snapshot(20, ScenarioType.INTERFERENCE) for _ in range(50)]
+        snapshots = [
+            self.gen._generate_snapshot(20, ScenarioType.INTERFERENCE)
+            for _ in range(50)
+        ]
         tp = fn = 0
         for snap in snapshots:
             predicted = self.detector._generate_labels(snap.node_features)
@@ -158,11 +165,14 @@ class TestMapekDispatcherWiring:
         from src.dao.governance import ActionDispatcher
 
         # Patch all dependencies
-        with patch("src.core.mape_k_loop.ConsciousnessEngine"), \
-             patch("src.core.mape_k_loop.MeshNetworkManager"), \
-             patch("src.core.mape_k_loop.PrometheusExporter"), \
-             patch("src.core.mape_k_loop.ZeroTrustValidator"):
+        with (
+            patch("src.core.mape_k_loop.ConsciousnessEngine"),
+            patch("src.core.mape_k_loop.MeshNetworkManager"),
+            patch("src.core.mape_k_loop.PrometheusExporter"),
+            patch("src.core.mape_k_loop.ZeroTrustValidator"),
+        ):
             from src.core.mape_k_loop import MAPEKLoop
+
             loop = MAPEKLoop(
                 consciousness_engine=MagicMock(),
                 mesh_manager=MagicMock(),

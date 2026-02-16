@@ -4,12 +4,14 @@ Phase 2: PQC MAPE-K Integration Tests
 Tests PQC integration with MAPE-K self-healing loop.
 """
 
-import pytest
 import time
+
+import pytest
 
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
     from src.self_healing.mape_k import MAPEK
+
     PQC_AVAILABLE = True
 except ImportError:
     PQC_AVAILABLE = False
@@ -24,13 +26,14 @@ class TestPQCMAPEKIntegration:
         pqc = PQMeshSecurityLibOQS(node_id="mapek-node")
 
         metrics = {
-            'cpu_usage': 45.2,
-            'memory_usage': 62.1,
-            'network_latency': 12.5,
-            'crypto_operations': 1523
+            "cpu_usage": 45.2,
+            "memory_usage": 62.1,
+            "network_latency": 12.5,
+            "crypto_operations": 1523,
         }
 
         import json
+
         metrics_bytes = json.dumps(metrics).encode()
         signature = pqc.sign(metrics_bytes)
 
@@ -91,11 +94,10 @@ class TestPQCMAPEKIntegration:
         """Test trend analysis with PQC signatures"""
         pqc = PQMeshSecurityLibOQS(node_id="analysis-node")
 
-        trend_data = [
-            (1, 45.1), (2, 46.2), (3, 47.5), (4, 48.1), (5, 49.0)
-        ]
+        trend_data = [(1, 45.1), (2, 46.2), (3, 47.5), (4, 48.1), (5, 49.0)]
 
         import json
+
         trend_bytes = json.dumps(trend_data).encode()
         signature = pqc.sign(trend_bytes)
 
@@ -117,7 +119,7 @@ class TestPQCMAPEKIntegration:
         recovery_actions = [
             b"Restarted service redis",
             b"Increased memory limit to 4GB",
-            b"Enabled cache optimization"
+            b"Enabled cache optimization",
         ]
 
         signatures = [pqc.sign(action) for action in recovery_actions]

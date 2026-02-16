@@ -11,12 +11,12 @@ LABEL project="x0tta6bl4-landing-page"
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copy our static files (html, css, js) to the nginx html directory
-COPY index.html /usr/share/nginx/html/
-COPY style.css /usr/share/nginx/html/
-COPY script.js /usr/share/nginx/html/
-COPY logo.svg /usr/share/nginx/html/
-COPY hero-mesh-network.svg /usr/share/nginx/html/
-
+COPY src/web/landing/index.html /usr/share/nginx/html/
+COPY src/web/landing/style.css /usr/share/nginx/html/
+COPY src/web/landing/script.js /usr/share/nginx/html/
+COPY src/web/landing/logo.svg /usr/share/nginx/html/
+COPY src/web/landing/hero-mesh-network.svg /usr/share/nginx/html/
+COPY src/web/landing/payment.js /usr/share/nginx/html/
 # Expose port 80 for the web server
 EXPOSE 80
 

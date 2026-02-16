@@ -13,6 +13,13 @@
 - GitHub шаблоны для Issues и Pull Requests
 - CI/CD workflow для автоматического тестирования
 
+## [3.2.1] - 2026-02-15
+
+### Fixed
+- **Critical**: Активация Production Lifespan (MAPE-K, FL, Swarm теперь запускаются автоматически).
+- **Hotfix**: Интеграция Federated Learning в `launch_mvp.py`.
+- **Hotfix**: Offline-fallback для Local LLM.
+
 ## [3.2.0] - 2026-01-25
 
 ### Added

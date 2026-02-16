@@ -8,22 +8,20 @@ All external eBPF/bcc dependencies are mocked.
 
 import asyncio
 import time
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from dataclasses import asdict
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
-from src.network.ebpf.orchestrator import (
-    EBPFOrchestrator,
-    OrchestratorConfig,
-    OrchestratorState,
-    ComponentStatus,
-    create_orchestrator,
-)
+import pytest
 
+from src.network.ebpf.orchestrator import (ComponentStatus, EBPFOrchestrator,
+                                           OrchestratorConfig,
+                                           OrchestratorState,
+                                           create_orchestrator)
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def config():
@@ -142,6 +140,7 @@ def full_orchestrator(
 # OrchestratorConfig and ComponentStatus dataclass tests
 # ===========================================================================
 
+
 class TestOrchestratorConfig:
     def test_defaults(self):
         cfg = OrchestratorConfig()
@@ -197,6 +196,7 @@ class TestOrchestratorState:
 # Initialization tests
 # ===========================================================================
 
+
 class TestInit:
     def test_default_config(self):
         o = EBPFOrchestrator()
@@ -223,6 +223,7 @@ class TestInit:
 # ===========================================================================
 # Lifecycle: start / stop / restart
 # ===========================================================================
+
 
 class TestLifecycle:
     @pytest.mark.asyncio
@@ -264,7 +265,9 @@ class TestLifecycle:
     @pytest.mark.asyncio
     async def test_start_error_sets_error_state(self, config):
         o = EBPFOrchestrator(config)
-        with patch.object(o, "_initialize_components", side_effect=RuntimeError("boom")):
+        with patch.object(
+            o, "_initialize_components", side_effect=RuntimeError("boom")
+        ):
             result = await o.start()
         assert result is False
         assert o.state == OrchestratorState.ERROR
@@ -283,6 +286,7 @@ class TestLifecycle:
 # ===========================================================================
 # auto_load_programs
 # ===========================================================================
+
 
 class TestAutoLoadPrograms:
     @pytest.mark.asyncio
@@ -323,9 +327,12 @@ class TestAutoLoadPrograms:
 # Component cleanup
 # ===========================================================================
 
+
 class TestCleanup:
     @pytest.mark.asyncio
-    async def test_cleanup_components(self, full_orchestrator, mock_loader, mock_cilium):
+    async def test_cleanup_components(
+        self, full_orchestrator, mock_loader, mock_cilium
+    ):
         await full_orchestrator._cleanup_components()
         mock_loader.cleanup.assert_called_once()
         mock_cilium.shutdown.assert_called_once()
@@ -353,9 +360,12 @@ class TestCleanup:
 # Background tasks
 # ===========================================================================
 
+
 class TestBackgroundTasks:
     @pytest.mark.asyncio
-    async def test_start_with_performance_monitor(self, full_orchestrator, mock_perf_monitor):
+    async def test_start_with_performance_monitor(
+        self, full_orchestrator, mock_perf_monitor
+    ):
         await full_orchestrator.start()
         mock_perf_monitor.start_monitoring.assert_awaited_once()
         await full_orchestrator.stop()
@@ -368,7 +378,9 @@ class TestBackgroundTasks:
         await orchestrator.stop()
 
     @pytest.mark.asyncio
-    async def test_metrics_task_created_with_exporter(self, config, mock_metrics_exporter):
+    async def test_metrics_task_created_with_exporter(
+        self, config, mock_metrics_exporter
+    ):
         o = EBPFOrchestrator(config, metrics_exporter=mock_metrics_exporter)
         await o.start()
         assert o._metrics_task is not None
@@ -384,6 +396,7 @@ class TestBackgroundTasks:
 # ===========================================================================
 # Program management
 # ===========================================================================
+
 
 class TestProgramManagement:
     def test_load_program_success(self, orchestrator, mock_loader):
@@ -466,6 +479,7 @@ class TestProgramManagement:
 # Flow Observability
 # ===========================================================================
 
+
 class TestFlowObservability:
     def test_get_flows_with_cilium(self, full_orchestrator, mock_cilium):
         flows = full_orchestrator.get_flows(
@@ -512,6 +526,7 @@ class TestFlowObservability:
 # Status and Metrics
 # ===========================================================================
 
+
 class TestStatusAndMetrics:
     def test_get_status_stopped(self, orchestrator):
         status = orchestrator.get_status()
@@ -542,7 +557,9 @@ class TestStatusAndMetrics:
         o = EBPFOrchestrator(config)
         assert o._get_program_status() == []
 
-    def test_get_metrics(self, full_orchestrator, mock_loader, mock_cilium, mock_mapek, mock_perf_monitor):
+    def test_get_metrics(
+        self, full_orchestrator, mock_loader, mock_cilium, mock_mapek, mock_perf_monitor
+    ):
         metrics = full_orchestrator.get_metrics()
         assert "ebpf_stats" in metrics
         assert "flow_metrics" in metrics
@@ -557,7 +574,12 @@ class TestStatusAndMetrics:
         assert "ebpf_stats" not in metrics
 
     def test_get_component_statuses(
-        self, full_orchestrator, mock_probes, mock_cilium, mock_fallback, mock_perf_monitor
+        self,
+        full_orchestrator,
+        mock_probes,
+        mock_cilium,
+        mock_fallback,
+        mock_perf_monitor,
     ):
         statuses = full_orchestrator._get_component_statuses()
         assert "loader" in statuses
@@ -583,9 +605,15 @@ class TestStatusAndMetrics:
 # Health check
 # ===========================================================================
 
+
 class TestHealthCheck:
     def test_health_check_all_healthy(
-        self, full_orchestrator, mock_loader, mock_metrics_exporter, mock_probes, mock_cilium
+        self,
+        full_orchestrator,
+        mock_loader,
+        mock_metrics_exporter,
+        mock_probes,
+        mock_cilium,
     ):
         result = full_orchestrator.health_check()
         assert result["healthy"] is True
@@ -609,7 +637,9 @@ class TestHealthCheck:
         assert "loader broken" in result["checks"]["loader"]["error"]
 
     def test_health_check_metrics_error(self, config, mock_metrics_exporter):
-        mock_metrics_exporter.get_metrics_summary.side_effect = RuntimeError("metrics broken")
+        mock_metrics_exporter.get_metrics_summary.side_effect = RuntimeError(
+            "metrics broken"
+        )
         o = EBPFOrchestrator(config, metrics_exporter=mock_metrics_exporter)
         result = o.health_check()
         assert result["healthy"] is False
@@ -646,6 +676,7 @@ class TestHealthCheck:
 # Factory function
 # ===========================================================================
 
+
 class TestFactory:
     def test_create_orchestrator_defaults(self):
         o = create_orchestrator()
@@ -666,6 +697,7 @@ class TestFactory:
 # ===========================================================================
 # Monitoring loop integration
 # ===========================================================================
+
 
 class TestMonitoringLoop:
     @pytest.mark.asyncio
@@ -713,9 +745,7 @@ class TestMonitoringLoop:
         mock_mapek.trigger_mapek_alert.assert_called_with({"type": "spike"})
 
     @pytest.mark.asyncio
-    async def test_monitoring_loop_no_anomaly(
-        self, config, mock_loader, mock_mapek
-    ):
+    async def test_monitoring_loop_no_anomaly(self, config, mock_loader, mock_mapek):
         mock_mapek.check_anomalies.return_value = None
         o = EBPFOrchestrator(config, loader=mock_loader, mapek=mock_mapek)
         o.state = OrchestratorState.RUNNING
@@ -749,6 +779,7 @@ class TestMonitoringLoop:
 # ===========================================================================
 # Metrics export loop
 # ===========================================================================
+
 
 class TestMetricsExportLoop:
     @pytest.mark.asyncio
@@ -808,6 +839,7 @@ class TestMetricsExportLoop:
 # ===========================================================================
 # Initialize components (module-level flags all False in test env)
 # ===========================================================================
+
 
 class TestInitializeComponents:
     @pytest.mark.asyncio

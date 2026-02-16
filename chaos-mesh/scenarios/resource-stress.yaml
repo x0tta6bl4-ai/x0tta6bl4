@@ -1,0 +1,32 @@
+---
+# Chaos Mesh Scenario 5: Resource Stress
+# Tests MAPE-K response to nodes under CPU/Memory pressure
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: mesh-resource-stress
+  namespace: x0tta6bl4
+  labels:
+    chaos-scenario: resource-stress
+spec:
+  mode: one # or 'all', 'fixed', 'fixed-percent', 'random-max-percent'
+  selector:
+    labelSelectors:
+      app: x0tta6bl4-node # Target all x0tta6bl4 nodes
+  stressors:
+    cpu:
+      workers: 2 # Number of CPU workers
+      load: 80 # 80% CPU load
+    memory:
+      workers: 1
+      size: "256Mi" # Allocate 256MB memory
+  duration: "30s" # Apply stress for 30 seconds
+  scheduler:
+    cron: "@every 5m" # Repeat every 5 minutes
+  # Pod selector to exclude certain pods if necessary
+  # podSelector:
+  #   namespaces:
+  #     - x0tta6bl4
+  #   labelSelectors:
+  #     app: x0tta6bl4-node
+  #     component: core

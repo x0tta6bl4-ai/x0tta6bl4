@@ -8,23 +8,23 @@ to ensure they are functioning correctly and provide meaningful diagnostics.
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, Optional
 
-from src.network.ebpf.loader import EBPFLoader
-from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.network.ebpf.cilium_integration import CiliumLikeIntegration
 from src.network.ebpf.dynamic_fallback import DynamicFallbackController
+from src.network.ebpf.loader import EBPFLoader
 from src.network.ebpf.mape_k_integration import EBPFMAPEKIntegration
+from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
 from src.network.ebpf.ringbuf_reader import RingBufferReader
-
 
 logger = logging.getLogger(__name__)
 
 
 class HealthStatus(Enum):
     """Health status levels."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -34,6 +34,7 @@ class HealthStatus(Enum):
 @dataclass
 class HealthCheckResult:
     """Result of a health check."""
+
     status: HealthStatus
     component: str
     message: str
@@ -49,21 +50,23 @@ class HealthCheckResult:
             "message": self.message,
             "timestamp": self.timestamp,
             "duration_ms": self.duration_ms,
-            "details": self.details
+            "details": self.details,
         }
 
 
 class EBPFHealthChecker:
     """Health checker for eBPF components."""
 
-    def __init__(self,
-                 loader: EBPFLoader,
-                 metrics: EBPFMetricsExporter,
-                 cilium: CiliumLikeIntegration,
-                 fallback: DynamicFallbackController,
-                 mapek: EBPFMAPEKIntegration,
-                 ring_buffer: RingBufferReader,
-                 check_interval: float = 5.0):
+    def __init__(
+        self,
+        loader: EBPFLoader,
+        metrics: EBPFMetricsExporter,
+        cilium: CiliumLikeIntegration,
+        fallback: DynamicFallbackController,
+        mapek: EBPFMAPEKIntegration,
+        ring_buffer: RingBufferReader,
+        check_interval: float = 5.0,
+    ):
         """Initialize health checker with all eBPF components."""
         self.loader = loader
         self.metrics = metrics
@@ -94,10 +97,17 @@ class EBPFHealthChecker:
                 self.check_fallback(),
                 self.check_mapek(),
                 self.check_ring_buffer(),
-                return_exceptions=True
+                return_exceptions=True,
             )
 
-            components = ["loader", "metrics", "cilium", "fallback", "mapek", "ring_buffer"]
+            components = [
+                "loader",
+                "metrics",
+                "cilium",
+                "fallback",
+                "mapek",
+                "ring_buffer",
+            ]
             health_results: Dict[str, HealthCheckResult] = {}
 
             for component, result in zip(components, results):
@@ -108,7 +118,7 @@ class EBPFHealthChecker:
                         message=f"Health check failed: {str(result)}",
                         timestamp=start_time,
                         duration_ms=(time.time() - start_time) * 1000,
-                        details={"exception": str(result)}
+                        details={"exception": str(result)},
                     )
                     logger.error(f"Health check failed for {component}: {result}")
                 else:
@@ -118,7 +128,9 @@ class EBPFHealthChecker:
             self._health_cache = health_results
             self._last_check_time = start_time
 
-            logger.debug(f"Health check completed in {(time.time() - start_time)*1000:.2f}ms")
+            logger.debug(
+                f"Health check completed in {(time.time() - start_time)*1000:.2f}ms"
+            )
             return health_results
 
     async def check_loader(self) -> HealthCheckResult:
@@ -139,7 +151,7 @@ class EBPFHealthChecker:
             details = {
                 "program_count": program_count,
                 "programs": [p["id"] for p in loaded_programs],
-                "interfaces": list(self.loader.attached_interfaces.keys())
+                "interfaces": list(self.loader.attached_interfaces.keys()),
             }
 
             return HealthCheckResult(
@@ -148,7 +160,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -159,7 +171,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_metrics(self) -> HealthCheckResult:
@@ -178,7 +190,9 @@ class EBPFHealthChecker:
                 message = f"Metrics collection failing ({degradation['consecutive_failures']} consecutive failures)"
             else:
                 status = HealthStatus.HEALTHY
-                message = f"Metrics exporter healthy (degradation: {degradation['level']})"
+                message = (
+                    f"Metrics exporter healthy (degradation: {degradation['level']})"
+                )
 
             details = {
                 "registered_maps": summary.get("registered_maps", 0),
@@ -187,7 +201,7 @@ class EBPFHealthChecker:
                 "prometheus_available": degradation.get("prometheus_available"),
                 "bpftool_available": degradation.get("bpftool_available"),
                 "total_errors": degradation.get("total_errors", 0),
-                "consecutive_failures": degradation.get("consecutive_failures", 0)
+                "consecutive_failures": degradation.get("consecutive_failures", 0),
             }
 
             return HealthCheckResult(
@@ -196,7 +210,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -207,7 +221,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_cilium(self) -> HealthCheckResult:
@@ -227,7 +241,7 @@ class EBPFHealthChecker:
 
             details = {
                 "flow_count": len(flow_metrics.get("flows", [])),
-                "interfaces": flow_metrics.get("interfaces", [])
+                "interfaces": flow_metrics.get("interfaces", []),
             }
 
             return HealthCheckResult(
@@ -236,7 +250,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -247,7 +261,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_fallback(self) -> HealthCheckResult:
@@ -269,7 +283,7 @@ class EBPFHealthChecker:
                 "fallback_count": status.get("fallback_count", 0),
                 "last_fallback_time": status.get("last_fallback_time"),
                 "available_interfaces": status.get("available_interfaces", []),
-                "unavailable_interfaces": status.get("unavailable_interfaces", [])
+                "unavailable_interfaces": status.get("unavailable_interfaces", []),
             }
 
             return HealthCheckResult(
@@ -278,7 +292,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -289,7 +303,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_mapek(self) -> HealthCheckResult:
@@ -311,9 +325,7 @@ class EBPFHealthChecker:
                 status = HealthStatus.DEGRADED
                 message = "MAPE-K integration non-operational"
 
-            details = {
-                "operational": operational
-            }
+            details = {"operational": operational}
 
             return HealthCheckResult(
                 status=status,
@@ -321,7 +333,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -332,7 +344,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_ring_buffer(self) -> HealthCheckResult:
@@ -356,7 +368,7 @@ class EBPFHealthChecker:
 
             details = {
                 "running": is_running,
-                "event_handlers": len(getattr(self.ring_buffer, "event_handlers", {}))
+                "event_handlers": len(getattr(self.ring_buffer, "event_handlers", {})),
             }
 
             return HealthCheckResult(
@@ -365,7 +377,7 @@ class EBPFHealthChecker:
                 message=message,
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details=details
+                details=details,
             )
 
         except Exception as e:
@@ -376,7 +388,7 @@ class EBPFHealthChecker:
                 message=f"Health check failed: {str(e)}",
                 timestamp=start_time,
                 duration_ms=(time.time() - start_time) * 1000,
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             )
 
     async def check_and_report(self) -> Dict[str, Any]:
@@ -391,9 +403,15 @@ class EBPFHealthChecker:
         # Convert results to Prometheus-compatible format
         health_metrics = {
             "ebpf_health_total": len(results),
-            "ebpf_health_healthy": sum(1 for r in results.values() if r.status == HealthStatus.HEALTHY),
-            "ebpf_health_degraded": sum(1 for r in results.values() if r.status == HealthStatus.DEGRADED),
-            "ebpf_health_unhealthy": sum(1 for r in results.values() if r.status == HealthStatus.UNHEALTHY)
+            "ebpf_health_healthy": sum(
+                1 for r in results.values() if r.status == HealthStatus.HEALTHY
+            ),
+            "ebpf_health_degraded": sum(
+                1 for r in results.values() if r.status == HealthStatus.DEGRADED
+            ),
+            "ebpf_health_unhealthy": sum(
+                1 for r in results.values() if r.status == HealthStatus.UNHEALTHY
+            ),
         }
 
         # Per-component health metrics
@@ -401,7 +419,7 @@ class EBPFHealthChecker:
             health_metrics[f"ebpf_health_{component}"] = {
                 "status": result.status.value,
                 "message": result.message,
-                "details": result.details
+                "details": result.details,
             }
 
         return health_metrics
@@ -433,8 +451,10 @@ def add_health_check_methods():
     def metrics_is_healthy(self):
         try:
             degradation = self.get_degradation_status()
-            return (degradation.get("prometheus_available", False) and
-                    degradation.get("consecutive_failures", 0) <= 3)
+            return (
+                degradation.get("prometheus_available", False)
+                and degradation.get("consecutive_failures", 0) <= 3
+            )
         except Exception:
             return False
 

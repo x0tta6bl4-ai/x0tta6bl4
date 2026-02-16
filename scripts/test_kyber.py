@@ -14,6 +14,7 @@ print("=" * 60)
 # Check liboqs
 try:
     import oqs
+
     print("\n✅ liboqs library loaded")
 except ImportError:
     print("\n❌ liboqs not available")
@@ -84,7 +85,8 @@ else:
 print("\n" + "=" * 60)
 print("📊 SUMMARY")
 print("=" * 60)
-print(f"""
+print(
+    f"""
    Algorithm:        Kyber768 (CRYSTALS-Kyber)
    NIST Standard:    FIPS 203 (August 2024)
    Security Level:   Level 3 (equivalent to AES-192)
@@ -101,7 +103,8 @@ print(f"""
    - Private Key:    {len(private_key)} bytes
    - Ciphertext:     {len(ciphertext)} bytes
    - Shared Secret:  {len(shared_secret_sender)} bytes
-""")
+"""
+)
 
 print("=" * 60)
 print("🛡️  This is REAL post-quantum cryptography.")

@@ -18,16 +18,20 @@ import logging
 import os
 import secrets
 import time
-from datetime import datetime
+import uuid
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from src.sales.payment_verification import TronScanVerifier, TONVerifier
+from src.sales.payment_verification import TONVerifier, TronScanVerifier
+from src.services.xray_manager import XrayManager
 
 # Telegram
 try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+    from telegram.ext import (Application, CallbackQueryHandler,
+                              CommandHandler, ContextTypes)
+
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -38,8 +42,10 @@ except ImportError:
     Application = None
     CommandHandler = None
     CallbackQueryHandler = None
+
     class ContextTypes:
         DEFAULT_TYPE = None
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,21 +55,22 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class Config:
     # Telegram
-    BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-    
-    # Crypto wallets (from environment or defaults)
-    USDT_TRC20_WALLET: str = os.getenv("USDT_TRC20_WALLET", "TYourWalletAddressHere")  # Tron USDT
-    TON_WALLET: str = os.getenv("TON_WALLET", "UQYourTonWalletAddressHere")     # TON
-    
+    BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN")
+
+    # Crypto wallets (from environment only - no defaults for security)
+    USDT_TRC20_WALLET: str = os.getenv("USDT_TRC20_WALLET")
+    TON_WALLET: str = os.getenv("TON_WALLET")
+
     # Prices (in RUB)
     PRICE_SOLO: int = 100
     PRICE_FAMILY: int = 50
     PRICE_APARTMENT: int = 30
     PRICE_NEIGHBORHOOD: int = 20
-    
+
     # Download links (IPFS or S3)
     DOWNLOAD_URL: str = os.getenv("DOWNLOAD_URL", "")
 
@@ -159,9 +166,10 @@ PRICE_TEXT = """
 # LICENSE TOKEN GENERATOR
 # ═══════════════════════════════════════════════════════════════
 
+
 class TokenGenerator:
     """Generates unique activation tokens."""
-    
+
     @staticmethod
     def generate(tier: str = "basic") -> str:
         """Generate activation token."""
@@ -169,7 +177,7 @@ class TokenGenerator:
         random_part = secrets.token_hex(8).upper()
         timestamp = hex(int(time.time()))[2:].upper()
         return f"X0T-{tier_code}-{random_part}-{timestamp}"
-    
+
     @staticmethod
     def generate_order_id() -> str:
         """Generate unique order ID."""
@@ -185,24 +193,26 @@ class TokenGenerator:
 # Supports automatic payment verification for crypto transactions
 
 
-
 # ═══════════════════════════════════════════════════════════════
 # TELEGRAM BOT HANDLERS
 # ═══════════════════════════════════════════════════════════════
 
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     keyboard = [
-        [InlineKeyboardButton("🚀 Попробовать (месяц бесплатно)", callback_data="try_free")],
+        [
+            InlineKeyboardButton(
+                "🚀 Попробовать (месяц бесплатно)", callback_data="try_free"
+            )
+        ],
         [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
         [InlineKeyboardButton("❓ Как это работает", callback_data="how_it_works")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await update.message.reply_text(
-        MANIFESTO,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        MANIFESTO, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -210,7 +220,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show pricing options."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
         [InlineKeyboardButton("🥉 SOLO — 100₽/мес", callback_data="buy_solo")],
         [InlineKeyboardButton("🥉 FAMILY — 50₽/чел", callback_data="buy_family")],
@@ -218,11 +228,9 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        PRICE_TEXT,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        PRICE_TEXT, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -230,9 +238,9 @@ async def try_free(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle free trial request."""
     query = update.callback_query
     await query.answer()
-    
+
     trial_token = f"TRIAL-{secrets.token_hex(4).upper()}"
-    
+
     trial_text = f"""
 🚀 *ПОПРОБОВАТЬ БЕСПЛАТНО*
 
@@ -265,18 +273,16 @@ async def try_free(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💡 *Совет:*
 Приведи соседей → всем дешевле!
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("📥 Скачать", url=config.DOWNLOAD_URL)],
         [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        trial_text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        trial_text, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -284,7 +290,7 @@ async def how_it_works(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Explain how it works."""
     query = update.callback_query
     await query.answer()
-    
+
     how_text = """
 ❓ *КАК ЭТО РАБОТАЕТ?*
 
@@ -332,17 +338,15 @@ x0tta6bl4: один маршрут упал = переключился на др
 → Ты даже не заметишь
 → Интернет всегда работает
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("🚀 Попробовать бесплатно", callback_data="try_free")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        how_text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        how_text, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -350,26 +354,21 @@ async def buy_tier(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle purchase request."""
     query = update.callback_query
     await query.answer()
-    
+
     tier = query.data.replace("buy_", "")
-    price_map = {
-        "solo": 100,
-        "family": 50,
-        "apartment": 30,
-        "neighborhood": 20
-    }
+    price_map = {"solo": 100, "family": 50, "apartment": 30, "neighborhood": 20}
     price = price_map.get(tier, 100)
-    
+
     order_id = TokenGenerator.generate_order_id()
-    
+
     tier_names = {
         "solo": "SOLO (1 человек)",
         "family": "FAMILY (2-3 человека)",
         "apartment": "APARTMENT (4+ человек)",
-        "neighborhood": "NEIGHBORHOOD (8+ человек)"
+        "neighborhood": "NEIGHBORHOOD (8+ человек)",
     }
     tier_name = tier_names.get(tier, tier.upper())
-    
+
     payment_text = f"""
 🛒 *ЗАКАЗ #{order_id}*
 
@@ -404,18 +403,20 @@ async def buy_tier(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Первый месяц БЕСПЛАТНО!
 Оплата со второго месяца.
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("✅ Я оплатил", callback_data=f"paid_{tier}_{order_id}")],
-        [InlineKeyboardButton("🆓 Сначала попробовать бесплатно", callback_data="try_free")],
+        [
+            InlineKeyboardButton(
+                "🆓 Сначала попробовать бесплатно", callback_data="try_free"
+            )
+        ],
         [InlineKeyboardButton("❌ Отмена", callback_data="show_prices")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        payment_text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        payment_text, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -423,25 +424,21 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle payment confirmation with automatic verification."""
     query = update.callback_query
     await query.answer()
-    
+
     # Parse callback data: paid_tier_orderid
     parts = query.data.split("_")
     tier = parts[1]
     order_id = parts[2]
-    
+
     # Get price for this tier
-    price_map = {
-        "solo": 100,
-        "family": 50,
-        "apartment": 30,
-        "neighborhood": 20
-    }
+    price_map = {"solo": 100, "family": 50, "apartment": 30, "neighborhood": 20}
     price_rub = price_map.get(tier, 100)
-    
+
     # Convert to USDT/TON (approximate: 1 USDT ≈ 100 RUB, 1 TON ≈ 200 RUB)
-    amount_usdt = float(price_rub) # price_rub / 100
-    amount_ton = float(price_rub) / 2 # price_rub / 200
-    
+    # Convert to USDT (approximate: 1 USDT ≈ 95 RUB)
+    amount_usdt = round(float(price_rub) / 95.0, 2)
+    amount_ton = float(price_rub) / 2  # price_rub / 200
+
     # Show "Checking payment..." message
     checking_text = f"""
 ⏳ *ПРОВЕРКА ПЛАТЕЖА...*
@@ -452,27 +449,30 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Проверяю транзакции...
 """
     await query.edit_message_text(checking_text, parse_mode="Markdown")
-    
+
     # Try to verify payment automatically
     payment_verified = False
     payment_method = None
-    
+
     # Check USDT first
     tron_verifier = TronScanVerifier(api_key=os.getenv("TRON_API_KEY"))
-    usdt_result = tron_verifier.verify_payment(config.USDT_TRC20_WALLET, amount_usdt, order_id)
+    usdt_result = tron_verifier.verify_payment(
+        config.USDT_TRC20_WALLET, amount_usdt, order_id
+    )
 
-    if usdt_result['verified']:
+    if usdt_result["verified"]:
         payment_verified = True
         payment_method = "USDT (TRC-20)"
     else:
         # Check TON if USDT not found
         ton_verifier = TONVerifier(api_key=os.getenv("TON_API_KEY"))
-        ton_result = ton_verifier.verify_payment(config.TON_WALLET, amount_ton, order_id)
-        if ton_result['verified']:
+        ton_result = ton_verifier.verify_payment(
+            config.TON_WALLET, amount_ton, order_id
+        )
+        if ton_result["verified"]:
             payment_verified = True
             payment_method = "TON"
 
-    
     if not payment_verified:
         # Payment not found - ask user to wait or check manually
         not_found_text = f"""
@@ -510,30 +510,49 @@ TON:
 @x0tta6bl4_support
 """
         keyboard = [
-            [InlineKeyboardButton("🔄 Проверить снова", callback_data=f"paid_{tier}_{order_id}")],
-            [InlineKeyboardButton("💬 Поддержка", url="https://t.me/x0tta6bl4_support")],
+            [
+                InlineKeyboardButton(
+                    "🔄 Проверить снова", callback_data=f"paid_{tier}_{order_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "💬 Поддержка", url="https://t.me/x0tta6bl4_support"
+                )
+            ],
             [InlineKeyboardButton("⬅️ Назад", callback_data="show_prices")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await query.edit_message_text(
-            not_found_text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup
+            not_found_text, parse_mode="Markdown", reply_markup=reply_markup
         )
         return
-    
-    # Payment verified! Generate activation token
+
+    # Payment verified! Generate activation token (Legacy)
     token = TokenGenerator.generate(tier)
-    
+
+    # NEW: Provision Xray User
+    user_uuid = str(uuid.uuid4())
+    telegram_id = query.from_user.id
+    email_id = f"tg_{telegram_id}"
+
+    try:
+        await XrayManager.add_user(user_uuid, email_id)
+        vless_link = XrayManager.generate_vless_link(user_uuid, email_id)
+        logger.info(f"Provisioned Xray user {email_id}")
+    except Exception as e:
+        logger.error(f"Failed to provision Xray: {e}")
+        vless_link = "ERROR_GENERATING_LINK_CONTACT_SUPPORT"
+
     tier_names = {
         "solo": "SOLO",
         "family": "FAMILY",
         "apartment": "APARTMENT",
-        "neighborhood": "NEIGHBORHOOD"
+        "neighborhood": "NEIGHBORHOOD",
     }
     tier_display = tier_names.get(tier, tier.upper())
-    
+
     success_text = f"""
 🎉 *ПЛАТЕЖ ПОДТВЕРЖДЁН!*
 
@@ -545,29 +564,24 @@ TON:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔑 *КОД ДЛЯ АКТИВАЦИИ:*
-```
-{token}
-```
-
-📥 *СКАЧАТЬ:*
-{config.DOWNLOAD_URL}?token={token}
+🚀 *ВАШ ДОСТУП (VLESS):*
+Нажмите, чтобы скопировать:
+`{vless_link}`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📖 *ИНСТРУКЦИЯ:*
 
-1. Скачай приложение
-2. Открой
-3. Введи код: `{token}`
-4. Нажми "Включить"
-5. Готово! YouTube работает
+1. Скопируйте ключ выше.
+2. Скачайте [V2RayNG](https://play.google.com/store/apps/details?id=com.v2ray.ang) (Android) или [V2Box](https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690) (iOS).
+3. Импортируйте ключ из буфера обмена.
+4. Нажмите "Подключить".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 💡 *СОВЕТ:*
 Приведи соседей → всем дешевле!
-Дай им этот код: `{token}`
+Просто перешли им этот ключ: `{vless_link}`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -580,26 +594,25 @@ TON:
 
 Добро пожаловать! 🚀
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("📥 Скачать приложение", url=config.DOWNLOAD_URL)],
         [InlineKeyboardButton("💬 Поддержка", url="https://t.me/x0tta6bl4_support")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        success_text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        success_text, parse_mode="Markdown", reply_markup=reply_markup
     )
-    
+
     # Log sale and store in database
     logger.info(f"SALE: {order_id} | {tier} | {token} | user={query.from_user.id}")
-    
+
     # Store payment in database
     try:
-        from src.database import SessionLocal, Payment, License
+        from src.database import License, Payment, SessionLocal
+
         db = SessionLocal()
         try:
             # Create payment record
@@ -610,22 +623,27 @@ TON:
                 amount=price_rub,
                 currency="RUB",
                 payment_method=payment_method,
-                transaction_hash=usdt_result.get('transaction_hash') or ton_result.get('transaction_hash'),
+                transaction_hash=usdt_result.get("transaction_hash")
+                or ton_result.get("transaction_hash"),
                 status="verified",
-                verified_at=datetime.now()
+                verified_at=datetime.now(),
             )
             db.add(payment)
-            
-            # Create license record
+
+            # Create license record (Legacy + New UUID)
             license = License(
-                token=token,
+                token=token,  # Keep legacy token format for record
                 user_id=str(query.from_user.id),
                 order_id=order_id,
                 tier=tier,
-                is_active=True
+                is_active=True,
             )
+            # Ideally we should store VPN UUID in User model, but telegram users might not be in User table yet
+            # or User table is email-based. For now, just logging it.
+            # Only storing legacy license to avoid schema breaking in this MVP patch.
+
             db.add(license)
-            
+
             db.commit()
             logger.info(f"Payment and license stored in database for order {order_id}")
         except Exception as e:
@@ -641,7 +659,7 @@ async def faq_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle FAQ request."""
     query = update.callback_query
     await query.answer()
-    
+
     faq_text = """
 ❓ *FAQ*
 
@@ -669,16 +687,14 @@ A: Да. Работает везде. Проверено.
 *Q: Возврат?*
 A: Первый месяц бесплатно. Если не понравится — просто отключи.
 """
-    
+
     keyboard = [
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        faq_text,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        faq_text, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -686,18 +702,20 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Go back to main menu."""
     query = update.callback_query
     await query.answer()
-    
+
     keyboard = [
-        [InlineKeyboardButton("🚀 Попробовать (месяц бесплатно)", callback_data="try_free")],
+        [
+            InlineKeyboardButton(
+                "🚀 Попробовать (месяц бесплатно)", callback_data="try_free"
+            )
+        ],
         [InlineKeyboardButton("💰 Цены", callback_data="show_prices")],
         [InlineKeyboardButton("❓ Как это работает", callback_data="how_it_works")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await query.edit_message_text(
-        MANIFESTO,
-        parse_mode="Markdown",
-        reply_markup=reply_markup
+        MANIFESTO, parse_mode="Markdown", reply_markup=reply_markup
     )
 
 
@@ -705,27 +723,27 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
+
 def main():
     """Start the bot."""
     if not TELEGRAM_AVAILABLE:
         print("❌ python-telegram-bot not installed")
         print("   Run: pip install python-telegram-bot")
         return
-    
-    if config.BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
-        print("❌ Set TELEGRAM_BOT_TOKEN environment variable")
-        print("   1. Create bot in @BotFather")
-        print("   2. Get token")
-        print("   3. export TELEGRAM_BOT_TOKEN='your_token'")
+
+    if not config.BOT_TOKEN:
+        print("❌ TELEGRAM_BOT_TOKEN environment variable is not set.")
+        print("   Please set it. Example:")
+        print("   export TELEGRAM_BOT_TOKEN='your_token_from_botfather'")
         return
-    
+
     print("🤖 Starting x0tta6bl4 Sales Bot...")
-    
+
     app = Application.builder().token(config.BOT_TOKEN).build()
-    
+
     # Commands
     app.add_handler(CommandHandler("start", start_command))
-    
+
     # Callbacks
     app.add_handler(CallbackQueryHandler(show_prices, pattern="^show_prices$"))
     app.add_handler(CallbackQueryHandler(try_free, pattern="^try_free$"))
@@ -734,7 +752,7 @@ def main():
     app.add_handler(CallbackQueryHandler(confirm_payment, pattern="^paid_"))
     app.add_handler(CallbackQueryHandler(faq_handler, pattern="^faq$"))
     app.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_to_start$"))
-    
+
     print("✅ Bot running! Press Ctrl+C to stop.")
     app.run_polling()
 

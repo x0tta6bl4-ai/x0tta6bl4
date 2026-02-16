@@ -7,9 +7,11 @@ Requires Docker cluster:
     python3 -m pytest tests/integration/test_multinode.py -v
     docker compose -f docker-compose.integration.yml down
 """
+
+import time
+
 import pytest
 import requests
-import time
 
 NODES = {
     "node-a": "http://localhost:8080",
@@ -85,7 +87,9 @@ class TestRaftConsensus:
         if not leader_url:
             pytest.skip("No Raft leader available")
 
-        r = requests.post(f"{leader_url}/raft/append", json={"command": "test_entry"}, timeout=5)
+        r = requests.post(
+            f"{leader_url}/raft/append", json={"command": "test_entry"}, timeout=5
+        )
         assert r.status_code in (200, 201, 202, 404)  # 404 if not wired yet
 
 

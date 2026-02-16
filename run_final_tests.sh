@@ -3,6 +3,10 @@
 
 set -e
 
+export PYTHONFAULTHANDLER=1
+
+PYTEST_TIMEOUT="${PYTEST_TIMEOUT:-25m}"
+
 echo "========================================"
 echo "WEST-0104: Unit Tests + CI/CD"
 echo "Final Validation & Report"
@@ -11,11 +15,11 @@ echo ""
 
 # Run all tests
 echo "[1/3] Running all charter tests..."
-python -m pytest tests/test_charter_*.py -v --tb=short --cov=src/westworld --cov-report=term-missing 2>&1 | tee test_results.txt
+timeout "$PYTEST_TIMEOUT" python -m pytest tests/test_charter_*.py -v --tb=short --cov=src/westworld --cov-report=term-missing 2>&1 | tee test_results.txt
 
 echo ""
 echo "[2/3] Generating coverage HTML report..."
-python -m pytest tests/test_charter_*.py --cov=src/westworld --cov-report=html
+timeout "$PYTEST_TIMEOUT" python -m pytest tests/test_charter_*.py --cov=src/westworld --cov-report=html
 
 echo ""
 echo "[3/3] Summary statistics..."

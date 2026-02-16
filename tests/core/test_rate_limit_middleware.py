@@ -1,18 +1,17 @@
 """
 Tests for Rate Limit Middleware.
 """
-import pytest
+
 import asyncio
 from unittest.mock import Mock, patch
-from starlette.testclient import TestClient
-from fastapi import FastAPI
 
-from src.core.rate_limit_middleware import (
-    RateLimitMiddleware,
-    RateLimitConfig,
-    TokenBucket,
-    InMemoryRateLimiter
-)
+import pytest
+from fastapi import FastAPI
+from starlette.testclient import TestClient
+
+from src.core.rate_limit_middleware import (InMemoryRateLimiter,
+                                            RateLimitConfig,
+                                            RateLimitMiddleware, TokenBucket)
 
 
 class TestTokenBucket:
@@ -68,7 +67,9 @@ class TestInMemoryRateLimiter:
     @pytest.mark.asyncio
     async def test_blocks_after_burst(self):
         """Test that requests are blocked after burst exceeded."""
-        config = RateLimitConfig(requests_per_second=10, burst_size=5, block_duration=60)
+        config = RateLimitConfig(
+            requests_per_second=10, burst_size=5, block_duration=60
+        )
         limiter = InMemoryRateLimiter(config)
 
         # Exhaust burst capacity
@@ -124,14 +125,10 @@ class TestRateLimitMiddleware:
             return {"status": "healthy"}
 
         config = RateLimitConfig(
-            requests_per_second=10,
-            burst_size=5,
-            block_duration=60
+            requests_per_second=10, burst_size=5, block_duration=60
         )
         self.app.add_middleware(
-            RateLimitMiddleware,
-            config=config,
-            excluded_paths=["/health"]
+            RateLimitMiddleware, config=config, excluded_paths=["/health"]
         )
         self.client = TestClient(self.app)
 
@@ -191,9 +188,7 @@ class TestRateLimitConfig:
     def test_custom_values(self):
         """Test custom configuration values."""
         config = RateLimitConfig(
-            requests_per_second=50,
-            burst_size=100,
-            block_duration=120
+            requests_per_second=50, burst_size=100, block_duration=120
         )
         assert config.requests_per_second == 50
         assert config.burst_size == 100

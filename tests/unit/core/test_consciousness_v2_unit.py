@@ -1,12 +1,11 @@
 """
 Unit tests for ConsciousnessEngineV2 multi-objective decision scoring.
 """
+
 import pytest
-from src.core.consciousness_v2 import (
-    ConsciousnessEngineV2,
-    MultiModalInput,
-    ModalityType,
-)
+
+from src.core.consciousness_v2 import (ConsciousnessEngineV2, ModalityType,
+                                       MultiModalInput)
 
 
 class TestMultiObjectiveScoring:
@@ -40,16 +39,20 @@ class TestMultiObjectiveScoring:
         assert result["action"] == "switch_route"
 
     def test_extreme_anomaly_triggers_isolate(self):
-        result = self._decide({"anomaly_score": 0.95, "auth_failures": 30, "error_rate": 0.9})
+        result = self._decide(
+            {"anomaly_score": 0.95, "auth_failures": 30, "error_rate": 0.9}
+        )
         assert result["action"] == "isolate_node"
 
     def test_normal_features_monitor(self):
-        result = self._decide({
-            "anomaly_score": 0.1,
-            "traffic_rate": 100,
-            "cpu_usage": 0.3,
-            "latency": 20,
-        })
+        result = self._decide(
+            {
+                "anomaly_score": 0.1,
+                "traffic_rate": 100,
+                "cpu_usage": 0.3,
+                "latency": 20,
+            }
+        )
         assert result["action"] == "monitor"
 
     def test_empty_features_monitor(self):
@@ -80,7 +83,9 @@ class TestMultiObjectiveScoring:
 
     def test_multiple_signals_amplify(self):
         single = self._decide({"anomaly_score": 0.8})
-        multi = self._decide({"anomaly_score": 0.8, "error_rate": 0.6, "packet_loss": 0.4})
+        multi = self._decide(
+            {"anomaly_score": 0.8, "error_rate": 0.6, "packet_loss": 0.4}
+        )
         assert multi["scores"]["restart_service"] > single["scores"]["restart_service"]
 
     # --- Reasoning ---
@@ -144,14 +149,16 @@ class TestEndToEndDecision:
         assert "decision" in result
         assert "explanation" in result
         assert result["decision"]["action"] in (
-            "restart_service", "isolate_node", "scale_up",
-            "rotate_keys", "switch_route", "monitor",
+            "restart_service",
+            "isolate_node",
+            "scale_up",
+            "rotate_keys",
+            "switch_route",
+            "monitor",
         )
 
     def test_text_input_defaults_to_monitor(self):
         engine = ConsciousnessEngineV2()
-        inputs = [
-            MultiModalInput(modality=ModalityType.TEXT, data="hello world")
-        ]
+        inputs = [MultiModalInput(modality=ModalityType.TEXT, data="hello world")]
         result = engine.process_multi_modal(inputs)
         assert result["decision"]["action"] == "monitor"

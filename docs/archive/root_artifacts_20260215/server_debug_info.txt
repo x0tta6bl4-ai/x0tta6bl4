@@ -1,0 +1,416 @@
+Sat Feb 14 08:17:02 PM UTC 2026
+{
+  "log": {
+    "access": "none",
+    "dnsLog": false,
+    "error": "",
+    "loglevel": "warning"
+  },
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": [
+          "api"
+        ],
+        "outboundTag": "api"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "openai.com",
+          "*.openai.com",
+          "chat.openai.com",
+          "api.openai.com",
+          "netflix.com",
+          "*.netflix.com",
+          "nflxext.com",
+          "*.nflxext.com",
+          "nflximg.com",
+          "*.nflximg.com",
+          "nflxso.net",
+          "*.nflxso.net",
+          "nflxvideo.net",
+          "*.nflxvideo.net",
+          "google.com",
+          "*.google.com",
+          "googleapis.com",
+          "*.googleapis.com",
+          "gstatic.com",
+          "*.gstatic.com",
+          "spotify.com",
+          "*.spotify.com",
+          "scdn.co",
+          "*.scdn.co",
+          "spotifycdn.com",
+          "*.spotifycdn.com"
+        ],
+        "outboundTag": "warp"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "youtube.com",
+          "*.youtube.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "youtu.be",
+          "*.youtu.be"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "googlevideo.com",
+          "*.googlevideo.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "github.com",
+          "*.github.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "github.io",
+          "*.github.io"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "githubusercontent.com",
+          "*.githubusercontent.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "reddit.com",
+          "*.reddit.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "redd.it",
+          "*.redd.it"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "redditstatic.com",
+          "*.redditstatic.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "redditmedia.com",
+          "*.redditmedia.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "blocked"
+      },
+      {
+        "type": "field",
+        "protocol": [
+          "bittorrent"
+        ],
+        "outboundTag": "blocked"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "geosite:category-ads-all"
+        ],
+        "outboundTag": "blocked"
+      },
+      {
+        "type": "field",
+        "network": [
+          "tcp",
+          "udp"
+        ],
+        "outboundTag": "direct"
+      }
+    ],
+    "domainMatcher": "hybrid"
+  },
+  "dns": {
+    "servers": [
+      "1.1.1.1",
+      "8.8.8.8",
+      "1.0.0.1"
+    ],
+    "queryStrategy": "UseIPv4",
+    "disableCache": false
+  },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "port": 39829,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "x0tta6bl4",
+            "flow": "xtls-rprx-vision",
+            "id": "f56fb669-32ec-4142-b2fe-8b65c4321102"
+          },
+          {
+            "email": "x0tta6bl4_mobile",
+            "flow": "xtls-rprx-vision",
+            "id": "57782230-b5d6-45c6-aec1-ab3d23d143fb"
+          },
+          {
+            "email": "hip3.14cirz",
+            "flow": "xtls-rprx-vision",
+            "id": "f1b2693b-2490-4ede-b2d9-06e5ece63a71"
+          },
+          {
+            "email": "margarita",
+            "flow": "xtls-rprx-vision",
+            "id": "5fb8f932-cf3d-4695-b0b0-89caa6054c80"
+          },
+          {
+            "email": "vasilisa",
+            "flow": "xtls-rprx-vision",
+            "id": "f70193b1-9729-4884-872b-93426525879a"
+          },
+          {
+            "email": "Jamaica",
+            "flow": "xtls-rprx-vision",
+            "id": "5f3192a4-1652-404c-ac49-c4984ce2b8ec"
+          },
+          {
+            "email": "v.Terehkova",
+            "flow": "xtls-rprx-vision",
+            "id": "a7569357-20d2-4c58-8e90-e7b9fec7ca3a"
+          },
+          {
+            "email": "Vera.Vasil'evna",
+            "flow": "xtls-rprx-vision",
+            "id": "f269ef86-36ef-4a6c-9090-ac59160698df"
+          },
+          {
+            "email": "Titiboy",
+            "flow": "xtls-rprx-vision",
+            "id": "ba42b360-8559-48e8-b541-260ddde32765"
+          },
+          {
+            "email": "Sveta",
+            "flow": "xtls-rprx-vision",
+            "id": "0cef98ba-05c1-47ee-94a3-74937b774c60"
+          },
+          {
+            "email": "Winston1Gog",
+            "flow": "xtls-rprx-vision",
+            "id": "c0254f4a-b25f-47ce-b2c2-29806fa21a1f"
+          },
+          {
+            "email": "Georgiy",
+            "flow": "xtls-rprx-vision",
+            "id": "89f3cd69-e07c-4791-a07b-0cef89c823f5"
+          },
+          {
+            "email": "Vissarionovich",
+            "flow": "xtls-rprx-vision",
+            "id": "41194487-d2d8-4700-bf0b-1165aa423a94"
+          },
+          {
+            "email": "Sergey",
+            "flow": "xtls-rprx-vision",
+            "id": "f22bf54d-4105-4be2-a324-1d8665e816ba"
+          },
+          {
+            "email": "Detonator",
+            "flow": "xtls-rprx-vision",
+            "id": "4e481aa7-43d9-4042-bdaa-24bdc86fa0a6"
+          },
+          {
+            "email": "Bezumniy",
+            "flow": "xtls-rprx-vision",
+            "id": "c97dd6a7-eba6-4845-aa89-590ba6d14563"
+          },
+          {
+            "email": "Elcin",
+            "flow": "xtls-rprx-vision",
+            "id": "e8e401ec-e2d7-440b-966d-19b6182a40f7"
+          },
+          {
+            "email": "Teimur",
+            "flow": "xtls-rprx-vision",
+            "id": "2098b2b2-bdde-44ed-ba9e-22c3a37080d5"
+          },
+          {
+            "email": "Temur2",
+            "flow": "xtls-rprx-vision",
+            "id": "c6b1effa-7429-414e-9077-b2f30f2a37c3"
+          },
+          {
+            "email": "gleb-mobile",
+            "flow": "xtls-rprx-vision",
+            "id": "dafe6f30-ab12-4966-bbe2-dd7e340fe9f6"
+          },
+          {
+            "email": "gleb-pc",
+            "flow": "xtls-rprx-vision",
+            "id": "d0e5c4c3-aad1-4076-b4ec-850b63ef6fea"
+          },
+          {
+            "email": "timoha-mobile",
+            "flow": "xtls-rprx-vision",
+            "id": "b50798f1-8f9a-4b12-91ed-32511710a881"
+          },
+          {
+            "email": "timoha-pc",
+            "flow": "xtls-rprx-vision",
+            "id": "2528cb53-145d-4cff-846a-3b7bf2319eeb"
+          },
+          {
+            "email": "timoha-notebook",
+            "flow": "xtls-rprx-vision",
+            "id": "d1f43562-4b63-41a9-aeb2-2d610208dd02"
+          },
+          {
+            "email": "Cirge",
+            "flow": "xtls-rprx-vision",
+            "id": "bc250253-7441-4c30-9dde-0da4627a9dd9"
+          },
+          {
+            "email": "Voha",
+            "flow": "xtls-rprx-vision",
+            "id": "93ee7666-5ada-4d05-8c7b-6a5a7f004904"
+          },
+          {
+            "email": "Denis-keramogranit",
+            "flow": "xtls-rprx-vision",
+            "id": "625eb60c-94a2-475b-9a6a-81d4dc4be817"
+          },
+          {
+            "email": "hip3.14cirz-pc",
+            "flow": "xtls-rprx-vision",
+            "id": "e684eba8-42dc-41a5-812a-8d153c6e32ea"
+          },
+          {
+            "email": "bezumniy-pc",
+            "flow": "xtls-rprx-vision",
+            "id": "1842ee94-d968-4765-891d-8d91d8a96e85"
+          },
+          {
+            "email": "hip3.14cirz-test",
+            "flow": "xtls-rprx-vision",
+            "id": "fe26e5b8-0226-4ed5-81c7-ab0ec33f3555"
+          }
+        ],
+        "decryption": "none",
+        "encryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "realitySettings": {
+          "dest": "www.google.com:443",
+          "maxClientVer": "",
+          "maxTimediff": 0,
+          "minClientVer": "",
+          "mldsa65Seed": "",
+          "privateKey": "sARj3nxY80sVRmeCxqZbTHyw-bj6Si4vXb3Q-mlflFw",
+          "serverNames": [
+            "google.com",
+            "www.google.com",
+            "dl.google.com",
+            "microsoft.com",
+            "www.microsoft.com"
+          ],
+          "shortIds": [
+            "6b",
+            "97",
+            "a1",
+            "18e154a0558d9263"
+          ],
+          "show": false,
+          "target": "www.google.com:443",
+          "xver": 0
+        },
+        "security": "reality",
+        "tcpSettings": {
+          "acceptProxyProtocol": false,
+          "header": {
+            "type": "none"
+          }
+        }
+      },
+      "tag": "inbound-39829",
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic",
+          "fakedns"
+        ],
+        "metadataOnly": false,
+        "routeOnly": false
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "AsIs"
+      }
+    },
+    {
+      "tag": "warp",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 40000
+          }
+        ]
+      }
+    },
+    {
+      "tag": "blocked",
+      "protocol": "blackhole",
+      "settings": {}
+    }
+  ],
+  "transport": null,
+  "policy": null,
+  "api": null,
+  "stats": null,
+  "reverse": null,
+  "fakedns": null,
+  "observatory": null,
+  "burstObservatory": null,
+  "metrics": null
+}

@@ -9,16 +9,16 @@ These tests cover:
 - Error reporting
 """
 
-import pytest
-import time
 import json
 import subprocess
+import time
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.network.ebpf.metrics_exporter_enhanced import (
-    EBPFMetricsExporterEnhanced,
-    MetricValidationStatus,
-    MetricValidationResult
-)
+    EBPFMetricsExporterEnhanced, MetricValidationResult,
+    MetricValidationStatus)
 
 
 class TestEBPFMetricsExporterEnhanced:
@@ -27,7 +27,9 @@ class TestEBPFMetricsExporterEnhanced:
     @pytest.fixture
     def metrics_exporter(self):
         """Create EBPFMetricsExporterEnhanced instance."""
-        with patch('src.network.ebpf.metrics_exporter.PrometheusExporter') as mock_prometheus:
+        with patch(
+            "src.network.ebpf.metrics_exporter.PrometheusExporter"
+        ) as mock_prometheus:
             mock_instance = MagicMock()
             mock_prometheus.return_value = mock_instance
             mock_instance.metrics = {}
@@ -45,50 +47,62 @@ class TestEBPFMetricsExporterEnhanced:
     def test_initialization(self, metrics_exporter):
         """Test initializing enhanced metrics exporter."""
         assert metrics_exporter is not None
-        assert hasattr(metrics_exporter, 'sanitizer')
-        assert hasattr(metrics_exporter, 'error_count')
-        assert hasattr(metrics_exporter, 'performance_stats')
+        assert hasattr(metrics_exporter, "sanitizer")
+        assert hasattr(metrics_exporter, "error_count")
+        assert hasattr(metrics_exporter, "performance_stats")
 
     def test_register_map_with_validation(self, metrics_exporter):
         """Test registering map with validation."""
         metrics_exporter._validate_map_metadata = MagicMock(return_value=True)
-        with patch.object(metrics_exporter, '_validate_and_sanitize') as mock_validate:
+        with patch.object(metrics_exporter, "_validate_and_sanitize") as mock_validate:
             mock_validate.return_value = {}, []
 
-            success = metrics_exporter.register_map("packet_counters", "xdp_counter", "per_cpu_array")
+            success = metrics_exporter.register_map(
+                "packet_counters", "xdp_counter", "per_cpu_array"
+            )
             assert success is True
 
     def test_register_map_invalid_metadata(self, metrics_exporter):
         """Test registering map with invalid metadata."""
         metrics_exporter._validate_map_metadata = MagicMock(return_value=False)
-        with patch.object(metrics_exporter, '_validate_and_sanitize') as mock_validate:
+        with patch.object(metrics_exporter, "_validate_and_sanitize") as mock_validate:
             mock_validate.return_value = {}, []
 
             success = metrics_exporter.register_map("invalid map", "", "invalid_type")
             assert success is False
 
-    @pytest.mark.parametrize("metric_name, value, expected_status", [
-        ("packet_counters", 100, MetricValidationStatus.VALID),
-        ("packet_counters", -10, MetricValidationStatus.OUT_OF_RANGE),
-        ("latency_ms", 50.5, MetricValidationStatus.VALID),
-        ("latency_ms", "invalid", MetricValidationStatus.TYPE_MISMATCH),
-        ("interface_count", 10, MetricValidationStatus.VALID),
-        ("interface_count", 1000, MetricValidationStatus.OUT_OF_RANGE)
-    ])
-    def test_metric_validation(self, metrics_exporter, metric_name, value, expected_status):
+    @pytest.mark.parametrize(
+        "metric_name, value, expected_status",
+        [
+            ("packet_counters", 100, MetricValidationStatus.VALID),
+            ("packet_counters", -10, MetricValidationStatus.OUT_OF_RANGE),
+            ("latency_ms", 50.5, MetricValidationStatus.VALID),
+            ("latency_ms", "invalid", MetricValidationStatus.TYPE_MISMATCH),
+            ("interface_count", 10, MetricValidationStatus.VALID),
+            ("interface_count", 1000, MetricValidationStatus.OUT_OF_RANGE),
+        ],
+    )
+    def test_metric_validation(
+        self, metrics_exporter, metric_name, value, expected_status
+    ):
         """Test metric validation with various scenarios."""
         result = metrics_exporter.sanitizer.validate(metric_name, value)
         assert result.status == expected_status
         assert result.name == metric_name
         assert result.value == value
 
-    @pytest.mark.parametrize("metric_name, value, expected_status", [
-        ("packet_counters", 100, MetricValidationStatus.VALID),
-        ("packet_counters", -10, MetricValidationStatus.OUT_OF_RANGE),
-        ("latency_ms", 50.5, MetricValidationStatus.VALID),
-        ("latency_ms", "invalid", MetricValidationStatus.TYPE_MISMATCH)
-    ])
-    def test_metric_sanitization(self, metrics_exporter, metric_name, value, expected_status):
+    @pytest.mark.parametrize(
+        "metric_name, value, expected_status",
+        [
+            ("packet_counters", 100, MetricValidationStatus.VALID),
+            ("packet_counters", -10, MetricValidationStatus.OUT_OF_RANGE),
+            ("latency_ms", 50.5, MetricValidationStatus.VALID),
+            ("latency_ms", "invalid", MetricValidationStatus.TYPE_MISMATCH),
+        ],
+    )
+    def test_metric_sanitization(
+        self, metrics_exporter, metric_name, value, expected_status
+    ):
         """Test metric sanitization and validation."""
         metrics = {metric_name: value}
         valid_metrics, results = metrics_exporter.sanitizer.sanitize(metrics)
@@ -124,7 +138,9 @@ class TestEBPFMetricsExporterEnhanced:
         metrics_exporter._track_performance("read_time", 0.015)
 
         assert len(metrics_exporter.performance_stats["read_time"]) == 3
-        assert all(0.010 <= t <= 0.020 for t in metrics_exporter.performance_stats["read_time"])
+        assert all(
+            0.010 <= t <= 0.020 for t in metrics_exporter.performance_stats["read_time"]
+        )
 
     def test_get_error_summary(self, metrics_exporter):
         """Test getting error count summary."""
@@ -194,17 +210,19 @@ class TestEBPFMetricsExporterEnhanced:
         assert metrics_exporter.error_count.total == 0
         assert metrics_exporter.error_count.map_read == 0
 
-    @patch('builtins.open', new_callable=MagicMock)
+    @patch("builtins.open", new_callable=MagicMock)
     def test_dump_diagnostics(self, mock_open, metrics_exporter):
         """Test dumping diagnostics information."""
-        metrics_exporter.get_health_status = MagicMock(return_value={
-            "overall": "healthy",
-            "errors": {"total": 0},
-            "degradation": {"level": "full"}
-        })
+        metrics_exporter.get_health_status = MagicMock(
+            return_value={
+                "overall": "healthy",
+                "errors": {"total": 0},
+                "degradation": {"level": "full"},
+            }
+        )
         metrics_exporter.performance_stats = {
             "read_time": [0.010, 0.020],
-            "parse_time": [0.005, 0.008]
+            "parse_time": [0.005, 0.008],
         }
         metrics_exporter.registered_maps = {"map1": {}}
         metrics_exporter.prometheus.metrics = {"metric1": {}}
@@ -216,22 +234,30 @@ class TestEBPFMetricsExporterEnhanced:
         handle = mock_open.return_value.__enter__.return_value
         assert handle.write.called
 
-    @pytest.mark.parametrize("custom_metrics, map_metrics, expected_count", [
-        ({}, {}, 0),
-        ({'test_metric': 100}, {}, 1),
-        ({}, {'packet_counters': 200}, 1),
-        ({'test_metric': 100, 'another': 'invalid'}, {'packet_counters': 200}, 2)
-    ])
-    def test_export_metrics_with_validation(self, metrics_exporter,
-                                           custom_metrics, map_metrics, expected_count):
+    @pytest.mark.parametrize(
+        "custom_metrics, map_metrics, expected_count",
+        [
+            ({}, {}, 0),
+            ({"test_metric": 100}, {}, 1),
+            ({}, {"packet_counters": 200}, 1),
+            ({"test_metric": 100, "another": "invalid"}, {"packet_counters": 200}, 2),
+        ],
+    )
+    def test_export_metrics_with_validation(
+        self, metrics_exporter, custom_metrics, map_metrics, expected_count
+    ):
         """Test exporting metrics with validation."""
-        metrics_exporter._collect_all_metrics_with_validation = MagicMock(return_value=(map_metrics, []))
-        metrics_exporter.sanitizer.sanitize = MagicMock(side_effect=[
-            ({k: v for k, v in custom_metrics.items() if k == 'test_metric'}, []),
-            (map_metrics, [])
-        ])
+        metrics_exporter._collect_all_metrics_with_validation = MagicMock(
+            return_value=(map_metrics, [])
+        )
+        metrics_exporter.sanitizer.sanitize = MagicMock(
+            side_effect=[
+                ({k: v for k, v in custom_metrics.items() if k == "test_metric"}, []),
+                (map_metrics, []),
+            ]
+        )
 
-        with patch.object(metrics_exporter, 'prometheus') as mock_prometheus:
+        with patch.object(metrics_exporter, "prometheus") as mock_prometheus:
             mock_prometheus.metrics = {}
             mock_prometheus.create_counter = MagicMock()
             mock_prometheus.create_gauge = MagicMock()
@@ -240,16 +266,26 @@ class TestEBPFMetricsExporterEnhanced:
 
             assert len(exported) == expected_count
 
-    @pytest.mark.parametrize("read_result, expected_action", [
-        ("valid data", 1),
-        (subprocess.TimeoutExpired("bpftool", 5), 0),
-        (Exception("Test error"), 0)
-    ])
-    def test_map_read_with_timeout(self, metrics_exporter, read_result, expected_action):
+    @pytest.mark.parametrize(
+        "read_result, expected_action",
+        [
+            ("valid data", 1),
+            (subprocess.TimeoutExpired("bpftool", 5), 0),
+            (Exception("Test error"), 0),
+        ],
+    )
+    def test_map_read_with_timeout(
+        self, metrics_exporter, read_result, expected_action
+    ):
         """Test map reading with timeout and error handling."""
-        with patch.object(metrics_exporter, '_read_map_via_bpftool',
-                        return_value=read_result if not isinstance(read_result, Exception) else None,
-                        side_effect=read_result if isinstance(read_result, Exception) else None) as mock_read:
+        with patch.object(
+            metrics_exporter,
+            "_read_map_via_bpftool",
+            return_value=(
+                read_result if not isinstance(read_result, Exception) else None
+            ),
+            side_effect=read_result if isinstance(read_result, Exception) else None,
+        ) as mock_read:
 
             result = metrics_exporter._read_map_via_bpftool_with_timeout("test_map")
 
@@ -274,7 +310,7 @@ class TestEBPFMetricsExporterEnhanced:
             "packet_counters": 100,
             "latency_ms": 50.5,
             "interface_count": 5,
-            "invalid_metric": "not_a_number"
+            "invalid_metric": "not_a_number",
         }
 
         valid_metrics, results = metrics_exporter.sanitizer.sanitize(metrics)
@@ -287,7 +323,9 @@ class TestEBPFMetricsExporterEnhanced:
 
         assert len(results) == 4
         valid_results = [r for r in results if r.status == MetricValidationStatus.VALID]
-        invalid_results = [r for r in results if r.status != MetricValidationStatus.VALID]
+        invalid_results = [
+            r for r in results if r.status != MetricValidationStatus.VALID
+        ]
         assert len(valid_results) == 3
         assert len(invalid_results) == 1
 

@@ -1,18 +1,15 @@
 """
 Tests for Health Check module.
 """
-import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
 
-from src.core.health_check import (
-    HealthChecker,
-    HealthStatus,
-    CheckResult,
-    HealthCheckResponse,
-    check_memory,
-    check_disk,
-)
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from src.core.health_check import (CheckResult, HealthChecker,
+                                   HealthCheckResponse, HealthStatus,
+                                   check_disk, check_memory)
 
 
 class TestHealthStatus:
@@ -35,7 +32,7 @@ class TestCheckResult:
             status=HealthStatus.HEALTHY,
             latency_ms=10.5,
             message="OK",
-            details={"key": "value"}
+            details={"key": "value"},
         )
         d = result.to_dict()
 
@@ -175,7 +172,11 @@ class TestDefaultChecks:
         result = await check_memory()
 
         assert result.name == "memory"
-        assert result.status in [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY]
+        assert result.status in [
+            HealthStatus.HEALTHY,
+            HealthStatus.DEGRADED,
+            HealthStatus.UNHEALTHY,
+        ]
         assert "percent" in result.details or result.message
 
     @pytest.mark.asyncio
@@ -184,7 +185,11 @@ class TestDefaultChecks:
         result = await check_disk()
 
         assert result.name == "disk"
-        assert result.status in [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY]
+        assert result.status in [
+            HealthStatus.HEALTHY,
+            HealthStatus.DEGRADED,
+            HealthStatus.UNHEALTHY,
+        ]
 
 
 class TestHealthCheckResponse:
@@ -229,6 +234,7 @@ class TestHealthEndpointsIntegration:
     def test_health_endpoint(self):
         """Test basic health endpoint."""
         from fastapi.testclient import TestClient
+
         from src.core.app import app
 
         client = TestClient(app)
@@ -241,6 +247,7 @@ class TestHealthEndpointsIntegration:
     def test_health_live_endpoint(self):
         """Test liveness probe endpoint."""
         from fastapi.testclient import TestClient
+
         from src.core.app import app
 
         client = TestClient(app)
@@ -254,6 +261,7 @@ class TestHealthEndpointsIntegration:
     def test_health_detailed_endpoint(self):
         """Test detailed health endpoint."""
         from fastapi.testclient import TestClient
+
         from src.core.app import app
 
         client = TestClient(app)

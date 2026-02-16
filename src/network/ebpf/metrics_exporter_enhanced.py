@@ -9,24 +9,24 @@ This module builds upon the existing EBPFMetricsExporter to provide:
 5. Detailed error reporting for debugging
 """
 
-import logging
-import time
 import json
+import logging
 import struct
 import subprocess
-from typing import Dict, Any, Optional, List, Tuple
-from pathlib import Path
+import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.network.ebpf.metrics_exporter import EBPFMetricsExporter
-
 
 logger = logging.getLogger(__name__)
 
 
 class MetricValidationStatus(Enum):
     """Status of metric validation."""
+
     VALID = "valid"
     INVALID = "invalid"
     OUT_OF_RANGE = "out_of_range"
@@ -36,6 +36,7 @@ class MetricValidationStatus(Enum):
 @dataclass
 class MetricValidationResult:
     """Result of metric validation."""
+
     name: str
     value: Any
     status: MetricValidationStatus
@@ -48,6 +49,7 @@ class MetricValidationResult:
 @dataclass
 class ErrorCount:
     """Count of errors by type."""
+
     total: int = 0
     map_read: int = 0
     bpftool: int = 0
@@ -66,24 +68,24 @@ class MetricSanitizer:
             "packet_counters": {"min": 0, "max": 10**12, "type": int},
             "latency_ms": {"min": 0, "max": 60000, "type": (int, float)},
             "bytes_transferred": {"min": 0, "max": 10**15, "type": int},
-            "interface_count": {"min": 0, "max": 100, "type": int}
+            "interface_count": {"min": 0, "max": 100, "type": int},
         }
 
     def validate(self, name: str, value: Any) -> MetricValidationResult:
         """Validate a single metric."""
         # Check for exact match first
         rules = self.validation_rules.get(name, {})
-        
+
         # If no specific rules for the exact name, try different matching strategies
         if not rules:
             # Try matching metric type from name patterns
-            if 'packet' in name or 'counter' in name:
+            if "packet" in name or "counter" in name:
                 rules = self.validation_rules.get("packet_counters", {})
-            elif 'latency' in name or 'ms' in name:
+            elif "latency" in name or "ms" in name:
                 rules = self.validation_rules.get("latency_ms", {})
-            elif 'byte' in name or 'transfer' in name:
+            elif "byte" in name or "transfer" in name:
                 rules = self.validation_rules.get("bytes_transferred", {})
-            elif 'interface' in name or 'count' in name:
+            elif "interface" in name or "count" in name:
                 rules = self.validation_rules.get("interface_count", {})
 
         # Check type
@@ -94,7 +96,7 @@ class MetricSanitizer:
                 value=value,
                 status=MetricValidationStatus.TYPE_MISMATCH,
                 message=f"Expected type {expected_types}, got {type(value)}",
-                expected_type=expected_types
+                expected_type=expected_types,
             )
 
         # Check range
@@ -109,16 +111,16 @@ class MetricSanitizer:
                     status=MetricValidationStatus.OUT_OF_RANGE,
                     message=f"Value {value} outside valid range [{range_min}, {range_max}]",
                     range_min=range_min,
-                    range_max=range_max
+                    range_max=range_max,
                 )
 
         return MetricValidationResult(
-            name=name,
-            value=value,
-            status=MetricValidationStatus.VALID
+            name=name, value=value, status=MetricValidationStatus.VALID
         )
 
-    def sanitize(self, metrics: Dict[str, Any]) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
+    def sanitize(
+        self, metrics: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
         """
         Sanitize all metrics, returning valid metrics and validation results.
 
@@ -155,20 +157,19 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
     - Detailed error reporting
     """
 
-    def __init__(self, prometheus_port: int = 9090,
-                 max_queue_size: int = 1000,
-                 validation_rules: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        prometheus_port: int = 9090,
+        max_queue_size: int = 1000,
+        validation_rules: Optional[Dict[str, Any]] = None,
+    ):
         """Initialize enhanced metrics exporter."""
         super().__init__(prometheus_port)
         self.sanitizer = MetricSanitizer(validation_rules)
         self.error_count = ErrorCount()
         self.max_queue_size = max_queue_size
         self.metric_queue = []
-        self.performance_stats = {
-            "export_time": [],
-            "parse_time": [],
-            "read_time": []
-        }
+        self.performance_stats = {"export_time": [], "parse_time": [], "read_time": []}
 
         logger.info("Enhanced eBPF Metrics Exporter initialized")
 
@@ -183,21 +184,29 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
     def _update_error_count(self, error_type: str):
         """Update error counts."""
         if hasattr(self.error_count, error_type):
-            setattr(self.error_count, error_type, getattr(self.error_count, error_type) + 1)
+            setattr(
+                self.error_count, error_type, getattr(self.error_count, error_type) + 1
+            )
         self.error_count.total += 1
 
-    def _validate_and_sanitize(self, metrics: Dict[str, Any]) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
+    def _validate_and_sanitize(
+        self, metrics: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
         """Validate and sanitize metrics."""
         valid_metrics, validation_results = self.sanitizer.sanitize(metrics)
 
         # Count validation errors
-        invalid_count = sum(1 for r in validation_results if r.status != MetricValidationStatus.VALID)
+        invalid_count = sum(
+            1 for r in validation_results if r.status != MetricValidationStatus.VALID
+        )
         if invalid_count > 0:
             self._update_error_count("validation")
 
         return valid_metrics, validation_results
 
-    def _validate_map_metadata(self, map_name: str, program_name: str, map_type: str) -> bool:
+    def _validate_map_metadata(
+        self, map_name: str, program_name: str, map_type: str
+    ) -> bool:
         """
         Validate map metadata before registration.
 
@@ -218,8 +227,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
 
         return True
 
-    def register_map(self, map_name: str, program_name: str,
-                    map_type: str = "per_cpu_array") -> bool:
+    def register_map(
+        self, map_name: str, program_name: str, map_type: str = "per_cpu_array"
+    ) -> bool:
         """
         Register eBPF map with validation.
 
@@ -243,7 +253,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             self._update_error_count("validation")
             return False
 
-    def _collect_all_metrics_with_validation(self) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
+    def _collect_all_metrics_with_validation(
+        self,
+    ) -> Tuple[Dict[str, Any], List[MetricValidationResult]]:
         """Collect and validate metrics."""
         start_time = time.time()
 
@@ -257,7 +269,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             self._update_error_count("map_read")
             return {}, []
 
-    def export_metrics(self, custom_metrics: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    def export_metrics(
+        self, custom_metrics: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, float]:
         """
         Export all registered maps to Prometheus with validation.
 
@@ -277,7 +291,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
                 valid_custom = {}
 
             # Collect and validate map metrics
-            map_metrics, validation_results = self._collect_all_metrics_with_validation()
+            map_metrics, validation_results = (
+                self._collect_all_metrics_with_validation()
+            )
 
             # Combine all valid metrics
             all_metrics = {**valid_custom, **map_metrics}
@@ -287,21 +303,17 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             for metric_name, value in all_metrics.items():
                 try:
                     if metric_name not in self.prometheus.metrics:
-                        if 'total' in metric_name or 'count' in metric_name:
+                        if "total" in metric_name or "count" in metric_name:
                             self.prometheus.create_counter(
-                                metric_name,
-                                f"Custom metric: {metric_name}",
-                                []
+                                metric_name, f"Custom metric: {metric_name}", []
                             )
                         else:
                             self.prometheus.create_gauge(
-                                metric_name,
-                                f"Custom metric: {metric_name}",
-                                []
+                                metric_name, f"Custom metric: {metric_name}", []
                             )
 
                     metric = self.prometheus.metrics.get(metric_name)
-                    if metric and hasattr(metric, 'set'):
+                    if metric and hasattr(metric, "set"):
                         metric.set(value)
 
                     exported[metric_name] = value
@@ -335,8 +347,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             self._update_error_count("export")
             return {}
 
-    def _read_map_via_bpftool_with_timeout(self, map_name: str,
-                                           timeout: float = 5.0) -> Optional[Dict]:
+    def _read_map_via_bpftool_with_timeout(
+        self, map_name: str, timeout: float = 5.0
+    ) -> Optional[Dict]:
         """
         Read eBPF map data using bpftool with timeout and retries.
 
@@ -370,7 +383,7 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             "parsing": self.error_count.parsing,
             "validation": self.error_count.validation,
             "export": self.error_count.export,
-            "timeout": self.error_count.timeout
+            "timeout": self.error_count.timeout,
         }
 
     def get_performance_stats(self) -> Dict[str, Any]:
@@ -383,7 +396,7 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
                     "average_ms": sum(times) / len(times) * 1000,
                     "min_ms": min(times) * 1000,
                     "max_ms": max(times) * 1000,
-                    "latest_ms": times[-1] * 1000
+                    "latest_ms": times[-1] * 1000,
                 }
         return stats
 
@@ -410,7 +423,7 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             "overall": overall,
             "degradation": degradation,
             "errors": errors,
-            "performance": performance
+            "performance": performance,
         }
 
     def reset_error_counts(self):
@@ -418,7 +431,9 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
         self.error_count = ErrorCount()
         logger.info("Error counts reset")
 
-    def dump_diagnostics(self, file_path: str = "/tmp/ebpf_metrics_diagnostics.json"):
+    def dump_diagnostics(
+        self, file_path: str = "/tmp/ebpf_metrics_diagnostics.json"  # nosec B108
+    ):
         """
         Dump diagnostics information to file for debugging.
 
@@ -434,8 +449,8 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
             "performance": self.performance_stats,
             "config": {
                 "prometheus_port": self.prometheus.port,
-                "max_queue_size": self.max_queue_size
-            }
+                "max_queue_size": self.max_queue_size,
+            },
         }
 
         try:
@@ -456,6 +471,7 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
 def patch_exporter():
     """Monkey patch the base exporter with enhanced version."""
     from src.network.ebpf import metrics_exporter
+
     metrics_exporter.EBPFMetricsExporter = EBPFMetricsExporterEnhanced
     logger.info("EBPFMetricsExporter patched with enhanced version")
 
