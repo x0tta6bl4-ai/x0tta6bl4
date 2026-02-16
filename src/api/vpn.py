@@ -116,7 +116,7 @@ async def get_vpn_config(
         )
     except Exception as e:
         logger.error(f"Error generating VPN config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/config")

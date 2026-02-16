@@ -21,7 +21,7 @@ PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 POLYGONSCAN_API_KEY = os.getenv("POLYGONSCAN_API_KEY")
 
 # Default Hardhat Key for Localhost if not set
-if not PRIVATE_KEY and "127.0.0.1" in RPC_URL or "localhost" in RPC_URL:
+if not PRIVATE_KEY and ("127.0.0.1" in RPC_URL or "localhost" in RPC_URL):
     print("⚠️ Using default Hardhat Private Key for Localhost")
     PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
