@@ -21,48 +21,49 @@ Target Metrics:
 - Incident deduplication: >80% (new capability)
 """
 
+import hashlib
 import logging
-from typing import Dict, List, Optional, Tuple, Any, Set
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from collections import defaultdict, Counter
-import hashlib
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 try:
     from src.monitoring import record_causal_analysis
+
     MONITORING_AVAILABLE = True
 except ImportError:
     MONITORING_AVAILABLE = False
-    def record_causal_analysis(*args, **kwargs): pass
+
+    def record_causal_analysis(*args, **kwargs):
+        pass
 
 
 class IncidentSeverity(Enum):
     """Incident severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class RootCauseType(Enum):
-    """Root cause categories"""
-    RESOURCE_EXHAUSTION = "resource_exhaustion"  # CPU, memory
-    NETWORK_DEGRADATION = "network_degradation"   # Loss, latency, RSSI
-    SERVICE_FAILURE = "service_failure"           # Application crash, timeout
-    CONFIGURATION_ERROR = "configuration_error"   # Wrong settings
-    EXTERNAL_INTERFERENCE = "external_interference"  # WiFi, EMI
-    CASCADING_FAILURE = "cascading_failure"       # Chain reaction from other failure
-    HARDWARE_FAILURE = "hardware_failure"         # Link down, radio issue
-    UNKNOWN = "unknown"
+try:
+    from src.ml.causal_knowledge_base import CausalKnowledgeBase, RootCauseType
+except ImportError:
+    # Fallback or local import if needed
+    pass
 
 
 @dataclass
 class IncidentEvent:
     """Incident event information"""
+
     event_id: str
     timestamp: datetime
     node_id: str
@@ -73,7 +74,7 @@ class IncidentEvent:
     detected_by: str  # "graphsage", "heartbeat", "threshold", etc.
     anomaly_score: float
     description: Optional[str] = None
-    
+
     def get_fingerprint(self) -> str:
         """Get incident fingerprint for deduplication"""
         key = f"{self.node_id}:{self.anomaly_type}:{self.severity.value}"
@@ -83,6 +84,7 @@ class IncidentEvent:
 @dataclass
 class ServiceDependency:
     """Service dependency information"""
+
     service_id: str
     depends_on: Set[str] = field(default_factory=set)
     depends_on_confidence: Dict[str, float] = field(default_factory=dict)
@@ -93,6 +95,7 @@ class ServiceDependency:
 @dataclass
 class RootCause:
     """Root cause analysis result"""
+
     root_cause_id: str
     event_id: str
     node_id: Optional[str]
@@ -108,6 +111,7 @@ class RootCause:
 @dataclass
 class CausalAnalysisResult:
     """Complete causal analysis result"""
+
     incident_id: str
     root_causes: List[RootCause]
     primary_root_cause: Optional[RootCause]
@@ -120,92 +124,106 @@ class CausalAnalysisResult:
 
 class IncidentDeduplicator:
     """Deduplicates similar incidents within time window"""
-    
+
     def __init__(self, window_seconds: int = 300):
         self.window = timedelta(seconds=window_seconds)
         self.incident_history: Dict[str, List[IncidentEvent]] = defaultdict(list)
-    
-    def is_duplicate(self, incident: IncidentEvent, threshold: float = 0.85) -> Tuple[bool, Optional[str]]:
+
+    def is_duplicate(
+        self, incident: IncidentEvent, threshold: float = 0.85
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if incident is duplicate of recent incident.
-        
+
         Returns:
             (is_duplicate, original_incident_id if duplicate)
         """
         fingerprint = incident.get_fingerprint()
         cutoff_time = incident.timestamp - self.window
-        
+
         # Get recent incidents with same fingerprint
         recent = [
-            i for i in self.incident_history.get(fingerprint, [])
+            i
+            for i in self.incident_history.get(fingerprint, [])
             if i.timestamp > cutoff_time
         ]
-        
+
         if not recent:
             self.incident_history[fingerprint].append(incident)
             return False, None
-        
+
         # Check similarity to most recent
         most_recent = recent[-1]
         similarity = self._calculate_similarity(incident, most_recent)
-        
+
         if similarity >= threshold:
             return True, most_recent.event_id
-        
+
         self.incident_history[fingerprint].append(incident)
         return False, None
-    
-    def _calculate_similarity(self, incident1: IncidentEvent, incident2: IncidentEvent) -> float:
+
+    def _calculate_similarity(
+        self, incident1: IncidentEvent, incident2: IncidentEvent
+    ) -> float:
         """Calculate similarity between incidents (0.0-1.0)"""
         # Same anomaly type and severity
         type_match = 1.0 if incident1.anomaly_type == incident2.anomaly_type else 0.5
         severity_match = 1.0 if incident1.severity == incident2.severity else 0.7
-        
+
         # Same or adjacent node
         node_match = 1.0 if incident1.node_id == incident2.node_id else 0.6
-        
+
         # Metric similarity
         metric_similarity = self._calculate_metric_similarity(
-            incident1.metrics,
-            incident2.metrics
+            incident1.metrics, incident2.metrics
         )
-        
-        return (type_match * 0.25 + severity_match * 0.25 + 
-                node_match * 0.25 + metric_similarity * 0.25)
-    
-    def _calculate_metric_similarity(self, m1: Dict[str, float], m2: Dict[str, float]) -> float:
+
+        return (
+            type_match * 0.25
+            + severity_match * 0.25
+            + node_match * 0.25
+            + metric_similarity * 0.25
+        )
+
+    def _calculate_metric_similarity(
+        self, m1: Dict[str, float], m2: Dict[str, float]
+    ) -> float:
         """Calculate similarity of metrics"""
         if not m1 or not m2:
             return 0.5
-        
+
         similarities = []
         for key in set(m1.keys()) & set(m2.keys()):
             v1, v2 = m1[key], m2[key]
             if max(abs(v1), abs(v2)) > 0:
                 sim = 1.0 - abs(v1 - v2) / max(abs(v1), abs(v2))
                 similarities.append(max(0, sim))
-        
+
         return np.mean(similarities) if similarities else 0.5
 
 
 class ServiceTopologyLearner:
     """Learns service dependencies from incident data"""
-    
+
     def __init__(self):
         self.services: Dict[str, ServiceDependency] = {}
-        self.failure_correlations: Dict[Tuple[str, str], List[float]] = defaultdict(list)
-    
-    def update_service_topology(self, incident: IncidentEvent, related_incidents: List[IncidentEvent]):
+        self.failure_correlations: Dict[Tuple[str, str], List[float]] = defaultdict(
+            list
+        )
+
+    def update_service_topology(
+        self, incident: IncidentEvent, related_incidents: List[IncidentEvent]
+    ):
         """Update service topology based on incident pattern"""
         if not incident.service_id:
             return
-        
+
         service_id = incident.service_id
         if service_id not in self.services:
             self.services[service_id] = ServiceDependency(service_id=service_id)
-        
+
         service = self.services[service_id]
-        
+
         # Learn dependencies from related incidents
         for related in related_incidents:
             if related.service_id and related.service_id != service_id:
@@ -213,21 +231,24 @@ class ServiceTopologyLearner:
                 time_diff = (incident.timestamp - related.timestamp).total_seconds()
                 if 0 < time_diff < 10:  # Within 10 seconds
                     confidence = 1.0 - min(time_diff / 10.0, 0.3)
-                    
+
                     service.depends_on.add(related.service_id)
                     service.depends_on_confidence[related.service_id] = max(
                         service.depends_on_confidence.get(related.service_id, 0),
-                        confidence
+                        confidence,
                     )
-    
-    def get_likely_dependencies(self, service_id: str, min_confidence: float = 0.5) -> Set[str]:
+
+    def get_likely_dependencies(
+        self, service_id: str, min_confidence: float = 0.5
+    ) -> Set[str]:
         """Get likely dependencies for a service"""
         if service_id not in self.services:
             return set()
-        
+
         service = self.services[service_id]
         return {
-            dep for dep, conf in service.depends_on_confidence.items()
+            dep
+            for dep, conf in service.depends_on_confidence.items()
             if conf >= min_confidence
         }
 
@@ -235,7 +256,7 @@ class ServiceTopologyLearner:
 class EnhancedCausalAnalysisEngine:
     """
     Enhanced Causal Analysis Engine v2
-    
+
     Key improvements:
     1. Incident deduplication
     2. Service topology learning
@@ -243,44 +264,47 @@ class EnhancedCausalAnalysisEngine:
     4. ML-based root cause classification
     5. Better confidence scoring
     """
-    
+
     def __init__(
         self,
         correlation_window_seconds: int = 300,
         min_confidence: float = 0.5,
         enable_deduplication: bool = True,
-        enable_topology_learning: bool = True
+        enable_topology_learning: bool = True,
     ):
         self.correlation_window = timedelta(seconds=correlation_window_seconds)
         self.min_confidence = min_confidence
-        
+
         # Core components
         self.incidents: Dict[str, IncidentEvent] = {}
         self.analysis_results: Dict[str, CausalAnalysisResult] = {}
         self.service_graph: Dict[str, Set[str]] = defaultdict(set)
-        
+
         # Enhanced components
         self.deduplicator = IncidentDeduplicator(correlation_window_seconds)
         self.topology_learner = ServiceTopologyLearner()
-        
+
         # Configuration
         self.enable_deduplication = enable_deduplication
         self.enable_topology_learning = enable_topology_learning
-        
+
         # Temporal pattern tracking
         self.temporal_patterns: Dict[str, List[datetime]] = defaultdict(list)
         
+        # Knowledge Base
+        self.knowledge_base = CausalKnowledgeBase()
+
         logger.info(
             f"Enhanced Causal Analysis Engine v2 initialized: "
             f"window={correlation_window_seconds}s, "
             f"dedup={enable_deduplication}, "
             f"topology_learn={enable_topology_learning}"
         )
-    
+
     def add_incident(self, incident: IncidentEvent) -> Tuple[bool, Optional[str]]:
         """
         Add incident to analysis queue.
-        
+
         Returns:
             (is_new_incident, incident_id_or_duplicate_of)
         """
@@ -290,55 +314,53 @@ class EnhancedCausalAnalysisEngine:
             if is_dup:
                 logger.info(f"Incident {incident.event_id} is duplicate of {dup_of}")
                 return False, dup_of
-        
+
         # Store incident
         self.incidents[incident.event_id] = incident
-        
+
         # Track temporal pattern
         self.temporal_patterns[f"{incident.node_id}:{incident.anomaly_type}"].append(
             incident.timestamp
         )
-        
+
         return True, incident.event_id
-    
+
     def analyze(self, incident_id: str) -> CausalAnalysisResult:
         """
         Perform causal analysis on incident.
-        
+
         Returns:
             Complete causal analysis result with root causes
         """
         import time
+
         start_time = time.time()
-        
+
         if incident_id not in self.incidents:
             logger.error(f"Incident {incident_id} not found")
             return self._empty_result(incident_id)
-        
+
         incident = self.incidents[incident_id]
-        
+
         # Find related incidents
         related_incidents = self._find_related_incidents(incident)
-        
+
         # Update service topology
         if self.enable_topology_learning:
             self.topology_learner.update_service_topology(incident, related_incidents)
-        
+
         # Identify root causes
-        root_causes = self._identify_root_causes_enhanced(
-            incident,
-            related_incidents
-        )
-        
+        root_causes = self._identify_root_causes_enhanced(incident, related_incidents)
+
         # Sort by confidence
         root_causes.sort(key=lambda x: x.confidence, reverse=True)
-        
+
         # Build event chain
         event_chain = self._build_event_chain(incident, related_incidents)
-        
+
         # Calculate overall confidence
         overall_confidence = self._calculate_overall_confidence(root_causes)
-        
+
         # Create result
         result = CausalAnalysisResult(
             incident_id=incident_id,
@@ -346,100 +368,106 @@ class EnhancedCausalAnalysisEngine:
             primary_root_cause=root_causes[0] if root_causes else None,
             analysis_time_ms=(time.time() - start_time) * 1000,
             confidence=overall_confidence,
-            event_chain=event_chain
+            event_chain=event_chain,
         )
-        
+
         # Store result
         self.analysis_results[incident_id] = result
-        
+
         # Record metrics
         record_causal_analysis(
-            result.analysis_time_ms,
-            len(root_causes),
-            result.confidence
+            result.analysis_time_ms, len(root_causes), result.confidence
         )
-        
+
         return result
-    
+
     def _find_related_incidents(self, incident: IncidentEvent) -> List[IncidentEvent]:
         """Find incidents related to given incident"""
         related = []
         cutoff_time = incident.timestamp - self.correlation_window
-        
+
         for other_id, other_incident in self.incidents.items():
             if other_id == incident.event_id:
                 continue
-            
+
             if other_incident.timestamp < cutoff_time:
                 continue
-            
+
             # Check correlation criteria
             correlation_score = self._calculate_correlation(incident, other_incident)
             if correlation_score > self.min_confidence:
                 related.append(other_incident)
-        
+
         return sorted(related, key=lambda x: (x.timestamp, x.severity.value))
-    
-    def _calculate_correlation(self, incident1: IncidentEvent, incident2: IncidentEvent) -> float:
+
+    def _calculate_correlation(
+        self, incident1: IncidentEvent, incident2: IncidentEvent
+    ) -> float:
         """Calculate correlation between two incidents"""
         score = 0.0
         weights = 0.0
-        
+
         # Temporal correlation
         time_diff = abs((incident1.timestamp - incident2.timestamp).total_seconds())
         if time_diff < 60:
             temporal_score = 1.0 - (time_diff / 60.0)
             score += temporal_score * 0.3
             weights += 0.3
-        
+
         # Service dependency correlation
         if incident1.service_id and incident2.service_id:
-            deps = self.topology_learner.get_likely_dependencies(incident1.service_id, 0.4)
+            deps = self.topology_learner.get_likely_dependencies(
+                incident1.service_id, 0.4
+            )
             if incident2.service_id in deps:
                 score += 0.7 * 0.4
                 weights += 0.4
-        
+
         # Metric correlation
-        metric_corr = self._calculate_metric_correlation(incident1.metrics, incident2.metrics)
+        metric_corr = self._calculate_metric_correlation(
+            incident1.metrics, incident2.metrics
+        )
         score += metric_corr * 0.3
         weights += 0.3
-        
+
         # Node proximity correlation
         if incident1.node_id == incident2.node_id:
             score += 0.5 * 0.1
             weights += 0.1
-        
+
         return (score / weights) if weights > 0 else 0.0
-    
-    def _calculate_metric_correlation(self, m1: Dict[str, float], m2: Dict[str, float]) -> float:
+
+    def _calculate_metric_correlation(
+        self, m1: Dict[str, float], m2: Dict[str, float]
+    ) -> float:
         """Calculate correlation between metric sets"""
         if not m1 or not m2:
             return 0.0
-        
+
         # Check if same metrics changed together
         common_metrics = set(m1.keys()) & set(m2.keys())
         if not common_metrics:
             return 0.0
-        
+
         correlations = []
         for metric in common_metrics:
             # Both elevated = correlated
-            if (m1[metric] > 70 and m2[metric] > 70) or (m1[metric] < 30 and m2[metric] < 30):
+            if (m1[metric] > 70 and m2[metric] > 70) or (
+                m1[metric] < 30 and m2[metric] < 30
+            ):
                 correlations.append(0.8)
             # Similar direction = somewhat correlated
             elif (m1[metric] > 50) == (m2[metric] > 50):
                 correlations.append(0.5)
-        
+
         return np.mean(correlations) if correlations else 0.0
-    
+
     def _identify_root_causes_enhanced(
-        self,
-        incident: IncidentEvent,
-        related_incidents: List[IncidentEvent]
+        self, incident: IncidentEvent, related_incidents: List[IncidentEvent]
     ) -> List[RootCause]:
         """
         Identify root causes using enhanced heuristics.
-        
+
         Combines:
         1. Metric-based classification
         2. Temporal analysis
@@ -447,219 +475,157 @@ class EnhancedCausalAnalysisEngine:
         4. Incident history analysis
         """
         root_causes = []
-        
+
         # Analyze metrics
         metric_causes = self._classify_by_metrics(incident)
         root_causes.extend(metric_causes)
-        
+
         # Analyze temporal patterns
         temporal_causes = self._analyze_temporal_patterns(incident)
         root_causes.extend(temporal_causes)
-        
+
         # Analyze service dependencies
         if incident.service_id:
             service_causes = self._analyze_service_dependencies(
-                incident.service_id,
-                related_incidents
+                incident.service_id, related_incidents
             )
             root_causes.extend(service_causes)
-        
+
         # Cascade analysis
         if related_incidents:
             cascade_cause = self._detect_cascading_failure(incident, related_incidents)
             if cascade_cause:
                 root_causes.append(cascade_cause)
-        
+
         # Filter and rank
         root_causes = [rc for rc in root_causes if rc.confidence >= self.min_confidence]
         root_causes.sort(key=lambda x: x.confidence, reverse=True)
-        
+
         return root_causes[:5]  # Top 5 root causes
-    
+
     def _classify_by_metrics(self, incident: IncidentEvent) -> List[RootCause]:
-        """Classify root causes based on metrics"""
+        """Classify root causes based on metrics using Knowledge Base"""
         causes = []
         metrics = incident.metrics
-        
-        # Resource exhaustion
-        if metrics.get('cpu_percent', 0) > 90:
-            causes.append(RootCause(
-                root_cause_id=f"{incident.event_id}_cpu",
-                event_id=incident.event_id,
-                node_id=incident.node_id,
-                root_cause_type=RootCauseType.RESOURCE_EXHAUSTION,
-                confidence=0.9 if metrics['cpu_percent'] > 95 else 0.8,
-                explanation="CPU utilization critically high",
-                contributing_factors=[f"CPU at {metrics['cpu_percent']:.0f}%"],
-                remediation_suggestions=[
-                    "Restart node to clear CPU load",
-                    "Identify and terminate CPU-heavy processes",
-                    "Check for runaway loops in application"
-                ]
-            ))
-        
-        if metrics.get('memory_percent', 0) > 85:
-            causes.append(RootCause(
-                root_cause_id=f"{incident.event_id}_mem",
-                event_id=incident.event_id,
-                node_id=incident.node_id,
-                root_cause_type=RootCauseType.RESOURCE_EXHAUSTION,
-                confidence=0.85 if metrics['memory_percent'] > 95 else 0.75,
-                explanation="Memory utilization critically high",
-                contributing_factors=[f"Memory at {metrics['memory_percent']:.0f}%"],
-                remediation_suggestions=[
-                    "Restart node to free memory",
-                    "Check for memory leaks in application",
-                    "Reduce buffer/cache size if configurable"
-                ]
-            ))
-        
-        # Network degradation
-        if metrics.get('loss_rate', 0) > 0.05:
-            causes.append(RootCause(
-                root_cause_id=f"{incident.event_id}_loss",
-                event_id=incident.event_id,
-                node_id=incident.node_id,
-                root_cause_type=RootCauseType.NETWORK_DEGRADATION,
-                confidence=0.85,
-                explanation=f"High packet loss rate ({metrics['loss_rate']*100:.1f}%)",
-                contributing_factors=[f"Loss rate: {metrics['loss_rate']*100:.1f}%"],
-                remediation_suggestions=[
-                    "Check for RF interference (WiFi, microwave, etc)",
-                    "Try switching to different channel",
-                    "Verify antenna connection and orientation",
-                    "Restart wireless interface"
-                ]
-            ))
-        
-        if metrics.get('rssi', -70) < -85:
-            causes.append(RootCause(
-                root_cause_id=f"{incident.event_id}_rssi",
-                event_id=incident.event_id,
-                node_id=incident.node_id,
-                root_cause_type=RootCauseType.NETWORK_DEGRADATION,
-                confidence=0.75,
-                explanation=f"Signal strength very weak ({metrics['rssi']:.0f}dBm)",
-                contributing_factors=[f"RSSI: {metrics['rssi']:.0f}dBm"],
-                remediation_suggestions=[
-                    "Move node closer to access point",
-                    "Check line of sight and remove obstacles",
-                    "Consider adding relay node"
-                ]
-            ))
-        
-        if metrics.get('latency', 0) > 500:
-            causes.append(RootCause(
-                root_cause_id=f"{incident.event_id}_latency",
-                event_id=incident.event_id,
-                node_id=incident.node_id,
-                root_cause_type=RootCauseType.NETWORK_DEGRADATION,
-                confidence=0.8,
-                explanation=f"Network latency excessive ({metrics['latency']:.0f}ms)",
-                contributing_factors=[f"Latency: {metrics['latency']:.0f}ms"],
-                remediation_suggestions=[
-                    "Check for congestion on shared links",
-                    "Verify routing is optimal",
-                    "Consider QoS configuration"
-                ]
-            ))
-        
+
+        # Use Knowledge Base to evaluate metrics
+        matches = self.knowledge_base.evaluate(metrics)
+
+        for match in matches:
+            rule = match["rule"]
+            causes.append(
+                RootCause(
+                    root_cause_id=f"{incident.event_id}_{rule.rule_id}",
+                    event_id=incident.event_id,
+                    node_id=incident.node_id,
+                    root_cause_type=rule.cause_type,
+                    confidence=match["confidence"],
+                    explanation=match["explanation"],
+                    contributing_factors=[match["explanation"]],
+                    remediation_suggestions=rule.remediation_suggestions
+                )
+            )
+
         return causes
-    
+
     def _analyze_temporal_patterns(self, incident: IncidentEvent) -> List[RootCause]:
         """Analyze temporal patterns (recurring issues)"""
         causes = []
-        
+
         pattern_key = f"{incident.node_id}:{incident.anomaly_type}"
         occurrences = self.temporal_patterns.get(pattern_key, [])
-        
+
         # Filter to last 24 hours
-        recent = [t for t in occurrences if (datetime.now() - t).total_seconds() < 86400]
-        
+        recent = [
+            t for t in occurrences if (datetime.now() - t).total_seconds() < 86400
+        ]
+
         if len(recent) >= 3:
             # Calculate interval between occurrences
             intervals = []
             for i in range(1, len(recent)):
-                intervals.append((recent[i] - recent[i-1]).total_seconds())
-            
+                intervals.append((recent[i] - recent[i - 1]).total_seconds())
+
             if intervals:
                 avg_interval = np.mean(intervals)
                 std_interval = np.std(intervals)
-                
+
                 # Recurring pattern detection
                 if std_interval < avg_interval * 0.3:  # Regular pattern
-                    causes.append(RootCause(
-                        root_cause_id=f"{incident.event_id}_pattern",
-                        event_id=incident.event_id,
-                        node_id=incident.node_id,
-                        root_cause_type=RootCauseType.CONFIGURATION_ERROR,
-                        confidence=0.7,
-                        explanation=f"Recurring issue pattern detected (every {avg_interval:.0f}s)",
-                        contributing_factors=[
-                            f"Issue occurred {len(recent)} times in 24h",
-                            f"Regular interval: {avg_interval:.0f}±{std_interval:.0f}s"
-                        ],
-                        remediation_suggestions=[
-                            "Check for scheduled tasks or timers",
-                            "Look for periodic garbage collection",
-                            "Review cron jobs and scheduled services"
-                        ],
-                        temporal_pattern=f"Every {avg_interval:.0f}s"
-                    ))
-        
+                    causes.append(
+                        RootCause(
+                            root_cause_id=f"{incident.event_id}_pattern",
+                            event_id=incident.event_id,
+                            node_id=incident.node_id,
+                            root_cause_type=RootCauseType.CONFIGURATION_ERROR,
+                            confidence=0.7,
+                            explanation=f"Recurring issue pattern detected (every {avg_interval:.0f}s)",
+                            contributing_factors=[
+                                f"Issue occurred {len(recent)} times in 24h",
+                                f"Regular interval: {avg_interval:.0f}±{std_interval:.0f}s",
+                            ],
+                            remediation_suggestions=[
+                                "Check for scheduled tasks or timers",
+                                "Look for periodic garbage collection",
+                                "Review cron jobs and scheduled services",
+                            ],
+                            temporal_pattern=f"Every {avg_interval:.0f}s",
+                        )
+                    )
+
         return causes
-    
+
     def _analyze_service_dependencies(
-        self,
-        service_id: str,
-        related_incidents: List[IncidentEvent]
+        self, service_id: str, related_incidents: List[IncidentEvent]
     ) -> List[RootCause]:
         """Analyze service dependency failures"""
         causes = []
-        
+
         # Find failed dependencies
         failed_deps = [
-            i for i in related_incidents
-            if i.service_id and i.timestamp < self.incidents[list(self.incidents.keys())[-1]].timestamp
+            i
+            for i in related_incidents
+            if i.service_id
+            and i.timestamp < self.incidents[list(self.incidents.keys())[-1]].timestamp
         ]
-        
+
         for failed_dep in failed_deps[:2]:  # Top 2 dependency failures
-            causes.append(RootCause(
-                root_cause_id=f"{service_id}_dep_{failed_dep.service_id}",
-                event_id=service_id,
-                node_id=failed_dep.node_id,
-                root_cause_type=RootCauseType.CASCADING_FAILURE,
-                confidence=0.7,
-                explanation=f"Cascading failure from dependent service {failed_dep.service_id}",
-                contributing_factors=[
-                    f"Service {failed_dep.service_id} failed first",
-                    f"This service depends on it"
-                ],
-                remediation_suggestions=[
-                    f"Restart service {failed_dep.service_id}",
-                    f"Monitor service {failed_dep.service_id} for stability",
-                    "Consider adding redundancy"
-                ],
-                affected_services=[failed_dep.service_id]
-            ))
-        
+            causes.append(
+                RootCause(
+                    root_cause_id=f"{service_id}_dep_{failed_dep.service_id}",
+                    event_id=service_id,
+                    node_id=failed_dep.node_id,
+                    root_cause_type=RootCauseType.CASCADING_FAILURE,
+                    confidence=0.7,
+                    explanation=f"Cascading failure from dependent service {failed_dep.service_id}",
+                    contributing_factors=[
+                        f"Service {failed_dep.service_id} failed first",
+                        f"This service depends on it",
+                    ],
+                    remediation_suggestions=[
+                        f"Restart service {failed_dep.service_id}",
+                        f"Monitor service {failed_dep.service_id} for stability",
+                        "Consider adding redundancy",
+                    ],
+                    affected_services=[failed_dep.service_id],
+                )
+            )
+
         return causes
-    
+
     def _detect_cascading_failure(
-        self,
-        incident: IncidentEvent,
-        related_incidents: List[IncidentEvent]
+        self, incident: IncidentEvent, related_incidents: List[IncidentEvent]
     ) -> Optional[RootCause]:
         """Detect cascading failures (chain reactions)"""
         # Find the earliest incident
         all_incidents = [incident] + related_incidents
         all_incidents.sort(key=lambda x: x.timestamp)
-        
+
         if len(all_incidents) < 3:
             return None
-        
+
         first_incident = all_incidents[0]
-        
+
         # If current incident happened after a cascade
         if (incident.timestamp - first_incident.timestamp).total_seconds() > 5:
             return RootCause(
@@ -671,42 +637,42 @@ class EnhancedCausalAnalysisEngine:
                 explanation=f"Part of cascading failure starting from {first_incident.node_id}",
                 contributing_factors=[
                     f"Initial failure on {first_incident.node_id}",
-                    f"{len(all_incidents)} related incidents detected"
+                    f"{len(all_incidents)} related incidents detected",
                 ],
                 remediation_suggestions=[
                     f"Fix root cause on {first_incident.node_id}",
                     "Implement failure isolation mechanisms",
-                    "Add circuit breakers to prevent cascade"
-                ]
+                    "Add circuit breakers to prevent cascade",
+                ],
             )
-        
+
         return None
-    
+
     def _build_event_chain(
-        self,
-        incident: IncidentEvent,
-        related_incidents: List[IncidentEvent]
+        self, incident: IncidentEvent, related_incidents: List[IncidentEvent]
     ) -> List[Tuple[str, str]]:
         """Build temporal chain of events"""
         all_incidents = [incident] + related_incidents
         all_incidents.sort(key=lambda x: x.timestamp)
-        
+
         return [(i.node_id, i.anomaly_type) for i in all_incidents[:10]]
-    
+
     def _calculate_overall_confidence(self, root_causes: List[RootCause]) -> float:
         """Calculate weighted overall confidence"""
         if not root_causes:
             return 0.0
-        
+
         # Weighted average of top 3
         weights = [0.5, 0.3, 0.2]
         confidences = [rc.confidence for rc in root_causes[:3]]
-        
-        total_weight = sum(weights[:len(confidences)])
-        weighted_sum = sum(c * w for c, w in zip(confidences, weights[:len(confidences)]))
-        
+
+        total_weight = sum(weights[: len(confidences)])
+        weighted_sum = sum(
+            c * w for c, w in zip(confidences, weights[: len(confidences)])
+        )
+
         return weighted_sum / total_weight if total_weight > 0 else 0.0
-    
+
     def _empty_result(self, incident_id: str) -> CausalAnalysisResult:
         """Return empty result"""
         return CausalAnalysisResult(
@@ -715,7 +681,7 @@ class EnhancedCausalAnalysisEngine:
             primary_root_cause=None,
             analysis_time_ms=0.0,
             confidence=0.0,
-            event_chain=[]
+            event_chain=[],
         )
 
 
@@ -726,5 +692,5 @@ def create_enhanced_causal_analyzer_for_mapek() -> EnhancedCausalAnalysisEngine:
         correlation_window_seconds=300,
         min_confidence=0.5,
         enable_deduplication=True,
-        enable_topology_learning=True
+        enable_topology_learning=True,
     )

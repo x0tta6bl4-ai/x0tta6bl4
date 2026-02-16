@@ -1,21 +1,19 @@
 """
 Tests for Geo-Sharded Proxy Pool Manager.
 """
-import pytest
+
 import asyncio
 import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from src.network.geo_proxy_sharding import (
-    Region,
-    RegionalQuota,
-    RegionalProxyPool,
-    GeoProxyShardManager,
-    GeoCrossRegionLoadBalancer,
-    get_region_latency,
-    create_geo_proxy_manager,
-)
+import pytest
+
+from src.network.geo_proxy_sharding import (GeoCrossRegionLoadBalancer,
+                                            GeoProxyShardManager, Region,
+                                            RegionalProxyPool, RegionalQuota,
+                                            create_geo_proxy_manager,
+                                            get_region_latency)
 from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus
 
 
@@ -76,9 +74,7 @@ class TestRegionalQuota:
     def test_rate_limiting(self):
         """Test rate limiting activation."""
         quota = RegionalQuota(
-            region=Region.US_EAST,
-            max_requests_per_minute=10,
-            max_requests_per_hour=100
+            region=Region.US_EAST, max_requests_per_minute=10, max_requests_per_hour=100
         )
 
         # Make requests up to limit
@@ -92,7 +88,7 @@ class TestRegionalQuota:
         quota = RegionalQuota(
             region=Region.US_EAST,
             max_requests_per_minute=100,
-            max_requests_per_hour=1000
+            max_requests_per_hour=1000,
         )
 
         for _ in range(50):
@@ -126,7 +122,7 @@ class TestRegionalProxyPool:
             id="test-proxy",
             host="proxy.example.com",
             port=8080,
-            status=ProxyStatus.HEALTHY
+            status=ProxyStatus.HEALTHY,
         )
         return proxy
 
@@ -144,7 +140,7 @@ class TestRegionalProxyPool:
             id="unhealthy",
             host="proxy2.example.com",
             port=8080,
-            status=ProxyStatus.UNHEALTHY
+            status=ProxyStatus.UNHEALTHY,
         )
 
         pool.add_proxy(healthy_proxy)
@@ -208,7 +204,7 @@ class TestGeoProxyShardManager:
             id="proxy-1",
             host="proxy.example.com",
             port=8080,
-            status=ProxyStatus.HEALTHY
+            status=ProxyStatus.HEALTHY,
         )
 
     def test_initialization(self, manager):
@@ -287,8 +283,7 @@ class TestGeoProxyShardManager:
 
         # Request US region - should failover to EU
         proxy = await manager.select_proxy(
-            preferred_region=Region.US_EAST,
-            allow_failover=True
+            preferred_region=Region.US_EAST, allow_failover=True
         )
 
         assert proxy is not None
@@ -300,8 +295,7 @@ class TestGeoProxyShardManager:
         manager.add_proxy_to_region(sample_proxy, Region.EU_WEST)
 
         proxy = await manager.select_proxy(
-            preferred_region=Region.US_EAST,
-            allow_failover=False
+            preferred_region=Region.US_EAST, allow_failover=False
         )
 
         assert proxy is None
@@ -349,7 +343,7 @@ class TestGeoCrossRegionLoadBalancer:
                 id=f"proxy-{region.value}",
                 host=f"{region.value}.example.com",
                 port=8080,
-                status=ProxyStatus.HEALTHY
+                status=ProxyStatus.HEALTHY,
             )
             proxy.success_count = 10
             manager.add_proxy_to_region(proxy, region)
@@ -361,7 +355,7 @@ class TestGeoCrossRegionLoadBalancer:
         return GeoCrossRegionLoadBalancer(
             shard_manager=manager,
             strategy=GeoCrossRegionLoadBalancer.Strategy.LOCALITY_FIRST,
-            local_region=Region.US_EAST
+            local_region=Region.US_EAST,
         )
 
     @pytest.mark.asyncio
@@ -376,7 +370,7 @@ class TestGeoCrossRegionLoadBalancer:
         """Test round-robin strategy."""
         balancer = GeoCrossRegionLoadBalancer(
             shard_manager=manager,
-            strategy=GeoCrossRegionLoadBalancer.Strategy.ROUND_ROBIN
+            strategy=GeoCrossRegionLoadBalancer.Strategy.ROUND_ROBIN,
         )
 
         regions = []
@@ -397,7 +391,7 @@ class TestGeoCrossRegionLoadBalancer:
 
         balancer = GeoCrossRegionLoadBalancer(
             shard_manager=manager,
-            strategy=GeoCrossRegionLoadBalancer.Strategy.LATENCY_BASED
+            strategy=GeoCrossRegionLoadBalancer.Strategy.LATENCY_BASED,
         )
 
         region = await balancer.select_region()
@@ -409,7 +403,7 @@ class TestGeoCrossRegionLoadBalancer:
         """Test cost-optimized strategy."""
         balancer = GeoCrossRegionLoadBalancer(
             shard_manager=manager,
-            strategy=GeoCrossRegionLoadBalancer.Strategy.COST_OPTIMIZED
+            strategy=GeoCrossRegionLoadBalancer.Strategy.COST_OPTIMIZED,
         )
         balancer.region_costs[Region.US_EAST] = 0.5
         balancer.region_costs[Region.EU_WEST] = 1.5
@@ -443,7 +437,7 @@ class TestCreateGeoProxyManager:
             },
             "domain_affinity": {
                 "google.com": "us-east-1",
-            }
+            },
         }
 
         manager = create_geo_proxy_manager(config, default_region="us-east-1")
@@ -474,7 +468,7 @@ class TestGeoShardingIntegration:
                 id=f"proxy-{i}",
                 host=f"proxy{i}.example.com",
                 port=8080,
-                status=ProxyStatus.HEALTHY
+                status=ProxyStatus.HEALTHY,
             )
             proxy.success_count = 10
             manager.add_proxy_to_region(proxy, region)
@@ -494,8 +488,7 @@ class TestGeoShardingIntegration:
     async def test_health_degradation_failover(self):
         """Test failover when primary region health degrades."""
         manager = GeoProxyShardManager(
-            default_region=Region.US_EAST,
-            failover_threshold=0.5
+            default_region=Region.US_EAST, failover_threshold=0.5
         )
 
         # Add healthy proxy to backup region
@@ -503,7 +496,7 @@ class TestGeoShardingIntegration:
             id="backup",
             host="backup.example.com",
             port=8080,
-            status=ProxyStatus.HEALTHY
+            status=ProxyStatus.HEALTHY,
         )
         backup_proxy.success_count = 100
         manager.add_proxy_to_region(backup_proxy, Region.EU_WEST)
@@ -514,15 +507,14 @@ class TestGeoShardingIntegration:
             id="primary",
             host="primary.example.com",
             port=8080,
-            status=ProxyStatus.UNHEALTHY
+            status=ProxyStatus.UNHEALTHY,
         )
         manager.add_proxy_to_region(primary_proxy, Region.US_EAST)
         manager.pools[Region.US_EAST].update_metrics()
 
         # Request should fail over
         proxy = await manager.select_proxy(
-            preferred_region=Region.US_EAST,
-            allow_failover=True
+            preferred_region=Region.US_EAST, allow_failover=True
         )
 
         assert proxy is not None

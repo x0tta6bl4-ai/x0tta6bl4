@@ -6,7 +6,7 @@ import ssl
 import tempfile
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, List
+from typing import List, Optional
 
 from ..workload import X509SVID
 
@@ -59,7 +59,9 @@ class MTLSContext:
                 pass  # Ignore errors on close
 
 
-def build_mtls_context(identity: X509SVID, role: TLSRole = TLSRole.CLIENT) -> MTLSContext:
+def build_mtls_context(
+    identity: X509SVID, role: TLSRole = TLSRole.CLIENT
+) -> MTLSContext:
     """Build a functional mTLS-capable TLS context for the given identity.
 
     The returned context is configured for TLS 1.3 and mutual
@@ -67,7 +69,9 @@ def build_mtls_context(identity: X509SVID, role: TLSRole = TLSRole.CLIENT) -> MT
     private key from the given ``identity`` to temporary files and loads them
     into the ``ssl.SSLContext``.
     """
-    purpose = ssl.Purpose.SERVER_AUTH if role is TLSRole.CLIENT else ssl.Purpose.CLIENT_AUTH
+    purpose = (
+        ssl.Purpose.SERVER_AUTH if role is TLSRole.CLIENT else ssl.Purpose.CLIENT_AUTH
+    )
     ctx = ssl.create_default_context(purpose=purpose)
 
     # Prefer TLS 1.3 where available.
@@ -85,13 +89,17 @@ def build_mtls_context(identity: X509SVID, role: TLSRole = TLSRole.CLIENT) -> MT
     try:
         # Create temporary files to hold the cert and key.
         # These files will be managed by the returned MTLSContext object.
-        cert_file = tempfile.NamedTemporaryFile(mode='w+b', delete=False, prefix="spiffe-cert-", suffix=".pem")
-        key_file = tempfile.NamedTemporaryFile(mode='w+b', delete=False, prefix="spiffe-key-", suffix=".pem")
+        cert_file = tempfile.NamedTemporaryFile(
+            mode="w+b", delete=False, prefix="spiffe-cert-", suffix=".pem"
+        )
+        key_file = tempfile.NamedTemporaryFile(
+            mode="w+b", delete=False, prefix="spiffe-key-", suffix=".pem"
+        )
 
         # The certificate chain is a list of DER-encoded bytes. Concatenate them for the PEM file.
         for cert_bytes in identity.cert_chain:
             cert_file.write(cert_bytes)
-            cert_file.write(b'\n')
+            cert_file.write(b"\n")
         cert_file.flush()
 
         key_file.write(identity.private_key)

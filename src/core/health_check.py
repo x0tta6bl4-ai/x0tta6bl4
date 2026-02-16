@@ -8,20 +8,22 @@ Provides detailed health status including:
 - External service status
 - Resource utilization
 """
+
 import asyncio
 import logging
 import os
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, Dict, List, Any, Callable
 from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class HealthStatus(Enum):
     """Health check status levels."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -30,6 +32,7 @@ class HealthStatus(Enum):
 @dataclass
 class CheckResult:
     """Result of a single health check."""
+
     name: str
     status: HealthStatus
     latency_ms: float
@@ -49,6 +52,7 @@ class CheckResult:
 @dataclass
 class HealthCheckResponse:
     """Complete health check response."""
+
     status: HealthStatus
     version: str
     timestamp: str
@@ -116,14 +120,12 @@ class HealthChecker:
     async def run_all_checks(self, timeout: float = 5.0) -> HealthCheckResponse:
         """Run all health checks with timeout."""
         tasks = [
-            self.run_check(name, check_fn)
-            for name, check_fn in self._checks.items()
+            self.run_check(name, check_fn) for name, check_fn in self._checks.items()
         ]
 
         try:
             results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=timeout
+                asyncio.gather(*tasks, return_exceptions=True), timeout=timeout
             )
         except asyncio.TimeoutError:
             results = [
@@ -141,12 +143,14 @@ class HealthChecker:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 name = list(self._checks.keys())[i]
-                check_results.append(CheckResult(
-                    name=name,
-                    status=HealthStatus.UNHEALTHY,
-                    latency_ms=0,
-                    message=str(result),
-                ))
+                check_results.append(
+                    CheckResult(
+                        name=name,
+                        status=HealthStatus.UNHEALTHY,
+                        latency_ms=0,
+                        message=str(result),
+                    )
+                )
             else:
                 check_results.append(result)
 
@@ -170,6 +174,7 @@ class HealthChecker:
 
 # Default health check functions
 
+
 async def check_database() -> CheckResult:
     """Check database connectivity."""
     try:
@@ -187,7 +192,7 @@ async def check_database() -> CheckResult:
                 status=HealthStatus.HEALTHY,
                 latency_ms=latency,
                 message="Connected",
-                details={"type": "postgresql/sqlite"}
+                details={"type": "postgresql/sqlite"},
             )
         finally:
             db.close()
@@ -241,8 +246,7 @@ async def check_vpn_server() -> CheckResult:
     try:
         start = time.time()
         reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(server, port),
-            timeout=2.0
+            asyncio.open_connection(server, port), timeout=2.0
         )
         writer.close()
         await writer.wait_closed()
@@ -253,7 +257,7 @@ async def check_vpn_server() -> CheckResult:
             status=HealthStatus.HEALTHY,
             latency_ms=latency,
             message="Online",
-            details={"server": server, "port": port}
+            details={"server": server, "port": port},
         )
     except Exception as e:
         return CheckResult(
@@ -261,7 +265,7 @@ async def check_vpn_server() -> CheckResult:
             status=HealthStatus.DEGRADED,
             latency_ms=0,
             message=f"Unreachable: {e}",
-            details={"server": server, "port": port}
+            details={"server": server, "port": port},
         )
 
 
@@ -269,6 +273,7 @@ async def check_memory() -> CheckResult:
     """Check memory usage."""
     try:
         import psutil
+
         process = psutil.Process()
         memory_info = process.memory_info()
         memory_percent = process.memory_percent()
@@ -287,7 +292,7 @@ async def check_memory() -> CheckResult:
             details={
                 "rss_mb": round(memory_info.rss / 1024 / 1024, 2),
                 "percent": round(memory_percent, 2),
-            }
+            },
         )
     except Exception as e:
         return CheckResult(
@@ -302,7 +307,8 @@ async def check_disk() -> CheckResult:
     """Check disk usage."""
     try:
         import psutil
-        disk = psutil.disk_usage('/')
+
+        disk = psutil.disk_usage("/")
 
         status = HealthStatus.HEALTHY
         if disk.percent > 95:
@@ -319,7 +325,7 @@ async def check_disk() -> CheckResult:
                 "total_gb": round(disk.total / 1024 / 1024 / 1024, 2),
                 "free_gb": round(disk.free / 1024 / 1024 / 1024, 2),
                 "percent": round(disk.percent, 2),
-            }
+            },
         )
     except Exception as e:
         return CheckResult(

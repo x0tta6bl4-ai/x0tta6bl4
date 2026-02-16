@@ -2,6 +2,7 @@
   "name": "x0tta6bl4-contracts",
   "version": "1.0.0",
   "description": "Smart contracts for x0tta6bl4 mesh network (X0T Token, Governance)",
+  "type": "module",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",

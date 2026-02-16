@@ -1,4 +1,5 @@
 """x0tta6bl4 Command Line Interface."""
+
 from __future__ import annotations
 
 import sys

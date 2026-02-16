@@ -1,9 +1,11 @@
 """Unit tests for src/core/mape_k_loop.py — MAPE-K autonomic loop."""
-import pytest
+
 import time
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from dataclasses import dataclass
 from enum import Enum
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+
+import pytest
 
 
 # Mock consciousness types before importing the module
@@ -40,11 +42,13 @@ def loop():
     with patch.dict("sys.modules", {}):  # don't pollute
         pass
 
-    with patch("src.core.mape_k_loop.ConsciousnessEngine"), \
-         patch("src.core.mape_k_loop.MeshNetworkManager"), \
-         patch("src.core.mape_k_loop.PrometheusExporter"), \
-         patch("src.core.mape_k_loop.ZeroTrustValidator"), \
-         patch("src.core.mape_k_loop.DAOAuditLogger"):
+    with (
+        patch("src.core.mape_k_loop.ConsciousnessEngine"),
+        patch("src.core.mape_k_loop.MeshNetworkManager"),
+        patch("src.core.mape_k_loop.PrometheusExporter"),
+        patch("src.core.mape_k_loop.ZeroTrustValidator"),
+        patch("src.core.mape_k_loop.DAOAuditLogger"),
+    ):
         from src.core.mape_k_loop import MAPEKLoop
 
     consciousness = MagicMock()
@@ -54,12 +58,14 @@ def loop():
     dao_logger = AsyncMock()
 
     # Default mock returns
-    mesh.get_statistics = AsyncMock(return_value={
-        "active_peers": 5,
-        "avg_latency_ms": 50,
-        "packet_loss_percent": 0.01,
-        "mttr_minutes": 3.0,
-    })
+    mesh.get_statistics = AsyncMock(
+        return_value={
+            "active_peers": 5,
+            "avg_latency_ms": 50,
+            "packet_loss_percent": 0.01,
+            "mttr_minutes": 3.0,
+        }
+    )
     mesh.set_route_preference = AsyncMock(return_value=True)
     mesh.trigger_aggressive_healing = AsyncMock(return_value=3)
     mesh.trigger_preemptive_checks = AsyncMock()
@@ -92,13 +98,17 @@ class TestInit:
 
     def test_action_dispatcher_param(self, loop):
         from src.dao.governance import ActionDispatcher
+
         loop2_dispatcher = ActionDispatcher()
 
-        with patch("src.core.mape_k_loop.ConsciousnessEngine"), \
-             patch("src.core.mape_k_loop.MeshNetworkManager"), \
-             patch("src.core.mape_k_loop.PrometheusExporter"), \
-             patch("src.core.mape_k_loop.ZeroTrustValidator"):
+        with (
+            patch("src.core.mape_k_loop.ConsciousnessEngine"),
+            patch("src.core.mape_k_loop.MeshNetworkManager"),
+            patch("src.core.mape_k_loop.PrometheusExporter"),
+            patch("src.core.mape_k_loop.ZeroTrustValidator"),
+        ):
             from src.core.mape_k_loop import MAPEKLoop
+
             mk = MAPEKLoop(
                 consciousness_engine=MagicMock(),
                 mesh_manager=MagicMock(),
@@ -129,10 +139,13 @@ class TestMonitorPhase:
 
 
 class TestAnalyzePhase:
-    def test_analyze_calls_consciousness(self, loop):
+    @pytest.mark.asyncio
+    async def test_analyze_calls_consciousness(self, loop):
         raw = {"cpu_percent": 80.0}
-        result = loop._analyze(raw)
-        loop.consciousness.get_consciousness_metrics.assert_called_once_with(raw)
+        result = await loop._analyze(raw)
+        loop.consciousness.get_consciousness_metrics.assert_called_once_with(
+            raw, swarm_risk_penalty=0.0
+        )
         assert isinstance(result, _FakeMetrics)
 
 
@@ -175,6 +188,7 @@ class TestExecutePhase:
     @pytest.mark.asyncio
     async def test_execute_dao_actions(self, loop):
         from src.dao.governance import ActionDispatcher
+
         loop.action_dispatcher = ActionDispatcher()
         directives = {
             "dao_actions": [

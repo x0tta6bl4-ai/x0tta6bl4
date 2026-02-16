@@ -3,6 +3,7 @@ Conftest для API тестов.
 
 Мокирует optional dependencies перед импортом src модулей.
 """
+
 import sys
 from unittest.mock import MagicMock
 
@@ -16,10 +17,10 @@ _hvac_mock.api.auth_methods.Kubernetes = MagicMock()
 # NOTE: torch is NOT mocked because it's installed and mocking causes __spec__ errors
 
 _mocked_modules = {
-    'hvac': _hvac_mock,
-    'hvac.exceptions': _hvac_mock.exceptions,
-    'hvac.api': _hvac_mock.api,
-    'hvac.api.auth_methods': _hvac_mock.api.auth_methods,
+    "hvac": _hvac_mock,
+    "hvac.exceptions": _hvac_mock.exceptions,
+    "hvac.api": _hvac_mock.api,
+    "hvac.api.auth_methods": _hvac_mock.api.auth_methods,
 }
 
 for mod_name, mock_obj in _mocked_modules.items():

@@ -10,20 +10,19 @@
 - Quarantine zone
 - Конкурентный доступ
 """
-import pytest
-import time
+
 import threading
+import time
 from unittest.mock import Mock, patch
 
-from src.security.auto_isolation import (
-    IsolationLevel,
-    IsolationReason,
-    IsolationRecord,
-    IsolationPolicy,
-    AutoIsolationManager,
-    CircuitBreaker as IsolationCircuitBreaker,
-    QuarantineZone,
-)
+import pytest
+
+from src.security.auto_isolation import AutoIsolationManager
+from src.security.auto_isolation import \
+    CircuitBreaker as IsolationCircuitBreaker
+from src.security.auto_isolation import (IsolationLevel, IsolationPolicy,
+                                         IsolationReason, IsolationRecord,
+                                         QuarantineZone)
 
 
 class TestIsolationLevel:
@@ -75,7 +74,7 @@ class TestIsolationRecord:
             reason=IsolationReason.THREAT_DETECTED,
             started_at=time.time(),
             expires_at=time.time() + 300,
-            details="Подозрительная активность"
+            details="Подозрительная активность",
         )
 
         assert record.node_id == "node-001"
@@ -90,7 +89,7 @@ class TestIsolationRecord:
             level=IsolationLevel.MONITOR,
             reason=IsolationReason.ANOMALY_DETECTED,
             started_at=time.time(),
-            expires_at=time.time() + 300  # через 5 минут
+            expires_at=time.time() + 300,  # через 5 минут
         )
         assert record.is_expired() is False
 
@@ -101,7 +100,7 @@ class TestIsolationRecord:
             level=IsolationLevel.MONITOR,
             reason=IsolationReason.ANOMALY_DETECTED,
             started_at=time.time() - 600,
-            expires_at=time.time() - 300  # истекла 5 минут назад
+            expires_at=time.time() - 300,  # истекла 5 минут назад
         )
         assert record.is_expired() is True
 
@@ -112,7 +111,7 @@ class TestIsolationRecord:
             level=IsolationLevel.BLOCKED,
             reason=IsolationReason.PROTOCOL_VIOLATION,
             started_at=time.time() - 86400,  # сутки назад
-            expires_at=None  # бессрочно
+            expires_at=None,  # бессрочно
         )
         assert record.is_expired() is False
 
@@ -126,7 +125,7 @@ class TestIsolationRecord:
             started_at=now,
             expires_at=now + 3600,
             escalation_count=2,
-            details="Обнаружена угроза"
+            details="Обнаружена угроза",
         )
 
         data = record.to_dict()
@@ -200,19 +199,22 @@ class TestAutoIsolationManager:
         record = isolation_manager.isolate(
             node_id="suspect-node-001",
             reason=IsolationReason.THREAT_DETECTED,
-            details="Обнаружена подозрительная активность"
+            details="Обнаружена подозрительная активность",
         )
 
         assert record.node_id == "suspect-node-001"
         assert record.level.value >= IsolationLevel.RESTRICTED.value
-        assert isolation_manager.get_isolation_level("suspect-node-001") != IsolationLevel.NONE
+        assert (
+            isolation_manager.get_isolation_level("suspect-node-001")
+            != IsolationLevel.NONE
+        )
 
     def test_isolate_with_level_override(self, isolation_manager):
         """Изоляция с переопределением уровня."""
         record = isolation_manager.isolate(
             node_id="node-002",
             reason=IsolationReason.ANOMALY_DETECTED,
-            level_override=IsolationLevel.BLOCKED
+            level_override=IsolationLevel.BLOCKED,
         )
 
         assert record.level == IsolationLevel.BLOCKED
@@ -222,7 +224,7 @@ class TestAutoIsolationManager:
         record = isolation_manager.isolate(
             node_id="node-003",
             reason=IsolationReason.ANOMALY_DETECTED,
-            duration_override=7200  # 2 часа
+            duration_override=7200,  # 2 часа
         )
 
         expected_expiry = record.started_at + 7200
@@ -232,15 +234,13 @@ class TestAutoIsolationManager:
         """Эскалация при повторных нарушениях."""
         # Первая изоляция
         record1 = isolation_manager.isolate(
-            node_id="repeat-offender",
-            reason=IsolationReason.THREAT_DETECTED
+            node_id="repeat-offender", reason=IsolationReason.THREAT_DETECTED
         )
         initial_level = record1.level
 
         # Повторное нарушение - должна быть эскалация
         record2 = isolation_manager.isolate(
-            node_id="repeat-offender",
-            reason=IsolationReason.THREAT_DETECTED
+            node_id="repeat-offender", reason=IsolationReason.THREAT_DETECTED
         )
 
         # Уровень должен повыситься или остаться тем же (если уже максимальный)
@@ -250,13 +250,15 @@ class TestAutoIsolationManager:
     def test_release_node(self, isolation_manager):
         """Освобождение ноды из изоляции."""
         isolation_manager.isolate(
-            node_id="temp-isolated",
-            reason=IsolationReason.ANOMALY_DETECTED
+            node_id="temp-isolated", reason=IsolationReason.ANOMALY_DETECTED
         )
 
         result = isolation_manager.release("temp-isolated")
         assert result is True
-        assert isolation_manager.get_isolation_level("temp-isolated") == IsolationLevel.NONE
+        assert (
+            isolation_manager.get_isolation_level("temp-isolated")
+            == IsolationLevel.NONE
+        )
 
     def test_release_nonexistent_node(self, isolation_manager):
         """Освобождение несуществующей ноды возвращает False."""
@@ -267,8 +269,7 @@ class TestAutoIsolationManager:
         """Принудительное освобождение для записей с auto_recover=False."""
         # Изолируем с протокольным нарушением (auto_recover=False)
         isolation_manager.isolate(
-            node_id="protocol-violator",
-            reason=IsolationReason.PROTOCOL_VIOLATION
+            node_id="protocol-violator", reason=IsolationReason.PROTOCOL_VIOLATION
         )
 
         # Обычное освобождение не работает
@@ -287,8 +288,7 @@ class TestAutoIsolationManager:
 
         # Изолированная нода
         isolation_manager.isolate(
-            node_id="isolated-node",
-            reason=IsolationReason.THREAT_DETECTED
+            node_id="isolated-node", reason=IsolationReason.THREAT_DETECTED
         )
         level = isolation_manager.get_isolation_level("isolated-node")
         assert level != IsolationLevel.NONE
@@ -304,10 +304,12 @@ class TestAutoIsolationManager:
         isolation_manager.isolate(
             node_id="monitored-node",
             reason=IsolationReason.ANOMALY_DETECTED,
-            level_override=IsolationLevel.MONITOR
+            level_override=IsolationLevel.MONITOR,
         )
 
-        allowed, reason = isolation_manager.is_allowed("monitored-node", "any_operation")
+        allowed, reason = isolation_manager.is_allowed(
+            "monitored-node", "any_operation"
+        )
         assert allowed is True
         assert "Monitored" in reason
 
@@ -316,7 +318,7 @@ class TestAutoIsolationManager:
         isolation_manager.isolate(
             node_id="restricted-node",
             reason=IsolationReason.THREAT_DETECTED,
-            level_override=IsolationLevel.RESTRICTED
+            level_override=IsolationLevel.RESTRICTED,
         )
 
         # Essential операции разрешены
@@ -324,7 +326,9 @@ class TestAutoIsolationManager:
         assert allowed is True
 
         # Non-essential операции запрещены
-        allowed, reason = isolation_manager.is_allowed("restricted-node", "data_transfer")
+        allowed, reason = isolation_manager.is_allowed(
+            "restricted-node", "data_transfer"
+        )
         assert allowed is False
         assert "not allowed" in reason
 
@@ -333,7 +337,7 @@ class TestAutoIsolationManager:
         isolation_manager.isolate(
             node_id="quarantined-node",
             reason=IsolationReason.PROTOCOL_VIOLATION,
-            level_override=IsolationLevel.QUARANTINE
+            level_override=IsolationLevel.QUARANTINE,
         )
 
         # Только health check разрешён
@@ -349,7 +353,7 @@ class TestAutoIsolationManager:
         isolation_manager.isolate(
             node_id="blocked-node",
             reason=IsolationReason.PROTOCOL_VIOLATION,
-            level_override=IsolationLevel.BLOCKED
+            level_override=IsolationLevel.BLOCKED,
         )
 
         # Всё заблокировано
@@ -359,14 +363,14 @@ class TestAutoIsolationManager:
 
     def test_callback_registration(self, isolation_manager, event_tracker):
         """Регистрация и вызов callback при изоляции."""
+
         def callback(node_id, level):
             event_tracker.record("isolation", node_id=node_id, level=level.name)
 
         isolation_manager.register_callback(callback)
 
         isolation_manager.isolate(
-            node_id="callback-test-node",
-            reason=IsolationReason.THREAT_DETECTED
+            node_id="callback-test-node", reason=IsolationReason.THREAT_DETECTED
         )
 
         events = event_tracker.get_events("isolation")
@@ -383,7 +387,7 @@ class TestAutoIsolationManager:
             reason=IsolationReason.ANOMALY_DETECTED,
             started_at=now - 600,
             expires_at=now - 300,  # истекла
-            auto_recover=True
+            auto_recover=True,
         )
         isolation_manager.isolated_nodes["expired-node"] = record
 
@@ -408,12 +412,12 @@ class TestAutoIsolationManager:
         isolation_manager.isolate(
             "node-1",
             IsolationReason.THREAT_DETECTED,
-            level_override=IsolationLevel.RESTRICTED
+            level_override=IsolationLevel.RESTRICTED,
         )
         isolation_manager.isolate(
             "node-2",
             IsolationReason.ANOMALY_DETECTED,
-            level_override=IsolationLevel.MONITOR
+            level_override=IsolationLevel.MONITOR,
         )
 
         stats = isolation_manager.get_stats()
@@ -457,11 +461,15 @@ class TestIsolationCircuitBreaker:
             isolation_circuit_breaker.record_failure()
 
         # Симулируем прошедшее время
-        isolation_circuit_breaker.last_failure_time = time.time() - 2  # recovery_timeout=1
+        isolation_circuit_breaker.last_failure_time = (
+            time.time() - 2
+        )  # recovery_timeout=1
 
         # Должен перейти в HALF_OPEN
         assert isolation_circuit_breaker.allow_request() is True
-        assert isolation_circuit_breaker.state == IsolationCircuitBreaker.State.HALF_OPEN
+        assert (
+            isolation_circuit_breaker.state == IsolationCircuitBreaker.State.HALF_OPEN
+        )
 
     def test_closes_after_successes_in_half_open(self, isolation_circuit_breaker):
         """Закрывается после успехов в HALF_OPEN."""
@@ -561,8 +569,7 @@ class TestConcurrency:
         def isolate_node(node_id):
             try:
                 record = isolation_manager.isolate(
-                    node_id=node_id,
-                    reason=IsolationReason.ANOMALY_DETECTED
+                    node_id=node_id, reason=IsolationReason.ANOMALY_DETECTED
                 )
                 results.append(record)
             except Exception as e:

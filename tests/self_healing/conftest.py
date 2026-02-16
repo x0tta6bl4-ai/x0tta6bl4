@@ -8,21 +8,23 @@ Provides:
 - Mock services and infrastructure
 - Time manipulation helpers
 """
-import pytest
+
 import asyncio
-import time
 import sys
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import time
 from datetime import datetime, timedelta
-from typing import Generator, Any
+from typing import Any, Generator
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 # Mock optional dependencies before importing src modules
 _mocked_modules = {
-    'hvac': MagicMock(),
-    'hvac.exceptions': MagicMock(),
-    'hvac.api': MagicMock(),
-    'hvac.api.auth_methods': MagicMock(),
-    'prometheus_client': MagicMock(),
+    "hvac": MagicMock(),
+    "hvac.exceptions": MagicMock(),
+    "hvac.api": MagicMock(),
+    "hvac.api.auth_methods": MagicMock(),
+    "prometheus_client": MagicMock(),
 }
 
 for mod_name, mock_obj in _mocked_modules.items():
@@ -30,36 +32,28 @@ for mod_name, mock_obj in _mocked_modules.items():
         sys.modules[mod_name] = mock_obj
 
 # Import modules under test
-from src.core.circuit_breaker import (
-    CircuitBreaker,
-    CircuitState,
-    CircuitBreakerMetrics,
-    CircuitBreakerOpen,
-    create_circuit_breaker,
-    get_circuit_breaker,
-    _circuit_breakers,
-)
-from src.self_healing.recovery_actions import (
-    RecoveryActionType,
-    RecoveryResult,
-    RecoveryActionExecutor,
-    RateLimiter,
-    CircuitBreaker as RecoveryCircuitBreaker,
-)
-from src.security.auto_isolation import (
-    IsolationLevel,
-    IsolationReason,
-    IsolationRecord,
-    IsolationPolicy,
-    AutoIsolationManager,
-    CircuitBreaker as IsolationCircuitBreaker,
-    QuarantineZone,
-)
-
+from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerMetrics,
+                                      CircuitBreakerOpen, CircuitState,
+                                      _circuit_breakers,
+                                      create_circuit_breaker,
+                                      get_circuit_breaker)
+from src.security.auto_isolation import AutoIsolationManager
+from src.security.auto_isolation import \
+    CircuitBreaker as IsolationCircuitBreaker
+from src.security.auto_isolation import (IsolationLevel, IsolationPolicy,
+                                         IsolationReason, IsolationRecord,
+                                         QuarantineZone)
+from src.self_healing.recovery_actions import \
+    CircuitBreaker as RecoveryCircuitBreaker
+from src.self_healing.recovery_actions import (RateLimiter,
+                                               RecoveryActionExecutor,
+                                               RecoveryActionType,
+                                               RecoveryResult)
 
 # ============================================================================
 # CIRCUIT BREAKER FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def circuit_breaker() -> Generator[CircuitBreaker, None, None]:
@@ -69,7 +63,7 @@ def circuit_breaker() -> Generator[CircuitBreaker, None, None]:
         failure_threshold=3,
         recovery_timeout=5.0,
         half_open_max_calls=2,
-        success_threshold=2
+        success_threshold=2,
     )
     yield cb
     # Cleanup from global registry
@@ -80,6 +74,7 @@ def circuit_breaker() -> Generator[CircuitBreaker, None, None]:
 @pytest.fixture
 def circuit_breaker_with_fallback() -> Generator[CircuitBreaker, None, None]:
     """Circuit breaker with fallback function."""
+
     async def fallback(*args, **kwargs):
         return {"fallback": True, "args": args}
 
@@ -87,7 +82,7 @@ def circuit_breaker_with_fallback() -> Generator[CircuitBreaker, None, None]:
         name="test_circuit_fallback",
         failure_threshold=2,
         recovery_timeout=1.0,
-        fallback=fallback
+        fallback=fallback,
     )
     yield cb
     if "test_circuit_fallback" in _circuit_breakers:
@@ -102,7 +97,7 @@ def fast_circuit_breaker() -> Generator[CircuitBreaker, None, None]:
         failure_threshold=2,
         recovery_timeout=0.1,  # 100ms for fast tests
         half_open_max_calls=1,
-        success_threshold=1
+        success_threshold=1,
     )
     yield cb
     if "fast_circuit" in _circuit_breakers:
@@ -113,6 +108,7 @@ def fast_circuit_breaker() -> Generator[CircuitBreaker, None, None]:
 # RECOVERY ACTION EXECUTOR FIXTURES
 # ============================================================================
 
+
 @pytest.fixture
 def recovery_executor() -> RecoveryActionExecutor:
     """Fresh recovery action executor."""
@@ -121,7 +117,7 @@ def recovery_executor() -> RecoveryActionExecutor:
         enable_circuit_breaker=True,
         enable_rate_limiting=True,
         max_retries=3,
-        retry_delay=0.01  # Fast retries for testing
+        retry_delay=0.01,  # Fast retries for testing
     )
 
 
@@ -132,7 +128,7 @@ def recovery_executor_no_protection() -> RecoveryActionExecutor:
         node_id="test-node-002",
         enable_circuit_breaker=False,
         enable_rate_limiting=False,
-        max_retries=1
+        max_retries=1,
     )
 
 
@@ -149,13 +145,14 @@ def recovery_circuit_breaker() -> RecoveryCircuitBreaker:
         failure_threshold=3,
         success_threshold=2,
         timeout=timedelta(seconds=1),
-        half_open_timeout=timedelta(seconds=0.5)
+        half_open_timeout=timedelta(seconds=0.5),
     )
 
 
 # ============================================================================
 # AUTO-ISOLATION FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def isolation_manager() -> AutoIsolationManager:
@@ -169,7 +166,7 @@ def isolation_circuit_breaker() -> IsolationCircuitBreaker:
     return IsolationCircuitBreaker(
         failure_threshold=3,
         recovery_timeout=1,  # 1 second for fast tests
-        half_open_requests=2
+        half_open_requests=2,
     )
 
 
@@ -190,13 +187,13 @@ def isolation_policy() -> IsolationPolicy:
             IsolationLevel.RATE_LIMIT,
             IsolationLevel.RESTRICTED,
             IsolationLevel.QUARANTINE,
-            IsolationLevel.BLOCKED
+            IsolationLevel.BLOCKED,
         ],
         escalation_threshold=2,
         initial_duration=60,
         escalation_multiplier=2.0,
         max_duration=3600,
-        auto_recover=True
+        auto_recover=True,
     )
 
 
@@ -204,10 +201,11 @@ def isolation_policy() -> IsolationPolicy:
 # MOCK SERVICES
 # ============================================================================
 
+
 @pytest.fixture
 def mock_subprocess() -> Generator[MagicMock, None, None]:
     """Mock subprocess for recovery actions."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
         yield mock_run
 
@@ -215,11 +213,13 @@ def mock_subprocess() -> Generator[MagicMock, None, None]:
 @pytest.fixture
 def mock_kubernetes() -> Generator[MagicMock, None, None]:
     """Mock kubernetes operations."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
+
         def kubectl_handler(args, **kwargs):
-            if 'kubectl' in args:
+            if "kubectl" in args:
                 return Mock(returncode=0, stdout="deployment scaled", stderr="")
             return Mock(returncode=1, stdout="", stderr="command not found")
+
         mock_run.side_effect = kubectl_handler
         yield mock_run
 
@@ -227,11 +227,13 @@ def mock_kubernetes() -> Generator[MagicMock, None, None]:
 @pytest.fixture
 def mock_docker() -> Generator[MagicMock, None, None]:
     """Mock docker operations."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
+
         def docker_handler(args, **kwargs):
-            if 'docker' in args:
+            if "docker" in args:
                 return Mock(returncode=0, stdout="container restarted", stderr="")
             return Mock(returncode=1, stdout="", stderr="command not found")
+
         mock_run.side_effect = docker_handler
         yield mock_run
 
@@ -240,9 +242,11 @@ def mock_docker() -> Generator[MagicMock, None, None]:
 # TIME MANIPULATION HELPERS
 # ============================================================================
 
+
 @pytest.fixture
 def time_freezer():
     """Context manager to freeze time for testing."""
+
     class TimeFreezer:
         def __init__(self):
             self._original_time = None
@@ -282,9 +286,11 @@ def time_freezer():
 # ASYNC HELPERS
 # ============================================================================
 
+
 @pytest.fixture
 def async_failing_func():
     """Factory for async functions that fail N times then succeed."""
+
     def create_func(failures_before_success: int):
         call_count = [0]
 
@@ -303,16 +309,20 @@ def async_failing_func():
 @pytest.fixture
 def async_always_fail():
     """Async function that always fails."""
+
     async def func(*args, **kwargs):
         raise Exception("Always fails")
+
     return func
 
 
 @pytest.fixture
 def async_always_succeed():
     """Async function that always succeeds."""
+
     async def func(*args, **kwargs):
         return {"success": True}
+
     return func
 
 
@@ -320,21 +330,28 @@ def async_always_succeed():
 # METRICS HELPERS
 # ============================================================================
 
+
 @pytest.fixture
 def mock_prometheus():
     """Mock Prometheus metrics."""
-    with patch('src.core.circuit_breaker.PROMETHEUS_AVAILABLE', True):
-        with patch('src.core.circuit_breaker.CIRCUIT_STATE_GAUGE') as gauge:
-            with patch('src.core.circuit_breaker.CIRCUIT_REQUESTS_TOTAL') as requests:
-                with patch('src.core.circuit_breaker.CIRCUIT_FAILURES_TOTAL') as failures:
-                    with patch('src.core.circuit_breaker.CIRCUIT_STATE_CHANGES_TOTAL') as changes:
-                        with patch('src.core.circuit_breaker.CIRCUIT_CALL_DURATION') as duration:
+    with patch("src.core.circuit_breaker.PROMETHEUS_AVAILABLE", True):
+        with patch("src.core.circuit_breaker.CIRCUIT_STATE_GAUGE") as gauge:
+            with patch("src.core.circuit_breaker.CIRCUIT_REQUESTS_TOTAL") as requests:
+                with patch(
+                    "src.core.circuit_breaker.CIRCUIT_FAILURES_TOTAL"
+                ) as failures:
+                    with patch(
+                        "src.core.circuit_breaker.CIRCUIT_STATE_CHANGES_TOTAL"
+                    ) as changes:
+                        with patch(
+                            "src.core.circuit_breaker.CIRCUIT_CALL_DURATION"
+                        ) as duration:
                             yield {
-                                'gauge': gauge,
-                                'requests': requests,
-                                'failures': failures,
-                                'changes': changes,
-                                'duration': duration
+                                "gauge": gauge,
+                                "requests": requests,
+                                "failures": failures,
+                                "changes": changes,
+                                "duration": duration,
                             }
 
 
@@ -342,23 +359,21 @@ def mock_prometheus():
 # EVENT TRACKING
 # ============================================================================
 
+
 @pytest.fixture
 def event_tracker():
     """Track events for assertion."""
+
     class EventTracker:
         def __init__(self):
             self.events = []
 
         def record(self, event_type: str, **kwargs):
-            self.events.append({
-                'type': event_type,
-                'timestamp': time.time(),
-                **kwargs
-            })
+            self.events.append({"type": event_type, "timestamp": time.time(), **kwargs})
 
         def get_events(self, event_type: str = None):
             if event_type:
-                return [e for e in self.events if e['type'] == event_type]
+                return [e for e in self.events if e["type"] == event_type]
             return self.events
 
         def count(self, event_type: str = None):

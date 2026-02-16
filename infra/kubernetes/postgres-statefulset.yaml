@@ -42,11 +42,17 @@ metadata:
   name: postgres-credentials
   namespace: x0tta6bl4-db
 type: Opaque
-data:
-  POSTGRES_PASSWORD: cG9zdGdyZXM=  # base64 encoded "postgres"
-  POSTGRES_ADMIN_PASSWORD: YWRtaW4=  # base64 encoded "admin"
-  POSTGRES_APP_PASSWORD: YXBwcGFzc3dvcmQ=  # base64 encoded "apppassword"
-  POSTGRES_REPLICATION_PASSWORD: cmVwbGljYXRvcnBhc3N3b3Jk=  # base64 encoded "replicatorpassword"
+# ВНИМАНИЕ: Эти секреты должны быть заполнены безопасно.
+# НЕ используйте жестко закодированные значения в production!
+# Рекомендуется использовать Vault, SealedSecrets, External Secrets Operator
+# или другой безопасный механизм для инъекции этих значений.
+# Пример:
+# data:
+#   POSTGRES_PASSWORD: <base64-encoded-production-password>
+#   POSTGRES_ADMIN_PASSWORD: <base64-encoded-production-admin-password>
+#   POSTGRES_APP_PASSWORD: <base64-encoded-production-app-password>
+#   POSTGRES_REPLICATION_PASSWORD: <base64-encoded-production-replication-password>
+
 
 ---
 apiVersion: v1

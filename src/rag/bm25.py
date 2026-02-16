@@ -7,32 +7,121 @@ complement dense (vector) search in hybrid retrieval.
 Reference: Robertson & Zaragoza, "The Probabilistic Relevance Framework:
 BM25 and Beyond" (2009).
 """
+
 from __future__ import annotations
 
+import logging
 import math
 import re
-import logging
-from typing import List, Dict, Tuple, Optional, Set
-from dataclasses import dataclass, field
 from collections import Counter
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Common English + Russian stop words for mesh/infra context
 STOP_WORDS: Set[str] = {
     # English
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
-    "should", "may", "might", "must", "can", "could", "to", "of", "in",
-    "for", "on", "with", "at", "by", "from", "as", "into", "through",
-    "during", "before", "after", "above", "below", "between", "and",
-    "but", "or", "nor", "not", "no", "so", "if", "then", "than",
-    "too", "very", "just", "about", "up", "out", "it", "its", "this",
-    "that", "these", "those", "i", "we", "you", "he", "she", "they",
-    "me", "us", "him", "her", "them", "my", "our", "your", "his",
-    "their", "what", "which", "who", "when", "where", "how", "all",
-    "each", "every", "both", "few", "more", "most", "other", "some",
-    "such", "only", "own", "same",
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "shall",
+    "should",
+    "may",
+    "might",
+    "must",
+    "can",
+    "could",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "between",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "not",
+    "no",
+    "so",
+    "if",
+    "then",
+    "than",
+    "too",
+    "very",
+    "just",
+    "about",
+    "up",
+    "out",
+    "it",
+    "its",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "we",
+    "you",
+    "he",
+    "she",
+    "they",
+    "me",
+    "us",
+    "him",
+    "her",
+    "them",
+    "my",
+    "our",
+    "your",
+    "his",
+    "their",
+    "what",
+    "which",
+    "who",
+    "when",
+    "where",
+    "how",
+    "all",
+    "each",
+    "every",
+    "both",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "only",
+    "own",
+    "same",
 }
 
 # Simple regex tokenizer: extract word tokens
@@ -48,6 +137,7 @@ def tokenize(text: str) -> List[str]:
 @dataclass
 class BM25Document:
     """Indexed document metadata."""
+
     doc_id: str
     term_freqs: Dict[str, int]
     length: int
@@ -127,7 +217,9 @@ class BM25Index:
             self._df[term] = len(self._inverted[term])
 
         self._total_length += doc.length
-        self._avg_dl = self._total_length / len(self._documents) if self._documents else 0.0
+        self._avg_dl = (
+            self._total_length / len(self._documents) if self._documents else 0.0
+        )
 
     def search(self, query: str, k: int = 10) -> List[Tuple[str, float, Dict]]:
         """

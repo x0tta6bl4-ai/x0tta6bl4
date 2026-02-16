@@ -12,13 +12,15 @@ Supports two modes:
  - Simulation mode (network_client=None): deterministic RPC simulation for tests
  - Network mode (network_client provided): real HTTP RPC via RaftNetworkClient
 """
+
 from __future__ import annotations
+
+import logging
+import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable, Any
 from datetime import datetime, timedelta
 from enum import Enum
-import random
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +41,10 @@ class LogEntry:
 
 @dataclass
 class RaftConfig:
-    election_timeout_min: int = 150   # ms
-    election_timeout_max: int = 300   # ms
-    heartbeat_interval: int = 50      # ms
-    rpc_timeout: int = 1000           # ms
+    election_timeout_min: int = 150  # ms
+    election_timeout_max: int = 300  # ms
+    heartbeat_interval: int = 50  # ms
+    rpc_timeout: int = 1000  # ms
     simulate_latency: bool = False
 
 
@@ -61,9 +63,15 @@ class RaftNode:
       - match_index
     """
 
-    def __init__(self, node_id: str, peers: List[str], config: Optional[RaftConfig] = None,
-                 rng: Optional[random.Random] = None,
-                 network_client=None, peer_addresses: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        node_id: str,
+        peers: List[str],
+        config: Optional[RaftConfig] = None,
+        rng: Optional[random.Random] = None,
+        network_client=None,
+        peer_addresses: Optional[Dict[str, str]] = None,
+    ):
         self.node_id = node_id
         self.peers = [p for p in peers if p != node_id]
         self.config = config or RaftConfig()
@@ -100,7 +108,9 @@ class RaftNode:
     # Time & Helpers
     # ------------------------------------------------------------------
     def _random_timeout(self) -> int:
-        return self.rng.randint(self.config.election_timeout_min, self.config.election_timeout_max)
+        return self.rng.randint(
+            self.config.election_timeout_min, self.config.election_timeout_max
+        )
 
     def _reset_election_timer(self):
         self.election_timeout = self._random_timeout()
@@ -164,15 +174,18 @@ class RaftNode:
         last_log_index = len(self.log) - 1
         last_log_term = self.log[last_log_index].term
         for peer in self.peers:
-            if self._request_vote_rpc_sim(peer, self.current_term, last_log_index, last_log_term):
+            if self._request_vote_rpc_sim(
+                peer, self.current_term, last_log_index, last_log_term
+            ):
                 votes += 1
         if votes > len(self.peers) // 2:  # majority
             self._become_leader()
             return True
         return False
 
-    async def _request_vote_rpc_async(self, peer: str, term: int,
-                                       last_log_index: int, last_log_term: int) -> bool:
+    async def _request_vote_rpc_async(
+        self, peer: str, term: int, last_log_index: int, last_log_term: int
+    ) -> bool:
         """Send RequestVote RPC — uses real network if available, simulation otherwise."""
         if self.network_client and peer in self.peer_addresses:
             try:
@@ -186,21 +199,27 @@ class RaftNode:
                 )
                 return response.success
             except Exception as e:
-                logger.warning(f"[{self.node_id}] RequestVote RPC to {peer} failed: {e}")
+                logger.warning(
+                    f"[{self.node_id}] RequestVote RPC to {peer} failed: {e}"
+                )
                 return False
         return self._request_vote_rpc_sim(peer, term, last_log_index, last_log_term)
 
-    def _request_vote_rpc_sim(self, peer: str, term: int,
-                               last_log_index: int, last_log_term: int) -> bool:
+    def _request_vote_rpc_sim(
+        self, peer: str, term: int, last_log_index: int, last_log_term: int
+    ) -> bool:
         """Simulated vote: peer grants with 95% probability for reliable tests."""
         chance = self.rng.random()
         granted = chance < 0.95
-        logger.debug(f"[{self.node_id}] RequestVote -> {peer} granted={granted} (p={chance:.2f})")
+        logger.debug(
+            f"[{self.node_id}] RequestVote -> {peer} granted={granted} (p={chance:.2f})"
+        )
         return granted
 
     # Backward compat alias
-    def _request_vote_rpc(self, peer: str, term: int,
-                           last_log_index: int, last_log_term: int) -> bool:
+    def _request_vote_rpc(
+        self, peer: str, term: int, last_log_index: int, last_log_term: int
+    ) -> bool:
         return self._request_vote_rpc_sim(peer, term, last_log_index, last_log_term)
 
     # ------------------------------------------------------------------
@@ -222,7 +241,9 @@ class RaftNode:
             return False
         entry = LogEntry(term=self.current_term, index=len(self.log), command=command)
         self.log.append(entry)
-        logger.info(f"[{self.node_id}] Appended log index={entry.index} term={entry.term}")
+        logger.info(
+            f"[{self.node_id}] Appended log index={entry.index} term={entry.term}"
+        )
         self._replicate()
         return True
 
@@ -233,7 +254,9 @@ class RaftNode:
             return False
         entry = LogEntry(term=self.current_term, index=len(self.log), command=command)
         self.log.append(entry)
-        logger.info(f"[{self.node_id}] Appended log index={entry.index} term={entry.term}")
+        logger.info(
+            f"[{self.node_id}] Appended log index={entry.index} term={entry.term}"
+        )
         await self._replicate_async()
         return True
 
@@ -247,18 +270,24 @@ class RaftNode:
             await self._append_entries_rpc_async(peer)
         self._advance_commit_index()
 
-    async def _append_entries_rpc_async(self, peer: str, heartbeat: bool = False) -> bool:
+    async def _append_entries_rpc_async(
+        self, peer: str, heartbeat: bool = False
+    ) -> bool:
         """Send AppendEntries RPC — uses real network if available."""
         prev_index = self.next_index[peer] - 1
         prev_term = self.log[prev_index].term if prev_index < len(self.log) else 0
-        entries = [] if heartbeat else self.log[self.next_index[peer]:]
+        entries = [] if heartbeat else self.log[self.next_index[peer] :]
 
         if self.network_client and peer in self.peer_addresses:
             try:
                 # Serialize entries for transport
                 serialized_entries = [
-                    {"term": e.term, "index": e.index,
-                     "command": e.command, "timestamp": e.timestamp.isoformat()}
+                    {
+                        "term": e.term,
+                        "index": e.index,
+                        "command": e.command,
+                        "timestamp": e.timestamp.isoformat(),
+                    }
                     for e in entries
                 ]
                 response = await self.network_client.append_entries(
@@ -273,10 +302,14 @@ class RaftNode:
                 )
                 success = response.success
             except Exception as e:
-                logger.warning(f"[{self.node_id}] AppendEntries RPC to {peer} failed: {e}")
+                logger.warning(
+                    f"[{self.node_id}] AppendEntries RPC to {peer} failed: {e}"
+                )
                 success = False
         else:
-            success = self._append_entries_rpc_sim(peer, heartbeat, prev_index, prev_term, entries)
+            success = self._append_entries_rpc_sim(
+                peer, heartbeat, prev_index, prev_term, entries
+            )
 
         if success:
             if entries:
@@ -292,8 +325,10 @@ class RaftNode:
         """Sync simulation AppendEntries (backward compat)."""
         prev_index = self.next_index[peer] - 1
         prev_term = self.log[prev_index].term if prev_index < len(self.log) else 0
-        entries = [] if heartbeat else self.log[self.next_index[peer]:]
-        success = self._append_entries_rpc_sim(peer, heartbeat, prev_index, prev_term, entries)
+        entries = [] if heartbeat else self.log[self.next_index[peer] :]
+        success = self._append_entries_rpc_sim(
+            peer, heartbeat, prev_index, prev_term, entries
+        )
         if success:
             if entries:
                 self.match_index[peer] = entries[-1].index
@@ -309,9 +344,9 @@ class RaftNode:
         )
         return success
 
-    def _append_entries_rpc_sim(self, peer: str, heartbeat: bool,
-                                 prev_index: int, prev_term: int,
-                                 entries: list) -> bool:
+    def _append_entries_rpc_sim(
+        self, peer: str, heartbeat: bool, prev_index: int, prev_term: int, entries: list
+    ) -> bool:
         """Simulate success with 80% reliability."""
         return self.rng.random() < 0.8
 
@@ -327,7 +362,9 @@ class RaftNode:
             if count > len(self.peers) // 2 and self.log[N].term == self.current_term:
                 old_commit = self.commit_index
                 self.commit_index = N
-                logger.debug(f"[{self.node_id}] Commit index advanced {old_commit} -> {self.commit_index}")
+                logger.debug(
+                    f"[{self.node_id}] Commit index advanced {old_commit} -> {self.commit_index}"
+                )
                 self._apply_entries(old_commit)
                 break
 
@@ -351,8 +388,15 @@ class RaftNode:
     # ------------------------------------------------------------------
     # RPC Handlers (inbound)
     # ------------------------------------------------------------------
-    def receive_append_entries(self, term: int, leader_id: str, prev_log_index: int,
-                               prev_log_term: int, entries: List[LogEntry], leader_commit: int) -> bool:
+    def receive_append_entries(
+        self,
+        term: int,
+        leader_id: str,
+        prev_log_index: int,
+        prev_log_term: int,
+        entries: List[LogEntry],
+        leader_commit: int,
+    ) -> bool:
         if term < self.current_term:
             return False
         if term > self.current_term or self.state != RaftState.FOLLOWER:
@@ -364,14 +408,16 @@ class RaftNode:
         if prev_log_index > 0 and self.log[prev_log_index].term != prev_log_term:
             return False
         # Append any new entries (overwrite conflicting)
-        self.log = self.log[:prev_log_index + 1] + entries
+        self.log = self.log[: prev_log_index + 1] + entries
         if leader_commit > self.commit_index:
             old_commit = self.commit_index
             self.commit_index = min(leader_commit, len(self.log) - 1)
             self._apply_entries(old_commit)
         return True
 
-    def receive_request_vote(self, term: int, candidate_id: str, last_log_index: int, last_log_term: int) -> bool:
+    def receive_request_vote(
+        self, term: int, candidate_id: str, last_log_index: int, last_log_term: int
+    ) -> bool:
         if term < self.current_term:
             return False
         if term > self.current_term:
@@ -397,7 +443,9 @@ class RaftNode:
         now = datetime.now()
         elapsed_ms = (now - self.last_activity).total_seconds() * 1000
         if self.state == RaftState.LEADER:
-            if (now - self.last_heartbeat).total_seconds() * 1000 > self.config.heartbeat_interval:
+            if (
+                now - self.last_heartbeat
+            ).total_seconds() * 1000 > self.config.heartbeat_interval:
                 self._send_heartbeats()
             return False
         else:
@@ -410,7 +458,9 @@ class RaftNode:
         now = datetime.now()
         elapsed_ms = (now - self.last_activity).total_seconds() * 1000
         if self.state == RaftState.LEADER:
-            if (now - self.last_heartbeat).total_seconds() * 1000 > self.config.heartbeat_interval:
+            if (
+                now - self.last_heartbeat
+            ).total_seconds() * 1000 > self.config.heartbeat_interval:
                 await self._send_heartbeats_async()
             return False
         else:

@@ -5,15 +5,15 @@ Retrieval-Augmented Generation pipeline for knowledge retrieval.
 """
 
 import logging
-import time
 import os
-from typing import List, Dict, Any, Optional, Tuple
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.storage.vector_index import VectorIndex
-from src.rag.chunker import DocumentChunker, DocumentChunk, ChunkingStrategy
 from src.rag.bm25 import BM25Index, reciprocal_rank_fusion
+from src.rag.chunker import ChunkingStrategy, DocumentChunk, DocumentChunker
+from src.storage.vector_index import VectorIndex
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +22,20 @@ import concurrent.futures
 # Optional imports for re-ranking
 try:
     from sentence_transformers import CrossEncoder
+
     CROSS_ENCODER_AVAILABLE = True
 except ImportError:
     CROSS_ENCODER_AVAILABLE = False
     CrossEncoder = None
-    logger.warning("⚠️ CrossEncoder not available. Install with: pip install sentence-transformers")
+    logger.warning(
+        "⚠️ CrossEncoder not available. Install with: pip install sentence-transformers"
+    )
 
 
 @dataclass
 class RAGResult:
     """RAG retrieval result"""
+
     query: str
     retrieved_chunks: List[DocumentChunk]
     scores: List[float]
@@ -44,7 +48,7 @@ class RAGResult:
 class RAGPipeline:
     """
     RAG Pipeline MVP for knowledge retrieval.
-    
+
     Pipeline:
     1. Document chunking
     2. Embedding generation + BM25 indexing
@@ -53,7 +57,7 @@ class RAGPipeline:
     5. Re-ranking (optional, CrossEncoder)
     6. Context augmentation
     """
-    
+
     def __init__(
         self,
         vector_index: Optional[VectorIndex] = None,
@@ -63,7 +67,7 @@ class RAGPipeline:
         enable_bm25: bool = True,
         top_k: int = 10,
         rerank_top_k: int = 5,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.7,
     ):
         """
         Initialize RAG pipeline.
@@ -83,17 +87,15 @@ class RAGPipeline:
             self.vector_index = VectorIndex()
         else:
             self.vector_index = vector_index
-        
+
         # Initialize chunker
         if chunker is None:
             self.chunker = DocumentChunker(
-                strategy=ChunkingStrategy.RECURSIVE,
-                chunk_size=512,
-                chunk_overlap=50
+                strategy=ChunkingStrategy.RECURSIVE, chunk_size=512, chunk_overlap=50
             )
         else:
             self.chunker = chunker
-        
+
         # BM25 keyword index
         self.enable_bm25 = enable_bm25
         if bm25_index is None:
@@ -127,40 +129,44 @@ class RAGPipeline:
         elif enable_reranking and CROSS_ENCODER_AVAILABLE:
             try:
                 timeout = int(os.getenv("RAG_MODEL_LOAD_TIMEOUT", "5"))
-                model = _try_load_model(lambda: CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'), timeout=timeout)
+                model = _try_load_model(
+                    lambda: CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                    timeout=timeout,
+                )
                 if model is not None:
                     self.reranker = model
                     logger.info("✅ CrossEncoder re-ranker loaded")
                 else:
-                    logger.warning("⚠️ CrossEncoder not available (timeout or failure) - reranking disabled")
+                    logger.warning(
+                        "⚠️ CrossEncoder not available (timeout or failure) - reranking disabled"
+                    )
                     self.enable_reranking = False
             except Exception as e:
                 logger.warning(f"⚠️ Failed to load CrossEncoder: {e}")
                 self.enable_reranking = False
-        
+
         self.top_k = top_k
         self.rerank_top_k = rerank_top_k
         self.similarity_threshold = similarity_threshold
-        
-        logger.info(f"✅ RAG Pipeline initialized (top_k={top_k}, rerank={enable_reranking})")
-    
+
+        logger.info(
+            f"✅ RAG Pipeline initialized (top_k={top_k}, rerank={enable_reranking})"
+        )
+
     def add_document(
-        self,
-        text: str,
-        document_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, text: str, document_id: str, metadata: Optional[Dict[str, Any]] = None
     ) -> List[str]:
         """
         Add document to knowledge base.
-        
+
         Args:
             text: Document text
             document_id: Document identifier
             metadata: Optional metadata
-        
+
         Returns:
             List of chunk IDs
-        
+
         Raises:
             ValueError: If text or document_id is empty
         """
@@ -180,25 +186,22 @@ class RAGPipeline:
             List of chunk IDs
         """
         metadata = metadata or {}
-        
+
         # Chunk document
         chunks = self.chunker.chunk(text, document_id, metadata)
-        
+
         chunk_ids = []
         for chunk in chunks:
             chunk_meta = {
                 **chunk.metadata,
-                'chunk_id': chunk.chunk_id,
-                'document_id': chunk.document_id,
-                'start_index': chunk.start_index,
-                'end_index': chunk.end_index,
-                'text': chunk.text,
+                "chunk_id": chunk.chunk_id,
+                "document_id": chunk.document_id,
+                "start_index": chunk.start_index,
+                "end_index": chunk.end_index,
+                "text": chunk.text,
             }
             # Add chunk to vector index
-            chunk_id = self.vector_index.add(
-                text=chunk.text,
-                metadata=chunk_meta
-            )
+            chunk_id = self.vector_index.add(text=chunk.text, metadata=chunk_meta)
             chunk_id_str = str(chunk_id)
             chunk_ids.append(chunk_id_str)
 
@@ -210,27 +213,24 @@ class RAGPipeline:
                     metadata=chunk_meta,
                 )
                 self._chunk_texts[chunk_id_str] = chunk.text
-        
+
         logger.info(f"📝 Added document {document_id} ({len(chunks)} chunks)")
         return chunk_ids
-    
+
     def retrieve(
-        self,
-        query: str,
-        top_k: Optional[int] = None,
-        rerank: Optional[bool] = None
+        self, query: str, top_k: Optional[int] = None, rerank: Optional[bool] = None
     ) -> RAGResult:
         """
         Retrieve relevant documents for query.
-        
+
         Args:
             query: Search query
             top_k: Number of results (uses self.top_k if None)
             rerank: Enable re-ranking (uses self.enable_reranking if None)
-        
+
         Returns:
             RAGResult with retrieved chunks and context
-        
+
         Raises:
             ValueError: If query is empty
         """
@@ -249,14 +249,12 @@ class RAGPipeline:
         """
         top_k = top_k or self.top_k
         rerank = rerank if rerank is not None else self.enable_reranking
-        
+
         start_time = time.time()
 
         # Step 1: Vector search (dense retrieval)
         vector_results = self.vector_index.search(
-            query=query,
-            k=top_k,
-            threshold=self.similarity_threshold
+            query=query, k=top_k, threshold=self.similarity_threshold
         )
 
         # Step 2: BM25 search (sparse retrieval)
@@ -285,7 +283,7 @@ class RAGPipeline:
                 scores=[],
                 context="",
                 retrieval_time_ms=retrieval_time,
-                metadata={'search_mode': 'hybrid' if self.enable_bm25 else 'vector'}
+                metadata={"search_mode": "hybrid" if self.enable_bm25 else "vector"},
             )
 
         # Extract chunks and scores
@@ -293,47 +291,45 @@ class RAGPipeline:
         scores = []
         for doc_id, score, metadata in search_results:
             chunk = DocumentChunk(
-                text=metadata.get('text', ''),
-                chunk_id=metadata.get('chunk_id', str(doc_id)),
-                document_id=metadata.get('document_id', 'unknown'),
-                start_index=metadata.get('start_index', 0),
-                end_index=metadata.get('end_index', 0),
-                metadata=metadata
+                text=metadata.get("text", ""),
+                chunk_id=metadata.get("chunk_id", str(doc_id)),
+                document_id=metadata.get("document_id", "unknown"),
+                start_index=metadata.get("start_index", 0),
+                end_index=metadata.get("end_index", 0),
+                metadata=metadata,
             )
             chunks.append(chunk)
             scores.append(score)
-        
+
         rerank_time = 0.0
-        
+
         # Step 2: Re-ranking (optional)
         if rerank and self.reranker and len(chunks) > 1:
             rerank_start = time.time()
-            
+
             # Prepare query-chunk pairs
             pairs = [[query, chunk.text] for chunk in chunks]
-            
+
             # Re-rank
             rerank_scores = self.reranker.predict(pairs)
-            
+
             # Sort by re-rank scores
             reranked_indices = sorted(
-                range(len(rerank_scores)),
-                key=lambda i: rerank_scores[i],
-                reverse=True
+                range(len(rerank_scores)), key=lambda i: rerank_scores[i], reverse=True
             )
-            
+
             # Select top-k after re-ranking
-            reranked_indices = reranked_indices[:self.rerank_top_k]
-            
+            reranked_indices = reranked_indices[: self.rerank_top_k]
+
             chunks = [chunks[i] for i in reranked_indices]
             scores = [rerank_scores[i] for i in reranked_indices]
-            
+
             rerank_time = (time.time() - rerank_start) * 1000
             logger.debug(f"🔄 Re-ranked {len(search_results)} → {len(chunks)} chunks")
-        
+
         # Step 3: Build context
         context = self._build_context(chunks)
-        
+
         result = RAGResult(
             query=query,
             retrieved_chunks=chunks,
@@ -342,54 +338,55 @@ class RAGPipeline:
             retrieval_time_ms=retrieval_time,
             rerank_time_ms=rerank_time,
             metadata={
-                'total_chunks': len(chunks),
-                'reranked': rerank and self.reranker is not None
-            }
+                "total_chunks": len(chunks),
+                "reranked": rerank and self.reranker is not None,
+            },
         )
-        
-        logger.info(f"✅ Retrieved {len(chunks)} chunks for query (retrieval: {retrieval_time:.1f}ms, rerank: {rerank_time:.1f}ms)")
-        
+
+        logger.info(
+            f"✅ Retrieved {len(chunks)} chunks for query (retrieval: {retrieval_time:.1f}ms, rerank: {rerank_time:.1f}ms)"
+        )
+
         return result
-    
+
     def _build_context(self, chunks: List[DocumentChunk]) -> str:
         """
         Build context string from retrieved chunks.
-        
+
         Args:
             chunks: List of document chunks
-        
+
         Returns:
             Context string
         """
         context_parts = []
-        
+
         for i, chunk in enumerate(chunks):
-            context_parts.append(f"[Chunk {i+1} from {chunk.document_id}]\n{chunk.text}\n")
-        
+            context_parts.append(
+                f"[Chunk {i+1} from {chunk.document_id}]\n{chunk.text}\n"
+            )
+
         return "\n---\n".join(context_parts)
-    
+
     def query(
-        self,
-        query: str,
-        top_k: Optional[int] = None,
-        rerank: Optional[bool] = None
+        self, query: str, top_k: Optional[int] = None, rerank: Optional[bool] = None
     ) -> str:
         """
         Query knowledge base and return context.
-        
+
         Convenience method that returns just the context string.
-        
+
         Args:
             query: Search query
             top_k: Number of results
             rerank: Enable re-ranking
-        
+
         Returns:
             Context string
         """
         result = self.retrieve(query, top_k=top_k, rerank=rerank)
         return result.context
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get pipeline statistics."""
         index_stats = self.vector_index.get_stats()
@@ -397,18 +394,18 @@ class RAGPipeline:
 
         return {
             **index_stats,
-            'chunking_strategy': self.chunker.strategy.value,
-            'chunk_size': self.chunker.chunk_size,
-            'chunk_overlap': self.chunker.chunk_overlap,
-            'top_k': self.top_k,
-            'rerank_top_k': self.rerank_top_k,
-            'similarity_threshold': self.similarity_threshold,
-            'reranking_enabled': self.enable_reranking and self.reranker is not None,
-            'bm25_enabled': self.enable_bm25,
-            'bm25': bm25_stats,
-            'search_mode': 'hybrid' if self.enable_bm25 else 'vector',
+            "chunking_strategy": self.chunker.strategy.value,
+            "chunk_size": self.chunker.chunk_size,
+            "chunk_overlap": self.chunker.chunk_overlap,
+            "top_k": self.top_k,
+            "rerank_top_k": self.rerank_top_k,
+            "similarity_threshold": self.similarity_threshold,
+            "reranking_enabled": self.enable_reranking and self.reranker is not None,
+            "bm25_enabled": self.enable_bm25,
+            "bm25": bm25_stats,
+            "search_mode": "hybrid" if self.enable_bm25 else "vector",
         }
-    
+
     def save(self, path: Optional[Path] = None):
         """Save pipeline state."""
         if path:
@@ -417,7 +414,7 @@ class RAGPipeline:
             logger.info(f"💾 Saved RAG pipeline to {path}")
         else:
             self.vector_index.save()
-    
+
     def load(self, path: Optional[Path] = None):
         """Load pipeline state."""
         if path:
@@ -425,4 +422,3 @@ class RAGPipeline:
             logger.info(f"📂 Loaded RAG pipeline from {path}")
         else:
             self.vector_index.load()
-
