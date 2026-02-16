@@ -35,10 +35,13 @@ class XrayManager:
             return _gen_link_legacy(user_uuid, server=host, port=port)
 
         # Fallback construction
-        sni = "google.com"
-        fp = "chrome"
-        pbk = "sARj3nxY80sVRmeCxqZbTHyw-bj6Si4vXb3Q-mlflFw"  # Matches config
-        sid = "6b"
+        sni = os.getenv("REALITY_SNI", "google.com")
+        fp = os.getenv("REALITY_FINGERPRINT", "chrome")
+        pbk = os.getenv("REALITY_PUBLIC_KEY", "")
+        sid = os.getenv("REALITY_SHORT_ID", "")
+
+        if not pbk:
+            raise ValueError("REALITY_PUBLIC_KEY environment variable must be set")
 
         link = (
             f"vless://{user_uuid}@{host}:{port}"
