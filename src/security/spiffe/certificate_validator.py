@@ -135,10 +135,9 @@ class CertificateValidator:
             if now < cert.not_valid_before:
                 if PROMETHEUS_AVAILABLE:
                     try:
-                        from src.core.app import \
-                            mtls_certificate_validation_failures_total
+                        from src.monitoring.metrics import MetricsRegistry
 
-                        mtls_certificate_validation_failures_total.labels(
+                        MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="not_yet_valid"
                         ).inc()
                     except:
@@ -152,10 +151,9 @@ class CertificateValidator:
             if now > cert.not_valid_after:
                 if PROMETHEUS_AVAILABLE:
                     try:
-                        from src.core.app import \
-                            mtls_certificate_validation_failures_total
+                        from src.monitoring.metrics import MetricsRegistry
 
-                        mtls_certificate_validation_failures_total.labels(
+                        MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="expired"
                         ).inc()
                     except:
@@ -232,11 +230,10 @@ class CertificateValidator:
             # Track validation failure
             if PROMETHEUS_AVAILABLE:
                 try:
-                    from src.core.app import \
-                        mtls_certificate_validation_failures_total
+                    from src.monitoring.metrics import MetricsRegistry
 
                     error_type = type(e).__name__
-                    mtls_certificate_validation_failures_total.labels(
+                    MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                         failure_type=error_type
                     ).inc()
                 except Exception as metric_e:

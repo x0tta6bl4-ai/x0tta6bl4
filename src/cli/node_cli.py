@@ -8,8 +8,8 @@ import logging
 import sys
 import time
 
-from src.network.batman.node_manager import NodeManager
-from src.network.obfuscation import TransportManager
+from libx0t.network.batman.node_manager import NodeManager
+from libx0t.network.obfuscation import TransportManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("node-cli")
@@ -35,7 +35,7 @@ def main():
         help="Traffic obfuscation strategy",
     )
     parser.add_argument(
-        "--obfuscation-key", default="x0tta6bl4", help="Key for XOR/Shadowsocks"
+        "--obfuscation-key", default=None, help="Key for XOR/Shadowsocks (required when obfuscation is enabled)"
     )
     parser.add_argument(
         "--traffic-profile",
