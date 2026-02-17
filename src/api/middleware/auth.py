@@ -1,3 +1,4 @@
+import hmac
 import os
 from typing import Optional
 
@@ -26,7 +27,7 @@ def verify_admin_token(x_admin_token: Optional[str] = Header(None)) -> None:
             detail="Admin token required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if x_admin_token != admin_token:
+    if not hmac.compare_digest(x_admin_token, admin_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid admin token",
@@ -50,7 +51,7 @@ def get_current_admin(x_admin_token: Optional[str] = Header(None)) -> Optional[s
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ADMIN_TOKEN not configured",
         )
-    if not x_admin_token or x_admin_token != admin_token:
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
         return None
     return "admin"
 
@@ -74,7 +75,9 @@ class AdminAuthMiddleware:
         Returns:
                 True if token is valid, False otherwise
         """
-        return token == self.admin_token
+        if not token:
+            return False
+        return hmac.compare_digest(token, self.admin_token)
 
     def __call__(self, x_admin_token: Optional[str] = Header(None)) -> None:
         """
