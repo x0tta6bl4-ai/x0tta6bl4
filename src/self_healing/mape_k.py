@@ -844,7 +844,11 @@ class SelfHealingManager:
         if anomaly_detected:
             # ANALYZE phase
             analyze_start = time.time()
-            issue = self.analyzer.analyze(metrics)
+            issue = self.analyzer.analyze(
+                metrics,
+                node_id=self.node_id,
+                event_id=f"{self.node_id}_{int(time.time() * 1000)}",
+            )
             analyze_duration = time.time() - analyze_start
 
             try:
@@ -897,17 +901,21 @@ class SelfHealingManager:
                     record_mttr(recovery_type, mttr)
                     record_self_healing_event(recovery_type, self.node_id)
                     record_mape_k_cycle("execute", execute_duration)
+                except ImportError:
+                    pass
 
-                    # KNOWLEDGE phase with feedback loop
-                    knowledge_start = time.time()
-                    self.knowledge.record(
-                        metrics, issue, action, success=success, mttr=mttr
-                    )
+                # KNOWLEDGE phase with feedback loop (always runs)
+                knowledge_start = time.time()
+                self.knowledge.record(
+                    metrics, issue, action, success=success, mttr=mttr
+                )
 
-                    # Feedback loop: Update Monitor and Planner based on results
-                    self._apply_feedback_loop(issue, action, success, mttr)
+                # Feedback loop: Update Monitor and Planner based on results
+                self._apply_feedback_loop(issue, action, success, mttr)
 
-                    knowledge_duration = time.time() - knowledge_start
+                knowledge_duration = time.time() - knowledge_start
+                try:
+                    from src.monitoring.metrics import record_mape_k_cycle
                     record_mape_k_cycle("knowledge", knowledge_duration)
                 except ImportError:
                     pass

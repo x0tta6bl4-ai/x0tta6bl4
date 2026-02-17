@@ -134,7 +134,7 @@ async def login(
 
     # Create session
     token = generate_session_token()
-    expires_at = datetime.utcnow() + timedelta(days=30)
+    expires_at = datetime.utcnow() + timedelta(hours=24)
 
     session = DB_Session(
         token=token, user_id=user.id, email=user.email, expires_at=expires_at

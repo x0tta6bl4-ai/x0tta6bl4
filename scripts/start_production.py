@@ -95,10 +95,13 @@ def start_service():
         uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info", access_log=True)
 
     except ImportError as e:
-        logger.error(f"❌ Failed to import application: {e}")
+        logger.error(f"Failed to import application: {e}")
         logger.info("Trying alternative startup method...")
-        # Fallback: use uvicorn command
-        os.system("python3 -m uvicorn src.core.app:app --host 0.0.0.0 --port 8080")
+        import subprocess
+        subprocess.run(
+            [sys.executable, "-m", "uvicorn", "src.core.app:app",
+             "--host", "0.0.0.0", "--port", "8080"],
+        )
     except Exception as e:
         logger.error(f"❌ Failed to start service: {e}")
         sys.exit(1)
