@@ -61,9 +61,8 @@ class TestOTelTracingManager:
         """Test span creation with context manager."""
         manager = OTelTracingManager()
 
-        if manager.enabled:
-            with manager.span("test_span", {"key": "value"}) as span:
-                assert span is not None
+        with manager.span("test_span", {"key": "value"}) as span:
+            assert span is not None or not manager.enabled
 
     def test_span_decorator(self):
         """Test span decorator."""
@@ -482,10 +481,9 @@ class TestTracingIntegration:
         """Test nested span creation."""
         manager = OTelTracingManager(service_name="test_nested")
 
-        if manager.enabled:
-            with manager.span("outer", {"level": "1"}):
-                with manager.span("inner", {"level": "2"}):
-                    time.sleep(0.01)
+        with manager.span("outer", {"level": "1"}):
+            with manager.span("inner", {"level": "2"}):
+                time.sleep(0.01)
 
     def test_concurrent_spans(self):
         """Test concurrent span creation."""
@@ -533,9 +531,6 @@ def test_all_span_types(component_type):
     """Parametrized test for all span types."""
     manager = OTelTracingManager(service_name=f"test_{component_type}")
 
-    if not manager.enabled:
-        pytest.skip("OpenTelemetry not available")
-
     # Each component type should work without errors
     if component_type == "mapek":
         spans = MAPEKSpans(manager)
@@ -582,6 +577,3 @@ def test_all_span_types(component_type):
         with spans.contract_call("0x123", "test"):
             pass
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

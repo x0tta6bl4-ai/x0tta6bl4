@@ -42,7 +42,7 @@ class TestWCAGCompliance:
     @pytest.fixture
     def base_url(self):
         """Base URL for API"""
-        return "http://localhost:8080"
+        return "http://localhost:8000"
 
     @pytest_asyncio.fixture
     async def client(self):
