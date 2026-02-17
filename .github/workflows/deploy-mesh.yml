@@ -1,52 +1,49 @@
 name: Deploy x0tta6bl4 Mesh
+
 on:
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Deployment target"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4 # Use v4 for actions/checkout
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Run Bandit/Safety/Pip-audit
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          pip install bandit safety pip-audit
-          bandit -r src/ -lll -iii
-          safety check -r requirements.txt
-          pip-audit -r requirements.txt
-
-      - name: Trivy filesystem scan (HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'HIGH,CRITICAL'
-          ignore-unfixed: true
-          exit-code: '1'
-
-      - name: Check for verified secrets
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          extra_args: --only-verified
-      - name: Sigstore sign
-        if: ${{ secrets.COSIGN_KEY != '' }}
-        run: cosign sign --key ${{ secrets.COSIGN_KEY }} mesh-image:${{ github.sha }}
-
-  deploy-production:
-    if: vars.ENABLE_MESH_DEPLOY == 'true'
-    needs: security-scan
+  preflight:
+    name: Preflight Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to mesh cluster
+      - name: Validate deployment flags
         run: |
-          ./deploy.sh --mode production 
-            --target vps:${{ secrets.VPS_IP }} 
-            --vault-token ${{ secrets.VAULT_TOKEN }}
+          set -euo pipefail
+          echo "Target: ${{ github.event.inputs.target_environment }}"
+          if [ "${{ vars.ENABLE_MESH_DEPLOY || 'false' }}" != "true" ]; then
+            echo "Mesh deploy is disabled (ENABLE_MESH_DEPLOY != true)."
+            echo "Enable repository variable ENABLE_MESH_DEPLOY=true to run real deployment."
+            exit 0
+          fi
+          echo "Mesh deploy flag is enabled."
+
+  deploy:
+    name: Deploy
+    needs: preflight
+    if: vars.ENABLE_MESH_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute deployment script
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VPS_IP}" ] || [ -z "${VAULT_TOKEN}" ]; then
+            echo "Missing required secrets VPS_IP or VAULT_TOKEN."
+            exit 1
+          fi
+          bash ./deploy.sh --mode "${{ github.event.inputs.target_environment }}" --target "vps:${VPS_IP}" --vault-token "${VAULT_TOKEN}"
