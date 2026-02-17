@@ -20,8 +20,7 @@ _mocked_modules = {
 }
 
 for mod_name, mock_obj in _mocked_modules.items():
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = mock_obj
+    sys.modules.setdefault(mod_name, mock_obj)
 
 import pytest
 

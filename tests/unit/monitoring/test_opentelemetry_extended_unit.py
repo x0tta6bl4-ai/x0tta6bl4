@@ -9,8 +9,5 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 
 def test_import_smoke():
-    try:
-        mod = importlib.import_module("src.monitoring.opentelemetry_extended")
-    except Exception as exc:
-        pytest.skip(f"optional dependency/import issue: {exc}")
+    mod = importlib.import_module("src.monitoring.opentelemetry_extended")
     assert mod is not None

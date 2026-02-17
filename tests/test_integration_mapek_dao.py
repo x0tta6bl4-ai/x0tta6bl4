@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from src.dao.governance import GovernanceEngine, ProposalState
+from src.dao.governance import GovernanceEngine, ProposalState, VoteType
 from src.dao.mapek_threshold_manager import MAPEKThresholdManager
 from src.self_healing.mape_k import SelfHealingManager
 from src.storage.knowledge_storage_v2 import KnowledgeStorageV2
@@ -40,7 +40,7 @@ def setup_integration(temp_storage):
         governance_engine=governance, storage_path=temp_storage
     )
     knowledge_storage = KnowledgeStorageV2(
-        storage_path=temp_storage, use_real_ipfs=False  # Use mock
+        node_id="node-1", storage_path=temp_storage, use_real_ipfs=False  # Use mock
     )
 
     # Create SelfHealingManager with integration
@@ -81,10 +81,10 @@ class TestDAOToMAPEKIntegration:
 
         # Vote and pass
         governance.cast_vote(
-            proposal.id, "node-1", governance.VoteType.YES, tokens=100.0
+            proposal.id, "node-1", VoteType.YES, tokens=100.0
         )
         governance.cast_vote(
-            proposal.id, "node-2", governance.VoteType.YES, tokens=100.0
+            proposal.id, "node-2", VoteType.YES, tokens=100.0
         )
 
         # Tally votes
@@ -178,7 +178,10 @@ class TestEndToEndFlow:
 
         # Vote
         governance.cast_vote(
-            proposal.id, "node-1", governance.VoteType.YES, tokens=200.0
+            proposal.id, "node-1", VoteType.YES, tokens=200.0
+        )
+        governance.cast_vote(
+            proposal.id, "node-2", VoteType.YES, tokens=150.0
         )
         governance._tally_votes(proposal)
 

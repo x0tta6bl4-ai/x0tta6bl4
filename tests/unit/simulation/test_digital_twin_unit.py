@@ -230,7 +230,7 @@ class TestMeshDigitalTwin:
         assert twin.twin_id == "my-twin"
 
     @patch("src.simulation.digital_twin.HAS_PROMETHEUS", True)
-    @patch("src.simulation.digital_twin.PrometheusConnect")
+    @patch("src.simulation.digital_twin.PrometheusConnect", create=True)
     def test_init_with_prometheus(self, mock_prom_cls):
         mock_client = MagicMock()
         mock_prom_cls.return_value = mock_client
@@ -239,7 +239,7 @@ class TestMeshDigitalTwin:
         mock_prom_cls.assert_called_once_with(url="http://prom:9090")
 
     @patch("src.simulation.digital_twin.HAS_PROMETHEUS", True)
-    @patch("src.simulation.digital_twin.PrometheusConnect", side_effect=Exception("conn fail"))
+    @patch("src.simulation.digital_twin.PrometheusConnect", side_effect=Exception("conn fail"), create=True)
     def test_init_prometheus_connection_error(self, mock_prom_cls):
         twin = MeshDigitalTwin(twin_id="t", prometheus_url="http://prom:9090")
         assert twin.prom is None

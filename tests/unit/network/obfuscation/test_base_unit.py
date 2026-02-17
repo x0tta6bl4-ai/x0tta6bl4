@@ -43,6 +43,8 @@ def test_register_and_create_transport_with_kwargs():
     created = TransportManager.create("dummy", marker="ok")
     assert isinstance(created, _DummyTransport)
     assert created.marker == "ok"
+    raw_socket = object()
+    assert created.wrap_socket(raw_socket) is raw_socket
     assert created.deobfuscate(created.obfuscate(b"payload")) == b"payload"
 
 
@@ -57,3 +59,9 @@ def test_register_overrides_existing_transport_name():
     TransportManager.register("dummy", _DummyB)
     created = TransportManager.create("dummy")
     assert isinstance(created, _DummyB)
+
+
+def test_abstract_method_bodies_are_noop_lines():
+    assert ObfuscationTransport.wrap_socket(None, None) is None
+    assert ObfuscationTransport.obfuscate(None, b"payload") is None
+    assert ObfuscationTransport.deobfuscate(None, b"payload") is None

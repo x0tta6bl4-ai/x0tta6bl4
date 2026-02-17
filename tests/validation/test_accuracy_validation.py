@@ -268,6 +268,7 @@ class TestAnomalyDetectionAccuracy:
             recall=recall,
             f1_score=f1_score,
             target_accuracy=self.TARGET_ACCURACY,
+            passed=False,  # overwritten by __post_init__ based on accuracy >= target_accuracy
             metadata={
                 "true_positives": true_positives,
                 "true_negatives": true_negatives,
