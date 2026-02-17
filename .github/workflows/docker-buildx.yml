@@ -2,7 +2,7 @@ name: Docker Multi-Arch Build
 on:
   push:
     tags:
-      - v*
+      - 'v*'
   workflow_dispatch:
 env:
   REGISTRY: ghcr.io
