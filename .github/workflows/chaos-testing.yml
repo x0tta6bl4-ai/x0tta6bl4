@@ -65,6 +65,7 @@ jobs:
             --create-namespace \
             --set mesh.replicaCount=5 \
             --set zeroTrust.enabled=true \
+            --set prometheus.enabled=false \
             --wait --timeout=5m
       
       - id: cluster
