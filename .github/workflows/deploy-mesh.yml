@@ -1,19 +1,46 @@
 name: Deploy x0tta6bl4 Mesh
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4 # Use v4 for actions/checkout
-      - name: Snyk + Trivy scan
-        run: ./scripts/security-scan.sh --severity high
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Bandit/Safety/Pip-audit
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+          bandit -r src/ -lll -iii
+          safety check -r requirements.txt
+          pip-audit -r requirements.txt
+
+      - name: Trivy filesystem scan (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Check for verified secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified
       - name: Sigstore sign
+        if: ${{ secrets.COSIGN_KEY != '' }}
         run: cosign sign --key ${{ secrets.COSIGN_KEY }} mesh-image:${{ github.sha }}
 
   deploy-production:
+    if: ${{ secrets.VPS_IP != '' && secrets.VAULT_TOKEN != '' }}
     needs: security-scan
     runs-on: ubuntu-latest
     steps:

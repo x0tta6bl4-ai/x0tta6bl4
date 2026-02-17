@@ -1,17 +1,9 @@
 name: Docker Multi-Arch Build
-'on':
+on:
   push:
-    branches:
-    - main
-    - develop
     tags:
-    - v*
-  pull_request:
-    branches:
-    - main
-    - develop
-  schedule:
-  - cron: 0 2 * * 0
+      - v*
+  workflow_dispatch:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
