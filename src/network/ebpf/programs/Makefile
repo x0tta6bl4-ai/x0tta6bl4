@@ -23,6 +23,7 @@ INCLUDES = -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/uapi \
 
 # Compiler flags with optimizations
 CLANG_FLAGS = -O2 \
+              -g \
               -target bpf \
               -D__BPF_TRACING__ \
               -D__KERNEL__ \

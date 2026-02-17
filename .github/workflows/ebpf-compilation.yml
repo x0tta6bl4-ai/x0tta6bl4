@@ -45,100 +45,70 @@ jobs:
       - name: Compile XDP programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile XDP counter
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_counter.c \
-            -o xdp_counter.ll
+            -o ../../../build/ebpf/xdp_counter.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_counter.o \
-            xdp_counter.ll
           
           # Compile XDP mesh filter
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_mesh_filter.c \
-            -o xdp_mesh_filter.ll
+            -o ../../../build/ebpf/xdp_mesh_filter.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_mesh_filter.o \
-            xdp_mesh_filter.ll
           
           # Compile XDP PQC verify
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_pqc_verify.c \
-            -o xdp_pqc_verify.ll
+            -o ../../../build/ebpf/xdp_pqc_verify.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_pqc_verify.o \
-            xdp_pqc_verify.ll
           
           echo "✓ XDP programs compiled"
       
       - name: Compile kprobe programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile kprobe syscall latency
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c kprobe_syscall_latency_secure.c \
-            -o kprobe_syscall_latency.ll
+            -o ../../../build/ebpf/kprobe_syscall_latency.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/kprobe_syscall_latency.o \
-            kprobe_syscall_latency.ll
           
           echo "✓ kprobe programs compiled"
       
       - name: Compile tracepoint programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile tracepoint net events
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c tracepoint_net.c \
-            -o tracepoint_net.ll
+            -o ../../../build/ebpf/tracepoint_net.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/tracepoint_net.o \
-            tracepoint_net.ll
           
           echo "✓ tracepoint programs compiled"
       
       - name: Compile TC programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile TC classifier
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c tc_classifier.c \
-            -o tc_classifier.ll
+            -o ../../../build/ebpf/tc_classifier.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/tc_classifier.o \
-            tc_classifier.ll
           
           echo "✓ TC programs compiled"
       
