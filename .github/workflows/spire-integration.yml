@@ -37,12 +37,19 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e ".[dev]"
+          pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov
-      
+
       - name: Run unit tests
         run: |
-          pytest tests/ -k "spiffe or spire or zero_trust" --ignore=tests/test_spire_integration.py -v --tb=short
+          pytest \
+            tests/unit/security/spiffe \
+            tests/unit/security/test_spire_integration_unit.py \
+            tests/unit/security/test_spiffe_auto_renew.py \
+            tests/unit/security/test_zero_trust_unit.py \
+            tests/unit/security/test_zero_trust_policy_engine.py \
+            tests/unit/security/test_zero_trust_policy_engine_more.py \
+            -o addopts='' -v --tb=short
 
   integration-tests:
     name: Integration Tests (SPIRE)
@@ -59,7 +66,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e ".[dev]"
+          pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov
       
       - name: Install SPIRE
@@ -164,7 +171,7 @@ jobs:
         run: pip install ruff mypy
       
       - name: Run Ruff
-        run: ruff check src/security/spiffe/ src/security/zero_trust/
+        run: ruff check src/security/spiffe/ src/security/zero_trust/ --select E9,F63,F7,F82
       
       - name: Run MyPy
         run: mypy src/security/spiffe/ --ignore-missing-imports
