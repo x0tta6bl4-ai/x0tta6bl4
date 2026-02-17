@@ -96,14 +96,14 @@ jobs:
           fi
       
       - name: Upload eBPF artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}/*.o
           retention-days: 30
       
       - name: Upload disassembly for review
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-disassembly
           path: ${{ env.ARTIFACTS_DIR }}/*.dis
@@ -208,7 +208,7 @@ jobs:
           done
       
       - name: Upload analysis reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysis-reports
           path: |
@@ -262,7 +262,7 @@ jobs:
       
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: test-results/
@@ -308,7 +308,7 @@ jobs:
           python scripts/compare_ebpf_baseline.py || true
       
       - name: Upload benchmarks
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: ebpf-benchmark.txt
@@ -360,7 +360,7 @@ jobs:
           python scripts/generate_ebpf_metadata.py ${ARTIFACTS_DIR}
       
       - name: Upload documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-documentation
           path: docs/ebpf/
@@ -403,7 +403,7 @@ jobs:
           done
       
       - name: Upload to release artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-release-package
           path: release/
