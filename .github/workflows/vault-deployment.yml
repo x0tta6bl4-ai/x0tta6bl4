@@ -99,10 +99,13 @@ jobs:
 
       - name: Run Vault client tests
         run: |
-          pytest tests/vault/ -v --cov=src/security --cov-report=xml --cov-report=html
+          pytest tests/vault/ -o addopts='' -v \
+            --cov=src/security/vault_client.py \
+            --cov=src/security/vault_secrets.py \
+            --cov-report=xml --cov-report=html --cov-fail-under=70
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           flags: vault
@@ -129,7 +132,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -306,7 +309,7 @@ jobs:
           ./k8s/vault/backup/backup.sh
 
       - name: Upload backup artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: vault-backup
           path: vault-backup-*.snap
