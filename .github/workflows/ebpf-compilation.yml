@@ -45,7 +45,7 @@ jobs:
       - name: Compile XDP programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile XDP counter
           clang-${{ env.LLVM_VERSION }} \
@@ -88,7 +88,7 @@ jobs:
       - name: Compile kprobe programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile kprobe syscall latency
           clang-${{ env.LLVM_VERSION }} \
@@ -107,7 +107,7 @@ jobs:
       - name: Compile tracepoint programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile tracepoint net events
           clang-${{ env.LLVM_VERSION }} \
@@ -126,7 +126,7 @@ jobs:
       - name: Compile TC programs
         working-directory: src/network/ebpf/programs
         run: |
-          COMMON_FLAGS="-S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+          COMMON_FLAGS="-emit-llvm -S -target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
           # Compile TC classifier
           clang-${{ env.LLVM_VERSION }} \
