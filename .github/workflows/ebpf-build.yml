@@ -34,7 +34,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install build dependencies
         run: |
@@ -42,11 +42,11 @@ jobs:
             clang-${LLVM_VERSION} \
             llvm-${LLVM_VERSION} \
             libelf-dev \
+            linux-libc-dev \
             libpcap-dev \
             pkg-config \
             build-essential \
             git \
-            linux-headers-$(uname -r) \
             python3-dev \
             python3-pip
       
@@ -69,6 +69,8 @@ jobs:
                 -D__KERNEL__ \
                 -D__BPF_TRACING__ \
                 -I./headers \
+                -I/usr/include/$(uname -m)-linux-gnu \
+                -I/usr/include \
                 -c "$ebpf_file" \
                 -o "../../${ARTIFACTS_DIR}/${prog_name}.o"
               
@@ -81,16 +83,18 @@ jobs:
                 -S "../../${ARTIFACTS_DIR}/${prog_name}.o" \
                 > "../../${ARTIFACTS_DIR}/${prog_name}.dis"
               
-              echo "  ✅ ${prog_name}.o ($(stat -c%s ${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
+              echo "  ✅ ${prog_name}.o ($(stat -c%s ../../${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
             fi
           done
       
       - name: Verify compiled programs
         run: |
+          shopt -s nullglob
           echo "📋 Compiled eBPF programs:"
           ls -lh ${ARTIFACTS_DIR}/*.o 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
-          
-          if [ ! -f "${ARTIFACTS_DIR}/*.o" ]; then
+
+          objects=(${ARTIFACTS_DIR}/*.o)
+          if [ ${#objects[@]} -eq 0 ]; then
             echo "❌ No eBPF programs compiled!"
             exit 1
           fi
@@ -119,17 +123,17 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
       
       - name: Install verification tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             llvm-${LLVM_VERSION} \
             libelf-dev
       
@@ -172,11 +176,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install analysis tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             clang-tools-${LLVM_VERSION} \
             splint \
             cppcheck
@@ -226,10 +230,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -278,10 +282,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -324,17 +328,17 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             llvm-${LLVM_VERSION} \
             doxygen \
             graphviz
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -377,10 +381,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       
       - name: Create release package
         run: |
