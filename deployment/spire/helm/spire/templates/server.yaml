@@ -1,0 +1,158 @@
+{{/*
+SPIRE Server StatefulSet
+*/}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "spire.fullname" . }}-server
+  labels:
+    {{- include "spire.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  serviceName: {{ include "spire.fullname" . }}-server
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "spire.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "spire.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: {{ include "spire.serviceAccountName" . }}-server
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: spire-server
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - name: grpc
+              containerPort: 8081
+              protocol: TCP
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+      volumes:
+        - name: spire-config
+          configMap:
+            name: {{ include "spire.fullname" . }}-server
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.server.persistence.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.server.persistence.size }}
+---
+{{/*
+SPIRE Server Service
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "spire.fullname" . }}-server
+  labels:
+    {{- include "spire.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    {{- include "spire.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+---
+{{/*
+SPIRE Server ConfigMap
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spire.fullname" . }}-server
+  labels:
+    {{- include "spire.labels" . | nindent 4 }}
+data:
+  server.conf: |
+    server {
+      trust_domain = "{{ .Values.global.trustDomain }}"
+      data_dir = "/run/spire/data"
+      log_level = "info"
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      default_svid_ttl = "{{ .Values.server.svidTTL }}"
+      ca_subject = {
+        country = ["{{ .Values.server.caSubject.country }}"],
+        organization = ["{{ .Values.server.caSubject.organization }}"],
+        common_name = "{{ .Values.server.caSubject.commonName }}",
+      }
+    }
+    
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "{{ .Values.server.datastore.type }}"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+      
+      KeyManager "disk" {
+        plugin_data {
+          keys_path = "/run/spire/data/keys.json"
+        }
+      }
+      
+      NodeAttestor "k8s-psat" {
+        plugin_data {
+          clusters = ["{{ .Values.global.trustDomain }}"]
+        }
+      }
+      
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          disable_container_selectors = false
+        }
+      }
+    }
+    
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+    }

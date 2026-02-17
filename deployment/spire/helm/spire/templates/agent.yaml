@@ -1,0 +1,127 @@
+{{/*
+SPIRE Agent DaemonSet
+*/}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "spire.fullname" . }}-agent
+  labels:
+    {{- include "spire.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      {{- include "spire.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "spire.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+    spec:
+      serviceAccountName: {{ include "spire.serviceAccountName" . }}-agent
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostNetwork: false
+      hostPID: false
+      containers:
+        - name: spire-agent
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          args:
+            - -config
+            - /run/spire/config/agent.conf
+          ports:
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-sockets
+              mountPath: /run/spire/sockets
+            - name: spire-agent-data
+              mountPath: /run/spire/data
+      volumes:
+        - name: spire-config
+          configMap:
+            name: {{ include "spire.fullname" . }}-agent
+        - name: spire-sockets
+          hostPath:
+            path: {{ .Values.agent.hostSocketPath }}
+            type: DirectoryOrCreate
+        - name: spire-agent-data
+          emptyDir: {}
+---
+{{/*
+SPIRE Agent ConfigMap
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spire.fullname" . }}-agent
+  labels:
+    {{- include "spire.labels" . | nindent 4 }}
+data:
+  agent.conf: |
+    agent {
+      trust_domain = "{{ .Values.global.trustDomain }}"
+      data_dir = "/run/spire/data"
+      log_level = "info"
+      server_address = "{{ include "spire.fullname" . }}-server"
+      server_port = "8081"
+      socket_path = "{{ .Values.agent.socketPath }}"
+      trust_bundle_path = "/run/spire/data/bundle.der"
+    }
+    
+    plugins {
+      NodeAttestor "k8s-psat" {
+        plugin_data {
+          cluster = "{{ .Values.global.trustDomain }}"
+        }
+      }
+      
+      {{- if .Values.agent.workloadAttestors.k8s.enabled }}
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          disable_container_selectors = {{ .Values.agent.workloadAttestors.k8s.disableContainerSelectors }}
+        }
+      }
+      {{- end }}
+      
+      {{- if .Values.agent.workloadAttestors.unix.enabled }}
+      WorkloadAttestor "unix" {
+        plugin_data {
+          discover_workload_path = true
+          workload_size_limit_kb = 100
+        }
+      }
+      {{- end }}
+    }
+    
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+    }

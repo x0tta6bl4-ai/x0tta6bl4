@@ -1,0 +1,82 @@
+# Docker Compose for SPIRE Server and Agent
+# Development/Testing environment
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # SPIRE Server
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.9.0
+    container_name: spire-server
+    hostname: spire-server
+    command: ["-config", "/run/spire/config/server.conf"]
+    volumes:
+      - ./config/server.conf:/run/spire/config/server.conf:ro
+      - spire-server-data:/run/spire/data
+      - spire-server-logs:/run/spire/logs
+    ports:
+      - "8081:8081"  # gRPC API
+    healthcheck:
+      test: ["CMD", "spire-server", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - spire-network
+    restart: unless-stopped
+
+  # SPIRE Agent
+  spire-agent:
+    image: ghcr.io/spiffe/spire-agent:1.9.0
+    container_name: spire-agent
+    hostname: spire-agent
+    command: ["-config", "/run/spire/config/agent.conf"]
+    volumes:
+      - ./config/agent.conf:/run/spire/config/agent.conf:ro
+      - spire-agent-sockets:/run/spire/sockets
+      - spire-agent-logs:/run/spire/logs
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/spire/sockets/agent.sock"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - spire-network
+    restart: unless-stopped
+
+  # x0tta6bl4 Node (example workload)
+  x0tta6bl4-node:
+    build:
+      context: ../..
+      dockerfile: deployment/spire/Dockerfile.node
+    container_name: x0tta6bl4-node
+    hostname: x0tta6bl4-node
+    environment:
+      - SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/sockets/agent.sock
+      - X0TTA6BL4_PRODUCTION=true
+      - X0TTA6BL4_SPIRE_JOIN_TOKEN=${SPIRE_JOIN_TOKEN:-}
+    volumes:
+      - spire-agent-sockets:/run/spire/sockets:ro
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    ports:
+      - "8000:8000"  # API
+      - "9090:9090"  # Prometheus metrics
+    networks:
+      - spire-network
+    restart: unless-stopped
+
+volumes:
+  spire-server-data:
+  spire-server-logs:
+  spire-agent-sockets:
+  spire-agent-logs:
+
+networks:
+  spire-network:
+    driver: bridge
