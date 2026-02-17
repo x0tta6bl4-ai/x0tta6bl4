@@ -40,7 +40,7 @@ jobs:
         run: cosign sign --key ${{ secrets.COSIGN_KEY }} mesh-image:${{ github.sha }}
 
   deploy-production:
-    if: ${{ secrets.VPS_IP != '' && secrets.VAULT_TOKEN != '' }}
+    if: vars.ENABLE_MESH_DEPLOY == 'true'
     needs: security-scan
     runs-on: ubuntu-latest
     steps:
