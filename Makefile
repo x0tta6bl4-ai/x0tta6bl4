@@ -507,8 +507,19 @@ ops-test:
 gtm:
 	@./ai.sh gtm
 
+agent-cycle:
+	@python3 scripts/agents/run_agent_cycle.py
+
+agent-cycle-strict:
+	@python3 scripts/agents/run_agent_cycle.py --strict
+
+agent-cycle-dry:
+	@python3 scripts/agents/run_agent_cycle.py --dry-run
+
+agent-cycle-nosync:
+	@python3 scripts/agents/run_agent_cycle.py --no-sync-paradox-log
+
 ai-status:
 	@./ai.sh status
 
 all: install test lint
-

@@ -27,6 +27,7 @@ usage() {
     echo "  code        Run Dev agent — implement current tasks"
     echo "  ops-test    Run Ops agent — run tests and benchmarks"
     echo "  gtm         Run GTM agent — grant prep, marketing content"
+    echo "  cycle       Run parallel 4-agent skill-aware cycle"
     echo "  status      Show current sprint status from ACTION_PLAN_NOW.md"
     echo "  walkthrough Show recent decisions from docs/walkthrough.md"
     echo ""
@@ -35,6 +36,7 @@ usage() {
     echo "  ./ai.sh code              # Implement top task"
     echo "  ./ai.sh ops-test          # Run full test suite"
     echo "  ./ai.sh gtm               # Update grant materials"
+    echo "  ./ai.sh cycle             # Run fast parallel agent cycle"
     echo "  ./ai.sh status            # Print current sprint"
 }
 
@@ -104,18 +106,28 @@ run_agent() {
     echo -e "  ./ai.sh $role | xclip      # Linux"
 }
 
+cmd_cycle() {
+    python3 "$PROJECT_ROOT/scripts/agents/run_agent_cycle.py" "$@"
+}
+
 # Main dispatch
-case "${1:-}" in
+cmd="${1:-}"
+if [ "$#" -gt 0 ]; then
+    shift
+fi
+
+case "$cmd" in
     plan)       run_agent "architect" ;;
     code)       run_agent "dev" ;;
     ops-test)   run_agent "ops" ;;
     gtm)        run_agent "gtm" ;;
+    cycle)      cmd_cycle "$@" ;;
     status)     cmd_status ;;
     walkthrough) cmd_walkthrough ;;
     -h|--help|help) usage ;;
     "")         usage ;;
     *)
-        echo -e "${RED}Unknown command: $1${NC}"
+        echo -e "${RED}Unknown command: $cmd${NC}"
         echo ""
         usage
         exit 1
