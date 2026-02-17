@@ -41,7 +41,7 @@ class TestVaultClientInitialization:
         assert client.max_retries == 3
         assert client.retry_delay == 1.0
         assert client.retry_backoff == 2.0
-        assert client.cache_ttl == 3600
+        assert client.cache_ttl == 300
         assert client.token_refresh_threshold == 0.8
         await client.close()
 

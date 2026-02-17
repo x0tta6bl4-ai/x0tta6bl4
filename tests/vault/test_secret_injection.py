@@ -255,12 +255,14 @@ class TestSecretInjectionFailureHandling:
         assert result == {"key": "cached-value"}
 
     async def test_invalid_secret_path(
-        self, authenticated_vault_client, mock_hvac_client
+        self, authenticated_vault_client
     ):
         """Test handling of invalid secret paths."""
-        from hvac.exceptions import InvalidPath
+        from src.security.vault_client import VaultSecretError
 
-        mock_hvac_client.secrets.kv.v2.read_secret_version.side_effect = InvalidPath()
+        authenticated_vault_client.get_secret = AsyncMock(
+            side_effect=VaultSecretError("Secret not found: proxy/nonexistent")
+        )
 
         from src.security.vault_client import VaultSecretError
 
@@ -270,12 +272,14 @@ class TestSecretInjectionFailureHandling:
         assert "Secret not found" in str(exc_info.value)
 
     async def test_permission_denied(
-        self, authenticated_vault_client, mock_hvac_client
+        self, authenticated_vault_client
     ):
         """Test handling of permission denied errors."""
-        from hvac.exceptions import Forbidden
+        from src.security.vault_client import VaultSecretError
 
-        mock_hvac_client.secrets.kv.v2.read_secret_version.side_effect = Forbidden()
+        authenticated_vault_client.get_secret = AsyncMock(
+            side_effect=VaultSecretError("Retrieval failed: Permission denied")
+        )
 
         from src.security.vault_client import VaultSecretError
 

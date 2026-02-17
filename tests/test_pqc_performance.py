@@ -26,24 +26,33 @@ from src.security.pqc_performance import (HandshakeMetrics,
 @pytest.fixture
 def mock_liboqs():
     """Mock liboqs for testing."""
-    with patch("src.security.post_quantum_liboqs.LIBOQS_AVAILABLE", True):
-        with patch("src.security.post_quantum_liboqs.KeyEncapsulation") as mock_kem:
-            # Mock KEM operations
-            mock_kem_instance = Mock()
-            mock_kem_instance.generate_keypair.return_value = (
-                b"public_key_32_bytes_here",
-                b"private_key_32_bytes_here",
-            )
-            mock_kem_instance.encap_secret.return_value = (
-                b"ciphertext_here",
-                b"shared_secret_32_bytes",
-            )
-            mock_kem_instance.decap_secret.return_value = b"shared_secret_32_bytes"
-            mock_kem_instance.export_secret_key.return_value = (
-                b"private_key_32_bytes_here"
-            )
-            mock_kem.return_value = mock_kem_instance
-            yield mock_kem
+    with patch("src.libx0t.security.post_quantum.LIBOQS_AVAILABLE", True):
+        with patch("src.libx0t.security.post_quantum.KeyEncapsulation") as mock_kem:
+            with patch("src.libx0t.security.post_quantum.Signature") as mock_sig:
+                # Mock KEM operations
+                mock_kem_instance = Mock()
+                mock_kem_instance.generate_keypair.return_value = (
+                    b"public_key_32_bytes_here",
+                    b"private_key_32_bytes_here",
+                )
+                mock_kem_instance.encap_secret.return_value = (
+                    b"ciphertext_here",
+                    b"shared_secret_32_bytes",
+                )
+                mock_kem_instance.decap_secret.return_value = b"shared_secret_32_bytes"
+                mock_kem_instance.export_secret_key.return_value = (
+                    b"private_key_32_bytes_here"
+                )
+                mock_kem.return_value = mock_kem_instance
+
+                # Mock Signature operations
+                mock_sig_instance = Mock()
+                mock_sig_instance.generate_keypair.return_value = b"public_sig_key"
+                mock_sig_instance.export_secret_key.return_value = b"private_sig_key"
+                mock_sig_instance.sign.return_value = b"signature"
+                mock_sig_instance.verify.return_value = True
+                mock_sig.return_value = mock_sig_instance
+                yield
 
 
 class TestPQCKeyCache:
