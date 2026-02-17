@@ -92,12 +92,11 @@ jobs:
       
       - name: Verify compiled programs
         run: |
-          shopt -s nullglob
           echo "📋 Compiled eBPF programs:"
           ls -lh ${ARTIFACTS_DIR}/*.o 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
 
-          objects=(${ARTIFACTS_DIR}/*.o)
-          if [ ${#objects[@]} -eq 0 ]; then
+          object_count=$(find "${ARTIFACTS_DIR}" -maxdepth 1 -name '*.o' | wc -l)
+          if [ "$object_count" -eq 0 ]; then
             echo "❌ No eBPF programs compiled!"
             exit 1
           fi
