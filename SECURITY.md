@@ -54,6 +54,28 @@ x0tta6bl4 uses NIST-standardized post-quantum algorithms:
 | **ML-DSA-65** | Digital Signature | NIST FIPS 204 | Authentication |
 | **AES-256-GCM** | Symmetric Encryption | NIST SP 800-38D | Data encryption |
 
+#### Secure Key Storage
+
+All secret keys are protected using **SecureKeyStorage**:
+
+```python
+from src.security.pqc import SecureKeyStorage
+
+# Keys are encrypted in memory with AES-256-GCM
+storage = SecureKeyStorage()
+storage.store_key("ml-kem-private", private_key_bytes)
+
+# Memory is locked (mlock) to prevent swapping
+# Secure zeroization on deletion
+```
+
+**Security Features:**
+- AES-256-GCM encryption of keys in memory
+- Memory locking (mlock) to prevent swapping to disk
+- Secure zeroization on object deletion
+- Thread-safe singleton pattern
+- Ephemeral encryption key per session
+
 #### Hybrid Schemes
 
 For backward compatibility and defense-in-depth:
@@ -237,9 +259,23 @@ services:
 
 | Date | Auditor | Scope | Result |
 |------|---------|-------|--------|
+| 2026-02-17 | Protocol Security | Full Security Audit | **6 CVEs Fixed** |
 | 2026-01 | Internal | PQC Implementation | Pass |
 | 2026-01 | Internal | eBPF XDP | Pass |
 | 2025-12 | Internal | Full codebase | 0 CVEs |
+
+### 2026-02-17 Security Audit Findings (RESOLVED)
+
+| CVE ID | Severity | Component | Issue | Fix |
+|--------|----------|-----------|-------|-----|
+| **CVE-2026-XDP-001** | CRITICAL | eBPF XDP | Timing attack in MAC verification | Constant-time XOR comparison |
+| **CVE-2026-PQC-001** | HIGH | PQC Keys | Secret keys in plain memory | SecureKeyStorage with AES-256-GCM |
+| **CVE-2026-PQC-002** | HIGH | HKDF | Null salt in key derivation | Random salt per derivation |
+| **CVE-2026-XDP-002** | MEDIUM | eBPF Sessions | Hardcoded 256 session limit | Configurable up to 65536 |
+| **CVE-2026-PQC-003** | MEDIUM | eBPF Sessions | Hardcoded TTL | Configurable via eBPF map |
+| **CVE-2026-SPIFFE-001** | MEDIUM | SPIFFE | No clock skew tolerance | 5-minute tolerance |
+
+**All vulnerabilities have been remediated.** See [`docs/security/SECURITY_AUDIT_2026-02-17.md`](docs/security/SECURITY_AUDIT_2026-02-17.md) for details.
 
 ## Security Configuration
 
@@ -292,6 +328,56 @@ In case of a security incident:
 3. **Contain**: Zero Trust policies prevent lateral movement
 4. **Recover**: Self-healing restores normal operation
 5. **Report**: Incident logged to DAO audit trail
+
+## Threat Model
+
+### Attack Surface
+
+```
+..Threat Model Diagram...........................
+.
+.  +------------------+     +------------------+
+.  | External Network | --> | eBPF XDP Filter  |
+.  +------------------+     +------------------+
+.           |                        |
+.           v                        v
+.  +------------------+     +------------------+
+.  | mTLS Gateway     | --> | SPIRE Agent      |
+.  +------------------+     +------------------+
+.           |                        |
+.           v                        v
+.  +------------------+     +------------------+
+.  | Application      | --> | PQC Key Storage  |
+.  +------------------+     +------------------+
+...............................................
+```
+
+### Threat Categories
+
+| Threat | Mitigation | Status |
+|--------|------------|--------|
+| **Man-in-the-Middle** | mTLS + PQC key exchange | Mitigated |
+| **Side-Channel (Timing)** | Constant-time operations | Mitigated |
+| **Key Extraction** | SecureKeyStorage + mlock | Mitigated |
+| **Replay Attack** | Session IDs + TTL | Mitigated |
+| **Quantum Computer** | ML-KEM-768 + ML-DSA-65 | Mitigated |
+| **Lateral Movement** | Zero Trust + SPIFFE | Mitigated |
+| **DDoS** | eBPF rate limiting | Mitigated |
+| **Clock Skew** | 5-minute tolerance | Mitigated |
+
+### Trust Boundaries
+
+1. **Untrusted Zone**: External network, user input
+2. **DMZ**: Load balancers, ingress controllers
+3. **Trusted Zone**: Internal services with SPIFFE identity
+4. **High-Security Zone**: Key management, HSM integration
+
+### Assumptions
+
+- SPIRE Server and Agent are properly secured
+- Underlying OS is not compromised
+- Hardware security modules (HSM) are available for production
+- Network segmentation is properly configured
 
 ## Contact
 
