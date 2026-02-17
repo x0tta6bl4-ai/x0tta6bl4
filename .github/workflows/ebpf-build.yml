@@ -69,6 +69,7 @@ jobs:
                 -target bpf \
                 -D__KERNEL__ \
                 -D__BPF_TRACING__ \
+                -g \
                 -I./headers \
                 -I./programs/vmlinux \
                 -I/usr/include/$(uname -m)-linux-gnu \
