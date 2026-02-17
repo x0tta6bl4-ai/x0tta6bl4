@@ -30,6 +30,9 @@ alertmanager_data/
 results/
 test-results/
 другие проекты/
+PRIVATE_KEY_VALUE
+PUBLIC_KEY_VALUE
+deploy/proxy/*.pem
 
 # Accidental root artifacts from shell/pip output
 /=*
