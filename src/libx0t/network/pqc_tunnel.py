@@ -192,20 +192,16 @@ class PQCTunnel:
 
         key = self.session_keys[peer_id]
 
-        if AES_AVAILABLE:
-            # Real AES-256-GCM
-            nonce = os.urandom(12)
-            aesgcm = AESGCM(key)
-            ciphertext = aesgcm.encrypt(nonce, data, None)
-            return nonce + ciphertext
-        else:
-            # Simulated encryption (XOR with key stream)
-            nonce = os.urandom(12)
-            key_stream = self._derive_key_stream(key, nonce, len(data))
-            ciphertext = bytes(a ^ b for a, b in zip(data, key_stream))
-            # Add simple MAC
-            mac = hashlib.sha256(key + nonce + ciphertext).digest()[:16]
-            return nonce + ciphertext + mac
+        if not AES_AVAILABLE:
+            raise RuntimeError(
+                "cryptography package is required for encryption. "
+                "Install it with: pip install cryptography"
+            )
+
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(key)
+        ciphertext = aesgcm.encrypt(nonce, data, None)
+        return nonce + ciphertext
 
     def decrypt(self, data: bytes, peer_id: str) -> bytes:
         """Decrypt data from a peer using established session key."""
@@ -214,25 +210,16 @@ class PQCTunnel:
 
         key = self.session_keys[peer_id]
 
-        if AES_AVAILABLE:
-            # Real AES-256-GCM
-            nonce = data[:12]
-            ciphertext = data[12:]
-            aesgcm = AESGCM(key)
-            return aesgcm.decrypt(nonce, ciphertext, None)
-        else:
-            # Simulated decryption
-            nonce = data[:12]
-            mac = data[-16:]
-            ciphertext = data[12:-16]
+        if not AES_AVAILABLE:
+            raise RuntimeError(
+                "cryptography package is required for decryption. "
+                "Install it with: pip install cryptography"
+            )
 
-            # Verify MAC
-            expected_mac = hashlib.sha256(key + nonce + ciphertext).digest()[:16]
-            if mac != expected_mac:
-                raise ValueError("MAC verification failed")
-
-            key_stream = self._derive_key_stream(key, nonce, len(ciphertext))
-            return bytes(a ^ b for a, b in zip(ciphertext, key_stream))
+        nonce = data[:12]
+        ciphertext = data[12:]
+        aesgcm = AESGCM(key)
+        return aesgcm.decrypt(nonce, ciphertext, None)
 
     def _derive_key_stream(self, key: bytes, nonce: bytes, length: int) -> bytes:
         """Derive key stream for simulated encryption."""

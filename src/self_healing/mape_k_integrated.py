@@ -172,7 +172,11 @@ class IntegratedMAPEKCycle:
 
             with analyze_trace:
 
-                analysis_issue = self.analyzer.analyze(metrics)
+                analysis_issue = self.analyzer.analyze(
+                    metrics,
+                    node_id=metrics.get("node_id", "unknown"),
+                    event_id=f"{metrics.get('node_id', 'unknown')}_{int(time.time() * 1000)}",
+                )
                 result["analyzer_results"] = {
                     "root_cause": analysis_issue,
                     "confidence": 1.0 if analysis_issue != "Healthy" else 0.0,
