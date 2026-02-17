@@ -10,12 +10,16 @@ on:
       - 'src/**'
       - 'requirements.txt'
       - 'pyproject.toml'
+      - '.github/workflows/**'
+      - 'scripts/validate_security_workflows.py'
   push:
     branches: [main]
     paths:
       - 'src/**'
       - 'requirements.txt'
       - 'pyproject.toml'
+      - '.github/workflows/**'
+      - 'scripts/validate_security_workflows.py'
 
 jobs:
   bandit:
@@ -38,27 +42,45 @@ jobs:
       - name: Run Bandit (Python security linter)
         id: bandit
         run: |
+          set -euo pipefail
           echo "Running Bandit security analysis..."
-          bandit -r src/ -f json -o bandit-report.json || true
-          bandit -r src/ -f txt -ll || true
-          
-          # Check for HIGH/CRITICAL issues
-          python -c "
+
+          bandit_exit=0
+          bandit -r src/ -f json -o bandit-report.json || bandit_exit=$?
+          bandit -r src/ -f txt -ll
+
+          if [ ! -s bandit-report.json ]; then
+            echo "::error::bandit-report.json was not generated"
+            exit 1
+          fi
+
+          # Bandit exits with 1 when findings exist; treat >1 as tool/runtime failure.
+          if [ "$bandit_exit" -gt 1 ]; then
+            echo "::error::Bandit execution failed with exit code $bandit_exit"
+            exit "$bandit_exit"
+          fi
+
+          python - <<'PY'
           import json
-          with open('bandit-report.json') as f:
+          import sys
+
+          with open("bandit-report.json", encoding="utf-8") as f:
               report = json.load(f)
-          
-          high_critical = [r for r in report.get('results', []) 
-                          if r.get('severity') in ['HIGH', 'CRITICAL']]
-          
+
+          high_critical = [
+              r
+              for r in report.get("results", [])
+              if r.get("severity") in {"HIGH", "CRITICAL"}
+          ]
+
           if high_critical:
-              print(f'::error::Found {len(high_critical)} HIGH/CRITICAL security issues')
-              for issue in high_critical:
-                  print(f'  - {issue[\"test_id\"]}: {issue[\"issue_text\"]}')
-              exit(1)
-          else:
-              print('✓ No HIGH/CRITICAL security issues found')
-          "
+              print(f"::error::Found {len(high_critical)} HIGH/CRITICAL security issues")
+              for issue in high_critical[:20]:
+                  print(f"  - {issue.get('test_id')}: {issue.get('issue_text')}")
+              sys.exit(1)
+
+          print("✓ No HIGH/CRITICAL security issues found")
+          PY
       
       - name: Upload Bandit report
         uses: actions/upload-artifact@v4
@@ -87,29 +109,44 @@ jobs:
       - name: Run Safety (dependency vulnerability check)
         id: safety
         run: |
-          echo "Installing project dependencies..."
-          pip install -e . 2>/dev/null || true
-          
+          set -euo pipefail
           echo "Running Safety vulnerability check..."
-          safety check --json > safety-report.json || true
-          safety check || true
-          
-          # Check for vulnerabilities
-          python -c "
+          safety_exit=0
+          safety check -r requirements.txt --json > safety-report.json || safety_exit=$?
+          safety check -r requirements.txt
+
+          if [ ! -s safety-report.json ]; then
+            echo "::error::safety-report.json was not generated"
+            exit 1
+          fi
+
+          python - <<'PY'
           import json
-          with open('safety-report.json') as f:
+          import sys
+
+          with open("safety-report.json", encoding="utf-8") as f:
               data = json.load(f)
-          
-          # Safety format varies, check for 'vulnerabilities' key
-          vulns = data.get('vulnerabilities', []) or []
-          
+
+          vulns = []
+          if isinstance(data, dict):
+              vulns = data.get("vulnerabilities", []) or data.get("issues", []) or []
+          elif isinstance(data, list):
+              vulns = data
+
           if vulns:
-              print(f'::warning::Found {len(vulns)} dependency vulnerabilities')
-              for vuln in vulns[:5]:  # Show first 5
-                  print(f'  - {vuln}')
-          else:
-              print('✓ No dependency vulnerabilities found')
-          "
+              print(f"::error::Found {len(vulns)} dependency vulnerabilities (Safety)")
+              for vuln in vulns[:20]:
+                  print(f"  - {vuln}")
+              sys.exit(1)
+
+          print("✓ No dependency vulnerabilities found (Safety)")
+          PY
+
+          # If Safety returned non-zero without parsed vulnerabilities, treat as tool failure.
+          if [ "$safety_exit" -ne 0 ]; then
+            echo "::error::Safety exited with code $safety_exit"
+            exit "$safety_exit"
+          fi
       
       - name: Upload Safety report
         uses: actions/upload-artifact@v4
@@ -137,10 +174,47 @@ jobs:
       
       - name: Run pip-audit
         run: |
+          set -euo pipefail
           echo "Running pip-audit for known vulnerabilities..."
-          pip install -e . 2>/dev/null || true
-          pip-audit --format json > pip-audit-report.json || true
-          pip-audit --format markdown || true
+          pip_audit_exit=0
+          pip-audit -r requirements.txt --format json > pip-audit-report.json || pip_audit_exit=$?
+          pip-audit -r requirements.txt --format markdown
+
+          if [ ! -s pip-audit-report.json ]; then
+            echo "::error::pip-audit-report.json was not generated"
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import sys
+
+          with open("pip-audit-report.json", encoding="utf-8") as f:
+              data = json.load(f)
+
+          # pip-audit JSON can be list or dict depending on version/format.
+          deps = []
+          if isinstance(data, dict):
+              deps = data.get("dependencies", []) or data.get("results", []) or []
+          elif isinstance(data, list):
+              deps = data
+
+          vuln_count = 0
+          for dep in deps:
+              if isinstance(dep, dict):
+                  vuln_count += len(dep.get("vulns", []) or dep.get("vulnerabilities", []) or [])
+
+          if vuln_count:
+              print(f"::error::Found {vuln_count} dependency vulnerabilities (pip-audit)")
+              sys.exit(1)
+
+          print("✓ No dependency vulnerabilities found (pip-audit)")
+          PY
+
+          if [ "$pip_audit_exit" -ne 0 ]; then
+            echo "::error::pip-audit exited with code $pip_audit_exit"
+            exit "$pip_audit_exit"
+          fi
       
       - name: Upload pip-audit report
         uses: actions/upload-artifact@v4
@@ -149,9 +223,58 @@ jobs:
           name: pip-audit-report
           path: pip-audit-report.json
 
+  security-workflow-policy:
+    name: Security Workflow Policy Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install policy check dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Validate security workflows are fail-closed
+        run: |
+          set -euo pipefail
+          python scripts/validate_security_workflows.py
+
+  agent-cycle-security-strict:
+    name: Agent Cycle Security Strict
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run strict security-agent cycle
+        run: |
+          set -euo pipefail
+          python scripts/agents/run_agent_cycle.py \
+            --strict \
+            --agents agent-2 \
+            --no-sync-paradox-log
+
+      - name: Upload strict agent-cycle summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-cycle-security-strict
+          path: .tmp/agent_runs/**/summary.*
+
   summary:
     name: Security Scan Summary
-    needs: [bandit, safety, pip-audit]
+    needs: [bandit, safety, pip-audit, security-workflow-policy, agent-cycle-security-strict]
     runs-on: ubuntu-latest
     if: always()
     
@@ -161,7 +284,19 @@ jobs:
       
       - name: Print security summary
         run: |
+          set -euo pipefail
           echo "## Security Scan Summary"
           echo "✓ Bandit scan: ${{ needs.bandit.result }}"
           echo "✓ Safety check: ${{ needs.safety.result }}"
           echo "✓ Pip-audit scan: ${{ needs.pip-audit.result }}"
+          echo "✓ Workflow policy: ${{ needs.security-workflow-policy.result }}"
+          echo "✓ Agent cycle strict: ${{ needs.agent-cycle-security-strict.result }}"
+
+          if [ "${{ needs.bandit.result }}" != "success" ] || \
+             [ "${{ needs.safety.result }}" != "success" ] || \
+             [ "${{ needs.pip-audit.result }}" != "success" ] || \
+             [ "${{ needs.security-workflow-policy.result }}" != "success" ] || \
+             [ "${{ needs.agent-cycle-security-strict.result }}" != "success" ]; then
+            echo "::error::One or more security jobs failed"
+            exit 1
+          fi

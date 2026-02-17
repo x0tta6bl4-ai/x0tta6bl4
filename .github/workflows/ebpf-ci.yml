@@ -153,21 +153,26 @@ jobs:
       
       - name: Install security tools
         run: |
-          pip install bandit safety
+          pip install bandit safety pip-audit
       
       - name: Scan Python code for security issues
         run: |
-          bandit -r src/network/ebpf/ -f json -o bandit-report.json || true
+          set -euo pipefail
+          bandit -r src/network/ebpf/ -lll -iii -f json -o bandit-report.json
           cat bandit-report.json
       
       - name: Check dependencies for vulnerabilities
         run: |
-          safety check --json || true
+          set -euo pipefail
+          safety check -r requirements.txt --json > safety-report.json
+          pip-audit -r requirements.txt --format json > pip-audit-report.json
       
-      - name: Scan C code with cppcheck (if available)
+      - name: Scan C code with cppcheck
         run: |
-          sudo apt-get install -y cppcheck || true
-          cppcheck --enable=all src/network/ebpf/programs/*.c --xml || true
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+          cppcheck --enable=all --error-exitcode=1 src/network/ebpf/programs/*.c
       
       - name: Upload security reports
         uses: actions/upload-artifact@v3
@@ -175,6 +180,8 @@ jobs:
           name: security-reports
           path: |
             bandit-report.json
+            safety-report.json
+            pip-audit-report.json
           retention-days: 7
 
   performance-benchmark:
@@ -267,10 +274,10 @@ jobs:
           exit 1
       
       - name: Check security scan status
-        if: needs.security-scan.result == 'failure'
+        if: needs.security-scan.result != 'success'
         run: |
-          echo "⚠️ Security scan reported issues"
-          exit 0  # Non-blocking
+          echo "❌ Security scan reported issues"
+          exit 1
       
       - name: ✅ All checks passed
         run: echo "✅ eBPF quality gate passed"
