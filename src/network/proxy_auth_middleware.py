@@ -140,7 +140,16 @@ class APIKeyStore:
                 name = key[14:]  # Remove prefix
                 parts = value.split(":", 1)
                 api_key = parts[0]
-                role = Role(parts[1]) if len(parts) > 1 else Role.VIEWER
+                role = Role.VIEWER
+                if len(parts) > 1 and parts[1].strip():
+                    role_name = parts[1].strip().upper()
+                    role = Role.__members__.get(role_name, Role.VIEWER)
+                    if role is Role.VIEWER and role_name != "VIEWER":
+                        logger.warning(
+                            "Unknown API key role '%s' for %s; falling back to VIEWER",
+                            parts[1],
+                            name,
+                        )
 
                 self._keys[api_key] = {
                     "name": name,
@@ -205,6 +214,11 @@ class JWTAuthManager:
     ):
         self.secret = secret or os.environ.get("PROXY_JWT_SECRET", "")
         if not self.secret:
+            if os.environ.get("ENVIRONMENT", "").lower() == "production":
+                raise ValueError(
+                    "PROXY_JWT_SECRET must be set in production. "
+                    "Set the environment variable or pass secret= parameter."
+                )
             logger.warning("JWT secret not configured, JWT auth disabled")
 
         self.algorithm = algorithm

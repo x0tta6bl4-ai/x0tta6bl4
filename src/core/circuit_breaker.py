@@ -297,6 +297,9 @@ class CircuitBreaker:
                             from_state=old_state.value,
                             to_state=self._state.value,
                         ).inc()
+            else:
+                # Track successful calls in CLOSED state as well.
+                self._success_count += 1
 
             self.metrics.state = self._state
             self.metrics.success_count = self._success_count
@@ -309,6 +312,7 @@ class CircuitBreaker:
             self.metrics.last_failure_time = time.time()
 
             self._failure_count += 1
+            self._success_count = 0
             old_state = self._state
 
             if self._state == CircuitState.HALF_OPEN:
@@ -333,6 +337,7 @@ class CircuitBreaker:
 
             self.metrics.state = self._state
             self.metrics.failure_count = self._failure_count
+            self.metrics.success_count = self._success_count
 
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt recovery."""

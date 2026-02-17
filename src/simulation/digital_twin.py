@@ -553,6 +553,8 @@ class MeshDigitalTwin:
             new_failures = set()
 
             for node_id in failed_nodes:
+                if not self.graph.has_node(node_id):
+                    continue
                 neighbors = list(self.graph.neighbors(node_id))
                 for neighbor in neighbors:
                     if (

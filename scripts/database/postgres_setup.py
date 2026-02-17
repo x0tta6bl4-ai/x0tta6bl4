@@ -74,23 +74,44 @@ class PostgresSchemaManager:
         self.config = config
         self.connection_string = f"postgresql://{config.admin_user}:{config.admin_password}@{config.host}:{config.port}/postgres"
 
+    def _psql_base(self, database: Optional[str] = None) -> List[str]:
+        """Build base psql command as a list."""
+        db = database or self.config.database
+        return [
+            "psql",
+            "-h", self.config.host,
+            "-p", str(self.config.port),
+            "-U", self.config.admin_user,
+            "-d", db,
+        ]
+
     async def create_database(self) -> bool:
         """Create main application database"""
         try:
-            cmd = f"""
-            psql -h {self.config.host} -p {self.config.port} -U {self.config.admin_user} \
-              -tc "SELECT 1 FROM pg_database WHERE datname = '{self.config.database}'" | grep -q 1
-            """
+            result = subprocess.run(
+                [
+                    "psql",
+                    "-h", self.config.host,
+                    "-p", str(self.config.port),
+                    "-U", self.config.admin_user,
+                    "-tc", f"SELECT 1 FROM pg_database WHERE datname = '{self.config.database}'",
+                ],
+                capture_output=True,
+                text=True,
+            )
 
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-            if result.returncode != 0:
+            if "1" not in result.stdout:
                 logger.info(f"📦 Creating database: {self.config.database}")
-                create_cmd = f"""
-                psql -h {self.config.host} -p {self.config.port} -U {self.config.admin_user} \
-                  -c "CREATE DATABASE {self.config.database} ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';"
-                """
-                subprocess.run(create_cmd, shell=True, check=True)
+                subprocess.run(
+                    [
+                        "psql",
+                        "-h", self.config.host,
+                        "-p", str(self.config.port),
+                        "-U", self.config.admin_user,
+                        "-c", f"CREATE DATABASE {self.config.database} ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';",
+                    ],
+                    check=True,
+                )
                 logger.info("✅ Database created")
                 return True
             else:

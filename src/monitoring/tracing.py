@@ -342,7 +342,6 @@ class TracingManager:
 
         return span_context()
 
-    @contextmanager
     def trace_full_mape_k_cycle(self, cycle_id: str, node_id: str):
         """
         Trace complete MAPE-K cycle with all phases.

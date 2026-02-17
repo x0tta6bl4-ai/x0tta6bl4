@@ -31,7 +31,7 @@ except ImportError as e:
     BYZANTINE_AVAILABLE = False
     logger.warning(f"⚠️ Byzantine protection not available: {e}")
 
-app = FastAPI(title="x0tta6bl4-minimal-byzantine", version="3.0.0", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal-byzantine", version="3.2.1", docs_url="/docs")
 
 # --- Configuration ---
 PEER_TIMEOUT = 30.0
@@ -149,7 +149,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "3.0.0",
+        "version": "3.2.1",
         "node_id": node_id,
         "byzantine_protection": BYZANTINE_AVAILABLE,
         "peers_count": len(peers),

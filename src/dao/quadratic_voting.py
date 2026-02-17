@@ -23,7 +23,8 @@ except ImportError:
     MONITORING_AVAILABLE = False
 
     def record_dao_vote(*args, **kwargs):
-        pass
+        """No-op fallback when monitoring is not available."""
+        logger.debug("Monitoring not available: vote not recorded")
 
 
 @dataclass

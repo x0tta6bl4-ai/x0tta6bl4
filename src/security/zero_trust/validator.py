@@ -144,9 +144,9 @@ class ZeroTrustValidator:
 
             return decision.allowed
         except ImportError:
-            # Fallback to basic policy if Policy Engine not available
-            logger.debug("Policy Engine not available, using basic allow-list")
-            return True
+            # Security-first behavior: deny if policy engine is unavailable.
+            logger.error("Policy Engine not available, defaulting to deny")
+            return False
         except Exception as e:
             logger.error(f"Policy check error: {e}, defaulting to deny")
             return False  # Fail-closed for security

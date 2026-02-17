@@ -263,7 +263,7 @@ class LoadTestExecutor:
         )
 
 
-class PerformanceBenchmark:
+class SystemPerformanceBenchmark:
     """
     Выполняет микробенчмарки для критических операций.
     """
