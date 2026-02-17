@@ -237,3 +237,6 @@ LocalDesk
 **/*.safetensors
 **/*.onnx
 models/
+
+# Browser test artifacts
+playwright-report/
