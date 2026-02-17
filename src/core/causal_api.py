@@ -53,7 +53,7 @@ async def get_causal_analysis(incident_id: str) -> Dict[str, Any]:
         return asdict(dashboard_data)
     except Exception as e:
         logger.error(f"Error generating dashboard data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/demo")
@@ -75,7 +75,7 @@ async def create_demo_incident() -> Dict[str, Any]:
         return {"incident_id": incident_id, "dashboard_data": asdict(dashboard_data)}
     except Exception as e:
         logger.error(f"Error creating demo incident: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/incidents")

@@ -254,11 +254,19 @@ def integrate_ebpf_graphsage_mapek(mapek_loop, ebpf_exporter, graphsage_detector
     # In MAPE-K Monitor phase, stream eBPF metrics
     def monitor_with_ebpf():
         """Enhanced Monitor phase with eBPF streaming."""
-        # Get all nodes from mesh topology
-        # For each node, stream and detect
-        # Return aggregated metrics
+        metrics = streaming.get_latest_metrics() if hasattr(streaming, "get_latest_metrics") else {}
+        anomalies = []
 
-        # This would be called from MAPE-K Monitor phase
-        pass
+        if hasattr(graphsage_detector, "detect"):
+            for node_id, node_metrics in metrics.items():
+                result = graphsage_detector.detect(node_metrics)
+                if result and getattr(result, "is_anomaly", False):
+                    anomalies.append({"node_id": node_id, "anomaly": result})
+
+        return {
+            "metrics": metrics,
+            "anomalies": anomalies,
+            "node_count": len(metrics),
+        }
 
     return streaming

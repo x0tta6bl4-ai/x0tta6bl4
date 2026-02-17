@@ -109,7 +109,7 @@ class V3MetricsCollector:
         """Инициализация коллектора"""
         v3_info.info(
             {
-                "version": "3.0.0",
+                "version": "3.2.1",
                 "components": "graphsage,stego_mesh,digital_twins,federated_learning,audit_trail",
             }
         )

@@ -712,7 +712,7 @@ class MAPEKKnowledge:
         action_scores: Dict[str, float] = {}
         for incident in self.successful_patterns[issue]:
             action = incident.get("action", "")
-            mttr = incident.get("mttr", 10.0)  # Default to high if missing
+            mttr = incident.get("mttr") or 10.0  # Default to high if missing/None
 
             if action not in action_scores:
                 action_scores[action] = {"count": 0, "total_mttr": 0.0}

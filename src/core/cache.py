@@ -113,6 +113,7 @@ class RedisCache:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
+            cls._instance._init_failed = False
             cls._instance._backend = None
         return cls._instance
 
@@ -121,6 +122,7 @@ class RedisCache:
         if not self._initialized or backend is not None:
             self._backend = backend
             self._initialized = False
+            self._init_failed = False
 
     @classmethod
     def reset_instance(cls) -> None:
@@ -133,13 +135,21 @@ class RedisCache:
         cls._instance = None
         instance = cls.__new__(cls)
         instance._initialized = True
+        instance._init_failed = False
         instance._backend = backend or InMemoryCacheBackend()
         cls._instance = instance
         return instance
 
     async def _initialize(self):
         """Initialize Redis connection pool with Sentinel support."""
-        if self._initialized:
+        if self._initialized or self._init_failed:
+            return
+
+        # In unit tests, avoid creating real Redis transport resources by default.
+        if os.getenv("PYTEST_CURRENT_TEST") and os.getenv(
+            "X0TTA6BL4_ALLOW_REDIS_IN_TESTS", "false"
+        ).lower() not in {"1", "true", "yes", "on"}:
+            self._init_failed = True
             return
 
         # If backend was injected, mark as initialized
@@ -164,7 +174,17 @@ class RedisCache:
 
         except Exception as e:
             logger.error(f"❌ Failed to initialize Redis: {e}")
+            # Best-effort cleanup to avoid lingering transport tasks on event loop teardown.
+            pool = getattr(self, "_pool", None)
+            if pool is not None:
+                try:
+                    await pool.disconnect()
+                except Exception:
+                    pass
+                finally:
+                    self._pool = None
             self._backend = None
+            self._init_failed = True
 
     async def _initialize_sentinel(self, sentinel_hosts: str, master_name: str):
         """Initialize Redis with Sentinel for HA."""
@@ -293,7 +313,8 @@ class RedisCache:
         """Close Redis connection."""
         if self._backend:
             await self._backend.close()
-            self._initialized = False
+        self._initialized = False
+        self._init_failed = False
 
     async def health_check(self) -> dict:
         """
