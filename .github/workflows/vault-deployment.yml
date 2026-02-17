@@ -122,6 +122,9 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: 'k8s/vault/'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
           format: 'sarif'
           output: 'trivy-results.sarif'
 
