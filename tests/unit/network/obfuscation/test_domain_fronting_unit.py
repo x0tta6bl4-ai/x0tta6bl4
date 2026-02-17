@@ -35,10 +35,10 @@ class TestDomainFrontingTransportInit:
         t = DomainFrontingTransport(FRONT, BACKEND)
         assert isinstance(t.context, ssl.SSLContext)
 
-    def test_ssl_context_disables_hostname_check(self):
+    def test_ssl_context_enables_hostname_check(self):
         t = DomainFrontingTransport(FRONT, BACKEND)
-        assert t.context.check_hostname is False
-        assert t.context.verify_mode == ssl.CERT_NONE
+        assert t.context.check_hostname is True
+        assert t.context.verify_mode == ssl.CERT_REQUIRED
 
 
 # ===========================================================================

@@ -203,8 +203,7 @@ class MAPEKLoop:
 
                 if swarm_risk_penalty > 0:
                     logger.info(
-                        f"🐝 Swarm detection: Risk penalty {
-                            swarm_risk_penalty:.2f} applied"
+                        f"🐝 Swarm detection: Risk penalty {swarm_risk_penalty:.2f} applied"
                     )
 
             except Exception as e:
@@ -267,9 +266,7 @@ class MAPEKLoop:
                 actions.append(f"dao:{result.action_type}={status}")
                 if not result.success:
                     logger.warning(
-                        f"DAO action failed: {
-                            result.action_type} — {
-                            result.detail}"
+                        f"DAO action failed: {result.action_type} — {result.detail}"
                     )
 
         return actions
@@ -356,6 +353,5 @@ class MAPEKLoop:
                 logger.error(f"Failed to log to DAO: {e}")
         else:
             logger.info(
-                f"📜 DAO audit (simulation): {
-                    state.metrics.state.value} state recorded"
+                f"📜 DAO audit (simulation): {state.metrics.state.value} state recorded"
             )

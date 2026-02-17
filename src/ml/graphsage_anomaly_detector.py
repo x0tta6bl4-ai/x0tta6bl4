@@ -295,9 +295,7 @@ class GraphSAGEAnomalyDetector:
             return
 
         logger.info(
-            f"Training GraphSAGE v2 model: {
-                len(node_features)} nodes, {
-                len(edge_index)} edges"
+            f"Training GraphSAGE v2 model: {len(node_features)} nodes, {len(edge_index)} edges"
         )
 
         # Convert to PyTorch format
