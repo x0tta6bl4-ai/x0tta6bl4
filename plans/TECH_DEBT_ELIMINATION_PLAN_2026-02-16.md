@@ -403,12 +403,17 @@ graph TD
 | **Тестирование** | Покрытие | 71.15% |
 | **Безопасность** | CVE | 0 |
 | **Безопасность** | Hardcoded секреты | 0 |
+| **Безопасность** | Security Posture | HIGH (было MEDIUM) |
 | **Архитектура** | God Objects | 0 (все декомпозированы) |
 | **PQC** | Алгоритмы | ML-KEM-768, ML-DSA-65, AES-256-GCM |
+| **PQC** | Key Storage | SecureKeyStorage (AES-256-GCM encrypted) |
 | **CRDT** | Типы | LWWRegister, ORSet, LWWMap, GCounter, PNCounter |
 | **AI/ML** | ConsciousnessEngine | GraphSAGE + LocalLLM |
-| **eBPF** | XDP | SipHash-2-4 MAC verification |
+| **eBPF** | XDP | SipHash-2-4 MAC (constant-time) |
+| **eBPF** | Sessions | 65536 max, configurable TTL |
 | **Identity** | SPIFFE/SPIRE | Docker Compose + Helm |
+| **CI/CD** | Security Scanning | pip-audit, bandit, safety, trivy, semgrep |
+| **CI/CD** | SBOM | CycloneDX |
 
 ---
 
