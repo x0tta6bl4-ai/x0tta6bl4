@@ -1,0 +1,45 @@
+name: Enforce Branch Protection
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch name to protect"
+        required: true
+        default: "main"
+      check_name:
+        description: "Required status check name"
+        required: true
+        default: "Security Scan Summary"
+
+jobs:
+  enforce:
+    name: Set Required Security Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate token presence
+        run: |
+          set -euo pipefail
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            echo "::error::Missing secret BRANCH_PROTECTION_TOKEN"
+            echo "Add repository secret BRANCH_PROTECTION_TOKEN with admin rights."
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+
+      - name: Apply required security check
+        run: |
+          set -euo pipefail
+          scripts/set_required_security_check.sh \
+            --owner "${GITHUB_REPOSITORY_OWNER}" \
+            --repo "${GITHUB_REPOSITORY#${GITHUB_REPOSITORY_OWNER}/}" \
+            --branch "${{ github.event.inputs.branch }}" \
+            --check-name "${{ github.event.inputs.check_name }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
