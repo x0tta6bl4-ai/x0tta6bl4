@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Any, Dict
 
-_VERSION = os.getenv("X0TTA6BL4_VERSION", "3.4.0")
+_VERSION = os.getenv("X0TTA6BL4_VERSION", "3.2.1")
 
 
 def get_health() -> Dict[str, Any]:

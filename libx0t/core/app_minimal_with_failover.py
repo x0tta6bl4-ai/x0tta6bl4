@@ -21,7 +21,7 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("x0tta6bl4")
 
-app = FastAPI(title="x0tta6bl4-minimal-failover", version="3.0.0", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal-failover", version="3.2.1", docs_url="/docs")
 
 # --- Configuration ---
 PEER_TIMEOUT = 30.0  # Seconds without beacon = dead peer
@@ -212,7 +212,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "3.0.0",
+        "version": "3.2.1",
         "node_id": node_id,
         "peers_count": len(peers),
         "dead_peers_count": len(dead_peers),

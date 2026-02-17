@@ -154,9 +154,10 @@ class VaultSecretManager:
             db_name: Database identifier
             credentials: Database credentials to store
         """
+        secret_data = credentials if isinstance(credentials, dict) else credentials.to_dict()
         await self.vault_client.put_secret(
             f"{self._secret_paths[SecretType.DATABASE]}/{db_name}",
-            credentials.to_dict(),
+            secret_data,
         )
         logger.info("Stored database credentials for %s", db_name)
 

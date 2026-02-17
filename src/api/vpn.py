@@ -191,7 +191,7 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         return VPNStatusResponse(**data)
     except Exception as e:
         logger.error(f"Error getting VPN status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 VPN_USERS_CACHE_KEY = "vpn:users:list"
@@ -240,7 +240,7 @@ async def get_vpn_users(
         return result
     except Exception as e:
         logger.error(f"Error getting VPN users: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/user/{user_id}")
@@ -279,4 +279,4 @@ async def delete_vpn_user(
     except Exception as e:
         logger.error(f"Error deleting VPN user: {e}", exc_info=True)
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

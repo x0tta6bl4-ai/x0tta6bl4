@@ -128,7 +128,7 @@ class VaultClient:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff: float = 2.0,
-        cache_ttl: int = 3600,
+        cache_ttl: int = 300,
         token_refresh_threshold: float = 0.8,
     ):
         """
@@ -395,6 +395,17 @@ class VaultClient:
                         "Failed to retrieve secret after %d attempts", self.max_retries
                     )
                     raise VaultSecretError(f"Retrieval failed: {e}")
+
+            except VaultSecretError:
+                raise
+
+            except Exception as e:
+                self._degraded = True
+                vault_secret_failures.labels(
+                    operation="read", reason="connection_error"
+                ).inc()
+                logger.error("Vault connection error retrieving %s: %s", secret_path, e)
+                raise VaultSecretError(f"Vault unavailable: {e}")
 
     async def put_secret(
         self,

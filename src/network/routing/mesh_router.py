@@ -4,10 +4,9 @@ Multi-hop forwarding с reactive route discovery.
 """
 
 import asyncio
-import hashlib
 import json
 import logging
-import random  # Add random import
+import secrets
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -55,11 +54,7 @@ class RoutingPacket:
     hop_count: int
     ttl: int
     payload: bytes
-    packet_id: str = field(
-        default_factory=lambda: hashlib.sha256(
-            f"{str(time.time())}{str(random.random())}".encode()
-        ).hexdigest()[:16]
-    )  # Use default_factory to generate unique ID
+    packet_id: str = field(default_factory=lambda: secrets.token_hex(8))
     # Новое поле для отслеживания пройденного пути (для Node-Disjointness)
     path_traversed: List[str] = field(default_factory=list)
 
@@ -131,6 +126,7 @@ class MeshRouter:
         self._send_callback: Optional[Callable] = (
             None  # (packet_bytes, next_hop) -> bool
         )
+        self._receive_callback: Optional[Callable[[str, bytes], None]] = None
         self._crdt_sync_callback: Optional[Callable[[Dict[str, Any]], None]] = (
             None  # (crdt_data) -> None
         )
@@ -163,6 +159,12 @@ class MeshRouter:
             except asyncio.CancelledError:
                 pass
         logger.info(f"MeshRouter stopped for {self.node_id}")
+
+    async def _cleanup_seen_packets(self):
+        """Периодически очищать кэш обработанных packet_id."""
+        while True:
+            await asyncio.sleep(self.ROUTE_TIMEOUT)
+            self._seen_packets.clear()
 
     def set_send_callback(self, callback: Callable):
         """Установить callback для отправки пакетов."""
@@ -410,8 +412,8 @@ class MeshRouter:
             await self._send_rrep(packet.source, from_neighbor, current_path_traversed)
         else:
             # Проверяем есть ли у нас маршрут к цели
-            route = self.get_route(target)
-            if route:
+            routes = self.get_route(target)
+            if routes:
                 # Отвечаем за цель (proxy reply)
                 # Передаем path_traversed из RREQ, чтобы RREP знал полный путь
                 await self._send_rrep(
@@ -419,7 +421,7 @@ class MeshRouter:
                     from_neighbor,
                     current_path_traversed,
                     target,
-                    route.hop_count,
+                    routes[0].hop_count,
                 )
             else:
                 # Пересылаем RREQ, добавляя себя в path_traversed
@@ -483,7 +485,8 @@ class MeshRouter:
 
         # Инвалидируем маршрут
         if broken_dest in self._routes:
-            self._routes[broken_dest].valid = False
+            for route in self._routes[broken_dest]:
+                route.valid = False
 
         # Пересылаем RERR
         await self._forward_packet(packet)
@@ -524,6 +527,7 @@ class MeshRouter:
             # Для RREQ - broadcast
             if packet.packet_type == PacketType.RREQ:
                 await self._broadcast_packet(packet)
+                return
             else:
                 logger.warning(f"No route to forward packet to {packet.destination}")
                 async with self._stats_lock:
@@ -533,20 +537,30 @@ class MeshRouter:
         packet.ttl -= 1
         packet.hop_count += 1
 
-        await self._send_packet(
-            packet, route[0].next_hop
-        )  # Assuming route is a list, take the first one
+        sent = await self._send_packet(packet, route[0].next_hop)
         async with self._stats_lock:
-            self._stats["packets_forwarded"] += 1
+            if sent:
+                self._stats["packets_forwarded"] += 1
+            else:
+                self._stats["packets_dropped"] += 1
 
     async def _broadcast_packet(self, packet: RoutingPacket):
         """Broadcast пакет всем соседям."""
         packet.ttl -= 1
         packet.hop_count += 1
 
-        for dest, route in self._routes.items():
-            if route.hop_count == 1:  # Только прямые соседи
-                await self._send_packet(packet, dest)
+        direct_neighbors = []
+        for dest, routes in self._routes.items():
+            if any(
+                route.hop_count == 1
+                and route.valid
+                and route.age < self.ROUTE_TIMEOUT
+                for route in routes
+            ):
+                direct_neighbors.append(dest)
+
+        for dest in direct_neighbors:
+            await self._send_packet(packet, dest)
 
     async def _send_packet(self, packet: RoutingPacket, next_hop: str) -> bool:
         """Отправить пакет через transport."""
@@ -635,9 +649,14 @@ class MeshRouter:
         next_hop: str,
         hop_count: int,
         seq_num: int,
-        path: List[str],
+        path: Optional[List[str]] = None,
     ):
         """Обновить или добавить маршрут."""
+        if path is None:
+            if next_hop == destination:
+                path = [self.node_id, destination]
+            else:
+                path = [self.node_id, next_hop, destination]
 
         new_entry = RouteEntry(
             destination=destination,
