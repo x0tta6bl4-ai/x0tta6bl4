@@ -15,6 +15,30 @@ __pycache__/
 build/
 dist/
 
+# Local generated artifacts
+coverage*.xml
+junit.xml
+*.pid
+.paradox
+.paradox.log
+.secrets.baseline
+detect_secrets_*_scan.json
+release_v3.3/
+System Volume Information/
+prometheus_data/
+alertmanager_data/
+results/
+test-results/
+другие проекты/
+
+# Accidental root artifacts from shell/pip output
+/=*
+/130
+/1462
+/202
+/514
+/66
+
 # Archives & Artifacts
 archive/artifacts/
 archive/legacy/
@@ -41,6 +65,8 @@ node_modules/
 
 # Misc
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # Test & Coverage Artifacts
 junit.xml
