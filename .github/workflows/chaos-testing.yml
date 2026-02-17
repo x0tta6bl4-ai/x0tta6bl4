@@ -40,7 +40,10 @@ jobs:
         uses: helm/kind-action@v1
         with:
           cluster_name: ${{ env.CLUSTER_NAME }}
-          config: kind-config.yaml
+          config: kind-chaos-ci-config.yaml
+          version: v0.26.0
+          kubectl_version: v1.30.6
+          wait: 120s
       
       - name: Install Chaos Mesh
         run: |

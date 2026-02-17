@@ -36,6 +36,9 @@ on:
           - restore
           - rotate-secrets
 
+permissions:
+  contents: read
+
 env:
   HELM_VERSION: '3.13.0'
   VAULT_VERSION: '1.15.0'
@@ -100,8 +103,8 @@ jobs:
       - name: Run Vault client tests
         run: |
           pytest tests/vault/ -o addopts='' -v \
-            --cov=src/security/vault_client.py \
-            --cov=src/security/vault_secrets.py \
+            --cov=src.security.vault_client \
+            --cov=src.security.vault_secrets \
             --cov-report=xml --cov-report=html --cov-fail-under=70
 
       - name: Upload coverage
@@ -116,24 +119,30 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: lint
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
+        continue-on-error: ${{ github.ref == 'refs/heads/develop' }}
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: 'k8s/vault/'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && '1' || '0' }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
 

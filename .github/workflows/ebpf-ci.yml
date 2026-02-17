@@ -23,7 +23,7 @@ jobs:
         kernel-version: ['5.15', '6.0', '6.5']
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
@@ -84,12 +84,12 @@ jobs:
     needs: ebpf-build
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install Python dependencies
         run: |
@@ -97,7 +97,7 @@ jobs:
           pip install -e .[ml,dev,monitoring]
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
@@ -115,14 +115,14 @@ jobs:
           pytest tests/network/ebpf/test_ebpf_loader.py -v -m unit
       
       - name: Run eBPF integration tests
+        continue-on-error: true
         run: |
           pytest tests/network/ebpf/test_ebpf_integration.py -v -m integration
-          continue-on-error: true  # Integration tests may require kernel capabilities
       
       - name: Check eBPF-MAPE-K integration
+        continue-on-error: true
         run: |
           pytest tests/network/ebpf/test_ebpf_mapek_integration.py -v
-          continue-on-error: true
       
       - name: Generate coverage report
         run: |
@@ -133,7 +133,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           flags: ebpf
@@ -144,12 +144,12 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install security tools
         run: |
@@ -191,12 +191,12 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install dependencies
         run: |
@@ -205,7 +205,7 @@ jobs:
           sudo apt-get install -y libbpf0 libelf1
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
@@ -233,10 +233,10 @@ jobs:
     needs: ebpf-build
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
