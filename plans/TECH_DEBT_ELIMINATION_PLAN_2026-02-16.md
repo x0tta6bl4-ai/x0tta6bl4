@@ -209,6 +209,33 @@ src/network/routing/
   - [x] .github/dependabot.yml создан
   - [x] pip, docker, github-actions ecosystems
 
+### P2.4 Security Vulnerabilities - ИСПРАВЛЕНО (2026-02-17)
+
+- [x] CVE-2026-XDP-001: Timing Attack в MAC verification (CRITICAL)
+  - [x] Constant-time XOR comparison
+  - [x] Файл: src/network/ebpf/programs/xdp_pqc_verify.c
+- [x] CVE-2026-PQC-001: Secret Keys в Memory без Encryption (HIGH)
+  - [x] SecureKeyStorage с AES-256-GCM
+  - [x] Memory locking (mlock)
+  - [x] Secure zeroization
+  - [x] Файл: src/security/pqc/secure_storage.py (NEW)
+- [x] CVE-2026-PQC-002: HKDF с Null Salt (HIGH)
+  - [x] Random salt для каждой деривации
+  - [x] Файл: src/security/pqc/hybrid.py
+- [x] CVE-2026-XDP-002: Hardcoded Session Limit (MEDIUM)
+  - [x] Увеличен до 65536, configurable via eBPF map
+  - [x] Файл: src/network/ebpf/programs/xdp_pqc_verify.c
+- [x] CVE-2026-PQC-003: Hardcoded Session TTL (MEDIUM)
+  - [x] Configurable TTL via eBPF map
+  - [x] Файл: src/network/ebpf/programs/xdp_pqc_verify.c
+- [x] CVE-2026-SPIFFE-001: No Clock Skew Tolerance (MEDIUM)
+  - [x] 5-minute clock skew tolerance
+  - [x] Файл: src/security/spiffe/workload/api_client.py
+- [x] Unit tests для security fixes
+  - [x] Файл: tests/unit/security/test_security_fixes.py (NEW)
+- [x] Security Audit Report
+  - [x] Файл: docs/security/SECURITY_AUDIT_2026-02-17.md (NEW)
+
 ### P2.3 Мониторинг
 
 - [ ] Настроить structured logging
