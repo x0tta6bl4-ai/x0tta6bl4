@@ -4,10 +4,7 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [main, week4-production-deployment]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.12"
