@@ -234,6 +234,7 @@ x0tta6bl4-mesh-mvp/
 x0tta6bl4_paradox_zone/
 LocalDesk
 mutants/
+www/
 
 # ML model files (use DVC/LFS for large models)
 **/*.gguf
