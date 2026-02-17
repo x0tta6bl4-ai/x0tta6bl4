@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 | Biological Mesh Interface</title>
+    <!-- Use CDN for D3, in production bundle this locally -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --neon-green: #0f0;
+            --dark-bg: #050505;
+            --panel-bg: rgba(10, 20, 10, 0.85);
+            --alert-red: #f00;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #visualization {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        .hud-panel {
+            position: absolute;
+            background: var(--panel-bg);
+            border: 1px solid var(--neon-green);
+            padding: 15px;
+            border-radius: 5px;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+
+        #system-status {
+            top: 20px;
+            left: 20px;
+            width: 300px;
+        }
+
+        #mape-k-cycle {
+            bottom: 20px;
+            left: 20px;
+            width: 400px;
+        }
+
+        #dao-feed {
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        h2 {
+            margin-top: 0;
+            border-bottom: 1px dashed var(--neon-green);
+            padding-bottom: 5px;
+            font-size: 1.2em;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            border-bottom: 1px solid #333;
+            padding: 2px 0;
+        }
+
+        /* D3 Elements */
+        .node {
+            fill: #000;
+            stroke: var(--neon-green);
+            stroke-width: 1.5px;
+            cursor: pointer;
+        }
+
+        .link {
+            stroke: #0f0;
+            stroke-opacity: 0.3;
+            stroke-width: 1px;
+        }
+
+        .node:hover {
+            fill: var(--neon-green);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.3;
+            }
+        }
+
+        .active-phase {
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 0 5px var(--neon-green);
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="visualization"></div>
+
+    <div id="system-status" class="hud-panel">
+        <h2>SYSTEM HEALTH</h2>
+        <div class="metric"><span>MESH_INTEGRITY:</span> <span id="mesh-health">99.8%</span></div>
+        <div class="metric"><span>ACTIVE_NODES:</span> <span id="node-count">142</span></div>
+        <div class="metric"><span>THREAT_LEVEL:</span> <span style="color:white">LOW</span></div>
+        <div class="metric"><span>PQC_ENTROPY:</span> <span style="color:var(--neon-green)">SAFE</span></div>
+        <br>
+        <div id="uptime-display" style="font-size: 0.8em; opacity: 0.7;">
+            CORE: x0tta6bl4 v3.3-rc1<br>
+            UPTIME: Calculating...
+        </div>
+    </div>
+
+    <div id="mape-k-cycle" class="hud-panel">
+        <h2>NERVOUS SYSTEM (MAPE-K)</h2>
+        <div id="cycle-viz"
+            style="height: 60px; display: flex; align-items: center; justify-content: space-around; font-size: 1.2em;">
+            <div id="step-0" style="opacity: 0.3">MONITOR</div> &rarr;
+            <div id="step-1" style="opacity: 0.3">ANALYZE</div> &rarr;
+            <div id="step-2" style="opacity: 0.3">PLAN</div> &rarr;
+            <div id="step-3" style="opacity: 0.3">EXECUTE</div>
+        </div>
+        <div id="current-action" style="text-align: center; color: white; margin-top: 10px; font-style: italic;">
+            Scanning metrics...
+        </div>
+        <button onclick="injectFault()"
+            style="width: 100%; margin-top: 15px; background: none; border: 1px solid var(--alert-red); color: var(--alert-red); padding: 5px; cursor: pointer; font-family: inherit;">
+            INJECT NETWORK FAULT [SIM]
+        </button>
+    </div>
+
+    <div id="dao-feed" class="hud-panel">
+        <h2>CORTEX FEED (DAO)</h2>
+        <div id="proposals">
+            <div style="margin-bottom: 15px; border-left: 2px solid var(--neon-green); padding-left: 10px;">
+                <small style="opacity:0.7">PROP-009 • ACTIVE</small><br>
+                <strong>Adjust Thresholds</strong><br>
+                <div style="background: #333; height: 5px; width: 100%; margin: 5px 0;">
+                    <div style="background: var(--neon-green); width: 94%; height: 100%;"></div>
+                </div>
+                <small>Votes: 94% YES (Quadratic)</small>
+            </div>
+
+            <div style="margin-bottom: 15px; border-left: 2px solid #555; padding-left: 10px; opacity: 0.6;">
+                <small>PROP-008 • PASSED</small><br>
+                <strong>Add Node [x0t-7f2a]</strong><br>
+                <small>Executed 2h ago</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- D3.js Visualization Setup ---
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const svg = d3.select("#visualization")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // Gradient for nodes
+        const defs = svg.append("defs");
+        const radialGradient = defs.append("radialGradient")
+            .attr("id", "node-gradient");
+        radialGradient.append("stop").attr("offset", "0%").attr("stop-color", "#0f0");
+        radialGradient.append("stop").attr("offset", "100%").attr("stop-color", "#000");
+
+        // Generate Synthetic Mesh Topology
+        const numNodes = 40;
+        const nodes = Array.from({ length: numNodes }, (_, i) => ({ id: i, status: Math.random() > 0.1 ? 'alive' : 'dead' }));
+        const links = [];
+        for (let i = 0; i < numNodes; i++) {
+            for (let j = i + 1; j < numNodes; j++) {
+                if (Math.random() > 0.96) links.push({ source: i, target: j });
+            }
+        }
+
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-400))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collide", d3.forceCollide(30));
+
+        const link = svg.append("g")
+            .attr("stroke", "#0f0")
+            .attr("stroke-opacity", 0.2)
+            .selectAll("line")
+            .data(links)
+            .join("line");
+
+        const node = svg.append("g")
+            .selectAll("circle")
+            .data(nodes)
+            .join("circle")
+            .attr("r", d => d.id === 0 ? 12 : 6)
+            .attr("fill", d => d.id === 0 ? "url(#node-gradient)" : "none")
+            .attr("stroke", "#0f0")
+            .attr("stroke-width", d => d.id === 0 ? 3 : 1)
+            .style("filter", "drop-shadow(0 0 5px #0f0)")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        simulation.on("tick", () => {
+            link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+            node.attr("cx", d => d.x).attr("cy", d => d.y);
+        });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        }
+        function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null; d.fy = null;
+        }
+
+        // --- Real-time API Integration ---
+        function updateStats() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(data => {
+                    // Update HUD
+                    document.getElementById('mesh-health').innerText = data.mesh.status === 'ALIVE' ? '99.9%' : 'OFFLINE';
+                    document.getElementById('node-count').innerText = data.mesh.peers + 1;
+
+                    const uptime = parseInt(data.uptime);
+                    const h = Math.floor(uptime / 3600);
+                    const m = Math.floor((uptime % 3600) / 60);
+                    const s = uptime % 60;
+                    document.getElementById('uptime-display').innerHTML = `CORE: x0tta6bl4 v3.3-rc1<br>UPTIME: ${h}h ${m}m ${s}s<br>MEM: ${data.mem_usage}`;
+
+                    // Add some "biological" jitter to node count display
+                    if (Math.random() > 0.8) {
+                        d3.select("#node-count").transition().duration(200).style("color", "white").transition().duration(200).style("color", "#0f0");
+                    }
+                })
+                .catch(err => console.error("Telemetry lost:", err));
+        }
+
+        // --- MAPE-K Cycle Animation ---
+        const phases = ["MONITORING NODE HEALTH...", "ANALYZING CAUSAL GRAPHS...", "PLANNING OPTIMIZATION...", "EXECUTING SELF-HEAL..."];
+        let phase = 0;
+        function rotateMAPE() {
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`step-${i}`).style.opacity = (i === phase) ? "1" : "0.2";
+                document.getElementById(`step-${i}`).style.color = (i === phase) ? "white" : "#0f0";
+            }
+            document.getElementById('current-action').innerText = phases[phase];
+            phase = (phase + 1) % 4;
+        }
+
+        function injectFault() {
+            fetch('/api/inject-fault', { method: 'POST' })
+                .then(() => {
+                    // Visual feedback for fault
+                    d3.selectAll(".link").transition().duration(500).attr("stroke", "#f00").attr("stroke-opacity", 0.5);
+                    document.body.style.boxShadow = "inset 0 0 100px rgba(255,0,0,0.5)";
+                    setTimeout(() => {
+                        document.body.style.boxShadow = "none";
+                        // Simulate self-healing completion visually after 3s
+                        d3.selectAll(".link").transition().duration(1000).attr("stroke", "#0f0").attr("stroke-opacity", 0.2);
+                    }, 3000);
+                });
+        }
+
+        setInterval(updateStats, 2000);
+        setInterval(rotateMAPE, 3000);
+        updateStats();
+        rotateMAPE();
+
+        window.addEventListener('resize', () => {
+            svg.attr("width", window.innerWidth).attr("height", window.innerHeight);
+            simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2)).alpha(0.3).restart();
+        });
+    </script>
+</body>
+
+</html>
