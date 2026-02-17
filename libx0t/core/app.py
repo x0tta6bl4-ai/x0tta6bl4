@@ -28,14 +28,15 @@ app = FastAPI(
     lifespan=production_lifespan,
 )
 
-# --- BeaconRequest import ---
+# --- Request models ---
+from typing import List as TypingList
+from typing import Optional
+
+from pydantic import BaseModel
+
 try:
     from libx0t.core.app_minimal import BeaconRequest
 except ImportError:
-    from typing import List as TypingList
-    from typing import Optional
-
-    from pydantic import BaseModel
 
     class BeaconRequest(BaseModel):  # type: ignore[no-redef]
         node_id: str
@@ -154,7 +155,7 @@ logger.info("✓ Ledger router registered")
 try:
     from src.api.maas import router as maas_router
     app.include_router(maas_router)
-    logger.info("🚀 MaaS router registered (v3.4-alpha)")
+    logger.info("🚀 MaaS router registered (v3.2.1)")
 except ImportError:
     pass
 

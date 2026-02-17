@@ -133,15 +133,9 @@ class PolicyEngine:
 
     def _load_default_policies(self):
         """Load default security policies."""
-        # Default: Allow all within trust domain (can be restricted)
-        default_allow = PolicyRule(
-            rule_id="default_allow",
-            name="Default Allow Within Trust Domain",
-            action=PolicyAction.ALLOW,
-            priority=1,
-            enabled=True,
-        )
-        self.add_rule(default_allow)
+        # Default: Deny all (Zero Trust)
+        # Rules must be explicitly added to allow traffic
+        logger.info("Zero Trust enabled: Default policy is DENY")
 
     def add_rule(self, rule: PolicyRule):
         """
@@ -337,7 +331,7 @@ class PolicyEngine:
                 return current_time >= start_time or current_time <= end_time
         except ValueError:
             logger.warning(f"Invalid time window format: {time_window}")
-            return True  # Default allow if format invalid
+            return False  # Fail-closed for malformed policy input
 
     def _check_rate_limit(
         self, peer_spiffe_id: str, rate_limit: Dict[str, int]

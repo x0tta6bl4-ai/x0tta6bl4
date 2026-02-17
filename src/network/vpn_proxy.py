@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import asyncio
+import hmac
 import logging
 import os
 import socket
@@ -55,6 +56,22 @@ class SOCKS5Server:
         self.stats = ProxyStats()
         self._server: Optional[asyncio.Server] = None
         self._running = False
+        self._production_mode = (
+            os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+        )
+        self._allow_noauth = (
+            os.getenv("X0TTA6BL4_ALLOW_NOAUTH_SOCKS5", "false").lower() == "true"
+        )
+        self._socks_username = os.getenv("VPN_SOCKS5_USERNAME")
+        self._socks_password = os.getenv("VPN_SOCKS5_PASSWORD")
+        self._require_auth = bool(self._socks_username and self._socks_password)
+
+        if self._production_mode and not self._require_auth and not self._allow_noauth:
+            logger.error(
+                "SOCKS5 no-auth is disabled in production. Set VPN_SOCKS5_USERNAME and "
+                "VPN_SOCKS5_PASSWORD, or explicitly set "
+                "X0TTA6BL4_ALLOW_NOAUTH_SOCKS5=true."
+            )
 
     async def start(self):
         """Start the SOCKS5 server."""
@@ -147,15 +164,67 @@ class SOCKS5Server:
         # Read auth methods
         methods = await reader.read(nmethods)
 
-        # We support no authentication (0x00)
+        if self._require_auth:
+            # Username/Password auth (RFC 1929)
+            if 0x02 not in methods:
+                writer.write(bytes([self.SOCKS_VERSION, 0xFF]))
+                await writer.drain()
+                return False
+            writer.write(bytes([self.SOCKS_VERSION, 0x02]))
+            await writer.drain()
+            return await self._handle_username_password_auth(reader, writer)
+
+        if self._production_mode and not self._allow_noauth:
+            logger.warning("SOCKS5 no-auth rejected in production")
+            writer.write(bytes([self.SOCKS_VERSION, 0xFF]))
+            await writer.drain()
+            return False
+
+        # Development mode default: no authentication (0x00)
         if 0x00 in methods:
             writer.write(bytes([self.SOCKS_VERSION, 0x00]))
             await writer.drain()
             return True
-        else:
-            writer.write(bytes([self.SOCKS_VERSION, 0xFF]))
+
+        writer.write(bytes([self.SOCKS_VERSION, 0xFF]))
+        await writer.drain()
+        return False
+
+    async def _handle_username_password_auth(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> bool:
+        """Handle SOCKS5 username/password sub-negotiation (RFC 1929)."""
+        header = await reader.read(2)
+        if len(header) < 2:
+            return False
+
+        version, ulen = header[0], header[1]
+        if version != 0x01:
+            writer.write(bytes([0x01, 0x01]))
             await writer.drain()
             return False
+
+        username_bytes = await reader.read(ulen)
+        plen_data = await reader.read(1)
+        if len(plen_data) < 1:
+            writer.write(bytes([0x01, 0x01]))
+            await writer.drain()
+            return False
+
+        plen = plen_data[0]
+        password_bytes = await reader.read(plen)
+        username = username_bytes.decode(errors="ignore")
+        password = password_bytes.decode(errors="ignore")
+
+        is_valid = bool(
+            self._socks_username
+            and self._socks_password
+            and hmac.compare_digest(username, self._socks_username)
+            and hmac.compare_digest(password, self._socks_password)
+        )
+        writer.write(bytes([0x01, 0x00 if is_valid else 0x01]))
+        await writer.drain()
+        return is_valid
 
     async def _get_target_address(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter

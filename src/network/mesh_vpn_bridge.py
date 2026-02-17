@@ -4,6 +4,7 @@ Integates SOCKS5 proxy with Mesh Network and Rotating Exit Nodes.
 """
 
 import asyncio
+import hmac
 import logging
 import os
 import random
@@ -39,7 +40,7 @@ class MeshVPNBridge:
         "spotifycdn.com",
     ]
 
-    def __init__(self, socks_port=10809, node_id=None, use_mesh_routing=True):
+    def __init__(self, socks_port=10808, node_id=None, use_mesh_routing=True):
         self.socks_port = socks_port
         self.node_id = node_id or os.getenv(
             "NODE_ID", f"node-{random.randint(1000,9999)}"
@@ -49,6 +50,18 @@ class MeshVPNBridge:
         # Only entry nodes (local) use mesh routing
         self.is_exit_node = self.node_id.startswith("node-vps")
         self.use_mesh_routing = use_mesh_routing and not self.is_exit_node
+        self.fail_closed = (
+            os.getenv("X0TTA6BL4_VPN_FAIL_CLOSED", "true").lower() == "true"
+        )
+        self._production_mode = (
+            os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+        )
+        self._allow_noauth = (
+            os.getenv("X0TTA6BL4_ALLOW_NOAUTH_SOCKS5", "false").lower() == "true"
+        )
+        self._socks_username = os.getenv("VPN_SOCKS5_USERNAME")
+        self._socks_password = os.getenv("VPN_SOCKS5_PASSWORD")
+        self._require_auth = bool(self._socks_username and self._socks_password)
 
         # Legacy exit nodes (fallback) - configured via environment
         exit_nodes_env = os.getenv("EXIT_NODES", "")
@@ -174,12 +187,8 @@ class MeshVPNBridge:
         mesh_conn = None
         try:
             # 1. SOCKS5 handshake with client
-            header = await reader.read(256)
-            if not header:
+            if not await self._socks5_handshake(reader, writer):
                 return
-
-            writer.write(b"\x05\x00")  # No auth required
-            await writer.drain()
 
             # 2. Read connection request
             request = await reader.read(1024)
@@ -207,7 +216,17 @@ class MeshVPNBridge:
                 )
 
             # 4. Establish connection through mesh
-            if self.use_mesh_routing and self.router.peers and not should_bypass_mesh:
+            mesh_required = self.use_mesh_routing and not should_bypass_mesh
+            if mesh_required and not self.router.peers:
+                logger.error("Mesh routing requested but no peers are available")
+                if self.fail_closed:
+                    writer.write(
+                        b"\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00"
+                    )  # Connection refused
+                    await writer.drain()
+                    return
+
+            if mesh_required and self.router.peers:
                 # Multi-hop mesh routing
                 mesh_conn = MeshConnection(
                     self.router, f"{target_host}:{target_port}", self.crypto
@@ -226,7 +245,13 @@ class MeshVPNBridge:
                     else:
                         raise Exception("Mesh tunnel not established")
                 else:
-                    # Mesh failed, try direct
+                    logger.error("Mesh routing failed")
+                    if self.fail_closed:
+                        writer.write(
+                            b"\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00"
+                        )  # Connection refused
+                        await writer.drain()
+                        return
                     logger.warning("Mesh routing failed, falling back to direct")
                     mesh_conn = None
 
@@ -268,6 +293,73 @@ class MeshVPNBridge:
         """Weighted random choice of exit node."""
         weights = [n["weight"] for n in self.exit_nodes]
         return random.choices(self.exit_nodes, weights=weights)[0]
+
+    async def _socks5_handshake(self, reader, writer) -> bool:
+        """Perform SOCKS5 handshake with optional username/password auth."""
+        header = await reader.read(2)
+        if len(header) < 2:
+            return False
+
+        version, nmethods = header[0], header[1]
+        if version != 5:
+            logger.warning(f"Unsupported SOCKS version: {version}")
+            return False
+
+        methods = await reader.read(nmethods)
+        if self._require_auth:
+            if 0x02 not in methods:
+                writer.write(b"\x05\xff")
+                await writer.drain()
+                return False
+            writer.write(b"\x05\x02")
+            await writer.drain()
+            return await self._handle_username_password_auth(reader, writer)
+
+        if self._production_mode and not self._allow_noauth:
+            logger.warning("SOCKS5 no-auth rejected in production")
+            writer.write(b"\x05\xff")
+            await writer.drain()
+            return False
+
+        if 0x00 in methods:
+            writer.write(b"\x05\x00")
+            await writer.drain()
+            return True
+
+        writer.write(b"\x05\xff")
+        await writer.drain()
+        return False
+
+    async def _handle_username_password_auth(self, reader, writer) -> bool:
+        """Handle SOCKS5 username/password sub-negotiation."""
+        header = await reader.read(2)
+        if len(header) < 2:
+            return False
+
+        version, ulen = header[0], header[1]
+        if version != 0x01:
+            writer.write(b"\x01\x01")
+            await writer.drain()
+            return False
+
+        username = (await reader.read(ulen)).decode(errors="ignore")
+        plen_data = await reader.read(1)
+        if len(plen_data) < 1:
+            writer.write(b"\x01\x01")
+            await writer.drain()
+            return False
+
+        plen = plen_data[0]
+        password = (await reader.read(plen)).decode(errors="ignore")
+        is_valid = bool(
+            self._socks_username
+            and self._socks_password
+            and hmac.compare_digest(username, self._socks_username)
+            and hmac.compare_digest(password, self._socks_password)
+        )
+        writer.write(b"\x01\x00" if is_valid else b"\x01\x01")
+        await writer.drain()
+        return is_valid
 
     def _parse_socks_request(self, data):
         """
@@ -315,17 +407,25 @@ class MeshVPNBridge:
                         # Decrypt data received from peer
                         try:
                             data = self.router.pqc.decrypt_from_peer(data, peer_id)
-                        except:
-                            pass  # Fallback to unencrypted if decryption fails
+                        except Exception as exc:
+                            if self.fail_closed:
+                                logger.error(
+                                    "PQC decryption failed in fail-closed mode: %s", exc
+                                )
+                                break
+                            logger.warning(
+                                "PQC decryption failed, falling back to plaintext: %s",
+                                exc,
+                            )
 
                 writer.write(data)
                 await writer.drain()
-        except:
-            pass
+        except Exception as exc:
+            logger.debug("Relay stream error (%s): %s", direction, exc)
         finally:
             try:
                 writer.close()
-            except:
+            except Exception:
                 pass
 
 

@@ -20,7 +20,7 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("x0tta6bl4")
 
-app = FastAPI(title="x0tta6bl4-minimal", version="3.0.0", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal", version="3.2.1", docs_url="/docs")
 
 # --- In-Memory State for Testing ---
 node_id = "node-01"
@@ -47,7 +47,7 @@ class RouteRequest(BaseModel):
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "version": "3.0.0", "node_id": node_id}
+    return {"status": "ok", "version": "3.2.1", "node_id": node_id}
 
 
 @app.post("/mesh/beacon")

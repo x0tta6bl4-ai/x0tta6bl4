@@ -427,6 +427,16 @@ class SPIFFEController:
         Returns:
             Dict with component health status
         """
+        endpoint = getattr(self.workload_api, "_spiffe_endpoint", None)
+        socket_path: Optional[Path] = None
+        if isinstance(endpoint, Path):
+            socket_path = endpoint
+        elif isinstance(endpoint, str):
+            endpoint_str = (
+                endpoint[len("unix://") :] if endpoint.startswith("unix://") else endpoint
+            )
+            socket_path = Path(endpoint_str)
+
         return {
             "agent": self.agent.health_check(),
             "identity_valid": (
@@ -434,5 +444,5 @@ class SPIFFEController:
                 if self.current_identity
                 else False
             ),
-            "workload_api": self.workload_api.socket_path.exists(),
+            "workload_api": bool(socket_path and socket_path.exists()),
         }

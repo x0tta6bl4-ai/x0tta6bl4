@@ -758,7 +758,7 @@ class GraphSAGEAnomalyDetector:
 
     def load_model(self, path: str):
         """Load model from file."""
-        checkpoint = torch.load(path, map_location=self.device)  # nosec B614
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 
         self.model = GraphSAGEAnomalyDetectorV2(
             input_dim=checkpoint["input_dim"],

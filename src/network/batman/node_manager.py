@@ -4,6 +4,7 @@ Lifecycle management and health checks for mesh nodes
 """
 
 import asyncio
+import copy
 import json
 import logging
 from dataclasses import dataclass
@@ -579,7 +580,8 @@ class NodeManager:
 
     def get_all_nodes(self) -> Dict[str, Dict]:
         """Get all registered nodes"""
-        return self.nodes.copy()
+        # Return a deep copy so callers cannot mutate internal manager state.
+        return copy.deepcopy(self.nodes)
 
     def get_online_nodes(self) -> List[str]:
         """Get list of online nodes"""
