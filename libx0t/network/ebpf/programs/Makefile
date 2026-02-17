@@ -17,6 +17,7 @@ INCLUDES = -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/uapi \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/include \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/uapi \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include \
+           -I$(VMLINUX_DIR) \
            -I/usr/include/$(HOST_TRIPLE) \
            -I/usr/include
 
@@ -55,13 +56,18 @@ all: $(OBJECTS)
 
 # Generate vmlinux.h for CO-RE if available
 vmlinux:
-	@if [ -f /sys/kernel/btf/vmlinux ] && command -v bpftool &> /dev/null; then \
-		echo "📦 Generating vmlinux.h for CO-RE..."; \
-		mkdir -p $(VMLINUX_DIR); \
-		bpftool btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX_DIR)/vmlinux.h; \
-		echo "✅ vmlinux.h generated"; \
+	@if [ ! -s $(VMLINUX_DIR)/vmlinux.h ]; then \
+		if [ -f /sys/kernel/btf/vmlinux ] && command -v bpftool >/dev/null 2>&1; then \
+			echo "📦 Generating vmlinux.h for CO-RE..."; \
+			mkdir -p $(VMLINUX_DIR); \
+			bpftool btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX_DIR)/vmlinux.h; \
+			echo "✅ vmlinux.h generated"; \
+		else \
+			echo "❌ vmlinux.h missing and cannot be generated (bpftool/BTF unavailable)"; \
+			exit 1; \
+		fi; \
 	else \
-		echo "⚠️  BTF not available, skipping vmlinux.h generation"; \
+		echo "✅ Using repository vmlinux.h fallback"; \
 	fi
 
 %.o: %.c vmlinux
@@ -71,7 +77,6 @@ vmlinux:
 
 clean:
 	rm -f $(OBJECTS)
-	rm -rf $(VMLINUX_DIR)
 	@echo "🧹 Cleaned eBPF artifacts"
 
 # Verify all compiled objects

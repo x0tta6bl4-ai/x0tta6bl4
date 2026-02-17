@@ -41,6 +41,7 @@ jobs:
           apt-get update && apt-get install -y \
             clang-${LLVM_VERSION} \
             llvm-${LLVM_VERSION} \
+            libbpf-dev \
             libelf-dev \
             linux-libc-dev \
             libpcap-dev \
@@ -69,10 +70,11 @@ jobs:
                 -D__KERNEL__ \
                 -D__BPF_TRACING__ \
                 -I./headers \
+                -I./programs/vmlinux \
                 -I/usr/include/$(uname -m)-linux-gnu \
                 -I/usr/include \
                 -c "$ebpf_file" \
-                -o "../../${ARTIFACTS_DIR}/${prog_name}.o"
+                -o "../../../${ARTIFACTS_DIR}/${prog_name}.o"
               
               if [ $? -ne 0 ]; then
                 echo "❌ Failed to compile $prog_name"
@@ -80,10 +82,10 @@ jobs:
               fi
               
               llvm-objdump-${LLVM_VERSION} \
-                -S "../../${ARTIFACTS_DIR}/${prog_name}.o" \
-                > "../../${ARTIFACTS_DIR}/${prog_name}.dis"
+                -S "../../../${ARTIFACTS_DIR}/${prog_name}.o" \
+                > "../../../${ARTIFACTS_DIR}/${prog_name}.dis"
               
-              echo "  ✅ ${prog_name}.o ($(stat -c%s ../../${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
+              echo "  ✅ ${prog_name}.o ($(stat -c%s ../../../${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
             fi
           done
       
