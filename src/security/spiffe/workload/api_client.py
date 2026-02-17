@@ -446,11 +446,21 @@ class WorkloadAPIClient:
             )
             return True
 
-        # Certificate validity window.
+        # Certificate validity window with clock skew tolerance.
+        # CVE-2026-SPIFFE-001 FIX: Add clock skew tolerance
+        CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
         now = datetime.utcnow()
-        if now < cert.not_valid_before or now > cert.not_valid_after:
+        
+        # Allow 5 minutes tolerance for clock differences
+        if now < cert.not_valid_before - CLOCK_SKEW_TOLERANCE:
             logger.warning(
-                "Peer certificate not valid at current time for %s",
+                "Peer certificate not yet valid (clock skew?): %s",
+                peer_svid.spiffe_id,
+            )
+            return False
+        if now > cert.not_valid_after + CLOCK_SKEW_TOLERANCE:
+            logger.warning(
+                "Peer certificate expired for %s",
                 peer_svid.spiffe_id,
             )
             return False

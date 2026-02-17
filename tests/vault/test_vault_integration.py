@@ -17,7 +17,7 @@ from src.security.vault_client import (VaultAuthError, VaultClient,
                                        VaultSecretError)
 from src.security.vault_monitoring import (VaultHealthMonitor,
                                            VaultMetricsReporter)
-from src.security.vault_secrets import SecretInjector, VaultSecretManager
+from src.security.vault_secrets import ApiCredentials, SecretInjector, VaultSecretManager
 
 
 @pytest.mark.asyncio

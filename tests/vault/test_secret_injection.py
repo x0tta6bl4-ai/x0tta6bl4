@@ -134,7 +134,7 @@ class TestSecretInjectionIntegration:
         # Simulate 10 pods accessing secrets concurrently
         async def access_secret(pod_id):
             return await authenticated_vault_client.get_secret(
-                f"proxy/pod-{pod-id}/secret"
+                f"proxy/pod-{pod_id}/secret"
             )
 
         tasks = [access_secret(i) for i in range(10)]
@@ -329,10 +329,8 @@ class TestRealVaultInjection:
     async def test_real_secret_injection(self):
         """Test secret injection with real Vault."""
         # This would be run against a real Vault instance
-        pass
 
     @pytest.mark.skip(reason="Requires real Vault instance")
     async def test_real_kubernetes_auth(self):
         """Test Kubernetes auth with real Vault."""
         # This would be run against a real Vault instance
-        pass

@@ -13,7 +13,7 @@ import pytest
 
 from src.testing.load_testing import (LoadPattern, LoadTestConfig,
                                       LoadTestExecutor, LoadTestResults,
-                                      PerformanceBenchmark, RequestMetrics,
+                                      SystemPerformanceBenchmark, RequestMetrics,
                                       SLOValidator, compare_load_tests)
 
 logger = logging.getLogger(__name__)
@@ -337,15 +337,15 @@ class TestLoadTestResults:
         assert results.throughput_rps == 100.0
 
 
-class TestPerformanceBenchmark:
-    """Test PerformanceBenchmark class."""
+class TestSystemPerformanceBenchmark:
+    """Test SystemPerformanceBenchmark class."""
 
     @pytest.fixture
-    def benchmark(self):
-        return PerformanceBenchmark()
+    def system_benchmark(self):
+        return SystemPerformanceBenchmark()
 
     @pytest.mark.asyncio
-    async def test_benchmark_operation_success(self, benchmark):
+    async def test_benchmark_operation_success(self, system_benchmark):
         async def fast_operation():
             await asyncio.sleep(0.001)
 
@@ -364,7 +364,7 @@ class TestPerformanceBenchmark:
         assert results["max_ms"] >= results["avg_ms"]
 
     @pytest.mark.asyncio
-    async def test_benchmark_operation_with_failures(self, benchmark):
+    async def test_benchmark_operation_with_failures(self, system_benchmark):
         call_count = 0
 
         async def sometimes_failing_operation():
@@ -382,7 +382,7 @@ class TestPerformanceBenchmark:
         assert "avg_ms" in results
 
     @pytest.mark.asyncio
-    async def test_benchmark_multiple_operations(self, benchmark):
+    async def test_benchmark_multiple_operations(self, system_benchmark):
         async def op1():
             await asyncio.sleep(0.001)
 
@@ -398,7 +398,7 @@ class TestPerformanceBenchmark:
         assert "op2" in summary["benchmarks"]
 
     @pytest.mark.asyncio
-    async def test_benchmark_operation_empty_iterations(self, benchmark):
+    async def test_benchmark_operation_empty_iterations(self, system_benchmark):
         async def noop():
             pass
 
@@ -814,7 +814,7 @@ class TestLoadTestingIntegration:
 
     @pytest.mark.asyncio
     async def test_benchmark_and_slo_validation(self):
-        benchmark = PerformanceBenchmark()
+        benchmark = SystemPerformanceBenchmark()
         validator = SLOValidator()
 
         async def operation():

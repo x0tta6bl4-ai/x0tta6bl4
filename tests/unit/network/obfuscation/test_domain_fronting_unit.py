@@ -12,17 +12,8 @@ import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
-try:
-    from src.network.obfuscation.domain_fronting import (
-        DomainFrontingSocket, DomainFrontingTransport)
-
-    DF_AVAILABLE = True
-except ImportError as exc:
-    DF_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not DF_AVAILABLE, reason="domain_fronting module not available"
-)
+from src.network.obfuscation.domain_fronting import (DomainFrontingSocket,
+                                                     DomainFrontingTransport)
 
 FRONT = "cdn.example.com"
 BACKEND = "secret-backend.mesh.local"
@@ -194,3 +185,87 @@ class TestDomainFrontingSocket:
         from src.network.obfuscation.base import ObfuscationTransport
 
         assert issubclass(DomainFrontingTransport, ObfuscationTransport)
+
+    def test_socket_init_hits_timeout_attribute_error(self):
+        raw_a, raw_b = socket.socketpair()
+        tls_sock = MagicMock()
+        try:
+            with pytest.raises(AttributeError):
+                DomainFrontingSocket(raw_a, DomainFrontingTransport(FRONT, BACKEND), tls_sock)
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass  # fd taken by DomainFrontingSocket.__init__ via super().__init__(fileno=...)
+            try:
+                raw_b.close()
+            except OSError:
+                pass
+
+    def test_send_success_and_tls_error(self):
+        wrapped = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped._buffer = b""
+        wrapped._raw_sock = MagicMock()
+        wrapped._tls_sock = MagicMock()
+
+        payload = b"secret-data"
+        sent_len = wrapped.send(payload)
+        assert sent_len == len(payload)
+        wrapped._tls_sock.sendall.assert_called_once()
+
+        wrapped_err = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped_err._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped_err._buffer = b""
+        wrapped_err._raw_sock = MagicMock()
+        wrapped_err._tls_sock = MagicMock()
+        wrapped_err._tls_sock.sendall.side_effect = ssl.SSLError("bad tls")
+        with pytest.raises(socket.error, match="TLS Error"):
+            wrapped_err.send(b"x")
+
+    def test_recv_parser_variants(self):
+        wrapped = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped._buffer = b""
+        wrapped._raw_sock = MagicMock()
+        wrapped._tls_sock = MagicMock()
+        wrapped._tls_sock.recv.side_effect = [
+            b"",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3",
+        ]
+
+        assert wrapped.recv(4096) == b""
+        assert wrapped.recv(4096) == b"abc"
+        assert wrapped.recv(4096) == b""
+
+    def test_recv_ssl_want_read_and_other_ssl_error(self):
+        wrapped_want = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped_want._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped_want._buffer = b""
+        wrapped_want._raw_sock = MagicMock()
+        wrapped_want._tls_sock = MagicMock()
+        want_read = ssl.SSLError(ssl.SSL_ERROR_WANT_READ, "want read")
+        wrapped_want._tls_sock.recv.side_effect = want_read
+        assert wrapped_want.recv(1024) == b""
+
+        wrapped_err = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped_err._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped_err._buffer = b""
+        wrapped_err._raw_sock = MagicMock()
+        wrapped_err._tls_sock = MagicMock()
+        wrapped_err._tls_sock.recv.side_effect = ssl.SSLError(ssl.SSL_ERROR_SSL, "fail")
+        with pytest.raises(socket.error, match="TLS Error"):
+            wrapped_err.recv(1024)
+
+    def test_close_and_getattr_passthrough(self):
+        wrapped = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped._buffer = b""
+        wrapped._raw_sock = MagicMock()
+        wrapped._tls_sock = MagicMock()
+        wrapped._tls_sock.marker = "tls-ok"
+
+        wrapped.close()
+        wrapped._tls_sock.close.assert_called_once()
+        assert wrapped.marker == "tls-ok"

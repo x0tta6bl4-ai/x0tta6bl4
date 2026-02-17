@@ -91,6 +91,15 @@ class TestK8sAuthHandlerJWT:
         with pytest.raises(FileNotFoundError):
             handler.get_jwt()
 
+    def test_get_jwt_io_error(self, monkeypatch, k8s_auth_handler):
+        """Test JWT read IOError path."""
+        monkeypatch.setattr(
+            "builtins.open",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(IOError("read failed")),
+        )
+        with pytest.raises(IOError):
+            k8s_auth_handler.get_jwt()
+
 
 class TestK8sAuthHandlerNamespace:
     """Test namespace handling."""
@@ -232,6 +241,28 @@ class TestK8sAuthHandlerPodInfo:
         assert info["namespace"] == "test-ns"
         assert info["jwt_available"] is False
         assert info["ca_cert_available"] is False
+
+    def test_get_pod_info_missing_namespace_only(self, tmp_path):
+        """Namespace lookup failure is handled while other fields still resolve."""
+        jwt_file = tmp_path / "token"
+        ca_file = tmp_path / "ca.crt"
+        jwt_file.write_text("jwt-token")
+        ca_file.write_text("ca-cert")
+
+        config = K8sAuthConfig(
+            role="test",
+            jwt_path=str(jwt_file),
+            ca_cert_path=str(ca_file),
+            namespace_path=str(tmp_path / "missing-namespace"),
+        )
+        handler = K8sAuthHandler(config)
+
+        info = handler.get_pod_info()
+
+        assert info["in_kubernetes"] is False
+        assert info["namespace"] is None
+        assert info["jwt_available"] is True
+        assert info["ca_cert_available"] is True
 
 
 class TestK8sAuthHandlerCacheClear:

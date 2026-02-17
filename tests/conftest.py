@@ -40,6 +40,19 @@ try:
 except Exception:
     pass
 
+# Keep cryptography ciphers loaded in baseline sys.modules.
+# The autouse patch.dict fixture can otherwise remove lazily imported
+# submodules between tests, causing inconsistent crypto backend state.
+try:
+    import cryptography  # noqa: F401
+    from cryptography.hazmat.primitives.ciphers import (  # noqa: F401
+        Cipher,
+        algorithms,
+        modes,
+    )
+except Exception:
+    pass
+
 # Mock optional dependencies to prevent import errors during testing
 # NOTE: torch and torch_geometric are NOT mocked — they are installed
 # and mocking them corrupts submodule state across tests.

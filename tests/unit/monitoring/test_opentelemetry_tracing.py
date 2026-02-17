@@ -42,8 +42,6 @@ class TestMAPEKSpans:
     def test_monitor_span(self):
         """Test Monitor phase span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MAPEKSpans(manager)
         with spans.monitor_phase("node-a", metrics_collected=42):
@@ -52,8 +50,6 @@ class TestMAPEKSpans:
     def test_analyze_span(self):
         """Test Analyze phase span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MAPEKSpans(manager)
         with spans.analyze_phase("node-a", anomalies=1, confidence=0.95):
@@ -62,8 +58,6 @@ class TestMAPEKSpans:
     def test_plan_span(self):
         """Test Plan phase span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MAPEKSpans(manager)
         with spans.plan_phase("node-a", actions=3):
@@ -72,8 +66,6 @@ class TestMAPEKSpans:
     def test_execute_span(self):
         """Test Execute phase span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MAPEKSpans(manager)
         with spans.execute_phase("node-a", actions_executed=3, success=True):
@@ -82,8 +74,6 @@ class TestMAPEKSpans:
     def test_knowledge_span(self):
         """Test Knowledge phase span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MAPEKSpans(manager)
         with spans.knowledge_phase("node-a", insights=5):
@@ -97,8 +87,6 @@ class TestNetworkSpans:
     def test_node_discovery_span(self):
         """Test node discovery span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = NetworkSpans(manager)
         with spans.node_discovery("node-a", discovered_nodes=3):
@@ -107,8 +95,6 @@ class TestNetworkSpans:
     def test_route_calculation_span(self):
         """Test route calculation span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = NetworkSpans(manager)
         with spans.route_calculation("node-a", "node-c", hops=2):
@@ -117,8 +103,6 @@ class TestNetworkSpans:
     def test_message_forwarding_span(self):
         """Test message forwarding span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = NetworkSpans(manager)
         with spans.message_forwarding("node-a", "node-b", "msg-123"):
@@ -132,8 +116,6 @@ class TestSPIFFESpans:
     def test_svid_fetch_span(self):
         """Test SVID fetch span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = SPIFFESpans(manager)
         with spans.svid_fetch("node-a", ttl_seconds=3600):
@@ -142,8 +124,6 @@ class TestSPIFFESpans:
     def test_svid_renewal_span(self):
         """Test SVID renewal span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = SPIFFESpans(manager)
         with spans.svid_renewal("node-a", success=True):
@@ -152,8 +132,6 @@ class TestSPIFFESpans:
     def test_mtls_handshake_span(self):
         """Test mTLS handshake span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = SPIFFESpans(manager)
         with spans.mtls_handshake("node-a", "node-b", duration_ms=45.2):
@@ -167,8 +145,6 @@ class TestMLSpans:
     def test_model_inference_span(self):
         """Test model inference span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MLSpans(manager)
         with spans.model_inference("graphsage", input_size=100, latency_ms=23.5):
@@ -177,8 +153,6 @@ class TestMLSpans:
     def test_model_training_span(self):
         """Test model training span."""
         manager = OTelTracingManager()
-        if not manager.enabled:
-            pytest.skip("OpenTelemetry disabled")
 
         spans = MLSpans(manager)
         with spans.model_training("lora_adapter", epoch=5, loss=0.32):

@@ -50,6 +50,24 @@ def test_get_current_stats_with_tracemalloc(monkeypatch: pytest.MonkeyPatch) -> 
     assert stats.peak_tracemalloc_mb == pytest.approx(9.0)
 
 
+def test_get_current_stats_tracemalloc_error_logs_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    profiler = _make_profiler(monkeypatch, enable_tracemalloc=False)
+    profiler.enable_tracemalloc = True
+    monkeypatch.setattr(
+        memory_profiler.tracemalloc,
+        "get_traced_memory",
+        lambda: (_ for _ in ()).throw(RuntimeError("trace failed")),
+    )
+
+    caplog.set_level("WARNING")
+    stats = profiler.get_current_stats()
+    assert stats.tracemalloc_mb == 0
+    assert stats.peak_tracemalloc_mb == 0
+    assert "Failed to get tracemalloc stats" in caplog.text
+
+
 def test_log_memory_usage_emits_info(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -79,6 +97,7 @@ def test_start_monitoring_starts_thread(monkeypatch: pytest.MonkeyPatch) -> None
     profiler.start_monitoring(interval_seconds=1.5)
     assert profiler._monitoring is True
     assert started["value"] is True
+    profiler.stop_monitoring()
 
 
 def test_start_monitoring_when_already_running_logs_warning(
@@ -106,6 +125,14 @@ def test_stop_monitoring_joins_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     assert joined["value"] is True
 
 
+def test_stop_monitoring_noop_when_not_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    profiler = _make_profiler(monkeypatch, enable_tracemalloc=False)
+    profiler._monitoring = False
+    profiler._monitor_thread = None
+    profiler.stop_monitoring()
+    assert profiler._monitoring is False
+
+
 def test_monitor_loop_caps_history_and_warns(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -123,6 +150,26 @@ def test_monitor_loop_caps_history_and_warns(
     profiler._monitor_loop(interval=0.0)
     assert len(profiler._stats_history) == 1000
     assert "High memory usage detected" in caplog.text
+
+
+def test_monitor_loop_logs_error_on_stats_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    profiler = _make_profiler(monkeypatch, enable_tracemalloc=False)
+
+    def _raise():
+        raise RuntimeError("stats failed")
+
+    def _sleep(_):
+        profiler._monitoring = False
+
+    monkeypatch.setattr(profiler, "get_current_stats", _raise)
+    monkeypatch.setattr(memory_profiler.time, "sleep", _sleep)
+    caplog.set_level("ERROR")
+
+    profiler._monitoring = True
+    profiler._monitor_loop(interval=0.0)
+    assert "Error in memory monitoring: stats failed" in caplog.text
 
 
 def test_get_memory_report_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -192,3 +239,12 @@ def test_global_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     assert memory_profiler.get_memory_profiler() is fake
     memory_profiler.log_memory_usage("x")
     fake.log_memory_usage.assert_called_once_with("x")
+
+
+def test_get_stats_history_returns_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+    profiler = _make_profiler(monkeypatch, enable_tracemalloc=False)
+    profiler._stats_history = [MemoryStats(1, 2, 0, 0, 0, 1.0)]
+
+    history = profiler.get_stats_history()
+    assert history == profiler._stats_history
+    assert history is not profiler._stats_history
