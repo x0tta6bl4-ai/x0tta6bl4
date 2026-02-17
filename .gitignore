@@ -30,6 +30,9 @@ alertmanager_data/
 results/
 test-results/
 другие проекты/
+node_stats.json
+x0tta6bl4_framework_execution.json
+data/deep_intelligence.json
 PRIVATE_KEY_VALUE
 PUBLIC_KEY_VALUE
 deploy/proxy/*.pem
