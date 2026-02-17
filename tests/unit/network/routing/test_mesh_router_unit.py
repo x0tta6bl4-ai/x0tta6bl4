@@ -851,7 +851,6 @@ class TestSendRREP:
         assert payload["hop_count"] == 2
 
 
-@pytest.mark.asyncio
 class TestUpdateRoute:
     def test_update_route_new_destination(self):
         router = MeshRouter("A")

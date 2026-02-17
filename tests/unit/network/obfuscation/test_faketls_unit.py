@@ -6,10 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-try:
-    from src.network.obfuscation.faketls import FakeTLSSocket, FakeTLSTransport
-except ImportError as exc:
-    pytest.skip(f"Cannot import faketls module: {exc}", allow_module_level=True)
+from src.network.obfuscation.faketls import FakeTLSSocket, FakeTLSTransport
 
 
 # ---------------------------------------------------------------------------
@@ -192,3 +189,148 @@ class TestFakeTLSSocket:
     def test_transport_has_wrap_socket_method(self):
         transport = FakeTLSTransport()
         assert callable(getattr(transport, "wrap_socket", None))
+
+    def test_socket_init_hits_timeout_attribute_error(self):
+        raw_a, raw_b = socket.socketpair()
+        try:
+            with pytest.raises(AttributeError):
+                FakeTLSSocket(raw_a, FakeTLSTransport())
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass  # fd taken by FakeTLSSocket.__init__ via super().__init__(fileno=...)
+            try:
+                raw_b.close()
+            except OSError:
+                pass
+
+    def test_send_injects_handshake_then_data(self):
+        class _Sock:
+            def __init__(self):
+                self.sent = []
+
+            def send(self, data, flags=0):
+                self.sent.append((data, flags))
+                return len(data)
+
+        class _Transport:
+            def generate_client_hello(self):
+                return b"HELLO"
+
+            def obfuscate(self, data):
+                return b"REC:" + data
+
+        wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = _Transport()
+        wrapped._handshake_sent = False
+        wrapped._handshake_received = False
+
+        sent_len = wrapped.send(b"abc")
+        assert sent_len == len(b"REC:abc")
+        assert wrapped._sock.sent == [(b"HELLO", 0), (b"REC:abc", 0)]
+
+        wrapped.send(b"xyz")
+        assert wrapped._sock.sent[-1] == (b"REC:xyz", 0)
+
+    def test_recv_consumes_server_hello_then_application_record(self):
+        class _Sock:
+            def __init__(self):
+                self.responses = [
+                    struct.pack("!BHH", 0x16, 0x0303, 3),
+                    b"abc",
+                    struct.pack("!BHH", 0x17, 0x0303, 4),
+                    b"DATA",
+                ]
+
+            def recv(self, _size, _flags=0):
+                return self.responses.pop(0) if self.responses else b""
+
+        class _Transport:
+            def deobfuscate(self, data):
+                return b"plain:" + data
+
+        wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = _Transport()
+        wrapped._handshake_sent = True
+        wrapped._handshake_received = False
+
+        out = wrapped.recv(4096)
+        assert out == b"plain:DATA"
+        assert wrapped._handshake_received is True
+
+    def test_recv_handles_non_handshake_prefix_and_empty_header(self):
+        class _Sock:
+            def __init__(self):
+                self.responses = [
+                    struct.pack("!BHH", 0x17, 0x0303, 4),
+                    struct.pack("!BHH", 0x17, 0x0303, 4),
+                    b"ABCD",
+                    b"",
+                ]
+
+            def recv(self, _size, _flags=0):
+                return self.responses.pop(0) if self.responses else b""
+
+        class _Transport:
+            def deobfuscate(self, data):
+                return data.lower()
+
+        wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = _Transport()
+        wrapped._handshake_sent = True
+        wrapped._handshake_received = False
+
+        assert wrapped.recv(1024) == b"abcd"
+        assert wrapped.recv(1024) == b""
+
+    def test_recv_returns_empty_on_non_app_record_and_getattr_passthrough(self):
+        class _Sock:
+            marker = "ok"
+
+            def __init__(self):
+                self.responses = [struct.pack("!BHH", 0x16, 0x0303, 0)]
+
+            def recv(self, _size, _flags=0):
+                return self.responses.pop(0) if self.responses else b""
+
+        wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = FakeTLSTransport()
+        wrapped._handshake_sent = True
+        wrapped._handshake_received = True
+
+        assert wrapped.recv(1024) == b""
+        assert wrapped.marker == "ok"
+
+    def test_recv_returns_empty_when_app_header_missing(self):
+        class _Sock:
+            def recv(self, _size, _flags=0):
+                return b""
+
+        wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = FakeTLSTransport()
+        wrapped._handshake_sent = True
+        wrapped._handshake_received = True
+
+        assert wrapped.recv(1024) == b""
+
+    def test_wrap_socket_constructs_wrapper_and_propagates_timeout_issue(self):
+        raw_a, raw_b = socket.socketpair()
+        try:
+            transport = FakeTLSTransport()
+            with pytest.raises(AttributeError):
+                transport.wrap_socket(raw_a)
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass  # fd taken by FakeTLSSocket.__init__ via super().__init__(fileno=...)
+            try:
+                raw_b.close()
+            except OSError:
+                pass
