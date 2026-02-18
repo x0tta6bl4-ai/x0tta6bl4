@@ -269,11 +269,13 @@ services:
 | CVE ID | Severity | Component | Issue | Fix |
 |--------|----------|-----------|-------|-----|
 | **CVE-2026-XDP-001** | CRITICAL | eBPF XDP | Timing attack in MAC verification | Constant-time XOR comparison |
+| **CVE-2026-DF-001** | CRITICAL | Domain Fronting | SSL verification disabled (`ssl.CERT_NONE`) | Enabled `ssl.CERT_REQUIRED` with hostname check |
 | **CVE-2026-PQC-001** | HIGH | PQC Keys | Secret keys in plain memory | SecureKeyStorage with AES-256-GCM |
 | **CVE-2026-PQC-002** | HIGH | HKDF | Null salt in key derivation | Random salt per derivation |
 | **CVE-2026-XDP-002** | MEDIUM | eBPF Sessions | Hardcoded 256 session limit | Configurable up to 65536 |
 | **CVE-2026-PQC-003** | MEDIUM | eBPF Sessions | Hardcoded TTL | Configurable via eBPF map |
 | **CVE-2026-SPIFFE-001** | MEDIUM | SPIFFE | No clock skew tolerance | 5-minute tolerance |
+| **CVE-2026-RANDOM-001** | LOW | Traffic Shaping | `random` module for padding | Informational (padding is not secret) |
 
 **All vulnerabilities have been remediated.** See [`docs/security/SECURITY_AUDIT_2026-02-17.md`](docs/security/SECURITY_AUDIT_2026-02-17.md) for details.
 
