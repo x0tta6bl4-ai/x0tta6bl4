@@ -105,31 +105,39 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
+          LIBBPF_PKG=libbpf1
+          if ! apt-cache show "$LIBBPF_PKG" >/dev/null 2>&1; then
+            LIBBPF_PKG=libbpf0
+          fi
           sudo apt-get install -y \
-            libbpf0 \
+            "$LIBBPF_PKG" \
             libelf1 \
             clang-tools
       
       - name: Run eBPF loader unit tests
         run: |
-          pytest tests/network/ebpf/test_ebpf_loader.py -v -m unit
+          PYTHONWARNINGS=default pytest tests/network/ebpf/test_ebpf_loader.py -v -m unit \
+            -o asyncio_default_fixture_loop_scope=function
       
       - name: Run eBPF integration tests
         continue-on-error: true
         run: |
-          pytest tests/network/ebpf/test_ebpf_integration.py -v -m integration
+          PYTHONWARNINGS=default pytest tests/network/ebpf/test_ebpf_integration.py -v -m integration \
+            -o asyncio_default_fixture_loop_scope=function
       
       - name: Check eBPF-MAPE-K integration
         continue-on-error: true
         run: |
-          pytest tests/network/ebpf/test_ebpf_mapek_integration.py -v
+          PYTHONWARNINGS=default pytest tests/network/ebpf/test_ebpf_mapek_integration.py -v \
+            -o asyncio_default_fixture_loop_scope=function
       
       - name: Generate coverage report
         run: |
-          pytest tests/network/ebpf/ \
+          PYTHONWARNINGS=default pytest tests/network/ebpf/ \
             --cov=src/network/ebpf \
             --cov-report=xml \
-            --cov-report=term
+            --cov-report=term \
+            -o asyncio_default_fixture_loop_scope=function
         continue-on-error: true
       
       - name: Upload coverage to Codecov
@@ -208,7 +216,11 @@ jobs:
         run: |
           pip install -e .[ml,dev,monitoring]
           sudo apt-get update
-          sudo apt-get install -y libbpf0 libelf1
+          LIBBPF_PKG=libbpf1
+          if ! apt-cache show "$LIBBPF_PKG" >/dev/null 2>&1; then
+            LIBBPF_PKG=libbpf0
+          fi
+          sudo apt-get install -y "$LIBBPF_PKG" libelf1
       
       - name: Download eBPF objects
         uses: actions/download-artifact@v4
