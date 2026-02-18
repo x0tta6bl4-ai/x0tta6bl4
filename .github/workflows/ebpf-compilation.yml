@@ -51,21 +51,21 @@ jobs:
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_counter.c \
-            -o ../../../build/ebpf/xdp_counter.o
+            -o ../../../../build/ebpf/xdp_counter.o
           
           
           # Compile XDP mesh filter
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_mesh_filter.c \
-            -o ../../../build/ebpf/xdp_mesh_filter.o
+            -o ../../../../build/ebpf/xdp_mesh_filter.o
           
           
           # Compile XDP PQC verify
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c xdp_pqc_verify.c \
-            -o ../../../build/ebpf/xdp_pqc_verify.o
+            -o ../../../../build/ebpf/xdp_pqc_verify.o
           
           
           echo "✓ XDP programs compiled"
@@ -79,7 +79,7 @@ jobs:
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c kprobe_syscall_latency_secure.c \
-            -o ../../../build/ebpf/kprobe_syscall_latency.o
+            -o ../../../../build/ebpf/kprobe_syscall_latency.o
           
           
           echo "✓ kprobe programs compiled"
@@ -93,7 +93,7 @@ jobs:
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c tracepoint_net.c \
-            -o ../../../build/ebpf/tracepoint_net.o
+            -o ../../../../build/ebpf/tracepoint_net.o
           
           
           echo "✓ tracepoint programs compiled"
@@ -107,7 +107,7 @@ jobs:
           clang-${{ env.LLVM_VERSION }} \
             $COMMON_FLAGS \
             -c tc_classifier.c \
-            -o ../../../build/ebpf/tc_classifier.o
+            -o ../../../../build/ebpf/tc_classifier.o
           
           
           echo "✓ TC programs compiled"
