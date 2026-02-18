@@ -226,11 +226,13 @@ jobs:
       
       - name: Test eBPF loader
         run: |
-          python -m pytest tests/test_ebpf_loader.py -v --tb=short
+          PYTHONWARNINGS=default python -m pytest tests/test_ebpf_loader.py -v --tb=short \
+            -o asyncio_default_fixture_loop_scope=function
       
       - name: Test eBPF orchestrator
         run: |
-          python -m pytest tests/test_ebpf_orchestrator.py -v --tb=short
+          PYTHONWARNINGS=default python -m pytest tests/test_ebpf_orchestrator.py -v --tb=short \
+            -o asyncio_default_fixture_loop_scope=function
   
   # Job 4: Create releases with compiled objects
   package:
