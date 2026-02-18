@@ -257,6 +257,7 @@ class RecoveryActionExecutor:
 
                 # Record in history
                 self._record_action(result)
+                self.last_result = result
 
                 if result.success:
                     logger.info(
@@ -435,7 +436,9 @@ class RecoveryActionExecutor:
             try:
                 from src.network.batman.node_manager import NodeManager
 
-                manager = NodeManager()
+                mesh_id = context.get("mesh_id", "default-mesh")
+                local_node_id = context.get("local_node_id", "local")
+                manager = NodeManager(mesh_id, local_node_id)
                 if hasattr(manager, "switch_route"):
                     manager.switch_route(target_node, alternative_route)
                 elif hasattr(manager, "update_route"):
