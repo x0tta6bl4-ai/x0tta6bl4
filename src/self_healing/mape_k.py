@@ -139,7 +139,7 @@ class MAPEKMonitor:
                 }
 
                 # Get neighbors (simplified - would use actual topology)
-                neighbors = []  # Would be populated from mesh topology
+                neighbors = metrics.get("neighbor_features", [])
 
                 # Use predict_with_causal if available for root cause analysis
                 node_id = metrics.get("node_id", "unknown")
@@ -278,7 +278,7 @@ class MAPEKAnalyzer:
                     "memory": metrics.get("memory_percent", 0.0) / 100.0,
                 }
 
-                neighbors = []  # Would be populated from mesh topology
+                neighbors = metrics.get("neighbor_features", [])
 
                 # Use predict_with_causal if available
                 if hasattr(self.graphsage_detector, "predict_with_causal"):
@@ -444,12 +444,20 @@ class MAPEKExecutor:
             True if action executed successfully
         """
         logger.info(f"Executing action: {action}")
+        self.was_simulated = False
 
         if self.use_recovery_executor and self.recovery_executor:
-            return self.recovery_executor.execute(action, context)
+            result = self.recovery_executor.execute(action, context)
+            # Check if the action was only simulated (not real recovery)
+            last = getattr(self.recovery_executor, "last_result", None)
+            if last and getattr(last, "details", None):
+                if last.details.get("method") == "simulated":
+                    self.was_simulated = True
+            return result
 
         # Fallback placeholder
         logger.warning(f"Placeholder execution for: {action}")
+        self.was_simulated = True
         time.sleep(0.1)
         return True
 
@@ -904,14 +912,18 @@ class SelfHealingManager:
                 except ImportError:
                     pass
 
-                # KNOWLEDGE phase with feedback loop (always runs)
+                # KNOWLEDGE phase with feedback loop (skip simulated recoveries)
                 knowledge_start = time.time()
-                self.knowledge.record(
-                    metrics, issue, action, success=success, mttr=mttr
-                )
-
-                # Feedback loop: Update Monitor and Planner based on results
-                self._apply_feedback_loop(issue, action, success, mttr)
+                if not self.executor.was_simulated:
+                    self.knowledge.record(
+                        metrics, issue, action, success=success, mttr=mttr
+                    )
+                    # Feedback loop: Update Monitor and Planner based on results
+                    self._apply_feedback_loop(issue, action, success, mttr)
+                else:
+                    logger.debug(
+                        f"Skipping knowledge recording for simulated recovery: {action}"
+                    )
 
                 knowledge_duration = time.time() - knowledge_start
                 try:

@@ -14,6 +14,7 @@
 | **PQC** | 0 | 0 | 0 | 1 |
 | **eBPF XDP** | 0 | 0 | 0 | 0 |
 | **SPIFFE/SPIRE** | 0 | 0 | 0 | 0 |
+| **Domain Fronting** | 0 | 0 | 0 | 0 |
 | **CI/CD** | 0 | 0 | 0 | 0 |
 | **TOTAL** | **0** | **0** | **0** | **1** |
 
@@ -26,11 +27,13 @@
 | Priority | CVE | Component | Status |
 |----------|-----|-----------|--------|
 | P0 | CVE-2026-XDP-001 | eBPF XDP Timing Attack | **FIXED** |
+| P0 | CVE-2026-DF-001 | Domain Fronting SSL Verification | **FIXED** |
 | P1 | CVE-2026-PQC-001 | Secret Keys in Memory | **FIXED** |
 | P1 | CVE-2026-PQC-002 | HKDF Null Salt | **FIXED** |
 | P2 | CVE-2026-XDP-002 | Session Limit | **FIXED** |
 | P2 | CVE-2026-PQC-003 | Session TTL | **FIXED** |
 | P2 | CVE-2026-SPIFFE-001 | Clock Skew | **FIXED** |
+| P3 | CVE-2026-RANDOM-001 | Weak Random in Traffic Shaping | **INFORMATIONAL** |
 
 ---
 
@@ -50,6 +53,35 @@ return (computed == received) ? 1 : 0;
 __u64 diff = computed ^ received;
 return (diff == 0) ? 1 : 0;
 ```
+
+---
+
+### CVE-2026-DF-001: Domain Fronting SSL Verification Disabled (CRITICAL)
+
+**Files:**
+- [`src/network/obfuscation/domain_fronting.py`](src/network/obfuscation/domain_fronting.py)
+- [`src/libx0t/network/obfuscation/domain_fronting.py`](src/libx0t/network/obfuscation/domain_fronting.py)
+
+**Issue:** SSL certificate verification was completely disabled (`ssl.CERT_NONE`), enabling Man-in-the-Middle attacks between client and CDN.
+
+**Fix:** Enabled proper SSL certificate verification with:
+- `ssl.CERT_REQUIRED` by default
+- Hostname verification enabled
+- TLS 1.2 minimum version enforcement
+- Optional custom CA bundle support
+
+```python
+# BEFORE (vulnerable):
+self.context.check_hostname = False
+self.context.verify_mode = ssl.CERT_NONE  # MITM vulnerability!
+
+# AFTER (secure):
+self.context.check_hostname = True
+self.context.verify_mode = ssl.CERT_REQUIRED
+self.context.minimum_version = ssl.TLSVersion.TLSv1_2
+```
+
+**Impact:** This vulnerability could allow an attacker to intercept and modify traffic between the client and CDN, compromising the entire secure channel.
 
 ---
 
@@ -122,6 +154,21 @@ if now > cert.not_valid_after + CLOCK_SKEW_TOLERANCE:
 
 ---
 
+### CVE-2026-RANDOM-001: Weak Random in Traffic Shaping (LOW - INFORMATIONAL)
+
+**File:** [`src/network/obfuscation/traffic_shaping.py`](src/network/obfuscation/traffic_shaping.py)
+
+**Issue:** Uses `random` module instead of `secrets` for padding generation.
+
+**Assessment:** This is **NOT A SECURITY VULNERABILITY** because:
+- Padding bytes are not secret data
+- Traffic shaping is for obfuscation, not encryption
+- No cryptographic keys or secrets are generated with `random`
+
+**Status:** INFORMATIONAL - No fix required. Padding predictability does not compromise security.
+
+---
+
 ## New Security Components
 
 ### SecureKeyStorage
@@ -174,12 +221,13 @@ Coverage:
 | NIST SP 800-38D (AES-GCM) | Compliant |
 | RFC 7693 (SipHash) | Compliant (fixed) |
 | SPIFFE Specification | Compliant |
+| TLS 1.2+ | Compliant (fixed) |
 
 ---
 
 ## Security Posture
 
-**Before:** MEDIUM (1 critical, 2 high, 3 medium vulnerabilities)
+**Before:** MEDIUM (2 critical, 2 high, 3 medium vulnerabilities)
 
 **After:** HIGH (0 critical, 0 high, 0 medium vulnerabilities)
 

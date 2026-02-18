@@ -17,4 +17,4 @@ if __name__ == '__main__':
     app = create_app()
     print("✅ x0tta6bl4 Node started in DEMO MODE")
     print("📊 Dashboard: http://localhost:8080")
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
