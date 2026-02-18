@@ -12,16 +12,8 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
 KERNEL_VERSION ?= $(shell uname -r)
 HOST_TRIPLE ?= $(shell uname -m)-linux-gnu
 
-# Include directories for both kernel and userspace UAPI headers.
-INCLUDES = -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/uapi \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/include \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/uapi \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/generated/uapi \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/generated \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/generated/uapi \
-           -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/generated \
-           -I$(VMLINUX_DIR) \
+# Include directories for vmlinux and userspace UAPI headers.
+INCLUDES = -I$(VMLINUX_DIR) \
            -I/usr/include/$(HOST_TRIPLE) \
            -I/usr/include
 
