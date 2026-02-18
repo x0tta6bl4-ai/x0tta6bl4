@@ -79,16 +79,16 @@ class RoutingPacket:
     @classmethod
     def from_bytes(cls, data: bytes) -> "RoutingPacket":
         """Deserialize packet from bytes."""
-        if len(data) < 41:
+        if len(data) < 43:
             raise ValueError("Packet too short")
-        
+
         packet_type, flags, seq_num, _, source_raw, dest_raw, hop_count = struct.unpack(
-            "!BBII16s16sB", data[:41]
+            "!BBII16s16sB", data[:43]
         )
-        
+
         source = source_raw.rstrip(b'\x00').decode()
         destination = dest_raw.rstrip(b'\x00').decode()
-        payload = data[41:]
+        payload = data[43:]
         
         return cls(
             packet_type=PacketType(packet_type),
