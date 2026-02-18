@@ -17,6 +17,10 @@ INCLUDES = -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/uapi \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/include \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/uapi \
            -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include \
+           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/generated/uapi \
+           -I/usr/src/linux-headers-$(KERNEL_VERSION)/arch/$(ARCH)/include/generated \
+           -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/generated/uapi \
+           -I/usr/src/linux-headers-$(KERNEL_VERSION)/include/generated \
            -I$(VMLINUX_DIR) \
            -I/usr/include/$(HOST_TRIPLE) \
            -I/usr/include

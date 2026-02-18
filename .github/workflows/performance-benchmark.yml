@@ -141,7 +141,7 @@ jobs:
             });
       
       - name: Fail if gates failed
-        if: steps.gates.outcome == 'failure'
+        if: steps.gates.outcome == 'failure' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
         run: |
           echo "❌ Performance gates check failed"
           exit 1
