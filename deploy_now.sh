@@ -1,9 +1,9 @@
 #!/bin/bash
-# Quick deployment script with token
+# Quick deployment script
 
-set -e
+set -euo pipefail
 
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+: "${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in environment}"
 
 echo "🚀 Quick Deployment Script"
 echo "=========================="
@@ -30,7 +30,7 @@ if [ "$(hostname)" = "89.125.1.107" ] || [ -f "/root/.ssh/id_rsa" ]; then
 else
     echo "⚠️  Need to deploy via SSH to VPS"
     echo "Run on VPS:"
-    echo "  export TELEGRAM_BOT_TOKEN=\"$TELEGRAM_BOT_TOKEN\""
+    echo "  export TELEGRAM_BOT_TOKEN='<your_token>'"
     echo "  sudo ./deploy_bot.sh"
 fi
 
@@ -46,4 +46,3 @@ echo "  ssh root@89.125.1.107 'systemctl status x0tta6bl4-bot'"
 echo ""
 echo "View bot logs:"
 echo "  ssh root@89.125.1.107 'journalctl -u x0tta6bl4-bot -f'"
-

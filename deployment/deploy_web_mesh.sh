@@ -23,8 +23,8 @@ sync_node() {
     echo "✅ $IP serving Web."
 }
 
-sync_node "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-sync_node "77.83.245.27" "13Vbkkbjyjd$"
-sync_node "62.133.60.252" "13Vbkkbjyjd$"
+sync_node "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+sync_node "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+sync_node "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🎉 Decentralized Hosting Active. Access site from ANY node."

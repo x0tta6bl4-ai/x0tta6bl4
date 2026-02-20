@@ -2,7 +2,7 @@
 # Install Nginx on Node 3 to fix web serving
 
 IP="62.133.60.252"
-PASS="13Vbkkbjyjd$"
+PASS="${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🛠️ Installing Nginx on Node 3..."
 
