@@ -18,7 +18,7 @@ class TestDomainFrontingCertVerification:
         DomainFrontingTransport.__init__(
             transport,
             front_domain="cdn.example.com",
-            backend_host="hidden.backend",
+            backend_domain="hidden.backend",
         )
         assert transport.context.check_hostname is True, (
             "CVE-2026-DF-001 regression: check_hostname must be True"
@@ -30,7 +30,7 @@ class TestDomainFrontingCertVerification:
         DomainFrontingTransport.__init__(
             transport,
             front_domain="cdn.example.com",
-            backend_host="hidden.backend",
+            backend_domain="hidden.backend",
         )
         assert transport.context.verify_mode == ssl.CERT_REQUIRED, (
             "CVE-2026-DF-001 regression: verify_mode must be CERT_REQUIRED"
@@ -42,7 +42,7 @@ class TestDomainFrontingCertVerification:
         DomainFrontingTransport.__init__(
             transport,
             front_domain="cdn.example.com",
-            backend_host="hidden.backend",
+            backend_domain="hidden.backend",
         )
         assert transport.context.minimum_version >= ssl.TLSVersion.TLSv1_2
 
@@ -53,7 +53,7 @@ class TestDomainFrontingCertVerification:
             DomainFrontingTransport.__init__(
                 transport,
                 front_domain="cdn.example.com",
-                backend_host="hidden.backend",
+                backend_domain="hidden.backend",
                 verify_mode=ssl.CERT_NONE,
             )
             # Если не исключение — verify_mode должен быть перезаписан
