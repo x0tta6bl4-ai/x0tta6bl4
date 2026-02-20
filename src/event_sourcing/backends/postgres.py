@@ -49,8 +49,22 @@ class PostgresConfig:
     command_timeout: float = 60.0
     
     def to_dsn(self) -> str:
-        """Convert to PostgreSQL DSN string."""
+        """Return censored DSN suitable for logging (password redacted)."""
+        return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.database}"
+
+    def _unsafe_dsn(self) -> str:
+        """Return full DSN with password for asyncpg internal use only.
+
+        Do NOT log or expose the return value of this method.
+        """
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    def __repr__(self) -> str:
+        return (
+            f"PostgresConfig(host={self.host!r}, port={self.port}, "
+            f"database={self.database!r}, user={self.user!r}, password='***', "
+            f"schema={self.schema!r})"
+        )
 
 
 class PostgresEventStore(DatabaseBackend):

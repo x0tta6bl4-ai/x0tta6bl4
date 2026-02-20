@@ -7,6 +7,7 @@ Supports Enterprise SSO (Google, GitHub, Okta).
 """
 
 import logging
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -146,11 +147,18 @@ async def login(req: UserLoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/api-key", response_model=ApiKeyResponse)
 async def rotate_api_key(
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
 ):
     """Rotate API key for current authenticated user."""
     new_key, rotated_at = auth_service.rotate_api_key(db, current_user)
+    logger.info(
+        "AUDIT API_KEY_ROTATED user_id=%s ip=%s ts=%s",
+        current_user.id,
+        request.client.host if request.client else "unknown",
+        datetime.utcnow().isoformat(),
+    )
     return {"api_key": new_key, "created_at": rotated_at}
 
 @router.get("/login/oidc")
@@ -245,6 +253,7 @@ async def get_my_profile(user: User = Depends(get_current_user_from_maas)):
 @router.post("/set-admin/{email}")
 async def make_admin(
     email: str,
+    request: Request,
     db: Session = Depends(get_db),
     _admin: User = Depends(require_role("admin")),
 ):
@@ -252,7 +261,62 @@ async def make_admin(
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
+    prev_role = user.role
     user.role = "admin"
     db.commit()
+    logger.info(
+        "AUDIT ADMIN_PROMOTION target_email=%s target_id=%s prev_role=%s "
+        "promoted_by=%s ip=%s ts=%s",
+        email,
+        user.id,
+        prev_role,
+        _admin.id,
+        request.client.host if request.client else "unknown",
+        datetime.utcnow().isoformat(),
+    )
     return {"message": f"User {email} is now an ADMIN"}
+
+
+@router.post("/bootstrap-admin")
+async def bootstrap_admin(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create the first admin user when no admins exist.
+
+    Requires the ``BOOTSTRAP_TOKEN`` environment variable to match the
+    ``X-Bootstrap-Token`` request header. Disabled once any admin exists.
+    """
+    bootstrap_token = os.getenv("BOOTSTRAP_TOKEN", "")
+    if not bootstrap_token:
+        raise HTTPException(status_code=403, detail="Bootstrap not configured")
+
+    provided = request.headers.get("X-Bootstrap-Token", "")
+    if not secrets.compare_digest(bootstrap_token, provided):
+        raise HTTPException(status_code=403, detail="Invalid bootstrap token")
+
+    # Disabled once any admin exists (idempotency guard)
+    existing_admin = db.query(User).filter(User.role == "admin").first()
+    if existing_admin:
+        raise HTTPException(status_code=409, detail="Admin already exists — bootstrap disabled")
+
+    body = await request.json()
+    email = body.get("email", "").strip()
+    password = body.get("password", "")
+    if not email or not password:
+        raise HTTPException(status_code=422, detail="email and password required")
+
+    from src.api.maas_auth_models import UserRegisterRequest
+    req = UserRegisterRequest(email=email, password=password)
+    user = auth_service.register(db, req)
+    user.role = "admin"
+    db.commit()
+    logger.info(
+        "AUDIT BOOTSTRAP_ADMIN_CREATED email=%s user_id=%s ip=%s ts=%s",
+        email,
+        user.id,
+        request.client.host if request.client else "unknown",
+        datetime.utcnow().isoformat(),
+    )
+    return {"message": f"Bootstrap admin {email} created", "api_key": user.api_key}

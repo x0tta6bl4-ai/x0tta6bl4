@@ -111,4 +111,5 @@ __all__ = [
     "RetrainingOrchestrator",
 ]
 
-__version__ = "3.2.1"
+# Import version from centralized module
+from src.version import __version__
