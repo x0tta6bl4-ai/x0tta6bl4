@@ -290,8 +290,10 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
 
             # Check for suspicious patterns in headers
             if self.config.block_suspicious_patterns:
-                if is_suspicious(value):
-                    logger.warning(f"Suspicious pattern in header {name}")
+                # Skip validation for common headers that often contain special chars
+                skip_headers = {"user-agent", "cookie", "referer", "sec-ch-ua", "accept"}
+                if name.lower() not in skip_headers and is_suspicious(value):
+                    logger.warning(f"🛡️ Suspicious pattern detected in header '{name}': {value}")
                     return JSONResponse(
                         status_code=400, content={"error": "Invalid header value"}
                     )

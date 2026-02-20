@@ -22,13 +22,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS для frontend
+# CORS для frontend (только демо-режим)
+# allow_origins=["*"] + allow_credentials=True — нарушение CORS-спецификации.
+# Здесь отключены credentials, чтобы wildcard был допустим для демо.
+import os as _os
+_cors_origins = _os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В production ограничить
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=False,  # НЕ сочетать wildcard с credentials=True
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
 )
 
 
