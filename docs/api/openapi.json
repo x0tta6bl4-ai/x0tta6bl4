@@ -1,0 +1,2941 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "x0tta6bl4 Mesh Network API",
+    "version": "3.2.1",
+    "description": "\n# x0tta6bl4 Mesh Network API\n\nSelf-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm.\n\n## Features\n\n- **Post-Quantum Cryptography**: ML-KEM-768, ML-DSA-65 (NIST FIPS 203/204)\n- **SPIFFE/SPIRE Integration**: Zero Trust workload identity with mTLS\n- **Agent Swarm**: Parallel task execution with up to 100 agents\n- **PARL**: Parallel Agent Reinforcement Learning for 4.5x speedup\n- **Vision Module**: Visual analysis for mesh topology and anomaly detection\n\n## Authentication\n\nMost endpoints require `X-Admin-Token` header for authentication.\n\n## Rate Limiting\n\n- Standard endpoints: 100 requests/minute\n- Task submission: 1000 requests/minute\n- Swarm creation: 10 requests/minute\n- Scaling: 5 requests/minute\n\n## Error Handling\n\nAll errors follow RFC 7807 Problem Details format:\n```json\n{\n  \"type\": \"https://x0tta6bl4.mesh/errors/swarm-not-found\",\n  \"title\": \"Swarm Not Found\",\n  \"status\": 404,\n  \"detail\": \"Swarm with ID 'abc123' does not exist\"\n}\n```\n        ",
+    "contact": {
+      "name": "x0tta6bl4 Support",
+      "email": "support@x0tta6bl4.mesh",
+      "url": "https://x0tta6bl4.mesh"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "x-logo": {
+      "url": "/logo.svg",
+      "altText": "x0tta6bl4 Logo"
+    }
+  },
+  "paths": {
+    "/vpn/config": {
+      "get": {
+        "tags": [
+          "vpn"
+        ],
+        "summary": "Get Vpn Config",
+        "description": "Generate VPN configuration for a user.\n\nArgs:\n    user_id: Telegram user ID\n    username: Optional username for the VPN config\n    server: Optional custom server address\n    port: Optional custom server port\n\nReturns:\n    VPN configuration with VLESS link and detailed instructions",
+        "operationId": "get_vpn_config_vpn_config_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Username"
+            }
+          },
+          {
+            "name": "server",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Server"
+            }
+          },
+          {
+            "name": "port",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Port"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VPNConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "vpn"
+        ],
+        "summary": "Create Vpn Config",
+        "description": "Create VPN configuration for a user.\n\nArgs:\n    request: VPN config request data\n\nReturns:\n    VPN configuration with VLESS link and detailed instructions",
+        "operationId": "create_vpn_config_vpn_config_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VPNConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VPNConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vpn/status": {
+      "get": {
+        "tags": [
+          "vpn"
+        ],
+        "summary": "Get Vpn Status",
+        "description": "Get VPN server status.\n\nReturns:\n    Current VPN server status (cached for 30 seconds)",
+        "operationId": "get_vpn_status_vpn_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VPNStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vpn/users": {
+      "get": {
+        "tags": [
+          "vpn"
+        ],
+        "summary": "Get Vpn Users",
+        "description": "Get list of active VPN users.\n\nReturns:\n    List of active VPN users (cached for 60 seconds)",
+        "operationId": "get_vpn_users_vpn_users_get",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Vpn Users Vpn Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vpn/user/{user_id}": {
+      "delete": {
+        "tags": [
+          "vpn"
+        ],
+        "summary": "Delete Vpn User",
+        "description": "Delete VPN user.\n\nArgs:\n    user_id: User ID to delete\n\nReturns:\n    Confirmation of deletion",
+        "operationId": "delete_vpn_user_vpn_user__user_id__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Vpn User Vpn User  User Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/register": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Register",
+        "description": "Register a new user",
+        "operationId": "register_api_v1_users_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/login": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Login",
+        "description": "Login user and create session",
+        "operationId": "login_api_v1_users_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Get Current User",
+        "description": "Get current user profile based on API Key or Session",
+        "operationId": "get_current_user_api_v1_users_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/logout": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Logout",
+        "description": "Logout user by invalidating session",
+        "operationId": "logout_api_v1_users_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/stats": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Get User Stats",
+        "description": "Get user statistics (admin only)",
+        "operationId": "get_user_stats_api_v1_users_stats_get",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Get Users",
+        "description": "Get all users (admin only)",
+        "operationId": "get_users_api_v1_users__get",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  },
+                  "title": "Response Get Users Api V1 Users  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/config": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Billing Config",
+        "operationId": "billing_config_api_v1_billing_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/checkout-session": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Create Checkout Session",
+        "operationId": "create_checkout_session_api_v1_billing_checkout_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/webhook": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Stripe Webhook",
+        "operationId": "stripe_webhook_api_v1_billing_webhook_post",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stripe-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/order-status": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Get Order Status",
+        "description": "Check order status and return VLESS link if paid.",
+        "operationId": "get_order_status_api_v1_billing_order_status_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/create": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Create Swarm",
+        "description": "Create a new agent swarm.\n\nCreates a swarm with specified number of agents and capabilities.\nUses PARL for parallel task execution with up to 4.5x speedup.",
+        "operationId": "create_swarm_api_v3_swarm_create_post",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwarmCreateRequest"
+              },
+              "examples": {
+                "basic": {
+                  "$ref": "#/components/examples/SwarmCreateRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwarmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/status": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Get Swarm Status",
+        "description": "Get current status of a swarm.",
+        "operationId": "get_swarm_status_api_v3_swarm__swarm_id__status_get",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/tasks": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Submit Task",
+        "description": "Submit a task for execution by the swarm.",
+        "operationId": "submit_task_api_v3_swarm__swarm_id__tasks_post",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSubmitRequest"
+              },
+              "examples": {
+                "mesh_analysis": {
+                  "$ref": "#/components/examples/TaskSubmitRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/tasks/batch": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Submit Tasks Batch",
+        "description": "Submit multiple tasks for parallel execution.",
+        "operationId": "submit_tasks_batch_api_v3_swarm__swarm_id__tasks_batch_post",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TaskSubmitRequest"
+                },
+                "title": "Tasks"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/tasks/{task_id}": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Get Task Status",
+        "description": "Get status of a specific task.",
+        "operationId": "get_task_status_api_v3_swarm__swarm_id__tasks__task_id__get",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/agents": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "List Agents",
+        "description": "List all agents in a swarm.",
+        "operationId": "list_agents_api_v3_swarm__swarm_id__agents_get",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "status_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Filter"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/agents/{agent_id}": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Get Agent Status",
+        "description": "Get detailed status of a specific agent.",
+        "operationId": "get_agent_status_api_v3_swarm__swarm_id__agents__agent_id__get",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/agents/{agent_id}/control": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Control Agent",
+        "description": "Control agent state (pause, resume, restart, terminate).",
+        "operationId": "control_agent_api_v3_swarm__swarm_id__agents__agent_id__control_post",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/scale": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Scale Swarm",
+        "description": "Scale the swarm up or down.",
+        "operationId": "scale_swarm_api_v3_swarm__swarm_id__scale_post",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScaleRequest"
+              },
+              "examples": {
+                "scale_up": {
+                  "$ref": "#/components/examples/ScaleUpRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/metrics": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Get Swarm Metrics",
+        "description": "Get detailed performance metrics for a swarm.",
+        "operationId": "get_swarm_metrics_api_v3_swarm__swarm_id__metrics_get",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}": {
+      "delete": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Terminate Swarm",
+        "description": "Terminate a swarm and release resources.",
+        "operationId": "terminate_swarm_api_v3_swarm__swarm_id__delete",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TerminateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "List Swarms",
+        "description": "List all active swarms.",
+        "operationId": "list_swarms_api_v3_swarm_get",
+        "parameters": [
+          {
+            "name": "status_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Filter"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/{swarm_id}/vision/analyze": {
+      "post": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Analyze Visual",
+        "description": "Analyze an image using the swarm's vision module.\n\nSupports:\n- mesh_topology: Analyze mesh network topology\n- routing_visualization: Analyze route visualizations\n- anomaly_detection: Detect visual anomalies",
+        "operationId": "analyze_visual_api_v3_swarm__swarm_id__vision_analyze_post",
+        "parameters": [
+          {
+            "name": "swarm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Swarm Id"
+            }
+          },
+          {
+            "name": "analysis_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "mesh_topology",
+              "title": "Analysis Type"
+            }
+          },
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_visual_api_v3_swarm__swarm_id__vision_analyze_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/swarm/health": {
+      "get": {
+        "tags": [
+          "swarm"
+        ],
+        "summary": "Swarm Health",
+        "description": "Health check for swarm subsystem.",
+        "operationId": "swarm_health_api_v3_swarm_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ledger/search": {
+      "post": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Search Ledger",
+        "description": "Semantic search в Continuity Ledger через RAG.\n\nИспользует существующий RAG pipeline для semantic search в CONTINUITY.md.\n\nПримеры запросов:\n- \"Какие метрики у нас хуже targets?\"\n- \"Какие issues нужно решить в первую очередь?\"\n- \"Что изменилось за последнюю неделю?\"\n- \"Какие компоненты готовы к deployment?\"",
+        "operationId": "search_ledger_api_v1_ledger_search_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Search Ledger Get",
+        "description": "Semantic search в Continuity Ledger (GET версия).\n\nПараметры:\n- q: Поисковый запрос\n- top_k: Количество результатов (по умолчанию 10)",
+        "operationId": "search_ledger_get_api_v1_ledger_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Поисковый запрос",
+              "title": "Q"
+            },
+            "description": "Поисковый запрос"
+          },
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Количество результатов",
+              "default": 10,
+              "title": "Top K"
+            },
+            "description": "Количество результатов"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ledger/index": {
+      "post": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Index Ledger",
+        "description": "Индексирование CONTINUITY.md в RAG pipeline.\n\nПараметры:\n- force: Принудительная переиндексация (даже если уже проиндексировано)",
+        "operationId": "index_ledger_api_v1_ledger_index_post",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ledger/status": {
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Ledger Status",
+        "description": "Статус индексирования ledger.",
+        "operationId": "ledger_status_api_v1_ledger_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mesh/deploy": {
+      "post": {
+        "tags": [
+          "MaaS"
+        ],
+        "summary": "Deploy Mesh",
+        "description": "Deploy a dedicated mesh network (MaaS).",
+        "operationId": "deploy_mesh_api_v1_mesh_deploy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeshDeployRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeshDeployResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pqc/status": {
+      "get": {
+        "summary": "Pqc Status",
+        "description": "Show PQC (liboqs) status and public key (hex).",
+        "operationId": "pqc_status_pqc_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus Metrics",
+        "description": "Expose Prometheus metrics for scraping.",
+        "operationId": "prometheus_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Simple health check endpoint - returns 200 if alive",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "summary": "Health Live",
+        "description": "Kubernetes liveness probe - is the app running?",
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Health Ready",
+        "description": "Kubernetes readiness probe - is the app ready to serve traffic?",
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/detailed": {
+      "get": {
+        "summary": "Health Detailed",
+        "description": "Detailed health check with all dependency statuses.",
+        "operationId": "health_detailed_health_detailed_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "summary": "Status",
+        "description": "Comprehensive status endpoint with real system metrics\n\nReturns:\n- System metrics (CPU, memory, disk, network)\n- Mesh network status (connected peers)\n- MAPE-K loop state\n- Overall system health",
+        "operationId": "status_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "description": "API root with documentation links",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mesh/status": {
+      "get": {
+        "summary": "Mesh Status",
+        "description": "Get Yggdrasil mesh network status",
+        "operationId": "mesh_status_mesh_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mesh/peers": {
+      "get": {
+        "summary": "Mesh Peers",
+        "description": "Get Yggdrasil mesh network peers",
+        "operationId": "mesh_peers_mesh_peers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mesh/routes": {
+      "get": {
+        "summary": "Mesh Routes",
+        "description": "Get Yggdrasil mesh network routes",
+        "operationId": "mesh_routes_mesh_routes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_analyze_visual_api_v3_swarm__swarm_id__vision_analyze_post": {
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "title": "Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "title": "Body_analyze_visual_api_v3_swarm__swarm_id__vision_analyze_post"
+      },
+      "CheckoutSessionRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "plan": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Plan",
+            "default": "pro"
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "CheckoutSessionRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MeshDeployRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Name"
+          },
+          "nodes": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Nodes",
+            "default": 5
+          },
+          "billing_plan": {
+            "type": "string",
+            "pattern": "^(starter|pro|enterprise)$",
+            "title": "Billing Plan",
+            "default": "pro"
+          },
+          "api_key": {
+            "type": "string",
+            "minLength": 16,
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "api_key"
+        ],
+        "title": "MeshDeployRequest"
+      },
+      "MeshDeployResponse": {
+        "properties": {
+          "mesh_id": {
+            "type": "string",
+            "title": "Mesh Id"
+          },
+          "join_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Join Config"
+          },
+          "dashboard_url": {
+            "type": "string",
+            "title": "Dashboard Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mesh_id",
+          "join_config",
+          "dashboard_url",
+          "status"
+        ],
+        "title": "MeshDeployResponse"
+      },
+      "ScaleRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "pattern": "^(scale_up|scale_down)$",
+            "title": "Action"
+          },
+          "num_agents": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Num Agents"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "num_agents"
+        ],
+        "title": "ScaleRequest"
+      },
+      "SearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchRequest",
+        "description": "Запрос на поиск в ledger"
+      },
+      "SearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "total_results": {
+            "type": "integer",
+            "title": "Total Results"
+          },
+          "search_time_ms": {
+            "type": "number",
+            "title": "Search Time Ms"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "results",
+          "total_results",
+          "search_time_ms",
+          "metadata"
+        ],
+        "title": "SearchResponse",
+        "description": "Ответ на поиск в ledger"
+      },
+      "SessionResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "user",
+          "expires_at"
+        ],
+        "title": "SessionResponse"
+      },
+      "SwarmConstraints": {
+        "properties": {
+          "max_parallel_steps": {
+            "type": "integer",
+            "maximum": 1500.0,
+            "minimum": 1.0,
+            "title": "Max Parallel Steps",
+            "default": 1500
+          },
+          "target_latency_ms": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Target Latency Ms",
+            "default": 100.0
+          },
+          "resource_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Limits"
+          }
+        },
+        "type": "object",
+        "title": "SwarmConstraints"
+      },
+      "SwarmCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "task_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Type"
+          },
+          "num_agents": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Num Agents",
+            "default": 10
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SwarmConstraints"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "integration_targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Integration Targets"
+          },
+          "auto_terminate": {
+            "type": "boolean",
+            "title": "Auto Terminate",
+            "default": true
+          },
+          "ttl_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400.0,
+                "minimum": 60.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Seconds",
+            "default": 3600
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SwarmCreateRequest"
+      },
+      "SwarmResponse": {
+        "properties": {
+          "swarm_id": {
+            "type": "string",
+            "title": "Swarm Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "num_agents": {
+            "type": "integer",
+            "title": "Num Agents"
+          },
+          "endpoints": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Endpoints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "swarm_id",
+          "name",
+          "status",
+          "created_at",
+          "num_agents",
+          "endpoints"
+        ],
+        "title": "SwarmResponse"
+      },
+      "TaskResponse": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "swarm_id": {
+            "type": "string",
+            "title": "Swarm Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Progress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "swarm_id",
+          "status",
+          "created_at",
+          "progress"
+        ],
+        "title": "TaskResponse"
+      },
+      "TaskSubmitRequest": {
+        "properties": {
+          "task_type": {
+            "type": "string",
+            "title": "Task Type"
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "default": 5
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "parallelization": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallelization"
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "maximum": 300.0,
+            "minimum": 1.0,
+            "title": "Timeout Seconds",
+            "default": 30.0
+          },
+          "callback_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callback Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_type"
+        ],
+        "title": "TaskSubmitRequest"
+      },
+      "TerminateRequest": {
+        "properties": {
+          "graceful": {
+            "type": "boolean",
+            "title": "Graceful",
+            "default": true
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 1.0,
+            "title": "Timeout Seconds",
+            "default": 60
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TerminateRequest"
+      },
+      "UserCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^[^@]+@[^@]+\\.[^@]+$",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserCreate"
+      },
+      "UserLogin": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserLogin"
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "company",
+          "plan",
+          "created_at"
+        ],
+        "title": "UserResponse"
+      },
+      "VPNConfigRequest": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "VPNConfigRequest"
+      },
+      "VPNConfigResponse": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "vless_link": {
+            "type": "string",
+            "title": "Vless Link"
+          },
+          "config_text": {
+            "type": "string",
+            "title": "Config Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "vless_link",
+          "config_text"
+        ],
+        "title": "VPNConfigResponse"
+      },
+      "VPNStatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "server": {
+            "type": "string",
+            "title": "Server"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "protocol": {
+            "type": "string",
+            "title": "Protocol"
+          },
+          "active_users": {
+            "type": "integer",
+            "title": "Active Users"
+          },
+          "uptime": {
+            "type": "number",
+            "title": "Uptime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "server",
+          "port",
+          "protocol",
+          "active_users",
+          "uptime"
+        ],
+        "title": "VPNStatusResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "description": "Error type URI"
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable error title"
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Detailed error message"
+          },
+          "instance": {
+            "type": "string",
+            "description": "Request instance identifier"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ]
+      },
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "description": "Overall health status"
+          },
+          "version": {
+            "type": "string",
+            "description": "API version"
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "latency_ms": {
+                  "type": "number"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "AdminToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Admin-Token",
+        "description": "Admin authentication token"
+      },
+      "mTLS": {
+        "type": "mutualTLS",
+        "description": "Mutual TLS authentication with SPIFFE SVID"
+      }
+    },
+    "examples": {
+      "SwarmCreateRequest": {
+        "summary": "Create a basic swarm",
+        "value": {
+          "name": "my-swarm",
+          "num_agents": 10,
+          "capabilities": [
+            "task_execution",
+            "vision_analysis"
+          ],
+          "constraints": {
+            "max_parallel_steps": 1500,
+            "target_latency_ms": 100.0
+          },
+          "ttl_seconds": 3600
+        }
+      },
+      "TaskSubmitRequest": {
+        "summary": "Submit a mesh analysis task",
+        "value": {
+          "task_type": "mesh_analysis",
+          "priority": 5,
+          "payload": {
+            "target_nodes": [
+              "node-1",
+              "node-2",
+              "node-3"
+            ],
+            "analysis_type": "latency"
+          },
+          "timeout_seconds": 30.0
+        }
+      },
+      "ScaleUpRequest": {
+        "summary": "Scale up swarm",
+        "value": {
+          "action": "scale_up",
+          "num_agents": 5,
+          "reason": "Increased load"
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.x0tta6bl4.mesh",
+      "description": "Production server"
+    },
+    {
+      "url": "https://staging-api.x0tta6bl4.mesh",
+      "description": "Staging server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "swarm",
+      "description": "Agent swarm management with PARL parallel execution",
+      "x-displayName": "Agent Swarm"
+    },
+    {
+      "name": "users",
+      "description": "User management and authentication",
+      "x-displayName": "Users"
+    },
+    {
+      "name": "billing",
+      "description": "Subscription and billing management via Stripe",
+      "x-displayName": "Billing"
+    },
+    {
+      "name": "MaaS",
+      "description": "Mesh-as-a-Service endpoints for network management",
+      "x-displayName": "Mesh-as-a-Service"
+    },
+    {
+      "name": "vpn",
+      "description": "VPN configuration and management",
+      "x-displayName": "VPN"
+    },
+    {
+      "name": "ledger",
+      "description": "Distributed ledger operations",
+      "x-displayName": "Ledger"
+    }
+  ],
+  "externalDocs": {
+    "url": "https://docs.x0tta6bl4.mesh",
+    "description": "Full documentation"
+  },
+  "webhooks": {
+    "TaskCompleted": {
+      "post": {
+        "summary": "Task completion notification",
+        "description": "Webhook called when a task completes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": {
+                    "type": "string",
+                    "const": "task.completed"
+                  },
+                  "task_id": {
+                    "type": "string"
+                  },
+                  "swarm_id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook received"
+          }
+        }
+      }
+    },
+    "SwarmScaled": {
+      "post": {
+        "summary": "Swarm scaling notification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": {
+                    "type": "string",
+                    "const": "swarm.scaled"
+                  },
+                  "swarm_id": {
+                    "type": "string"
+                  },
+                  "previous_count": {
+                    "type": "integer"
+                  },
+                  "new_count": {
+                    "type": "integer"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook received"
+          }
+        }
+      }
+    }
+  }
+}

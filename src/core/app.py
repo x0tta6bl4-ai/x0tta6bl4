@@ -146,7 +146,6 @@ logger.info("✓ Billing router registered")
 app.include_router(swarm_router)
 logger.info("✓ Swarm router registered (Kimi K2.5 integration)")
 app.include_router(ledger_router)
-app.include_router(ledger_router)
 logger.info("✓ Ledger router registered")
 
 # v3.4 MaaS API
@@ -233,6 +232,14 @@ if shutdown_enabled:
     logger.info("✓ Graceful shutdown middleware enabled")
 else:
     logger.info("⚠️  Graceful shutdown middleware disabled")
+
+# Add Metering Middleware for MaaS
+try:
+    from src.api.middleware.metering import MeteringMiddleware
+    app.add_middleware(MeteringMiddleware)
+    logger.info("✓ Metering middleware enabled")
+except ImportError:
+    logger.warning("⚠️ Metering middleware not available")
 
 
 # Security headers via decorator

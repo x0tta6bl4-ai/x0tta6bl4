@@ -434,21 +434,10 @@ class FederatedCoordinator:
 
             node_id = update.node_id
 
-            # Verify node is selected; keep legacy compatibility by accepting
-            # registered nodes while target participation is not yet reached.
+            # Strictly enforce selected participants for the active round.
             if node_id not in self.current_round.selected_nodes:
-                if (
-                    node_id in self.nodes
-                    and (
-                        self.current_round.status == RoundStatus.COMPLETED
-                        or len(self.current_round.received_updates)
-                        < self.current_round.target_participants
-                    )
-                ):
-                    self.current_round.selected_nodes.add(node_id)
-                else:
-                    logger.warning(f"Node {node_id} not selected for this round")
-                    return False
+                logger.warning(f"Node {node_id} not selected for this round")
+                return False
 
             # Check for duplicate
             if node_id in self.current_round.received_updates:

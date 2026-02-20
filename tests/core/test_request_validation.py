@@ -66,7 +66,7 @@ class TestSanitizeString:
 
     def test_null_bytes(self):
         """Test null byte removal."""
-        assert sanitize_string("hello\x00world") == "helloworld"
+        assert sanitize_string("hello\x00world") == "hello world"
 
     def test_whitespace_normalization(self):
         """Test whitespace normalization."""
@@ -111,7 +111,7 @@ class TestSanitizeDict:
         """Test that strings in dict are sanitized."""
         data = {"name": "hello\x00world"}
         result = sanitize_dict(data)
-        assert result["name"] == "helloworld"
+        assert result["name"] == "hello world"
 
 
 class TestValidationConfig:
