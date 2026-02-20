@@ -86,7 +86,8 @@ heartbeat_interval_sec: 10
 func TestLoadFromFile_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	os.WriteFile(path, []byte(":::invalid:::"), 0644)
+	// YAML v3 is lenient; use truly broken content
+	os.WriteFile(path, []byte("listen_port: [unterminated"), 0644)
 
 	_, err := LoadFromFile(path)
 	if err == nil {
