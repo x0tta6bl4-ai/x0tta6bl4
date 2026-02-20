@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.version import __version__
+
 logger = logging.getLogger(__name__)
 
 # Импорты компонентов v3.0
@@ -96,7 +98,7 @@ async def get_v3_status(
         raise HTTPException(status_code=503, detail="V3.0 components not available")
 
     status = integration.get_status()
-    return {"status": "operational", "components": status, "version": "3.2.1"}
+    return {"status": "operational", "components": status, "version": __version__}
 
 
 @router.post("/graphsage/analyze")
