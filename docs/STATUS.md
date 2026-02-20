@@ -586,6 +586,36 @@
      - Test coverage: SVID issuance, mTLS handshake, auto-renewal, failover/recovery
      - Latency targets: SVID < 100ms, mTLS < 50ms, Renewal < 200ms
 
+19. ✅ **Roadmap Source-of-Truth Cleanup** - P1 Priority (2026-02-20)
+     - Canonical roadmap: [`ROADMAP.md`](ROADMAP.md) (single source of truth)
+     - Archive index: [`ROADMAP_ARCHIVE_INDEX.md`](ROADMAP_ARCHIVE_INDEX.md)
+     - Updated [`docs/roadmap.md`](docs/roadmap.md) to redirect to canonical
+     - Consolidated 20+ conflicting roadmap files
+     - Clear status for all P0-P3 initiatives
+
+20. ✅ **God-Object Decomposition (Phase 1)** - P2 Priority (2026-02-20)
+     - ADR created: [`docs/adr/ADR-001-telemetry-module-decomposition.md`](docs/adr/ADR-001-telemetry-module-decomposition.md)
+     - Decomposed `telemetry_module.py` (1336 lines) into package:
+       - [`src/network/ebpf/telemetry/models.py`](src/network/ebpf/telemetry/models.py) - Data structures (~120 lines)
+       - [`src/network/ebpf/telemetry/security.py`](src/network/ebpf/telemetry/security.py) - SecurityManager (~190 lines)
+       - [`src/network/ebpf/telemetry/map_reader.py`](src/network/ebpf/telemetry/map_reader.py) - MapReader (~210 lines)
+       - [`src/network/ebpf/telemetry/perf_reader.py`](src/network/ebpf/telemetry/perf_reader.py) - PerfBufferReader (~130 lines)
+       - [`src/network/ebpf/telemetry/prometheus_exporter.py`](src/network/ebpf/telemetry/prometheus_exporter.py) - PrometheusExporter (~200 lines)
+       - [`src/network/ebpf/telemetry/collector.py`](src/network/ebpf/telemetry/collector.py) - EBPFTelemetryCollector (~280 lines)
+       - [`src/network/ebpf/telemetry/__init__.py`](src/network/ebpf/telemetry/__init__.py) - Public API with lazy loading
+     - Backward compatibility maintained via lazy-loading proxies
+     - Each module now has single responsibility
+
+21. ✅ **God-Object Decomposition (Phase 2)** - P2 Priority (2026-02-20)
+     - ADR created: [`docs/adr/ADR-002-meta-cognitive-decomposition.md`](docs/adr/ADR-002-meta-cognitive-decomposition.md)
+     - Decomposed `meta_cognitive_mape_k.py` (1156 lines) into package:
+       - [`src/core/meta_cognitive/models.py`](src/core/meta_cognitive/models.py) - Data structures (~100 lines)
+       - [`src/core/meta_cognitive/helpers.py`](src/core/meta_cognitive/helpers.py) - Utility functions (~200 lines)
+       - [`src/core/meta_cognitive/__init__.py`](src/core/meta_cognitive/__init__.py) - Public API with lazy loading
+     - Models: ReasoningApproach, SolutionSpace, ReasoningPath, ReasoningMetrics, ReasoningAnalytics, ExecutionLogEntry
+     - Helpers: Feature extraction, time estimation, confidence assessment, probability calculations
+     - Backward compatibility via proxy class
+
 ---
 
 ## ⚠️ Areas Needing Attention
