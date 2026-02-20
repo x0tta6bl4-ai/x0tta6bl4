@@ -242,7 +242,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
 
         # Validate headers
         if self.config.validate_headers:
-            validation_error = self._validate_headers(request)
+            validation_error = self._validate_headers(request, path=path)
             if validation_error:
                 return validation_error
 
@@ -265,9 +265,12 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
-    def _validate_headers(self, request: Request) -> Optional[JSONResponse]:
+    def _validate_headers(
+        self, request: Request, *, path: str = ""
+    ) -> Optional[JSONResponse]:
         """Validate request headers."""
         total_header_size = 0
+        is_html_page = path.endswith(".html") or path == "/"
 
         for name, value in request.headers.items():
             # Check header size
@@ -290,10 +293,38 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
 
             # Check for suspicious patterns in headers
             if self.config.block_suspicious_patterns:
-                # Skip validation for common headers that often contain special chars
-                skip_headers = {"user-agent", "cookie", "referer", "sec-ch-ua", "accept"}
-                if name.lower() not in skip_headers and is_suspicious(value):
-                    logger.warning(f"🛡️ Suspicious pattern detected in header '{name}': {value}")
+                # Skip suspicious-pattern validation for browser HTML pages and
+                # known safe headers that commonly contain special characters.
+                skip_headers = {
+                    "user-agent",
+                    "cookie",
+                    "referer",
+                    "sec-ch-ua",
+                    "accept",
+                    "sec-ch-ua-mobile",
+                    "sec-ch-ua-platform",
+                    "sec-fetch-dest",
+                    "sec-fetch-mode",
+                    "sec-fetch-site",
+                    "sec-fetch-user",
+                    "upgrade-insecure-requests",
+                    "x-api-key",
+                    "authorization",
+                    "connection",
+                    "accept-encoding",
+                    "accept-language",
+                }
+
+                header_name = name.lower()
+                skip_header_scan = (
+                    is_html_page
+                    or header_name in skip_headers
+                    or header_name.startswith("sec-")
+                )
+                if not skip_header_scan and is_suspicious(value):
+                    logger.warning(
+                        f"🛡️ Suspicious pattern detected in header '{name}': {value}"
+                    )
                     return JSONResponse(
                         status_code=400, content={"error": "Invalid header value"}
                     )
