@@ -1,16 +1,19 @@
 """
-Telemetry Data Models.
+Data structures for eBPF telemetry module.
 
-Data structures for eBPF telemetry collection.
+This module contains all data classes, enums, and configuration
+structures used throughout the telemetry package.
 """
+
 from collections import deque
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List
 
 
 class MetricType(Enum):
     """Type of metric."""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -19,6 +22,7 @@ class MetricType(Enum):
 
 class MapType(Enum):
     """eBPF map types."""
+
     HASH = "hash"
     ARRAY = "array"
     PERCPU_ARRAY = "percpu_array"
@@ -29,6 +33,7 @@ class MapType(Enum):
 
 class EventSeverity(Enum):
     """Severity level for security events."""
+
     INFO = 1
     LOW = 2
     MEDIUM = 3
@@ -39,6 +44,7 @@ class EventSeverity(Enum):
 @dataclass
 class TelemetryConfig:
     """Configuration for telemetry collector."""
+
     # Collection settings
     collection_interval: float = 1.0  # seconds
     batch_size: int = 100
@@ -72,6 +78,7 @@ class TelemetryConfig:
 @dataclass
 class MetricDefinition:
     """Definition of a metric."""
+
     name: str
     type: MetricType
     description: str
@@ -82,6 +89,7 @@ class MetricDefinition:
 @dataclass
 class MapMetadata:
     """Metadata about an eBPF map."""
+
     name: str
     map_type: MapType
     key_size: int
@@ -94,6 +102,7 @@ class MapMetadata:
 @dataclass
 class TelemetryEvent:
     """Telemetry event from eBPF."""
+
     event_type: str
     timestamp_ns: int
     cpu_id: int
@@ -105,6 +114,7 @@ class TelemetryEvent:
 @dataclass
 class CollectionStats:
     """Statistics about metric collection."""
+
     total_collections: int = 0
     successful_collections: int = 0
     failed_collections: int = 0
@@ -113,9 +123,28 @@ class CollectionStats:
     last_collection_time: float = 0.0
     average_collection_time: float = 0.0
     collection_times: deque = field(default_factory=lambda: deque(maxlen=100))
-    
+
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary, handling deque."""
-        result = asdict(self)
-        result['collection_times'] = list(self.collection_times)
-        return result
+        """Return serializable statistics payload."""
+        return {
+            "total_collections": self.total_collections,
+            "successful_collections": self.successful_collections,
+            "failed_collections": self.failed_collections,
+            "total_metrics_collected": self.total_metrics_collected,
+            "total_events_processed": self.total_events_processed,
+            "last_collection_time": self.last_collection_time,
+            "average_collection_time": self.average_collection_time,
+            "collection_times": list(self.collection_times),
+        }
+
+
+__all__ = [
+    "MetricType",
+    "MapType",
+    "EventSeverity",
+    "TelemetryConfig",
+    "MetricDefinition",
+    "MapMetadata",
+    "TelemetryEvent",
+    "CollectionStats",
+]

@@ -1,17 +1,22 @@
 """
-Prometheus Exporter for eBPF Telemetry.
+Prometheus metrics exporter for eBPF telemetry.
 
-Export metrics to Prometheus format.
+Features:
+- Automatic metric type detection
+- Label support
+- Histogram buckets
+- HTTP endpoint
 """
+
 import logging
 from typing import Any, Dict, Optional
 
-from .models import TelemetryConfig, MetricDefinition, MetricType
+from .models import MetricDefinition, MetricType, TelemetryConfig
 from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
 
-# Try to import prometheus_client
+# Check for Prometheus availability
 PROMETHEUS_AVAILABLE = False
 try:
     from prometheus_client import (
@@ -23,10 +28,10 @@ try:
         generate_latest,
         start_http_server,
     )
+
     PROMETHEUS_AVAILABLE = True
-    logger.info("Prometheus client available")
 except ImportError:
-    logger.warning("Prometheus client not available - metrics export limited")
+    pass
 
 
 class PrometheusExporter:
@@ -45,12 +50,13 @@ class PrometheusExporter:
         self.security = security
         self.metrics: Dict[str, Any] = {}
         self.metric_definitions: Dict[str, MetricDefinition] = {}
-        self.registry = CollectorRegistry() if PROMETHEUS_AVAILABLE else None
         self.server_started = False
 
         if PROMETHEUS_AVAILABLE:
+            self.registry = CollectorRegistry()
             logger.info("PrometheusExporter initialized")
         else:
+            self.registry = None
             logger.warning("Prometheus client not available")
 
     def start_server(self):
@@ -71,8 +77,7 @@ class PrometheusExporter:
             )
             self.server_started = True
             logger.info(
-                f"Prometheus server started on "
-                f"{self.config.prometheus_host}:{self.config.prometheus_port}"
+                f"Prometheus server started on {self.config.prometheus_host}:{self.config.prometheus_port}"
             )
         except Exception as e:
             logger.error(f"Failed to start Prometheus server: {e}")
@@ -84,9 +89,6 @@ class PrometheusExporter:
         Args:
             definition: MetricDefinition object
         """
-        if not PROMETHEUS_AVAILABLE:
-            return
-
         # Validate metric name
         is_valid, error = self.security.validate_metric_name(definition.name)
         if not is_valid:
@@ -95,44 +97,45 @@ class PrometheusExporter:
 
         self.metric_definitions[definition.name] = definition
 
-        try:
-            if definition.type == MetricType.COUNTER:
-                metric = Counter(
-                    definition.name,
-                    definition.description or definition.help_text,
-                    definition.labels,
-                    registry=self.registry,
-                )
-            elif definition.type == MetricType.GAUGE:
-                metric = Gauge(
-                    definition.name,
-                    definition.description or definition.help_text,
-                    definition.labels,
-                    registry=self.registry,
-                )
-            elif definition.type == MetricType.HISTOGRAM:
-                metric = Histogram(
-                    definition.name,
-                    definition.description or definition.help_text,
-                    definition.labels,
-                    registry=self.registry,
-                )
-            elif definition.type == MetricType.SUMMARY:
-                metric = Summary(
-                    definition.name,
-                    definition.description or definition.help_text,
-                    definition.labels,
-                    registry=self.registry,
-                )
-            else:
-                logger.error(f"Unknown metric type: {definition.type}")
-                return
+        if PROMETHEUS_AVAILABLE:
+            try:
+                if definition.type == MetricType.COUNTER:
+                    metric = Counter(
+                        definition.name,
+                        definition.description or definition.help_text,
+                        definition.labels,
+                        registry=self.registry,
+                    )
+                elif definition.type == MetricType.GAUGE:
+                    metric = Gauge(
+                        definition.name,
+                        definition.description or definition.help_text,
+                        definition.labels,
+                        registry=self.registry,
+                    )
+                elif definition.type == MetricType.HISTOGRAM:
+                    metric = Histogram(
+                        definition.name,
+                        definition.description or definition.help_text,
+                        definition.labels,
+                        registry=self.registry,
+                    )
+                elif definition.type == MetricType.SUMMARY:
+                    metric = Summary(
+                        definition.name,
+                        definition.description or definition.help_text,
+                        definition.labels,
+                        registry=self.registry,
+                    )
+                else:
+                    logger.error(f"Unknown metric type: {definition.type}")
+                    return
 
-            self.metrics[definition.name] = metric
-            logger.debug(f"Registered metric: {definition.name}")
+                self.metrics[definition.name] = metric
+                logger.debug(f"Registered metric: {definition.name}")
 
-        except Exception as e:
-            logger.error(f"Failed to register metric {definition.name}: {e}")
+            except Exception as e:
+                logger.error(f"Failed to register metric {definition.name}: {e}")
 
     def set_metric(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
         """
@@ -165,10 +168,7 @@ class PrometheusExporter:
             logger.error(f"Failed to set metric {name}: {e}")
 
     def increment_metric(
-        self,
-        name: str,
-        amount: float = 1.0,
-        labels: Optional[Dict[str, str]] = None
+        self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None
     ):
         """
         Increment counter metric.
@@ -232,3 +232,6 @@ class PrometheusExporter:
         except Exception as e:
             logger.error(f"Failed to generate metrics: {e}")
             return "# Error generating metrics\n"
+
+
+__all__ = ["PrometheusExporter"]
