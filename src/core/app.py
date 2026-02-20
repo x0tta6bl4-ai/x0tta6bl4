@@ -5,9 +5,11 @@ import logging
 import os
 from pathlib import Path
 
+print("DEBUG: Importing FastAPI...")
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+print("DEBUG: Importing Middlewares...")
 from src.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
                                         shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
@@ -18,6 +20,7 @@ from src.core.request_validation import (RequestValidationMiddleware,
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
+print("DEBUG: Basic imports done.")
 from src.version import __version__, get_health_info
 
 # Preserve legacy module path for compatibility checks.
@@ -28,12 +31,21 @@ if _LEGACY_FILE.exists():
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="x0tta6bl4",
-    version=__version__,
-    description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
-    lifespan=production_lifespan,
-)
+# Choose lifespan based on mode
+if os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true":
+    logger.info("🚀 Starting in LIGHT MODE (Intelligence Engine disabled)")
+    app = FastAPI(
+        title="x0tta6bl4 MaaS",
+        version="3.2.1-light",
+        description="Lightweight MaaS Control Plane",
+    )
+else:
+    app = FastAPI(
+        title="x0tta6bl4",
+        version=__version__,
+        description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
+        lifespan=production_lifespan,
+    )
 
 # --- Request models ---
 from typing import List as TypingList
@@ -422,7 +434,6 @@ async def serve_login():
 async def serve_dashboard():
     return FileResponse("/mnt/projects/dashboard.html")
 
-@app.get("/", include_in_schema=False)
 @app.get("/index.html", include_in_schema=False)
 async def serve_index():
     return FileResponse("/mnt/projects/index.html")
