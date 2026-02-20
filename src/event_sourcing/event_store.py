@@ -5,14 +5,12 @@ Provides append-only event storage with event versioning,
 snapshots, and event replay capabilities.
 """
 
-import asyncio
 import json
 import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 

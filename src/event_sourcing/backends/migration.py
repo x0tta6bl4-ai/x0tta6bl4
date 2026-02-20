@@ -15,15 +15,18 @@ Features:
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from src.event_sourcing.backends.base import DatabaseBackend
-from src.event_sourcing.event_store import Event, Snapshot
+from src.event_sourcing.event_store import Event
+
+if TYPE_CHECKING:
+    from src.event_sourcing.backends.mongodb import MongoDBConfig
+    from src.event_sourcing.backends.postgres import PostgresConfig
 
 logger = logging.getLogger(__name__)
 

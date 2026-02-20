@@ -8,19 +8,17 @@ Provides document-based persistent storage using MongoDB with:
 - Snapshot support
 """
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from src.event_sourcing.backends.base import (
     DatabaseBackend,
     VersionConflictError,
     DatabaseConnectionError,
-    DatabaseQueryError,
 )
-from src.event_sourcing.event_store import Event, Snapshot, EventMetadata, EventVersion
+from src.event_sourcing.event_store import Event, Snapshot, EventMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +214,7 @@ class MongoDBEventStore(DatabaseBackend):
             }
         
         try:
-            result = await self._db.command("ping")
+            await self._db.command("ping")
             
             # Get server info
             server_info = await self._db.command("serverStatus")
@@ -312,7 +310,7 @@ class MongoDBEventStore(DatabaseBackend):
             
             return next_version
             
-        except DuplicateKeyError as e:
+        except DuplicateKeyError:
             # Version conflict occurred
             raise VersionConflictError(
                 aggregate_id,
