@@ -1,5 +1,6 @@
 """FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
 
+import importlib
 import logging
 import os
 from pathlib import Path
@@ -130,7 +131,7 @@ try:
 
     app.include_router(vpn_router)
     logger.info("✓ VPN router registered")
-except ImportError as e:
+except Exception as e:
     logger.warning(f"Could not import VPN router: {e}")
 
 from src.api.billing import router as billing_router
@@ -149,12 +150,34 @@ app.include_router(ledger_router)
 logger.info("✓ Ledger router registered")
 
 # v3.4 MaaS API
-try:
-    from src.api.maas import router as maas_router
-    app.include_router(maas_router)
-    logger.info("🚀 MaaS router registered (v3.4-alpha)")
-except ImportError:
-    pass
+def _include_maas_router(module_path: str, label: str) -> None:
+    """Register a MaaS router without blocking the whole MaaS API on one import error."""
+    try:
+        module = importlib.import_module(module_path)
+        router = getattr(module, "router", None)
+        if router is None:
+            logger.warning("Could not register MaaS router %s: missing `router`", label)
+            return
+        app.include_router(router)
+        logger.info("✓ MaaS router registered: %s", label)
+    except Exception as exc:
+        logger.warning("Could not import MaaS router %s (%s): %s", label, module_path, exc)
+
+
+# maas_legacy provides the full MaaS API surface (register/login/deploy/status/nodes/etc.)
+# maas_core is disabled to avoid route conflicts with legacy (both expose /deploy, /list, /{id})
+_include_maas_router("src.api.maas_legacy", "legacy")
+_include_maas_router("src.api.maas_auth", "auth")
+_include_maas_router("src.api.maas_playbooks", "playbooks")
+_include_maas_router("src.api.maas_supply_chain", "supply-chain")
+_include_maas_router("src.api.maas_marketplace", "marketplace")
+_include_maas_router("src.api.maas_governance", "governance")
+_include_maas_router("src.api.maas_analytics", "analytics")
+_include_maas_router("src.api.maas_billing", "billing")
+_include_maas_router("src.api.maas_nodes", "nodes")
+_include_maas_router("src.api.maas_policies", "policies")
+_include_maas_router("src.api.maas_telemetry", "telemetry")
+_include_maas_router("src.api.maas_dashboard", "dashboard")
 
 # Add mTLS middleware (security profile + env override)
 security_flags = settings.security_profile()
@@ -240,6 +263,14 @@ try:
     logger.info("✓ Metering middleware enabled")
 except ImportError:
     logger.warning("⚠️ Metering middleware not available")
+
+# Add Audit Middleware for MaaS
+try:
+    from src.api.middleware.audit import AuditMiddleware
+    app.add_middleware(AuditMiddleware)
+    logger.info("✓ Audit middleware enabled")
+except ImportError:
+    logger.warning("⚠️ Audit middleware not available")
 
 
 # Security headers via decorator
