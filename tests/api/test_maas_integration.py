@@ -105,6 +105,7 @@ def test_maas_full_flow(client):
     assert response.status_code == 200
     me_data = response.json()
     assert me_data["email"] == "test@x0tta6bl4.net"
+    assert me_data["plan"] == "starter"
     # Usage should be > 0 because of previous calls
     # Wait, middleware updates usage AFTER response? Or async?
     # In test client, it might be synchronous enough or not. 
