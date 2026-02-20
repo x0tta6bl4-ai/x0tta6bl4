@@ -181,3 +181,73 @@ class TestRegisterLogin:
             json={"email": normal_user["email"], "password": "wrongpassword"},
         )
         assert resp.status_code == 401
+
+
+class TestBootstrapAdmin:
+    """Bootstrap endpoint — создаёт первого администратора при отсутствии BOOTSTRAP_TOKEN."""
+
+    def test_bootstrap_without_token_env_returns_403(self, client):
+        """Если BOOTSTRAP_TOKEN не задан в env — endpoint отключён."""
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BOOTSTRAP_TOKEN", None)
+            resp = client.post(
+                "/api/v1/maas/auth/bootstrap-admin",
+                json={"email": f"boot-{uuid.uuid4().hex[:6]}@test.com",
+                      "password": "bootstrap123"},
+            )
+        assert resp.status_code == 403
+
+    def test_bootstrap_wrong_token_returns_403(self, client):
+        """Неверный токен отклоняется."""
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"BOOTSTRAP_TOKEN": "correct-token"}):
+            resp = client.post(
+                "/api/v1/maas/auth/bootstrap-admin",
+                json={"email": f"boot-{uuid.uuid4().hex[:6]}@test.com",
+                      "password": "bootstrap123"},
+                headers={"X-Bootstrap-Token": "wrong-token"},
+            )
+        assert resp.status_code == 403
+
+    def test_bootstrap_creates_admin_when_no_admins(self, client):
+        """Корректный токен создаёт admin-пользователя если их ещё нет."""
+        import os
+        from unittest.mock import patch
+        email = f"first-admin-{uuid.uuid4().hex[:6]}@test.com"
+        # Убираем всех admin из БД
+        db = TestingSessionLocal()
+        db.query(User).filter(User.role == "admin").update({"role": "user"})
+        db.commit()
+        db.close()
+
+        with patch.dict(os.environ, {"BOOTSTRAP_TOKEN": "test-bootstrap-secret"}):
+            resp = client.post(
+                "/api/v1/maas/auth/bootstrap-admin",
+                json={"email": email, "password": "strongpass123"},
+                headers={"X-Bootstrap-Token": "test-bootstrap-secret"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "api_key" in data
+
+        db = TestingSessionLocal()
+        user = db.query(User).filter(User.email == email).first()
+        assert user is not None
+        assert user.role == "admin"
+        db.close()
+
+    def test_bootstrap_disabled_when_admin_exists(self, client, admin_user):
+        """Если admin уже есть — bootstrap возвращает 409."""
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"BOOTSTRAP_TOKEN": "test-bootstrap-secret"}):
+            resp = client.post(
+                "/api/v1/maas/auth/bootstrap-admin",
+                json={"email": f"boot-{uuid.uuid4().hex[:6]}@test.com",
+                      "password": "bootstrap123"},
+                headers={"X-Bootstrap-Token": "test-bootstrap-secret"},
+            )
+        assert resp.status_code == 409

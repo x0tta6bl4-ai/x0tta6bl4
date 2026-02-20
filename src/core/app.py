@@ -18,6 +18,7 @@ from src.core.request_validation import (RequestValidationMiddleware,
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
+from src.version import __version__, get_health_info
 
 # Preserve legacy module path for compatibility checks.
 _LEGACY_FILE = Path(__file__).resolve().parents[2] / "libx0t" / "core" / "app.py"
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="x0tta6bl4",
-    version="3.2.1",
+    version=__version__,
     description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
     lifespan=production_lifespan,
 )
@@ -408,7 +409,23 @@ async def prometheus_metrics():
 @app.get("/health")
 async def health():
     """Simple health check endpoint - returns 200 if alive"""
-    return {"status": "ok", "version": "3.2.0"}
+    return {"status": "ok", "version": "3.2.1"}
+
+# --- Static UI Routes ---
+from fastapi.responses import FileResponse
+
+@app.get("/login.html", include_in_schema=False)
+async def serve_login():
+    return FileResponse("/mnt/projects/login.html")
+
+@app.get("/dashboard.html", include_in_schema=False)
+async def serve_dashboard():
+    return FileResponse("/mnt/projects/dashboard.html")
+
+@app.get("/", include_in_schema=False)
+@app.get("/index.html", include_in_schema=False)
+async def serve_index():
+    return FileResponse("/mnt/projects/index.html")
 
 
 @app.get("/health/live")
@@ -463,7 +480,7 @@ async def status():
         # Fallback to minimal status if error
         return JSONResponse(
             status_code=200,
-            content={"status": "healthy", "version": "3.2.0", "error": str(e)},
+            content={"status": "healthy", "version": __version__, "error": str(e)},
         )
 
 
@@ -472,7 +489,7 @@ async def root():
     """API root with documentation links"""
     return {
         "name": "x0tta6bl4",
-        "version": "3.2.0",
+        "version": __version__,
         "docs": "/docs",
         "endpoints": {
             "health": "/health",

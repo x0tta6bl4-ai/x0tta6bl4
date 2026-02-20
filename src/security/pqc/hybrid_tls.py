@@ -10,6 +10,7 @@ x0tta6bl4 Hybrid TLS Module (ECDHE + Kyber)
     from src.security.pqc.hybrid_tls import HybridTLSContext, hybrid_handshake, hybrid_encrypt, hybrid_decrypt
 """
 
+import hashlib
 import os
 import time
 from dataclasses import dataclass
@@ -114,11 +115,19 @@ class HybridTLSContext:
             _, kyber_secret = self.pqc_adapter.kem_encapsulate(self.peer_kem_public_key)
 
         # 3. Комбинирование секретов через HKDF
+        # Детерминированная соль из публичных ECDH-ключей (RFC 5869 §3.1).
+        my_pub = self.ecc_public_key.public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.CompressedPoint
+        )
+        peer_pub = self.peer_ecc_public_key.public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.CompressedPoint
+        ) if self.peer_ecc_public_key else b""
+        hkdf_salt = hashlib.sha256(my_pub + peer_pub).digest()
         combined = ecdhe_secret + kyber_secret
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=None,
+            salt=hkdf_salt,
             info=b"x0tta6bl4-hybrid-tls-v1",
             backend=default_backend(),
         )
@@ -143,13 +152,25 @@ def hybrid_handshake(
         server_ctx.kem_public_key
     )
 
+    # Соль из публичных ключей ECDH обеих сторон (детерминированная, per-session).
+    # Обе стороны знают оба ключа → одинаковая соль без дополнительного обмена.
+    # Per RFC 5869 §3.1: случайная или контекстная соль лучше, чем нулевая.
+    client_pub_bytes = client_ctx.ecc_public_key.public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.CompressedPoint
+    )
+    server_pub_bytes = server_ctx.ecc_public_key.public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.CompressedPoint
+    )
+    hkdf_salt = hashlib.sha256(client_pub_bytes + server_pub_bytes).digest()
+
     # Клиент вычисляет свой сессионный ключ
     client_ecdhe = client_ctx.ecc_private_key.exchange(
         ec.ECDH(), server_ctx.ecc_public_key
     )
     client_combined = client_ecdhe + client_kyber_secret
     client_session_key = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=None, info=b"x0tta6bl4-hybrid-tls-v1"
+        algorithm=hashes.SHA256(), length=32, salt=hkdf_salt,
+        info=b"x0tta6bl4-hybrid-tls-v1"
     ).derive(client_combined)
     client_ctx.session_key = client_session_key
 
@@ -162,7 +183,8 @@ def hybrid_handshake(
     )
     server_combined = server_ecdhe + server_kyber_secret
     server_session_key = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=None, info=b"x0tta6bl4-hybrid-tls-v1"
+        algorithm=hashes.SHA256(), length=32, salt=hkdf_salt,
+        info=b"x0tta6bl4-hybrid-tls-v1"
     ).derive(server_combined)
     server_ctx.session_key = server_session_key
 
