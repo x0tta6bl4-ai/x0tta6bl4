@@ -182,6 +182,24 @@ def test_legacy_plaintext_password_migrates_on_legacy_login(client):
         db.close()
 
 
+def test_legacy_register_rejects_case_insensitive_duplicate_email(client):
+    base_email = f"dup-legacy-{uuid.uuid4().hex[:8]}@x0tta6bl4.net"
+    password = "strong_password_123"
+
+    first = client.post(
+        "/api/v1/maas/register",
+        json={"email": base_email.upper(), "password": password},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/v1/maas/register",
+        json={"email": base_email.lower(), "password": password},
+    )
+    assert second.status_code == 400
+    assert second.json()["detail"] == "Email already registered"
+
+
 def test_node_revoke_reissue_flow(client):
     email = f"node-flow-{uuid.uuid4().hex[:8]}@x0tta6bl4.net"
     password = "strong_password_123"
