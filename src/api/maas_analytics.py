@@ -69,7 +69,7 @@ async def get_mesh_analytics(
 @router.get("/{mesh_id}/timeseries")
 async def get_mesh_timeseries(
     mesh_id: str,
-    range: str = "24h",
+    time_range: str = "24h",
     current_user: User = Depends(require_permission("analytics:view")),
     db: Session = Depends(get_db)
 ):
@@ -123,4 +123,4 @@ async def get_mesh_timeseries(
             "latency_ms": round(latency_point, 1)
         })
         
-    return {"range": range, "data": history}
+    return {"range": time_range, "data": history}
