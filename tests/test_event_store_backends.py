@@ -4,22 +4,18 @@ Tests for Event Store Database Backends.
 Tests PostgreSQL and MongoDB backends for the Event Store.
 """
 
-import asyncio
-import json
 import os
 import pytest
 from datetime import datetime
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 # Skip tests if database dependencies not available
 pytest.importorskip("asyncpg", reason="asyncpg not installed")
 pytest.importorskip("motor", reason="motor not installed")
 
 from src.event_sourcing.backends.base import (
-    DatabaseBackend,
     VersionConflictError,
-    DatabaseConnectionError,
 )
 from src.event_sourcing.backends.postgres import PostgresEventStore, PostgresConfig
 from src.event_sourcing.backends.mongodb import MongoDBEventStore, MongoDBConfig

@@ -23,7 +23,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -34,28 +34,22 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Import event sourcing components
 from src.event_sourcing.event_store import EventStore, Event, EventMetadata
-from src.event_sourcing.command_bus import CommandBus, Command, CommandResult
-from src.event_sourcing.query_bus import QueryBus, Query as ESQuery, QueryResult
-from src.event_sourcing.aggregate import Aggregate, AggregateRoot, Repository
-from src.event_sourcing.projection import Projection, ProjectionManager, ProjectionStatus
+from src.event_sourcing.command_bus import CommandBus, Command
+from src.event_sourcing.query_bus import QueryBus, Query as ESQuery
+from src.event_sourcing.projection import ProjectionManager
 
 # Import resilience patterns
 from src.resilience import (
     TokenBucket,
     SemaphoreBulkhead,
     BulkheadFullException,
-    FallbackExecutor,
     CacheFallback,
-    ChainFallback,
-    DefaultValueFallback,
     CircuitBreaker,
     CircuitBreakerConfig,
-    RateLimitExceeded,
 )
 
 logger = logging.getLogger(__name__)
@@ -571,7 +565,6 @@ async def subscribe_events(websocket: WebSocket):
     }
     """
     await _manager.connect(websocket)
-    store = get_event_store()
     
     try:
         while True:

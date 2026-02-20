@@ -11,12 +11,11 @@ Comprehensive tests for:
 - Resilience pattern integration
 """
 
-import asyncio
 import pytest
 import uuid
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from fastapi import FastAPI, WebSocketDisconnect
+from unittest.mock import Mock, patch
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 # Import API and models
@@ -27,17 +26,13 @@ from src.event_sourcing.api import (
     EventCreate,
     AppendEventsRequest,
     CommandRequest,
-    CommandResultResponse,
     QueryRequest,
-    QueryResultResponse,
-    ProjectionInfo,
-    AggregateStateResponse,
 )
 
 # Import event sourcing components
 from src.event_sourcing.event_store import EventStore, Event, Snapshot
-from src.event_sourcing.command_bus import CommandBus, Command, CommandResult
-from src.event_sourcing.query_bus import QueryBus, Query, QueryResult
+from src.event_sourcing.command_bus import CommandBus, CommandResult
+from src.event_sourcing.query_bus import QueryBus, QueryResult
 from src.event_sourcing.projection import ProjectionManager, ProjectionStatus
 
 
@@ -710,7 +705,7 @@ class TestResilienceIntegration:
                 responses.append(client.get("/events/streams"))
             
             # Some should be rate limited
-            rate_limited = [r for r in responses if r.status_code == 429]
+            assert all(r.status_code in {200, 429} for r in responses)
             # Note: In test environment, rate limiting might not trigger
     
     def test_bulkhead_isolation(self, client, mock_event_store):
@@ -732,7 +727,7 @@ class TestResilienceIntegration:
             for _ in range(5):
                 try:
                     client.get("/events/projections/UserProjection")
-                except:
+                except Exception:
                     pass
 
 
