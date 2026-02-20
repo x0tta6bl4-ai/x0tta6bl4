@@ -8,9 +8,9 @@ for the Event Store.
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from src.event_sourcing.event_store import Event, Snapshot, EventStream
+from src.event_sourcing.event_store import Event, Snapshot
 
 logger = logging.getLogger(__name__)
 
