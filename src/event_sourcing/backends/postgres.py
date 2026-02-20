@@ -13,15 +13,14 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from src.event_sourcing.backends.base import (
     DatabaseBackend,
     VersionConflictError,
     DatabaseConnectionError,
-    DatabaseQueryError,
 )
-from src.event_sourcing.event_store import Event, Snapshot, EventMetadata, EventVersion
+from src.event_sourcing.event_store import Event, Snapshot, EventMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +255,7 @@ class PostgresEventStore(DatabaseBackend):
         
         try:
             async with self._pool.acquire() as conn:
-                result = await conn.fetchval("SELECT 1")
+                await conn.fetchval("SELECT 1")
                 
                 # Get pool stats
                 pool_size = self._pool.get_size()
@@ -708,7 +707,7 @@ class PostgresEventStore(DatabaseBackend):
             
             # Database size
             stats["database_size"] = await conn.fetchval(
-                f"SELECT pg_size_pretty(pg_database_size(current_database()))"
+                "SELECT pg_size_pretty(pg_database_size(current_database()))"
             )
             
             # Table sizes
