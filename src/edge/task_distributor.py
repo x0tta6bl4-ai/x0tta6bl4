@@ -311,7 +311,7 @@ class HashBasedStrategy(DistributionStrategyBase):
     
     def _hash(self, key: str) -> int:
         """Hash function for ring."""
-        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+        return int(hashlib.sha256(key.encode()).hexdigest(), 16)
     
     def get_node_for_key(self, key: str, nodes: List[EdgeNode]) -> Optional[str]:
         """Get node ID for a key using consistent hashing."""

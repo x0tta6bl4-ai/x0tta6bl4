@@ -140,7 +140,7 @@ class ProvisioningService:
 
             # 2. Create user in x-ui
             numeric_id = (
-                int(hashlib.md5(email.encode()).hexdigest(), 16) % 1_000_000
+                int(hashlib.sha256(email.encode()).hexdigest(), 16) % 1_000_000
             )
             remark = f"{plan}_{email.split('@')[0]}"
 

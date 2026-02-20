@@ -146,7 +146,12 @@ def test_legacy_rotate_api_key_endpoint(client):
     assert new_me.json()["email"] == email
 
 
-def test_legacy_plaintext_password_migrates_on_legacy_login(client):
+def test_legacy_plaintext_password_is_rejected_on_legacy_login(client):
+    """Security: plaintext password_hash must no longer grant login access.
+
+    Since the plaintext fallback was removed (CVE fix), accounts with
+    non-bcrypt hashes are rejected via the legacy /login endpoint too.
+    """
     email = f"legacy-login-{uuid.uuid4().hex[:8]}@x0tta6bl4.net"
     legacy_password = "legacy_password_123"
     api_key = f"x0t_{uuid.uuid4().hex}"
@@ -157,7 +162,7 @@ def test_legacy_plaintext_password_migrates_on_legacy_login(client):
             User(
                 id=f"user-{uuid.uuid4().hex}",
                 email=email,
-                password_hash=legacy_password,
+                password_hash=legacy_password,  # Non-bcrypt hash
                 api_key=api_key,
                 plan="starter",
             )
@@ -170,15 +175,15 @@ def test_legacy_plaintext_password_migrates_on_legacy_login(client):
         "/api/v1/maas/login",
         json={"email": email, "password": legacy_password},
     )
-    assert login.status_code == 200
-    assert login.json()["access_token"] == api_key
+    # Must be rejected — password reset required
+    assert login.status_code == 401
 
     db = TestingSessionLocal()
     try:
         user = db.query(User).filter(User.email == email).first()
         assert user is not None
-        assert user.password_hash != legacy_password
-        assert user.password_hash.startswith("$2")
+        # Hash unchanged — not auto-migrated without explicit reset
+        assert user.password_hash == legacy_password
     finally:
         db.close()
 
