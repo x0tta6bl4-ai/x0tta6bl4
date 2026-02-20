@@ -9,9 +9,10 @@ import hmac
 import logging
 import os
 import sys
+import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -22,6 +23,7 @@ sys.path.insert(
 )
 from src.core.cache import cache, cached
 from src.database import User, get_db
+from src.api.maas_auth import require_permission, get_current_user_from_maas
 from vpn_config_generator import generate_config_text, generate_vless_link, XUIAPIClient
 
 logger = logging.getLogger(__name__)
@@ -33,23 +35,9 @@ limiter = Limiter(key_func=get_remote_address)
 xui = XUIAPIClient()
 
 
-async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
-    """Verify admin token for protected endpoints"""
-    admin_token = os.getenv("ADMIN_TOKEN")
-    if not admin_token:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin token not configured (access forbidden)",
-        )
-    if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-        )
-
-
 class VPNConfigRequest(BaseModel):
     user_id: int
-    email: str  # Required for x-ui
+    email: Optional[str] = None  # Optional for backward compatibility
     username: Optional[str] = None
     server: Optional[str] = None
     port: Optional[int] = None
@@ -73,42 +61,73 @@ class VPNStatusResponse(BaseModel):
 
 @router.get("/config")
 @limiter.limit("30/minute")
-@router.post("/config")
-async def handle_vpn_config(
+async def get_vpn_config(
     request: Request,
-    config_req: Optional[VPNConfigRequest] = None,
-    user_id: Optional[int] = None,
-    email: Optional[str] = None,
-    username: Optional[str] = None,
-    server: Optional[str] = None,
-    port: Optional[int] = None,
+    server: Optional[str] = Query(default=None),
+    port: Optional[int] = Query(default=None),
+    current_user: User = Depends(require_permission("vpn:config")),
 ) -> VPNConfigResponse:
-    """
-    Generate or create VPN configuration. (Handles both GET and POST)
-    """
+    """Generate VPN configuration for the authenticated user."""
+    # For backward compatibility, map current_user attributes
+    # The user_id is now implicitly the current user's ID
     try:
-        if config_req:
-            uid = config_req.user_id
-            u_email = config_req.email
-            u_name = config_req.username
-            srv = config_req.server
-            prt = config_req.port
-        else:
-            uid = user_id
-            u_email = email
-            u_name = username
-            srv = server
-            prt = port
+        # Convert UUID to integer if needed by legacy systems, 
+        # or handle string IDs properly. For now, assume int based on legacy code.
+        # But x0tta6bl4 uses UUIDs mostly. Let's handle both.
+        uid_val = hash(current_user.id) % 100000 # Mock int ID from UUID for legacy XUI
+        
+        return _build_vpn_config(uid_val, current_user.email, current_user.full_name, server, port)
+    except Exception as e:
+         logger.error(f"Config generation failed: {e}")
+         raise HTTPException(status_code=500, detail="Failed to generate config")
 
-        if not uid or not u_email:
-            raise HTTPException(status_code=400, detail="user_id and email are required")
+
+@router.post("/config")
+@limiter.limit("30/minute")
+async def create_vpn_config(
+    request: Request,
+    config_req: VPNConfigRequest,
+    current_user: User = Depends(require_permission("vpn:config")),
+) -> VPNConfigResponse:
+    """Generate VPN configuration via JSON body."""
+    uid_val = hash(current_user.id) % 100000
+    return _build_vpn_config(
+        uid_val,
+        current_user.email,
+        current_user.full_name,
+        config_req.server,
+        config_req.port,
+    )
+
+
+def _build_vpn_config(
+    user_id: int,
+    email: Optional[str],
+    username: Optional[str],
+    server: Optional[str],
+    port: Optional[int],
+) -> VPNConfigResponse:
+    """Shared implementation for GET/POST config generation."""
+    try:
+        uid = user_id
+        u_name = username
+        srv = server
+        prt = port
+        # Keep old GET contract where email may be omitted.
+        u_email = email or f"user_{uid}@vpn.local"
 
         # Use XUI Client to ensure user exists
         vpn_info = xui.create_user(uid, u_email, remark=u_name)
-        
+
         # Override server/port if custom ones provided (for config text only)
         final_server = srv or vpn_info['server']
         final_port = prt or vpn_info['port']
+        final_link = generate_vless_link(
+            vpn_info["uuid"],
+            server=final_server,
+            port=final_port,
+            remark=u_name or f"user_{uid}",
+        )
 
         config_text = generate_config_text(
             uid, user_uuid=vpn_info['uuid'], server=final_server, port=final_port
@@ -117,7 +136,7 @@ async def handle_vpn_config(
         return VPNConfigResponse(
             user_id=uid,
             username=u_name,
-            vless_link=vpn_info['vless_link'],
+            vless_link=final_link,
             config_text=config_text,
         )
     except Exception as e:
@@ -170,7 +189,10 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
 
 @router.get("/status")
 @limiter.limit("60/minute")
-async def get_vpn_status(request: Request) -> VPNStatusResponse:
+async def get_vpn_status(
+    request: Request,
+    current_user: User = Depends(require_permission("vpn:status")),
+) -> VPNStatusResponse:
     """
     Get VPN server status.
     """
@@ -219,10 +241,29 @@ async def _fetch_vpn_users_from_xui() -> Dict[str, Any]:
         return {"total": 0, "users": []}
 
 
+def _fetch_vpn_users_from_db(db: Session) -> Dict[str, Any]:
+    """Fetch VPN users from local DB for admin API contract compatibility."""
+    users = db.query(User).filter(User.plan != "free").all()
+    payload: List[Dict[str, Any]] = []
+    for user in users:
+        vpn_uuid = getattr(user, "vpn_uuid", None) or str(getattr(user, "id", uuid.uuid4()))
+        payload.append(
+            {
+                "user_id": str(getattr(user, "id", "")),
+                "email": getattr(user, "email", ""),
+                "plan": getattr(user, "plan", "free"),
+                "vless_link": generate_vless_link(vpn_uuid, remark=getattr(user, "email", "vpn-user")),
+            }
+        )
+    return {"total": len(payload), "users": payload}
+
+
 @router.get("/users")
 @limiter.limit("10/minute")
 async def get_vpn_users(
-    request: Request, admin=Depends(verify_admin_token)
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("vpn:admin")),
 ) -> Dict[str, Any]:
     """
     Get list of active VPN users from x-ui.
@@ -232,7 +273,9 @@ async def get_vpn_users(
         if cached_result is not None:
             return cached_result
 
-        result = await _fetch_vpn_users_from_xui()
+        result = _fetch_vpn_users_from_db(db)
+        if result["total"] == 0:
+            result = await _fetch_vpn_users_from_xui()
         await cache.set(VPN_USERS_CACHE_KEY, result, ttl=60)
         return result
     except Exception as e:
@@ -245,7 +288,7 @@ async def get_vpn_users(
 async def delete_vpn_user(
     request: Request,
     email: str,
-    admin=Depends(verify_admin_token)
+    current_user: User = Depends(require_permission("vpn:admin")),
 ) -> Dict[str, Any]:
     """
     Delete VPN user by email.
@@ -258,4 +301,41 @@ async def delete_vpn_user(
             return {"success": False, "message": f"User {email} not found"}
     except Exception as e:
         logger.error(f"Error deleting VPN user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/user/{user_id}")
+@limiter.limit("5/minute")
+async def delete_vpn_user_by_id(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("vpn:admin")),
+) -> Dict[str, Any]:
+    """
+    Compatibility endpoint: downgrade local user plan to free by user_id.
+    Returns success=false with 200 when user is not found.
+    """
+    try:
+        db_user = db.query(User).filter(User.id == user_id).first()
+        if not db_user:
+            return {"success": False, "message": f"User {user_id} not found"}
+
+        db_user.plan = "free"
+        db.commit()
+
+        user_email = getattr(db_user, "email", None)
+        if user_email:
+            try:
+                xui.delete_user(user_email)
+            except Exception:
+                pass
+
+        await cache.delete(VPN_USERS_CACHE_KEY)
+        return {
+            "success": True,
+            "message": f"User {user_id} downgraded to free plan",
+        }
+    except Exception as e:
+        logger.error(f"Error downgrading user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

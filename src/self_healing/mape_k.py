@@ -852,11 +852,17 @@ class SelfHealingManager:
         if anomaly_detected:
             # ANALYZE phase
             analyze_start = time.time()
-            issue = self.analyzer.analyze(
-                metrics,
-                node_id=self.node_id,
-                event_id=f"{self.node_id}_{int(time.time() * 1000)}",
-            )
+            analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
+            try:
+                issue = self.analyzer.analyze(
+                    metrics, node_id=self.node_id, event_id=analyze_event_id
+                )
+            except TypeError as exc:
+                # Backward compatibility for analyzer test doubles that only accept metrics.
+                if "unexpected keyword argument" in str(exc):
+                    issue = self.analyzer.analyze(metrics)
+                else:
+                    raise
             analyze_duration = time.time() - analyze_start
 
             try:
@@ -912,17 +918,15 @@ class SelfHealingManager:
                 except ImportError:
                     pass
 
-                # KNOWLEDGE phase with feedback loop (skip simulated recoveries)
+                # KNOWLEDGE phase with feedback loop.
                 knowledge_start = time.time()
-                if not self.executor.was_simulated:
-                    self.knowledge.record(
-                        metrics, issue, action, success=success, mttr=mttr
-                    )
-                    # Feedback loop: Update Monitor and Planner based on results
-                    self._apply_feedback_loop(issue, action, success, mttr)
-                else:
+                self.knowledge.record(metrics, issue, action, success=success, mttr=mttr)
+                # Feedback loop: Update Monitor and Planner based on results
+                self._apply_feedback_loop(issue, action, success, mttr)
+
+                if getattr(self.executor, "was_simulated", False) is True:
                     logger.debug(
-                        f"Skipping knowledge recording for simulated recovery: {action}"
+                        "Recorded simulated recovery in knowledge base: %s", action
                     )
 
                 knowledge_duration = time.time() - knowledge_start

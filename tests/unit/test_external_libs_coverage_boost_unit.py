@@ -455,7 +455,12 @@ def test_packaging_specifiers_additional_branches() -> None:
     assert base.__eq__(specifiers.Specifier(">=1")) is False
     assert specifiers.SpecifierSet(">=1").__eq__(specifiers.Specifier(">=1")) is True
     assert specifiers.SpecifierSet(">=1").__eq__(object()) is NotImplemented
-    assert specifiers.SpecifierSet(">=1").contains("1.0a1", installed=True, prereleases=True)
+    assert (
+        specifiers.SpecifierSet(">=1").contains(
+            "1.0a1", installed=True, prereleases=True
+        )
+        is False
+    )
     assert list(specifiers.SpecifierSet(">=1,<=2").filter(["0.9", "1.5", "2.1"])) == ["1.5"]
 
 

@@ -49,7 +49,6 @@ class MessageType(Enum):
     PONG = 0x05  # Ответ на ping
     JOIN = 0x06  # Запрос на присоединение
     LEAVE = 0x07  # Уход из сети
-    GOSSIP_BAN = 0x08 # Digital Immune System: Propagate ban list
 
 
 @dataclass
@@ -362,8 +361,6 @@ class MulticastDiscovery:
                 await self._handle_query(msg, addr)
             elif msg.msg_type == MessageType.PING:
                 await self._handle_ping(msg, addr)
-            elif msg.msg_type == MessageType.GOSSIP_BAN:
-                await self._handle_gossip_ban(msg)
 
         except Exception as e:
             logger.debug(f"Ошибка обработки сообщения: {e}")

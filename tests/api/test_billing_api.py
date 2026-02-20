@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import time
+import uuid
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -247,6 +248,90 @@ class TestStripeWebhook:
         )
         assert response.status_code == 400
         assert "Invalid JSON" in response.json()["detail"]
+
+    @patch.dict(os.environ, {"STRIPE_WEBHOOK_SECRET": "whsec_test"})
+    @patch("src.sales.telegram_bot.TokenGenerator.generate")
+    def test_webhook_idempotent_replay_by_event_id(self, mock_token_generate):
+        """Same Stripe event id should be processed only once."""
+        event_id = f"evt_{uuid.uuid4().hex}"
+        payload = json.dumps(
+            {
+                "id": event_id,
+                "type": "checkout.session.completed",
+                "data": {
+                    "object": {
+                        "customer_email": "idem-api@example.com",
+                        "customer": "cus_idem_api",
+                        "subscription": "sub_idem_api",
+                        "metadata": {"user_email": "idem-api@example.com", "plan": "pro"},
+                    }
+                },
+            }
+        ).encode("utf-8")
+        signature = generate_stripe_signature(payload, "whsec_test")
+        mock_token_generate.return_value = f"license_{event_id}"
+
+        first = client.post(
+            "/api/v1/billing/webhook",
+            content=payload,
+            headers={"Stripe-Signature": signature},
+        )
+        second = client.post(
+            "/api/v1/billing/webhook",
+            content=payload,
+            headers={"Stripe-Signature": signature},
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["received"] is True
+        assert second.json()["received"] is True
+        assert mock_token_generate.call_count == 1
+
+    @patch.dict(os.environ, {"STRIPE_WEBHOOK_SECRET": "whsec_test"})
+    def test_webhook_event_id_payload_mismatch_returns_409(self):
+        """Same Stripe event id with changed payload must be rejected."""
+        event_id = f"evt_{uuid.uuid4().hex}"
+        base_payload = {
+            "id": event_id,
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "customer_email": "idem-conflict-api@example.com",
+                    "customer": "cus_conflict_api",
+                    "subscription": "sub_conflict_api",
+                    "metadata": {"user_email": "idem-conflict-api@example.com", "plan": "pro"},
+                }
+            },
+        }
+        first_bytes = json.dumps(base_payload).encode("utf-8")
+        first_sig = generate_stripe_signature(first_bytes, "whsec_test")
+        first = client.post(
+            "/api/v1/billing/webhook",
+            content=first_bytes,
+            headers={"Stripe-Signature": first_sig},
+        )
+        assert first.status_code == 200
+
+        altered_payload = dict(base_payload)
+        altered_payload["data"] = {
+            "object": {
+                "customer_email": "idem-conflict-api@example.com",
+                "customer": "cus_conflict_api",
+                "subscription": "sub_conflict_api_changed",
+                "metadata": {"user_email": "idem-conflict-api@example.com", "plan": "pro"},
+            }
+        }
+        second_bytes = json.dumps(altered_payload).encode("utf-8")
+        second_sig = generate_stripe_signature(second_bytes, "whsec_test")
+        second = client.post(
+            "/api/v1/billing/webhook",
+            content=second_bytes,
+            headers={"Stripe-Signature": second_sig},
+        )
+
+        assert second.status_code == 409
+        assert "payload mismatch" in str(second.json()).lower()
 
 
 class TestBillingRateLimiting:

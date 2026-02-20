@@ -321,6 +321,112 @@ async def test_stripe_webhook_success(
 
 
 @pytest.mark.asyncio
+async def test_stripe_webhook_idempotent_replay_by_event_id(
+    db_session: Session, setup_env_vars, mocker
+):
+    """Replay of the same Stripe event_id must not duplicate side effects."""
+    user_email = "idem_user@example.com"
+    user = User(
+        id="user_idem_123", email=user_email, password_hash="hashed_password", plan="free"
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    mock_token = mocker.patch(
+        "src.sales.telegram_bot.TokenGenerator.generate",
+        return_value="idem_license_token",
+    )
+    mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
+
+    event_payload = {
+        "id": "evt_idempotent_001",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "customer_email": user_email,
+                "customer": "cus_idem_123",
+                "subscription": "sub_idem_123",
+                "metadata": {"user_email": user_email, "plan": "pro"},
+            }
+        },
+    }
+    payload_bytes = json.dumps(event_payload).encode("utf-8")
+    timestamp = int(time.time())
+    signature = generate_stripe_signature(
+        payload_bytes, os.environ["STRIPE_WEBHOOK_SECRET"], timestamp
+    )
+
+    first = await call_webhook(payload_bytes, db_session, signature)
+    second = await call_webhook(payload_bytes, db_session, signature)
+    assert first["received"] is True
+    assert second["received"] is True
+
+    # Side effects must be created only once for duplicate event_id.
+    assert mock_token.call_count == 1
+    licenses = db_session.query(License).filter(License.user_id == user.id).all()
+    assert len(licenses) == 1
+
+
+@pytest.mark.asyncio
+async def test_stripe_webhook_event_id_payload_mismatch_returns_409(
+    db_session: Session, setup_env_vars, mocker
+):
+    """Same Stripe event_id with different payload should be rejected."""
+    user_email = "idem_conflict@example.com"
+    user = User(
+        id="user_idem_conflict", email=user_email, password_hash="hashed_password", plan="free"
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    mocker.patch(
+        "src.sales.telegram_bot.TokenGenerator.generate",
+        return_value="idem_conflict_license",
+    )
+    mocker.patch("src.api.billing.XrayManager.add_user", new=AsyncMock(return_value=True))
+
+    base_payload = {
+        "id": "evt_idempotent_conflict",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "customer_email": user_email,
+                "customer": "cus_conflict_123",
+                "subscription": "sub_conflict_123",
+                "metadata": {"user_email": user_email, "plan": "pro"},
+            }
+        },
+    }
+
+    first_bytes = json.dumps(base_payload).encode("utf-8")
+    first_sig = generate_stripe_signature(
+        first_bytes, os.environ["STRIPE_WEBHOOK_SECRET"], int(time.time())
+    )
+    first = await call_webhook(first_bytes, db_session, first_sig)
+    assert first["received"] is True
+
+    # Same event id, changed payload => conflict.
+    altered_payload = dict(base_payload)
+    altered_payload["data"] = {
+        "object": {
+            "customer_email": user_email,
+            "customer": "cus_conflict_123",
+            "subscription": "sub_conflict_changed",
+            "metadata": {"user_email": user_email, "plan": "pro"},
+        }
+    }
+    second_bytes = json.dumps(altered_payload).encode("utf-8")
+    second_sig = generate_stripe_signature(
+        second_bytes, os.environ["STRIPE_WEBHOOK_SECRET"], int(time.time())
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await call_webhook(second_bytes, db_session, second_sig)
+    assert exc_info.value.status_code == 409
+    assert "payload mismatch" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
 async def test_stripe_webhook_missing_signature(
     db_session: Session, setup_env_vars
 ):

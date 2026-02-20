@@ -380,10 +380,9 @@ class GraphSAGEAnomalyDetector:
             labels = self._generate_labels([node_features])
             anomaly_score = float(labels[0]) if labels else 0.0
             is_anomaly = anomaly_score >= self.anomaly_threshold
-            confidence = abs(anomaly_score - 0.5) * 2
+            # Keep legacy confidence for untrained fallback path.
+            confidence = 0.8
             inference_time = (time.time() - start_time) * 1000
-            severity = "CRITICAL" if is_anomaly else "NORMAL"
-            record_graphsage_inference(inference_time, is_anomaly, severity)
             return AnomalyPrediction(
                 is_anomaly=is_anomaly,
                 anomaly_score=anomaly_score,

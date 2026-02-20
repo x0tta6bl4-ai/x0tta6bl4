@@ -41,6 +41,10 @@ class User(Base):
     full_name = Column(String, nullable=True)
     company = Column(String, nullable=True)
     plan = Column(String, default="free")
+    role = Column(String, default="user")  # "user", "admin", "operator"
+    permissions = Column(Text, nullable=True)  # Comma-separated scopes
+    oidc_id = Column(String, unique=True, index=True, nullable=True)
+    oidc_provider = Column(String, nullable=True)
     api_key = Column(String, unique=True, index=True, nullable=True)
     stripe_customer_id = Column(String, unique=True, index=True, nullable=True)
     stripe_subscription_id = Column(String, unique=True, index=True, nullable=True)
@@ -51,6 +55,88 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     sessions = relationship("Session", back_populates="user")
+
+
+class MeshInstance(Base):
+    """Main mesh network metadata."""
+    __tablename__ = "mesh_instances"
+    id = Column(String, primary_key=True) # mesh_id
+    name = Column(String)
+    owner_id = Column(String, ForeignKey("users.id"))
+    plan = Column(String)
+    pqc_enabled = Column(Boolean, default=True)
+    obfuscation = Column(String, default="none")
+    traffic_profile = Column(String, default="none")
+    join_token = Column(String)
+    join_token_expires_at = Column(DateTime)
+    status = Column(String, default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ACLPolicy(Base):
+    """Zero-trust access control rules."""
+    __tablename__ = "acl_policies"
+    id = Column(String, primary_key=True) # policy_id
+    mesh_id = Column(String, ForeignKey("mesh_instances.id"), index=True)
+    source_tag = Column(String)
+    target_tag = Column(String)
+    action = Column(String, default="allow")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MeshNode(Base):
+    """Metadata for approved nodes in a mesh."""
+    __tablename__ = "mesh_nodes"
+    id = Column(String, primary_key=True)
+    mesh_id = Column(String, index=True)
+    device_class = Column(String)
+    status = Column(String, default="healthy")
+    acl_profile = Column(String, default="default")
+    hardware_id = Column(String, nullable=True)
+    enclave_enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketplaceListing(Base):
+    """P2P infrastructure listings."""
+    __tablename__ = "marketplace_listings"
+    id = Column(String, primary_key=True)
+    owner_id = Column(String, ForeignKey("users.id"))
+    node_id = Column(String, unique=True)
+    region = Column(String, index=True)
+    price_per_hour = Column(Integer)  # In cents
+    bandwidth_mbps = Column(Integer)
+    status = Column(String, default="available") # available, rented
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Invoice(Base):
+    """Commercial invoices for mesh usage."""
+
+    __tablename__ = "invoices"
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    mesh_id = Column(String)
+    total_amount = Column(Integer)  # In cents
+    currency = Column(String, default="USD")
+    status = Column(String, default="issued")  # issued, paid, overdue
+    stripe_session_id = Column(String, unique=True, index=True, nullable=True)
+    period_start = Column(DateTime)
+    period_end = Column(DateTime)
+    issued_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SignedPlaybook(Base):
+    """PQC-signed commands for agents."""
+    __tablename__ = "signed_playbooks"
+    id = Column(String, primary_key=True)
+    mesh_id = Column(String, index=True)
+    name = Column(String)
+    payload = Column(Text) # JSON of actions
+    signature = Column(Text)
+    algorithm = Column(String, default="ML-DSA-65")
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Session(Base):
@@ -104,6 +190,36 @@ class License(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
+
+
+class BillingWebhookEvent(Base):
+    """Processed billing webhook events for idempotency and replay protection."""
+
+    __tablename__ = "billing_webhook_events"
+
+    event_id = Column(String, primary_key=True, index=True)
+    event_type = Column(String, nullable=False)
+    payload_hash = Column(String, nullable=False, index=True)
+    status = Column(String, default="processing", nullable=False)  # processing | done | failed
+    response_json = Column(Text, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+
+
+class AuditLog(Base):
+    """Centralized audit log for all administrative and mutating actions."""
+
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), index=True, nullable=True)
+    action = Column(String, index=True, nullable=False)  # e.g., "create_mesh", "update_policy"
+    method = Column(String, nullable=False)  # GET, POST, etc.
+    path = Column(String, nullable=False)
+    payload = Column(Text, nullable=True)  # Request body (filtered)
+    status_code = Column(Integer, nullable=True)
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # Create all tables
