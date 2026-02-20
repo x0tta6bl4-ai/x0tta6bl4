@@ -1,10 +1,17 @@
 """
-Perf Buffer Reader for eBPF Telemetry.
-
 High-throughput reader for eBPF perf buffer events.
+
+Features:
+- Non-blocking event processing
+- Event batching
+- Custom event handlers
+- Thread-safe queue
 """
+
+import importlib.util
 import logging
 import struct
+import sys
 from collections import defaultdict, deque
 from typing import Any, Callable, Dict, List
 
@@ -13,13 +20,17 @@ from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
 
-# Try to import BCC
-BCC_AVAILABLE = False
-try:
-    from bcc import BPF
-    BCC_AVAILABLE = True
-except ImportError:
-    pass
+
+def _module_available(module_name: str) -> bool:
+    """Return True when module is available, including test-injected stubs."""
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except (ImportError, ValueError):
+        return module_name in sys.modules
+
+
+# Check for BCC availability
+BCC_AVAILABLE = _module_available("bcc")
 
 
 class PerfBufferReader:
@@ -49,9 +60,7 @@ class PerfBufferReader:
         logger.info("PerfBufferReader initialized")
 
     def register_handler(
-        self,
-        event_type: str,
-        handler: Callable[[TelemetryEvent], None]
+        self, event_type: str, handler: Callable[[TelemetryEvent], None]
     ):
         """
         Register event handler.
@@ -155,3 +164,6 @@ class PerfBufferReader:
     def get_stats(self) -> Dict[str, Any]:
         """Get reader statistics."""
         return self.stats.copy()
+
+
+__all__ = ["PerfBufferReader"]
