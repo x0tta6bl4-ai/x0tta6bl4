@@ -515,3 +515,433 @@ pytest tests/test_event_store_backends.py --cov=src/event_sourcing/backends
    if health["pool_idle"] < 2:
        logger.warning("Connection pool running low")
    ```
+
+---
+
+## Backend Migration
+
+The migration tool allows transferring events between different database backends.
+
+### Basic Migration
+
+```python
+from src.event_sourcing.backends.postgres import PostgresEventStore, PostgresConfig
+from src.event_sourcing.backends.mongodb import MongoDBEventStore, MongoDBConfig
+from src.event_sourcing.backends.migration import BackendMigrator, MigrationConfig
+
+# Configure backends
+pg_config = PostgresConfig(
+    host="localhost",
+    database="maas_event_store",
+    user="postgres",
+    password="secret",
+)
+
+mongo_config = MongoDBConfig(
+    host="localhost",
+    database="maas_event_store",
+)
+
+# Create backends
+source = PostgresEventStore(config=pg_config)
+target = MongoDBEventStore(config=mongo_config)
+
+# Configure migration
+migration_config = MigrationConfig(
+    batch_size=1000,           # Events per batch
+    validate_after_migration=True,  # Verify data after migration
+    create_backup=True,        # Create backup before migration
+    stop_on_error=False,       # Continue on errors
+    max_errors=10,             # Max errors before stopping
+)
+
+# Run migration
+migrator = BackendMigrator(source, target, migration_config)
+
+try:
+    await source.connect()
+    await target.connect()
+    
+    progress = await migrator.migrate()
+    
+    print(f"Migrated {progress.migrated_events} events")
+    print(f"Migrated {progress.migrated_streams} streams")
+    print(f"Status: {progress.status.value}")
+    
+finally:
+    await source.disconnect()
+    await target.disconnect()
+```
+
+### Migration with Progress Tracking
+
+```python
+def on_progress(progress):
+    print(f"Events: {progress.migrated_events}/{progress.total_events} ({progress.events_percentage:.1f}%)")
+    print(f"Streams: {progress.migrated_streams}/{progress.total_streams}")
+
+config = MigrationConfig(
+    batch_size=500,
+    progress_callback=on_progress,
+)
+
+migrator = BackendMigrator(source, target, config)
+progress = await migrator.migrate()
+```
+
+### Dry Run Migration
+
+Test migration without writing data:
+
+```python
+config = MigrationConfig(dry_run=True)
+migrator = BackendMigrator(source, target, config)
+progress = await migrator.migrate()
+
+# No data written, but progress tracked
+print(f"Would migrate {progress.migrated_events} events")
+```
+
+### Migration Rollback
+
+Rollback a completed migration:
+
+```python
+migrator = BackendMigrator(source, target, config)
+progress = await migrator.migrate()
+
+# If something went wrong, rollback
+if len(progress.errors) > 0:
+    await migrator.rollback()
+```
+
+### Convenience Functions
+
+```python
+from src.event_sourcing.backends.migration import (
+    migrate_postgresql_to_mongodb,
+    migrate_mongodb_to_postgresql,
+)
+
+# PostgreSQL → MongoDB
+progress = await migrate_postgresql_to_mongodb(pg_config, mongo_config)
+
+# MongoDB → PostgreSQL
+progress = await migrate_mongodb_to_postgresql(mongo_config, pg_config)
+```
+
+---
+
+## Dual Backend Operation
+
+Run two backends simultaneously for gradual migration or A/B testing.
+
+### Basic Dual Backend
+
+```python
+from src.event_sourcing.backends.migration import DualBackendEventStore
+
+# Create dual backend store
+store = DualBackendEventStore(
+    primary_backend=postgres_store,
+    secondary_backend=mongodb_store,
+    write_to_both=True,      # Write to both backends
+    read_from_secondary=False,  # Read from primary
+)
+
+await store.connect()
+
+# Writes go to both backends
+await store.append_events(aggregate_id, events)
+
+# Reads come from primary
+events = await store.get_events(aggregate_id)
+```
+
+### Read Fallback Mode
+
+Use secondary as read fallback:
+
+```python
+store = DualBackendEventStore(
+    primary_backend=postgres_store,
+    secondary_backend=mongodb_store,
+    write_to_both=False,
+    read_from_secondary=True,  # Try secondary first
+)
+
+# If secondary fails, automatically falls back to primary
+events = await store.get_events(aggregate_id)
+```
+
+### Health Check Both Backends
+
+```python
+health = await store.health_check()
+
+# Returns health for both backends
+{
+    "healthy": True,
+    "primary": {
+        "healthy": True,
+        "backend": "postgresql",
+        ...
+    },
+    "secondary": {
+        "healthy": True,
+        "backend": "mongodb",
+        ...
+    }
+}
+```
+
+---
+
+## Complete Usage Examples
+
+### Example 1: Order Processing System
+
+```python
+import asyncio
+from datetime import datetime
+from src.event_sourcing.backends.postgres import PostgresEventStore, PostgresConfig
+from src.event_sourcing.event_store import Event, EventMetadata, Snapshot
+
+async def order_processing_example():
+    # Configure PostgreSQL backend
+    config = PostgresConfig(
+        host="localhost",
+        database="order_db",
+        user="postgres",
+        password="secret",
+        schema="orders",
+    )
+    
+    store = PostgresEventStore(config=config)
+    
+    async with store:
+        # Create order events
+        order_id = "order-2026-001"
+        
+        events = [
+            Event(
+                event_type="OrderCreated",
+                aggregate_id=order_id,
+                aggregate_type="Order",
+                data={
+                    "customer_id": "cust-12345",
+                    "items": [
+                        {"product_id": "prod-001", "quantity": 2, "price": 29.99},
+                        {"product_id": "prod-002", "quantity": 1, "price": 49.99},
+                    ],
+                    "total": 109.97,
+                },
+                metadata=EventMetadata(
+                    correlation_id="corr-order-001",
+                    user_id="user-system",
+                ),
+            ),
+            Event(
+                event_type="OrderPaid",
+                aggregate_id=order_id,
+                aggregate_type="Order",
+                data={
+                    "payment_method": "credit_card",
+                    "transaction_id": "txn-abc123",
+                },
+                metadata=EventMetadata(
+                    correlation_id="corr-order-001",
+                    causation_id="order-2026-001-0",
+                ),
+            ),
+            Event(
+                event_type="OrderShipped",
+                aggregate_id=order_id,
+                aggregate_type="Order",
+                data={
+                    "carrier": "FedEx",
+                    "tracking_number": "FX123456789",
+                },
+                metadata=EventMetadata(
+                    correlation_id="corr-order-001",
+                ),
+            ),
+        ]
+        
+        # Append all events
+        version = await store.append_events(order_id, events)
+        print(f"Order {order_id} at version {version}")
+        
+        # Create snapshot
+        snapshot = Snapshot(
+            aggregate_id=order_id,
+            aggregate_type="Order",
+            sequence_number=version,
+            state={
+                "status": "shipped",
+                "total": 109.97,
+                "items_count": 3,
+            },
+        )
+        await store.save_snapshot(snapshot)
+        
+        # Query events by type
+        shipped_events = await store.get_events_by_type("OrderShipped")
+        print(f"Found {len(shipped_events)} shipped orders")
+        
+        # Get statistics
+        stats = await store.get_statistics()
+        print(f"Total events: {stats['total_events']}")
+
+asyncio.run(order_processing_example())
+```
+
+### Example 2: Event Replay for Projection
+
+```python
+async def event_replay_example():
+    config = PostgresConfig(database="projection_db")
+    store = PostgresEventStore(config=config)
+    
+    async with store:
+        # Get all events for replay
+        all_events = await store.get_all_events(
+            from_position=0,
+            max_count=10000,
+            event_types=["OrderCreated", "OrderPaid", "OrderShipped"],
+        )
+        
+        # Replay events to rebuild projection
+        projection_state = {}
+        
+        for event in all_events:
+            if event.event_type == "OrderCreated":
+                projection_state[event.aggregate_id] = {
+                    "status": "created",
+                    "total": event.data.get("total", 0),
+                }
+            elif event.event_type == "OrderPaid":
+                if event.aggregate_id in projection_state:
+                    projection_state[event.aggregate_id]["status"] = "paid"
+            elif event.event_type == "OrderShipped":
+                if event.aggregate_id in projection_state:
+                    projection_state[event.aggregate_id]["status"] = "shipped"
+        
+        print(f"Rebuilt projection with {len(projection_state)} orders")
+```
+
+### Example 3: MongoDB Change Stream Integration
+
+```python
+async def change_stream_example():
+    from src.event_sourcing.backends.mongodb import MongoDBEventStore, MongoDBConfig
+    
+    config = MongoDBConfig(
+        host="localhost",
+        database="realtime_db",
+        replica_set="rs0",  # Required for change streams
+    )
+    
+    store = MongoDBEventStore(config=config)
+    
+    async with store:
+        # Watch for new order events in real-time
+        print("Watching for new orders...")
+        
+        async for event in store.watch_events(
+            event_types=["OrderCreated", "OrderUpdated"]
+        ):
+            print(f"New event: {event.event_type}")
+            print(f"Order ID: {event.aggregate_id}")
+            print(f"Data: {event.data}")
+            
+            # Process in real-time (e.g., send notifications)
+            await process_order_event(event)
+
+async def process_order_event(event):
+    # Your processing logic here
+    pass
+```
+
+### Example 4: Gradual Migration Strategy
+
+```python
+async def gradual_migration_example():
+    """
+    Gradual migration strategy:
+    1. Setup dual backend with write to both
+    2. Verify data consistency
+    3. Switch reads to new backend
+    4. Remove old backend
+    """
+    from src.event_sourcing.backends.migration import (
+        DualBackendEventStore,
+        BackendMigrator,
+        MigrationConfig,
+    )
+    
+    # Phase 1: Setup dual backend
+    pg_store = PostgresEventStore(config=pg_config)
+    mongo_store = MongoDBEventStore(config=mongo_config)
+    
+    dual_store = DualBackendEventStore(
+        primary_backend=pg_store,
+        secondary_backend=mongo_store,
+        write_to_both=True,  # Phase 1: Write to both
+        read_from_secondary=False,  # Phase 1: Read from PostgreSQL
+    )
+    
+    await dual_store.connect()
+    
+    # Phase 2: Migrate existing data
+    migrator = BackendMigrator(pg_store, mongo_store)
+    progress = await migrator.migrate()
+    
+    if progress.status.value == "completed":
+        print("Migration completed successfully")
+        
+        # Phase 3: Switch reads to MongoDB
+        dual_store.read_from_secondary = True
+        
+        # Phase 4: After verification, stop writing to PostgreSQL
+        # dual_store.write_to_both = False
+        
+        # Phase 5: Remove PostgreSQL backend entirely
+        # store = mongo_store
+```
+
+---
+
+## Integration Tests
+
+Run integration tests between backends:
+
+```bash
+# All integration tests
+pytest tests/test_backend_integration.py -v
+
+# Only mocked tests (no database required)
+pytest tests/test_backend_integration.py -v -k "Mocked"
+
+# Full integration tests (requires both databases)
+pytest tests/test_backend_integration.py -v -k "Integration" --integration
+
+# Performance tests
+pytest tests/test_backend_integration.py -v -k "Performance" --slow
+```
+
+### Environment Setup for Integration Tests
+
+```bash
+# PostgreSQL
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5432
+export POSTGRES_DB=maas_event_store_test
+export POSTGRES_USER=postgres
+export POSTGRES_PASSWORD=secret
+
+# MongoDB
+export MONGODB_HOST=localhost
+export MONGODB_PORT=27017
+export MONGODB_DB=maas_event_store_test
+```
