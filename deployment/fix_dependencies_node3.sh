@@ -1,6 +1,6 @@
 #!/bin/bash
 IP="62.133.60.252"
-PASS="13Vbkkbjyjd$"
+PASS="${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🔧 Installing dependencies on Node 3..."
 

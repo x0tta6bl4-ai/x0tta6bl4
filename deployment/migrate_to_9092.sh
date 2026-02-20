@@ -23,8 +23,8 @@ migrate_port() {
     echo "✅ $IP migrated."
 }
 
-migrate_port "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-migrate_port "77.83.245.27" "13Vbkkbjyjd$"
-migrate_port "62.133.60.252" "13Vbkkbjyjd$"
+migrate_port "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+migrate_port "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+migrate_port "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🎉 Migration Complete (Port 9092)"

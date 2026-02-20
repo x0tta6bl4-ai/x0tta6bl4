@@ -6,11 +6,16 @@ warn() { printf "\033[1;33m[!]\033[0m %s\n" "$*"; }
 err() { printf "\033[1;31m[-]\033[0m %s\n" "$*"; }
 
 SERVER_IP="${1:-89.125.1.107}"
-SERVER_PASS="${2:-lhJOTi8vrB01aQ12C0}"
+SERVER_PASS="${2:-${SERVER_PASS:-}}"
 XRAY_PORT=39829
 XRAY_CONFIG="/usr/local/etc/xray/config.json"
 MONITOR_DIR="/opt/x0tta6bl4-monitor"
 PYTHON_VERSION="python3"
+
+if [ -z "$SERVER_PASS" ]; then
+  err "Set SERVER_PASS env var or pass password as 2nd argument"
+  exit 1
+fi
 
 log "Deploying x0tta6bl4 monitoring components to VPN server $SERVER_IP"
 
@@ -429,5 +434,4 @@ rm -rf "$TEMP_DIR"
 log "Deployment complete!"
 log "Check status with: ssh root@$SERVER_IP 'systemctl status xray-exporter'"
 log "View metrics: curl http://$SERVER_IP:9090/metrics"
-
 

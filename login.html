@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход | x0tta6bl4 MaaS</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --bg-dark: #0a0a0c;
+            --card-bg: #16161a;
+            --accent: #00f2ff;
+            --text-gray: #a0a0a8;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg-dark); 
+            color: white; 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+        }
+        .login-card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            display: block;
+            text-decoration: none;
+            color: white;
+        }
+        .logo span { color: var(--accent); }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: white;
+            box-sizing: border-box;
+        }
+        input:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            color: black;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .error-msg {
+            color: #ff4444;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        .footer-links {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--text-gray);
+        }
+        .footer-links a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <a href="/" class="logo">x0tta6bl4 <span>MaaS</span></a>
+        <h2>Вход в систему</h2>
+        <p style="color: var(--text-gray); margin-bottom: 30px;">Управляйте своей Zero-Trust сетью</p>
+        
+        <form id="login-form">
+            <div id="error-message" class="error-msg">Неверный email или пароль</div>
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Пароль" required>
+            <button type="submit" class="btn-primary">Войти</button>
+        </form>
+
+        <div class="footer-links">
+            <p>Нет аккаунта? <a href="/#beta">Запросить доступ</a></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('error-message');
+
+            try {
+                const response = await fetch('/api/v1/maas/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Save credentials
+                    localStorage.setItem('x0t_api_key', data.access_token);
+                    localStorage.setItem('x0t_user_email', email); // Optional context
+                    
+                    // Redirect to dashboard
+                    window.location.href = '/dashboard.html';
+                } else {
+                    errorMsg.textContent = data.detail || 'Ошибка авторизации';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = 'Ошибка сети. Попробуйте позже.';
+                errorMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
