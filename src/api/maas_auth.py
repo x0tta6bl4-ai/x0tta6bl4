@@ -244,12 +244,11 @@ async def get_my_profile(user: User = Depends(get_current_user_from_maas)):
 
 @router.post("/set-admin/{email}")
 async def make_admin(
-    email: str, 
+    email: str,
     db: Session = Depends(get_db),
-    # Only existing admin can promote others
-    # For bootstrap, we might need a script or env var
+    _admin: User = Depends(require_role("admin")),
 ):
-    """Utility to promote a user to admin (Bootstrap helper)."""
+    """Promote a user to admin. Requires existing admin privileges."""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
