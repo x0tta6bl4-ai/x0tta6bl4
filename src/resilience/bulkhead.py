@@ -443,6 +443,15 @@ class PartitionedBulkhead:
             raise ValueError(f"Unknown partition: {partition}")
         
         return self.partitions[partition].enter(timeout_ms)
+
+    def try_enter(self, partition: Optional[str] = None) -> bool:
+        """Try to enter a specific partition without waiting."""
+        partition = partition or self._default_partition
+
+        if partition not in self.partitions:
+            raise ValueError(f"Unknown partition: {partition}")
+
+        return self.partitions[partition].try_enter()
     
     def exit(self, partition: Optional[str] = None) -> None:
         """Exit a partition."""
@@ -723,8 +732,8 @@ class BulkheadRegistry:
                     })
                 
                 reject_rate = (
-                    stat.get("rejected_calls", 0) / 
-                    stat.get("total_calls", 1)
+                    stat.get("rejected_calls", 0) /
+                    max(1, stat.get("total_calls", 0))
                 )
                 if reject_rate > 0.1:
                     issues.append({
@@ -792,6 +801,9 @@ def bulkhead(
     return decorator
 
 
+# Alias for backwards-compat with tests that import `bulkhead_decorator`
+bulkhead_decorator = bulkhead
+
 __all__ = [
     "BulkheadType",
     "BulkheadConfig",
@@ -803,4 +815,5 @@ __all__ = [
     "AdaptiveBulkhead",
     "BulkheadRegistry",
     "bulkhead",
+    "bulkhead_decorator",
 ]
