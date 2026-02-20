@@ -118,14 +118,24 @@ class DomainFrontingTransport(ObfuscationTransport):
     """
 
     def __init__(
-        self, 
-        front_domain: str, 
-        backend_domain: str,
+        self,
+        front_domain: str,
+        backend_domain: Optional[str] = None,
+        *,
+        backend_host: Optional[str] = None,
         verify_mode: int = ssl.CERT_REQUIRED,
-        ca_bundle: Optional[str] = None
+        ca_bundle: Optional[str] = None,
     ):
         self.front_domain = front_domain
-        self.backend_domain = backend_domain
+        if backend_domain and backend_host and backend_domain != backend_host:
+            raise ValueError("backend_domain and backend_host must match when both provided")
+        self.backend_domain = backend_domain or backend_host
+        if not self.backend_domain:
+            raise ValueError("backend_domain (or backend_host) is required")
+
+        # CVE-2026-DF-001: explicitly reject insecure verification mode.
+        if verify_mode == ssl.CERT_NONE:
+            raise ValueError("ssl.CERT_NONE is not allowed for DomainFrontingTransport")
 
         # Setup SSL Context with PROPER certificate verification
         # CVE-2026-DF-001: Never use ssl.CERT_NONE in production
