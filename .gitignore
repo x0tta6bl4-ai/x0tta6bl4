@@ -199,6 +199,9 @@ project_files_list.txt
 **/*.secret
 **/*.key
 **/secrets/
+# Local AI tool permission snapshots (can include plaintext creds)
+.claude/settings.local.json
+.claude/.fuse_hidden*
 
 # Google OAuth credentials (contains client_id, client_secret)
 credentials.json

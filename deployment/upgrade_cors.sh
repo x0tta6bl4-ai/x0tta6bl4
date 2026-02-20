@@ -17,8 +17,8 @@ fix_cors() {
     echo "✅ Updated $IP"
 }
 
-fix_cors "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-fix_cors "77.83.245.27" "13Vbkkbjyjd$"
-fix_cors "62.133.60.252" "13Vbkkbjyjd$"
+fix_cors "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+fix_cors "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+fix_cors "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🎉 Network upgraded with CORS support."
