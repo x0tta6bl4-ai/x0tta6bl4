@@ -100,6 +100,7 @@ class MeshDeployRequest(BaseModel):
     pqc_enabled: bool = Field(default=True)
     obfuscation: str = Field(default="none", pattern="^(none|xor|aes)$")
     traffic_profile: str = Field(default="none", pattern="^(none|gaming|streaming|voip)$")
+    join_token_ttl_sec: int = Field(default=604800, ge=3600, le=2592000)  # 1h–30d, default 7d
 
 
 class MeshDeployResponse(BaseModel):
@@ -111,6 +112,14 @@ class MeshDeployResponse(BaseModel):
     pqc_enabled: bool = True
     created_at: str = ""
     plan: str = ""
+    join_token_expires_at: str = ""
+
+
+class TokenRotateResponse(BaseModel):
+    mesh_id: str
+    join_token: str
+    issued_at: str
+    expires_at: str
 
 
 class MeshStatusResponse(BaseModel):
@@ -251,6 +260,9 @@ class MeshInstance:
         self.status = "provisioning"
         self.created_at = datetime.utcnow()
         self.join_token = secrets.token_urlsafe(32)
+        self.join_token_ttl_sec: int = 604800  # overridden by MeshProvisioner
+        self.join_token_issued_at: datetime = self.created_at
+        self.join_token_expires_at: datetime = self.created_at + timedelta(seconds=604800)
         self.node_instances: Dict[str, Dict] = {}
 
     async def provision(self):
@@ -490,6 +502,7 @@ class MeshProvisioner:
         pqc_enabled: bool = True,
         obfuscation: str = "none",
         traffic_profile: str = "none",
+        join_token_ttl_sec: int = 604800,
     ) -> MeshInstance:
         _owner_id = owner_id or (user.id if user else "unknown")
         mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
@@ -502,6 +515,8 @@ class MeshProvisioner:
             obfuscation=obfuscation,
             traffic_profile=traffic_profile,
         )
+        instance.join_token_ttl_sec = join_token_ttl_sec
+        instance.join_token_expires_at = instance.created_at + timedelta(seconds=join_token_ttl_sec)
         await instance.provision()
         async with _registry_lock:
             _mesh_registry[mesh_id] = instance
@@ -528,6 +543,62 @@ class MeshProvisioner:
             m for m in _mesh_registry.values()
             if m.owner_id == owner_id and m.status != "terminated"
         ]
+
+
+class UsageMeteringService:
+    """Tracks mesh/node-hour usage for billing."""
+
+    def get_mesh_usage(self, instance: "MeshInstance") -> Dict[str, Any]:
+        now = datetime.utcnow()
+        total_node_hours = 0.0
+        node_detail = []
+
+        for node_id, node in instance.node_instances.items():
+            try:
+                started = datetime.fromisoformat(node["started_at"])
+            except (KeyError, ValueError):
+                started = instance.created_at
+            hours = max(0.0, (now - started).total_seconds() / 3600.0)
+            total_node_hours += hours
+            node_detail.append({"node_id": node_id, "hours": round(hours, 4)})
+
+        return {
+            "mesh_id": instance.mesh_id,
+            "mesh_name": instance.name,
+            "status": instance.status,
+            "active_nodes": len(instance.node_instances),
+            "total_node_hours": round(total_node_hours, 4),
+            "billing_period_start": instance.created_at.isoformat(),
+            "billing_period_end": now.isoformat(),
+            "nodes": node_detail,
+        }
+
+    def get_account_usage(self, owner_id: str) -> Dict[str, Any]:
+        meshes = [m for m in _mesh_registry.values() if m.owner_id == owner_id]
+        total_node_hours = 0.0
+        mesh_summaries = []
+
+        for instance in meshes:
+            usage = self.get_mesh_usage(instance)
+            total_node_hours += usage["total_node_hours"]
+            mesh_summaries.append({
+                "mesh_id": usage["mesh_id"],
+                "mesh_name": usage["mesh_name"],
+                "status": usage["status"],
+                "active_nodes": usage["active_nodes"],
+                "total_node_hours": usage["total_node_hours"],
+            })
+
+        return {
+            "owner_id": owner_id,
+            "total_node_hours": round(total_node_hours, 4),
+            "mesh_count": len(meshes),
+            "meshes": mesh_summaries,
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+
+
+usage_metering_service = UsageMeteringService()
 
 
 class AuthService:
@@ -656,6 +727,10 @@ def _is_reissue_token_expired(token_data: Dict[str, Any]) -> bool:
         return True
 
 
+def _is_join_token_expired(instance: "MeshInstance") -> bool:
+    return datetime.utcnow() >= instance.join_token_expires_at
+
+
 def _find_mesh_id_for_node(node_id: str) -> Optional[str]:
     for mesh_id, instance in _mesh_registry.items():
         if node_id in instance.node_instances:
@@ -777,6 +852,7 @@ async def deploy_mesh(
         pqc_enabled=req.pqc_enabled,
         obfuscation=req.obfuscation,
         traffic_profile=req.traffic_profile,
+        join_token_ttl_sec=req.join_token_ttl_sec,
     )
 
     # PQC identity
@@ -805,6 +881,7 @@ async def deploy_mesh(
                 for i in range(min(3, req.nodes))
             ],
             "token": instance.join_token,
+            "token_expires_at": instance.join_token_expires_at.isoformat(),
             "pqc_algorithm": "ML-KEM-768" if req.pqc_enabled else "none",
         },
         dashboard_url=f"https://observability.x0tta6bl4.net/{instance.mesh_id}",
@@ -813,6 +890,7 @@ async def deploy_mesh(
         pqc_enabled=instance.pqc_enabled,
         created_at=instance.created_at.isoformat(),
         plan=billing_service.normalize_plan(req.billing_plan),
+        join_token_expires_at=instance.join_token_expires_at.isoformat(),
     )
 
 
@@ -982,7 +1060,13 @@ async def register_node(
     enrollment_mode = "mesh_join_token"
     node_id = requested_node_id
 
-    if req.enrollment_token != instance.join_token:
+    if req.enrollment_token == instance.join_token:
+        if _is_join_token_expired(instance):
+            raise HTTPException(
+                status_code=401,
+                detail="Join token expired. Use POST /{mesh_id}/tokens/rotate to issue a new one.",
+            )
+    else:
         mesh_reissue = _mesh_reissue_tokens.get(mesh_id, {})
         token_data = mesh_reissue.get(req.enrollment_token)
         if not token_data:
@@ -1465,6 +1549,53 @@ def list_revoked_nodes(
         "revoked": revoked,
         "count": len(revoked),
     }
+
+
+# ---------------------------------------------------------------------------
+# Usage Metering
+# ---------------------------------------------------------------------------
+
+
+@router.get("/billing/usage")
+def get_account_usage(current_user: User = Depends(get_current_user)):
+    """Return aggregated node-hour usage across all meshes for this account."""
+    return usage_metering_service.get_account_usage(current_user.id)
+
+
+@router.get("/billing/usage/{mesh_id}")
+def get_mesh_usage(
+    mesh_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Return detailed node-hour usage for a single mesh."""
+    instance = _get_mesh_or_404(mesh_id, current_user.id)
+    return usage_metering_service.get_mesh_usage(instance)
+
+
+# ---------------------------------------------------------------------------
+# Token Rotation
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{mesh_id}/tokens/rotate", response_model=TokenRotateResponse)
+def rotate_join_token(
+    mesh_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Rotate the primary mesh join token. Old token is immediately invalidated."""
+    instance = _get_mesh_or_404(mesh_id, current_user.id)
+    instance.join_token = secrets.token_urlsafe(32)
+    instance.join_token_issued_at = datetime.utcnow()
+    instance.join_token_expires_at = instance.join_token_issued_at + timedelta(
+        seconds=instance.join_token_ttl_sec
+    )
+    logger.info(f"[MaaS] Rotated join token for mesh {mesh_id}")
+    return TokenRotateResponse(
+        mesh_id=mesh_id,
+        join_token=instance.join_token,
+        issued_at=instance.join_token_issued_at.isoformat(),
+        expires_at=instance.join_token_expires_at.isoformat(),
+    )
 
 
 # ---------------------------------------------------------------------------
