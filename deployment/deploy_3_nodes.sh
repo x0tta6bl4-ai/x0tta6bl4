@@ -3,13 +3,13 @@
 
 # Узлы и пароли
 NODE1_IP="89.125.1.107"
-NODE1_PASS="lhJOTi8vrB01aQ12C0"
+NODE1_PASS="${NODE1_PASS:?Set NODE1_PASS in environment}"
 
 NODE2_IP="77.83.245.27"
-NODE2_PASS="13Vbkkbjyjd$"
+NODE2_PASS="${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 NODE3_IP="62.133.60.252"
-NODE3_PASS="13Vbkkbjyjd$"
+NODE3_PASS="${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 deploy_node() {
     IP=$1

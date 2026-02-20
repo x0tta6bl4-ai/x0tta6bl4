@@ -49,6 +49,9 @@
 | 🛡️ **AntiMeaveOracle** | Capability-based access control, threat detection для агентов | ✅ Complete | 100% |
 | 🧠 **PARL Module** | Parallel-Agent Reinforcement Learning: Controller, Worker, Scheduler | ✅ Complete | 100% |
 | 👁️ **VisionCoding** | Visual mesh analysis, A*/BFS maze solving, anomaly detection | ✅ Production | 90% |
+| 🤖 **LLM Gateway** | Multi-provider LLM (Ollama, vLLM, OpenAI), semantic cache, rate limiter | ✅ Production | 80% |
+| 🛡️ **Anti-Censorship** | Domain fronting, obfuscation, pluggable transports (OBFS4, Meek, Snowflake) | ✅ Production | 70% |
+| 🔧 **Resilience** | Circuit breaker, retry with backoff, timeout, health check, graceful degradation | ✅ Production | 75% |
 
 > 📊 **Детальный отчёт:** См. [docs/STATUS.md](docs/STATUS.md) для полного анализа готовности модулей
 

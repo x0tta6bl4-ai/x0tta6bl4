@@ -23,6 +23,7 @@ log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 VPS_IP="${1:-}"
 VPS_USER="${2:-root}"
 DRY_RUN="${3:-false}"
+VPS_PASS="${VPS_PASS:?Set VPS_PASS in environment}"
 
 if [ -z "$VPS_IP" ]; then
     log_error "Usage: $0 <VPS_IP> [VPS_USER] [dry-run]"
@@ -56,7 +57,7 @@ log_step "PRE-FLIGHT CHECKS"
 log_step "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 log_info "Checking SSH connection..."
-if sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+if sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o ConnectTimeout=5 $VPS_USER@$VPS_IP "echo 'SSH OK'" > /dev/null 2>&1; then
     log_info "✅ SSH connection: OK"
 else
@@ -65,7 +66,7 @@ else
 fi
 
 log_info "Checking VPN status..."
-VPN_STATUS=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+VPN_STATUS=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "systemctl is-active xray 2>/dev/null || echo 'inactive'")
 if [ "$VPN_STATUS" = "active" ]; then
     log_info "✅ VPN (Xray): RUNNING"
@@ -74,7 +75,7 @@ else
 fi
 
 log_info "Checking existing x0t-node container..."
-CONTAINER_EXISTS=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+CONTAINER_EXISTS=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "docker ps -a --filter name=x0t-node --format '{{.Names}}' 2>/dev/null || echo ''")
 if [ -n "$CONTAINER_EXISTS" ]; then
     log_info "✅ Found container: $CONTAINER_EXISTS"
@@ -83,7 +84,7 @@ else
 fi
 
 log_info "Checking disk space..."
-DISK_FREE=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+DISK_FREE=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "df -h / | tail -1 | awk '{print \$4}'")
 log_info "Free disk space: $DISK_FREE"
 
@@ -132,7 +133,7 @@ log_step "STEP 2: Backup Current State"
 log_step "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 log_info "Creating backup of current container..."
-sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "docker commit x0t-node x0t-node-backup-\$(date +%Y%m%d-%H%M%S) 2>/dev/null || echo 'No container to backup'"
 
 log_info "✅ Backup created"
@@ -144,11 +145,11 @@ log_step "STEP 3: Copying to VPS"
 log_step "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 log_info "Copying image to VPS (this may take a few minutes)..."
-sshpass -p 'tSiy6Il0gP4CIF39c4' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+sshpass -p "$VPS_PASS" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     /tmp/x0tta6bl4-app-staging.tar.gz $VPS_USER@$VPS_IP:/root/
 
 log_info "Copying update script..."
-sshpass -p 'tSiy6Il0gP4CIF39c4' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+sshpass -p "$VPS_PASS" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     scripts/vps_update_on_server.sh $VPS_USER@$VPS_IP:/root/
 
 log_info "✅ Files copied to VPS"
@@ -160,7 +161,7 @@ log_step "STEP 4: Updating on VPS (preserving VPN)"
 log_step "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 log_info "Running update script on VPS..."
-if sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+if sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "bash /root/vps_update_on_server.sh"; then
     log_info "✅ VPS update complete"
 else
@@ -183,14 +184,14 @@ sleep 30
 APP_URL="http://$VPS_IP"
 
 log_info "Testing health endpoint..."
-if sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+if sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "curl -s -f http://localhost:8081/health" > /dev/null 2>&1; then
     log_info "✅ Health check: PASSED"
     echo ""
     log_info "Health endpoint response:"
-    sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         $VPS_USER@$VPS_IP "curl -s http://localhost:8081/health" | python3 -m json.tool 2>/dev/null || \
-        sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         $VPS_USER@$VPS_IP "curl -s http://localhost:8081/health"
 else
     log_warn "⚠️ Health check: Service may still be starting..."
@@ -199,7 +200,7 @@ fi
 
 # Check VPN
 log_info "Checking VPN status..."
-if sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+if sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "systemctl is-active --quiet xray"; then
     log_info "✅ VPN (Xray): RUNNING"
 else
@@ -225,4 +226,3 @@ log_info "   Service status: ssh $VPS_USER@$VPS_IP 'docker ps'"
 log_info "   Restore backup: ssh $VPS_USER@$VPS_IP 'docker run -d --name x0t-node-restored <backup-image>'"
 echo ""
 log_info "🎆 CONGRATULATIONS! x0tta6bl4 is UPDATED! 🎆"
-

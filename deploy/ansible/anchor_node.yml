@@ -1,0 +1,62 @@
+---
+- name: Deploy x0tta6bl4 Global Anchor Node
+  hosts: all
+  become: yes
+  vars:
+    x0t_version: "v3.4.0-alpha"
+    mesh_id: "global-anchor-net"
+    enrollment_token: "{{ lookup('env', 'X0T_ENROLL_TOKEN') }}"
+
+  tasks:
+    - name: Update apt cache and install dependencies
+      apt:
+        name:
+          - curl
+          - git
+          - ufw
+          - docker.io
+          - python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Configure Firewall (UFW)
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: any
+      loop:
+        - "22"    # SSH
+        - "9001"  # Mesh Yggdrasil
+        - "8000"  # Control Plane Auth
+        - "53"    # DNS-over-Mesh
+
+    - name: Install x0tta6bl4 Headless Agent
+      shell: |
+        curl -sL https://raw.githubusercontent.com/x0tta6bl4/x0tta6bl4/main/agent/scripts/install.sh | bash
+      args:
+        creates: /usr/local/bin/x0t-agent
+
+    - name: Create Agent Configuration
+      copy:
+        dest: /etc/x0tta6bl4/agent.yaml
+        content: |
+          node_id: "anchor-{{ inventory_hostname }}"
+          mesh_id: "{{ mesh_id }}"
+          enrollment_token: "{{ enrollment_token }}"
+          mode: anchor
+          pqc_enabled: true
+          performance_profile: high
+
+    - name: Enable and start x0t-agent service
+      systemd:
+        name: x0t-agent
+        enabled: yes
+        state: started
+
+    - name: Verify Mesh Connection
+      command: x0t-agent status
+      register: agent_status
+      changed_when: false
+
+    - debug:
+        msg: "Anchor Node deployed successfully. Status: {{ agent_status.stdout }}"
