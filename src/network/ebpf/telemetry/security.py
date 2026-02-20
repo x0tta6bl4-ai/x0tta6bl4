@@ -1,13 +1,15 @@
 """
-Security Manager for Telemetry Collection.
+Security manager for eBPF telemetry module.
 
-Handles input validation, data sanitization, and security checks.
+Handles input validation, data sanitization, and security checks
+for telemetry data.
 """
+
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from .models import TelemetryConfig, TelemetryEvent, EventSeverity
+from .models import EventSeverity, TelemetryConfig, TelemetryEvent
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class SecurityManager:
 
         # Allowed metric name patterns
         self.allowed_metric_chars = set(
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:"
+            "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789_:"
         )
 
         logger.info("SecurityManager initialized")
@@ -199,3 +201,6 @@ class SecurityManager:
                 "max_metric_value": self.config.max_metric_value,
             },
         }
+
+
+__all__ = ["SecurityManager"]

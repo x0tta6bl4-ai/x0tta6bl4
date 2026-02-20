@@ -1,11 +1,16 @@
 """
-Map Reader for eBPF Telemetry.
+High-performance reader for eBPF maps.
 
-High-performance reader for eBPF maps with multiple backends.
+Supports multiple backends:
+1. BCC Python bindings (preferred)
+2. bpftool CLI (fallback)
 """
+
+import importlib.util
 import json
 import logging
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
@@ -15,14 +20,17 @@ from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
 
-# Try to import BCC
-BCC_AVAILABLE = False
-try:
-    from bcc import BPF
-    BCC_AVAILABLE = True
-    logger.info("BCC available for map reading")
-except ImportError:
-    logger.warning("BCC not available - using bpftool fallback")
+
+def _module_available(module_name: str) -> bool:
+    """Return True when module is available, including test-injected stubs."""
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except (ImportError, ValueError):
+        return module_name in sys.modules
+
+
+# Check for BCC availability
+BCC_AVAILABLE = _module_available("bcc")
 
 
 class MapReader:
@@ -54,9 +62,7 @@ class MapReader:
         """Check if bpftool is available."""
         try:
             result = subprocess.run(
-                ["bpftool", "--version"],
-                capture_output=True,
-                timeout=2
+                ["bpftool", "--version"], capture_output=True, timeout=2
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -154,10 +160,7 @@ class MapReader:
             raise
 
     def read_map(
-        self,
-        bpf_program: Optional[Any],
-        map_name: str,
-        use_cache: bool = True
+        self, bpf_program: Optional[Any], map_name: str, use_cache: bool = True
     ) -> Dict[str, Any]:
         """
         Read eBPF map with automatic backend selection.
@@ -199,9 +202,7 @@ class MapReader:
         return {}
 
     def read_multiple_maps(
-        self,
-        bpf_program: Optional[Any],
-        map_names: List[str]
+        self, bpf_program: Optional[Any], map_names: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Read multiple maps in parallel.
@@ -234,3 +235,6 @@ class MapReader:
     def clear_cache(self):
         """Clear the map cache."""
         self.cache.clear()
+
+
+__all__ = ["MapReader"]

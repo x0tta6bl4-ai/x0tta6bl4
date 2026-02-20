@@ -1,21 +1,37 @@
 """
-eBPF Telemetry Collector.
-
 Main telemetry collector for eBPF programs.
+
+This is the primary interface for collecting telemetry from eBPF programs.
+It coordinates map reading, perf buffer processing, and metrics export.
 """
+
+import importlib.util
 import logging
+import sys
 import threading
 import time
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from .models import TelemetryConfig, MapType, CollectionStats
-from .security import SecurityManager
-from .map_reader import MapReader, BCC_AVAILABLE
+from .map_reader import MapReader
+from .models import CollectionStats, MapType, TelemetryConfig
 from .perf_reader import PerfBufferReader
 from .prometheus_exporter import PrometheusExporter
+from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
+
+
+def _module_available(module_name: str) -> bool:
+    """Return True when module is available, including test-injected stubs."""
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except (ImportError, ValueError):
+        return module_name in sys.modules
+
+
+# Check for BCC availability
+BCC_AVAILABLE = _module_available("bcc")
 
 
 class EBPFTelemetryCollector:
@@ -65,10 +81,7 @@ class EBPFTelemetryCollector:
         logger.info("EBPFTelemetryCollector initialized")
 
     def register_program(
-        self,
-        bpf_program: Any,
-        program_name: str,
-        map_names: Optional[List[str]] = None
+        self, bpf_program: Any, program_name: str, map_names: Optional[List[str]] = None
     ):
         """
         Register an eBPF program for telemetry collection.
@@ -84,10 +97,7 @@ class EBPFTelemetryCollector:
         logger.info(f"Registered eBPF program: {program_name}")
 
     def register_map(
-        self,
-        program_name: str,
-        map_name: str,
-        map_type: MapType = MapType.HASH
+        self, program_name: str, map_name: str, map_type: MapType = MapType.HASH
     ):
         """
         Register a specific map for monitoring.
@@ -286,7 +296,7 @@ class EBPFTelemetryCollector:
     def get_stats(self) -> Dict[str, Any]:
         """Get collector statistics."""
         return {
-            "collection": self.stats.to_dict(),
+            "collection": asdict(self.stats),
             "security": self.security.get_stats(),
             "perf_reader": self.perf_reader.get_stats(),
             "programs": list(self.programs.keys()),
@@ -303,49 +313,4 @@ class EBPFTelemetryCollector:
         self.stop()
 
 
-# ============================================================================
-# Convenience Functions
-# ============================================================================
-
-
-def create_collector(
-    prometheus_port: int = 9090,
-    collection_interval: float = 1.0
-) -> EBPFTelemetryCollector:
-    """
-    Create a telemetry collector with default settings.
-
-    Args:
-        prometheus_port: Prometheus HTTP server port
-        collection_interval: Metric collection interval in seconds
-
-    Returns:
-        EBPFTelemetryCollector instance
-    """
-    config = TelemetryConfig(
-        prometheus_port=prometheus_port,
-        collection_interval=collection_interval
-    )
-    return EBPFTelemetryCollector(config)
-
-
-def quick_start(
-    bpf_program: Any,
-    program_name: str,
-    prometheus_port: int = 9090
-) -> EBPFTelemetryCollector:
-    """
-    Quick start telemetry collection for a single eBPF program.
-
-    Args:
-        bpf_program: BCC BPF program instance
-        program_name: Name of the program
-        prometheus_port: Prometheus HTTP server port
-
-    Returns:
-        EBPFTelemetryCollector instance
-    """
-    collector = create_collector(prometheus_port)
-    collector.register_program(bpf_program, program_name)
-    collector.start()
-    return collector
+__all__ = ["EBPFTelemetryCollector"]

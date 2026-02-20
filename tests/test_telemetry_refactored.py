@@ -2,11 +2,10 @@
 Tests for refactored Telemetry Module components.
 """
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.network.ebpf.telemetry import (
     MetricType,
-    MapType,
     EventSeverity,
     TelemetryConfig,
     MetricDefinition,
@@ -18,6 +17,7 @@ from src.network.ebpf.telemetry import (
     PrometheusExporter,
     EBPFTelemetryCollector,
     create_collector,
+    quick_start,
 )
 
 
