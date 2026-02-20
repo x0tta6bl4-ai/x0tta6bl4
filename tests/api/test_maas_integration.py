@@ -200,6 +200,29 @@ def test_legacy_register_rejects_case_insensitive_duplicate_email(client):
     assert second.json()["detail"] == "Email already registered"
 
 
+def test_legacy_email_normalization_and_case_insensitive_login(client):
+    raw_email = f"  User-{uuid.uuid4().hex[:8]}@X0TTA6BL4.NET  "
+    password = "strong_password_123"
+
+    register = client.post(
+        "/api/v1/maas/register",
+        json={"email": raw_email, "password": password},
+    )
+    assert register.status_code == 200
+    api_key = register.json()["access_token"]
+
+    login = client.post(
+        "/api/v1/maas/login",
+        json={"email": raw_email.strip().upper(), "password": password},
+    )
+    assert login.status_code == 200
+    assert login.json()["access_token"] == api_key
+
+    me = client.get("/api/v1/maas/me", headers={"X-API-Key": api_key})
+    assert me.status_code == 200
+    assert me.json()["email"] == raw_email.strip().lower()
+
+
 def test_node_revoke_reissue_flow(client):
     email = f"node-flow-{uuid.uuid4().hex[:8]}@x0tta6bl4.net"
     password = "strong_password_123"
