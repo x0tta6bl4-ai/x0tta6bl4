@@ -1,3 +1,4 @@
+import os
 import pytest
 import subprocess
 from unittest.mock import patch, MagicMock

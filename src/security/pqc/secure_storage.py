@@ -249,6 +249,8 @@ class SecureKeyStorage:
             
             if handle.is_expired():
                 logger.warning("Key %s has expired", handle.key_id)
+                # Expired keys should not linger in singleton storage across tests/runtime.
+                self._delete_key_internal(handle.key_id)
                 return None
             
             encrypted_key, tag, metadata = self._encrypted_keys[handle.key_id]

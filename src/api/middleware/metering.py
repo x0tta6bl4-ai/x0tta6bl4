@@ -1,13 +1,12 @@
 
 import logging
 import time
-from typing import Callable
+from typing import Callable, Generator, Optional, Tuple
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy.orm import Session
 
-from src.database import SessionLocal, User
+from src.database import User, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class MeteringMiddleware(BaseHTTPMiddleware):
             api_key = request.headers.get("X-API-Key")
             if api_key:
                 try:
-                    self._update_usage(api_key)
+                    self._update_usage(request, api_key)
                 except Exception as e:
                     logger.error(f"Failed to update usage stats: {e}")
 
@@ -32,13 +31,37 @@ class MeteringMiddleware(BaseHTTPMiddleware):
         response.headers["X-Process-Time"] = str(process_time)
         return response
 
-    def _update_usage(self, api_key: str):
-        # Create a new DB session for logging (async safe-ish)
-        db = SessionLocal()
+    def _resolve_db(self, request: Request) -> Tuple[object, Optional[Generator]]:
+        """
+        Resolve DB dependency the same way routes do, including test overrides.
+        """
+        provider = request.app.dependency_overrides.get(get_db, get_db)
+        db_source = provider()
+        if hasattr(db_source, "__next__"):
+            generator = db_source
+            db = next(generator)
+            return db, generator
+        return db_source, None
+
+    @staticmethod
+    def _close_db(db: object, generator: Optional[Generator]) -> None:
+        if generator is not None:
+            try:
+                next(generator)
+            except StopIteration:
+                pass
+            return
+
+        close = getattr(db, "close", None)
+        if callable(close):
+            close()
+
+    def _update_usage(self, request: Request, api_key: str) -> None:
+        db, generator = self._resolve_db(request)
         try:
             user = db.query(User).filter(User.api_key == api_key).first()
             if user:
                 user.requests_count += 1
                 db.commit()
         finally:
-            db.close()
+            self._close_db(db, generator)

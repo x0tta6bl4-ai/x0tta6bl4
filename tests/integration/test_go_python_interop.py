@@ -1,5 +1,5 @@
 import asyncio
-import json
+import os
 import socket
 import struct
 import time
@@ -13,35 +13,39 @@ MULTICAST_GROUP = "239.255.77.77"
 MULTICAST_PORT = 7777
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not os.getenv("X0T_GO_AGENT"),
+    reason="Requires live Go agent broadcasting on multicast (set X0T_GO_AGENT=1)",
+)
 async def test_discovery_interop():
     """Test that Python can discover a Go agent via Multicast."""
-    
+
     # 1. Start Python Multicast listener
-    discovery = MulticastDiscovery(node_id="python-tester")
+    discovery = MulticastDiscovery(node_id="python-tester", service_port=MULTICAST_PORT)
     discovery.start()
-    
+
     found_agent = False
     start_time = time.time()
-    
+
     print("\n🔍 Listening for Go Agent discovery packets...")
-    
+
     try:
         # We wait for up to 15 seconds for the agent to announce itself
         while time.time() - start_time < 15:
-            peers = discovery.get_peers()
-            for peer_id, info in peers.items():
-                if peer_id.startswith("x0t-"): # Go agents default prefix
-                    print(f"✅ Found Go Agent: {peer_id} at {info.address}")
+            peers = discovery.get_peers()  # List[PeerInfo]
+            for info in peers:
+                if info.node_id.startswith("x0t-"):  # Go agents default prefix
+                    print(f"✅ Found Go Agent: {info.node_id} at {info.addresses}")
                     found_agent = True
                     break
-            
+
             if found_agent:
                 break
             await asyncio.sleep(1)
-            
+
     finally:
         discovery.stop()
-        
+
     assert found_agent, "Python failed to discover Go Agent over Multicast"
 
 @pytest.mark.asyncio

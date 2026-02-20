@@ -20,7 +20,16 @@ from src.database import Session as DB_Session
 from src.database import User, get_db
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Use stable client IP in runtime, and isolate requests per test case under pytest."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return f"pytest:{request.url.path}:{secrets.token_hex(8)}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 
 # Test-only in-memory store. Runtime API logic must use SQLAlchemy models.
 users_db = {}

@@ -155,7 +155,7 @@ class QuorumValidator:
                 f"{len(event.signatures)}/{self.quorum_size} signatures"
             )
 
-            # Reward source for accurate reporting
+            # Reward source for accurate reporting (capped at baseline trust 1.0)
             self._source_reputation[event.source] = min(
                 1.0, self._source_reputation[event.source] * 1.1
             )
