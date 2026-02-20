@@ -22,6 +22,18 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _resolve_mesh_provisioner():
+    """Support both legacy and refactored MaaS module layouts."""
+    try:
+        from src.api.maas import mesh_provisioner as provisioner
+    except Exception:
+        try:
+            from src.api.maas_legacy import mesh_provisioner as provisioner
+        except Exception:
+            return None
+    return provisioner
+
+
 class ProvisioningSource(str, Enum):
     """Источник запроса на провижининг."""
     STRIPE_WEBHOOK = "stripe_webhook"
@@ -245,7 +257,9 @@ class ProvisioningService:
             f"nodes={nodes}, plan={plan}"
         )
         try:
-            from src.api.maas import mesh_provisioner
+            mesh_provisioner = _resolve_mesh_provisioner()
+            if mesh_provisioner is None:
+                raise RuntimeError("MaaS mesh provisioner not available")
 
             instance = await mesh_provisioner.create(
                 name=name,
@@ -266,7 +280,10 @@ class ProvisioningService:
     async def terminate_mesh(self, mesh_id: str) -> bool:
         """Terminate a MaaS mesh network."""
         try:
-            from src.api.maas import mesh_provisioner
+            mesh_provisioner = _resolve_mesh_provisioner()
+            if mesh_provisioner is None:
+                logger.error("[MESH] Provisioner unavailable, cannot terminate %s", mesh_id)
+                return False
 
             return await mesh_provisioner.terminate(mesh_id)
         except Exception as e:

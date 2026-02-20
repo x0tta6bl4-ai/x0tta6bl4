@@ -27,6 +27,22 @@ from prometheus_client import REGISTRY
 logger = logging.getLogger(__name__)
 
 
+def _is_base_exception_class(candidate: Any) -> bool:
+    return isinstance(candidate, type) and issubclass(candidate, BaseException)
+
+
+# In some test suites hvac is injected as MagicMock via sys.modules.
+# Ensure these names are always valid exception classes.
+if not _is_base_exception_class(VaultError):
+    class VaultError(Exception):
+        """Fallback VaultError when hvac exceptions are mocked."""
+
+
+if not _is_base_exception_class(InvalidPath):
+    class InvalidPath(VaultError):
+        """Fallback InvalidPath when hvac exceptions are mocked."""
+
+
 def _get_or_create_metric(metric_class, name, description, **kwargs):
     """Get existing metric or create new one to avoid duplicate registration."""
     try:
@@ -93,6 +109,26 @@ class VaultSecretError(Exception):
     """Raised when secret retrieval fails"""
 
     pass
+
+
+def _is_exception_class(candidate: Any) -> bool:
+    """Return True when candidate can be used safely with isinstance/except checks."""
+    return isinstance(candidate, type) and issubclass(candidate, BaseException)
+
+
+def _matches_exception(exc: BaseException, candidate: Any) -> bool:
+    """Safely compare an exception instance against a possibly mocked class object."""
+    return _is_exception_class(candidate) and isinstance(exc, candidate)
+
+
+def _is_invalid_path_error(exc: BaseException) -> bool:
+    """Detect InvalidPath even when test doubles replace imported symbols."""
+    return _matches_exception(exc, InvalidPath) or exc.__class__.__name__ == "InvalidPath"
+
+
+def _is_vault_error(exc: BaseException) -> bool:
+    """Detect VaultError even when test doubles replace imported symbols."""
+    return _matches_exception(exc, VaultError) or exc.__class__.__name__ == "VaultError"
 
 
 class VaultClient:
@@ -369,37 +405,38 @@ class VaultClient:
                     return value
                 return secrets_data
 
-            except InvalidPath:
-                vault_secret_failures.labels(operation="read", reason="not_found").inc()
-                logger.error("Secret not found at %s", secret_path)
-                raise VaultSecretError(f"Secret not found: {secret_path}")
+            except VaultSecretError:
+                raise
 
-            except VaultError as e:
-                vault_secret_failures.labels(
-                    operation="read", reason="vault_error"
-                ).inc()
+            except Exception as e:
+                if _is_invalid_path_error(e):
+                    vault_secret_failures.labels(operation="read", reason="not_found").inc()
+                    logger.error("Secret not found at %s", secret_path)
+                    raise VaultSecretError(f"Secret not found: {secret_path}")
 
-                if attempt < self.max_retries - 1:
-                    delay = self.retry_delay * (self.retry_backoff**attempt)
-                    logger.warning(
-                        "Secret retrieval attempt %d/%d failed: %s. "
-                        "Retrying in %.1fs...",
-                        attempt + 1,
-                        self.max_retries,
-                        e,
-                        delay,
-                    )
-                    await asyncio.sleep(delay)
-                else:
+                if _is_vault_error(e):
+                    vault_secret_failures.labels(
+                        operation="read", reason="vault_error"
+                    ).inc()
+
+                    if attempt < self.max_retries - 1:
+                        delay = self.retry_delay * (self.retry_backoff**attempt)
+                        logger.warning(
+                            "Secret retrieval attempt %d/%d failed: %s. "
+                            "Retrying in %.1fs...",
+                            attempt + 1,
+                            self.max_retries,
+                            e,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
                     logger.error(
                         "Failed to retrieve secret after %d attempts", self.max_retries
                     )
                     raise VaultSecretError(f"Retrieval failed: {e}")
 
-            except VaultSecretError:
-                raise
-
-            except Exception as e:
                 self._degraded = True
                 vault_secret_failures.labels(
                     operation="read", reason="connection_error"
@@ -440,10 +477,12 @@ class VaultClient:
 
             logger.info("Stored secret at %s", secret_path)
 
-        except VaultError as e:
-            vault_secret_failures.labels(operation="write", reason="vault_error").inc()
-            logger.error("Failed to store secret: %s", e)
-            raise VaultSecretError(f"Put secret failed: {e}")
+        except Exception as e:
+            if _is_vault_error(e):
+                vault_secret_failures.labels(operation="write", reason="vault_error").inc()
+                logger.error("Failed to store secret: %s", e)
+                raise VaultSecretError(f"Put secret failed: {e}")
+            raise
 
     async def delete_secret(self, secret_path: str) -> None:
         """Delete secret from Vault.
@@ -466,10 +505,12 @@ class VaultClient:
 
             logger.info("Deleted secret at %s", secret_path)
 
-        except VaultError as e:
-            vault_secret_failures.labels(operation="delete", reason="vault_error").inc()
-            logger.error("Failed to delete secret: %s", e)
-            raise VaultSecretError(f"Delete failed: {e}")
+        except Exception as e:
+            if _is_vault_error(e):
+                vault_secret_failures.labels(operation="delete", reason="vault_error").inc()
+                logger.error("Failed to delete secret: %s", e)
+                raise VaultSecretError(f"Delete failed: {e}")
+            raise
 
     async def list_secrets(self, path: str) -> list:
         """List secrets at a path.
@@ -487,9 +528,11 @@ class VaultClient:
                 path=path,
             )
             return response["data"]["keys"]
-        except VaultError as e:
-            logger.error("Failed to list secrets at %s: %s", path, e)
-            raise VaultSecretError(f"List failed: {e}")
+        except Exception as e:
+            if _is_vault_error(e):
+                logger.error("Failed to list secrets at %s: %s", path, e)
+                raise VaultSecretError(f"List failed: {e}")
+            raise
 
     def _get_from_cache(
         self, secret_path: str, secret_key: Optional[str] = None

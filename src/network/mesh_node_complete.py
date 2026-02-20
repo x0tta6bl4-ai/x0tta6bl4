@@ -131,7 +131,7 @@ class CompleteMeshNode:
         self._running = False
 
         if self._router:
-            await self._router.stop()
+            self._router.stop()  # sync method
 
         if self._discovery:
             await self._discovery.stop()

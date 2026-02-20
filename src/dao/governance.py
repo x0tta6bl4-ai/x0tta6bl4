@@ -182,6 +182,9 @@ class GovernanceEngine:
         self.dispatcher = dispatcher or ActionDispatcher()
         # Append-only ledger for audit trail
         self.ledger_path = ledger_path
+        # Backward-compatible enum access expected by some call sites/tests.
+        self.VoteType = VoteType
+        self.ProposalState = ProposalState
 
     def _get_initial_voting_power(self) -> Dict[str, float]:
         """
@@ -191,9 +194,9 @@ class GovernanceEngine:
         # This is a more realistic mock than an empty dict
         return {
             "node-1": 100.0,
-            "node-2": 150.0,
-            "node-3": 80.0,
-            "node-4": 200.0,
+            "node-2": 100.0,
+            "node-3": 100.0,
+            "node-4": 100.0,
         }
 
     def create_proposal(

@@ -1,0 +1,1134 @@
+openapi: 3.0.3
+info:
+  title: x0tta6bl4 Resilience API
+  description: |
+    Advanced Resilience Patterns API for distributed systems.
+    
+    ## Features
+    - **Rate Limiting**: Multiple algorithms (Token Bucket, Sliding Window, Leaky Bucket, Adaptive)
+    - **Bulkhead**: Resource isolation patterns (Semaphore, Queue, Partitioned, Adaptive)
+    - **Fallback**: Graceful degradation patterns (Default, Cache, Chain, Circuit, Async)
+    - **Circuit Breaker**: Fault tolerance with configurable thresholds
+    - **Retry**: Exponential backoff with jitter
+    - **Health Check**: Endpoint monitoring with graceful degradation
+    
+    ## Version
+    - v2.0.0 - Added Rate Limiter, Bulkhead, and Fallback patterns
+  version: 2.0.0
+  contact:
+    name: x0tta6bl4 Team
+    email: support@x0tta6bl4.dev
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api/v2/resilience
+    description: Local development
+  - url: https://api.x0tta6bl4.dev/v2/resilience
+    description: Production
+
+tags:
+  - name: Rate Limiter
+    description: Rate limiting operations
+  - name: Bulkhead
+    description: Resource isolation operations
+  - name: Fallback
+    description: Graceful degradation operations
+  - name: Circuit Breaker
+    description: Circuit breaker management
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  # =============================================================================
+  # Rate Limiter Endpoints
+  # =============================================================================
+  
+  /rate-limiter:
+    post:
+      tags:
+        - Rate Limiter
+      summary: Create a new rate limiter
+      description: |
+        Create a rate limiter with specified algorithm and configuration.
+        
+        Supported types:
+        - `token_bucket`: Smooth traffic with burst handling
+        - `sliding_window`: Precise rate limiting
+        - `leaky_bucket`: Constant rate output
+        - `adaptive`: ML-based rate adjustment
+      operationId: createRateLimiter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateLimiterCreateRequest'
+            examples:
+              token_bucket:
+                summary: Token Bucket Example
+                value:
+                  name: api_limiter
+                  type: token_bucket
+                  config:
+                    max_requests: 100
+                    burst_size: 50
+                    refill_rate: 10.0
+              sliding_window:
+                summary: Sliding Window Example
+                value:
+                  name: user_limiter
+                  type: sliding_window
+                  config:
+                    max_requests: 1000
+                    window_seconds: 60.0
+      responses:
+        '201':
+          description: Rate limiter created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimiterResponse'
+        '400':
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /rate-limiter/{name}:
+    get:
+      tags:
+        - Rate Limiter
+      summary: Get rate limiter statistics
+      operationId: getRateLimiterStats
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Rate limiter name
+      responses:
+        '200':
+          description: Rate limiter statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimiterStats'
+        '404':
+          description: Rate limiter not found
+
+    delete:
+      tags:
+        - Rate Limiter
+      summary: Delete a rate limiter
+      operationId: deleteRateLimiter
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Rate limiter deleted
+        '404':
+          description: Rate limiter not found
+
+  /rate-limiter/{name}/acquire:
+    post:
+      tags:
+        - Rate Limiter
+      summary: Try to acquire rate limit tokens
+      description: |
+        Attempt to acquire tokens from the rate limiter.
+        
+        Returns `allowed: true` if the request is within rate limits,
+        or `allowed: false` with `retry_after` if rate limited.
+      operationId: acquireRateLimit
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tokens:
+                  type: integer
+                  default: 1
+                  description: Number of tokens to acquire
+      responses:
+        '200':
+          description: Acquisition result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResult'
+              examples:
+                allowed:
+                  summary: Request allowed
+                  value:
+                    allowed: true
+                    remaining: 99
+                    reset_at: 1708123456.789
+                rate_limited:
+                  summary: Rate limited
+                  value:
+                    allowed: false
+                    remaining: 0
+                    reset_at: 1708123516.789
+                    retry_after: 60.0
+
+  /rate-limiter/{name}/record:
+    post:
+      tags:
+        - Rate Limiter
+      summary: Record response metrics (for adaptive rate limiters)
+      description: |
+        Record response time and error status for adaptive rate limiters.
+        Used to adjust rate limits based on observed performance.
+      operationId: recordRateLimitResponse
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - response_time_ms
+              properties:
+                response_time_ms:
+                  type: number
+                  format: float
+                  description: Response time in milliseconds
+                is_error:
+                  type: boolean
+                  default: false
+                  description: Whether the request resulted in an error
+      responses:
+        '200':
+          description: Response recorded
+
+  # =============================================================================
+  # Bulkhead Endpoints
+  # =============================================================================
+
+  /bulkhead:
+    post:
+      tags:
+        - Bulkhead
+      summary: Create a new bulkhead
+      description: |
+        Create a bulkhead for resource isolation.
+        
+        Supported types:
+        - `semaphore`: Simple concurrent limit
+        - `queue`: Queue-based with bounded size
+        - `partitioned`: Multiple isolated partitions
+        - `adaptive`: ML-based capacity adjustment
+      operationId: createBulkhead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkheadCreateRequest'
+            examples:
+              semaphore:
+                summary: Semaphore Bulkhead
+                value:
+                  name: api_bulkhead
+                  type: semaphore
+                  config:
+                    max_concurrent: 10
+                    max_wait_ms: 5000
+              partitioned:
+                summary: Partitioned Bulkhead
+                value:
+                  name: workload_bulkhead
+                  type: partitioned
+                  config:
+                    partitions:
+                      read: 20
+                      write: 5
+                      admin: 2
+      responses:
+        '201':
+          description: Bulkhead created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkheadResponse'
+
+  /bulkhead/{name}:
+    get:
+      tags:
+        - Bulkhead
+      summary: Get bulkhead statistics
+      operationId: getBulkheadStats
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bulkhead statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkheadStats'
+
+    delete:
+      tags:
+        - Bulkhead
+      summary: Delete a bulkhead
+      operationId: deleteBulkhead
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Bulkhead deleted
+
+  /bulkhead/{name}/enter:
+    post:
+      tags:
+        - Bulkhead
+      summary: Enter bulkhead
+      description: |
+        Attempt to enter the bulkhead.
+        
+        Returns success if capacity is available, or error if bulkhead is full.
+      operationId: enterBulkhead
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: partition
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Partition name (for partitioned bulkheads)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeout_ms:
+                  type: integer
+                  description: Maximum wait time in milliseconds
+      responses:
+        '200':
+          description: Successfully entered bulkhead
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entered:
+                    type: boolean
+                  wait_time_ms:
+                    type: number
+        '429':
+          description: Bulkhead is at capacity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkheadFullError'
+
+  /bulkhead/{name}/exit:
+    post:
+      tags:
+        - Bulkhead
+      summary: Exit bulkhead
+      operationId: exitBulkhead
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: partition
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully exited bulkhead
+
+  /bulkhead/health:
+    get:
+      tags:
+        - Bulkhead
+      summary: Get health status of all bulkheads
+      operationId: getBulkheadsHealth
+      responses:
+        '200':
+          description: Bulkheads health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkheadsHealth'
+
+  # =============================================================================
+  # Fallback Endpoints
+  # =============================================================================
+
+  /fallback:
+    post:
+      tags:
+        - Fallback
+      summary: Create a fallback chain
+      description: |
+        Create a fallback chain with multiple fallback strategies.
+        
+        Fallbacks are tried in order until one succeeds.
+      operationId: createFallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FallbackCreateRequest'
+            example:
+              name: api_fallback
+              fallbacks:
+                - type: cache
+                  config:
+                    ttl_seconds: 300
+                    max_size: 1000
+                - type: default
+                  config:
+                    default_value:
+                      status: degraded
+      responses:
+        '201':
+          description: Fallback chain created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FallbackResponse'
+
+  /fallback/{name}:
+    get:
+      tags:
+        - Fallback
+      summary: Get fallback chain statistics
+      operationId: getFallbackStats
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fallback statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FallbackStats'
+
+    delete:
+      tags:
+        - Fallback
+      summary: Delete a fallback chain
+      operationId: deleteFallback
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Fallback chain deleted
+
+  /fallback/{name}/cache/clear:
+    post:
+      tags:
+        - Fallback
+      summary: Clear fallback cache
+      description: Clear the cache for cache-based fallbacks
+      operationId: clearFallbackCache
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cache cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cleared_entries:
+                    type: integer
+
+  # =============================================================================
+  # Circuit Breaker Endpoints
+  # =============================================================================
+
+  /circuit-breaker:
+    post:
+      tags:
+        - Circuit Breaker
+      summary: Create a circuit breaker
+      operationId: createCircuitBreaker
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CircuitBreakerCreateRequest'
+      responses:
+        '201':
+          description: Circuit breaker created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitBreakerResponse'
+
+  /circuit-breaker/{name}:
+    get:
+      tags:
+        - Circuit Breaker
+      summary: Get circuit breaker state
+      operationId: getCircuitBreakerState
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit breaker state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitBreakerState'
+
+  /circuit-breaker/{name}/reset:
+    post:
+      tags:
+        - Circuit Breaker
+      summary: Reset circuit breaker to closed state
+      operationId: resetCircuitBreaker
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit breaker reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitBreakerState'
+
+  /circuit-breaker/{name}/force-open:
+    post:
+      tags:
+        - Circuit Breaker
+      summary: Force circuit breaker to open state
+      description: Manually trip the circuit breaker
+      operationId: forceOpenCircuitBreaker
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit breaker forced open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitBreakerState'
+
+  # =============================================================================
+  # Health Check Endpoints
+  # =============================================================================
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Get overall resilience health
+      description: Get aggregated health status of all resilience patterns
+      operationId: getResilienceHealth
+      responses:
+        '200':
+          description: Resilience health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResilienceHealth'
+
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      operationId: livenessProbe
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [alive]
+
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      operationId: readinessProbe
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ready]
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [not_ready]
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+
+components:
+  schemas:
+    # =============================================================================
+    # Rate Limiter Schemas
+    # =============================================================================
+    
+    RateLimiterType:
+      type: string
+      enum:
+        - token_bucket
+        - sliding_window
+        - leaky_bucket
+        - adaptive
+
+    RateLimiterConfig:
+      type: object
+      properties:
+        max_requests:
+          type: integer
+          default: 100
+          description: Maximum requests allowed
+        window_seconds:
+          type: number
+          format: float
+          default: 1.0
+          description: Time window in seconds
+        burst_size:
+          type: integer
+          description: Burst capacity (token bucket)
+        refill_rate:
+          type: number
+          format: float
+          description: Tokens per second (token bucket)
+        queue_size:
+          type: integer
+          default: 100
+          description: Queue size (leaky bucket)
+        adaptive_min_rate:
+          type: number
+          format: float
+          default: 10.0
+        adaptive_max_rate:
+          type: number
+          format: float
+          default: 1000.0
+
+    RateLimiterCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Unique name for the rate limiter
+        type:
+          $ref: '#/components/schemas/RateLimiterType'
+        config:
+          $ref: '#/components/schemas/RateLimiterConfig'
+
+    RateLimiterResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/RateLimiterType'
+        created_at:
+          type: string
+          format: date-time
+        config:
+          $ref: '#/components/schemas/RateLimiterConfig'
+
+    RateLimitResult:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+          description: Whether the request is allowed
+        remaining:
+          type: integer
+          description: Remaining requests in current window
+        reset_at:
+          type: number
+          format: float
+          description: Unix timestamp when the window resets
+        retry_after:
+          type: number
+          format: float
+          description: Seconds to wait before retrying (if rate limited)
+
+    RateLimiterStats:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/RateLimiterType'
+        total_requests:
+          type: integer
+        allowed_requests:
+          type: integer
+        denied_requests:
+          type: integer
+        allow_rate:
+          type: number
+          format: float
+        current_tokens:
+          type: number
+          format: float
+          description: Current token count (token bucket)
+        current_requests:
+          type: integer
+          description: Current request count (sliding window)
+        queue_size:
+          type: integer
+          description: Current queue size (leaky bucket)
+        current_rate:
+          type: number
+          format: float
+          description: Current rate (adaptive)
+        ewma_response_time:
+          type: number
+          format: float
+          description: EWMA response time (adaptive)
+        ewma_error_rate:
+          type: number
+          format: float
+          description: EWMA error rate (adaptive)
+
+    # =============================================================================
+    # Bulkhead Schemas
+    # =============================================================================
+
+    BulkheadType:
+      type: string
+      enum:
+        - semaphore
+        - queue
+        - partitioned
+        - adaptive
+
+    BulkheadConfig:
+      type: object
+      properties:
+        max_concurrent:
+          type: integer
+          default: 10
+        max_wait_ms:
+          type: integer
+          default: 0
+        queue_size:
+          type: integer
+          default: 0
+        partitions:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Partition name to max concurrent mapping
+        adaptive_min:
+          type: integer
+          default: 5
+        adaptive_max:
+          type: integer
+          default: 50
+
+    BulkheadCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/BulkheadType'
+        config:
+          $ref: '#/components/schemas/BulkheadConfig'
+
+    BulkheadResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/BulkheadType'
+        created_at:
+          type: string
+          format: date-time
+        config:
+          $ref: '#/components/schemas/BulkheadConfig'
+
+    BulkheadStats:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/BulkheadType'
+        max_concurrent:
+          type: integer
+        current_count:
+          type: integer
+        queue_size:
+          type: integer
+        total_calls:
+          type: integer
+        accepted_calls:
+          type: integer
+        rejected_calls:
+          type: integer
+        timeout_calls:
+          type: integer
+        avg_wait_time_ms:
+          type: number
+          format: float
+        avg_execution_time_ms:
+          type: number
+          format: float
+        utilization:
+          type: number
+          format: float
+        accept_rate:
+          type: number
+          format: float
+        partitions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/BulkheadStats'
+          description: Per-partition stats (partitioned bulkhead)
+        current_capacity:
+          type: integer
+          description: Current capacity (adaptive bulkhead)
+
+    BulkheadFullError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Bulkhead is at capacity"
+        max_concurrent:
+          type: integer
+        current_count:
+          type: integer
+        queue_size:
+          type: integer
+
+    BulkheadsHealth:
+      type: object
+      properties:
+        healthy:
+          type: boolean
+        bulkhead_count:
+          type: integer
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              bulkhead:
+                type: string
+              issue:
+                type: string
+              value:
+                type: number
+                format: float
+
+    # =============================================================================
+    # Fallback Schemas
+    # =============================================================================
+
+    FallbackType:
+      type: string
+      enum:
+        - default
+        - cache
+        - chain
+        - circuit
+        - async
+
+    FallbackConfigItem:
+      type: object
+      properties:
+        ttl_seconds:
+          type: integer
+        max_size:
+          type: integer
+        default_value:
+          type: object
+          additionalProperties: true
+
+    FallbackItem:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/FallbackType'
+        config:
+          $ref: '#/components/schemas/FallbackConfigItem'
+
+    FallbackCreateRequest:
+      type: object
+      required:
+        - name
+        - fallbacks
+      properties:
+        name:
+          type: string
+        fallbacks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FallbackItem'
+        enable_cache:
+          type: boolean
+          default: true
+        cache_ttl_seconds:
+          type: integer
+          default: 300
+
+    FallbackResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        fallback_count:
+          type: integer
+
+    FallbackStats:
+      type: object
+      properties:
+        name:
+          type: string
+        total_calls:
+          type: integer
+        primary_successes:
+          type: integer
+        primary_failures:
+          type: integer
+        fallback_successes:
+          type: integer
+        fallback_failures:
+          type: integer
+        cache_hits:
+          type: integer
+        cache_misses:
+          type: integer
+        avg_fallback_time_ms:
+          type: number
+          format: float
+        primary_success_rate:
+          type: number
+          format: float
+        fallback_rate:
+          type: number
+          format: float
+
+    # =============================================================================
+    # Circuit Breaker Schemas
+    # =============================================================================
+
+    CircuitState:
+      type: string
+      enum:
+        - closed
+        - open
+        - half_open
+
+    CircuitBreakerConfig:
+      type: object
+      properties:
+        failure_threshold:
+          type: integer
+          default: 5
+          description: Failures before opening circuit
+        recovery_timeout_seconds:
+          type: integer
+          default: 60
+          description: Seconds before attempting recovery
+        success_threshold:
+          type: integer
+          default: 2
+          description: Successes in half-open to close circuit
+
+    CircuitBreakerCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        config:
+          $ref: '#/components/schemas/CircuitBreakerConfig'
+
+    CircuitBreakerResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        state:
+          $ref: '#/components/schemas/CircuitState'
+        created_at:
+          type: string
+          format: date-time
+
+    CircuitBreakerState:
+      type: object
+      properties:
+        name:
+          type: string
+        state:
+          $ref: '#/components/schemas/CircuitState'
+        failure_count:
+          type: integer
+        success_count:
+          type: integer
+        last_failure_time:
+          type: string
+          format: date-time
+          nullable: true
+        config:
+          $ref: '#/components/schemas/CircuitBreakerConfig'
+
+    # =============================================================================
+    # Common Schemas
+    # =============================================================================
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ResilienceHealth:
+      type: object
+      properties:
+        healthy:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        rate_limiters:
+          type: object
+          properties:
+            count:
+              type: integer
+            healthy:
+              type: integer
+            issues:
+              type: array
+              items:
+                type: string
+        bulkheads:
+          $ref: '#/components/schemas/BulkheadsHealth'
+        circuit_breakers:
+          type: object
+          properties:
+            count:
+              type: integer
+            open:
+              type: integer
+            closed:
+              type: integer
+            half_open:
+              type: integer
+        fallbacks:
+          type: object
+          properties:
+            count:
+              type: integer
+            total_fallback_rate:
+              type: number
+              format: float
