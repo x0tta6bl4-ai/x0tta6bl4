@@ -378,14 +378,19 @@ class GraphSAGEAnomalyDetector:
         # to avoid random false positives from uninitialized network outputs.
         if not getattr(self, "is_trained", False):
             labels = self._generate_labels([node_features])
-            is_anomaly = bool(labels and labels[0] > 0.5)
+            anomaly_score = float(labels[0]) if labels else 0.0
+            is_anomaly = anomaly_score >= self.anomaly_threshold
+            confidence = abs(anomaly_score - 0.5) * 2
+            inference_time = (time.time() - start_time) * 1000
+            severity = "CRITICAL" if is_anomaly else "NORMAL"
+            record_graphsage_inference(inference_time, is_anomaly, severity)
             return AnomalyPrediction(
                 is_anomaly=is_anomaly,
-                anomaly_score=1.0 if is_anomaly else 0.0,
-                confidence=0.8,
+                anomaly_score=anomaly_score,
+                confidence=confidence,
                 node_id=node_id,
                 features=node_features,
-                inference_time_ms=(time.time() - start_time) * 1000,
+                inference_time_ms=inference_time,
             )
 
         # Prepare graph data

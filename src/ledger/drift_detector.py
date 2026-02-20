@@ -23,6 +23,12 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+try:
+    from src.ledger.helpers import find_metrics
+except ImportError:
+    def find_metrics(*args, **kwargs):  # type: ignore[no-redef]
+        return []
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 CONTINUITY_FILE = PROJECT_ROOT / "CONTINUITY.md"
 
@@ -92,7 +98,7 @@ class LedgerDriftDetector:
         """
         if not self.continuity_file.exists():
             logger.error(f"❌ Файл не найден: {self.continuity_file}")
-            return {"nodes": [], "edges": []}
+            return {"nodes": [], "edges": [], "sections": []}
 
         content = self.continuity_file.read_text(encoding="utf-8")
 
@@ -288,8 +294,6 @@ class LedgerDriftDetector:
 
         try:
             import re
-
-            from src.ledger.helpers import find_metrics
 
             content = self.continuity_file.read_text(encoding="utf-8")
 
@@ -774,9 +778,13 @@ class LedgerDriftDetector:
                     # Выполняем causal analysis для первого (или наиболее критичного) incident
                     if incident_events:
                         # Находим наиболее критичный incident
-                        critical_incident = max(
-                            incident_events, key=lambda x: x.anomaly_score
-                        )
+                        def _incident_score(item: Any) -> float:
+                            try:
+                                return float(getattr(item, "anomaly_score", 0.0))
+                            except (TypeError, ValueError):
+                                return 0.0
+
+                        critical_incident = max(incident_events, key=_incident_score)
 
                         # Вызов реального Causal Analysis Engine
                         try:

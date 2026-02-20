@@ -1,13 +1,20 @@
 """
 Post-Quantum Cryptography using liboqs (Open Quantum Safe).
 
-Реальная post-quantum криптография на основе NIST-approved алгоритмов:
-- Kyber (KEM) - NIST PQC Standard
-- Dilithium (Signatures) - NIST PQC Standard
-- Hybrid mode (Classical + PQ)
+.. deprecated::
+    Import from src.security.pqc instead::
 
-⚠️ ТРЕБУЕТ liboqs-python: pip install liboqs-python
+        from src.security.pqc import LibOQSBackend, HybridPQEncryption, PQMeshSecurityLibOQS
+
+    This module remains the implementation but should not be imported directly.
 """
+import warnings as _warnings
+_warnings.warn(
+    "Importing from src.libx0t.security.post_quantum is deprecated. "
+    "Use 'from src.security.pqc import ...' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import hashlib
 import logging

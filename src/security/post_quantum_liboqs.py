@@ -1,11 +1,18 @@
 """
-Backward-compatible re-export from post_quantum.py.
+DEPRECATED shim. Use src.security.pqc instead.
 
-This module was merged into post_quantum.py. All imports are re-exported
-for backward compatibility.
+    # Old
+    from src.security.post_quantum_liboqs import LIBOQS_AVAILABLE, LibOQSBackend
+    # New
+    from src.security.pqc import LIBOQS_AVAILABLE, LibOQSBackend
 """
-
-from src.security.post_quantum import (LIBOQS_AVAILABLE,  # noqa: F401
-                                       HybridPQEncryption, LibOQSBackend,
-                                       PQAlgorithm, PQCiphertext, PQKeyPair,
-                                       PQMeshSecurityLibOQS)
+from src.security.pqc import (  # noqa: F401
+    LIBOQS_AVAILABLE,
+    LibOQSBackend,
+    HybridPQEncryption,
+    PQAlgorithm,
+    PQKeyPair,
+    PQCiphertext,
+    PQMeshSecurityLibOQS,
+    is_liboqs_available,
+)

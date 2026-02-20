@@ -32,16 +32,22 @@ except ImportError as exc:
 
 class TestVPNModels:
     def test_vpn_config_request_defaults(self):
-        req = VPNConfigRequest(user_id=42)
+        req = VPNConfigRequest(user_id=42, email="user42@example.com")
         assert req.user_id == 42
+        assert req.email == "user42@example.com"
         assert req.username is None
         assert req.server is None
         assert req.port is None
 
     def test_vpn_config_request_with_values(self):
         req = VPNConfigRequest(
-            user_id=1, username="alice", server="vpn.example.com", port=443
+            user_id=1,
+            email="alice@example.com",
+            username="alice",
+            server="vpn.example.com",
+            port=443,
         )
+        assert req.email == "alice@example.com"
         assert req.username == "alice"
         assert req.server == "vpn.example.com"
         assert req.port == 443

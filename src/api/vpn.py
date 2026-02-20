@@ -22,12 +22,15 @@ sys.path.insert(
 )
 from src.core.cache import cache, cached
 from src.database import User, get_db
-from vpn_config_generator import generate_config_text, generate_vless_link
+from vpn_config_generator import generate_config_text, generate_vless_link, XUIAPIClient
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
+
+# Initialize XUI Client
+xui = XUIAPIClient()
 
 
 async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
@@ -46,6 +49,7 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
 
 class VPNConfigRequest(BaseModel):
     user_id: int
+    email: str  # Required for x-ui
     username: Optional[str] = None
     server: Optional[str] = None
     port: Optional[int] = None
@@ -69,77 +73,58 @@ class VPNStatusResponse(BaseModel):
 
 @router.get("/config")
 @limiter.limit("30/minute")
-async def get_vpn_config(
+@router.post("/config")
+async def handle_vpn_config(
     request: Request,
-    user_id: int,
+    config_req: Optional[VPNConfigRequest] = None,
+    user_id: Optional[int] = None,
+    email: Optional[str] = None,
     username: Optional[str] = None,
     server: Optional[str] = None,
     port: Optional[int] = None,
 ) -> VPNConfigResponse:
     """
-    Generate VPN configuration for a user.
-
-    Args:
-        user_id: Telegram user ID
-        username: Optional username for the VPN config
-        server: Optional custom server address
-        port: Optional custom server port
-
-    Returns:
-        VPN configuration with VLESS link and detailed instructions
+    Generate or create VPN configuration. (Handles both GET and POST)
     """
     try:
-        import uuid
+        if config_req:
+            uid = config_req.user_id
+            u_email = config_req.email
+            u_name = config_req.username
+            srv = config_req.server
+            prt = config_req.port
+        else:
+            uid = user_id
+            u_email = email
+            u_name = username
+            srv = server
+            prt = port
 
-        # Get default values from environment
-        default_server = os.getenv("VPN_SERVER")
-        default_port = int(os.getenv("VPN_PORT", "0")) or None
+        if not uid or not u_email:
+            raise HTTPException(status_code=400, detail="user_id and email are required")
 
-        # Use custom values or defaults
-        server = server or default_server
-        port = port or default_port
+        # Use XUI Client to ensure user exists
+        vpn_info = xui.create_user(uid, u_email, remark=u_name)
+        
+        # Override server/port if custom ones provided (for config text only)
+        final_server = srv or vpn_info['server']
+        final_port = prt or vpn_info['port']
 
-        # Generate user UUID
-        user_uuid = str(uuid.uuid4())
-
-        # Generate config
         config_text = generate_config_text(
-            user_id, user_uuid=user_uuid, server=server, port=port
+            uid, user_uuid=vpn_info['uuid'], server=final_server, port=final_port
         )
-        vless_link = generate_vless_link(user_uuid=user_uuid, server=server, port=port)
 
         return VPNConfigResponse(
-            user_id=user_id,
-            username=username,
-            vless_link=vless_link,
+            user_id=uid,
+            username=u_name,
+            vless_link=vpn_info['vless_link'],
             config_text=config_text,
         )
     except Exception as e:
         logger.error(f"Error generating VPN config: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/config")
-@limiter.limit("30/minute")
-async def create_vpn_config(
-    request: Request, config_request: VPNConfigRequest
-) -> VPNConfigResponse:
-    """
-    Create VPN configuration for a user.
-
-    Args:
-        request: VPN config request data
-
-    Returns:
-        VPN configuration with VLESS link and detailed instructions
-    """
-    return await get_vpn_config(
-        request=request,
-        user_id=config_request.user_id,
-        username=config_request.username,
-        server=config_request.server,
-        port=config_request.port,
-    )
 
 
 async def _check_vpn_connectivity(server: str, port: int) -> str:
@@ -159,13 +144,19 @@ async def _check_vpn_connectivity(server: str, port: int) -> str:
 
 @cached(ttl=30, key_prefix="vpn_status")
 async def _get_vpn_status_cached() -> Dict[str, Any]:
-    """Get VPN status with caching (30 seconds TTL)."""
-    server = os.getenv("VPN_SERVER", "")
-    port = int(os.getenv("VPN_PORT", "0")) or 0
+    """Get VPN status with real data from x-ui."""
+    server = os.getenv("VPN_SERVER", "89.125.1.107")
+    port = int(os.getenv("VPN_PORT", "39829"))
 
     status = await _check_vpn_connectivity(server, port)
-    active_users = int(os.getenv("VPN_ACTIVE_USERS", "0"))
-    uptime = int(os.getenv("VPN_UPTIME_SECONDS", "0"))
+    active_users = xui.get_active_users_count()
+    
+    # Try to get uptime from system if possible
+    try:
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.readline().split()[0])
+    except:
+        uptime_seconds = 0.0
 
     return {
         "status": status,
@@ -173,7 +164,7 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
         "port": port,
         "protocol": "VLESS+Reality",
         "active_users": active_users,
-        "uptime": uptime,
+        "uptime": uptime_seconds,
     }
 
 
@@ -182,9 +173,6 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
 async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     Get VPN server status.
-
-    Returns:
-        Current VPN server status (cached for 30 seconds)
     """
     try:
         data = await _get_vpn_status_cached()
@@ -197,86 +185,77 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
 VPN_USERS_CACHE_KEY = "vpn:users:list"
 
 
-async def _fetch_vpn_users_from_db(db: Session) -> Dict[str, Any]:
-    """Fetch VPN users from database."""
-    db_users = db.query(User).filter(User.plan != "free").all()
-    users = [
-        {
-            "user_id": u.id,
-            "username": u.email.split("@")[0] if u.email else "unknown",
-            "vless_link": "vless://...",
-            "last_connected": "2024-01-20 10:30:00",
-        }
-        for u in db_users
-    ]
-    return {"total": len(users), "users": users}
+async def _fetch_vpn_users_from_xui() -> Dict[str, Any]:
+    """Fetch all VPN users directly from x-ui database for admin list."""
+    if xui.simulated:
+        users = [
+            {"user_id": 123, "username": "demo", "email": "demo@x0t.net", "vless_link": "vless://..."}
+        ]
+        return {"total": len(users), "users": users}
+
+    import sqlite3
+    import json
+    try:
+        conn = sqlite3.connect(xui.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT email, up, down, total FROM client_traffics")
+        rows = cursor.fetchall()
+        
+        users = []
+        for row in rows:
+            users.append({
+                "email": row["email"],
+                "up": row["up"],
+                "down": row["down"],
+                "total": row["total"]
+            })
+        
+        conn.close()
+        return {"total": len(users), "users": users}
+    except Exception as e:
+        logger.error(f"Failed to fetch users from x-ui: {e}")
+        return {"total": 0, "users": []}
 
 
 @router.get("/users")
 @limiter.limit("10/minute")
 async def get_vpn_users(
-    request: Request, admin=Depends(verify_admin_token), db: Session = Depends(get_db)
+    request: Request, admin=Depends(verify_admin_token)
 ) -> Dict[str, Any]:
     """
-    Get list of active VPN users.
-
-    Returns:
-        List of active VPN users (cached for 60 seconds)
+    Get list of active VPN users from x-ui.
     """
     try:
-        # Try to get from cache first
         cached_result = await cache.get(VPN_USERS_CACHE_KEY)
         if cached_result is not None:
-            logger.debug("VPN users cache hit")
             return cached_result
 
-        # Cache miss - fetch from database
-        logger.debug("VPN users cache miss")
-        result = await _fetch_vpn_users_from_db(db)
-
-        # Cache for 60 seconds
+        result = await _fetch_vpn_users_from_xui()
         await cache.set(VPN_USERS_CACHE_KEY, result, ttl=60)
-
         return result
     except Exception as e:
         logger.error(f"Error getting VPN users: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/user/{user_id}")
+@router.delete("/user")
 @limiter.limit("5/minute")
 async def delete_vpn_user(
     request: Request,
-    user_id: int,
-    admin=Depends(verify_admin_token),
-    db: Session = Depends(get_db),
+    email: str,
+    admin=Depends(verify_admin_token)
 ) -> Dict[str, Any]:
     """
-    Delete VPN user.
-
-    Args:
-        user_id: User ID to delete
-
-    Returns:
-        Confirmation of deletion
+    Delete VPN user by email.
     """
     try:
-        user = db.query(User).filter(User.id == str(user_id)).first()
-        if user:
-            user.plan = "free"  # Downgrade to free
-            db.commit()
-
-            # Invalidate users cache
+        if xui.delete_user(email):
             await cache.delete(VPN_USERS_CACHE_KEY)
-            logger.info(f"Downgraded user {user_id} to free plan, cache invalidated")
-
-            return {
-                "success": True,
-                "message": f"User {user_id} downgraded to free plan",
-            }
+            return {"success": True, "message": f"User {email} removed from VPN"}
         else:
-            return {"success": False, "message": f"User {user_id} not found"}
+            return {"success": False, "message": f"User {email} not found"}
     except Exception as e:
         logger.error(f"Error deleting VPN user: {e}", exc_info=True)
-        db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
