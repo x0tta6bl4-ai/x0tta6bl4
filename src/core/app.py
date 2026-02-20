@@ -179,6 +179,12 @@ _include_maas_router("src.api.maas_policies", "policies")
 _include_maas_router("src.api.maas_telemetry", "telemetry")
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 
+# Edge Computing API (v3.3)
+_include_maas_router("src.edge.api", "edge-computing")
+
+# Event Sourcing API (v3.3)
+_include_maas_router("src.event_sourcing.api", "event-sourcing")
+
 # Add mTLS middleware (security profile + env override)
 security_flags = settings.security_profile()
 testing_mode = (

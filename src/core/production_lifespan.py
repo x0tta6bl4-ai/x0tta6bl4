@@ -14,6 +14,23 @@ from src.monitoring.prometheus_client import PrometheusExporter
 from src.security.zero_trust import ZeroTrustValidator
 from src.swarm.parl.controller import PARLController
 
+# Import Edge Computing and Event Sourcing startup/shutdown hooks
+try:
+    from src.edge.api import edge_startup, edge_shutdown
+    EDGE_MODULE_AVAILABLE = True
+except ImportError:
+    EDGE_MODULE_AVAILABLE = False
+    edge_startup = None
+    edge_shutdown = None
+
+try:
+    from src.event_sourcing.api import event_sourcing_startup, event_sourcing_shutdown
+    EVENT_SOURCING_MODULE_AVAILABLE = True
+except ImportError:
+    EVENT_SOURCING_MODULE_AVAILABLE = False
+    event_sourcing_startup = None
+    event_sourcing_shutdown = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +94,24 @@ class OptimizationEngine:
             )
             logger.info("✅ MAPE-K Loop started in background")
 
+            # 7. Initialize Edge Computing Module
+            if EDGE_MODULE_AVAILABLE and edge_startup:
+                logger.info("🌐 Initializing Edge Computing Module...")
+                try:
+                    await edge_startup()
+                    logger.info("✅ Edge Computing Module initialized")
+                except Exception as e:
+                    logger.warning(f"⚠️ Edge Computing Module initialization failed: {e}")
+
+            # 8. Initialize Event Sourcing Module
+            if EVENT_SOURCING_MODULE_AVAILABLE and event_sourcing_startup:
+                logger.info("📦 Initializing Event Sourcing Module...")
+                try:
+                    await event_sourcing_startup()
+                    logger.info("✅ Event Sourcing Module initialized")
+                except Exception as e:
+                    logger.warning(f"⚠️ Event Sourcing Module initialization failed: {e}")
+
         except Exception as e:
             logger.error(f"❌ Failed to start Intelligence Engine: {e}", exc_info=True)
             # We don't raise here to allow the API to start even if intelligence fails
@@ -84,6 +119,24 @@ class OptimizationEngine:
 
     async def shutdown(self):
         logger.info("🔻 Shutting down Intelligence Engine...")
+
+        # Shutdown Event Sourcing Module first (may have pending writes)
+        if EVENT_SOURCING_MODULE_AVAILABLE and event_sourcing_shutdown:
+            logger.info("📦 Shutting down Event Sourcing Module...")
+            try:
+                await event_sourcing_shutdown()
+                logger.info("✅ Event Sourcing Module shut down")
+            except Exception as e:
+                logger.warning(f"⚠️ Event Sourcing shutdown error: {e}")
+
+        # Shutdown Edge Computing Module
+        if EDGE_MODULE_AVAILABLE and edge_shutdown:
+            logger.info("🌐 Shutting down Edge Computing Module...")
+            try:
+                await edge_shutdown()
+                logger.info("✅ Edge Computing Module shut down")
+            except Exception as e:
+                logger.warning(f"⚠️ Edge Computing shutdown error: {e}")
 
         if self.mape_k_loop:
             await self.mape_k_loop.stop()
