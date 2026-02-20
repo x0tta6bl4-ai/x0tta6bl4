@@ -186,3 +186,42 @@ def test_legacy_plaintext_password_migrates_on_login(client):
         assert user.password_hash.startswith("$2")
     finally:
         db.close()
+
+
+def test_auth_email_normalization_and_case_insensitive_login(client):
+    raw_email = f"  User-{uuid.uuid4().hex}@Test.COM  "
+    password = "password123"
+
+    register = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": raw_email, "password": password},
+    )
+    assert register.status_code == 200
+    api_key = register.json()["access_token"]
+
+    login = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": raw_email.strip().upper(), "password": password},
+    )
+    assert login.status_code == 200
+    assert login.json()["access_token"] == api_key
+
+    me = client.get("/api/v1/maas/auth/me", headers={"X-API-Key": api_key})
+    assert me.status_code == 200
+    assert me.json()["email"] == raw_email.strip().lower()
+
+
+def test_auth_register_rejects_case_insensitive_duplicate_email(client):
+    base_email = f"dup-auth-{uuid.uuid4().hex}@test.com"
+    first = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": base_email.upper(), "password": "password123"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": base_email.lower(), "password": "password123"},
+    )
+    assert second.status_code == 400
+    assert second.json()["detail"] == "Email already registered"

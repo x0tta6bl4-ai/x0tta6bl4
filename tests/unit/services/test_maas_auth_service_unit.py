@@ -63,6 +63,25 @@ def test_register_duplicate_email_raises_400(db_session):
     assert exc.value.status_code == 400
 
 
+def test_register_duplicate_email_is_case_insensitive(db_session):
+    service = MaaSAuthService(
+        api_key_factory=lambda: "dup-ci-key",
+        default_plan="starter",
+    )
+    email = f"dupci-{uuid.uuid4().hex}@test.local"
+    service.register(
+        db_session,
+        UserRegisterRequest(email=email.upper(), password="StrongPassword123!"),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        service.register(
+            db_session,
+            UserRegisterRequest(email=email.lower(), password="StrongPassword123!"),
+        )
+    assert exc.value.status_code == 400
+
+
 def test_login_accepts_legacy_plaintext_and_rehashes(db_session):
     service = MaaSAuthService(
         api_key_factory=lambda: "legacy-key",
@@ -90,6 +109,26 @@ def test_login_accepts_legacy_plaintext_and_rehashes(db_session):
     assert refreshed is not None
     assert refreshed.password_hash != plain_password
     assert refreshed.password_hash.startswith("$2")
+
+
+def test_register_normalizes_email_and_login_is_case_insensitive(db_session):
+    service = MaaSAuthService(
+        api_key_factory=lambda: "case-key",
+        default_plan="starter",
+    )
+    raw_email = f"  User-{uuid.uuid4().hex}@Test.Local  "
+    password = "StrongPassword123!"
+    user = service.register(
+        db_session,
+        UserRegisterRequest(email=raw_email, password=password),
+    )
+    assert user.email == raw_email.strip().lower()
+
+    api_key = service.login(
+        db_session,
+        UserLoginRequest(email=user.email.upper(), password=password),
+    )
+    assert api_key == "case-key"
 
 
 def test_login_invalid_password_raises_401(db_session):
