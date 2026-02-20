@@ -7,6 +7,7 @@ import uuid
 from typing import Callable
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth_models import UserLoginRequest, UserRegisterRequest
@@ -26,13 +27,21 @@ class MaaSAuthService:
         self._api_key_factory = api_key_factory
         self._default_plan = default_plan
 
+    @staticmethod
+    def _normalize_email(email: str) -> str:
+        return (email or "").strip().lower()
+
     def register(self, db: Session, req: UserRegisterRequest) -> User:
-        if db.query(User).filter(User.email == req.email).first():
+        normalized_email = self._normalize_email(req.email)
+        if not normalized_email:
+            raise HTTPException(status_code=400, detail="Email is required")
+
+        if db.query(User).filter(func.lower(User.email) == normalized_email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
 
         user = User(
             id=str(uuid.uuid4()),
-            email=req.email,
+            email=normalized_email,
             password_hash=hash_password(req.password),
             full_name=req.full_name,
             company=req.company,
@@ -46,7 +55,8 @@ class MaaSAuthService:
         return user
 
     def login(self, db: Session, req: UserLoginRequest) -> str:
-        user = db.query(User).filter(User.email == req.email).first()
+        normalized_email = self._normalize_email(req.email)
+        user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
