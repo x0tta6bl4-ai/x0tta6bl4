@@ -22,18 +22,21 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, stored_hash: str) -> Tuple[bool, bool]:
     """
-    Verify password with bcrypt and support legacy plaintext fallback.
+    Verify password with bcrypt.
 
     Returns:
         (is_valid, should_rehash)
+
+    Note: plaintext fallback removed — all passwords must be bcrypt hashes.
+    Accounts with non-bcrypt hashes (e.g. OIDC sentinel) will fail verification,
+    which is the correct and secure behaviour.
     """
+    if not stored_hash.startswith("$2"):
+        # Not a bcrypt hash (could be OIDC sentinel "OIDC_USER" or legacy plaintext).
+        # Reject unconditionally — do not accept plaintext credentials.
+        return False, False
     try:
         is_valid = bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
         return is_valid, False
-    except ValueError:
-        # Legacy rows could contain plaintext password (historical behavior).
-        if isinstance(stored_hash, str) and secrets.compare_digest(password, stored_hash):
-            return True, True
-        return False, False
     except Exception:
         return False, False

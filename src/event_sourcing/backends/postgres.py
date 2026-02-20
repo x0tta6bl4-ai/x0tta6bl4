@@ -10,6 +10,7 @@ Provides ACID-compliant persistent storage using PostgreSQL with:
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -95,7 +96,21 @@ class PostgresEventStore(DatabaseBackend):
                 setattr(self.config, key, value)
         
         self._pool: Optional["asyncpg.Pool"] = None
-        self._schema = self.config.schema
+        self._schema = self._validate_schema_name(self.config.schema)
+
+    @staticmethod
+    def _validate_schema_name(name: str) -> str:
+        """Validate and return schema name; raise ValueError for unsafe values."""
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", name):
+            raise ValueError(
+                f"Invalid schema name {name!r}: must match [a-z][a-z0-9_]{{0,62}}"
+            )
+        return name
+
+    @property
+    def _q(self) -> str:
+        """Return double-quoted schema name safe for SQL identifier use."""
+        return f'"{self._schema}"'
     
     async def connect(self) -> None:
         """Establish connection pool to PostgreSQL."""
@@ -139,11 +154,11 @@ class PostgresEventStore(DatabaseBackend):
         """Ensure database schema exists."""
         async with self._pool.acquire() as conn:
             # Create schema if not exists
-            await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self._schema}")
+            await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self._q}")
             
             # Create events table
             await conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self._schema}.events (
+                CREATE TABLE IF NOT EXISTS {self._q}.events (
                     event_id VARCHAR(36) PRIMARY KEY,
                     aggregate_id VARCHAR(255) NOT NULL,
                     aggregate_type VARCHAR(255),
@@ -160,7 +175,7 @@ class PostgresEventStore(DatabaseBackend):
             
             # Create streams table
             await conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self._schema}.streams (
+                CREATE TABLE IF NOT EXISTS {self._q}.streams (
                     aggregate_id VARCHAR(255) PRIMARY KEY,
                     aggregate_type VARCHAR(255),
                     version BIGINT NOT NULL DEFAULT 0,
@@ -171,7 +186,7 @@ class PostgresEventStore(DatabaseBackend):
             
             # Create snapshots table
             await conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self._schema}.snapshots (
+                CREATE TABLE IF NOT EXISTS {self._q}.snapshots (
                     snapshot_id VARCHAR(36) PRIMARY KEY,
                     aggregate_id VARCHAR(255) NOT NULL,
                     aggregate_type VARCHAR(255),
@@ -188,31 +203,31 @@ class PostgresEventStore(DatabaseBackend):
             # Create indexes
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_aggregate_id 
-                ON {self._schema}.events (aggregate_id)
+                ON {self._q}.events (aggregate_id)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_event_type 
-                ON {self._schema}.events (event_type)
+                ON {self._q}.events (event_type)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_timestamp 
-                ON {self._schema}.events (timestamp)
+                ON {self._q}.events (timestamp)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_aggregate_type 
-                ON {self._schema}.events (aggregate_type)
+                ON {self._q}.events (aggregate_type)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_data 
-                ON {self._schema}.events USING GIN (data)
+                ON {self._q}.events USING GIN (data)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_events_metadata 
-                ON {self._schema}.events USING GIN (metadata)
+                ON {self._q}.events USING GIN (metadata)
             """)
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_snapshots_aggregate_id 
-                ON {self._schema}.snapshots (aggregate_id)
+                ON {self._q}.snapshots (aggregate_id)
             """)
             
             logger.debug(f"Schema {self._schema} ensured")
@@ -276,7 +291,7 @@ class PostgresEventStore(DatabaseBackend):
             async with conn.transaction():
                 # Get current version with lock
                 current_version = await conn.fetchval(
-                    f"SELECT version FROM {self._schema}.streams "
+                    f"SELECT version FROM {self._q}.streams "
                     f"WHERE aggregate_id = $1 FOR UPDATE",
                     aggregate_id
                 )
@@ -285,7 +300,7 @@ class PostgresEventStore(DatabaseBackend):
                     current_version = 0
                     # Create stream
                     await conn.execute(
-                        f"INSERT INTO {self._schema}.streams "
+                        f"INSERT INTO {self._q}.streams "
                         f"(aggregate_id, version, created_at, updated_at) "
                         f"VALUES ($1, 0, NOW(), NOW())",
                         aggregate_id
@@ -306,7 +321,7 @@ class PostgresEventStore(DatabaseBackend):
                     
                     await conn.execute(
                         f"""
-                        INSERT INTO {self._schema}.events 
+                        INSERT INTO {self._q}.events 
                         (event_id, aggregate_id, aggregate_type, event_type, 
                          sequence_number, data, metadata, timestamp)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -323,7 +338,7 @@ class PostgresEventStore(DatabaseBackend):
                 
                 # Update stream version
                 await conn.execute(
-                    f"UPDATE {self._schema}.streams "
+                    f"UPDATE {self._q}.streams "
                     f"SET version = $1, updated_at = NOW() "
                     f"WHERE aggregate_id = $2",
                     next_version,
@@ -346,7 +361,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT event_id, aggregate_id, aggregate_type, event_type,
                            sequence_number, data, metadata, timestamp
-                    FROM {self._schema}.events
+                    FROM {self._q}.events
                     WHERE aggregate_id = $1 
                       AND sequence_number > $2 
                       AND sequence_number <= $3
@@ -360,7 +375,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT event_id, aggregate_id, aggregate_type, event_type,
                            sequence_number, data, metadata, timestamp
-                    FROM {self._schema}.events
+                    FROM {self._q}.events
                     WHERE aggregate_id = $1 AND sequence_number > $2
                     ORDER BY sequence_number
                     LIMIT $3
@@ -383,7 +398,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT event_id, aggregate_id, aggregate_type, event_type,
                            sequence_number, data, metadata, timestamp
-                    FROM {self._schema}.events
+                    FROM {self._q}.events
                     WHERE event_type = ANY($1)
                     ORDER BY timestamp, sequence_number
                     OFFSET $2 LIMIT $3
@@ -395,7 +410,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT event_id, aggregate_id, aggregate_type, event_type,
                            sequence_number, data, metadata, timestamp
-                    FROM {self._schema}.events
+                    FROM {self._q}.events
                     ORDER BY timestamp, sequence_number
                     OFFSET $1 LIMIT $2
                     """,
@@ -433,7 +448,7 @@ class PostgresEventStore(DatabaseBackend):
                 f"""
                 SELECT event_id, aggregate_id, aggregate_type, event_type,
                        sequence_number, data, metadata, timestamp
-                FROM {self._schema}.events
+                FROM {self._q}.events
                 WHERE {' AND '.join(conditions)}
                 ORDER BY timestamp, sequence_number
                 LIMIT ${param_idx}
@@ -453,7 +468,7 @@ class PostgresEventStore(DatabaseBackend):
                 f"""
                 SELECT event_id, aggregate_id, aggregate_type, event_type,
                        sequence_number, data, metadata, timestamp
-                FROM {self._schema}.events
+                FROM {self._q}.events
                 WHERE metadata->>'correlation_id' = $1
                 ORDER BY timestamp, sequence_number
                 """,
@@ -497,9 +512,9 @@ class PostgresEventStore(DatabaseBackend):
                 f"""
                 SELECT s.aggregate_id, s.aggregate_type, s.version, 
                        s.created_at, s.updated_at,
-                       (SELECT COUNT(*) FROM {self._schema}.events e 
+                       (SELECT COUNT(*) FROM {self._q}.events e 
                         WHERE e.aggregate_id = s.aggregate_id) as event_count
-                FROM {self._schema}.streams s
+                FROM {self._q}.streams s
                 {where_clause}
                 ORDER BY s.aggregate_id
                 LIMIT ${param_idx} OFFSET ${param_idx + 1}
@@ -523,7 +538,7 @@ class PostgresEventStore(DatabaseBackend):
         """Get current stream version."""
         async with self._pool.acquire() as conn:
             version = await conn.fetchval(
-                f"SELECT version FROM {self._schema}.streams WHERE aggregate_id = $1",
+                f"SELECT version FROM {self._q}.streams WHERE aggregate_id = $1",
                 aggregate_id
             )
             return version or 0
@@ -532,7 +547,7 @@ class PostgresEventStore(DatabaseBackend):
         """Check if stream exists."""
         async with self._pool.acquire() as conn:
             exists = await conn.fetchval(
-                f"SELECT EXISTS(SELECT 1 FROM {self._schema}.streams WHERE aggregate_id = $1)",
+                f"SELECT EXISTS(SELECT 1 FROM {self._q}.streams WHERE aggregate_id = $1)",
                 aggregate_id
             )
             return exists
@@ -542,15 +557,15 @@ class PostgresEventStore(DatabaseBackend):
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(
-                    f"DELETE FROM {self._schema}.events WHERE aggregate_id = $1",
+                    f"DELETE FROM {self._q}.events WHERE aggregate_id = $1",
                     aggregate_id
                 )
                 await conn.execute(
-                    f"DELETE FROM {self._schema}.snapshots WHERE aggregate_id = $1",
+                    f"DELETE FROM {self._q}.snapshots WHERE aggregate_id = $1",
                     aggregate_id
                 )
                 await conn.execute(
-                    f"DELETE FROM {self._schema}.streams WHERE aggregate_id = $1",
+                    f"DELETE FROM {self._q}.streams WHERE aggregate_id = $1",
                     aggregate_id
                 )
     
@@ -563,7 +578,7 @@ class PostgresEventStore(DatabaseBackend):
         async with self._pool.acquire() as conn:
             await conn.execute(
                 f"""
-                INSERT INTO {self._schema}.snapshots 
+                INSERT INTO {self._q}.snapshots 
                 (snapshot_id, aggregate_id, aggregate_type, sequence_number, state, timestamp)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (aggregate_id, sequence_number) 
@@ -589,7 +604,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT snapshot_id, aggregate_id, aggregate_type, 
                            sequence_number, state, timestamp
-                    FROM {self._schema}.snapshots
+                    FROM {self._q}.snapshots
                     WHERE aggregate_id = $1 AND sequence_number <= $2
                     ORDER BY sequence_number DESC
                     LIMIT 1
@@ -601,7 +616,7 @@ class PostgresEventStore(DatabaseBackend):
                     f"""
                     SELECT snapshot_id, aggregate_id, aggregate_type, 
                            sequence_number, state, timestamp
-                    FROM {self._schema}.snapshots
+                    FROM {self._q}.snapshots
                     WHERE aggregate_id = $1
                     ORDER BY sequence_number DESC
                     LIMIT 1
@@ -624,7 +639,7 @@ class PostgresEventStore(DatabaseBackend):
         """Delete all snapshots for an aggregate."""
         async with self._pool.acquire() as conn:
             await conn.execute(
-                f"DELETE FROM {self._schema}.snapshots WHERE aggregate_id = $1",
+                f"DELETE FROM {self._q}.snapshots WHERE aggregate_id = $1",
                 aggregate_id
             )
     
@@ -639,24 +654,24 @@ class PostgresEventStore(DatabaseBackend):
             
             # Event counts
             stats["total_events"] = await conn.fetchval(
-                f"SELECT COUNT(*) FROM {self._schema}.events"
+                f"SELECT COUNT(*) FROM {self._q}.events"
             )
             
             # Stream counts
             stats["total_streams"] = await conn.fetchval(
-                f"SELECT COUNT(*) FROM {self._schema}.streams"
+                f"SELECT COUNT(*) FROM {self._q}.streams"
             )
             
             # Snapshot counts
             stats["total_snapshots"] = await conn.fetchval(
-                f"SELECT COUNT(*) FROM {self._schema}.snapshots"
+                f"SELECT COUNT(*) FROM {self._q}.snapshots"
             )
             
             # Event types
             type_rows = await conn.fetch(
                 f"""
                 SELECT event_type, COUNT(*) as count
-                FROM {self._schema}.events
+                FROM {self._q}.events
                 GROUP BY event_type
                 ORDER BY count DESC
                 LIMIT 20
@@ -668,7 +683,7 @@ class PostgresEventStore(DatabaseBackend):
             agg_rows = await conn.fetch(
                 f"""
                 SELECT aggregate_type, COUNT(*) as count
-                FROM {self._schema}.streams
+                FROM {self._q}.streams
                 WHERE aggregate_type IS NOT NULL
                 GROUP BY aggregate_type
                 ORDER BY count DESC
@@ -684,7 +699,7 @@ class PostgresEventStore(DatabaseBackend):
             
             # Table sizes
             stats["events_table_size"] = await conn.fetchval(
-                f"SELECT pg_size_pretty(pg_total_relation_size('{self._schema}.events'))"
+                f"SELECT pg_size_pretty(pg_total_relation_size('{self._q}.events'))"
             )
             
             return stats
@@ -697,7 +712,7 @@ class PostgresEventStore(DatabaseBackend):
         """Truncate events from a stream."""
         async with self._pool.acquire() as conn:
             result = await conn.execute(
-                f"DELETE FROM {self._schema}.events "
+                f"DELETE FROM {self._q}.events "
                 f"WHERE aggregate_id = $1 AND sequence_number >= $2",
                 aggregate_id, from_sequence
             )
@@ -709,12 +724,12 @@ class PostgresEventStore(DatabaseBackend):
             new_version = from_sequence - 1
             if new_version <= 0:
                 await conn.execute(
-                    f"DELETE FROM {self._schema}.streams WHERE aggregate_id = $1",
+                    f"DELETE FROM {self._q}.streams WHERE aggregate_id = $1",
                     aggregate_id
                 )
             else:
                 await conn.execute(
-                    f"UPDATE {self._schema}.streams SET version = $1, updated_at = NOW() "
+                    f"UPDATE {self._q}.streams SET version = $1, updated_at = NOW() "
                     f"WHERE aggregate_id = $2",
                     new_version, aggregate_id
                 )
