@@ -35,6 +35,7 @@ func main() {
 	configPath := flag.String("config", config.DefaultConfigPath, "path to config file")
 	token := flag.String("token", "", "mesh join token")
 	apiURL := flag.String("api-url", "", "control plane API URL")
+	port := flag.Int("port", 0, "listen port (0 to use config default)")
 	logLevel := flag.String("log-level", "", "log level (debug/info/warn/error)")
 	showVersion := flag.Bool("version", false, "show version and exit")
 	flag.Parse()
@@ -57,6 +58,9 @@ func main() {
 	}
 	if *apiURL != "" {
 		cfg.APIEndpoint = *apiURL
+	}
+	if *port > 0 {
+		cfg.ListenPort = *port
 	}
 	if *logLevel != "" {
 		cfg.LogLevel = *logLevel

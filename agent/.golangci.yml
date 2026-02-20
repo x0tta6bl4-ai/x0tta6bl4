@@ -1,0 +1,24 @@
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gofmt
+
+issues:
+  exclude-use-default: true
+  max-issues-per-linter: 50
+  max-same-issues: 5
+
+linters-settings:
+  misspell:
+    locale: US
+  gofmt:
+    simplify: true
