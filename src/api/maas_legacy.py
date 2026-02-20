@@ -709,7 +709,7 @@ class AuthService:
     def __init__(self):
         self._shared = MaaSAuthService(
             api_key_factory=lambda: secrets.token_urlsafe(32),
-            default_plan="free",
+            default_plan="starter",
         )
 
     def register(self, db: Session, req: UserRegisterRequest) -> User:
