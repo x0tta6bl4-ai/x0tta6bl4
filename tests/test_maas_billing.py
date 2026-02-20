@@ -19,7 +19,7 @@ def _set_db_user(user):
 
 def test_deploy_mesh_success():
     api_key = "valid-key-1234567"
-    _set_db_user(User(id="u1", api_key=api_key, plan="pro"))
+    _set_db_user(User(id="u1", api_key=api_key, plan="pro", role="user"))
 
     response = client.post(
         "/api/v1/maas/deploy",
@@ -40,7 +40,7 @@ def test_deploy_mesh_success():
 
 def test_deploy_mesh_quota_exceeded():
     api_key = "starter-key-12345"
-    _set_db_user(User(id="u1", api_key=api_key, plan="starter"))
+    _set_db_user(User(id="u1", api_key=api_key, plan="starter", role="user"))
 
     response = client.post(
         "/api/v1/maas/deploy",
@@ -74,7 +74,7 @@ def test_deploy_mesh_invalid_key():
 
 def test_deploy_mesh_plan_escalation_blocked():
     api_key = "starter-key-12345"
-    _set_db_user(User(id="u1", api_key=api_key, plan="starter"))
+    _set_db_user(User(id="u1", api_key=api_key, plan="starter", role="user"))
 
     response = client.post(
         "/api/v1/maas/deploy",
