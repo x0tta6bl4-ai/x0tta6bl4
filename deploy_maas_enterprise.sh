@@ -1,57 +1,80 @@
-#!/bin/bash
-# deploy_maas_enterprise.sh — x0tta6bl4 Production Deployment
-# Using VENV on secondary disk for maximum stability and space.
+#!/usr/bin/env bash
+# deploy_maas_enterprise.sh — production-safe launcher for MaaS Enterprise.
 
-set -e
+set -Eeuo pipefail
 
-PROJECT_ROOT="/mnt/projects"
-VENV_PATH="$PROJECT_ROOT/venv"
+PROJECT_ROOT="${PROJECT_ROOT:-/mnt/projects}"
+VENV_PATH="${VENV_PATH:-$PROJECT_ROOT/venv}"
+APP_MODULE="${APP_MODULE:-src.core.app:app}"
+HOST="${HOST:-0.0.0.0}"
+PORT="${PORT:-8000}"
+WORKERS="${WORKERS:-4}"
+LIMIT_CONCURRENCY="${LIMIT_CONCURRENCY:-1000}"
+KEEP_ALIVE_TIMEOUT="${KEEP_ALIVE_TIMEOUT:-60}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
+MIN_FREE_RAM_MB="${MIN_FREE_RAM_MB:-500}"
 
-# --- 1. Resource Pre-flight Check ---
-FREE_RAM=$(free -m | awk '/^Память:/{print $7}' || free -m | awk '/^Mem:/{print $7}')
-echo "📊 Checking system resources..."
-echo "Available RAM: ${FREE_RAM}MB"
+require_env() {
+    local name="$1"
+    if [ -z "${!name:-}" ]; then
+        echo "❌ Required environment variable is missing: $name" >&2
+        exit 1
+    fi
+}
 
-if [ "$FREE_RAM" -lt 500 ]; then
-    echo "❌ CRITICAL: Not enough free memory (< 500MB). Aborting."
+detect_free_ram_mb() {
+    local value
+    value="$(free -m | awk '/^Mem:/ {print $7; exit}')"
+    if [ -z "${value:-}" ]; then
+        value="$(free -m | awk '/^Память:/ {print $7; exit}')"
+    fi
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        value=0
+    fi
+    printf '%s\n' "$value"
+}
+
+if [ ! -f "$VENV_PATH/bin/activate" ]; then
+    echo "❌ Python virtualenv not found: $VENV_PATH" >&2
+    echo "Create it first: python3 -m venv \"$VENV_PATH\"" >&2
     exit 1
 fi
 
-DISK_SPACE=$(df -h $PROJECT_ROOT | tail -1 | awk '{print $4}')
-echo "Free space on $PROJECT_ROOT: $DISK_SPACE"
-
-# --- 2. Virtual Environment ---
-if [ ! -d "$VENV_PATH" ]; then
-    echo "创建 Virtual environment at $VENV_PATH..."
-    python3 -m venv "$VENV_PATH"
+FREE_RAM_MB="$(detect_free_ram_mb)"
+echo "📊 Free RAM: ${FREE_RAM_MB}MB"
+if [ "$FREE_RAM_MB" -lt "$MIN_FREE_RAM_MB" ]; then
+    echo "❌ Not enough free RAM: ${FREE_RAM_MB}MB < ${MIN_FREE_RAM_MB}MB" >&2
+    exit 1
 fi
 
-echo "🔌 Activating virtual environment..."
 source "$VENV_PATH/bin/activate"
+cd "$PROJECT_ROOT"
 
-# --- 3. Dependency Install ---
-echo "📦 Installing/Updating dependencies..."
-pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
-pip install --quiet stripe authlib uvicorn
+export PYTHONPATH="$PROJECT_ROOT"
+export ENVIRONMENT="${ENVIRONMENT:-production}"
+export DATABASE_URL="${DATABASE_URL:-sqlite:///$PROJECT_ROOT/x0tta6bl4_enterprise.db}"
+export APP_DOMAIN="${APP_DOMAIN:-https://app.x0tta6bl4.net}"
+export MAAS_LIGHT_MODE="${MAAS_LIGHT_MODE:-false}"
 
-# --- 4. Environment Setup ---
-echo "⚙️ Setting up environment..."
-export DATABASE_URL="sqlite:///$PROJECT_ROOT/x0tta6bl4_enterprise.db"
-export ADMIN_TOKEN=${ADMIN_TOKEN:-"$(openssl rand -hex 16)"}
-export APP_DOMAIN="https://app.x0tta6bl4.net"
+# Always require admin token because protected endpoints and middleware depend on it.
+require_env ADMIN_TOKEN
 
-# --- 5. Database Init ---
-echo "💾 Initializing Enterprise Database..."
-python3 init_db.py
+# Strict secret requirements for production startup.
+if [ "$ENVIRONMENT" = "production" ]; then
+    require_env FLASK_SECRET_KEY
+    require_env JWT_SECRET_KEY
+    require_env CSRF_SECRET_KEY
+    require_env OPERATOR_PRIVATE_KEY
+fi
 
-# --- 6. Launch ---
-echo "✅ Deployment successful."
-echo "Admin Token for this session: $ADMIN_TOKEN"
-echo "Starting MaaS Enterprise Server on port 8000..."
+echo "🚀 Launching MaaS Enterprise..."
+echo "Environment: $ENVIRONMENT"
+echo "DB: $DATABASE_URL"
 
-exec uvicorn src.core.app:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --workers 4 \
-    --limit-concurrency 1000
+exec uvicorn "$APP_MODULE" \
+    --host "$HOST" \
+    --port "$PORT" \
+    --workers "$WORKERS" \
+    --timeout-keep-alive "$KEEP_ALIVE_TIMEOUT" \
+    --limit-concurrency "$LIMIT_CONCURRENCY" \
+    --log-level "$LOG_LEVEL"
