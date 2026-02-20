@@ -24,14 +24,12 @@ logger = logging.getLogger(__name__)
 class PQCSessionAnomaly:
     """Represents a PQC session or identity anomaly"""
 
-    session_id: Optional[str] = None
-    identity_id: Optional[str] = None
-    anomaly_type: (
-        str  # 'expired', 'failed_verification', 'no_session', 'high_failure_rate', 'identity_tamper'
-    )
+    anomaly_type: str  # 'expired', 'failed_verification', 'no_session', 'high_failure_rate', 'identity_tamper'
     severity: str  # 'low', 'medium', 'high', 'critical'
     description: str
     timestamp: datetime
+    session_id: Optional[str] = None
+    identity_id: Optional[str] = None
     peer_id: Optional[str] = None
     failure_count: int = 0
 

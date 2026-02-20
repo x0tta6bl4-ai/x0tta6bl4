@@ -56,7 +56,7 @@ class KnowledgeStorageV2:
 
     def __init__(
         self,
-        node_id: str,
+        node_id: str = "default",
         storage_path: Path = Path("/var/lib/x0tta6bl4"),
         ipfs_client: Optional[IPFSClient] = None,
         use_real_ipfs: bool = True,

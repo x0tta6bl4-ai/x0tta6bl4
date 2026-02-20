@@ -171,6 +171,10 @@ class MeshRouter:
     def set_send_callback(self, callback: Callable[[RoutingPacket, str], None]):
         """Set callback for sending packets to neighbors."""
         self._send_packet = callback
+
+    def set_receive_callback(self, callback: Callable[[str, bytes], None]):
+        """Set callback for received data packets (source, payload)."""
+        self._receive_data = callback
     
     # === Public API ===
     
