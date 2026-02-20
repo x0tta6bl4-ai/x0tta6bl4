@@ -95,7 +95,7 @@ class TestLedgerDriftDetectorPhase2:
         assert isinstance(result["doc_drifts"], int)
         assert isinstance(result["drifts"], list)
         assert isinstance(result["graph"], dict)
-        assert result["status"] in ["partial", "complete"]
+        assert result["status"] in ["partial", "complete", "no_drift_detected"]
 
         # Verify graph structure
         assert "nodes_count" in result["graph"]

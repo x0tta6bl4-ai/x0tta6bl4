@@ -286,6 +286,27 @@ class TokenBridge:
     # Address Mapping (node_id ↔ eth_address)
     # ─────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _normalize_address(eth_address: Any) -> str:
+        """Normalize addresses for stable matching in both real and mocked Web3."""
+        address = str(eth_address).strip()
+        if not address.startswith(("0x", "0X")):
+            address = f"0x{address}"
+        return address.lower()
+
+    @staticmethod
+    def _checksum_address_or_none(eth_address: str) -> Optional[str]:
+        """Return checksum address only when Web3 conversion returns a valid string."""
+        if not WEB3_AVAILABLE:
+            return None
+        try:
+            converted = Web3.to_checksum_address(eth_address)
+        except Exception:
+            return None
+        if isinstance(converted, str) and converted.startswith("0x"):
+            return converted
+        return None
+
     def register_address(self, node_id: str, eth_address: str):
         """
         Register mapping between mesh node_id and Ethereum address.
@@ -294,15 +315,13 @@ class TokenBridge:
             node_id: Mesh network node identifier
             eth_address: Ethereum address (0x...)
         """
-        if WEB3_AVAILABLE:
-            eth_address = Web3.to_checksum_address(eth_address)
-        else:
-            # Simple checksum without web3
-            eth_address = (
-                eth_address if eth_address.startswith("0x") else f"0x{eth_address}"
-            )
-        self._address_mapping[node_id] = eth_address
-        logger.info(f"Registered: {node_id} → {eth_address}")
+        normalized = str(eth_address).strip()
+        if not normalized.startswith(("0x", "0X")):
+            normalized = f"0x{normalized}"
+        self._address_mapping[node_id] = (
+            self._checksum_address_or_none(normalized) or normalized
+        )
+        logger.info(f"Registered: {node_id} → {self._address_mapping[node_id]}")
 
     def get_eth_address(self, node_id: str) -> Optional[str]:
         """Get Ethereum address for node_id."""
@@ -310,17 +329,9 @@ class TokenBridge:
 
     def get_node_id(self, eth_address: str) -> Optional[str]:
         """Get node_id for Ethereum address."""
-        if WEB3_AVAILABLE:
-            eth_address = Web3.to_checksum_address(eth_address)
-        else:
-            eth_address = (
-                eth_address if eth_address.startswith("0x") else f"0x{eth_address}"
-            )
-
-        # Case-insensitive comparison for addresses without web3
-        eth_address_lower = eth_address.lower()
+        eth_address_lower = self._normalize_address(eth_address)
         for node_id, addr in self._address_mapping.items():
-            if addr.lower() == eth_address_lower:
+            if self._normalize_address(addr) == eth_address_lower:
                 return node_id
         return None
 
