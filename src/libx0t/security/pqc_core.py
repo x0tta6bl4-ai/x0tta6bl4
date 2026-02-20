@@ -1,9 +1,20 @@
 """
-Post-Quantum Cryptography Core
+Post-Quantum Cryptography Core.
 
-ML-KEM-768 (key encapsulation) and ML-DSA-65 (digital signatures)
-for quantum-resistant security.
+.. deprecated::
+    Import from src.security.pqc instead::
+
+        from src.security.pqc import PQCKeyExchange, PQCDigitalSignature
+
+    This module remains the implementation but should not be imported directly.
 """
+import warnings as _warnings
+_warnings.warn(
+    "Importing from src.libx0t.security.pqc_core is deprecated. "
+    "Use 'from src.security.pqc import ...' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import hashlib
 import logging

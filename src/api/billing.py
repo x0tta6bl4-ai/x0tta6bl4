@@ -193,61 +193,86 @@ async def stripe_webhook(
         "customer.subscription.created",
     }:
         try:
-            from src.sales.telegram_bot import TokenGenerator
+            from src.services.provisioning_service import (
+                ProvisioningSource,
+                provisioning_service,
+            )
 
-            # Update database using injected session
+            # Update Stripe metadata in DB
             db_user = db.query(User).filter(User.email == email).first()
             if not db_user:
-                # Create user if not exists (e.g. direct buy)
                 db_user = User(
                     id=str(uuid.uuid4()),
                     email=email,
-                    password_hash="stripe_managed",  # Placeholder
+                    password_hash="stripe_managed",
                     created_at=datetime.datetime.utcnow(),
                 )
                 db.add(db_user)
                 db.commit()
 
-            if db_user:
-                db_user.plan = "pro"
-                db_user.stripe_customer_id = obj.get("customer")
-                db_user.stripe_subscription_id = obj.get("subscription") or obj.get(
-                    "id"
-                )
+            db_user.plan = "pro"
+            db_user.stripe_customer_id = obj.get("customer")
+            db_user.stripe_subscription_id = obj.get("subscription") or obj.get("id")
+            db.commit()
 
-                # Generate VPN UUID if missing
-                if not db_user.vpn_uuid:
-                    db_user.vpn_uuid = str(uuid.uuid4())
+            # Generate license (legacy support)
+            try:
+                from src.sales.telegram_bot import TokenGenerator
 
-                # Generate license for pro plan (legacy)
                 license_token = TokenGenerator.generate(tier="pro")
                 new_license = License(
                     token=license_token, user_id=db_user.id, tier="pro", is_active=True
                 )
                 db.add(new_license)
                 db.commit()
-                db.refresh(db_user)
-
                 logger.info(f"Generated pro license {license_token} for user {email}")
+            except Exception as lic_err:
+                logger.warning(f"License generation skipped: {lic_err}")
 
-                # Update Xray Config
-                if XrayManager:
-                    await XrayManager.add_user(db_user.vpn_uuid, email)
+            # Unified VPN provisioning
+            result = await provisioning_service.provision_vpn_user(
+                email=email,
+                plan="pro",
+                source=ProvisioningSource.STRIPE_WEBHOOK,
+                user_id=db_user.id,
+            )
 
-                # TRIGGER PROVISIONING (Phase 3)
-                try:
-                    # Default provisioning for new Pro users
-                    mesh_id = mesh_provisioner.create(
-                        name=f"auto-mesh-{db_user.id[:8]}",
-                        nodes=5, # Default for Pro
-                        pqc_enabled=True
-                    )
-                    logger.info(f"Auto-provisioned mesh {mesh_id} for user {email}")
-                except Exception as ex:
-                    logger.error(f"Failed to auto-provision mesh for {email}: {ex}")
+            if result.success:
+                db_user.vpn_uuid = result.vpn_uuid
+                db.commit()
+                logger.info(f"VPN provisioned for {email}: {result.vpn_uuid[:8]}...")
+            else:
+                logger.error(f"VPN provisioning failed for {email}: {result.error}")
+
+            # Mesh provisioning (Phase 3)
+            try:
+                instance = await mesh_provisioner.create(
+                    name=f"auto-mesh-{db_user.id[:8]}",
+                    nodes=5,
+                    owner_id=db_user.id,
+                    pqc_enabled=True,
+                )
+                logger.info(f"Auto-provisioned mesh {instance.mesh_id} for user {email}")
+            except Exception as ex:
+                logger.error(f"Failed to auto-provision mesh for {email}: {ex}")
 
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
+            db.rollback()
+
+    # Handle subscription cancellation
+    elif email and event_type == "customer.subscription.deleted":
+        try:
+            from src.services.provisioning_service import provisioning_service
+
+            revoked = await provisioning_service.revoke_vpn_user(email)
+            db_user = db.query(User).filter(User.email == email).first()
+            if db_user:
+                db_user.plan = "canceled"
+                db.commit()
+            logger.info(f"Subscription revoked for {email}, vpn_revoked={revoked}")
+        except Exception as e:
+            logger.error(f"Revocation failed for {email}: {e}")
             db.rollback()
 
     return {"received": True}

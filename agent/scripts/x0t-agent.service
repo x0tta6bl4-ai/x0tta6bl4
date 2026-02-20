@@ -1,0 +1,31 @@
+[Unit]
+Description=x0tta6bl4 Mesh Agent (Data Plane)
+Documentation=https://docs.x0tta6bl4.io/agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/x0t-agent --config /etc/x0t/agent.yaml
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/x0t /etc/x0t
+PrivateTmp=true
+
+# Resource limits
+MemoryMax=128M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=x0t-agent
+
+[Install]
+WantedBy=multi-user.target

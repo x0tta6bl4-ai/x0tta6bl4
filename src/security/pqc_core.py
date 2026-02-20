@@ -1,9 +1,23 @@
 """
-Shim for backward compatibility. 
-The core PQC logic has been moved to libx0t.security.pqc_core.
-"""
-from src.libx0t.security.pqc_core import *
-import logging
+DEPRECATED shim. Use src.security.pqc instead.
 
-logger = logging.getLogger(__name__)
-logger.warning("DEPRECATED: src.security.pqc_core is moved to libx0t.security.pqc_core. Please update your imports.")
+    # Old
+    from src.security.pqc_core import PQCKeyExchange, PQCDigitalSignature
+    # New
+    from src.security.pqc import PQCKeyExchange, PQCDigitalSignature
+"""
+from src.security.pqc import (  # noqa: F401
+    PQCKeyExchange,
+    PQCDigitalSignature,
+    PQCHybridScheme,
+    PQCAdapter,
+    PQCAlgorithm,
+    PQCKeyPair,
+    PQCSignature,
+    LIBOQS_AVAILABLE,
+    is_liboqs_available,
+    get_pqc_key_exchange,
+    get_pqc_digital_signature,
+    get_pqc_hybrid,
+    test_pqc_availability,
+)

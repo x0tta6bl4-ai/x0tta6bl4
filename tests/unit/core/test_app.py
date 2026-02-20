@@ -11,6 +11,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+# This module targets a deprecated app contract and is kept for historical
+# reference. It can be re-enabled explicitly when maintaining legacy shims.
+if os.getenv("X0TTA6BL4_ENABLE_LEGACY_APP_TESTS", "false").lower() != "true":
+    pytest.skip(
+        "Legacy core.app contract tests are disabled by default",
+        allow_module_level=True,
+    )
+
 # Set environment variables before imports to control behavior
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

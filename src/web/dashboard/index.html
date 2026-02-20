@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 MaaS Console</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="cybersyn-theme">
+    <header class="top-bar">
+        <div class="logo">x0tta6bl4 <span class="sub">MaaS Control</span></div>
+        <div class="system-status">
+            <span class="label">Mesh Identity:</span> <span id="mesh-id" class="value">mesh-001</span>
+            <span class="label">State:</span> <span id="system-state" class="value glow">FLOW</span>
+        </div>
+        <div class="user-info">
+            <span id="user-email">admin@test.com</span>
+            <button id="logout-btn">DISCONNECT</button>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <section class="panel topology-view">
+            <div class="panel-header">LIVE TOPOLOGY (STIGMERGY MAP)</div>
+            <div class="panel-body canvas-container">
+                <svg id="topology-map" viewBox="0 0 800 600">
+                    <!-- Dynamic nodes and links here -->
+                </svg>
+            </div>
+        </section>
+
+        <aside class="sidebar">
+            <section class="panel approval-queue">
+                <div class="panel-header">PENDING APPROVAL (ZERO-TRUST)</div>
+                <div class="panel-body" id="pending-list">
+                    <!-- Registration requests here -->
+                    <div class="empty-state">No pending requests</div>
+                </div>
+            </section>
+
+            <section class="panel node-stats">
+                <div class="panel-header">NODE TELEMETRY</div>
+                <div class="panel-body" id="node-telemetry-details">
+                    <div class="placeholder">Select a node to view details</div>
+                </div>
+            </section>
+        </aside>
+    </main>
+
+    <footer class="status-bar">
+        <div class="metric">Nodes: <span id="count-total">0</span></div>
+        <div class="metric">Healthy: <span id="count-healthy" class="success">0</span></div>
+        <div class="metric">MTTR: <span class="success">&lt; 1s</span></div>
+        <div class="metric">PQC: <span class="success">ENABLED</span></div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
