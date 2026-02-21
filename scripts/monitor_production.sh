@@ -6,6 +6,7 @@ set -euo pipefail
 
 VPS_IP="${1:-89.125.1.107}"
 VPS_USER="${2:-root}"
+VPS_PASS="${VPS_PASS:?Set VPS_PASS in environment}"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║                                                              ║"
@@ -26,7 +27,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Check health
 log_info "Checking health endpoint..."
-HEALTH=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+HEALTH=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "curl -s http://localhost:8081/health 2>&1" || echo "ERROR")
 
 if echo "$HEALTH" | grep -q '"status":"ok"'; then
@@ -40,7 +41,7 @@ echo ""
 
 # Check container
 log_info "Checking container status..."
-CONTAINER_STATUS=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+CONTAINER_STATUS=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "docker ps --filter name=x0t-node --format '{{.Status}}' 2>&1" || echo "ERROR")
 
 if echo "$CONTAINER_STATUS" | grep -q "Up"; then
@@ -53,7 +54,7 @@ echo ""
 
 # Check VPN
 log_info "Checking VPN status..."
-VPN_STATUS=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+VPN_STATUS=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "systemctl is-active x-ui 2>&1" || echo "ERROR")
 
 if [ "$VPN_STATUS" = "active" ]; then
@@ -66,7 +67,7 @@ echo ""
 
 # Check metrics
 log_info "Checking metrics endpoint..."
-METRICS_RESPONSE=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+METRICS_RESPONSE=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "curl -s http://localhost:8081/metrics 2>&1" || echo "")
 
 # Check if metrics contain Prometheus format
@@ -81,7 +82,7 @@ echo ""
 
 # Check resources
 log_info "Checking system resources..."
-RESOURCES=$(sshpass -p 'tSiy6Il0gP4CIF39c4' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+RESOURCES=$(sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     $VPS_USER@$VPS_IP "free -h | grep Mem | awk '{print \"RAM: \" \$3 \"/\" \$2}' && df -h / | tail -1 | awk '{print \"Disk: \" \$3 \"/\" \$2 \" (\" \$5 \" used)\"}'" 2>&1 || echo "ERROR")
 
 log_info "System resources:"
@@ -91,4 +92,3 @@ echo ""
 log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 log_info "✅ Monitoring complete!"
 log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-

@@ -8,8 +8,8 @@ sync_dash() {
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no dashboard_v2_debug.html root@$IP:/opt/x0tta6bl4/dashboard.html
 }
 
-sync_dash "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-sync_dash "77.83.245.27" "13Vbkkbjyjd$"
-sync_dash "62.133.60.252" "13Vbkkbjyjd$"
+sync_dash "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+sync_dash "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+sync_dash "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "✅ All nodes updated to v2.2"

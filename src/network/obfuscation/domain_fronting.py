@@ -110,16 +110,54 @@ class DomainFrontingTransport(ObfuscationTransport):
     Domain Fronting Transport.
     Connects via TLS to a CDN IP, but masquerades as a legit domain (SNI).
     The Host header targets the hidden backend.
+    
+    Security Note (CVE-2026-DF-001 fix):
+    SSL certificate verification is ENABLED for the front domain (CDN).
+    This prevents MITM attacks between client and CDN.
+    The backend authentication is handled via mTLS inside the tunnel.
     """
 
-    def __init__(self, front_domain: str, backend_domain: str):
+    def __init__(
+        self,
+        front_domain: str,
+        backend_domain: Optional[str] = None,
+        *,
+        backend_host: Optional[str] = None,
+        verify_mode: int = ssl.CERT_REQUIRED,
+        ca_bundle: Optional[str] = None,
+    ):
         self.front_domain = front_domain
-        self.backend_domain = backend_domain
+        if backend_domain and backend_host and backend_domain != backend_host:
+            raise ValueError("backend_domain and backend_host must match when both provided")
+        self.backend_domain = backend_domain or backend_host
+        if not self.backend_domain:
+            raise ValueError("backend_domain (or backend_host) is required")
 
-        # Setup SSL Context
-        self.context = ssl.create_default_context()
-        self.context.check_hostname = False  # We are fronting, hostname won't match IP
-        self.context.verify_mode = ssl.CERT_NONE  # For MVP/Self-signed mesh
+        # CVE-2026-DF-001: explicitly reject insecure verification mode.
+        if verify_mode == ssl.CERT_NONE:
+            raise ValueError("ssl.CERT_NONE is not allowed for DomainFrontingTransport")
+
+        # Setup SSL Context with PROPER certificate verification
+        # CVE-2026-DF-001: Never use ssl.CERT_NONE in production
+        if ca_bundle:
+            self.context = ssl.create_default_context(cafile=ca_bundle)
+        else:
+            self.context = ssl.create_default_context()
+        
+        # Verify the front domain certificate (CDN certificate)
+        self.context.check_hostname = True
+        self.context.verify_mode = verify_mode
+        
+        # Enforce minimum TLS 1.2
+        self.context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
+        # Log security configuration
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"DomainFrontingTransport initialized with SSL verification enabled "
+            f"(verify_mode={verify_mode}, check_hostname=True, front_domain={front_domain})"
+        )
 
     def wrap_socket(self, sock: socket.socket) -> socket.socket:
         # Wrap in real TLS with SNI = front_domain

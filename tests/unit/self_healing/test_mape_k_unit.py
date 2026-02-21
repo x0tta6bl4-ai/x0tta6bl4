@@ -206,15 +206,16 @@ class TestMAPEKMonitor:
 
     # ── enable_graphsage ──
 
-    @patch("src.self_healing.mape_k.MAPEKMonitor.enable_graphsage")
     def test_enable_graphsage_with_detector(self):
         monitor = MAPEKMonitor()
         mock_detector = MagicMock()
-        # Call the real method manually
-        MAPEKMonitor.enable_graphsage(monitor, detector=mock_detector)
-        # The mock replaced enable_graphsage, so we test directly
-        # Instead, test without patching the import
-        pass
+        mock_module = MagicMock(
+            GraphSAGEAnomalyDetector=MagicMock,
+            create_graphsage_detector_for_mapek=MagicMock(),
+        )
+        with patch.dict("sys.modules", {"src.ml.graphsage_anomaly_detector": mock_module}):
+            monitor.enable_graphsage(detector=mock_detector)
+        assert monitor.graphsage_detector is mock_detector
 
     def test_enable_graphsage_with_provided_detector(self):
         monitor = MAPEKMonitor()

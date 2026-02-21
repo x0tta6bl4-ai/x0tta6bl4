@@ -10,6 +10,8 @@ from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram, Info
 
+from src.version import __version__
+
 logger = logging.getLogger(__name__)
 
 # Метрики GraphSAGE
@@ -109,7 +111,7 @@ class V3MetricsCollector:
         """Инициализация коллектора"""
         v3_info.info(
             {
-                "version": "3.0.0",
+                "version": __version__,
                 "components": "graphsage,stego_mesh,digital_twins,federated_learning,audit_trail",
             }
         )

@@ -56,6 +56,7 @@ class KnowledgeStorageV2:
 
     def __init__(
         self,
+        node_id: str = "default",
         storage_path: Path = Path("/var/lib/x0tta6bl4"),
         ipfs_client: Optional[IPFSClient] = None,
         use_real_ipfs: bool = True,
@@ -64,10 +65,12 @@ class KnowledgeStorageV2:
         Initialize Knowledge Storage.
 
         Args:
+            node_id: The ID of the current node.
             storage_path: Base path for local storage
             ipfs_client: IPFS client (optional)
             use_real_ipfs: Whether to use real IPFS or mock
         """
+        self.node_id = node_id
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
@@ -96,7 +99,7 @@ class KnowledgeStorageV2:
         try:
             from src.data_sync.crdt_sync import CRDTSync
 
-            self.crdt_sync = CRDTSync()
+            self.crdt_sync = CRDTSync(self.node_id)
         except (ImportError, AttributeError):
             self.crdt_sync = None
             logger.warning("⚠️ CRDT sync not available")

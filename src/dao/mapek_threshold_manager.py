@@ -8,9 +8,13 @@ Allows DAO to change thresholds and automatically applies them.
 
 import json
 import logging
+import os
 import time
+from hashlib import sha256
+from hmac import compare_digest, new as hmac_new
+from math import isfinite
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.dao.governance import GovernanceEngine, Proposal, ProposalState
 from src.dao.mapek_threshold_proposal import (MAPEKThresholdProposal,
@@ -18,6 +22,27 @@ from src.dao.mapek_threshold_proposal import (MAPEKThresholdProposal,
 from src.storage.ipfs_client import IPFSClient
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_THRESHOLDS: Dict[str, float] = {
+    "cpu_threshold": 80.0,
+    "memory_threshold": 90.0,
+    "network_loss_threshold": 5.0,
+    "latency_threshold": 100.0,
+    "check_interval": 60.0,
+}
+
+THRESHOLD_BOUNDS: Dict[str, Tuple[float, float]] = {
+    # % values
+    "cpu_threshold": (1.0, 99.0),
+    "memory_threshold": (1.0, 99.0),
+    # packet loss %
+    "network_loss_threshold": (0.1, 50.0),
+    # ms
+    "latency_threshold": (10.0, 5000.0),
+    # seconds
+    "check_interval": (1.0, 3600.0),
+}
 
 
 class MAPEKThresholdManager:
@@ -49,6 +74,11 @@ class MAPEKThresholdManager:
         self.ipfs_client = ipfs_client
         self.storage_path = storage_path or Path("/var/lib/x0tta6bl4")
         self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.threshold_file = self.storage_path / "mapek_thresholds.json"
+        self.threshold_hmac_file = self.storage_path / "mapek_thresholds.hmac"
+        self.threshold_audit_file = self.storage_path / "mapek_threshold_audit.jsonl"
+        # Optional integrity key for zero-trust local storage verification.
+        self.threshold_hmac_key = os.getenv("X0TTA6BL4_THRESHOLDS_HMAC_KEY", "").strip()
 
         # Current thresholds (loaded from storage or defaults)
         self.thresholds: Dict[str, float] = self._load_thresholds()
@@ -62,38 +92,135 @@ class MAPEKThresholdManager:
 
     def _load_thresholds(self) -> Dict[str, float]:
         """Load thresholds from storage or use defaults."""
-        threshold_file = self.storage_path / "mapek_thresholds.json"
-
-        if threshold_file.exists():
+        if self.threshold_file.exists():
             try:
-                with open(threshold_file, "r") as f:
-                    thresholds = json.load(f)
-                    logger.info(f"📂 Loaded thresholds from {threshold_file}")
-                    return thresholds
+                payload = self.threshold_file.read_bytes()
+                if not self._verify_threshold_integrity(payload):
+                    logger.error(
+                        "❌ Threshold integrity check failed, using fail-safe defaults"
+                    )
+                    return DEFAULT_THRESHOLDS.copy()
+
+                thresholds = json.loads(payload.decode("utf-8"))
+                valid, reasons = self._validate_threshold_changes(thresholds)
+                if not valid:
+                    logger.error(
+                        "❌ Invalid threshold file values (%s), using defaults",
+                        "; ".join(reasons),
+                    )
+                    return DEFAULT_THRESHOLDS.copy()
+
+                merged = DEFAULT_THRESHOLDS.copy()
+                merged.update({k: float(v) for k, v in thresholds.items()})
+                logger.info(f"📂 Loaded thresholds from {self.threshold_file}")
+                return merged
             except Exception as e:
                 logger.warning(f"⚠️ Failed to load thresholds: {e}")
 
-        # Default thresholds
-        defaults = {
-            "cpu_threshold": 80.0,
-            "memory_threshold": 90.0,
-            "network_loss_threshold": 5.0,
-            "latency_threshold": 100.0,
-            "check_interval": 60.0,
-        }
         logger.info("📂 Using default thresholds")
-        return defaults
+        return DEFAULT_THRESHOLDS.copy()
 
-    def _save_thresholds(self):
-        """Save thresholds to local storage."""
-        threshold_file = self.storage_path / "mapek_thresholds.json"
+    def _canonical_thresholds_json(self) -> str:
+        """Create deterministic JSON for hash/HMAC operations."""
+        return json.dumps(self.thresholds, sort_keys=True, separators=(",", ":"))
+
+    def _sign_threshold_payload(self, payload: bytes) -> Optional[str]:
+        """Sign payload with HMAC-SHA256 if key is configured."""
+        if not self.threshold_hmac_key:
+            return None
+        digest = hmac_new(
+            self.threshold_hmac_key.encode("utf-8"), payload, digestmod="sha256"
+        ).hexdigest()
+        return digest
+
+    def _verify_threshold_integrity(self, payload: bytes) -> bool:
+        """Verify threshold file HMAC when integrity key is configured."""
+        if not self.threshold_hmac_key:
+            return True
+
+        if not self.threshold_hmac_file.exists():
+            logger.error(
+                "Missing thresholds HMAC file: %s", self.threshold_hmac_file
+            )
+            return False
+
+        expected_hmac = self.threshold_hmac_file.read_text(encoding="utf-8").strip()
+        actual_hmac = self._sign_threshold_payload(payload)
+        return bool(actual_hmac) and compare_digest(expected_hmac, actual_hmac)
+
+    def _write_threshold_hmac(self, payload: bytes) -> bool:
+        """Write threshold HMAC next to threshold JSON file."""
+        signature = self._sign_threshold_payload(payload)
+        if signature is None:
+            return True
 
         try:
-            with open(threshold_file, "w") as f:
-                json.dump(self.thresholds, f, indent=2)
-            logger.info(f"💾 Saved thresholds to {threshold_file}")
+            self.threshold_hmac_file.write_text(signature, encoding="utf-8")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to write threshold HMAC: {e}")
+            return False
+
+    def _save_thresholds(self) -> bool:
+        """Save thresholds to local storage."""
+        try:
+            payload = (
+                json.dumps(self.thresholds, indent=2, sort_keys=True) + "\n"
+            ).encode("utf-8")
+            self.threshold_file.write_bytes(payload)
+            if not self._write_threshold_hmac(payload):
+                return False
+            logger.info(f"💾 Saved thresholds to {self.threshold_file}")
+            return True
         except Exception as e:
             logger.error(f"❌ Failed to save thresholds: {e}")
+            return False
+
+    def _validate_threshold_changes(
+        self, changes: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
+        """Validate threshold changes against allowed schema and bounds."""
+        errors: List[str] = []
+
+        for parameter, value in changes.items():
+            if parameter not in THRESHOLD_BOUNDS:
+                errors.append(f"unknown parameter: {parameter}")
+                continue
+
+            if not isinstance(value, (int, float)) or not isfinite(float(value)):
+                errors.append(f"{parameter}: value must be a finite number")
+                continue
+
+            min_v, max_v = THRESHOLD_BOUNDS[parameter]
+            numeric_value = float(value)
+            if numeric_value < min_v or numeric_value > max_v:
+                errors.append(
+                    f"{parameter}: {numeric_value} out of bounds [{min_v}, {max_v}]"
+                )
+
+        return (len(errors) == 0), errors
+
+    def _record_threshold_change_audit(
+        self,
+        source: str,
+        changes: Dict[str, float],
+        previous_values: Dict[str, Optional[float]],
+    ) -> None:
+        """Append threshold change event to local audit log."""
+        record = {
+            "timestamp": time.time(),
+            "source": source,
+            "changes": changes,
+            "previous_values": previous_values,
+            "thresholds_sha256": sha256(
+                self._canonical_thresholds_json().encode("utf-8")
+            ).hexdigest(),
+        }
+        try:
+            with open(self.threshold_audit_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, sort_keys=True) + "\n")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to write threshold audit event: {e}")
 
     async def _publish_thresholds_to_ipfs(self) -> Optional[str]:
         """Publish thresholds to IPFS for distribution."""
@@ -158,17 +285,35 @@ class MAPEKThresholdManager:
             True if applied successfully
         """
         try:
+            valid, reasons = self._validate_threshold_changes(changes)
+            if not valid:
+                logger.error(
+                    "❌ Threshold change rejected (%s): %s",
+                    source,
+                    "; ".join(reasons),
+                )
+                return False
+
+            previous_values: Dict[str, Optional[float]] = {}
             # Apply changes
             for parameter, value in changes.items():
                 old_value = self.thresholds.get(parameter)
-                self.thresholds[parameter] = value
+                previous_values[parameter] = old_value
+                self.thresholds[parameter] = float(value)
                 logger.info(
                     f"✅ Updated threshold: {parameter} = {value} "
                     f"(was {old_value}, source: {source})"
                 )
 
             # Save to local storage
-            self._save_thresholds()
+            if not self._save_thresholds():
+                return False
+
+            self._record_threshold_change_audit(
+                source=source,
+                changes={k: float(v) for k, v in changes.items()},
+                previous_values=previous_values,
+            )
 
             # Publish to IPFS (async, non-blocking)
             if self.ipfs_client:

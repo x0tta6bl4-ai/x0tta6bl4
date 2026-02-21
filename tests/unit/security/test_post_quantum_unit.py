@@ -7,6 +7,7 @@ Only mocks LIBOQS_AVAILABLE for error-path tests.
 import hashlib
 import os
 import secrets
+from cryptography.hazmat.primitives import serialization
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -116,7 +117,7 @@ class TestLibOQSBackend:
         assert isinstance(kp.private_key, bytes)
         assert len(kp.private_key) > 0
         assert kp.algorithm == PQAlgorithm.ML_KEM_768
-        assert kp.key_id == hashlib.sha256(kp.public_key).hexdigest()[:16]
+        assert kp.key_id == hashlib.sha256(kp.public_key).hexdigest()[:32]
 
     def test_generate_kem_keypair_ml_kem_512(self):
         backend = LibOQSBackend(kem_algorithm="ML-KEM-512")
@@ -188,7 +189,7 @@ class TestLibOQSBackend:
         assert isinstance(kp.public_key, bytes)
         assert isinstance(kp.private_key, bytes)
         assert kp.algorithm == PQAlgorithm.ML_DSA_65
-        assert kp.key_id == hashlib.sha256(kp.public_key).hexdigest()[:16]
+        assert kp.key_id == hashlib.sha256(kp.public_key).hexdigest()[:32]
 
     def test_generate_signature_keypair_ml_dsa_44(self):
         backend = LibOQSBackend(sig_algorithm="ML-DSA-44")
@@ -343,26 +344,45 @@ class TestHybridPQEncryption:
         assert shared_dec == shared_enc
 
     def test_classical_encrypt_decrypt_roundtrip(self):
+        from cryptography.hazmat.primitives.asymmetric import x25519
         hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
-        private_key = secrets.token_bytes(32)
-        public_key = hashlib.sha256(private_key).digest()
-        message = b"secret message"
-
+        private_key = x25519.X25519PrivateKey.generate()
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_key = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
+        )
+        message = b"Classical secret message"
         ct = hybrid._classical_encrypt(message, public_key)
-        assert ct != message
-        recovered = hybrid._classical_decrypt(ct, private_key)
+        recovered = hybrid._classical_decrypt(ct, private_bytes)
         assert recovered == message
 
     def test_classical_decrypt_wrong_key_fails(self):
+        from cryptography.hazmat.primitives.asymmetric import x25519
         hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
-        private_key = secrets.token_bytes(32)
-        public_key = hashlib.sha256(private_key).digest()
-        wrong_private = secrets.token_bytes(32)
-        message = b"secret message"
+        private_key = x25519.X25519PrivateKey.generate()
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_key = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
+        )
+        wrong_private = x25519.X25519PrivateKey.generate()
+        wrong_bytes = wrong_private.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
 
+        message = b"Secret"
         ct = hybrid._classical_encrypt(message, public_key)
         with pytest.raises(Exception):
-            hybrid._classical_decrypt(ct, wrong_private)
+            hybrid._classical_decrypt(ct, wrong_bytes)
 
     def test_full_hybrid_flow(self):
         """End-to-end: generate keypair, encapsulate, encrypt, decrypt, decapsulate."""

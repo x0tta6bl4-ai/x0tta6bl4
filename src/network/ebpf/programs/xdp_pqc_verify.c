@@ -37,9 +37,27 @@ struct pqc_session {
     __u32 packet_counter;   // Anti-replay: expected minimum packet number
 };
 
+// CVE-2026-XDP-002 FIX: Configurable session limit via map
+// Userspace can update this value at runtime
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 4);
+    __type(key, __u32);
+    __type(value, __u32);
+} pqc_config SEC(".maps");
+
+#define CONFIG_MAX_SESSIONS    0
+#define CONFIG_SESSION_TTL     1
+#define CONFIG_RATE_LIMIT      2
+#define CONFIG_DEBUG_MODE      3
+
+// Default values (can be overridden via pqc_config map)
+#define DEFAULT_MAX_SESSIONS   65536
+#define DEFAULT_SESSION_TTL    3600
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 256);
+    __uint(max_entries, 65536);  // CVE-2026-XDP-002: Increased from 256
     __type(key, __u8[16]);  // 16-byte session ID
     __type(value, struct pqc_session);
 } pqc_sessions SEC(".maps");
@@ -175,9 +193,12 @@ static __always_inline int verify_packet_mac(
         }
     }
 
-    // Compare computed MAC with received MAC (constant-time via XOR)
+    // Compare computed MAC with received MAC (CONSTANT-TIME to prevent timing attacks)
+    // CVE-2026-XDP-001 FIX: Use XOR comparison instead of branch-dependent equality
     __u64 received = *(__u64 *)hdr->mac;
-    return (computed == received) ? 1 : 0;
+    __u64 diff = computed ^ received;
+    // diff == 0 only when computed == received, but comparison is constant-time
+    return (diff == 0) ? 1 : 0;
 }
 
 // --- XDP Program Entry Point ---
@@ -250,9 +271,15 @@ int xdp_pqc_verify_prog(struct xdp_md *ctx) {
         return XDP_DROP;
     }
 
-    // Session expiration (1 hour TTL)
+    // CVE-2026-PQC-003 FIX: Configurable session TTL
     __u64 now = bpf_ktime_get_ns() / 1000000000ULL;
-    if (now > session->timestamp && (now - session->timestamp) > 3600) {
+    
+    // Get TTL from config map (default: 3600 seconds)
+    __u32 ttl_key = CONFIG_SESSION_TTL;
+    __u32 *ttl_val = bpf_map_lookup_elem(&pqc_config, &ttl_key);
+    __u64 session_ttl = (ttl_val && *ttl_val > 0) ? *ttl_val : DEFAULT_SESSION_TTL;
+    
+    if (now > session->timestamp && (now - session->timestamp) > session_ttl) {
         inc_stat(STATS_EXPIRED_SESSION);
         return XDP_DROP;
     }

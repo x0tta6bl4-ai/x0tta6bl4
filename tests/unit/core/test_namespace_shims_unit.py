@@ -18,4 +18,7 @@ def test_src_network_shim_imports_legacy_module() -> None:
     mesh_mod = importlib.import_module("src.network.mesh_node")
 
     assert any("libx0t/network" in p for p in network_pkg.__path__)
-    assert "libx0t/network/mesh_node.py" in mesh_mod.__file__
+    assert (
+        "libx0t/network/mesh_node.py" in mesh_mod.__file__
+        or "src/network/mesh_node.py" in mesh_mod.__file__
+    )

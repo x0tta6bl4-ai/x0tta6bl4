@@ -14,11 +14,15 @@ Full OpenTelemetry tracing for x0tta6bl4:
 
 import logging
 import os
-from contextlib import contextmanager
+import asyncio
+from contextlib import asynccontextmanager, contextmanager
+from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
 
 logger = logging.getLogger(__name__)
+P = ParamSpec("P")
+T = TypeVar("T")
 
 # Try to import OpenTelemetry
 try:
@@ -66,6 +70,9 @@ except ImportError:
     Resource = None  # type: ignore
     FastAPIInstrumentor = None  # type: ignore
     HTTPXClientInstrumentor = None  # type: ignore
+
+# Backward/forward compatibility alias used by newer modules.
+OTEL_AVAILABLE = OPENTELEMETRY_AVAILABLE
 
 
 class TracingManager:
@@ -342,7 +349,6 @@ class TracingManager:
 
         return span_context()
 
-    @contextmanager
     def trace_full_mape_k_cycle(self, cycle_id: str, node_id: str):
         """
         Trace complete MAPE-K cycle with all phases.
@@ -689,3 +695,293 @@ def initialize_tracing(
     )
 
     return _tracing_manager
+
+
+@dataclass
+class TracingConfig:
+    """Forward-compatible configuration model for tracing setup."""
+
+    service_name: str = "x0tta6bl4"
+    service_version: str = "3.1"
+    environment: str = "production"
+    exporter_type: str = "jaeger"  # jaeger, otlp, none
+    jaeger_host: str = "localhost"
+    jaeger_port: int = 6831
+    otlp_endpoint: str = "http://localhost:4317"
+    otlp_insecure: bool = True
+    sample_rate: float = 1.0
+    resource_attributes: Optional[Dict[str, Any]] = None
+
+
+def configure_tracing(config: TracingConfig) -> TracingManager:
+    """
+    Forward-compatible wrapper around legacy initialize_tracing().
+    """
+    jaeger_endpoint: Optional[str] = None
+    otlp_endpoint: Optional[str] = None
+
+    if config.exporter_type == "jaeger":
+        # Keep collector style endpoint expected by legacy initializer.
+        jaeger_endpoint = f"http://{config.jaeger_host}:14268/api/traces"
+    elif config.exporter_type == "otlp":
+        otlp_endpoint = config.otlp_endpoint
+
+    return initialize_tracing(
+        service_name=config.service_name,
+        service_version=config.service_version,
+        jaeger_endpoint=jaeger_endpoint,
+        otlp_endpoint=otlp_endpoint,
+        trace_sampling_ratio=config.sample_rate,
+    )
+
+
+class NoOpSpan:
+    """No-op span object."""
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        return None
+
+    def set_status(self, status: Any) -> None:
+        return None
+
+    def record_exception(self, exception: Exception) -> None:
+        return None
+
+    def add_event(
+        self,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
+    ) -> None:
+        return None
+
+
+class NoOpTracer:
+    """No-op tracer for compatibility paths."""
+
+    @contextmanager
+    def start_as_current_span(self, name: str, **kwargs):
+        yield NoOpSpan()
+
+    @contextmanager
+    def start_span(self, name: str, **kwargs):
+        yield NoOpSpan()
+
+
+def get_tracer(name: str) -> Any:
+    """Get a tracer using global manager with safe fallback."""
+    manager = get_tracing_manager()
+    if OPENTELEMETRY_AVAILABLE and manager and manager.tracer:
+        return trace.get_tracer(name)
+    return NoOpTracer()
+
+
+def traced(
+    name: Optional[str] = None,
+    attributes: Optional[Dict[str, Any]] = None,
+):
+    """
+    Forward-compatible decorator for sync/async functions.
+    """
+
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        span_name = name or func.__name__
+
+        @wraps(func)
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            tracer = get_tracer(func.__module__)
+            with tracer.start_as_current_span(span_name) as span:
+                if attributes:
+                    for key, value in attributes.items():
+                        span.set_attribute(key, str(value))
+                try:
+                    result = await func(*args, **kwargs)
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.OK))
+                    return result
+                except Exception as exc:
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.ERROR, str(exc)))
+                        span.record_exception(exc)
+                    raise
+
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            tracer = get_tracer(func.__module__)
+            with tracer.start_as_current_span(span_name) as span:
+                if attributes:
+                    for key, value in attributes.items():
+                        span.set_attribute(key, str(value))
+                try:
+                    result = func(*args, **kwargs)
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.OK))
+                    return result
+                except Exception as exc:
+                    if OPENTELEMETRY_AVAILABLE and Status and StatusCode:
+                        span.set_status(Status(StatusCode.ERROR, str(exc)))
+                        span.record_exception(exc)
+                    raise
+
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
+
+
+class TracingContext:
+    """
+    Async context helper for newer modules.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        tracer_name: str = "x0tta6bl4",
+        attributes: Optional[Dict[str, Any]] = None,
+    ):
+        self._name = name
+        self._tracer_name = tracer_name
+        self._attributes = attributes or {}
+        self._cm = None
+        self._span = None
+
+    async def __aenter__(self):
+        tracer = get_tracer(self._tracer_name)
+        self._cm = tracer.start_as_current_span(self._name)
+        self._span = self._cm.__enter__()
+        for key, value in self._attributes.items():
+            self._span.set_attribute(key, str(value))
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._cm is not None:
+            self._cm.__exit__(exc_type, exc, tb)
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        if self._span is not None:
+            self._span.set_attribute(key, str(value))
+
+    def add_event(
+        self,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if self._span is not None:
+            self._span.add_event(name, attributes=attributes or {})
+
+
+class EdgeComputingTracer:
+    """High-level tracer helpers for Edge module."""
+
+    @asynccontextmanager
+    async def trace_node_operation(self, node_id: str, operation: str):
+        async with TracingContext(
+            f"node.{operation}",
+            "edge-computing",
+            {"node.id": node_id, "operation": operation},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_task_execution(self, task_id: str, task_type: str):
+        async with TracingContext(
+            "task.execute",
+            "edge-computing",
+            {"task.id": task_id, "task.type": task_type},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_cache_operation(self, operation: str, key: str):
+        async with TracingContext(
+            f"cache.{operation}",
+            "edge-computing",
+            {"cache.operation": operation, "cache.key": key},
+        ) as ctx:
+            yield ctx
+
+
+class EventSourcingTracer:
+    """High-level tracer helpers for Event Sourcing module."""
+
+    @asynccontextmanager
+    async def trace_event_append(self, stream_id: str, event_count: int):
+        async with TracingContext(
+            "event.append",
+            "event-sourcing",
+            {"stream.id": stream_id, "event.count": event_count},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_event_read(self, stream_id: str, from_version: int):
+        async with TracingContext(
+            "event.read",
+            "event-sourcing",
+            {"stream.id": stream_id, "from_version": from_version},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_command_execution(self, command_type: str, aggregate_id: str):
+        async with TracingContext(
+            "command.execute",
+            "event-sourcing",
+            {"command.type": command_type, "aggregate.id": aggregate_id},
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_projection_processing(self, projection_name: str, event_count: int):
+        async with TracingContext(
+            "projection.process",
+            "event-sourcing",
+            {"projection.name": projection_name, "event.count": event_count},
+        ) as ctx:
+            yield ctx
+
+
+class DatabaseTracer:
+    """High-level tracer helpers for DB module."""
+
+    def __init__(self, backend_type: str):
+        self._backend_type = backend_type
+
+    @asynccontextmanager
+    async def trace_query(self, operation: str, table: str):
+        async with TracingContext(
+            f"db.{operation}",
+            f"db.{self._backend_type}",
+            {
+                "db.system": self._backend_type,
+                "db.operation": operation,
+                "db.table": table,
+            },
+        ) as ctx:
+            yield ctx
+
+    @asynccontextmanager
+    async def trace_transaction(self, operations: int = 1):
+        async with TracingContext(
+            "db.transaction",
+            f"db.{self._backend_type}",
+            {
+                "db.system": self._backend_type,
+                "db.transaction.operations": operations,
+            },
+        ) as ctx:
+            yield ctx
+
+
+def create_edge_tracer() -> EdgeComputingTracer:
+    return EdgeComputingTracer()
+
+
+def create_event_sourcing_tracer() -> EventSourcingTracer:
+    return EventSourcingTracer()
+
+
+def create_database_tracer(backend_type: str) -> DatabaseTracer:
+    return DatabaseTracer(backend_type)

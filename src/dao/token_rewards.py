@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from decimal import Decimal
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +42,27 @@ ERC20_ABI = [
         "type": "function",
     },
 ]
+_UNSET = object()
 
 
 class TokenRewards:
     """Rewards manager for Mesh Nodes. Supports real blockchain transactions."""
 
     def __init__(
-        self, contract_address: str, private_key: str = None, rpc_url: str = None
+        self,
+        contract_address: str,
+        private_key: Optional[str] | object = _UNSET,
+        rpc_url: Optional[str] = None,
     ):
         self.contract_address = contract_address
-        self.private_key = private_key or os.getenv("OPERATOR_PRIVATE_KEY")
+        if private_key is _UNSET:
+            use_env_key = (
+                os.getenv("TOKEN_REWARDS_USE_ENV_KEY", "false").strip().lower()
+                == "true"
+            )
+            self.private_key = os.getenv("OPERATOR_PRIVATE_KEY") if use_env_key else None
+        else:
+            self.private_key = private_key
         self.rpc_url = rpc_url or os.getenv("RPC_URL", BASE_SEPOLIA_RPC)
 
         self.total_distributed = Decimal("0.0")

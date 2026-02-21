@@ -27,7 +27,11 @@ class TestRedisSentinelConfig:
         """Test standalone mode when REDIS_SENTINEL_HOSTS not set."""
         with patch.dict(
             "os.environ",
-            {"REDIS_URL": "redis://localhost:6379", "REDIS_SENTINEL_HOSTS": ""},
+            {
+                "REDIS_URL": "redis://localhost:6379",
+                "REDIS_SENTINEL_HOSTS": "",
+                "X0TTA6BL4_ALLOW_REDIS_IN_TESTS": "true",
+            },
             clear=False,
         ):
             cache = RedisCache()
@@ -53,6 +57,7 @@ class TestRedisSentinelConfig:
             {
                 "REDIS_SENTINEL_HOSTS": "sentinel1:26379,sentinel2:26379,sentinel3:26379",
                 "REDIS_SENTINEL_MASTER": "mymaster",
+                "X0TTA6BL4_ALLOW_REDIS_IN_TESTS": "true",
             },
             clear=False,
         ):

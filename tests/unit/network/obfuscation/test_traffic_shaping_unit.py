@@ -216,6 +216,10 @@ class TestTrafficShaperRoundTrip:
         unshaped = shaper.unshape_packet(shaped)
         assert unshaped == data
 
+    def test_unshape_short_packet_returns_unchanged(self):
+        shaper = TrafficShaper(profile=TrafficProfile.GAMING)
+        assert shaper.unshape_packet(b"\x01") == b"\x01"
+
 
 # ---------------------------------------------------------------------------
 # TrafficShaper -- variable padding (WEB_BROWSING, GAMING)

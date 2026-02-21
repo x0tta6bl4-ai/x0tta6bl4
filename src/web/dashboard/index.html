@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 MaaS Console</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Tab nav */
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            padding: 8px 16px 0;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-dim);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+            padding: 6px 14px;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+        .tab-view { display: none; flex: 1; overflow: hidden; }
+        .tab-view.active { display: flex; }
+
+        /* Common view styles */
+        .nodes-view {
+            flex-direction: column;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-btn {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-dim);
+            border-radius: 4px;
+            font-size: 11px;
+            letter-spacing: 1px;
+            padding: 4px 10px;
+            cursor: pointer;
+        }
+        .filter-btn.active { color: var(--accent-blue); border-color: var(--accent-blue); }
+        .badge {
+            display: inline-block;
+            border-radius: 3px;
+            font-size: 10px;
+            padding: 2px 7px;
+            letter-spacing: 0.5px;
+        }
+        .badge.approved { background: #1a3d25; color: var(--accent-green); }
+        .badge.pending  { background: #3d2f12; color: #ffb347; }
+        .badge.revoked  { background: #3d1212; color: var(--accent-red); }
+        
+        /* Nodes table */
+        .nodes-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .nodes-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: normal;
+            letter-spacing: 1px;
+        }
+        .nodes-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1e222a;
+            vertical-align: middle;
+        }
+        .tag { display: inline-block; background: #1a2535; border-radius: 3px; font-size: 10px; padding: 1px 6px; margin: 1px; color: var(--text-dim); }
+    </style>
+</head>
+<body class="cybersyn-theme">
+    <header class="top-bar">
+        <div class="logo">x0tta6bl4 <span class="sub">MaaS Control</span></div>
+        <div class="system-status">
+            <span class="label">Mesh:</span> <span id="mesh-id" class="value">mesh-auto-001</span>
+            <span class="label">State:</span> <span id="system-state" class="value glow">FLOW</span>
+            <span class="label">Φ:</span> <span id="phi-ratio" class="value">1.618</span>
+            <span class="label">H:</span> <span id="harmony" class="value">0.99</span>
+        </div>
+        <div class="user-info">
+            <span id="user-email">admin@test.com</span>
+            <button id="logout-btn">DISCONNECT</button>
+        </div>
+    </header>
+
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="topology">TOPOLOGY</button>
+        <button class="tab-btn" data-tab="nodes">NODES</button>
+        <button class="tab-btn" data-tab="pending">PENDING</button>
+        <button class="tab-btn" data-tab="dao">DAO</button>
+        <button class="tab-btn" data-tab="analytics">ANALYTICS</button>
+        <button class="tab-btn" data-tab="billing">INVOICES</button>
+    </nav>
+
+    <!-- TAB: Topology -->
+    <div class="tab-view active dashboard-grid" id="tab-topology">
+        <section class="panel topology-view">
+            <div class="panel-header">LIVE TOPOLOGY (STIGMERGY MAP)</div>
+            <div class="panel-body canvas-container">
+                <svg id="topology-map" viewBox="0 0 800 600"></svg>
+            </div>
+        </section>
+        <aside class="sidebar">
+            <section class="panel approval-queue">
+                <div class="panel-header">PENDING APPROVAL (ZERO-TRUST)</div>
+                <div class="panel-body" id="pending-list">
+                    <div class="empty-state">No pending requests</div>
+                </div>
+            </section>
+            <section class="panel node-stats">
+                <div class="panel-header">NODE TELEMETRY</div>
+                <div class="panel-body" id="node-telemetry-details">
+                    <div class="placeholder">Select a node to view details</div>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <!-- TAB: Nodes -->
+    <div class="tab-view nodes-view" id="tab-nodes">
+        <div class="filter-bar">
+            <button class="filter-btn active" data-filter="all">ALL</button>
+            <button class="filter-btn approved" data-filter="approved">APPROVED</button>
+            <button class="filter-btn pending"  data-filter="pending">PENDING</button>
+            <button class="filter-btn revoked"  data-filter="revoked">REVOKED</button>
+            <button class="filter-btn" id="refresh-nodes-btn">↺ REFRESH</button>
+            <span id="nodes-count"></span>
+        </div>
+        <table class="nodes-table">
+            <thead>
+                <tr>
+                    <th>NODE ID</th>
+                    <th>STATUS</th>
+                    <th>CLASS</th>
+                    <th>ACL PROFILE</th>
+                    <th>TAGS</th>
+                    <th>TIMESTAMP</th>
+                    <th>REASON / MODE</th>
+                </tr>
+            </thead>
+            <tbody id="nodes-tbody"></tbody>
+        </table>
+    </div>
+
+    <!-- TAB: Pending -->
+    <div class="tab-view nodes-view" id="tab-pending">
+        <div class="filter-bar">
+            <button class="filter-btn" id="refresh-pending-btn">↺ REFRESH QUEUE</button>
+            <span id="pending-count"></span>
+        </div>
+        <div id="pending-queue-list"></div>
+    </div>
+
+    <!-- TAB: DAO -->
+    <div class="tab-view nodes-view" id="tab-dao">
+        <div class="filter-bar">
+            <button class="filter-btn" id="refresh-proposals-btn">↺ REFRESH PROPOSALS</button>
+            <span id="proposals-count"></span>
+        </div>
+        <div id="proposals-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding: 16px 0;"></div>
+    </div>
+
+    <!-- TAB: Analytics -->
+    <div class="tab-view nodes-view" id="tab-analytics">
+        <div class="filter-bar">
+            <span style="color:var(--accent-blue);font-weight:bold">ENTERPRISE ROI & PERFORMANCE</span>
+            <button class="filter-btn" id="refresh-analytics-btn" style="margin-left:12px">↺ RECALCULATE</button>
+        </div>
+        <div id="analytics-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 20px 0;"></div>
+        <div class="panel" style="margin-top:20px;padding:20px;border-color:var(--accent-blue)">
+            <div style="font-size:14px;margin-bottom:10px;color:var(--text-dim)">BUSINESS INSIGHT</div>
+            <p id="analytics-insight" style="font-size:13px;line-height:1.6;color:var(--text-main)">Analyzing network efficiency...</p>
+        </div>
+    </div>
+
+    <!-- TAB: Billing -->
+    <div class="tab-view nodes-view" id="tab-billing">
+        <div class="filter-bar">
+            <span style="color:var(--accent-blue);font-weight:bold">BILLING & INVOICES</span>
+            <button class="filter-btn" id="generate-invoice-btn" style="margin-left:12px">🧾 GENERATE CURRENT INVOICE</button>
+        </div>
+        <div id="invoices-list" style="display:flex; flex-direction:column; gap:12px; padding:16px 0;">
+            <div class="empty-state">No invoices issued yet.</div>
+        </div>
+    </div>
+
+    <footer class="status-bar">
+        <div class="metric">Nodes: <span id="count-total">0</span></div>
+        <div class="metric">Healthy: <span id="count-healthy" class="success">0</span></div>
+        <div class="metric">MTTR: <span class="success">&lt; 1s</span></div>
+        <div class="metric">PQC: <span class="success">ENABLED</span></div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+    // ---- Global State & Init ----
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+            btn.classList.add('active');
+            const target = document.getElementById('tab-' + btn.dataset.tab);
+            if (target) target.classList.add('active');
+            
+            if (btn.dataset.tab === 'nodes') loadAllNodes();
+            if (btn.dataset.tab === 'pending') loadPendingQueue();
+            if (btn.dataset.tab === 'dao') loadDAOProposals();
+            if (btn.dataset.tab === 'analytics') loadAnalytics();
+            if (btn.dataset.tab === 'billing') loadInvoices();
+        });
+    });
+
+    // ---- Nodes Logic ----
+    let allNodesData = [];
+    let currentFilter = 'all';
+    async function loadAllNodes() {
+        try {
+            const r = await fetch(`${API_BASE}/${currentMeshId}/nodes/all`, { headers: { 'X-API-Key': apiKey } });
+            const data = await r.json();
+            allNodesData = data.nodes || [];
+            renderNodesTable();
+        } catch(e) { console.error(e); }
+    }
+    function renderNodesTable() {
+        const filtered = currentFilter === 'all' ? allNodesData : allNodesData.filter(n => n.status === currentFilter);
+        document.getElementById('nodes-count').textContent = `${filtered.length} nodes`;
+        document.getElementById('nodes-tbody').innerHTML = filtered.map(n => `
+            <tr>
+                <td style="font-family:monospace">${n.node_id}</td>
+                <td><span class="badge ${n.status}">${n.status.toUpperCase()}</span></td>
+                <td>${n.device_class || '—'}</td>
+                <td>${n.acl_profile || '—'}</td>
+                <td>${(n.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</td>
+                <td style="color:var(--text-dim);font-size:11px">${(n.approved_at || n.requested_at || '').replace('T',' ').slice(0,19)}</td>
+                <td style="color:var(--text-dim)">${n.reason || n.enrollment_mode || '—'}</td>
+            </tr>`).join('');
+    }
+    document.getElementById('refresh-nodes-btn').onclick = loadAllNodes;
+
+    // ---- Pending Logic ----
+    async function loadPendingQueue() {
+        try {
+            const r = await fetch(`${API_BASE}/${currentMeshId}/nodes/pending`, { headers: { 'X-API-Key': apiKey } });
+            const data = await r.json();
+            const pending = data.pending || {};
+            const ids = Object.keys(pending);
+            document.getElementById('pending-count').textContent = `${ids.length} awaiting`;
+            document.getElementById('pending-queue-list').innerHTML = ids.map(id => `
+                <div style="border:1px solid var(--border-color);padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+                    <div><strong>${id}</strong><div style="font-size:11px;color:var(--text-dim)">${pending[id].device_class}</div></div>
+                    <button onclick="approveFromTab('${id}')" class="filter-btn active">APPROVE</button>
+                </div>`).join('');
+        } catch(e) { console.error(e); }
+    }
+    async function approveFromTab(id) {
+        if (!confirm(`Approve ${id}?`)) return;
+        await fetch(`${API_BASE}/${currentMeshId}/nodes/${id}/approve`, {
+            method: 'POST', headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acl_profile: 'default', tags: ['maas-agent'] })
+        });
+        loadPendingQueue();
+    }
+    document.getElementById('refresh-pending-btn').onclick = loadPendingQueue;
+
+    // ---- DAO Logic ----
+    async function loadDAOProposals() {
+        const container = document.getElementById('proposals-list');
+        try {
+            const r = await fetch(`${API_BASE}/governance/proposals`, { headers: { 'X-API-Key': apiKey } });
+            const data = await r.json();
+            const proposals = data.proposals || [];
+            document.getElementById('proposals-count').textContent = `${proposals.length} active proposals`;
+            container.innerHTML = proposals.map(p => `
+                <div style="border:1px solid var(--border-color);border-radius:10px;padding:16px;background:var(--panel-bg);display:flex;flex-direction:column;gap:12px">
+                    <div style="font-size:14px;font-weight:bold;color:var(--accent-blue)">${p.title}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span class="badge ${p.state === 'active' ? 'approved' : 'revoked'}">${p.state.toUpperCase()}</span>
+                        <span style="font-size:11px;color:var(--text-dim)">Expires: ${p.end_time.replace('T',' ').slice(0,16)}</span>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button onclick="castVote('${p.id}', 'yes')" style="flex:1;background:#1a3d25;border:1px solid var(--accent-green);color:var(--accent-green);padding:6px;border-radius:4px;cursor:pointer">YES</button>
+                        <button onclick="castVote('${p.id}', 'no')" style="flex:1;background:#3d1212;border:1px solid var(--accent-red);color:var(--accent-red);padding:6px;border-radius:4px;cursor:pointer">NO</button>
+                    </div>
+                </div>`).join('');
+        } catch(e) { console.error(e); }
+    }
+    async function castVote(id, v) {
+        const r = await fetch(`${API_BASE}/governance/proposals/${id}/vote`, {
+            method: 'POST', headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vote: v })
+        });
+        if (r.ok) { alert("Vote recorded."); loadDAOProposals(); }
+    }
+    document.getElementById('refresh-proposals-btn').onclick = loadDAOProposals;
+
+    // ---- Analytics Logic ----
+    async function loadAnalytics() {
+        const container = document.getElementById('analytics-summary');
+        try {
+            const r = await fetch(`${API_BASE}/analytics/${currentMeshId}/summary`, { headers: { 'X-API-Key': apiKey } });
+            const data = await r.json();
+            const cards = [
+                { title: "COST SAVINGS", value: `$${data.cost_maas_monthly}/mo`, sub: `vs $${data.cost_legacy_monthly} (AWS)`, color: "var(--accent-green)", pct: `${data.savings_pct}%` },
+                { title: "PERFORMANCE", value: `${data.avg_latency_ms}ms`, sub: `vs ${data.legacy_latency_ms}ms (Legacy)`, color: "var(--accent-blue)", pct: `+${data.performance_gain_pct}%` },
+                { title: "PRIVACY INDEX", value: `${data.privacy_score}/100`, sub: `PQC Coverage: ${data.pqc_coverage_pct}%`, color: "#ffb347", pct: "SECURE" }
+            ];
+            container.innerHTML = cards.map(c => `
+                <div style="border:1px solid var(--border-color);border-radius:12px;padding:20px;background:var(--panel-bg);position:relative;overflow:hidden">
+                    <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px">${c.title}</div>
+                    <div style="font-size:28px;font-weight:bold;color:${c.color}">${c.value}</div>
+                    <div style="font-size:12px;color:var(--text-dim);margin-top:8px">${c.sub}</div>
+                    <div style="position:absolute;top:10px;right:10px;font-size:10px;font-weight:bold;color:${c.color};border:1px solid ${c.color};padding:2px 6px;border-radius:4px">${c.pct}</div>
+                </div>`).join('');
+            document.getElementById('analytics-insight').textContent = `Your x0tta6bl4 mesh saves ${data.savings_pct}% on infra costs and improves latency by ${data.performance_gain_pct}%.`;
+        } catch(e) { console.error(e); }
+    }
+    document.getElementById('refresh-analytics-btn').onclick = loadAnalytics;
+
+    // ---- Billing Logic ----
+    let invoices = [];
+    async function loadInvoices() {
+        const container = document.getElementById('invoices-list');
+        // Placeholder: in prod we fetch history
+        if (invoices.length === 0) {
+            container.innerHTML = '<div class="empty-state">No invoices issued yet. Click "Generate" to create one based on current usage.</div>';
+        } else {
+            container.innerHTML = invoices.map(inv => `
+                <div style="border:1px solid var(--border-color);border-radius:10px;padding:16px;background:var(--panel-bg);display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <div style="font-size:14px;font-weight:bold;color:var(--text-main)">Invoice ${inv.invoice_id}</div>
+                        <div style="font-size:11px;color:var(--text-dim)">Period: ${inv.period_start.slice(0,10)} - ${inv.period_end.slice(0,10)}</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:18px;font-weight:bold;color:var(--accent-green)">$${inv.total} ${inv.currency}</div>
+                        <button onclick="payInvoice('${inv.invoice_id}')" class="filter-btn active" style="margin-top:8px">PAY NOW</button>
+                    </div>
+                </div>`).join('');
+        }
+    }
+    async function generateInvoice() {
+        try {
+            const r = await fetch(`${API_BASE}/billing/invoices/generate/${currentMeshId}`, { method: 'POST', headers: { 'X-API-Key': apiKey } });
+            if (r.ok) {
+                const inv = await r.json();
+                invoices.unshift(inv);
+                loadInvoices();
+                alert("New invoice generated successfully!");
+            }
+        } catch(e) { console.error(e); }
+    }
+    async function payInvoice(id) {
+        const r = await fetch(`${API_BASE}/billing/invoices/${id}/pay`, { method: 'POST', headers: { 'X-API-Key': apiKey } });
+        if (r.ok) {
+            alert("Payment successful! Thank you.");
+            invoices = invoices.filter(i => i.invoice_id !== id);
+            loadInvoices();
+        }
+    }
+    document.getElementById('generate-invoice-btn').onclick = generateInvoice;
+    </script>
+</body>
+</html>

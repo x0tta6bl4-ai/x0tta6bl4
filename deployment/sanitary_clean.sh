@@ -27,9 +27,9 @@ EOF
 
 echo "🧹 SANITATION MODE: Purging ghost peers..."
 
-clean_node "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-clean_node "77.83.245.27" "13Vbkkbjyjd$"
-clean_node "62.133.60.252" "13Vbkkbjyjd$"
+clean_node "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+clean_node "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+clean_node "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo ""
 echo "🎉 Sanitation complete!"
