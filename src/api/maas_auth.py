@@ -79,14 +79,16 @@ def require_permission(permission: str):
         # 2. Map default permissions for roles
         role_defaults = {
             "operator": [
-                "mesh:view", "mesh:update", "node:approve", "node:revoke", 
-                "policy:view", "analytics:view", "telemetry:view"
+                "mesh:view", "mesh:update", "node:approve", "node:revoke",
+                "policy:view", "policy:create", "analytics:view", "telemetry:view",
+                "playbook:create", "playbook:view",
+                "audit:view", "node:view",
             ],
             "user": [
-                "mesh:create", "mesh:view", "mesh:update", "mesh:delete", 
+                "mesh:create", "mesh:view", "mesh:update", "mesh:delete",
                 "billing:view", "marketplace:list", "marketplace:rent",
-                "playbook:create", "playbook:view"
-            ]
+                "playbook:view",
+            ],
         }
         
         if user.role in role_defaults and permission in role_defaults[user.role]:
