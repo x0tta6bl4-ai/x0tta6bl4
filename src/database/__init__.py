@@ -94,6 +94,7 @@ class MeshNode(Base):
     acl_profile = Column(String, default="default")
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)
+    last_seen = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -106,8 +107,26 @@ class MarketplaceListing(Base):
     region = Column(String, index=True)
     price_per_hour = Column(Integer)  # In cents
     bandwidth_mbps = Column(Integer)
-    status = Column(String, default="available") # available, rented
+    status = Column(String, default="available")  # available, escrow, rented
+    renter_id = Column(String, ForeignKey("users.id"), nullable=True)
+    mesh_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    escrows = relationship("MarketplaceEscrow", back_populates="listing")
+
+
+class MarketplaceEscrow(Base):
+    """Escrow records holding payment until node health is confirmed."""
+    __tablename__ = "marketplace_escrows"
+    id = Column(String, primary_key=True)
+    listing_id = Column(String, ForeignKey("marketplace_listings.id"), index=True)
+    renter_id = Column(String, ForeignKey("users.id"), nullable=False)
+    amount_cents = Column(Integer, nullable=False)  # 1-hour deposit
+    status = Column(String, default="held")  # held, released, refunded
+    created_at = Column(DateTime, default=datetime.utcnow)
+    released_at = Column(DateTime, nullable=True)
+
+    listing = relationship("MarketplaceListing", back_populates="escrows")
 
 
 class Invoice(Base):
