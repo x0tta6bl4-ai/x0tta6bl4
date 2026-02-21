@@ -1,0 +1,173 @@
+{{/*
+MaaS Prometheus Rules - Alerts and Recording Rules
+*/}}
+{{- if and .Values.prometheus.enabled .Values.prometheus.rules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "maas.fullname" . }}
+  labels:
+    {{- include "maas.labels" . | nindent 4 }}
+    {{- with .Values.prometheus.rules.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Recording rules for common queries
+    - name: maas.recording.rules
+      rules:
+        - record: maas:requests:rate5m
+          expr: sum(rate(maas_requests_total[5m])) by (namespace, endpoint)
+          labels:
+            component: maas
+        
+        - record: maas:latency:p95_5m
+          expr: histogram_quantile(0.95, sum(rate(maas_request_duration_seconds_bucket[5m])) by (le, namespace))
+          labels:
+            component: maas
+        
+        - record: maas:errors:rate5m
+          expr: sum(rate(maas_requests_total{status=~"5.."}[5m])) by (namespace)
+          labels:
+            component: maas
+        
+        - record: maas:mesh:nodes:total
+          expr: sum(maas_mesh_nodes_total) by (namespace)
+          labels:
+            component: maas
+    
+    # Alerting rules
+    - name: maas.alerts
+      rules:
+        # High error rate
+        - alert: MaaSHighErrorRate
+          expr: |
+            sum(rate(maas_requests_total{status=~"5.."}[5m])) / sum(rate(maas_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            component: maas
+          annotations:
+            summary: "MaaS high error rate"
+            description: "Error rate is {{`{{ $value | humanizePercentage }}`}} for the last 5 minutes"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-high-error-rate"
+        
+        # High latency
+        - alert: MaaSHighLatency
+          expr: |
+            histogram_quantile(0.95, sum(rate(maas_request_duration_seconds_bucket[5m])) by (le)) > 1
+          for: 5m
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS high latency"
+            description: "P95 latency is {{`{{ $value | humanizeDuration }}`}}"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-high-latency"
+        
+        # Pod not ready
+        - alert: MaaSPodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="{{ .Release.Namespace }}", condition="true"} == 0
+            and on(pod) kube_pod_labels{namespace="{{ .Release.Namespace }}", label_app_kubernetes_io_name="maas"}
+          for: 5m
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS pod not ready"
+            description: "Pod {{`{{ $labels.pod }}`}} has been not ready for more than 5 minutes"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-pod-not-ready"
+        
+        # Mesh nodes down
+        - alert: MaaSMeshNodesDown
+          expr: |
+            (maas_mesh_nodes_total - maas_mesh_nodes_active) / maas_mesh_nodes_total > 0.2
+          for: 5m
+          labels:
+            severity: critical
+            component: maas
+          annotations:
+            summary: "MaaS mesh nodes down"
+            description: "{{`{{ $value | humanizePercentage }}`}} of mesh nodes are down"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-mesh-nodes-down"
+        
+        # Database connection issues
+        - alert: MaaSDatabaseConnectionFailed
+          expr: |
+            increase(maas_database_connection_errors_total[5m]) > 5
+          for: 1m
+          labels:
+            severity: critical
+            component: maas
+          annotations:
+            summary: "MaaS database connection failures"
+            description: "{{`{{ $value }}`}} database connection errors in the last 5 minutes"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-database-connection"
+        
+        # Redis connection issues
+        - alert: MaaSRedisConnectionFailed
+          expr: |
+            increase(maas_redis_connection_errors_total[5m]) > 5
+          for: 1m
+          labels:
+            severity: critical
+            component: maas
+          annotations:
+            summary: "MaaS Redis connection failures"
+            description: "{{`{{ $value }}`}} Redis connection errors in the last 5 minutes"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-redis-connection"
+        
+        # Stripe webhook failures
+        - alert: MaaSStripeWebhookFailures
+          expr: |
+            increase(maas_billing_webhooks_total{status="failed"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS Stripe webhook failures"
+            description: "{{`{{ $value }}`}} Stripe webhooks failed in the last hour"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-stripe-webhooks"
+        
+        # Certificate expiration
+        - alert: MaaSCertificateExpiringSoon
+          expr: |
+            maas_pqc_certificate_expiry_timestamp - time() < 86400 * 7
+          for: 1h
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS PQC certificate expiring soon"
+            description: "Certificate for {{`{{ $labels.node_id }}`}} expires in less than 7 days"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-certificate-expiry"
+        
+        # Worker queue backlog
+        - alert: MaaSWorkerQueueBacklog
+          expr: |
+            maas_worker_queue_length > 1000
+          for: 5m
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS worker queue backlog"
+            description: "Worker queue {{`{{ $labels.queue }}`}} has {{`{{ $value }}`}} pending tasks"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-worker-backlog"
+        
+        # Memory usage high
+        - alert: MaaSMemoryUsageHigh
+          expr: |
+            container_memory_working_set_bytes{namespace="{{ .Release.Namespace }}", container!=""}
+            / container_spec_memory_limit_bytes{namespace="{{ .Release.Namespace }}", container!=""} > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            component: maas
+          annotations:
+            summary: "MaaS container memory usage high"
+            description: "Container {{`{{ $labels.container }}`}} is using {{`{{ $value | humanizePercentage }}`}} of memory limit"
+            runbook_url: "https://runbooks.maas-x0tta6bl4.local/maas-memory-usage"
+{{- end }}

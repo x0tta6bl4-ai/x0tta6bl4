@@ -1,0 +1,167 @@
+{{/*
+MaaS Helm Chart - Post-Install Notes
+*/}}
+Thank you for installing MaaS (Mesh-as-a-Service)!
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+================================================================================
+                           DEPLOYMENT STATUS
+================================================================================
+
+{{- if .Values.api.enabled }}
+API Server:
+  Status: Deployed
+  Replicas: {{ .Values.api.replicaCount }}
+{{- end }}
+
+{{- if .Values.controller.enabled }}
+Controller:
+  Status: Deployed
+  Replicas: {{ .Values.controller.replicaCount }}
+{{- end }}
+
+{{- if .Values.worker.enabled }}
+Worker:
+  Status: Deployed
+  Replicas: {{ .Values.worker.replicaCount }}
+  Queues: {{ .Values.worker.queues }}
+{{- end }}
+
+================================================================================
+                           ACCESS INFORMATION
+================================================================================
+
+{{- if .Values.api.ingress.enabled }}
+External Access:
+{{- range .Values.api.ingress.hosts }}
+  URL: https://{{ .host }}
+{{- end }}
+
+{{- if .Values.api.ingress.tls }}
+TLS is enabled. Certificate will be provisioned by cert-manager.
+{{- end }}
+{{- else }}
+External Access:
+  Ingress is not enabled. Use port-forward for local access:
+  
+  kubectl port-forward svc/{{ include "maas.fullname" . }}-api 8080:8080 -n {{ .Release.Namespace }}
+  
+  Then access: http://localhost:8080
+{{- end }}
+
+================================================================================
+                           MONITORING
+================================================================================
+
+{{- if .Values.prometheus.enabled }}
+Prometheus:
+  Service: {{ include "maas.fullname" . }}-prometheus.{{ .Release.Namespace }}.svc.cluster.local:9090
+  
+  Port-forward:
+  kubectl port-forward svc/{{ include "maas.fullname" . }}-prometheus 9090:9090 -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.grafana.enabled }}
+Grafana:
+  Service: {{ include "maas.fullname" . }}-grafana.{{ .Release.Namespace }}.svc.cluster.local:80
+  
+  Port-forward:
+  kubectl port-forward svc/{{ include "maas.fullname" . }}-grafana 3000:80 -n {{ .Release.Namespace }}
+  
+  Access: http://localhost:3000
+  Default credentials: admin / {{ .Values.grafana.adminPassword }}
+{{- end }}
+
+================================================================================
+                           DATABASE
+================================================================================
+
+{{- if .Values.postgresql.enabled }}
+PostgreSQL:
+  Host: {{ include "maas.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
+  Port: 5432
+  Database: {{ .Values.postgresql.auth.database }}
+  Username: {{ .Values.postgresql.auth.username }}
+  
+  Connection string (from secret):
+  kubectl get secret {{ include "maas.fullname" . }}-secrets -n {{ .Release.Namespace }} -o jsonpath='{.data.database-url}' | base64 -d
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+Redis:
+  Host: {{ include "maas.fullname" . }}-redis-master.{{ .Release.Namespace }}.svc.cluster.local
+  Port: 6379
+  
+  Connection string (from secret):
+  kubectl get secret {{ include "maas.fullname" . }}-secrets -n {{ .Release.Namespace }} -o jsonpath='{.data.redis-url}' | base64 -d
+{{- end }}
+
+================================================================================
+                           USEFUL COMMANDS
+================================================================================
+
+Check deployment status:
+  kubectl get all -n {{ .Release.Namespace }} -l app.kubernetes.io/name=maas
+
+View API logs:
+  kubectl logs -f deployment/{{ include "maas.fullname" . }}-api -n {{ .Release.Namespace }}
+
+View worker logs:
+  kubectl logs -f deployment/{{ include "maas.fullname" . }}-worker -n {{ .Release.Namespace }}
+
+View controller logs:
+  kubectl logs -f deployment/{{ include "maas.fullname" . }}-controller -n {{ .Release.Namespace }}
+
+Get API token:
+  kubectl get secret -n {{ .Release.Namespace }} {{ include "maas.fullname" . }}-secrets -o jsonpath='{.data.api-token}' | base64 -d
+
+Run database migrations:
+  kubectl exec -it deployment/{{ include "maas.fullname" . }}-api -n {{ .Release.Namespace }} -- alembic upgrade head
+
+================================================================================
+                           SECURITY NOTES
+================================================================================
+
+{{- if .Values.networkPolicy.enabled }}
+Network Policies are enabled. Traffic is restricted to:
+  - Ingress from ingress-nginx namespace
+  - Egress to PostgreSQL (5432), Redis (6379), and external HTTPS (443)
+{{- end }}
+
+{{- if .Values.spire.enabled }}
+SPIRE/SPIFFE identity is enabled. Workloads receive X.509 SVIDs for mTLS.
+{{- end }}
+
+{{- if .Values.stripe.enabled }}
+Stripe integration is enabled. Ensure webhook endpoint is configured:
+  Endpoint: https://{{ (index .Values.api.ingress.hosts 0).host }}{{ .Values.stripe.webhook.path }}
+{{- end }}
+
+================================================================================
+                           NEXT STEPS
+================================================================================
+
+1. Verify all pods are running:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=maas
+
+2. Check API health:
+   kubectl exec -it deployment/{{ include "maas.fullname" . }}-api -n {{ .Release.Namespace }} -- curl -s http://localhost:8080/health
+
+3. Create your first mesh network:
+   curl -X POST https://{{ (index .Values.api.ingress.hosts 0).host }}/v1/mesh \
+     -H "Authorization: Bearer YOUR_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "my-first-mesh", "nodes": 3}'
+
+4. Configure Stripe webhooks (if billing is enabled):
+   - Go to https://dashboard.stripe.com/webhooks
+   - Add endpoint: https://{{ (index .Values.api.ingress.hosts 0).host }}{{ .Values.stripe.webhook.path }}
+   - Select events: customer.*, subscription.*, invoice.*, payment_method.*
+
+================================================================================
+
+For more information, visit: https://docs.maas-x0tta6bl4.local
+Support: support@maas-x0tta6bl4.local
+GitHub: https://github.com/maas-x0tta6bl4/maas-platform

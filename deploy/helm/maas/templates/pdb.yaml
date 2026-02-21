@@ -1,0 +1,16 @@
+{{/*
+MaaS Pod Disruption Budget
+*/}}
+{{- if .Values.api.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "maas.fullname" . }}-api
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.api.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "maas.api.selectorLabels" . | nindent 6 }}
+{{- end }}
