@@ -68,7 +68,7 @@ dependencies = [
 [project.optional-dependencies]
 # Dependencies for development, testing, and CI
 dev = [
-    "black==25.9.0",
+    "black==26.1.0",
     "flake8==7.3.0",
     "mypy==1.18.2",
     "pytest==8.4.2",
