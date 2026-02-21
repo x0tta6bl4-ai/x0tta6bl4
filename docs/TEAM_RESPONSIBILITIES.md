@@ -43,7 +43,10 @@ If a file is not listed in your agent scope, do not stage or commit it.
 - `docs/team/SWARM_OPERATING_MODEL.md`
 - `docs/team/swarm_ownership.json`
 - `scripts/agents/check_swarm_ownership.py`
+- `scripts/agents/swarm_coord.py`
 - `scripts/agents/install_swarm_hook.sh`
+- `scripts/agents/start_swarm_session.sh`
+- `scripts/agents/stop_swarm_session.sh`
 - `.githooks/pre-commit`
 
 ## Commit rules
@@ -58,4 +61,18 @@ scripts/agents/install_swarm_hook.sh
 export SWARM_AGENT=agent1-ml-core  # change per agent
 ```
 
-5. If cross-scope changes are required, hand off through owner agent.
+5. Optional lease tuning:
+
+```bash
+export SWARM_LEASE_TTL=1800
+```
+
+6. For full auto coordination session:
+
+```bash
+scripts/agents/start_swarm_session.sh agent1-ml-core
+# ... work ...
+scripts/agents/stop_swarm_session.sh agent1-ml-core
+```
+
+7. If cross-scope changes are required, hand off through owner agent.
