@@ -1,11 +1,29 @@
 #!/bin/bash
+set -euo pipefail
+
 # Dynamic Mesh Network Health Check
 # Проверяет работу динамического обнаружения узлов
 
+NODE1_IP="89.125.1.107"
+NODE2_IP="77.83.245.27"
+NODE3_IP="62.133.60.252"
+
+: "${NODE1_PASS:?Set NODE1_PASS in environment}"
+: "${NODE23_PASS:?Set NODE23_PASS in environment}"
+
+pass_for_ip() {
+    local ip="$1"
+    if [ "$ip" = "$NODE1_IP" ]; then
+        printf '%s' "$NODE1_PASS"
+    else
+        printf '%s' "$NODE23_PASS"
+    fi
+}
+
 NODES=(
-    "89.125.1.107:Node-1-Bootstrap"
-    "77.83.245.27:Node-2-EU-West"
-    "62.133.60.252:Node-3-RU-North"
+    "$NODE1_IP:Node-1-Bootstrap"
+    "$NODE2_IP:Node-2-EU-West"
+    "$NODE3_IP:Node-3-RU-North"
 )
 
 echo "🌐 x0tta6bl4 Dynamic Mesh Health Check"
@@ -16,9 +34,9 @@ echo "📡 Checking Dynamic Discovery..."
 echo ""
 
 # Проверяем Маяк (Bootstrap Node)
-echo "🗼 Bootstrap Node Status (89.125.1.107)"
+echo "🗼 Bootstrap Node Status ($NODE1_IP)"
 echo "─────────────────────────────────────────"
-bootstrap_peers=$(curl -s -m 5 http://89.125.1.107:9092/peers 2>/dev/null)
+bootstrap_peers=$(curl -s -m 5 http://$NODE1_IP:9092/peers 2>/dev/null)
 
 if [ -n "$bootstrap_peers" ]; then
     echo " ✅ Bootstrap responding"
@@ -46,10 +64,7 @@ for node_info in "${NODES[@]}"; do
     echo "─────────────────────────────────────────"
     
     # Выбираем пароль
-    PASS="13Vbkkbjyjd$"
-    if [ "$ip" == "89.125.1.107" ]; then
-        PASS="lhJOTi8vrB01aQ12C0"
-    fi
+    PASS="$(pass_for_ip "$ip")"
     
     # 1. SSH check
     if ! timeout 3 sshpass -p "$PASS" ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@$ip "echo 'OK'" &>/dev/null; then
@@ -99,7 +114,7 @@ echo ""
 
 # Test if nodes can see each other
 echo "Testing Node-2 -> Node-3..."
-node2_to_3=$(sshpass -p "13Vbkkbjyjd$" ssh -o StrictHostKeyChecking=no root@77.83.245.27 "curl -s -m 3 http://62.133.60.252:9092/health 2>/dev/null")
+node2_to_3=$(sshpass -p "$NODE23_PASS" ssh -o StrictHostKeyChecking=no root@$NODE2_IP "curl -s -m 3 http://$NODE3_IP:9092/health 2>/dev/null")
 if [ -n "$node2_to_3" ]; then
     echo "✅ Node-2 can reach Node-3 directly"
 else
@@ -107,7 +122,7 @@ else
 fi
 
 echo "Testing Node-3 -> Node-2..."
-node3_to_2=$(sshpass -p "13Vbkkbjyjd$" ssh -o StrictHostKeyChecking=no root@62.133.60.252 "curl -s -m 3 http://77.83.245.27:9092/health 2>/dev/null")
+node3_to_2=$(sshpass -p "$NODE23_PASS" ssh -o StrictHostKeyChecking=no root@$NODE3_IP "curl -s -m 3 http://$NODE2_IP:9092/health 2>/dev/null")
 if [ -n "$node3_to_2" ]; then
     echo "✅ Node-3 can reach Node-2 directly"
 else

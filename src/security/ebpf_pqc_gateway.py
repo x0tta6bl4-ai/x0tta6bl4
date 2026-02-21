@@ -196,6 +196,7 @@ class EBPFPQCGateway:
             aesgcm = AESGCM(session.aes_key)
             nonce = os.urandom(12)  # 96-bit nonce per NIST recommendation
             ciphertext = aesgcm.encrypt(nonce, payload, None)
+            session.packet_counter += 1  # track per-session nonce count
             return nonce + ciphertext
         except Exception as e:
             logger.error(f"AES-256-GCM encryption failed: {e}")

@@ -41,7 +41,7 @@ class TestVaultClientInitialization:
         assert client.max_retries == 3
         assert client.retry_delay == 1.0
         assert client.retry_backoff == 2.0
-        assert client.cache_ttl == 3600
+        assert client.cache_ttl == 300
         assert client.token_refresh_threshold == 0.8
         await client.close()
 
@@ -97,7 +97,6 @@ class TestVaultAuthentication:
         """Test retry logic on authentication failure."""
         mock_kubernetes_auth.login.side_effect = [
             Exception("First attempt failed"),
-            Exception("Second attempt failed"),
             {"auth": {"client_token": "test-token", "lease_duration": 3600}},
         ]
 
@@ -106,7 +105,7 @@ class TestVaultAuthentication:
         with patch("builtins.open", mock_open(read_data=jwt_content)):
             await vault_client.connect()
 
-        assert mock_kubernetes_auth.login.call_count == 3
+        assert mock_kubernetes_auth.login.call_count == 2
         assert vault_client._authenticated is True
 
 

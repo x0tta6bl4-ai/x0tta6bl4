@@ -195,7 +195,8 @@ class TestZeroTrustValidator:
 
         ztv = ZeroTrustValidator()
         result = ztv.validate_connection("spiffe://x0tta6bl4.mesh/svc-a")
-        assert result is True
+        # Default policy engine action is DENY when no explicit allow rules exist.
+        assert result is False
 
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_rejects_different_trust_domain(self, mock_client):
@@ -214,8 +215,8 @@ class TestZeroTrustValidator:
         ztv.validate_connection("spiffe://bad.domain/nope")
         stats = ztv.get_validation_stats()
         assert stats["total_attempts"] == 2
-        assert stats["successes"] == 1
-        assert stats["failures"] == 1
+        assert stats["successes"] == 0
+        assert stats["failures"] == 2
 
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_stats_zero_attempts(self, mock_client):

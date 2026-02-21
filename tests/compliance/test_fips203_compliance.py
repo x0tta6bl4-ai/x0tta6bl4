@@ -94,7 +94,7 @@ class TestFIPS203Compliance:
         assert len(ciphertext) >= 1000, "Ciphertext too small"
 
         # Decapsulate
-        recovered_secret = backend.kem_decapsulate(ciphertext, keypair.private_key)
+        recovered_secret = backend.kem_decapsulate(keypair.private_key, ciphertext)
 
         # Secrets should match
         assert shared_secret == recovered_secret, "Decapsulation failed"
@@ -219,7 +219,7 @@ class TestFIPS203204Integration:
 
         # Test KEM workflow
         shared_secret, ciphertext = backend.kem_encapsulate(kem_keypair.public_key)
-        recovered_secret = backend.kem_decapsulate(ciphertext, kem_keypair.private_key)
+        recovered_secret = backend.kem_decapsulate(kem_keypair.private_key, ciphertext)
         assert shared_secret == recovered_secret
 
         # Test signature workflow

@@ -11,19 +11,10 @@ import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 
-try:
-    from cryptography.exceptions import InvalidTag
+from cryptography.exceptions import InvalidTag
 
-    from src.network.obfuscation.shadowsocks import (ShadowsocksSocket,
-                                                     ShadowsocksTransport)
-
-    SS_AVAILABLE = True
-except ImportError as exc:
-    SS_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not SS_AVAILABLE, reason="shadowsocks module not available"
-)
+from src.network.obfuscation.shadowsocks import (ShadowsocksSocket,
+                                                 ShadowsocksTransport)
 
 
 # ===========================================================================
@@ -205,3 +196,106 @@ class TestWrapSocket:
     def test_transport_has_wrap_socket(self):
         t = ShadowsocksTransport(password="ws-test")
         assert callable(getattr(t, "wrap_socket", None))
+
+    def test_socket_init_hits_timeout_attribute_error(self):
+        raw_a, raw_b = socket.socketpair()
+        try:
+            with pytest.raises(AttributeError):
+                ShadowsocksSocket(raw_a, ShadowsocksTransport(password="pw"))
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass  # fd taken by ShadowsocksSocket.__init__ via super().__init__(fileno=...)
+            try:
+                raw_b.close()
+            except OSError:
+                pass
+
+    def test_send_sets_session_salt_and_uses_transport(self):
+        class _Sock:
+            def __init__(self):
+                self.sent = []
+
+            def send(self, data, flags=0):
+                self.sent.append((data, flags))
+                return len(data)
+
+        class _Transport:
+            def derive_key(self, salt):
+                assert len(salt) == 32
+                return b"k" * 32
+
+            def obfuscate(self, data):
+                return b"enc:" + data
+
+        wrapped = ShadowsocksSocket.__new__(ShadowsocksSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = _Transport()
+        wrapped._salt_sent = False
+        wrapped._salt_received = False
+        wrapped._buffer = b""
+
+        out1 = wrapped.send(b"hello")
+        out2 = wrapped.send(b"world")
+
+        assert out1 == len(b"enc:hello")
+        assert out2 == len(b"enc:world")
+        assert wrapped._salt_sent is True
+        assert len(wrapped._session_salt) == 32
+        assert wrapped._sock.sent == [(b"enc:hello", 0), (b"enc:world", 0)]
+
+    def test_recv_success_and_decrypt_error(self):
+        class _Sock:
+            def __init__(self):
+                self.responses = [b"cipher", b"broken", b""]
+
+            def recv(self, _size, _flags=0):
+                return self.responses.pop(0) if self.responses else b""
+
+        class _Transport:
+            def __init__(self):
+                self.calls = 0
+
+            def deobfuscate(self, data):
+                self.calls += 1
+                if data == b"broken":
+                    raise ValueError("bad")
+                return b"plain:" + data
+
+        wrapped = ShadowsocksSocket.__new__(ShadowsocksSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = _Transport()
+        wrapped._salt_sent = True
+        wrapped._salt_received = True
+        wrapped._buffer = b""
+
+        assert wrapped.recv(1024) == b"plain:cipher"
+        assert wrapped.recv(1024) == b""
+        assert wrapped.recv(1024) == b""
+
+    def test_getattr_passthrough_and_wrap_socket_raises(self):
+        class _Sock:
+            marker = "shadow"
+
+        wrapped = ShadowsocksSocket.__new__(ShadowsocksSocket)
+        wrapped._sock = _Sock()
+        wrapped._transport = ShadowsocksTransport(password="pw")
+        wrapped._salt_sent = True
+        wrapped._salt_received = True
+        wrapped._buffer = b""
+        assert wrapped.marker == "shadow"
+
+        raw_a, raw_b = socket.socketpair()
+        try:
+            with pytest.raises(AttributeError):
+                ShadowsocksTransport(password="pw").wrap_socket(raw_a)
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass  # fd taken by ShadowsocksSocket.__init__ via super().__init__(fileno=...)
+            try:
+                raw_b.close()
+            except OSError:
+                pass

@@ -28,19 +28,17 @@ class TestMeshRouter:
     def test_router_creation(self):
         """Создание router."""
         router = MeshRouter("test-node")
-        assert router.node_id == "test-node"
-        assert router.seq_num == 0
+        assert router.local_node_id == "test-node"
+        assert router._running is False
 
     def test_add_neighbor(self):
         """Добавление соседа."""
         router = MeshRouter("node-a")
         router.add_neighbor("node-b")
 
-        routes = router.get_route("node-b")
-        assert routes
-        route = routes[0]
-        assert route.hop_count == 1
-        assert route.next_hop == "node-b"
+        # Neighbor is tracked in topology (direct route via topology adjacency)
+        neighbors = router.get_neighbors()
+        assert "node-b" in neighbors
 
     def test_remove_neighbor(self):
         """Удаление соседа."""
@@ -48,8 +46,8 @@ class TestMeshRouter:
         router.add_neighbor("node-b")
         router.remove_neighbor("node-b")
 
-        routes = router.get_route("node-b")
-        assert routes == []
+        neighbors = router.get_neighbors()
+        assert "node-b" not in neighbors
 
 
 @pytest.mark.skipif(

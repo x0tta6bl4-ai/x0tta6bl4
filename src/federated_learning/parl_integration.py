@@ -190,9 +190,7 @@ class PARLFederatedOrchestrator:
 
         selected_nodes = list(round_obj.selected_nodes)
         logger.info(
-            f"PARL: Dispatching {
-                len(selected_nodes)} training tasks for Round {
-                round_obj.round_number}"
+            f"PARL: Dispatching {len(selected_nodes)} training tasks for Round {round_obj.round_number}"
         )
 
         # 2. Create PARL Tasks
@@ -222,9 +220,7 @@ class PARLFederatedOrchestrator:
         execution_time = time.time() - start_time
 
         logger.info(
-            f"PARL: {
-                len(results)} training tasks completed in {
-                execution_time:.2f}s"
+            f"PARL: {len(results)} training tasks completed in {execution_time:.2f}s"
         )
 
         # 4. Submit Updates

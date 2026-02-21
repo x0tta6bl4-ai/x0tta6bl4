@@ -145,7 +145,16 @@ class MetricSanitizer:
         return valid_metrics, validation_results
 
 
-class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
+class _EBPFMetricsExporterCompatBase(EBPFMetricsExporter):
+    """
+    Compatibility layer.
+
+    Keeps the MRO shape expected by legacy tests:
+    Enhanced -> CompatBase -> EBPFMetricsExporter -> object
+    """
+
+
+class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
     """
     Enhanced eBPF Metrics Exporter with improved error handling.
 
@@ -407,14 +416,23 @@ class EBPFMetricsExporterEnhanced(EBPFMetricsExporter):
         Returns:
             Dict with health information
         """
-        degradation = super().get_degradation_status()
+        degradation = self.get_degradation_status()
         errors = self.get_error_summary()
         performance = self.get_performance_stats()
 
+        def _as_int(value: Any, default: int = 0) -> int:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
         # Determine overall health
-        if degradation.get("consecutive_failures", 0) > 5 or errors["total"] > 100:
+        consecutive_failures = _as_int(degradation.get("consecutive_failures", 0))
+        total_errors = _as_int(errors.get("total", 0))
+
+        if consecutive_failures > 5 or total_errors > 100:
             overall = "unhealthy"
-        elif errors["total"] > 50 or degradation.get("level") == "degraded":
+        elif total_errors > 50 or degradation.get("level") == "degraded":
             overall = "degraded"
         else:
             overall = "healthy"

@@ -1,9 +1,14 @@
 import asyncio
+import builtins
+import importlib
+import types
 
 import pytest
 
 from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerOpen,
-                                      circuit_breaker, get_circuit_breaker)
+                                      CircuitState, circuit_breaker,
+                                      create_circuit_breaker,
+                                      get_circuit_breaker)
 
 
 @pytest.mark.asyncio
@@ -158,66 +163,163 @@ async def test_fallback_only_in_open():
 
     result = await cb.call(ok_func)
     assert result == "ok"
+    assert await fallback() == "fallback"
+    assert called["used"] is True
 
-    @pytest.mark.asyncio
-    async def test_context_manager_usage(self, circuit):
-        """Test circuit breaker as context manager."""
 
-        async def success_func():
-            return "success"
+@pytest.mark.asyncio
+async def test_fallback_used_on_closed_state_failure_path():
+    async def fallback():
+        return "fallback-closed"
 
-        async with circuit:
-            result = await success_func()
+    cb = CircuitBreaker("cb_closed_fallback", failure_threshold=10, fallback=fallback)
 
-        assert result == "success"
+    async def fail():
+        raise RuntimeError("boom")
 
-    @pytest.mark.asyncio
-    async def test_get_state(self, circuit):
-        """Test getting current circuit state."""
-        state = circuit.get_state()
-        assert state == CircuitState.CLOSED
+    result = await cb.call(fail)
+    assert result == "fallback-closed"
+    assert cb.state == CircuitState.CLOSED
 
-    @pytest.mark.asyncio
-    async def test_get_metrics(self, circuit):
-        """Test getting circuit breaker metrics."""
 
-        async def success_func():
-            return "success"
+@pytest.mark.asyncio
+async def test_half_open_limit_without_fallback_raises_open():
+    cb = CircuitBreaker(
+        "cb_half_limit_no_fallback",
+        failure_threshold=1,
+        recovery_timeout=10,
+        half_open_max_calls=1,
+    )
+    cb._state = CircuitState.HALF_OPEN
+    cb._half_open_calls = 1
 
-        await circuit.call(success_func)
+    async def ok():
+        return "ok"
 
-        metrics = circuit.get_metrics()
-        assert "state" in metrics
-        assert "failure_count" in metrics
-        assert "success_count" in metrics
-        assert "last_failure_time" in metrics
+    with pytest.raises(CircuitBreakerOpen, match="HALF_OPEN limit reached"):
+        await cb.call(ok)
+    assert await ok() == "ok"
 
-    async def test_recovery_after_timeout(self):
-        """Test circuit recovers after timeout."""
-        config = CircuitBreakerConfig(
-            fail_max=2, timeout_duration=1, success_threshold=1
-        )
-        circuit = CircuitBreaker("recovery_test", config)
 
-        async def fail_func():
-            raise ValueError("Test error")
+@pytest.mark.asyncio
+async def test_half_open_limit_with_fallback_returns_fallback():
+    async def fallback():
+        return "fallback-ok"
 
-        async def success_func():
-            return "success"
+    cb = CircuitBreaker(
+        "cb_half_limit_with_fallback",
+        failure_threshold=1,
+        recovery_timeout=10,
+        half_open_max_calls=1,
+        fallback=fallback,
+    )
+    cb._state = CircuitState.HALF_OPEN
+    cb._half_open_calls = 1
 
-        # Open the circuit
-        for _ in range(2):
-            try:
-                await circuit.call(fail_func)
-            except ValueError:
-                pass
+    async def ok():
+        return "ok"
 
-        assert circuit.state == CircuitState.OPEN
+    result = await cb.call(ok)
+    assert result == "fallback-ok"
+    assert await ok() == "ok"
 
-        # Wait for timeout
-        await asyncio.sleep(1.1)
 
-        # Should succeed now
-        result = await circuit.call(success_func)
-        assert result == "success"
-        assert circuit.state == CircuitState.CLOSED
+@pytest.mark.asyncio
+async def test_half_open_failure_transitions_to_open():
+    cb = CircuitBreaker(
+        "cb_half_open_failure",
+        failure_threshold=5,
+        recovery_timeout=10,
+        half_open_max_calls=2,
+    )
+    cb._state = CircuitState.HALF_OPEN
+    cb._half_open_calls = 0
+
+    async def fail():
+        raise RuntimeError("half-open-fail")
+
+    with pytest.raises(RuntimeError):
+        await cb.call(fail)
+
+    assert cb.state == CircuitState.OPEN
+    assert cb._last_failure_time is not None
+
+
+def test_should_attempt_reset_true_when_no_last_failure_time():
+    cb = CircuitBreaker("cb_no_failure_time")
+    cb._last_failure_time = None
+    assert cb._should_attempt_reset() is True
+
+
+@pytest.mark.asyncio
+async def test_execute_fallback_raises_when_missing_fallback():
+    cb = CircuitBreaker("cb_no_fallback")
+    with pytest.raises(CircuitBreakerOpen, match="No fallback"):
+        await cb._execute_fallback()
+
+
+def test_metric_helpers_reuse_existing_collectors(monkeypatch):
+    import src.core.circuit_breaker as cb_mod
+    assert hasattr(cb_mod, "_get_or_create_gauge")
+
+    existing_gauge = types.SimpleNamespace(_name="my_gauge")
+    existing_counter = types.SimpleNamespace(_name="my_counter")
+    existing_histogram = types.SimpleNamespace(_name="my_hist")
+    registry = types.SimpleNamespace(
+        _names_to_collectors={
+            "g": existing_gauge,
+            "c": existing_counter,
+            "h": existing_histogram,
+        }
+    )
+    monkeypatch.setattr(cb_mod, "REGISTRY", registry)
+
+    def _raise_value_error(*_args, **_kwargs):
+        raise ValueError("already registered")
+
+    monkeypatch.setattr(cb_mod, "Gauge", _raise_value_error)
+    monkeypatch.setattr(cb_mod, "Counter", _raise_value_error)
+    monkeypatch.setattr(cb_mod, "Histogram", _raise_value_error)
+
+    assert cb_mod._get_or_create_gauge("my_gauge", "desc", ["label"]) is existing_gauge
+    assert cb_mod._get_or_create_gauge("missing_g", "desc", ["label"]) is None
+
+    assert (
+        cb_mod._get_or_create_counter("my_counter", "desc", ["label"])
+        is existing_counter
+    )
+    assert cb_mod._get_or_create_counter("missing_c", "desc", ["label"]) is None
+
+    assert (
+        cb_mod._get_or_create_histogram("my_hist", "desc", ["label"], [1.0, 2.0])
+        is existing_histogram
+    )
+    assert (
+        cb_mod._get_or_create_histogram("missing_h", "desc", ["label"], [1.0, 2.0])
+        is None
+    )
+
+
+def test_import_fallback_when_prometheus_missing(monkeypatch):
+    import src.core.circuit_breaker as cb_mod
+
+    original_import = builtins.__import__
+
+    def _fake_import(name, *args, **kwargs):
+        if name.startswith("prometheus_client"):
+            raise ImportError("prometheus unavailable")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+    reloaded = importlib.reload(cb_mod)
+    assert reloaded.PROMETHEUS_AVAILABLE is False
+
+    monkeypatch.setattr(builtins, "__import__", original_import)
+    importlib.reload(cb_mod)
+
+
+def test_create_circuit_breaker_returns_existing_instance():
+    name = "cb_existing_instance"
+    first = create_circuit_breaker(name, failure_threshold=2, recovery_timeout=1)
+    second = create_circuit_breaker(name, failure_threshold=99, recovery_timeout=99)
+    assert second is first

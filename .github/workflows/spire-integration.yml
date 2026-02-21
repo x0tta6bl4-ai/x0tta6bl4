@@ -1,0 +1,198 @@
+name: SPIRE Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "src/security/spiffe/**"
+      - "src/security/zero_trust/**"
+      - "src/self_healing/mape_k_spiffe_integration.py"
+      - "deployment/spire/**"
+      - "tests/test_spire_integration.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/security/spiffe/**"
+      - "src/security/zero_trust/**"
+      - "deployment/spire/**"
+  workflow_dispatch:
+    inputs:
+      run_integration_tests:
+        description: "Run integration tests with SPIRE"
+        required: false
+        default: "true"
+
+jobs:
+  unit-tests:
+    name: Unit Tests (SPIFFE Module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run unit tests
+        run: |
+          pytest \
+            tests/unit/security/spiffe \
+            tests/unit/security/test_spire_integration_unit.py \
+            tests/unit/security/test_spiffe_auto_renew.py \
+            tests/unit/security/test_zero_trust_unit.py \
+            tests/unit/security/test_zero_trust_policy_engine.py \
+            tests/unit/security/test_zero_trust_policy_engine_more.py \
+            -o addopts='' -v --tb=short
+
+  integration-tests:
+    name: Integration Tests (SPIRE)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+      
+      - name: Install SPIRE
+        run: |
+          curl -s -L https://github.com/spiffe/spire/releases/download/v1.9.0/spire-1.9.0-linux-x86_64-glibc.tar.gz | tar xz
+          sudo mv spire-1.9.0/spire-server /usr/local/bin/
+          sudo mv spire-1.9.0/spire-agent /usr/local/bin/
+          chmod +x /usr/local/bin/spire-*
+      
+      - name: Start SPIRE Server
+        run: |
+          mkdir -p /tmp/spire/data
+          cat > /tmp/spire/server.conf << 'EOF'
+          server {
+            trust_domain = "x0tta6bl4.mesh"
+            data_dir = "/tmp/spire/data"
+            log_level = "DEBUG"
+            bind_address = "0.0.0.0"
+            bind_port = "8081"
+          }
+          plugins {
+            DataStore "sql" {
+              plugin_data {
+                database_type = "sqlite3"
+                connection_string = "/tmp/spire/data/datastore.sqlite3"
+              }
+            }
+            KeyManager "disk" {
+              plugin_data {
+                keys_path = "/tmp/spire/data/keys.json"
+              }
+            }
+            NodeAttestor "join_token" {
+              plugin_data {}
+            }
+          }
+          EOF
+          spire-server run -config /tmp/spire/server.conf &
+          echo "SPIRE_SERVER_PID=$!" >> $GITHUB_ENV
+          sleep 5
+      
+      - name: Generate Join Token
+        run: |
+          TOKEN=$(spire-server token generate -spiffeID spiffe://x0tta6bl4.mesh/spire/agent/test 2>/dev/null | awk '{print $2}')
+          echo "SPIRE_JOIN_TOKEN=$TOKEN" >> $GITHUB_ENV
+      
+      - name: Start SPIRE Agent
+        run: |
+          mkdir -p /tmp/spire/sockets
+          cat > /tmp/spire/agent.conf << EOF
+          agent {
+            trust_domain = "x0tta6bl4.mesh"
+            data_dir = "/tmp/spire/data/agent"
+            log_level = "DEBUG"
+            server_address = "127.0.0.1"
+            server_port = "8081"
+            socket_path = "/tmp/spire/sockets/agent.sock"
+            join_token = "${{ env.SPIRE_JOIN_TOKEN }}"
+          }
+          plugins {
+            NodeAttestor "join_token" {
+              plugin_data {}
+            }
+            WorkloadAttestor "unix" {
+              plugin_data {}
+            }
+          }
+          EOF
+          spire-agent run -config /tmp/spire/agent.conf &
+          echo "SPIRE_AGENT_PID=$!" >> $GITHUB_ENV
+          sleep 5
+      
+      - name: Create Workload Entry
+        run: |
+          spire-server entry create -spiffeID spiffe://x0tta6bl4.mesh/workload/test -parentID spiffe://x0tta6bl4.mesh/spire/agent/test -selector unix:uid:$(id -u)
+      
+      - name: Run integration tests
+        env:
+          SPIRE_INTEGRATION_TESTS: "true"
+          SPIFFE_ENDPOINT_SOCKET: "/tmp/spire/sockets/agent.sock"
+        run: |
+          pytest tests/test_spire_integration.py -v --tb=short
+      
+      - name: Cleanup SPIRE
+        if: always()
+        run: |
+          kill ${{ env.SPIRE_SERVER_PID }} || true
+          kill ${{ env.SPIRE_AGENT_PID }} || true
+
+  lint:
+    name: Lint (SPIFFE Module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install linters
+        run: pip install ruff mypy
+      
+      - name: Run Ruff
+        run: ruff check src/security/spiffe/ src/security/zero_trust/ --select E9,F63,F7,F82
+      
+      - name: Run MyPy
+        run: mypy src/security/spiffe/ --ignore-missing-imports
+        continue-on-error: true
+
+  security-scan:
+    name: Security Scan (SPIFFE Module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install Bandit
+        run: pip install bandit
+      
+      - name: Run Bandit
+        run: |
+          set -euo pipefail
+          bandit -r src/security/spiffe/ -lll -iii
+          bandit -r src/security/zero_trust/ -lll -iii

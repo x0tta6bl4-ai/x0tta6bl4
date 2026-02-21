@@ -295,9 +295,7 @@ class GraphSAGEAnomalyDetector:
             return
 
         logger.info(
-            f"Training GraphSAGE v2 model: {
-                len(node_features)} nodes, {
-                len(edge_index)} edges"
+            f"Training GraphSAGE v2 model: {len(node_features)} nodes, {len(edge_index)} edges"
         )
 
         # Convert to PyTorch format
@@ -380,14 +378,18 @@ class GraphSAGEAnomalyDetector:
         # to avoid random false positives from uninitialized network outputs.
         if not getattr(self, "is_trained", False):
             labels = self._generate_labels([node_features])
-            is_anomaly = bool(labels and labels[0] > 0.5)
+            anomaly_score = float(labels[0]) if labels else 0.0
+            is_anomaly = anomaly_score >= self.anomaly_threshold
+            # Keep legacy confidence for untrained fallback path.
+            confidence = 0.8
+            inference_time = (time.time() - start_time) * 1000
             return AnomalyPrediction(
                 is_anomaly=is_anomaly,
-                anomaly_score=1.0 if is_anomaly else 0.0,
-                confidence=0.8,
+                anomaly_score=anomaly_score,
+                confidence=confidence,
                 node_id=node_id,
                 features=node_features,
-                inference_time_ms=(time.time() - start_time) * 1000,
+                inference_time_ms=inference_time,
             )
 
         # Prepare graph data
@@ -758,7 +760,7 @@ class GraphSAGEAnomalyDetector:
 
     def load_model(self, path: str):
         """Load model from file."""
-        checkpoint = torch.load(path, map_location=self.device)  # nosec B614
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 
         self.model = GraphSAGEAnomalyDetectorV2(
             input_dim=checkpoint["input_dim"],
