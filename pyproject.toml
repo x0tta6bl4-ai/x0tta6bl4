@@ -94,7 +94,7 @@ ml = [
     "scipy==1.16.2",
     "sentence-transformers==5.1.2",
     "torch-geometric==2.5.3",
-    "transformers==4.57.1",
+    "transformers==5.2.0",
     "joblib==1.5.2",
     "nltk==3.9.2",
     "matplotlib==3.10.7",
