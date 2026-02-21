@@ -9,6 +9,7 @@ fi
 AGENT="$1"
 ROOT="$(git rev-parse --show-toplevel)"
 GIT_COMMON_RAW="$(git rev-parse --git-common-dir)"
+GIT_DIR="$(git rev-parse --git-dir)"
 if [[ "$GIT_COMMON_RAW" = /* ]]; then
   GIT_COMMON="$GIT_COMMON_RAW"
 else
@@ -23,6 +24,7 @@ INTERVAL="${SWARM_HEARTBEAT_INTERVAL:-300}"
 
 mkdir -p "$SWARM_DIR"
 export SWARM_AGENT="$AGENT"
+printf "%s\n" "$AGENT" > "$GIT_DIR/swarm_agent"
 
 "$ROOT/scripts/agents/install_swarm_hook.sh" >/dev/null
 "$ROOT/scripts/agents/swarm_coord.py" claim-owned --agent "$AGENT" --ttl "$TTL" --note "session-start"

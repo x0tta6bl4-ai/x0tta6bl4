@@ -9,6 +9,7 @@ fi
 AGENT="$1"
 ROOT="$(git rev-parse --show-toplevel)"
 GIT_COMMON_RAW="$(git rev-parse --git-common-dir)"
+GIT_DIR="$(git rev-parse --git-dir)"
 if [[ "$GIT_COMMON_RAW" = /* ]]; then
   GIT_COMMON="$GIT_COMMON_RAW"
 else
@@ -31,4 +32,10 @@ if [[ -f "$PID_FILE" ]]; then
 fi
 
 "$ROOT/scripts/agents/swarm_coord.py" release --agent "$AGENT"
+if [[ -f "$GIT_DIR/swarm_agent" ]]; then
+  CURRENT_AGENT="$(tr -d '[:space:]' < "$GIT_DIR/swarm_agent" || true)"
+  if [[ "$CURRENT_AGENT" = "$AGENT" ]]; then
+    rm -f "$GIT_DIR/swarm_agent"
+  fi
+fi
 echo "[swarm] session closed for '$AGENT'."
