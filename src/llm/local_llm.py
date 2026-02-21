@@ -35,42 +35,69 @@ class LocalLLM:
         self.n_batch = n_batch
         self.verbose = verbose
         self.llm = None
+        self._is_loading = False
+        self._llama_available = bool(LLAMA_AVAILABLE and Llama is not None)
 
-        if not LLAMA_AVAILABLE:
+        if not self._llama_available:
             logger.warning("⚠️ llama-cpp-python not installed. Local LLM will not work.")
             return
 
-        # Offline fallback check
-        if not os.path.exists(model_path):
-             # Fallback for offline/underserved regions
-             offline_path = "gguf/llama-3.2-3b-q4.gguf"
-             if os.path.exists(offline_path):
-                 logger.info(f"⚠️ Primary model not found. Switching to offline backup: {offline_path}")
-                 model_path = offline_path
-             else:
-                 logger.warning(f"⚠️ Model not found at {model_path}. Please download it.")
-                 # Don't raise error, just log warning to allow app to start without model
-                 return
+        # Keep eager initialization for compatibility with existing callers/tests.
+        self._ensure_model_loaded()
 
+    def _ensure_model_loaded(self) -> bool:
+        """Lazy load the model if not already loaded."""
+        if not self._llama_available:
+            return False
+
+        if self.llm is not None:
+            return True
+        
+        if self._is_loading:
+            return False
+            
+        self._is_loading = True
+        
         try:
-            if verbose:
+            model_path = self.model_path
+            
+            # Offline fallback check
+            if not os.path.exists(model_path):
+                 # Fallback for offline/underserved regions
+                 offline_path = "gguf/llama-3.2-3b-q4.gguf"
+                 if os.path.exists(offline_path):
+                     logger.info(f"⚠️ Primary model not found. Switching to offline backup: {offline_path}")
+                     model_path = offline_path
+                 else:
+                     logger.warning(f"⚠️ Model not found at {model_path}. Please download it.")
+                     self._is_loading = False
+                     return False
+
+            if self.verbose:
                 logger.info(f"Loading Local LLM from {model_path}...")
 
-            self.llm = Llama(
+            # Use a temporary local reference to avoid partial initialization visibility
+            loaded_llm = Llama(
                 model_path=model_path,
-                n_ctx=n_ctx,
-                n_gpu_layers=n_gpu_layers,
-                verbose=verbose,
-                n_threads=n_threads,
-                n_batch=n_batch,
+                n_ctx=self.n_ctx,
+                n_gpu_layers=self.n_gpu_layers,
+                verbose=self.verbose,
+                n_threads=self.n_threads,
+                n_batch=self.n_batch,
             )
+            
+            self.llm = loaded_llm
+            self._is_loading = False
 
-            if verbose:
+            if self.verbose:
                 logger.info("✅ Local LLM loaded successfully")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to load Local LLM: {e}")
             self.llm = None
+            self._is_loading = False
+            return False
 
     def generate(
         self,
@@ -80,8 +107,8 @@ class LocalLLM:
         top_p: float = 0.9,
     ) -> str:
         """Raw text completion."""
-        if not self.llm:
-            return "ERROR: Local LLM not initialized"
+        if not self._ensure_model_loaded():
+            return "ERROR: Local LLM not initialized or model file missing"
 
         try:
             output = self.llm(
@@ -104,8 +131,8 @@ class LocalLLM:
         temperature: float = 0.7,
     ) -> str:
         """Chat completion using model's chat template."""
-        if not self.llm:
-            return "ERROR: Local LLM not initialized"
+        if not self._ensure_model_loaded():
+            return "ERROR: Local LLM not initialized or model file missing"
 
         try:
             response = self.llm.create_chat_completion(
