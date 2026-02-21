@@ -1,7 +1,7 @@
 # Dockerfile for x0tta6bl4 FastAPI application
 
 # Stage 1: Builder
-FROM python:3.12-slim as builder
+FROM python:3.14-slim as builder
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
@@ -53,7 +53,7 @@ RUN pip install --upgrade pip && \
 RUN pip wheel --wheel-dir=/wheelhouse -r requirements.min.txt -r requirements-dev.txt
 
 # Stage 2: Production
-FROM python:3.12-slim as production
+FROM python:3.14-slim as production
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
