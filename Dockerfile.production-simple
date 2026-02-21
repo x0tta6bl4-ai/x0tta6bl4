@@ -1,5 +1,5 @@
 # ===== STAGE 1: BUILDER =====
-FROM python:3.11-slim as builder
+FROM python:3.14-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements-core.txt || true
 
 # ===== STAGE 2: RUNNER =====
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

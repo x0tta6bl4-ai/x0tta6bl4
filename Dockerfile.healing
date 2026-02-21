@@ -1,7 +1,7 @@
 # x0tta6bl4 v3.4 - Production Dockerfile (Self-Healing Version)
 # ================================================================
 
-FROM python:3.11-slim as base
+FROM python:3.14-slim as base
 
 # Metadata
 LABEL maintainer="x0tta6bl4 Team <contact@x0tta6bl4.net>"
