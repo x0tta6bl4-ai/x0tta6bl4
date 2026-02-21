@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.version import __version__
+
 logger = logging.getLogger(__name__)
 
 # Импорты компонентов v3.0
@@ -96,7 +98,7 @@ async def get_v3_status(
         raise HTTPException(status_code=503, detail="V3.0 components not available")
 
     status = integration.get_status()
-    return {"status": "operational", "components": status, "version": "3.0.0"}
+    return {"status": "operational", "components": status, "version": __version__}
 
 
 @router.post("/graphsage/analyze")
@@ -133,7 +135,7 @@ async def analyze_with_graphsage(
         }
     except Exception as e:
         logger.error(f"GraphSAGE analysis error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/stego/encode")
@@ -174,7 +176,7 @@ async def encode_stego_packet(
         }
     except Exception as e:
         logger.error(f"Stego-Mesh encoding error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/stego/decode")
@@ -209,7 +211,7 @@ async def decode_stego_packet(
         return {"decoded_payload": decoded_b64, "size": len(decoded)}
     except Exception as e:
         logger.error(f"Stego-Mesh decoding error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/chaos/run")
@@ -240,7 +242,7 @@ async def run_chaos_test(
         return result
     except Exception as e:
         logger.error(f"Chaos test error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/audit/add")
@@ -273,7 +275,7 @@ async def add_audit_record(
         }
     except Exception as e:
         logger.error(f"Audit record error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/audit/records")
@@ -306,7 +308,7 @@ async def get_audit_records(
         }
     except Exception as e:
         logger.error(f"Get audit records error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/audit/statistics")
@@ -327,4 +329,4 @@ async def get_audit_statistics(
         return stats
     except Exception as e:
         logger.error(f"Get audit statistics error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

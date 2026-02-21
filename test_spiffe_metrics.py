@@ -9,7 +9,7 @@ sys.path.append(os.getcwd())
 # Mock spiffe dependencies if missing (though we know they are there)
 try:
     from src.network.batman.node_manager import NodeManager, AttestationStrategy
-    from src.monitoring.metrics import generate_latest
+    from src.monitoring.metrics import get_metrics
 except ImportError as e:
     print(f"ImportError: {e}")
     sys.exit(1)
@@ -37,7 +37,7 @@ def test_metrics():
     print(f"Registration result: {result}")
     
     # Check metrics
-    metrics_output = generate_latest().decode('utf-8')
+    metrics_output = get_metrics().body.decode('utf-8')
     
     if 'node_spiffe_attested{node_id="secure-1",spiffe_id="spiffe://mesh/node/secure-1"} 1.0' in metrics_output:
         print("SUCCESS: Metric 'node_spiffe_attested' found with value 1.0")

@@ -5,14 +5,36 @@ Tests for LedgerDriftDetector from src/ledger/drift_detector.py.
 This version tests the new API introduced after Paradox Zone consolidation.
 """
 
+from pathlib import Path
+
 import pytest
 
 from src.ledger.drift_detector import LedgerDriftDetector, get_drift_detector
 
+SAMPLE_CONTINUITY = """# Project Continuity
 
-def test_initialization():
+## Architecture
+- Component A: Core engine
+- Component B: Network layer
+
+## Metrics
+- Uptime: 99.9%
+- Latency: 50ms
+"""
+
+
+@pytest.fixture
+def continuity_file(tmp_path):
+    """Create a temporary CONTINUITY.md file."""
+    f = tmp_path / "CONTINUITY.md"
+    f.write_text(SAMPLE_CONTINUITY, encoding="utf-8")
+    return f
+
+
+def test_initialization(continuity_file):
     """Test basic initialization of LedgerDriftDetector."""
     detector = LedgerDriftDetector()
+    detector.continuity_file = continuity_file
     assert detector is not None
     assert hasattr(detector, "_initialized")
     assert detector._initialized is True
@@ -27,9 +49,10 @@ def test_singleton_pattern():
     assert detector1 is detector2
 
 
-def test_build_ledger_graph():
+def test_build_ledger_graph(continuity_file):
     """Test that ledger graph can be built successfully."""
     detector = LedgerDriftDetector()
+    detector.continuity_file = continuity_file
     graph = detector.build_ledger_graph()
     assert isinstance(graph, dict)
     assert "nodes" in graph

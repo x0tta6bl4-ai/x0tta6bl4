@@ -44,7 +44,7 @@ class TestV3Status:
                 assert response.status_code == 200
                 data = response.json()
                 assert data["status"] == "operational"
-                assert data["version"] == "3.0.0"
+                assert data["version"] == "3.2.1"
                 assert "components" in data
 
     def test_get_v3_status_unavailable(self):

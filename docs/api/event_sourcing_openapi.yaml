@@ -1,0 +1,905 @@
+openapi: 3.0.3
+info:
+  title: x0tta6bl4 Event Sourcing API
+  description: |
+    Event Sourcing and CQRS API for event-driven architectures.
+    
+    ## Features
+    - **Event Store**: Append-only event storage with snapshots
+    - **Command Bus**: Command handling with middleware support
+    - **Query Bus**: Query handling with caching
+    - **Projections**: Read model projections
+    - **Aggregates**: Domain-driven design aggregates
+    
+    ## Architecture
+    ```
+    ┌─────────────────────────────────────────────────────────────┐
+    │                        API Layer                             │
+    └─────────────────────────────────────────────────────────────┘
+                    │                           │
+           ┌────────▼────────┐         ┌────────▼────────┐
+           │   Command Bus   │         │    Query Bus    │
+           │  ┌───────────┐  │         │  ┌───────────┐  │
+           │  │Middleware │  │         │  │  Cache    │  │
+           │  │ Handlers  │  │         │  │ Handlers  │  │
+           │  └───────────┘  │         │  └───────────┘  │
+           └────────┬────────┘         └────────┬────────┘
+                    │                           │
+           ┌────────▼────────┐         ┌────────▼────────┐
+           │   Aggregates    │         │  Projections    │
+           │  ┌───────────┐  │         │  ┌───────────┐  │
+           │  │  State    │  │         │  │ Read Model│  │
+           │  │  Events   │  │         │  │           │  │
+           │  └───────────┘  │         │  └───────────┘  │
+           └────────┬────────┘         └────────┬────────┘
+                    │                           │
+                    └───────────┬───────────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │     Event Store       │
+                    │  ┌─────────────────┐  │
+                    │  │ Events Stream   │  │
+                    │  │ Snapshots       │  │
+                    │  └─────────────────┘  │
+                    └───────────────────────┘
+    ```
+  version: 1.0.0
+  contact:
+    name: x0tta6bl4 Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v2/events
+    description: Local development
+  - url: https://api.x0tta6bl4.dev/v2/events
+    description: Production
+
+tags:
+  - name: Events
+    description: Event store operations
+  - name: Commands
+    description: Command bus operations
+  - name: Queries
+    description: Query bus operations
+  - name: Projections
+    description: Projection management
+  - name: Aggregates
+    description: Aggregate operations
+
+paths:
+  # =============================================================================
+  # Event Store Endpoints
+  # =============================================================================
+
+  /streams:
+    get:
+      tags:
+        - Events
+      summary: List all event streams
+      operationId: listStreams
+      parameters:
+        - name: prefix
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: List of streams
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  streams:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        stream_id:
+                          type: string
+                        version:
+                          type: integer
+                        event_count:
+                          type: integer
+                        created_at:
+                          type: string
+                          format: date-time
+                        updated_at:
+                          type: string
+                          format: date-time
+
+  /streams/{streamId}:
+    get:
+      tags:
+        - Events
+      summary: Get events from a stream
+      operationId: getStreamEvents
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from_version
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Start from version (exclusive)
+        - name: to_version
+          in: query
+          schema:
+            type: integer
+          description: End at version (inclusive)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Stream events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stream_id:
+                    type: string
+                  version:
+                    type: integer
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
+  /streams/{streamId}/append:
+    post:
+      tags:
+        - Events
+      summary: Append events to stream
+      operationId: appendEvents
+      description: |
+        Append events to a stream with optimistic concurrency control.
+        
+        If `expected_version` is provided, the append will fail if the
+        current stream version doesn't match.
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - events
+              properties:
+                events:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/EventCreate'
+                expected_version:
+                  type: integer
+                  description: Expected current version for optimistic concurrency
+      responses:
+        '200':
+          description: Events appended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stream_id:
+                    type: string
+                  new_version:
+                    type: integer
+                  appended_count:
+                    type: integer
+        '409':
+          description: Version conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionConflict'
+
+  /streams/{streamId}/snapshot:
+    get:
+      tags:
+        - Events
+      summary: Get latest snapshot
+      operationId: getSnapshot
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '404':
+          description: No snapshot available
+
+    post:
+      tags:
+        - Events
+      summary: Create snapshot
+      operationId: createSnapshot
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: integer
+                  description: Version to snapshot (defaults to current)
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+
+  /events:
+    get:
+      tags:
+        - Events
+      summary: Get all events (global stream)
+      operationId: getAllEvents
+      parameters:
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: from_timestamp
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to_timestamp
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
+  /events/subscribe:
+    get:
+      tags:
+        - Events
+      summary: Subscribe to event stream (WebSocket)
+      operationId: subscribeEvents
+      description: |
+        WebSocket endpoint for real-time event subscription.
+        
+        Message format:
+        ```json
+        {
+          "type": "subscribe",
+          "stream_id": "optional-stream-id",
+          "event_types": ["UserCreated", "UserUpdated"]
+        }
+        ```
+      responses:
+        '101':
+          description: WebSocket connection established
+
+  # =============================================================================
+  # Command Bus Endpoints
+  # =============================================================================
+
+  /commands:
+    post:
+      tags:
+        - Commands
+      summary: Execute a command
+      operationId: executeCommand
+      description: |
+        Execute a command through the command bus.
+        
+        Commands are validated and routed to appropriate handlers.
+        Middleware can intercept commands for logging, auth, etc.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Command'
+      responses:
+        '200':
+          description: Command executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /commands/batch:
+    post:
+      tags:
+        - Commands
+      summary: Execute multiple commands
+      operationId: executeBatchCommands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commands:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Command'
+                atomic:
+                  type: boolean
+                  default: false
+                  description: Execute atomically (all or nothing)
+      responses:
+        '200':
+          description: Batch executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommandResult'
+                  success_count:
+                    type: integer
+                  failure_count:
+                    type: integer
+
+  /commands/handlers:
+    get:
+      tags:
+        - Commands
+      summary: List registered command handlers
+      operationId: listCommandHandlers
+      responses:
+        '200':
+          description: List of handlers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  handlers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        command_type:
+                          type: string
+                        handler_name:
+                          type: string
+                        registered_at:
+                          type: string
+                          format: date-time
+
+  # =============================================================================
+  # Query Bus Endpoints
+  # =============================================================================
+
+  /queries:
+    post:
+      tags:
+        - Queries
+      summary: Execute a query
+      operationId: executeQuery
+      description: |
+        Execute a query through the query bus.
+        
+        Results are cached based on query type configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Query'
+      responses:
+        '200':
+          description: Query result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+
+  /queries/cache:
+    get:
+      tags:
+        - Queries
+      summary: Get query cache statistics
+      operationId: getQueryCacheStats
+      responses:
+        '200':
+          description: Cache statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  size:
+                    type: integer
+                  hits:
+                    type: integer
+                  misses:
+                    type: integer
+                  hit_rate:
+                    type: number
+                    format: float
+
+  /queries/cache/invalidate:
+    post:
+      tags:
+        - Queries
+      summary: Invalidate query cache
+      operationId: invalidateQueryCache
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query_type:
+                  type: string
+                all:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Cache invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invalidated_count:
+                    type: integer
+
+  # =============================================================================
+  # Projection Endpoints
+  # =============================================================================
+
+  /projections:
+    get:
+      tags:
+        - Projections
+      summary: List all projections
+      operationId: listProjections
+      responses:
+        '200':
+          description: List of projections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projections:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectionInfo'
+
+  /projections/{projectionName}:
+    get:
+      tags:
+        - Projections
+      summary: Get projection status
+      operationId: getProjectionStatus
+      parameters:
+        - name: projectionName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionStatus'
+
+  /projections/{projectionName}/reset:
+    post:
+      tags:
+        - Projections
+      summary: Reset projection
+      operationId: resetProjection
+      description: Reset projection and rebuild from events
+      parameters:
+        - name: projectionName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Reset started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [resetting]
+                  started_at:
+                    type: string
+                    format: date-time
+
+  /projections/{projectionName}/pause:
+    post:
+      tags:
+        - Projections
+      summary: Pause projection
+      operationId: pauseProjection
+      parameters:
+        - name: projectionName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection paused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [paused]
+
+  /projections/{projectionName}/resume:
+    post:
+      tags:
+        - Projections
+      summary: Resume projection
+      operationId: resumeProjection
+      parameters:
+        - name: projectionName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [running]
+
+  # =============================================================================
+  # Aggregate Endpoints
+  # =============================================================================
+
+  /aggregates/{aggregateType}/{aggregateId}:
+    get:
+      tags:
+        - Aggregates
+      summary: Get aggregate state
+      operationId: getAggregate
+      parameters:
+        - name: aggregateType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: aggregateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aggregate state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregateState'
+        '404':
+          description: Aggregate not found
+
+  /aggregates/{aggregateType}/{aggregateId}/history:
+    get:
+      tags:
+        - Aggregates
+      summary: Get aggregate event history
+      operationId: getAggregateHistory
+      parameters:
+        - name: aggregateType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: aggregateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aggregate_type:
+                    type: string
+                  aggregate_id:
+                    type: string
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
+components:
+  schemas:
+    # =============================================================================
+    # Event Schemas
+    # =============================================================================
+
+    Event:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        stream_id:
+          type: string
+        version:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+        metadata:
+          type: object
+          additionalProperties: true
+
+    EventCreate:
+      type: object
+      required:
+        - event_type
+        - payload
+      properties:
+        event_type:
+          type: string
+        payload:
+          type: object
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Snapshot:
+      type: object
+      properties:
+        stream_id:
+          type: string
+        version:
+          type: integer
+        state:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    VersionConflict:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Version conflict"
+        expected_version:
+          type: integer
+        actual_version:
+          type: integer
+
+    # =============================================================================
+    # Command Schemas
+    # =============================================================================
+
+    Command:
+      type: object
+      required:
+        - command_type
+      properties:
+        command_id:
+          type: string
+          format: uuid
+        command_type:
+          type: string
+        payload:
+          type: object
+        metadata:
+          type: object
+          additionalProperties: true
+
+    CommandResult:
+      type: object
+      properties:
+        command_id:
+          type: string
+        success:
+          type: boolean
+        result:
+          type: object
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        events_produced:
+          type: integer
+        execution_time_ms:
+          type: integer
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+
+    # =============================================================================
+    # Query Schemas
+    # =============================================================================
+
+    Query:
+      type: object
+      required:
+        - query_type
+      properties:
+        query_id:
+          type: string
+          format: uuid
+        query_type:
+          type: string
+        parameters:
+          type: object
+        options:
+          type: object
+          properties:
+            use_cache:
+              type: boolean
+              default: true
+            cache_ttl_seconds:
+              type: integer
+
+    QueryResult:
+      type: object
+      properties:
+        query_id:
+          type: string
+        result:
+          type: object
+        from_cache:
+          type: boolean
+        execution_time_ms:
+          type: integer
+
+    # =============================================================================
+    # Projection Schemas
+    # =============================================================================
+
+    ProjectionInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [running, paused, error, resetting]
+        position:
+          type: integer
+        events_processed:
+          type: integer
+        last_event_timestamp:
+          type: string
+          format: date-time
+
+    ProjectionStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [running, paused, error, resetting]
+        position:
+          type: integer
+        events_processed:
+          type: integer
+        last_event_timestamp:
+          type: string
+          format: date-time
+        lag:
+          type: integer
+          description: Events behind head
+        error:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+
+    # =============================================================================
+    # Aggregate Schemas
+    # =============================================================================
+
+    AggregateState:
+      type: object
+      properties:
+        aggregate_type:
+          type: string
+        aggregate_id:
+          type: string
+        version:
+          type: integer
+        state:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

@@ -5,6 +5,7 @@ Tests network resilience, DDoS resistance, and censorship bypass.
 """
 
 import asyncio
+import os
 import time
 from typing import Any, Dict, List
 from unittest.mock import Mock, patch
@@ -68,7 +69,14 @@ class TestNetworkPartition:
 class TestDDoSResistance:
     """Tests for DDoS resistance"""
 
+    # Clear proxy env vars that cause httpx to fail with socks:// scheme
+    _proxy_env = {
+        k: v for k, v in os.environ.items()
+        if k.lower() not in ("http_proxy", "https_proxy", "all_proxy", "no_proxy")
+    }
+
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {}, clear=True)
     async def test_api_handles_high_request_rate(
         self, base_url="http://localhost:8080"
     ):
@@ -85,6 +93,15 @@ class TestDDoSResistance:
         try:
             responses = await asyncio.gather(*tasks, return_exceptions=True)
 
+            # Check if server is reachable
+            connection_errors = sum(
+                1 for r in responses
+                if isinstance(r, (ConnectionError, OSError))
+                or (isinstance(r, Exception) and "connect" in str(r).lower())
+            )
+            if connection_errors == requests_count:
+                pytest.skip("API server not running at localhost:8080")
+
             # Most requests should succeed
             success_count = sum(
                 1
@@ -99,6 +116,7 @@ class TestDDoSResistance:
             await client.aclose()
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {}, clear=True)
     async def test_api_has_rate_limiting(self, base_url="http://localhost:8080"):
         """Test that API has rate limiting"""
         if not HTTPX_AVAILABLE:
@@ -127,6 +145,7 @@ class TestDDoSResistance:
             await client.aclose()
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {}, clear=True)
     async def test_api_handles_large_payloads(self, base_url="http://localhost:8080"):
         """Test that API handles large payloads gracefully"""
         if not HTTPX_AVAILABLE:

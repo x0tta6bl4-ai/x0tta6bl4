@@ -645,7 +645,7 @@ class UnsupervisedAnomalyDetector:
 
             # Load model state
             if os.path.exists(model_path):
-                self.vae_detector.load_state_dict(torch.load(model_path))  # nosec B614
+                self.vae_detector.load_state_dict(torch.load(model_path, weights_only=True))
                 self.vae_detector.eval()
                 logger.info(f"📂 VAE model loaded from {model_path}")
             else:

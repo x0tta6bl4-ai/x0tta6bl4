@@ -69,7 +69,7 @@ async def search_ledger(request: SearchRequest):
 
     except Exception as e:
         logger.error(f"Ошибка при поиске в ledger: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка поиска: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -113,7 +113,7 @@ async def index_ledger(force: bool = False):
 
     except Exception as e:
         logger.error(f"Ошибка при индексировании ledger: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка индексирования: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status")
@@ -130,4 +130,4 @@ async def ledger_status():
         }
     except Exception as e:
         logger.error(f"Ошибка при получении статуса: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

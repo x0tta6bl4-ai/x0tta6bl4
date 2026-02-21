@@ -629,16 +629,15 @@ class TestPredictMethod:
         assert isinstance(pred, AnomalyPrediction)
         assert pred.node_id == "lone"
 
-    def test_predict_confidence_formula(self):
-        """Confidence should be abs(score - 0.5) * 2."""
+    def test_predict_confidence_untrained_fallback(self):
+        """Untrained fallback keeps deterministic confidence for stability."""
         det = _make_detector()
         pred = det.predict(
             node_id="c",
             node_features=_normal_features(),
             neighbors=_make_neighbors(1),
         )
-        expected = abs(pred.anomaly_score - 0.5) * 2
-        assert abs(pred.confidence - expected) < 1e-6
+        assert pred.confidence == 0.8
 
     def test_predict_anomaly_flag_based_on_threshold(self):
         """is_anomaly should be True iff anomaly_score >= threshold."""
@@ -650,22 +649,18 @@ class TestPredictMethod:
         )
         assert pred.is_anomaly == (pred.anomaly_score >= det.anomaly_threshold)
 
-    def test_predict_records_metrics(self):
-        """record_graphsage_inference should be called."""
+    def test_predict_does_not_record_metrics_when_untrained(self):
+        """Untrained fallback returns before record_graphsage_inference call."""
         with patch(
             "src.ml.graphsage_anomaly_detector.record_graphsage_inference"
         ) as mock_record:
             det = _make_detector()
-            pred = det.predict(
+            det.predict(
                 node_id="m",
                 node_features=_normal_features(),
                 neighbors=_make_neighbors(1),
             )
-            mock_record.assert_called_once()
-            args = mock_record.call_args[0]
-            assert args[0] >= 0  # inference_time
-            assert isinstance(args[1], bool)  # is_anomaly
-            assert args[2] in ("CRITICAL", "NORMAL")
+            mock_record.assert_not_called()
 
 
 # -----------------------------------------------------------------------

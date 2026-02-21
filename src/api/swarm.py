@@ -169,7 +169,7 @@ async def create_swarm(
         logger.error(f"Failed to create swarm: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create swarm: {str(e)}",
+            detail="Internal server error",
         )
 
 
@@ -225,7 +225,7 @@ async def submit_task(
         logger.error(f"Failed to submit task: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit task: {str(e)}",
+            detail="Internal server error",
         )
 
 
@@ -270,7 +270,7 @@ async def submit_tasks_batch(
         logger.error(f"Failed to submit batch tasks: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to submit batch tasks: {str(e)}",
+            detail="Internal server error",
         )
 
 
@@ -564,7 +564,7 @@ async def analyze_visual(
         logger.error(f"Vision analysis failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Vision analysis failed: {str(e)}",
+            detail="Internal server error",
         )
 
 

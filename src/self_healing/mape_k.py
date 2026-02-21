@@ -139,7 +139,7 @@ class MAPEKMonitor:
                 }
 
                 # Get neighbors (simplified - would use actual topology)
-                neighbors = []  # Would be populated from mesh topology
+                neighbors = metrics.get("neighbor_features", [])
 
                 # Use predict_with_causal if available for root cause analysis
                 node_id = metrics.get("node_id", "unknown")
@@ -278,7 +278,7 @@ class MAPEKAnalyzer:
                     "memory": metrics.get("memory_percent", 0.0) / 100.0,
                 }
 
-                neighbors = []  # Would be populated from mesh topology
+                neighbors = metrics.get("neighbor_features", [])
 
                 # Use predict_with_causal if available
                 if hasattr(self.graphsage_detector, "predict_with_causal"):
@@ -444,12 +444,20 @@ class MAPEKExecutor:
             True if action executed successfully
         """
         logger.info(f"Executing action: {action}")
+        self.was_simulated = False
 
         if self.use_recovery_executor and self.recovery_executor:
-            return self.recovery_executor.execute(action, context)
+            result = self.recovery_executor.execute(action, context)
+            # Check if the action was only simulated (not real recovery)
+            last = getattr(self.recovery_executor, "last_result", None)
+            if last and getattr(last, "details", None):
+                if last.details.get("method") == "simulated":
+                    self.was_simulated = True
+            return result
 
         # Fallback placeholder
         logger.warning(f"Placeholder execution for: {action}")
+        self.was_simulated = True
         time.sleep(0.1)
         return True
 
@@ -712,7 +720,7 @@ class MAPEKKnowledge:
         action_scores: Dict[str, float] = {}
         for incident in self.successful_patterns[issue]:
             action = incident.get("action", "")
-            mttr = incident.get("mttr", 10.0)  # Default to high if missing
+            mttr = incident.get("mttr") or 10.0  # Default to high if missing/None
 
             if action not in action_scores:
                 action_scores[action] = {"count": 0, "total_mttr": 0.0}
@@ -844,7 +852,17 @@ class SelfHealingManager:
         if anomaly_detected:
             # ANALYZE phase
             analyze_start = time.time()
-            issue = self.analyzer.analyze(metrics)
+            analyze_event_id = f"{self.node_id}_{int(time.time() * 1000)}"
+            try:
+                issue = self.analyzer.analyze(
+                    metrics, node_id=self.node_id, event_id=analyze_event_id
+                )
+            except TypeError as exc:
+                # Backward compatibility for analyzer test doubles that only accept metrics.
+                if "unexpected keyword argument" in str(exc):
+                    issue = self.analyzer.analyze(metrics)
+                else:
+                    raise
             analyze_duration = time.time() - analyze_start
 
             try:
@@ -897,17 +915,23 @@ class SelfHealingManager:
                     record_mttr(recovery_type, mttr)
                     record_self_healing_event(recovery_type, self.node_id)
                     record_mape_k_cycle("execute", execute_duration)
+                except ImportError:
+                    pass
 
-                    # KNOWLEDGE phase with feedback loop
-                    knowledge_start = time.time()
-                    self.knowledge.record(
-                        metrics, issue, action, success=success, mttr=mttr
+                # KNOWLEDGE phase with feedback loop.
+                knowledge_start = time.time()
+                self.knowledge.record(metrics, issue, action, success=success, mttr=mttr)
+                # Feedback loop: Update Monitor and Planner based on results
+                self._apply_feedback_loop(issue, action, success, mttr)
+
+                if getattr(self.executor, "was_simulated", False) is True:
+                    logger.debug(
+                        "Recorded simulated recovery in knowledge base: %s", action
                     )
 
-                    # Feedback loop: Update Monitor and Planner based on results
-                    self._apply_feedback_loop(issue, action, success, mttr)
-
-                    knowledge_duration = time.time() - knowledge_start
+                knowledge_duration = time.time() - knowledge_start
+                try:
+                    from src.monitoring.metrics import record_mape_k_cycle
                     record_mape_k_cycle("knowledge", knowledge_duration)
                 except ImportError:
                     pass

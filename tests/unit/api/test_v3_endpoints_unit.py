@@ -24,7 +24,7 @@ async def test_status_ok_and_unavailable(monkeypatch):
     monkeypatch.setattr(mod, "V3_AVAILABLE", True)
     ok = await mod.get_v3_status(integration=integration)
     assert ok["status"] == "operational"
-    assert ok["version"] == "3.0.0"
+    assert ok["version"] == "3.2.1"
 
     monkeypatch.setattr(mod, "V3_AVAILABLE", False)
     with pytest.raises(HTTPException) as exc:

@@ -20,6 +20,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
+# Try importing PQC identity manager, fallback to None if not available
+try:
+    from src.security.pqc_identity import PQCNodeIdentity
+    PQC_AVAILABLE = True
+except ImportError:
+    PQCNodeIdentity = None
+    PQC_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +61,10 @@ class PeerInfo:
     version: str = "1.0.0"
     last_seen: float = 0
     rtt_ms: float = 0
+    
+    # PQC Identity Info
+    did: Optional[str] = None
+    pqc_pubkey: Optional[str] = None # Hex encoded public key for signature verification
 
     # DHT данные
     distance: int = 0  # XOR distance для Kademlia
@@ -63,6 +75,8 @@ class PeerInfo:
             "addresses": self.addresses,
             "services": self.services,
             "version": self.version,
+            "did": self.did,
+            "pqc_pubkey": self.pqc_pubkey
         }
 
     @classmethod
@@ -72,6 +86,8 @@ class PeerInfo:
             addresses=[tuple(a) for a in data["addresses"]],
             services=data.get("services", []),
             version=data.get("version", "1.0.0"),
+            did=data.get("did"),
+            pqc_pubkey=data.get("pqc_pubkey")
         )
 
 
@@ -83,6 +99,8 @@ class DiscoveryMessage:
     sender_id: str
     payload: dict
     timestamp: int = 0
+    signature: Optional[str] = None # Hex encoded signature
+    pqc_pubkey: Optional[str] = None # Sender's public key (hex) needed for verification
 
     def to_bytes(self) -> bytes:
         """Сериализация в bytes."""
@@ -91,6 +109,8 @@ class DiscoveryMessage:
             "sender": self.sender_id,
             "payload": self.payload,
             "ts": self.timestamp or int(time.time() * 1000),
+            "sig": self.signature,
+            "pub": self.pqc_pubkey
         }
         return json.dumps(data).encode("utf-8")
 
@@ -103,7 +123,20 @@ class DiscoveryMessage:
             sender_id=obj["sender"],
             payload=obj["payload"],
             timestamp=obj["ts"],
+            signature=obj.get("sig"),
+            pqc_pubkey=obj.get("pub")
         )
+        
+    def get_signable_data(self) -> bytes:
+        """Returns the canonical bytes to be signed."""
+        # We sign: type + sender + sorted(payload) + ts
+        sign_payload = {
+            "type": self.msg_type.value,
+            "sender": self.sender_id,
+            "payload": self.payload,
+            "ts": self.timestamp
+        }
+        return json.dumps(sign_payload, sort_keys=True).encode("utf-8")
 
 
 class MulticastDiscovery:
@@ -119,12 +152,14 @@ class MulticastDiscovery:
         services: List[str] = None,
         multicast_group: str = MULTICAST_GROUP,
         multicast_port: int = MULTICAST_PORT,
+        identity_manager: Optional['PQCNodeIdentity'] = None
     ):
         self.node_id = node_id
         self.service_port = service_port
         self.services = services or ["mesh"]
         self.multicast_group = multicast_group
         self.multicast_port = multicast_port
+        self.identity_manager = identity_manager
 
         self._socket: Optional[socket.socket] = None
         self._running = False
@@ -195,10 +230,25 @@ class MulticastDiscovery:
 
         logger.info("Multicast Discovery остановлен")
 
+    def _sign_message(self, msg: DiscoveryMessage):
+        """Signs the message using PQC Identity if available."""
+        if self.identity_manager:
+            try:
+                msg.timestamp = int(time.time() * 1000)
+                data_to_sign = msg.get_signable_data()
+                signature_bytes = self.identity_manager.security.sign(data_to_sign)
+                msg.signature = signature_bytes.hex()
+                msg.pqc_pubkey = self.identity_manager.security.get_public_keys()['sig_public_key']
+            except Exception as e:
+                logger.error(f"Failed to sign discovery message: {e}")
+
     async def _send_announce(self):
         """Отправить announce."""
         # Получаем локальные адреса
         local_ip = self._get_local_ip()
+        
+        did = self.identity_manager.did if self.identity_manager else None
+        pqc_pubkey = self.identity_manager.security.get_public_keys()['sig_public_key'] if self.identity_manager else None
 
         msg = DiscoveryMessage(
             msg_type=MessageType.ANNOUNCE,
@@ -208,9 +258,13 @@ class MulticastDiscovery:
                     node_id=self.node_id,
                     addresses=[(local_ip, self.service_port)],
                     services=self.services,
+                    did=did,
+                    pqc_pubkey=pqc_pubkey
                 ).to_dict()
             },
         )
+        
+        self._sign_message(msg)
 
         try:
             data = msg.to_bytes()
@@ -228,6 +282,7 @@ class MulticastDiscovery:
         msg = DiscoveryMessage(
             msg_type=MessageType.LEAVE, sender_id=self.node_id, payload={}
         )
+        self._sign_message(msg)
 
         try:
             data = msg.to_bytes()
@@ -260,6 +315,30 @@ class MulticastDiscovery:
                     logger.debug(f"Listen error: {e}")
                 await asyncio.sleep(0.1)
 
+    def _verify_message(self, msg: DiscoveryMessage) -> bool:
+        """Verifies the message signature if present."""
+        if not msg.signature or not msg.pqc_pubkey:
+            # For backward compatibility during migration, allow unsigned if no identity_manager
+            return self.identity_manager is None
+
+        try:
+            # Use the already available identity manager or backend
+            try:
+                from libx0t.security.post_quantum import PQMeshSecurityLibOQS
+            except ImportError:
+                from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS
+            
+            # Use a temporary verifier for the remote node
+            verifier = PQMeshSecurityLibOQS("verifier-temp")
+            data_to_verify = msg.get_signable_data()
+            sig_bytes = bytes.fromhex(msg.signature)
+            pub_bytes = bytes.fromhex(msg.pqc_pubkey)
+            
+            return verifier.verify(data_to_verify, sig_bytes, pub_bytes)
+        except Exception as e:
+            logger.error(f"Signature verification failed: {e}")
+            return False
+
     async def _handle_message(self, data: bytes, addr: Tuple[str, int]):
         """Обработка входящего сообщения."""
         try:
@@ -267,6 +346,11 @@ class MulticastDiscovery:
 
             # Игнорируем свои сообщения
             if msg.sender_id == self.node_id:
+                return
+            
+            # Verify Signature
+            if not self._verify_message(msg):
+                logger.warning(f"Dropping message from {msg.sender_id} due to invalid/missing signature.")
                 return
 
             if msg.msg_type == MessageType.ANNOUNCE:
@@ -281,6 +365,32 @@ class MulticastDiscovery:
         except Exception as e:
             logger.debug(f"Ошибка обработки сообщения: {e}")
 
+    async def _handle_gossip_ban(self, msg: DiscoveryMessage):
+        """
+        Digital Immune System: Process a ban recommendation.
+        Only accept bans from trusted peers (verified signature).
+        """
+        target_id = msg.payload.get("target_id")
+        reason = msg.payload.get("reason", "unknown")
+        
+        if not target_id:
+            return
+
+        logger.warning(f"🛡️ Digital Immune System: Received BAN proposal for {target_id} from {msg.sender_id}. Reason: {reason}")
+        
+        # Here we should check if sender is trusted (e.g. in our whitelist or high reputation)
+        # For MVP: If signature is valid (checked in _handle_message), we trust it.
+        
+        # Action: Remove peer
+        if target_id in self._peers:
+            logger.warning(f"🛡️ Immunity Active: Removing infected node {target_id}")
+            peer = self._peers.pop(target_id)
+            if self._on_peer_lost:
+                await self._on_peer_lost(peer)
+        
+        # Propagation (Gossip): Re-broadcast to other neighbors? 
+        # To prevent storms, we only rebroadcast if we actually took action (had the peer).
+        
     async def _handle_announce(self, msg: DiscoveryMessage, addr: Tuple[str, int]):
         """Обработка announce."""
         peer_data = msg.payload.get("peer", {})
@@ -545,6 +655,7 @@ class MeshDiscovery:
         bootstrap_nodes: List[Tuple[str, int]] = None,
         enable_multicast: bool = True,
         enable_dht: bool = True,
+        identity_manager: Optional['PQCNodeIdentity'] = None
     ):
         self.node_id = node_id
         self.service_port = service_port
@@ -556,7 +667,8 @@ class MeshDiscovery:
 
         if enable_multicast:
             self._multicast = MulticastDiscovery(
-                node_id=node_id, service_port=service_port, services=services
+                node_id=node_id, service_port=service_port, services=services,
+                identity_manager=identity_manager
             )
 
         if bootstrap_nodes:
@@ -648,41 +760,3 @@ class MeshDiscovery:
             "dht_enabled": self._dht is not None,
             "peers": [p.to_dict() for p in self._peers.values()],
         }
-
-
-# CLI пример
-async def example_discovery():
-    """Пример использования discovery."""
-    import uuid
-
-    node_id = f"node-{uuid.uuid4().hex[:8]}"
-
-    discovery = MeshDiscovery(
-        node_id=node_id, service_port=5000, services=["mesh", "relay"]
-    )
-
-    @discovery.on_peer_discovered
-    async def on_found(peer: PeerInfo):
-        print(f"🟢 Найден: {peer.node_id} @ {peer.addresses}")
-
-    @discovery.on_peer_lost
-    async def on_lost(peer: PeerInfo):
-        print(f"🔴 Потерян: {peer.node_id}")
-
-    await discovery.start()
-
-    print(f"Discovery запущен для {node_id}")
-    print("Ожидание пиров... (Ctrl+C для выхода)")
-
-    try:
-        while True:
-            await asyncio.sleep(5)
-            print(f"Известно пиров: {len(discovery.get_peers())}")
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await discovery.stop()
-
-
-if __name__ == "__main__":
-    asyncio.run(example_discovery())

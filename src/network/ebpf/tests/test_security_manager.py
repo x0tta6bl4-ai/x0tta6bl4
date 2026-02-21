@@ -11,8 +11,8 @@ Tests cover:
 """
 
 import pytest
-from telemetry_module import (EventSeverity, MetricValidationStatus,
-                              SecurityManager, TelemetryConfig, TelemetryEvent)
+from telemetry_module import (EventSeverity, SecurityManager,
+                              TelemetryConfig, TelemetryEvent)
 
 
 class TestSecurityManagerInitialization:

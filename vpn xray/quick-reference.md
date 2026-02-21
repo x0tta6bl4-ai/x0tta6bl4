@@ -5,7 +5,7 @@
 ### 🔧 SSH Connection (Спасение)
 ```bash
 # SSH на сервер
-SSH_PASS="lH7SEcWM812blV50sz"
+SSH_PASS="<set-your-password>"
 SSH_USER="root"
 SSH_HOST="89.125.1.107"
 
@@ -13,7 +13,7 @@ SSH_HOST="89.125.1.107"
 sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST
 
 # Или используй алиас
-alias x0tta='sshpass -p "lH7SEcWM812blV50sz" ssh -o StrictHostKeyChecking=no root@89.125.1.107'
+alias x0tta='sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST"'
 x0tta  # просто так
 ```
 
@@ -478,7 +478,7 @@ docker restart x0t-node
 ### Если всё сломалось
 ```bash
 # 1. SSH на сервер
-sshpass -p "lH7SEcWM812blV50sz" ssh -o StrictHostKeyChecking=no root@89.125.1.107
+sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST"
 
 # 2. Убедиться что WARP running
 warp-cli --accept-tos connect

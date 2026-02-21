@@ -1,0 +1,182 @@
+# Default values for SPIRE Helm chart
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  trustDomain: "x0tta6bl4.mesh"
+  namespace: "spire-system"
+
+# SPIRE Server configuration
+server:
+  replicaCount: 3
+  
+  image:
+    repository: ghcr.io/spiffe/spire-server
+    tag: "1.9.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8081
+    annotations: {}
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Persistent storage for server state
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+  
+  # SVID TTL (time-to-live)
+  svidTTL: "1h"
+  
+  # CA subject configuration
+  caSubject:
+    country: "NL"
+    organization: "x0tta6bl4"
+    commonName: "x0tta6bl4.mesh"
+  
+  # Data store configuration
+  datastore:
+    type: "sqlite3"  # sqlite3, postgres, mysql
+    # For PostgreSQL:
+    # type: postgres
+    # connectionString: "postgres://user:pass@postgres:5432/spire?sslmode=disable"
+  
+  # Key manager configuration
+  keyManager:
+    type: "disk"  # disk, aws-kms, gcp-kms
+    # For AWS KMS:
+    # type: aws-kms
+    # region: us-east-1
+    # keyId: alias/spire-key
+  
+  # Node attestation
+  nodeAttestor:
+    type: "k8s-psat"  # k8s-psat, join-token, aws-iid, gcp-iid
+  
+  healthChecks:
+    enabled: true
+    port: 8080
+
+# SPIRE Agent configuration
+agent:
+  # DaemonSet for running on all nodes
+  enabled: true
+  
+  image:
+    repository: ghcr.io/spiffe/spire-agent
+    tag: "1.9.0"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  
+  # Socket path for Workload API
+  socketPath: "/run/spire/sockets/agent.sock"
+  
+  # Host path for socket (for workload access)
+  hostSocketPath: "/run/spire/sockets"
+  
+  # Workload attestors
+  workloadAttestors:
+    k8s:
+      enabled: true
+      disableContainerSelectors: false
+    unix:
+      enabled: true
+    docker:
+      enabled: false
+  
+  healthChecks:
+    enabled: true
+    port: 8080
+
+# SPIFFE OIDC Discovery Provider (optional)
+oidcDiscovery:
+  enabled: false
+  
+  image:
+    repository: ghcr.io/spiffe/oidc-discovery-provider
+    tag: "1.9.0"
+  
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Upstream Authority (optional, for external CA)
+upstreamAuthority:
+  enabled: false
+  type: "disk"  # disk, aws-pca, vault, cert-manager
+  # For disk:
+  # certPath: /path/to/ca.crt
+  # keyPath: /path/to/ca.key
+
+# Federation (optional, for multi-cluster)
+federation:
+  enabled: false
+  bundleEndpoint:
+    address: "0.0.0.0"
+    port: 8443
+
+# Monitoring
+monitoring:
+  # Prometheus ServiceMonitor
+  prometheus:
+    enabled: true
+    interval: 30s
+    labels: {}
+  
+  # Grafana dashboard
+  grafana:
+    enabled: true
+    dashboardLabels:
+      grafana_dashboard: "1"
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true

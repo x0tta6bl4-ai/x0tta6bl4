@@ -110,8 +110,7 @@ class QuorumValidator:
             target=target,
             timestamp=time.time(),
             evidence=evidence,
-            # Count reporter's own attestation as the initial signature.
-            signatures={source: b"source_report"},
+            signatures={},
         )
 
         self._pending_events[event_id] = event
@@ -156,9 +155,9 @@ class QuorumValidator:
                 f"{len(event.signatures)}/{self.quorum_size} signatures"
             )
 
-            # Reward source for accurate reporting
+            # Reward source for accurate reporting (capped at baseline trust 1.0)
             self._source_reputation[event.source] = min(
-                2.0, self._source_reputation[event.source] * 1.1
+                1.0, self._source_reputation[event.source] * 1.1
             )
 
             return True

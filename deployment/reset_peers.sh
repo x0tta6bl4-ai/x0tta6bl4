@@ -15,8 +15,8 @@ purge_node() {
     echo "✅ $IP reset."
 }
 
-purge_node "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-purge_node "77.83.245.27" "13Vbkkbjyjd$"
-purge_node "62.133.60.252" "13Vbkkbjyjd$"
+purge_node "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+purge_node "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+purge_node "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🎉 Network Reset Complete. Nodes will rediscover each other in ~30 seconds."

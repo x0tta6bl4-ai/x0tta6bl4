@@ -34,19 +34,20 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install build dependencies
         run: |
           apt-get update && apt-get install -y \
             clang-${LLVM_VERSION} \
             llvm-${LLVM_VERSION} \
+            libbpf-dev \
             libelf-dev \
+            linux-libc-dev \
             libpcap-dev \
             pkg-config \
             build-essential \
             git \
-            linux-headers-$(uname -r) \
             python3-dev \
             python3-pip
       
@@ -68,9 +69,13 @@ jobs:
                 -target bpf \
                 -D__KERNEL__ \
                 -D__BPF_TRACING__ \
+                -g \
                 -I./headers \
+                -I./programs/vmlinux \
+                -I/usr/include/$(uname -m)-linux-gnu \
+                -I/usr/include \
                 -c "$ebpf_file" \
-                -o "../../${ARTIFACTS_DIR}/${prog_name}.o"
+                -o "../../../${ARTIFACTS_DIR}/${prog_name}.o"
               
               if [ $? -ne 0 ]; then
                 echo "❌ Failed to compile $prog_name"
@@ -78,10 +83,10 @@ jobs:
               fi
               
               llvm-objdump-${LLVM_VERSION} \
-                -S "../../${ARTIFACTS_DIR}/${prog_name}.o" \
-                > "../../${ARTIFACTS_DIR}/${prog_name}.dis"
+                -S "../../../${ARTIFACTS_DIR}/${prog_name}.o" \
+                > "../../../${ARTIFACTS_DIR}/${prog_name}.dis"
               
-              echo "  ✅ ${prog_name}.o ($(stat -c%s ${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
+              echo "  ✅ ${prog_name}.o ($(stat -c%s ../../../${ARTIFACTS_DIR}/${prog_name}.o) bytes)"
             fi
           done
       
@@ -89,21 +94,22 @@ jobs:
         run: |
           echo "📋 Compiled eBPF programs:"
           ls -lh ${ARTIFACTS_DIR}/*.o 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
-          
-          if [ ! -f "${ARTIFACTS_DIR}/*.o" ]; then
+
+          object_count=$(find "${ARTIFACTS_DIR}" -maxdepth 1 -name '*.o' | wc -l)
+          if [ "$object_count" -eq 0 ]; then
             echo "❌ No eBPF programs compiled!"
             exit 1
           fi
       
       - name: Upload eBPF artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}/*.o
           retention-days: 30
       
       - name: Upload disassembly for review
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-disassembly
           path: ${{ env.ARTIFACTS_DIR }}/*.dis
@@ -119,17 +125,17 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
       
       - name: Install verification tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             llvm-${LLVM_VERSION} \
             libelf-dev
       
@@ -172,11 +178,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install analysis tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             clang-tools-${LLVM_VERSION} \
             splint \
             cppcheck
@@ -208,7 +214,7 @@ jobs:
           done
       
       - name: Upload analysis reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysis-reports
           path: |
@@ -226,10 +232,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -237,7 +243,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install Python dependencies
         run: |
@@ -262,7 +268,7 @@ jobs:
       
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: test-results/
@@ -278,10 +284,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -289,7 +295,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install dependencies
         run: |
@@ -308,7 +314,7 @@ jobs:
           python scripts/compare_ebpf_baseline.py || true
       
       - name: Upload benchmarks
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: ebpf-benchmark.txt
@@ -324,17 +330,17 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install tools
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
             llvm-${LLVM_VERSION} \
             doxygen \
             graphviz
       
       - name: Download eBPF artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-programs
           path: ${{ env.ARTIFACTS_DIR }}
@@ -357,10 +363,14 @@ jobs:
       - name: Extract program metadata
         run: |
           echo "Generating program metadata..."
-          python scripts/generate_ebpf_metadata.py ${ARTIFACTS_DIR}
+          if [ -f scripts/generate_ebpf_metadata.py ]; then
+            python scripts/generate_ebpf_metadata.py ${ARTIFACTS_DIR}
+          else
+            echo "generate_ebpf_metadata.py not found, skipping metadata extraction"
+          fi
       
       - name: Upload documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-documentation
           path: docs/ebpf/
@@ -377,10 +387,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       
       - name: Create release package
         run: |
@@ -403,7 +413,7 @@ jobs:
           done
       
       - name: Upload to release artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-release-package
           path: release/

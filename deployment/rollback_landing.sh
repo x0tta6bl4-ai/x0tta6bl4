@@ -8,8 +8,8 @@ rollback_landing() {
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no landing_v2.html root@$IP:/opt/x0tta6bl4/landing.html
 }
 
-rollback_landing "89.125.1.107" "lhJOTi8vrB01aQ12C0"
-rollback_landing "77.83.245.27" "13Vbkkbjyjd$"
-rollback_landing "62.133.60.252" "13Vbkkbjyjd$"
+rollback_landing "89.125.1.107" "${NODE1_PASS:?Set NODE1_PASS in environment}"
+rollback_landing "77.83.245.27" "${NODE23_PASS:?Set NODE23_PASS in environment}"
+rollback_landing "62.133.60.252" "${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "✅ Manifesto Style Restored."

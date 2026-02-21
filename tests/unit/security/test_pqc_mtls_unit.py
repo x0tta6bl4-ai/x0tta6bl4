@@ -33,14 +33,14 @@ class _DummyDSA:
             expires_at=datetime.utcnow() + timedelta(days=validity_days),
         )
 
-    async def sign(self, data: bytes, secret_key: bytes, key_id: str):
+    def sign(self, data: bytes, secret_key: bytes, key_id: str):
         return SimpleNamespace(
             algorithm="ML-DSA-65",
             signature_bytes=b"sig:" + data[:8],
             signer_key_id=key_id,
         )
 
-    async def verify(self, data: bytes, signature_bytes: bytes, public_key: bytes):
+    def verify(self, data: bytes, signature_bytes: bytes, public_key: bytes):
         return signature_bytes.startswith(b"sig:")
 
 
@@ -50,60 +50,68 @@ class _DummyHybrid:
         self.kem = _DummyKEM()
         self.dsa = _DummyDSA()
 
-    async def setup_secure_channel(self):
+    def setup_secure_channel(self):
         return {"status": "success", "shared_secret_len": 32}
 
 
-@pytest.mark.asyncio
-async def test_pqc_mtls_disabled_mode():
+def test_pqc_mtls_disabled_mode():
     controller = mod.PQCmTLSController(enable_hybrid=False)
     assert controller.enabled is False
 
-    key_init = await controller.initialize_pqc_keys()
+    key_init = controller.initialize_pqc_keys()
     assert key_init["status"] == "disabled"
 
-    channel = await controller.establish_pqc_channel()
+    channel = controller.establish_pqc_channel()
     assert channel["status"] == "disabled"
 
 
-@pytest.mark.asyncio
-async def test_pqc_mtls_initialize_and_channel_with_mock_hybrid(monkeypatch):
+def test_pqc_mtls_initialize_and_channel_with_mock_hybrid(monkeypatch):
     monkeypatch.setattr(mod, "get_pqc_hybrid", lambda: _DummyHybrid(enabled=True))
     controller = mod.PQCmTLSController(enable_hybrid=True)
     assert controller.enabled is True
 
-    key_init = await controller.initialize_pqc_keys(validity_days=7)
+    key_init = controller.initialize_pqc_keys(validity_days=7)
     assert key_init["status"] == "success"
     assert "kem_key_id" in key_init
     assert "dsa_key_id" in key_init
 
-    channel = await controller.establish_pqc_channel()
+    channel = controller.establish_pqc_channel()
     assert channel["status"] == "success"
     assert channel["shared_secret_bits"] == 256
 
 
-@pytest.mark.asyncio
-async def test_pqc_mtls_sign_verify_and_rotation(monkeypatch):
+def test_pqc_mtls_sign_verify_and_rotation(monkeypatch):
     monkeypatch.setattr(mod, "get_pqc_hybrid", lambda: _DummyHybrid(enabled=True))
     controller = mod.PQCmTLSController(enable_hybrid=True)
-    await controller.initialize_pqc_keys()
+    controller.initialize_pqc_keys()
 
     payload = b"payload-for-signing"
-    signed_data, sig = await controller.sign_request(payload)
+    signed_data, sig = controller.sign_request(payload)
     assert signed_data == payload
     assert sig.algorithm == "ML-DSA-65"
 
-    verified = await controller.verify_response(payload, sig.signature_bytes)
+    verified = controller.verify_response(payload, sig.signature_bytes)
     assert verified is True
 
-    rot = await controller.rotate_pqc_keys(validity_days=10)
+    rot = controller.rotate_pqc_keys(validity_days=10)
     assert rot["status"] == "success"
     assert rot["old_kem_key_id"] != rot["new_kem_key_id"]
 
 
-@pytest.mark.asyncio
-async def test_test_pqc_mtls_setup_reports_disabled(monkeypatch):
+def test_create_pqc_certificate_generates_real_classical_material(monkeypatch):
+    monkeypatch.setattr(mod, "get_pqc_hybrid", lambda: _DummyHybrid(enabled=True))
+    controller = mod.PQCmTLSController(enable_hybrid=True)
+    controller.initialize_pqc_keys()
+
+    cert = controller.create_pqc_certificate("vpn-demo.local", validity_days=30)
+    assert cert.certificate_pem.startswith(b"-----BEGIN CERTIFICATE-----")
+    assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----")
+    assert b"PLACEHOLDER" not in cert.certificate_pem
+    assert b"PLACEHOLDER" not in cert.private_key_pem
+
+
+def test_test_pqc_mtls_setup_reports_disabled(monkeypatch):
     mod._pqc_mtls_controller = None
     monkeypatch.setattr(mod, "get_pqc_hybrid", lambda: _DummyHybrid(enabled=False))
-    result = await mod.test_pqc_mtls_setup()
+    result = mod.test_pqc_mtls_setup()
     assert result["status"] in {"disabled", "error"}

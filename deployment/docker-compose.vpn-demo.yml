@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # SPIRE Infrastructure
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.9.0
+    container_name: spire-server
+    hostname: spire-server
+    command: ["-config", "/run/spire/config/server.conf"]
+    volumes:
+      - ./spire/config/server.conf:/run/spire/config/server.conf:ro
+      - spire-server-data:/run/spire/data
+    networks:
+      - vpn-demo-net
+
+  spire-agent:
+    image: ghcr.io/spiffe/spire-agent:1.9.0
+    container_name: spire-agent
+    hostname: spire-agent
+    command: ["-config", "/run/spire/config/agent.conf"]
+    volumes:
+      - ./spire/config/agent.conf:/run/spire/config/agent.conf:ro
+      - spire-agent-sockets:/run/spire/sockets
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - spire-server
+    networks:
+      - vpn-demo-net
+
+  # VPN Nodes
+  vpn-ingress:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vpn
+    container_name: vpn-ingress
+    environment:
+      - NODE_ID=ingress-01
+      - SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/sockets/agent.sock
+      - X0TTA6BL4_PRODUCTION=true
+      - X0TTA6BL4_VPN_FAIL_CLOSED=true
+      - VPN_SOCKS5_USERNAME=${VPN_SOCKS5_USERNAME:-vpn-demo}
+      - VPN_SOCKS5_PASSWORD=${VPN_SOCKS5_PASSWORD:-change-me-now}
+    volumes:
+      - spire-agent-sockets:/run/spire/sockets:ro
+    ports:
+      - "8080:8080"  # Dashboard
+      - "10808:10808" # SOCKS5 Ingress
+    depends_on:
+      - spire-agent
+    networks:
+      - vpn-demo-net
+
+  vpn-mesh-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vpn
+    container_name: vpn-mesh-1
+    environment:
+      - NODE_ID=mesh-01
+      - SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/sockets/agent.sock
+      - X0TTA6BL4_PRODUCTION=true
+      - X0TTA6BL4_VPN_FAIL_CLOSED=true
+      - VPN_SOCKS5_USERNAME=${VPN_SOCKS5_USERNAME:-vpn-demo}
+      - VPN_SOCKS5_PASSWORD=${VPN_SOCKS5_PASSWORD:-change-me-now}
+    volumes:
+      - spire-agent-sockets:/run/spire/sockets:ro
+    depends_on:
+      - spire-agent
+    networks:
+      - vpn-demo-net
+
+  vpn-exit:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vpn
+    container_name: vpn-exit
+    environment:
+      - NODE_ID=exit-01
+      - SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/sockets/agent.sock
+      - EXIT_NODE=true
+      - X0TTA6BL4_PRODUCTION=true
+      - X0TTA6BL4_VPN_FAIL_CLOSED=true
+      - VPN_SOCKS5_USERNAME=${VPN_SOCKS5_USERNAME:-vpn-demo}
+      - VPN_SOCKS5_PASSWORD=${VPN_SOCKS5_PASSWORD:-change-me-now}
+    volumes:
+      - spire-agent-sockets:/run/spire/sockets:ro
+    depends_on:
+      - spire-agent
+    networks:
+      - vpn-demo-net
+
+  # Observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - vpn-demo-net
+    ports:
+      - "9090:9090"
+
+networks:
+  vpn-demo-net:
+    driver: bridge
+
+volumes:
+  spire-server-data:
+  spire-agent-sockets:

@@ -152,12 +152,12 @@ class TestQuorumValidation:
 
         assert not validator.is_validated(event)
 
-        # Add signatures until quorum (7 signatures needed)
-        for i in range(2, 8):  # node-2 to node-8
+        # Add signatures until quorum (7 signatures needed, quorum_size=int(10*0.67)+1=7)
+        for i in range(2, 9):  # node-2 to node-8 inclusive (7 signatures)
             signature = f"signature_from_node_{i}".encode()
             is_validated = validator.validate_event(event, f"node-{i}", signature)
 
-            if i == 7:
+            if i == 8:
                 assert is_validated
                 assert validator.is_validated(event)
             else:
@@ -174,11 +174,11 @@ class TestQuorumValidation:
             evidence={"latency": float("inf")},
         )
 
-        # Validate event (quorum reached)
-        for i in range(2, 8):
+        # Validate event (quorum reached: 7 signatures needed)
+        for i in range(2, 9):
             validator.validate_event(event1, f"node-{i}", b"sig")
 
-        # Source reputation should increase
+        # Source reputation should increase above initial 1.0
         reputation = validator.get_source_reputation("node-1")
         assert reputation > 1.0
 

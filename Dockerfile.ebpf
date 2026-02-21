@@ -50,12 +50,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libbpf0 \
-    libelf1 \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    LIBBPF_PKG=libbpf1 && \
+    if ! apt-cache show "$LIBBPF_PKG" >/dev/null 2>&1; then LIBBPF_PKG=libbpf0; fi && \
+    apt-get install -y \
+      "$LIBBPF_PKG" \
+      libelf1 \
+      ca-certificates \
+      curl && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

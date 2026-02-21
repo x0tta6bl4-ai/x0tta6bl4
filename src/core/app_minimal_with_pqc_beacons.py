@@ -31,7 +31,7 @@ except ImportError:
     LIBOQS_AVAILABLE = False
     logger.warning("⚠️ liboqs not available - beacon signatures disabled")
 
-app = FastAPI(title="x0tta6bl4-minimal-pqc", version="3.0.0", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal-pqc", version="3.2.1", docs_url="/docs")
 
 # --- Configuration ---
 PEER_TIMEOUT = 30.0
@@ -183,7 +183,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "3.0.0",
+        "version": "3.2.1",
         "node_id": node_id,
         "pqc_enabled": LIBOQS_AVAILABLE,
         "peers_count": len(peers),

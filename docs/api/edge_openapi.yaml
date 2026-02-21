@@ -1,0 +1,882 @@
+openapi: 3.0.3
+info:
+  title: x0tta6bl4 Edge Computing API
+  description: |
+    Edge Computing API for distributed task processing and caching.
+    
+    ## Features
+    - **Edge Nodes**: Distributed compute nodes with resource monitoring
+    - **Task Distribution**: Multiple strategies (Round Robin, Least Loaded, Adaptive)
+    - **Edge Caching**: Intelligent caching with LRU/LFU/Adaptive eviction
+    - **Capability Routing**: Route tasks based on node capabilities
+    
+    ## Architecture
+    ```
+    ┌─────────────────┐     ┌─────────────────┐
+    │   Edge Node 1   │     │   Edge Node 2   │
+    │  ┌───────────┐  │     │  ┌───────────┐  │
+    │  │Task Queue │  │     │  │Task Queue │  │
+    │  │  Cache    │  │     │  │  Cache    │  │
+    │  │ Resources │  │     │  │ Resources │  │
+    │  └───────────┘  │     │  └───────────┘  │
+    └────────┬────────┘     └────────┬────────┘
+             │                       │
+             └───────────┬───────────┘
+                         │
+              ┌──────────▼──────────┐
+              │   Task Distributor   │
+              │  ┌─────────────────┐ │
+              │  │ Strategy Engine │ │
+              │  │ Load Balancer   │ │
+              │  └─────────────────┘ │
+              └─────────────────────┘
+    ```
+  version: 1.0.0
+  contact:
+    name: x0tta6bl4 Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v2/edge
+    description: Local development
+  - url: https://api.x0tta6bl4.dev/v2/edge
+    description: Production
+
+tags:
+  - name: Edge Nodes
+    description: Edge node management
+  - name: Tasks
+    description: Task distribution and execution
+  - name: Cache
+    description: Edge cache operations
+  - name: Health
+    description: Health and monitoring
+
+paths:
+  # =============================================================================
+  # Edge Node Endpoints
+  # =============================================================================
+
+  /nodes:
+    get:
+      tags:
+        - Edge Nodes
+      summary: List all edge nodes
+      operationId: listEdgeNodes
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, draining, offline]
+        - name: capability
+          in: query
+          schema:
+            type: string
+          description: Filter by capability
+      responses:
+        '200':
+          description: List of edge nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EdgeNode'
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Edge Nodes
+      summary: Register a new edge node
+      operationId: registerEdgeNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeNodeRegister'
+      responses:
+        '201':
+          description: Edge node registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeNode'
+
+  /nodes/{nodeId}:
+    get:
+      tags:
+        - Edge Nodes
+      summary: Get edge node details
+      operationId: getEdgeNode
+      parameters:
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Edge node details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeNode'
+        '404':
+          description: Node not found
+
+    delete:
+      tags:
+        - Edge Nodes
+      summary: Deregister an edge node
+      operationId: deregisterEdgeNode
+      parameters:
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Node deregistered
+
+  /nodes/{nodeId}/drain:
+    post:
+      tags:
+        - Edge Nodes
+      summary: Drain an edge node
+      description: |
+        Put node in draining mode. No new tasks will be assigned.
+        Existing tasks will complete before node goes offline.
+      operationId: drainEdgeNode
+      parameters:
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Node draining started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [draining]
+                  pending_tasks:
+                    type: integer
+
+  /nodes/{nodeId}/resources:
+    get:
+      tags:
+        - Edge Nodes
+      summary: Get node resource metrics
+      operationId: getNodeResources
+      parameters:
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resource metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetrics'
+
+  # =============================================================================
+  # Task Distribution Endpoints
+  # =============================================================================
+
+  /tasks:
+    post:
+      tags:
+        - Tasks
+      summary: Submit a task for distribution
+      operationId: submitTask
+      description: |
+        Submit a task to be distributed to an appropriate edge node.
+        
+        Distribution strategies:
+        - `round_robin`: Cycle through nodes evenly
+        - `least_loaded`: Select node with lowest load
+        - `adaptive`: ML-based selection considering multiple factors
+        - `hash_based`: Consistent hashing for sticky routing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskSubmit'
+      responses:
+        '202':
+          description: Task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{taskId}:
+    get:
+      tags:
+        - Tasks
+      summary: Get task status
+      operationId: getTaskStatus
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatus'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Cancel a task
+      operationId: cancelTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [cancelled]
+
+  /tasks/{taskId}/result:
+    get:
+      tags:
+        - Tasks
+      summary: Get task result
+      operationId: getTaskResult
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResult'
+        '404':
+          description: Result not ready or task failed
+
+  /tasks/batch:
+    post:
+      tags:
+        - Tasks
+      summary: Submit multiple tasks
+      operationId: submitBatchTasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TaskSubmit'
+                strategy:
+                  $ref: '#/components/schemas/DistributionStrategy'
+      responses:
+        '202':
+          description: Batch accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batch_id:
+                    type: string
+                  task_ids:
+                    type: array
+                    items:
+                      type: string
+
+  /distribution/strategy:
+    get:
+      tags:
+        - Tasks
+      summary: Get current distribution strategy
+      operationId: getDistributionStrategy
+      responses:
+        '200':
+          description: Current strategy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  strategy:
+                    $ref: '#/components/schemas/DistributionStrategy'
+                  config:
+                    type: object
+
+    put:
+      tags:
+        - Tasks
+      summary: Set distribution strategy
+      operationId: setDistributionStrategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - strategy
+              properties:
+                strategy:
+                  $ref: '#/components/schemas/DistributionStrategy'
+                config:
+                  type: object
+                  description: Strategy-specific configuration
+      responses:
+        '200':
+          description: Strategy updated
+
+  # =============================================================================
+  # Cache Endpoints
+  # =============================================================================
+
+  /cache:
+    get:
+      tags:
+        - Cache
+      summary: Get cache statistics
+      operationId: getCacheStats
+      responses:
+        '200':
+          description: Cache statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheStats'
+
+  /cache/{key}:
+    get:
+      tags:
+        - Cache
+      summary: Get cached value
+      operationId: getCacheValue
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cached value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: object
+                  ttl_seconds:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+        '404':
+          description: Key not found
+
+    put:
+      tags:
+        - Cache
+      summary: Store value in cache
+      operationId: setCacheValue
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+              properties:
+                value:
+                  type: object
+                ttl_seconds:
+                  type: integer
+                  default: 300
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Value cached
+
+    delete:
+      tags:
+        - Cache
+      summary: Delete cached value
+      operationId: deleteCacheValue
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Value deleted
+
+  /cache/invalidate:
+    post:
+      tags:
+        - Cache
+      summary: Invalidate cache entries
+      operationId: invalidateCache
+      description: |
+        Invalidate cache entries by pattern or tags.
+        
+        Patterns support wildcards:
+        - `user:*` - All keys starting with "user:"
+        - `*:profile` - All keys ending with ":profile"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  description: Key pattern to match
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Tags to invalidate
+      responses:
+        '200':
+          description: Invalidation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invalidated_count:
+                    type: integer
+
+  /cache/config:
+    put:
+      tags:
+        - Cache
+      summary: Update cache configuration
+      operationId: updateCacheConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CacheConfig'
+      responses:
+        '200':
+          description: Configuration updated
+
+  # =============================================================================
+  # Health Endpoints
+  # =============================================================================
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Get edge computing health
+      operationId: getEdgeHealth
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeHealth'
+
+  /health/nodes:
+    get:
+      tags:
+        - Health
+      summary: Get health of all nodes
+      operationId: getNodesHealth
+      responses:
+        '200':
+          description: Nodes health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  healthy:
+                    type: integer
+                  unhealthy:
+                    type: integer
+                  draining:
+                    type: integer
+                  nodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        node_id:
+                          type: string
+                        healthy:
+                          type: boolean
+                        last_heartbeat:
+                          type: string
+                          format: date-time
+
+components:
+  schemas:
+    # =============================================================================
+    # Edge Node Schemas
+    # =============================================================================
+
+    EdgeNodeStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - draining
+        - offline
+
+    EdgeNodeRegister:
+      type: object
+      required:
+        - endpoint
+      properties:
+        endpoint:
+          type: string
+          format: uri
+          description: Node endpoint URL
+        name:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Node capabilities (e.g., gpu, high_memory, fast_storage)
+        max_concurrent_tasks:
+          type: integer
+          default: 10
+        metadata:
+          type: object
+          additionalProperties: true
+
+    EdgeNode:
+      type: object
+      properties:
+        node_id:
+          type: string
+        name:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        status:
+          $ref: '#/components/schemas/EdgeNodeStatus'
+        capabilities:
+          type: array
+          items:
+            type: string
+        current_tasks:
+          type: integer
+        max_concurrent_tasks:
+          type: integer
+        registered_at:
+          type: string
+          format: date-time
+        last_heartbeat:
+          type: string
+          format: date-time
+        resources:
+          $ref: '#/components/schemas/ResourceMetrics'
+
+    ResourceMetrics:
+      type: object
+      properties:
+        cpu_percent:
+          type: number
+          format: float
+        memory_percent:
+          type: number
+          format: float
+        disk_percent:
+          type: number
+          format: float
+        network_mbps:
+          type: number
+          format: float
+        gpu_percent:
+          type: number
+          format: float
+          nullable: true
+        load_average:
+          type: array
+          items:
+            type: number
+            format: float
+          minItems: 3
+          maxItems: 3
+        available_memory_mb:
+          type: integer
+        total_memory_mb:
+          type: integer
+
+    # =============================================================================
+    # Task Schemas
+    # =============================================================================
+
+    DistributionStrategy:
+      type: string
+      enum:
+        - round_robin
+        - least_loaded
+        - adaptive
+        - hash_based
+
+    TaskPriority:
+      type: string
+      enum:
+        - low
+        - normal
+        - high
+        - critical
+
+    TaskSubmit:
+      type: object
+      required:
+        - type
+        - payload
+      properties:
+        type:
+          type: string
+          description: Task type identifier
+        payload:
+          type: object
+          description: Task payload
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        required_capabilities:
+          type: array
+          items:
+            type: string
+        timeout_seconds:
+          type: integer
+          default: 300
+        retry_count:
+          type: integer
+          default: 3
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        node_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, queued, running]
+        submitted_at:
+          type: string
+          format: date-time
+        estimated_start:
+          type: string
+          format: date-time
+          nullable: true
+
+    TaskStatus:
+      type: object
+      properties:
+        task_id:
+          type: string
+        node_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, queued, running, completed, failed, cancelled]
+        progress:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    TaskResult:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: [completed, failed]
+        result:
+          type: object
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        execution_time_ms:
+          type: integer
+        node_id:
+          type: string
+
+    # =============================================================================
+    # Cache Schemas
+    # =============================================================================
+
+    EvictionPolicy:
+      type: string
+      enum:
+        - lru
+        - lfu
+        - adaptive
+
+    CacheConfig:
+      type: object
+      properties:
+        max_size:
+          type: integer
+          description: Maximum number of entries
+        default_ttl_seconds:
+          type: integer
+          default: 300
+        eviction_policy:
+          $ref: '#/components/schemas/EvictionPolicy'
+        replication_factor:
+          type: integer
+          default: 1
+          description: Number of nodes to replicate to
+
+    CacheStats:
+      type: object
+      properties:
+        size:
+          type: integer
+        max_size:
+          type: integer
+        hits:
+          type: integer
+        misses:
+          type: integer
+        hit_rate:
+          type: number
+          format: float
+        evictions:
+          type: integer
+        total_size_bytes:
+          type: integer
+        eviction_policy:
+          $ref: '#/components/schemas/EvictionPolicy'
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              node_id:
+                type: string
+              local_size:
+                type: integer
+              local_hits:
+                type: integer
+
+    # =============================================================================
+    # Health Schemas
+    # =============================================================================
+
+    EdgeHealth:
+      type: object
+      properties:
+        healthy:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        nodes:
+          type: object
+          properties:
+            total:
+              type: integer
+            active:
+              type: integer
+            inactive:
+              type: integer
+            draining:
+              type: integer
+        tasks:
+          type: object
+          properties:
+            pending:
+              type: integer
+            running:
+              type: integer
+            completed_24h:
+              type: integer
+            failed_24h:
+              type: integer
+        cache:
+          type: object
+          properties:
+            hit_rate:
+              type: number
+              format: float
+            size:
+              type: integer

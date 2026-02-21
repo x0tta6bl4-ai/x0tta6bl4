@@ -119,3 +119,45 @@ async def test_relay_stream_updates_metrics_and_rewards(monkeypatch):
     assert b.packets_relayed == 100
     assert writer.writes[0] == b"abc"
     assert b.rewards.calls == [("node-1", 100)]
+
+
+@pytest.mark.asyncio
+async def test_relay_stream_fail_closed_on_pqc_decrypt_error(monkeypatch):
+    _patch_init_deps(monkeypatch)
+    b = bridge_mod.MeshVPNBridge()
+    b.fail_closed = True
+
+    class _FailingPQC:
+        def has_tunnel(self, _peer_id):
+            return True
+
+        def decrypt_from_peer(self, _data, _peer_id):
+            raise ValueError("decrypt failed")
+
+    b.router.pqc = _FailingPQC()
+    reader = _FakeReader([b"ciphertext", b""])
+    writer = _FakeWriter()
+
+    await b._relay_stream(reader, writer, direction="downstream", peer_id="peer-1")
+    assert writer.writes == []
+
+
+@pytest.mark.asyncio
+async def test_relay_stream_plaintext_fallback_when_fail_closed_disabled(monkeypatch):
+    _patch_init_deps(monkeypatch)
+    b = bridge_mod.MeshVPNBridge()
+    b.fail_closed = False
+
+    class _FailingPQC:
+        def has_tunnel(self, _peer_id):
+            return True
+
+        def decrypt_from_peer(self, _data, _peer_id):
+            raise ValueError("decrypt failed")
+
+    b.router.pqc = _FailingPQC()
+    reader = _FakeReader([b"ciphertext", b""])
+    writer = _FakeWriter()
+
+    await b._relay_stream(reader, writer, direction="downstream", peer_id="peer-1")
+    assert writer.writes == [b"ciphertext"]

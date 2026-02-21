@@ -14,10 +14,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.services.xray_manager import XrayManager
-from src.api.maas import mesh_provisioner
 
 # Simplified import
 try:
@@ -27,12 +27,29 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
-from src.database import License, Payment, User, get_db
+from src.database import BillingWebhookEvent, License, Payment, User, get_db
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _is_circuit_breaker_open_error(exc: Exception) -> bool:
+    """Handle class-identity drift when circuit_breaker module is reloaded in tests."""
+    return isinstance(exc, CircuitBreakerOpen) or exc.__class__.__name__ == "CircuitBreakerOpen"
+
+
+def _resolve_mesh_provisioner():
+    """Support both legacy and refactored MaaS module layouts."""
+    try:
+        from src.api.maas import mesh_provisioner as provisioner
+    except Exception:
+        try:
+            from src.api.maas_legacy import mesh_provisioner as provisioner
+        except Exception:
+            return None
+    return provisioner
 
 
 class CheckoutSessionRequest(BaseModel):
@@ -114,12 +131,14 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
     try:
         session = await stripe_circuit.call(call_stripe_api)
         return {"id": session.get("id"), "url": session.get("url")}
-    except CircuitBreakerOpen:
-        logger.error("Stripe API circuit breaker is open")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment service temporarily unavailable. Please try again later.",
-        )
+    except Exception as exc:
+        if _is_circuit_breaker_open_error(exc):
+            logger.error("Stripe API circuit breaker is open")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Payment service temporarily unavailable. Please try again later.",
+            )
+        raise
 
 
 def _verify_stripe_signature(
@@ -154,6 +173,170 @@ def _verify_stripe_signature(
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
+def _stripe_payload_sha256(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _extract_stripe_event_id(event: Dict[str, Any]) -> Optional[str]:
+    raw = event.get("id")
+    if isinstance(raw, str):
+        event_id = raw.strip()
+        if event_id:
+            return event_id
+    return None
+
+
+def _stripe_event_storage_id(event_id: str) -> str:
+    return f"stripe:{event_id}"
+
+
+def _stripe_event_ttl_seconds() -> int:
+    raw = os.getenv("STRIPE_WEBHOOK_EVENT_TTL_SEC", "86400").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 86_400
+    return max(300, min(value, 604_800))
+
+
+def _deserialize_cached_response(response_json: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not response_json:
+        return None
+    try:
+        loaded = json.loads(response_json)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(loaded, dict):
+        return loaded
+    return None
+
+
+def _cleanup_expired_stripe_events(db: Session) -> None:
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(
+        seconds=_stripe_event_ttl_seconds()
+    )
+    try:
+        (
+            db.query(BillingWebhookEvent)
+            .filter(
+                BillingWebhookEvent.event_id.like("stripe:%"),
+                BillingWebhookEvent.created_at < cutoff,
+            )
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Stripe webhook idempotency cleanup failed: %s", exc)
+
+
+def _start_stripe_event_processing(
+    db: Session, event_id: Optional[str], event_type: str, payload_hash: str
+) -> Optional[Dict[str, Any]]:
+    if not event_id:
+        return None
+
+    _cleanup_expired_stripe_events(db)
+    storage_id = _stripe_event_storage_id(event_id)
+
+    db.add(
+        BillingWebhookEvent(
+            event_id=storage_id,
+            event_type=event_type,
+            payload_hash=payload_hash,
+            status="processing",
+        )
+    )
+    try:
+        db.commit()
+        return None
+    except IntegrityError:
+        db.rollback()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Stripe webhook idempotency reserve skipped: %s", exc)
+        return None
+
+    existing = (
+        db.query(BillingWebhookEvent)
+        .filter(BillingWebhookEvent.event_id == storage_id)
+        .first()
+    )
+    if existing is None:
+        raise HTTPException(
+            status_code=409, detail="Stripe event state conflict; retry delivery"
+        )
+
+    if existing.payload_hash != payload_hash:
+        raise HTTPException(status_code=409, detail="Stripe event_id payload mismatch")
+
+    if existing.status == "done":
+        cached = _deserialize_cached_response(existing.response_json)
+        if cached is None:
+            return {"received": True}
+        return dict(cached)
+
+    if existing.status == "processing":
+        raise HTTPException(status_code=409, detail="Stripe event is already being processed")
+
+    existing.status = "processing"
+    existing.event_type = event_type
+    existing.last_error = None
+    existing.processed_at = None
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Stripe webhook idempotency resume failed: %s", exc)
+    return None
+
+
+def _finalize_stripe_event_processing(
+    db: Session, event_id: Optional[str], response_payload: Dict[str, Any]
+) -> None:
+    if not event_id:
+        return
+    storage_id = _stripe_event_storage_id(event_id)
+    try:
+        event = (
+            db.query(BillingWebhookEvent)
+            .filter(BillingWebhookEvent.event_id == storage_id)
+            .first()
+        )
+        if event is None:
+            return
+        event.status = "done"
+        event.response_json = json.dumps(response_payload, ensure_ascii=False)
+        event.last_error = None
+        event.processed_at = datetime.datetime.utcnow()
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Stripe webhook idempotency finalize failed: %s", exc)
+
+
+def _fail_stripe_event_processing(
+    db: Session, event_id: Optional[str], error: str
+) -> None:
+    if not event_id:
+        return
+    storage_id = _stripe_event_storage_id(event_id)
+    try:
+        event = (
+            db.query(BillingWebhookEvent)
+            .filter(BillingWebhookEvent.event_id == storage_id)
+            .first()
+        )
+        if event is None:
+            return
+        event.status = "failed"
+        event.last_error = error[:2000]
+        event.processed_at = datetime.datetime.utcnow()
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 @router.post("/webhook")
 @limiter.limit("120/minute")
 async def stripe_webhook(
@@ -172,9 +355,18 @@ async def stripe_webhook(
         event = json.loads(payload.decode("utf-8"))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
+    if not isinstance(event, dict):
+        raise HTTPException(status_code=400, detail="Invalid Stripe event format")
 
+    event_id = _extract_stripe_event_id(event)
     event_type = event.get("type")
+    payload_hash = _stripe_payload_sha256(payload)
+    cached_response = _start_stripe_event_processing(db, event_id, str(event_type), payload_hash)
+    if cached_response is not None:
+        return cached_response
+
     obj = (event.get("data") or {}).get("object") or {}
+    processing_failed = False
 
     email = None
     customer_details = obj.get("customer_details") if isinstance(obj, dict) else None
@@ -193,64 +385,104 @@ async def stripe_webhook(
         "customer.subscription.created",
     }:
         try:
-            from src.sales.telegram_bot import TokenGenerator
+            from src.services.provisioning_service import (
+                ProvisioningSource,
+                provisioning_service,
+            )
 
-            # Update database using injected session
+            # Update Stripe metadata in DB
             db_user = db.query(User).filter(User.email == email).first()
             if not db_user:
-                # Create user if not exists (e.g. direct buy)
                 db_user = User(
                     id=str(uuid.uuid4()),
                     email=email,
-                    password_hash="stripe_managed",  # Placeholder
+                    password_hash="stripe_managed",
                     created_at=datetime.datetime.utcnow(),
                 )
                 db.add(db_user)
-                db.commit()
 
-            if db_user:
-                db_user.plan = "pro"
-                db_user.stripe_customer_id = obj.get("customer")
-                db_user.stripe_subscription_id = obj.get("subscription") or obj.get(
-                    "id"
+            db_user.plan = "pro"
+            db_user.stripe_customer_id = obj.get("customer")
+            db_user.stripe_subscription_id = obj.get("subscription") or obj.get("id")
+
+            # Generate license (legacy support) in the same transaction so failures rollback plan updates.
+            from src.sales.telegram_bot import TokenGenerator
+
+            license_token = TokenGenerator.generate(tier="pro")
+            new_license = License(
+                token=license_token, user_id=db_user.id, tier="pro", is_active=True
+            )
+            db.add(new_license)
+            db.commit()
+            logger.info(f"Generated pro license {license_token} for user {email}")
+
+            # Unified VPN provisioning
+            try:
+                result = await provisioning_service.provision_vpn_user(
+                    email=email,
+                    plan="pro",
+                    source=ProvisioningSource.STRIPE_WEBHOOK,
+                    user_id=db_user.id,
                 )
 
-                # Generate VPN UUID if missing
-                if not db_user.vpn_uuid:
-                    db_user.vpn_uuid = str(uuid.uuid4())
+                if result.success:
+                    db_user.vpn_uuid = result.vpn_uuid
+                    db.commit()
+                    logger.info(f"VPN provisioned for {email}: {result.vpn_uuid[:8]}...")
+                else:
+                    logger.error(f"VPN provisioning failed for {email}: {result.error}")
+            except Exception as provision_err:
+                logger.error(f"VPN provisioning failed for {email}: {provision_err}")
 
-                # Generate license for pro plan (legacy)
-                license_token = TokenGenerator.generate(tier="pro")
-                new_license = License(
-                    token=license_token, user_id=db_user.id, tier="pro", is_active=True
-                )
-                db.add(new_license)
-                db.commit()
-                db.refresh(db_user)
-
-                logger.info(f"Generated pro license {license_token} for user {email}")
-
-                # Update Xray Config
-                if XrayManager:
-                    await XrayManager.add_user(db_user.vpn_uuid, email)
-
-                # TRIGGER PROVISIONING (Phase 3)
-                try:
-                    # Default provisioning for new Pro users
-                    mesh_id = mesh_provisioner.create(
+            # Mesh provisioning (Phase 3)
+            try:
+                mesh_provisioner = _resolve_mesh_provisioner()
+                if mesh_provisioner is not None:
+                    instance = await mesh_provisioner.create(
                         name=f"auto-mesh-{db_user.id[:8]}",
-                        nodes=5, # Default for Pro
-                        pqc_enabled=True
+                        nodes=5,
+                        owner_id=db_user.id,
+                        pqc_enabled=True,
                     )
-                    logger.info(f"Auto-provisioned mesh {mesh_id} for user {email}")
-                except Exception as ex:
-                    logger.error(f"Failed to auto-provision mesh for {email}: {ex}")
+                    logger.info(
+                        f"Auto-provisioned mesh {instance.mesh_id} for user {email}"
+                    )
+                else:
+                    logger.warning("MaaS mesh provisioner unavailable; skipping")
+            except Exception as ex:
+                logger.error(f"Failed to auto-provision mesh for {email}: {ex}")
 
         except Exception as e:
             logger.error(f"Webhook processing failed: {e}")
             db.rollback()
+            processing_failed = True
+            _fail_stripe_event_processing(
+                db, event_id, f"{e.__class__.__name__}: {str(e)}"
+            )
 
-    return {"received": True}
+    # Handle subscription cancellation
+    elif email and event_type == "customer.subscription.deleted":
+        try:
+            from src.services.provisioning_service import provisioning_service
+
+            revoked = await provisioning_service.revoke_vpn_user(email)
+            db_user = db.query(User).filter(User.email == email).first()
+            if db_user:
+                db_user.plan = "canceled"
+                db.commit()
+            logger.info(f"Subscription revoked for {email}, vpn_revoked={revoked}")
+        except Exception as e:
+            logger.error(f"Revocation failed for {email}: {e}")
+            db.rollback()
+            processing_failed = True
+            _fail_stripe_event_processing(
+                db, event_id, f"{e.__class__.__name__}: {str(e)}"
+            )
+
+    response_payload = {"received": True}
+    if not processing_failed:
+        _finalize_stripe_event_processing(db, event_id, response_payload)
+    return response_payload
 
 
 @router.get("/order-status")

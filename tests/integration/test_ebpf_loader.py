@@ -79,11 +79,12 @@ def test_interface():
         )
         if result.returncode == 0:
             # Extract first non-loopback interface
+            # Only look at numbered lines like "2: enp8s0: <...>"
+            import re
             for line in result.stdout.split("\n"):
-                if ":" in line and "lo:" not in line:
-                    interface = line.split(":")[1].strip().split("@")[0]
-                    if interface:
-                        return interface
+                m = re.match(r"^\d+:\s+(\S+?)(?:@\S+)?:\s+<", line)
+                if m and m.group(1) != "lo":
+                    return m.group(1)
     except Exception:
         pass
 

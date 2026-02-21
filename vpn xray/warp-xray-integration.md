@@ -100,7 +100,7 @@ sudo usermod -a -G xray_warp nobody || true
 set -e
 
 # SSH на сервер
-SSH_KEY="lH7SEcWM812blV50sz"
+SSH_KEY="<set-your-password>"
 SERVER="root@89.125.1.107"
 
 # Проверить WARP статус
@@ -363,7 +363,7 @@ curl -v --socks5 127.0.0.1:40000 https://google.com 2>&1 | head -20
 #!/bin/bash
 set -e
 
-SSH_KEY="lH7SEcWM812blV50sz"
+SSH_KEY="<set-your-password>"
 SERVER="root@89.125.1.107"
 
 echo "🔧 Deploying WARP + Xray Integration..."
@@ -497,4 +497,3 @@ curl -w "Time: %{time_total}s\n" -o /dev/null -s https://google.com
 | DNS leaks | Fix `/etc/resolv.conf` and run `chattr +i` |
 | Xray crashes after changes | Check JSON syntax: `jq . xray-config.json` |
 | iptables loop | Ensure GID bypass rule comes first |
-
