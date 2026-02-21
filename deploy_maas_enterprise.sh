@@ -13,11 +13,29 @@ LIMIT_CONCURRENCY="${LIMIT_CONCURRENCY:-1000}"
 KEEP_ALIVE_TIMEOUT="${KEEP_ALIVE_TIMEOUT:-60}"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 MIN_FREE_RAM_MB="${MIN_FREE_RAM_MB:-500}"
+KILL_PORT_ON_START="${KILL_PORT_ON_START:-false}"
 
 require_env() {
     local name="$1"
     if [ -z "${!name:-}" ]; then
         echo "❌ Required environment variable is missing: $name" >&2
+        exit 1
+    fi
+}
+
+require_cmd() {
+    local name="$1"
+    if ! command -v "$name" >/dev/null 2>&1; then
+        echo "❌ Required command is missing: $name" >&2
+        exit 1
+    fi
+}
+
+ensure_positive_int() {
+    local name="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]] || [ "$value" -le 0 ]; then
+        echo "❌ $name must be a positive integer, got: $value" >&2
         exit 1
     fi
 }
@@ -40,6 +58,12 @@ if [ ! -f "$VENV_PATH/bin/activate" ]; then
     exit 1
 fi
 
+ensure_positive_int PORT "$PORT"
+ensure_positive_int WORKERS "$WORKERS"
+ensure_positive_int LIMIT_CONCURRENCY "$LIMIT_CONCURRENCY"
+ensure_positive_int KEEP_ALIVE_TIMEOUT "$KEEP_ALIVE_TIMEOUT"
+ensure_positive_int MIN_FREE_RAM_MB "$MIN_FREE_RAM_MB"
+
 FREE_RAM_MB="$(detect_free_ram_mb)"
 echo "📊 Free RAM: ${FREE_RAM_MB}MB"
 if [ "$FREE_RAM_MB" -lt "$MIN_FREE_RAM_MB" ]; then
@@ -49,6 +73,16 @@ fi
 
 source "$VENV_PATH/bin/activate"
 cd "$PROJECT_ROOT"
+
+require_cmd uvicorn
+
+if [ "$KILL_PORT_ON_START" = "true" ]; then
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -k "${PORT}/tcp" || true
+    else
+        echo "⚠️ fuser not found, skipping port cleanup for ${PORT}/tcp"
+    fi
+fi
 
 export PYTHONPATH="$PROJECT_ROOT"
 export ENVIRONMENT="${ENVIRONMENT:-production}"
@@ -70,6 +104,7 @@ fi
 echo "🚀 Launching MaaS Enterprise..."
 echo "Environment: $ENVIRONMENT"
 echo "DB: $DATABASE_URL"
+echo "Listen: ${HOST}:${PORT} workers=${WORKERS} concurrency=${LIMIT_CONCURRENCY}"
 
 exec uvicorn "$APP_MODULE" \
     --host "$HOST" \

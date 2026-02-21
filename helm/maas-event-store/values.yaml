@@ -1,0 +1,338 @@
+# Default values for maas-event-store
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Event Store API Service
+eventStore:
+  replicaCount: 3
+
+  image:
+    repository: maas/event-store
+    pullPolicy: IfNotPresent
+    tag: "3.3.0"
+
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Backend selection: postgresql, mongodb, or dual
+  backend:
+    type: postgresql  # postgresql, mongodb, dual
+
+    # Dual backend configuration
+    dual:
+      primary: postgresql
+      writeToBoth: false
+      readFromSecondary: false
+
+  # Connection pool settings
+  connectionPool:
+    minSize: 5
+    maxSize: 20
+    connectionTimeout: 30
+    commandTimeout: 60
+
+  # Snapshot settings
+  snapshots:
+    enabled: true
+    interval: 100  # Create snapshot every N events
+    retention: 10  # Keep last N snapshots per stream
+
+  # Event retention
+  retention:
+    enabled: false
+    days: 365
+    compactSnapshots: true
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+
+  auth:
+    postgresPassword: ""
+    username: maas
+    password: ""
+    database: maas_event_store
+
+  primary:
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 50Gi
+
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+    # PostgreSQL configuration
+    configuration: |
+      max_connections = 200
+      shared_buffers = 1GB
+      effective_cache_size = 3GB
+      maintenance_work_mem = 256MB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 16MB
+      default_statistics_target = 100
+      random_page_cost = 1.1
+      effective_io_concurrency = 200
+      work_mem = 5MB
+      min_wal_size = 1GB
+      max_wal_size = 4GB
+
+  # Postgres schema for event store
+  initdbScripts:
+    01-schema.sql: |
+      CREATE SCHEMA IF NOT EXISTS event_store;
+      GRANT ALL ON SCHEMA event_store TO maas;
+
+# MongoDB Configuration
+mongodb:
+  enabled: false
+
+  auth:
+    enabled: true
+    rootUser: admin
+    rootPassword: ""
+    usernames: ["maas"]
+    passwords: [""]
+    databases: ["maas_event_store"]
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 50Gi
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+  # MongoDB configuration
+  configuration: |
+    storage:
+      wiredTiger:
+        engineConfig:
+          cacheSizeGB: 2
+    operationProfiling:
+      mode: slowOp
+      slowOpThresholdMs: 100
+
+  # Replica set configuration
+  replicaSetConfiguration:
+    enabled: true
+    name: rs0
+    key: ""
+
+# Monitoring
+monitoring:
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+  # Prometheus Rules
+  prometheusRules:
+    enabled: true
+    namespace: monitoring
+    additionalLabels: {}
+
+    rules:
+      - alert: EventStoreHighLatency
+        expr: histogram_quantile(0.95, rate(event_store_operation_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High latency in Event Store operations
+          description: "95th percentile latency is {{ $value }}s"
+
+      - alert: EventStoreHighErrorRate
+        expr: rate(event_store_errors_total[5m]) / rate(event_store_operations_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High error rate in Event Store
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      - alert: EventStoreConnectionPoolExhausted
+        expr: event_store_pool_idle_connections < 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Event Store connection pool nearly exhausted
+          description: "Only {{ $value }} idle connections remaining"
+
+# OpenTelemetry Tracing
+tracing:
+  enabled: true
+
+  exporter:
+    type: jaeger  # jaeger, otlp, or none
+
+    jaeger:
+      host: jaeger-collector.observability.svc.cluster.local
+      port: 6831
+
+    otlp:
+      endpoint: tempo.observability.svc.cluster.local:4317
+      insecure: true
+
+  sampling:
+    rate: 1.0  # 1.0 = 100% sampling
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Security Context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Container Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: event-store.maas.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ConfigMap for application configuration
+config:
+  # Log level
+  logLevel: INFO
+
+  # Event store settings
+  eventStore:
+    snapshotInterval: 100
+    maxEventsPerRequest: 1000
+    enableCompression: true
+
+  # CQRS settings
+  cqrs:
+    commandTimeout: 30
+    queryTimeout: 10
+    cacheEnabled: true
+    cacheTTL: 300
+
+# Secrets
+secrets:
+  # Use existing secret for database credentials
+  existingSecret: ""
+
+  # Database credentials (if not using existing secret)
+  postgresql:
+    password: ""
+
+  mongodb:
+    password: ""
+
+# Health checks
+healthCheck:
+  liveness:
+    enabled: true
+    path: /health/live
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readiness:
+    enabled: true
+    path: /health/ready
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Migration job
+migration:
+  enabled: false
+
+  # Migration source and target
+  source:
+    backend: postgresql
+    # Connection details for external source
+
+  target:
+    backend: mongodb
+    # Connection details for external target
+
+  # Migration settings
+  batchSize: 1000
+  validateAfterMigration: true
+  dryRun: false
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi

@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "maas-event-store.fullname" . }}
+  labels:
+    {{- include "maas-event-store.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.eventStore.autoscaling.enabled }}
+  replicas: {{ .Values.eventStore.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "maas-event-store.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.eventStore.service.port }}"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "maas-event-store.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "maas-event-store.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: event-store
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.eventStore.image.repository }}:{{ .Values.eventStore.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.eventStore.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.eventStore.service.port }}
+              protocol: TCP
+          env:
+            # Backend configuration
+            - name: EVENT_STORE_BACKEND
+              value: {{ .Values.eventStore.backend.type }}
+
+            # PostgreSQL configuration
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_HOST
+              value: {{ include "maas-event-store.postgresql.fullname" . }}
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.auth.database }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.auth.username }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas-event-store.postgresql.secretName" . }}
+                  key: password
+            {{- end }}
+
+            # MongoDB configuration
+            {{- if .Values.mongodb.enabled }}
+            - name: MONGODB_HOST
+              value: {{ include "maas-event-store.mongodb.fullname" . }}
+            - name: MONGODB_PORT
+              value: "27017"
+            - name: MONGODB_DB
+              value: {{ first .Values.mongodb.auth.databases }}
+            - name: MONGODB_USER
+              value: {{ first .Values.mongodb.auth.usernames }}
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas-event-store.mongodb.secretName" . }}
+                  key: password
+            {{- end }}
+
+            # Connection pool
+            - name: CONNECTION_POOL_MIN_SIZE
+              value: "{{ .Values.eventStore.connectionPool.minSize }}"
+            - name: CONNECTION_POOL_MAX_SIZE
+              value: "{{ .Values.eventStore.connectionPool.maxSize }}"
+            - name: CONNECTION_TIMEOUT
+              value: "{{ .Values.eventStore.connectionPool.connectionTimeout }}"
+            - name: COMMAND_TIMEOUT
+              value: "{{ .Values.eventStore.connectionPool.commandTimeout }}"
+
+            # Snapshot settings
+            - name: SNAPSHOT_INTERVAL
+              value: "{{ .Values.eventStore.snapshots.interval }}"
+            - name: SNAPSHOT_RETENTION
+              value: "{{ .Values.eventStore.snapshots.retention }}"
+
+            # Tracing
+            {{- if .Values.tracing.enabled }}
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_EXPORTER_TYPE
+              value: {{ .Values.tracing.exporter.type }}
+            {{- if eq .Values.tracing.exporter.type "jaeger" }}
+            - name: JAEGER_HOST
+              value: {{ .Values.tracing.exporter.jaeger.host }}
+            - name: JAEGER_PORT
+              value: "{{ .Values.tracing.exporter.jaeger.port }}"
+            {{- end }}
+            {{- if eq .Values.tracing.exporter.type "otlp" }}
+            - name: OTLP_ENDPOINT
+              value: {{ .Values.tracing.exporter.otlp.endpoint }}
+            {{- end }}
+            - name: OTEL_SAMPLE_RATE
+              value: "{{ .Values.tracing.sampling.rate }}"
+            {{- end }}
+
+            # Logging
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.liveness.failureThreshold }}
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readiness.failureThreshold }}
+
+          resources:
+            {{- toYaml .Values.eventStore.resources | nindent 12 }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

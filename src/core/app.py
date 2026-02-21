@@ -6,14 +6,14 @@ import os
 from pathlib import Path
 
 print("DEBUG: Importing FastAPI...")
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 print("DEBUG: Importing Middlewares...")
 from src.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
                                         shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
-from src.core.production_lifespan import production_lifespan
+# from src.core.production_lifespan import production_lifespan # <-- Moved to lazy import
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
 from src.core.request_validation import (RequestValidationMiddleware,
                                          ValidationConfig)
@@ -40,6 +40,7 @@ if os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true":
         description="Lightweight MaaS Control Plane",
     )
 else:
+    from src.core.production_lifespan import production_lifespan
     app = FastAPI(
         title="x0tta6bl4",
         version=__version__,
@@ -307,14 +308,18 @@ async def add_security_headers(request, call_next):
 
 
 # --- PQC Integration (liboqs-python, API >=0.14) ---
-try:
-    from oqs import Signature
-
-    PQC_LIBOQS_AVAILABLE = True
-    logger.info("✅ liboqs available - PQC signatures enabled")
-except ImportError:
+# Skip in Light Mode to speed up startup
+if os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true":
     PQC_LIBOQS_AVAILABLE = False
-    logger.warning("⚠️ liboqs not available - PQC signatures disabled")
+    logger.info("⏩ Light Mode: Skipping PQC initialization")
+else:
+    try:
+        from oqs import Signature
+        PQC_LIBOQS_AVAILABLE = True
+        logger.info("✅ liboqs available - PQC signatures enabled")
+    except ImportError:
+        PQC_LIBOQS_AVAILABLE = False
+        logger.warning("⚠️ liboqs not available - PQC signatures disabled")
 
 _pqc_sig_public_key = None
 _pqc_sig = None
@@ -424,19 +429,53 @@ async def health():
     return {"status": "ok", "version": "3.2.1"}
 
 # --- Static UI Routes ---
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
+
+
+def _serve_static_asset(path: str, media_type: str) -> Response:
+    """
+    Serve static assets as in-memory responses.
+
+    FileResponse can deadlock under the current middleware stack in test/dev
+    ASGI transports, so static assets are served as regular responses.
+    """
+    try:
+        content = Path(path).read_bytes()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Asset not found") from exc
+    return Response(content=content, media_type=media_type)
 
 @app.get("/login.html", include_in_schema=False)
 async def serve_login():
-    return FileResponse("/mnt/projects/login.html")
+    return _serve_static_asset("/mnt/projects/login.html", "text/html; charset=utf-8")
 
 @app.get("/dashboard.html", include_in_schema=False)
 async def serve_dashboard():
-    return FileResponse("/mnt/projects/dashboard.html")
+    return _serve_static_asset(
+        "/mnt/projects/dashboard.html", "text/html; charset=utf-8"
+    )
+
+@app.get("/style.css", include_in_schema=False)
+async def serve_css():
+    return _serve_static_asset("/mnt/projects/style.css", "text/css; charset=utf-8")
+
+@app.get("/script.js", include_in_schema=False)
+async def serve_js():
+    return _serve_static_asset(
+        "/mnt/projects/script.js", "application/javascript; charset=utf-8"
+    )
+
+@app.get("/logo.svg", include_in_schema=False)
+async def serve_logo():
+    return _serve_static_asset("/mnt/projects/logo.svg", "image/svg+xml")
+
+@app.get("/hero-mesh-network.svg", include_in_schema=False)
+async def serve_hero():
+    return _serve_static_asset("/mnt/projects/hero-mesh-network.svg", "image/svg+xml")
 
 @app.get("/index.html", include_in_schema=False)
 async def serve_index():
-    return FileResponse("/mnt/projects/index.html")
+    return _serve_static_asset("/mnt/projects/index.html", "text/html; charset=utf-8")
 
 
 @app.get("/health/live")
