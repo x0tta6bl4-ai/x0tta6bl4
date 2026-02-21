@@ -4,112 +4,65 @@ ML Extensions for x0tta6bl4
 RAG (Retrieval-Augmented Generation), LoRA (Low-Rank Adaptation),
 Anomaly Detection, Smart Decision Making, and MLOps Integration.
 
-Note: Uses lightweight stubs for staging environment to avoid heavy dependencies like torch, numpy
+Uses lazy loading to avoid heavy dependencies (torch, numpy, transformers) at import time.
 """
 
-# Try to import production versions, fall back to stubs for staging
-try:
-    from .rag import Document, RAGAnalyzer, VectorStore
-except ImportError:
-    from .rag_stub import Document, RAGAnalyzer, VectorStore
+import importlib
 
-try:
-    from .lora import LoRAAdapter, LoRAConfig
-except ImportError:
-    # Stub for LoRA
-    class LoRAConfig:
-        def __init__(self, *args, **kwargs):
-            pass
+# Map of public attributes to their submodules
+_LAZY_MAPPING = {
+    "RAGAnalyzer": ".rag",
+    "VectorStore": ".rag",
+    "Document": ".rag",
+    "LoRAAdapter": ".lora",
+    "LoRAConfig": ".lora",
+    "Anomaly": ".anomaly",
+    "AnomalyDetectionSystem": ".anomaly",
+    "NeuralAnomalyDetector": ".anomaly",
+    "DecisionEngine": ".decision",
+    "Policy": ".decision",
+    "PolicyPriority": ".decision",
+    "PolicyRanker": ".decision",
+    "MLOpsManager": ".mlops",
+    "ModelRegistry": ".mlops",
+    "PerformanceMonitor": ".mlops",
+    "RetrainingOrchestrator": ".mlops",
+}
 
-    class LoRAAdapter:
-        def __init__(self, *args, **kwargs):
-            pass
+def __getattr__(name):
+    if name in _LAZY_MAPPING:
+        submodule_name = _LAZY_MAPPING[name]
+        try:
+            module = importlib.import_module(submodule_name, __package__)
+            return getattr(module, name)
+        except ImportError:
+            # Fallback to stubs if production version fails to load
+            if "RAG" in name or "Vector" in name or name == "Document":
+                try:
+                    module = importlib.import_module(".rag_stub", __package__)
+                    return getattr(module, name)
+                except (ImportError, AttributeError):
+                    pass
+            
+            # Generic stub fallback for other classes
+            class Stub:
+                def __init__(self, *args, **kwargs): pass
+            if name == "PolicyPriority":
+                class PolicyPriority:
+                    HIGH = "high"; MEDIUM = "medium"; LOW = "low"
+                return PolicyPriority
+            return Stub
 
+    if name == "ml":
+        # Handle the legacy recursive import from src/__init__.py if needed
+        from . import anomaly, decision, lora, mlops, rag
+        return None # This is just to satisfy the import mechanism
 
-try:
-    from .anomaly import Anomaly, AnomalyDetectionSystem, NeuralAnomalyDetector
-except ImportError:
-    # Stubs for anomaly detection
-    class Anomaly:
-        def __init__(self, *args, **kwargs):
-            pass
+    # Standard version import
+    if name == "__version__":
+        from src.version import __version__
+        return __version__
 
-    class NeuralAnomalyDetector:
-        def __init__(self, *args, **kwargs):
-            pass
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-    class AnomalyDetectionSystem:
-        def __init__(self, *args, **kwargs):
-            pass
-
-
-try:
-    from .decision import DecisionEngine, Policy, PolicyPriority, PolicyRanker
-except ImportError:
-    # Stubs for decision engine
-    class PolicyPriority:
-        HIGH = "high"
-        MEDIUM = "medium"
-        LOW = "low"
-
-    class Policy:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class PolicyRanker:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class DecisionEngine:
-        def __init__(self, *args, **kwargs):
-            pass
-
-
-try:
-    from .mlops import (MLOpsManager, ModelRegistry, PerformanceMonitor,
-                        RetrainingOrchestrator)
-except ImportError:
-    # Stubs for MLOps
-    class ModelRegistry:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class PerformanceMonitor:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class RetrainingOrchestrator:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class MLOpsManager:
-        def __init__(self, *args, **kwargs):
-            pass
-
-
-__all__ = [
-    # RAG
-    "RAGAnalyzer",
-    "VectorStore",
-    "Document",
-    # LoRA
-    "LoRAAdapter",
-    "LoRAConfig",
-    # Anomaly Detection
-    "AnomalyDetectionSystem",
-    "NeuralAnomalyDetector",
-    "Anomaly",
-    # Decision Making
-    "DecisionEngine",
-    "PolicyRanker",
-    "Policy",
-    "PolicyPriority",
-    # MLOps
-    "MLOpsManager",
-    "ModelRegistry",
-    "PerformanceMonitor",
-    "RetrainingOrchestrator",
-]
-
-# Import version from centralized module
-from src.version import __version__
+__all__ = list(_LAZY_MAPPING.keys())

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+COORD_SCRIPT="$ROOT/scripts/agents/swarm_coord.py"
+GIT_DIR="$(git rev-parse --git-dir)"
+AGENT_FILE="$GIT_DIR/swarm_agent"
+
+AGENT="${SWARM_AGENT:-}"
+if [[ -z "$AGENT" ]] && [[ -f "$AGENT_FILE" ]]; then
+  AGENT="$(tr -d '[:space:]' < "$AGENT_FILE")"
+fi
+
+if [[ -z "$AGENT" ]]; then
+  exit 0
+fi
+
+if [[ ! -f "$COORD_SCRIPT" ]]; then
+  exit 0
+fi
+
+mapfile -t COMMITTED_PATHS < <(git diff-tree --no-commit-id --name-only -r HEAD)
+if [[ "${#COMMITTED_PATHS[@]}" -eq 0 ]]; then
+  exit 0
+fi
+
+"$COORD_SCRIPT" release --agent "$AGENT" --paths "${COMMITTED_PATHS[@]}" >/dev/null || true

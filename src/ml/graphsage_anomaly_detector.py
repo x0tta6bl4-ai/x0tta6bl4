@@ -76,14 +76,22 @@ def is_quantization_available() -> bool:
     except ImportError:
         return False
 
-# Backward compatibility (lazy evaluated when accessed)
-class _CompatibilityMeta(type):
-    @property
-    def _TORCH_AVAILABLE(cls):
-        return is_torch_available()
-    @property
-    def _QUANTIZATION_AVAILABLE(cls):
-        return is_quantization_available()
+# Module-level lazy loading for backward compatibility
+_LAZY_GLOBALS = {
+    "_TORCH_AVAILABLE": lambda: is_torch_available(),
+    "_QUANTIZATION_AVAILABLE": lambda: is_quantization_available(),
+    "torch": lambda: _ensure_torch().get("torch"),
+    "nn": lambda: _ensure_torch().get("nn"),
+    "F": lambda: _ensure_torch().get("F"),
+    "Data": lambda: _ensure_torch().get("Data"),
+    "SAGEConv": lambda: _ensure_torch().get("SAGEConv"),
+    "GraphSAGEAnomalyDetectorV2": lambda: _ensure_torch().get("ModelClass"),
+}
+
+def __getattr__(name):
+    if name in _LAZY_GLOBALS:
+        return _LAZY_GLOBALS[name]()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 _TORCH_INTERNAL = None
 
@@ -183,39 +191,6 @@ def _ensure_torch():
     return _TORCH_INTERNAL
 
 
-# ---------------------------------------------------------------------------
-# Backward-compatible module globals (used by tests and older callers)
-# ---------------------------------------------------------------------------
-_torch_components = _ensure_torch()
-_TORCH_AVAILABLE = bool(_torch_components.get("available", False))
-
-if _TORCH_AVAILABLE:
-    torch = _torch_components["torch"]
-    nn = _torch_components["nn"]
-    F = _torch_components["F"]
-    Data = _torch_components["Data"]
-    SAGEConv = _torch_components["SAGEConv"]
-    GraphSAGEAnomalyDetectorV2 = _torch_components["ModelClass"]
-else:
-    torch = None
-    nn = None
-    F = None
-    Data = None
-    SAGEConv = None
-
-    class GraphSAGEAnomalyDetectorV2:  # type: ignore[override]
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("Torch stack is unavailable")
-
-if _TORCH_AVAILABLE:
-    try:
-        import torch.quantization as _qmod  # noqa: F401
-        _QUANTIZATION_AVAILABLE = True
-    except ImportError:
-        _QUANTIZATION_AVAILABLE = False
-else:
-    _QUANTIZATION_AVAILABLE = False
-
 @dataclass
 class AnomalyPrediction:
     """Anomaly detection prediction result"""
@@ -242,7 +217,7 @@ class GraphSAGEAnomalyDetector:
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.anomaly_threshold = anomaly_threshold
-        self.use_quantization = bool(use_quantization and _QUANTIZATION_AVAILABLE)
+        self.use_quantization = bool(use_quantization and is_quantization_available())
         self.recall = 0.96
         self.precision = 0.98
         self.is_trained = False
@@ -254,8 +229,9 @@ class GraphSAGEAnomalyDetector:
         
         # Initialize causal analysis engine if available
         self.causal_engine: Optional[Any] = None
-        if CAUSAL_ANALYSIS_AVAILABLE:
+        if _ensure_causal():
             try:
+                from src.ml.causal_analysis import CausalAnalysisEngine
                 self.causal_engine = CausalAnalysisEngine(
                     correlation_window_seconds=300.0, min_confidence=0.5
                 )
@@ -267,7 +243,8 @@ class GraphSAGEAnomalyDetector:
         """Deferred initialization of the torch model."""
         if self.model is not None:
             return True
-        if not _TORCH_AVAILABLE:
+            
+        if not is_torch_available():
             return False
             
         t_comp = _ensure_torch()
@@ -302,16 +279,23 @@ class GraphSAGEAnomalyDetector:
         if not self._init_model_if_needed():
             return
 
+        if not node_features or not edge_index:
+            return
+
+        # Basic validation: ensure edge indices are within range
+        num_nodes = len(node_features)
+        valid_edges = [e for e in edge_index if e[0] < num_nodes and e[1] < num_nodes]
+        if not valid_edges:
+            logger.warning("No valid edges found for the given node features. Skipping training.")
+            return
+        
         t_comp = _ensure_torch()
         torch = t_comp["torch"]
         nn = t_comp["nn"]
         Data = t_comp["Data"]
 
-        if not node_features or not edge_index:
-            return
-
         x = self._features_to_tensor(node_features)
-        edge_index_tensor = self._edges_to_tensor(edge_index)
+        edge_index_tensor = self._edges_to_tensor(valid_edges)
 
         if labels is None:
             labels = self._generate_labels(node_features)
@@ -460,9 +444,10 @@ class GraphSAGEAnomalyDetector:
         if (
             prediction.is_anomaly
             and self.causal_engine is not None
-            and CAUSAL_ANALYSIS_AVAILABLE
+            and _ensure_causal()
         ):
             try:
+                from src.ml.causal_analysis import IncidentEvent
                 # Create incident event from prediction
                 incident = IncidentEvent(
                     event_id=f"graphsage_{node_id}_{int(time.time())}",
@@ -503,19 +488,7 @@ class GraphSAGEAnomalyDetector:
         neighbors: List[Tuple[str, Dict[str, float]]],
         edge_index: Optional[List[Tuple[int, int]]] = None,
     ) -> Dict[str, float]:
-        """
-        Explain anomaly using SHAP values.
-
-        Args:
-            node_id: Node identifier
-            node_features: Node feature dict
-            neighbors: List of (neighbor_id, neighbor_features) tuples
-            edge_index: Optional edge connectivity
-
-        Returns:
-            Dict mapping feature names to SHAP values (importance scores)
-        """
-        if not SHAP_AVAILABLE or self.model is None:
+        if not _ensure_shap() or not self._init_model_if_needed():
             logger.warning("SHAP not available or model not initialized")
             return {}
 
@@ -588,8 +561,11 @@ class GraphSAGEAnomalyDetector:
 
     def _score_to_severity(self, anomaly_score: float):
         """Convert anomaly score to incident severity."""
-        if not CAUSAL_ANALYSIS_AVAILABLE:
+        if not _ensure_causal():
             return None
+
+        # Re-import inside if needed or use from global (mapped via _ensure_causal)
+        from src.ml.causal_analysis import IncidentSeverity
 
         if anomaly_score >= 0.9:
             return IncidentSeverity.CRITICAL
@@ -747,8 +723,8 @@ class GraphSAGEAnomalyDetector:
 
     def save_model(self, path: str):
         """Save model to file."""
-        if self.model is None:
-            logger.warning("Cannot save model: model not initialized")
+        if not self._init_model_if_needed():
+            logger.warning("Cannot save model: torch initialization failed")
             return
 
         t_comp = _ensure_torch()
@@ -769,17 +745,30 @@ class GraphSAGEAnomalyDetector:
 
     def load_model(self, path: str):
         """Load model from file."""
-        if not self._init_model_if_needed():
-            return
-        
         t_comp = _ensure_torch()
+        if not t_comp["available"]:
+            return
         torch = t_comp["torch"]
 
-        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
-
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        checkpoint = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
+        
+        # Update detector parameters from checkpoint
+        self.input_dim = checkpoint["input_dim"]
+        self.hidden_dim = checkpoint["hidden_dim"]
+        self.num_layers = checkpoint["num_layers"]
         self.anomaly_threshold = checkpoint["anomaly_threshold"]
         self.is_trained = checkpoint.get("is_trained", False)
+
+        # Re-create model instance with correct dimensions
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = t_comp["ModelClass"](
+            input_dim=self.input_dim, 
+            hidden_dim=self.hidden_dim, 
+            num_layers=self.num_layers
+        ).to(self.device)
+
+        # Load weights
+        self.model.load_state_dict(checkpoint["model_state_dict"])
 
         if self.use_quantization:
             try:
