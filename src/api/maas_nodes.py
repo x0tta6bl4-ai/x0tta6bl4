@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.database import User, MeshNode, MeshInstance, get_db
+from src.database import ACLPolicy, MarketplaceEscrow, MarketplaceListing, MeshInstance, MeshNode, User, get_db
 from src.api.maas_auth import require_role
 from src.api.maas_security import token_signer
 
@@ -69,7 +69,125 @@ def list_pending(
 ):
     return db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id, MeshNode.status == "pending").all()
 
-from src.database import User, MeshNode, MeshInstance, ACLPolicy, get_db
+
+class HeartbeatRequest(BaseModel):
+    status: str = Field(default="healthy", pattern="^(healthy|degraded|unhealthy)$")
+    cpu_percent: Optional[float] = None
+    mem_percent: Optional[float] = None
+
+
+@router.post("/{mesh_id}/nodes/{node_id}/heartbeat")
+async def node_heartbeat(
+    mesh_id: str,
+    node_id: str,
+    req: HeartbeatRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Called by node agents at regular intervals.  Updates last_seen timestamp
+    and auto-releases any marketplace escrow waiting on this node's health.
+    """
+    node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    node.last_seen = datetime.utcnow()
+    if req.status == "healthy":
+        node.status = "approved"
+    elif req.status == "unhealthy":
+        node.status = "degraded"
+
+    released_escrow = None
+    if req.status == "healthy":
+        # Find a marketplace listing for this node whose escrow is held
+        listing = (
+            db.query(MarketplaceListing)
+            .filter(MarketplaceListing.node_id == node_id, MarketplaceListing.status == "escrow")
+            .first()
+        )
+        if listing:
+            escrow = (
+                db.query(MarketplaceEscrow)
+                .filter(MarketplaceEscrow.listing_id == listing.id, MarketplaceEscrow.status == "held")
+                .first()
+            )
+            if escrow:
+                escrow.status = "released"
+                escrow.released_at = datetime.utcnow()
+                listing.status = "rented"
+                released_escrow = escrow.id
+                logger.info(
+                    "✅ Heartbeat auto-released escrow %s for node %s (listing %s)",
+                    escrow.id, node_id, listing.id,
+                )
+
+    db.commit()
+
+    return {
+        "status": "ok",
+        "node_id": node_id,
+        "mesh_id": mesh_id,
+        "node_status": node.status,
+        "last_seen": node.last_seen.isoformat(),
+        "escrow_released": released_escrow,
+    }
+
+
+class AccessCheckRequest(BaseModel):
+    source_node_id: str
+    target_node_id: str
+
+
+@router.post("/{mesh_id}/nodes/check-access")
+def check_access(
+    mesh_id: str,
+    req: AccessCheckRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Server-side ACL enforcement.  Returns allow/deny based on the tags of
+    both nodes and the active policies for the mesh.
+    """
+    src_node = db.query(MeshNode).filter(
+        MeshNode.id == req.source_node_id, MeshNode.mesh_id == mesh_id
+    ).first()
+    tgt_node = db.query(MeshNode).filter(
+        MeshNode.id == req.target_node_id, MeshNode.mesh_id == mesh_id
+    ).first()
+
+    if not src_node or not tgt_node:
+        raise HTTPException(status_code=404, detail="One or both nodes not found in this mesh")
+
+    src_tag = src_node.acl_profile or "default"
+    tgt_tag = tgt_node.acl_profile or "default"
+
+    policies = (
+        db.query(ACLPolicy)
+        .filter(ACLPolicy.mesh_id == mesh_id)
+        .all()
+    )
+
+    # Evaluate policies in creation order (first match wins).
+    for policy in policies:
+        src_match = policy.source_tag in (src_tag, "*")
+        tgt_match = policy.target_tag in (tgt_tag, "*")
+        if src_match and tgt_match:
+            return {
+                "verdict": policy.action,
+                "policy_id": policy.id,
+                "source_tag": src_tag,
+                "target_tag": tgt_tag,
+            }
+
+    # Default zero-trust: deny if no explicit allow policy
+    return {
+        "verdict": "deny",
+        "policy_id": None,
+        "source_tag": src_tag,
+        "target_tag": tgt_tag,
+        "reason": "no matching policy (zero-trust default)",
+    }
+
 
 @router.get("/{mesh_id}/node-config/{node_id}")
 def get_node_config(mesh_id: str, node_id: str, db: Session = Depends(get_db)):

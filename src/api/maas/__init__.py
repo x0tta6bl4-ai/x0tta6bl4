@@ -45,6 +45,7 @@ API Endpoints:
         GET    /api/v1/maas/billing/plans    — Available plans
 """
 
+from importlib import import_module
 from typing import Any
 
 # Public API - lazy loading
@@ -87,6 +88,19 @@ __all__ = [
     "record_audit_log",
     # Router
     "get_maas_router",
+    # Legacy compatibility symbols still imported by existing tests/callers.
+    "_PQC_DEFAULT_PROFILE",
+    "_get_pqc_profile",
+    "validate_customer",
+    "deploy_mesh",
+    "heartbeat",
+    "register_node",
+    "approve_node",
+    "revoke_node",
+    "reissue_node_token",
+    "rotate_join_token",
+    "get_onprem_profile",
+    "list_all_nodes",
 ]
 
 
@@ -102,12 +116,8 @@ def __getattr__(name: str) -> Any:
         return locals().get(name)
 
     # Models
-    if name in ("MeshDeployRequest", "MeshDeployResponse", "MeshStatusResponse",
-                "MeshMetricsResponse", "MeshScaleRequest", "NodeRegisterRequest",
-                "NodeRegisterResponse", "NodeHeartbeatRequest", "BillingWebhookRequest",
-                "LoginRequest", "LoginResponse", "RegisterRequest", "RegisterResponse",
-                "UserProfileResponse", "ApiKeyRotateRequest", "ApiKeyRotateResponse"):
-        from . import models
+    models = import_module("src.api.maas.models")
+    if hasattr(models, name):
         return getattr(models, name)
 
     # Classes
@@ -117,16 +127,16 @@ def __getattr__(name: str) -> Any:
 
     # Services
     if name == "BillingService":
-        from .services import BillingService
+        from src.api.maas_legacy import BillingService
         return BillingService
     if name == "MeshProvisioner":
-        from .services import MeshProvisioner
+        from src.api.maas_legacy import MeshProvisioner
         return MeshProvisioner
     if name == "UsageMeteringService":
-        from .services import UsageMeteringService
+        from src.api.maas_legacy import UsageMeteringService
         return UsageMeteringService
     if name == "AuthService":
-        from .services import AuthService
+        from src.api.maas_legacy import AuthService
         return AuthService
 
     # ACL
@@ -146,6 +156,11 @@ def __getattr__(name: str) -> Any:
     if name == "get_maas_router":
         from .endpoints import get_combined_router as get_maas_router
         return get_maas_router
+
+    # Legacy compatibility fallback for old monolith imports.
+    from src.api import maas_legacy as legacy
+    if hasattr(legacy, name):
+        return getattr(legacy, name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
