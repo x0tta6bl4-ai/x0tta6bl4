@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "maas-event-store.fullname" . }}
+  labels:
+    {{- include "maas-event-store.labels" . | nindent 4 }}
+  {{- with .Values.eventStore.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.eventStore.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.eventStore.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "maas-event-store.selectorLabels" . | nindent 4 }}

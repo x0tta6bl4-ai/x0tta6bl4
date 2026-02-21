@@ -631,7 +631,7 @@
       - Features: Retry with exponential backoff, graceful degradation, metric validation, structured logging
       - Backward compatibility maintained via lazy-loading proxies
 
- 23. ✅ **God-Object Decomposition (Phase 4)** - P2 Priority (2026-02-20)
+  23. ✅ **God-Object Decomposition (Phase 4)** - P2 Priority (2026-02-20)
       - ADR created: [`docs/adr/ADR-004-mesh-router-decomposition.md`](docs/adr/ADR-004-mesh-router-decomposition.md)
       - Decomposed `mesh_router.py` (1011 lines) into package:
         - [`src/network/routing/mesh/models.py`](src/network/routing/mesh/models.py) - Packet types, RouteEntry, RoutingPacket (~120 lines)
@@ -642,6 +642,33 @@
         - [`src/network/routing/mesh/router.py`](src/network/routing/mesh/router.py) - Main MeshRouter class (~150 lines)
         - [`src/network/routing/mesh/__init__.py`](src/network/routing/mesh/__init__.py) - Public API with lazy loading
       - Features: AODV-like routing, multi-path support, HMAC authentication, CRDT sync
+      - Backward compatibility maintained via lazy-loading proxies
+
+  24. ✅ **God-Object Decomposition (Phase 5)** - P2 Priority (2026-02-21)
+      - ADR created: [`docs/adr/ADR-005-maas-api-decomposition.md`](docs/adr/ADR-005-maas-api-decomposition.md)
+      - Decomposed `maas_legacy.py` (2422 lines) into package modules:
+        - [`src/api/maas/constants.py`](src/api/maas/constants.py) - PQC profiles, plan configuration (~100 lines)
+        - [`src/api/maas/models.py`](src/api/maas/models.py) - Pydantic request/response models (~320 lines)
+        - [`src/api/maas/mesh_instance.py`](src/api/maas/mesh_instance.py) - MeshInstance class (~180 lines)
+        - [`src/api/maas/registry.py`](src/api/maas/registry.py) - Global state management (~200 lines)
+        - [`src/api/maas/services.py`](src/api/maas/services.py) - BillingService, MeshProvisioner, UsageMeteringService (~500 lines)
+        - [`src/api/maas/auth.py`](src/api/maas/auth.py) - FastAPI dependencies, UserContext (~280 lines)
+        - [`src/api/maas/acl.py`](src/api/maas/acl.py) - ACL evaluation, ACLEntry, ACLManager (~400 lines)
+        - [`src/api/maas/billing_helpers.py`](src/api/maas/billing_helpers.py) - HMAC, idempotency, invoice (~450 lines)
+        - [`src/api/maas/endpoints/__init__.py`](src/api/maas/endpoints/__init__.py) - Endpoints package
+        - [`src/api/maas/endpoints/mesh.py`](src/api/maas/endpoints/mesh.py) - Mesh lifecycle endpoints (~200 lines)
+        - [`src/api/maas/endpoints/nodes.py`](src/api/maas/endpoints/nodes.py) - Node management endpoints (~200 lines)
+        - [`src/api/maas/endpoints/billing.py`](src/api/maas/endpoints/billing.py) - Billing endpoints (~180 lines)
+        - [`src/api/maas/endpoints/auth.py`](src/api/maas/endpoints/auth.py) - Auth endpoints (~180 lines)
+        - [`src/api/maas/endpoints/combined.py`](src/api/maas/endpoints/combined.py) - Router assembly (~50 lines)
+        - [`src/api/maas/__init__.py`](src/api/maas/__init__.py) - Public API with lazy loading (~150 lines)
+      - Features: PQC segment profiles, plan aliases, billing webhook events, audit logging
+      - Services: BillingService (webhooks, subscriptions), MeshProvisioner (deploy, scale, terminate)
+      - Auth: API Key + Bearer token authentication, FastAPI dependencies
+      - ACL: Policy-based access control with wildcard matching, time/IP conditions
+      - Billing: HMAC verification, idempotency, cost calculation, invoice generation
+      - Endpoints: REST endpoints grouped by mesh, nodes, billing, and auth domains
+      - Tests: [`tests/unit/test_maas_package.py`](tests/unit/test_maas_package.py) - 16 unit tests
       - Backward compatibility maintained via lazy-loading proxies
 
 ---
