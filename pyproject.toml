@@ -120,7 +120,7 @@ monitoring = [
 bots = [
     "aiogram>=3.0.0", # Upgraded to resolve dependency conflict
     "python-telegram-bot>=20.0",
-    "qrcode[pil]==7.4.2",
+    "qrcode[pil]==8.2",
 ]
 
 # Group to install all optional dependencies
