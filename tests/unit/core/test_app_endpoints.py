@@ -75,6 +75,11 @@ class TestRootEndpoint:
         assert "mesh/peers" in data["endpoints"]
         assert "mesh/routes" in data["endpoints"]
 
+    @pytest.mark.asyncio
+    async def test_index_html_is_served_as_static_file(self, client):
+        route_paths = {route.path for route in app.routes if hasattr(route, "path")}
+        assert "/index.html" in route_paths
+
 
 class TestMeshEndpoints:
     @pytest.mark.asyncio
