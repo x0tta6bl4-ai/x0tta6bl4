@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build liboqs from source + install Python deps into a virtualenv
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ARG LIBOQS_VERSION=0.12.0
 
@@ -53,7 +53,7 @@ RUN grep -iv '^torch' requirements.txt > /tmp/requirements-no-torch.txt && \
 # ---------------------------------------------------------------------------
 # Stage 2: Minimal runtime image
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 LABEL maintainer="x0tta6bl4 Team" \
     version="3.2.1" \
