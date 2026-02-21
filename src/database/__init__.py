@@ -226,6 +226,36 @@ class BillingWebhookEvent(Base):
     processed_at = Column(DateTime, nullable=True)
 
 
+class GovernanceProposal(Base):
+    """DAO governance proposals with DB-backed persistence."""
+    __tablename__ = "governance_proposals"
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    state = Column(String, default="active")  # active, passed, rejected, executed
+    actions_json = Column(Text, nullable=True)   # JSON of action list
+    end_time = Column(DateTime, nullable=False)
+    created_by = Column(String, ForeignKey("users.id"), nullable=False)
+    execution_hash = Column(String, nullable=True)  # Finality hash on execution
+    executed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    votes = relationship("GovernanceVote", back_populates="proposal")
+
+
+class GovernanceVote(Base):
+    """Individual votes on governance proposals."""
+    __tablename__ = "governance_votes"
+    id = Column(String, primary_key=True)
+    proposal_id = Column(String, ForeignKey("governance_proposals.id"), index=True)
+    voter_id = Column(String, nullable=False, index=True)  # user email or id
+    vote = Column(String, nullable=False)  # yes, no, abstain
+    tokens = Column(Integer, nullable=False)  # raw voting power * 100 (cents)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    proposal = relationship("GovernanceProposal", back_populates="votes")
+
+
 class AuditLog(Base):
     """Centralized audit log for all administrative and mutating actions."""
 
