@@ -6,7 +6,7 @@ Contains the MeshInstance class for managing mesh lifecycle and metrics.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,16 @@ class MeshInstance:
         pqc_enabled: bool = True,
         obfuscation: str = "none",
         traffic_profile: str = "none",
+        plan: str = "starter",
+        region: str = "global",
+        pqc_profile: Optional[str] = None,
+        enable_consciousness: bool = False,
+        created_at: Optional[datetime] = None,
+        pqc_config: Optional[Dict[str, Any]] = None,
+        node_count: Optional[int] = None,
     ):
+        if node_count is not None:
+            nodes = node_count
         self.mesh_id = mesh_id
         self.name = name
         self.owner_id = owner_id
@@ -31,8 +40,13 @@ class MeshInstance:
         self.pqc_enabled = pqc_enabled
         self.obfuscation = obfuscation
         self.traffic_profile = traffic_profile
+        self.plan = plan
+        self.region = region
+        self.pqc_profile = pqc_profile or "edge"
+        self.enable_consciousness = enable_consciousness
         self.status = "provisioning"
-        self.created_at = datetime.utcnow()
+        self.created_at = created_at or datetime.utcnow()
+        self.pqc_config = pqc_config or {}
         self.join_token: str = ""  # Set by provisioner
         self.join_token_ttl_sec: int = 604800
         self.join_token_issued_at: datetime = self.created_at
@@ -99,11 +113,33 @@ class MeshInstance:
             self.target_nodes += count
         elif action == "scale_down":
             to_remove = min(count, len(self.node_instances) - 1)
-            keys = list(self.node_instances.keys())[-to_remove:]
-            for k in keys:
-                del self.node_instances[k]
-            self.target_nodes = max(1, self.target_nodes - count)
+            if to_remove > 0:
+                keys = list(self.node_instances.keys())[-to_remove:]
+                for k in keys:
+                    del self.node_instances[k]
+                self.target_nodes = max(1, self.target_nodes - count)
         return len(self.node_instances)
+
+    def add_node(self, node_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """Add a node to the mesh."""
+        details = {
+            "id": node_id,
+            "status": "healthy",
+            "started_at": datetime.utcnow().isoformat(),
+            "latency_ms": 0.0,
+        }
+        if metadata:
+            details.update(metadata)
+        self.node_instances[node_id] = details
+        self.target_nodes = max(self.target_nodes, len(self.node_instances))
+
+    def remove_node(self, node_id: str) -> bool:
+        """Remove a node from the mesh."""
+        if node_id not in self.node_instances:
+            return False
+        del self.node_instances[node_id]
+        self.target_nodes = max(1, len(self.node_instances))
+        return True
 
     def get_health_score(self) -> float:
         """Calculate mesh health score (0.0 - 1.0)."""
