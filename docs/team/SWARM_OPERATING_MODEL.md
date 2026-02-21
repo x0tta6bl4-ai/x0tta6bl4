@@ -41,8 +41,8 @@ See machine-readable matrix in `docs/team/swarm_ownership.json`.
 Use:
 
 ```bash
-export SWARM_AGENT=agent1-ml-core   # or another role from swarm_ownership.json
 scripts/agents/install_swarm_hook.sh
+scripts/agents/start_swarm_session.sh agent1-ml-core
 scripts/agents/swarm_coord.py status
 ```
 
@@ -50,6 +50,8 @@ After that, `pre-commit` checks staged files against the ownership matrix and
 blocks commits that include non-owned files.
 It also tries to lease staged files in shared `.git/swarm` state and fails
 if another agent currently holds an active lease.
+`start_swarm_session.sh` stores current agent marker in worktree git-dir, so
+hooks work even if `SWARM_AGENT` is not exported in shell.
 
 ## Lease operations (automatic + manual)
 

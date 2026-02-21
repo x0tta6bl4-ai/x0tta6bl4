@@ -62,6 +62,12 @@ scripts/agents/install_swarm_hook.sh
 export SWARM_AGENT=agent1-ml-core  # change per agent
 ```
 
+Or run session bootstrap (recommended, no manual export needed):
+
+```bash
+scripts/agents/start_swarm_session.sh agent1-ml-core
+```
+
 5. Optional lease tuning:
 
 ```bash
