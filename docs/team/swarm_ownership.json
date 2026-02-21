@@ -40,6 +40,14 @@
         "src/services/maas_auth_service.py"
       ]
     },
+    "claude-maas-reviewer": {
+      "description": "Claude Code — MaaS RBAC, security review, playbook/dashboard tests",
+      "allow": [
+        "src/api/maas_auth.py",
+        "tests/api/test_maas_playbooks.py",
+        "tests/api/test_maas_dashboard.py"
+      ]
+    },
     "lead-coordinator": {
       "description": "Swarm governance and guardrails",
       "allow": [
