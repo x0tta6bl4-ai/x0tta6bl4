@@ -226,6 +226,46 @@ class BillingWebhookEvent(Base):
     processed_at = Column(DateTime, nullable=True)
 
 
+class SBOMEntry(Base):
+    """DB-backed Software Bill of Materials registry."""
+    __tablename__ = "sbom_entries"
+    id = Column(String, primary_key=True)
+    version = Column(String, unique=True, nullable=False, index=True)
+    format = Column(String, default="CycloneDX-JSON")
+    components_json = Column(Text, nullable=False)   # JSON array
+    checksum_sha256 = Column(String, nullable=False)
+    attestation_json = Column(Text, nullable=True)   # Sigstore bundle JSON
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    node_attestations = relationship("NodeBinaryAttestation", back_populates="sbom")
+
+
+class NodeBinaryAttestation(Base):
+    """Per-node binary verification records."""
+    __tablename__ = "node_binary_attestations"
+    id = Column(String, primary_key=True)
+    node_id = Column(String, nullable=False, index=True)
+    mesh_id = Column(String, nullable=True, index=True)
+    sbom_id = Column(String, ForeignKey("sbom_entries.id"), nullable=False)
+    agent_version = Column(String, nullable=False)
+    checksum_sha256 = Column(String, nullable=False)
+    status = Column(String, default="verified")  # verified, mismatch, unknown
+    verified_at = Column(DateTime, default=datetime.utcnow)
+
+    sbom = relationship("SBOMEntry", back_populates="node_attestations")
+
+
+class PlaybookAck(Base):
+    """Persistent acknowledgement records for signed playbooks."""
+    __tablename__ = "playbook_acks"
+    id = Column(String, primary_key=True)
+    playbook_id = Column(String, ForeignKey("signed_playbooks.id"), index=True)
+    node_id = Column(String, nullable=False, index=True)
+    status = Column(String, default="completed")  # completed, failed, partial
+    acknowledged_at = Column(DateTime, default=datetime.utcnow)
+
+
 class GovernanceProposal(Base):
     """DAO governance proposals with DB-backed persistence."""
     __tablename__ = "governance_proposals"

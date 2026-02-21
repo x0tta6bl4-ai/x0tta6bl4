@@ -1,0 +1,140 @@
+{{/*
+MaaS Controller Deployment - Mesh orchestration controller
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "maas.fullname" . }}-controller
+  labels:
+    {{- include "maas.controller.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.controller.autoscaling.enabled }}
+  replicas: {{ .Values.controller.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "maas.controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "maas.controller.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "maas.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      containers:
+        - name: controller
+          securityContext:
+            {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
+          image: {{ include "maas.controller.image" . }}
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+          env:
+            # Application settings
+            - name: APP_NAME
+              value: "maas-controller"
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            
+            # Controller settings
+            - name: CONTROLLER_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: LEADER_ELECTION_ENABLED
+              value: "true"
+            - name: LEADER_ELECTION_ID
+              value: "{{ include "maas.fullname" . }}-controller-leader"
+            
+            # Database
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: database-url
+            
+            # Redis
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "maas.fullname" . }}-secrets
+                  key: redis-url
+            
+            # SPIRE/SPIFFE
+            {{- if .Values.spire.enabled }}
+            - name: SPIFFE_ENDPOINT
+              value: "unix:///spire/agent/socket/agent.sock"
+            {{- end }}
+            
+            # Feature flags
+            - name: FEATURE_PQC_ENABLED
+              value: {{ .Values.features.pqcEnabled | quote }}
+            - name: FEATURE_MESH_PROVISIONING
+              value: {{ .Values.features.meshProvisioning | quote }}
+            - name: FEATURE_ANOMALY_DETECTION
+              value: {{ .Values.features.anomalyDetection | quote }}
+          
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          
+          {{- if .Values.spire.enabled }}
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /spire/agent/socket
+              readOnly: true
+          {{- end }}
+      
+      {{- if .Values.spire.enabled }}
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent/socket
+            type: Directory
+      {{- end }}
+      
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

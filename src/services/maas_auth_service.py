@@ -61,6 +61,8 @@ class MaaSAuthService:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         valid, should_rehash = verify_password(req.password, user.password_hash)
+        # NOTE: plaintext fallback removed — CVE: accounts with non-bcrypt hashes
+        # must go through password reset; they do not grant login access.
         if not valid:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
