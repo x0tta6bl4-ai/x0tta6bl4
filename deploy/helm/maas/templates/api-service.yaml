@@ -1,0 +1,22 @@
+{{/*
+MaaS API Service
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "maas.fullname" . }}-api
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+  {{- with .Values.api.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.api.service.type }}
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: {{ .Values.api.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "maas.api.selectorLabels" . | nindent 4 }}

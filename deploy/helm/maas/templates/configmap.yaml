@@ -1,0 +1,64 @@
+{{/*
+MaaS ConfigMap
+*/}}
+{{- if .Values.configMaps.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "maas.fullname" . }}-config
+  labels:
+    {{- include "maas.labels" . | nindent 4 }}
+data:
+  # Application Configuration
+  APP_NAME: "maas"
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+  
+  # Logging Configuration
+  LOG_LEVEL: {{ .Values.logging.level | quote }}
+  LOG_FORMAT: {{ .Values.logging.format | quote }}
+  LOG_OUTPUT: {{ .Values.logging.output | quote }}
+  
+  # Feature Flags
+  FEATURE_PQC_ENABLED: {{ .Values.features.pqcEnabled | quote }}
+  FEATURE_MESH_PROVISIONING: {{ .Values.features.meshProvisioning | quote }}
+  FEATURE_USAGE_METERING: {{ .Values.features.usageMetering | quote }}
+  FEATURE_BILLING_INTEGRATION: {{ .Values.features.billingIntegration | quote }}
+  FEATURE_FEDERATED_LEARNING: {{ .Values.features.federatedLearning | quote }}
+  FEATURE_ANOMALY_DETECTION: {{ .Values.features.anomalyDetection | quote }}
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: {{ .Values.api.service.targetPort | quote }}
+  API_WORKERS: "4"
+  
+  # Worker Configuration
+  WORKER_CONCURRENCY: {{ .Values.worker.concurrency | quote }}
+  WORKER_QUEUES: {{ .Values.worker.queues | quote }}
+  
+  # Tracing Configuration
+  {{- if .Values.tracing.enabled }}
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_TYPE: {{ .Values.tracing.exporter.type | quote }}
+  OTEL_EXPORTER_ENDPOINT: {{ .Values.tracing.exporter.endpoint | quote }}
+  OTEL_SAMPLING_TYPE: {{ .Values.tracing.sampling.type | quote }}
+  OTEL_SAMPLING_RATE: {{ .Values.tracing.sampling.rate | quote }}
+  {{- else }}
+  OTEL_ENABLED: "false"
+  {{- end }}
+  
+  # Stripe Configuration
+  {{- if .Values.stripe.enabled }}
+  STRIPE_ENABLED: "true"
+  STRIPE_WEBHOOK_PATH: {{ .Values.stripe.webhook.path | quote }}
+  {{- else }}
+  STRIPE_ENABLED: "false"
+  {{- end }}
+  
+  # SPIRE Configuration
+  {{- if .Values.spire.enabled }}
+  SPIRE_ENABLED: "true"
+  SPIFFE_ENDPOINT: "unix:///spire/agent/socket/agent.sock"
+  {{- else }}
+  SPIRE_ENABLED: "false"
+  {{- end }}
+{{- end }}
