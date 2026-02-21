@@ -1,125 +1,70 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
 version: 2
 updates:
-- package-ecosystem: pip
-  directory: /
-  schedule:
-    interval: weekly
-    day: monday
-    time: 03:00
-  open-pull-requests-limit: 10
-  reviewers:
-  - x0tta6bl4-team
-  labels:
-  - dependencies
-  - bot
-  commit-message:
-    prefix: 'chore(deps):'
-    include: scope
-  groups:
-    security:
-      dependency-type: security
-      update-types:
-      - patch
-      - minor
-    production:
-      patterns:
-      - fastapi*
-      - uvicorn*
-      - pydantic*
-      - prometheus*
-      - liboqs*
-      - torch*
-    development:
-      patterns:
-      - pytest*
-      - black*
-      - mypy*
-      - flake8*
-      - ruff*
-  allow:
-    dependency-type: all
-  rebase-strategy: auto
-  versioning-strategy: semver
-- package-ecosystem: github-actions
-  directory: /
-  schedule:
-    interval: weekly
-    day: monday
-    time: 03:30
-  open-pull-requests-limit: 5
-  reviewers:
-  - x0tta6bl4-team
-  labels:
-  - ci
-  - bot
-  commit-message:
-    prefix: 'ci(actions):'
-  allow:
-    dependency-type: all
-  rebase-strategy: auto
-- package-ecosystem: docker
-  directory: /
-  schedule:
-    interval: weekly
-    day: tuesday
-    time: 03:00
-  open-pull-requests-limit: 5
-  reviewers:
-  - x0tta6bl4-team
-  labels:
-  - docker
-  - infrastructure
-  - bot
-  commit-message:
-    prefix: 'build(docker):'
-  allow:
-    dependency-type: all
-  rebase-strategy: auto
-- package-ecosystem: npm
-  directory: /
-  schedule:
-    interval: weekly
-    day: wednesday
-    time: 03:00
-  open-pull-requests-limit: 5
-  reviewers:
-  - x0tta6bl4-team
-  labels:
-  - dependencies
-  - frontend
-  - bot
-  commit-message:
-    prefix: 'chore(npm):'
-  allow:
-    dependency-type: all
-  rebase-strategy: auto
-  versioning-strategy: semver
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Amsterdam"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "x0tta6bl4/security-team"
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Ignore major version updates for critical packages
+      - dependency-name: "fastapi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pydantic"
+        update-types: ["version-update:semver-major"]
 
-- package-ecosystem: npm
-  directory: /src/dao/contracts
-  schedule:
-    interval: weekly
-    day: wednesday
-    time: 03:30
-  open-pull-requests-limit: 5
-  reviewers:
-  - x0tta6bl4-team
-  labels:
-  - dependencies
-  - smart-contracts
-  - bot
-  commit-message:
-    prefix: 'chore(contracts):'
-  groups:
-    hardhat-ecosystem:
-      patterns:
-      - "@nomicfoundation/*"
-      - hardhat*
-      - ethers*
-    openzeppelin:
-      patterns:
-      - "@openzeppelin/*"
-  allow:
-    dependency-type: all
-  rebase-strategy: auto
-  versioning-strategy: semver
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Amsterdam"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "x0tta6bl4/security-team"
+    labels:
+      - "docker"
+      - "security"
+    commit-message:
+      prefix: "docker"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Amsterdam"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "x0tta6bl4/security-team"
+    labels:
+      - "github-actions"
+      - "ci-cd"
+    commit-message:
+      prefix: "ci"

@@ -133,6 +133,14 @@ class TestStartupCriticalRoutes:
 
 
 class TestPqcLogging:
+    def test_pqc_verify_fail_closed_when_pqc_unavailable(self, monkeypatch):
+        import src.core.app as app_module
+
+        monkeypatch.setattr(app_module, "PQC_LIBOQS_AVAILABLE", False)
+        monkeypatch.delenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", raising=False)
+
+        assert pqc_verify(b"data", b"sig", b"pub") is False
+
     def test_pqc_verify_does_not_log_sensitive_payloads(self, monkeypatch):
         import src.core.app as app_module
 

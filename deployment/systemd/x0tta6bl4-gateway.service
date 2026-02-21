@@ -1,0 +1,47 @@
+[Unit]
+Description=x0tta6bl4 Mesh Gateway Service
+Documentation=https://github.com/x0tta6bl4/x0tta6bl4
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=root
+Group=root
+WorkingDirectory=/opt/x0tta6bl4
+Environment="PYTHONUNBUFFERED=1"
+Environment="NODE_ID=node-local"
+
+# Pre-start setup
+ExecStartPre=/opt/x0tta6bl4/scripts/x0tta6bl4-gateway-setup.sh setup
+
+# Start SOCKS5 proxy in background
+ExecStartPre=/usr/bin/python3 -m src.network.vpn_proxy --port 1080 --host 127.0.0.1
+
+# Main service - TUN-SOCKS bridge
+ExecStart=/usr/bin/python3 -m src.network.tun_socks_bridge --tun tun0 --socks-port 1080
+
+# Post-stop cleanup
+ExecStopPost=/opt/x0tta6bl4/scripts/x0tta6bl4-gateway-setup.sh teardown
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+# Security hardening
+NoNewPrivileges=false  # Required for TUN interface
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# Watchdog
+WatchdogSec=30
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target

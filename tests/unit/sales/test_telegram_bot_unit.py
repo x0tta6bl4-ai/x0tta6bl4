@@ -224,18 +224,18 @@ class TestConfig:
         assert c.PRICE_NEIGHBORHOOD == 20
 
     def test_config_env_override(self):
-        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "test_token_123"}):
-            c = Config()
-            assert c.BOT_TOKEN == "test_token_123"
+        # Config defaults are evaluated at class-definition time, not instantiation time,
+        # because they use os.getenv() as dataclass field defaults.
+        # Pass the value directly as a constructor argument to test the field.
+        c = Config(BOT_TOKEN="test_token_123")
+        assert c.BOT_TOKEN == "test_token_123"
 
     def test_config_wallet_from_env(self):
-        with patch.dict(os.environ, {
-            "USDT_TRC20_WALLET": "TTestWallet123",
-            "TON_WALLET": "UQTestTonWallet",
-        }):
-            c = Config()
-            assert c.USDT_TRC20_WALLET == "TTestWallet123"
-            assert c.TON_WALLET == "UQTestTonWallet"
+        # Config defaults are evaluated at class-definition time, not instantiation time.
+        # Pass values directly as constructor arguments to test the fields.
+        c = Config(USDT_TRC20_WALLET="TTestWallet123", TON_WALLET="UQTestTonWallet")
+        assert c.USDT_TRC20_WALLET == "TTestWallet123"
+        assert c.TON_WALLET == "UQTestTonWallet"
 
 
 # ===========================================================================
@@ -936,7 +936,7 @@ class TestMain:
         with patch("src.sales.telegram_bot.TELEGRAM_AVAILABLE", False), \
              patch("builtins.print") as mock_print:
             main()
-            mock_print.assert_any_call("python-telegram-bot not installed")
+            mock_print.assert_any_call("❌ python-telegram-bot not installed")
 
     def test_main_no_bot_token(self):
         with patch("src.sales.telegram_bot.TELEGRAM_AVAILABLE", True), \

@@ -154,7 +154,7 @@ class TestBuildLedgerGraph:
     def test_no_file_returns_empty(self, tmp_path):
         detector = _make_detector(continuity_content=None, tmp_path=tmp_path)
         result = detector.build_ledger_graph()
-        assert result == {"nodes": [], "edges": []}
+        assert result == {"nodes": [], "edges": [], "sections": []}
 
     def test_empty_file(self, tmp_path):
         detector = _make_detector(continuity_content="", tmp_path=tmp_path)

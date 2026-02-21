@@ -92,6 +92,9 @@ class CertificateValidator:
         self.enable_pinning = enable_pinning
         self.pinned_certs = pinned_certs or set()
 
+        # Trust bundle certs (populated during validate_certificate)
+        self._trust_certs: List[x509.Certificate] = []
+
         # Cache for OCSP responses
         self._ocsp_cache: Dict[str, tuple[bool, datetime]] = (
             {}
@@ -283,6 +286,9 @@ class CertificateValidator:
                     logger.warning(f"Failed to load trust bundle certificate: {e}")
                     continue
 
+            # Store for OCSP issuer lookup
+            self._trust_certs = trust_certs
+
             if not trust_certs:
                 logger.warning("No valid certificates in trust bundle")
                 return False
@@ -346,6 +352,16 @@ class CertificateValidator:
 
         return (False, None)
 
+    def _find_issuer(self, cert: x509.Certificate) -> Optional[x509.Certificate]:
+        """Find the issuer certificate from the stored trust bundle."""
+        for ca_cert in self._trust_certs:
+            try:
+                cert.verify_directly_issued_by(ca_cert)
+                return ca_cert
+            except Exception:
+                continue
+        return None
+
     def _check_ocsp(
         self, cert: x509.Certificate, cert_pem: bytes
     ) -> tuple[bool, Optional[str]]:
@@ -370,25 +386,57 @@ class CertificateValidator:
                 logger.debug("No OCSP responder URL in certificate")
                 return (False, None)
 
+            # Find issuer certificate for OCSP request
+            issuer_cert = self._find_issuer(cert)
+            if not issuer_cert:
+                logger.warning("OCSP: Cannot find issuer certificate in trust bundle")
+                return (False, None)
+
             # Build OCSP request
-            # Note: Full OCSP implementation would use cryptography's OCSP builder
-            # For now, this is a simplified check
+            from cryptography.x509 import ocsp as x509_ocsp
+            from cryptography.hazmat.primitives.serialization import Encoding
 
-            # In production, this would:
-            # 1. Build OCSP request using cert serial number and issuer
-            # 2. Send request to OCSP responder
-            # 3. Validate OCSP response signature
-            # 4. Check revocation status
+            ocsp_req = x509_ocsp.OCSPRequestBuilder().add_certificate(
+                cert, issuer_cert, hashes.SHA256()
+            ).build()
 
-            logger.debug(f"OCSP check for certificate (responder: {ocsp_url})")
+            # Send OCSP request
+            ocsp_req_data = ocsp_req.public_bytes(encoding=Encoding.DER)
 
-            # Simplified: Assume not revoked if OCSP check passes
-            # In production, implement full OCSP request/response handling
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(
+                    ocsp_url,
+                    content=ocsp_req_data,
+                    headers={"Content-Type": "application/ocsp-request"},
+                )
+
+            if response.status_code != 200:
+                logger.warning(f"OCSP responder returned HTTP {response.status_code}")
+                return (False, None)
+
+            # Parse OCSP response
+            ocsp_resp = x509_ocsp.load_der_ocsp_response(response.content)
+
+            if ocsp_resp.response_status != x509_ocsp.OCSPResponseStatus.SUCCESSFUL:
+                logger.warning(f"OCSP response status: {ocsp_resp.response_status}")
+                return (False, None)
+
+            cert_status = ocsp_resp.certificate_status
+            if cert_status == x509_ocsp.OCSPCertStatus.REVOKED:
+                revocation_time = ocsp_resp.revocation_time
+                return (True, f"Certificate revoked at {revocation_time}")
+            elif cert_status == x509_ocsp.OCSPCertStatus.GOOD:
+                logger.debug("OCSP: Certificate status is GOOD")
+                return (False, None)
+            else:
+                logger.debug(f"OCSP: Certificate status is UNKNOWN")
+                return (False, None)
+
+        except ImportError:
+            logger.debug("OCSP builder not available in cryptography version")
             return (False, None)
-
         except Exception as e:
             logger.warning(f"OCSP check failed: {e}")
-            # Don't fail validation if OCSP check fails (fail open)
             return (False, None)
 
     def _check_crl(self, cert: x509.Certificate) -> tuple[bool, Optional[str]]:

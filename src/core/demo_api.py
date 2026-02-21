@@ -85,7 +85,7 @@ async def demo_anomaly_detection(
         return JSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in demo anomaly detection: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 
 @app.post("/api/demo/chaos")
@@ -112,7 +112,7 @@ async def demo_chaos_experiment(
         return JSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in chaos experiment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/demo/observe-mode/stats")
@@ -182,7 +182,7 @@ async def explain_ebpf_event(
         }
     except Exception as e:
         logger.error(f"Error explaining event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 if __name__ == "__main__":

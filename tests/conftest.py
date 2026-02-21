@@ -7,10 +7,184 @@ in unit tests regardless of the working directory.
 import asyncio
 import os
 import sys
+import threading
 import types
 import unittest.mock as mock
+from contextlib import asynccontextmanager
 
 import pytest
+import httpx
+
+# Python 3.12 compatibility: legacy tests may still use get_event_loop().
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+
+class SandboxSafeTestClient:
+    """
+    Minimal TestClient compatible with sandbox constraints.
+
+    Starlette/FastAPI TestClient uses anyio's blocking portal, which can hang
+    in restricted environments. This client performs synchronous request calls
+    via httpx.AsyncClient + ASGITransport without using blocking portals.
+    """
+
+    def __init__(
+        self,
+        app,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",  # kept for signature compatibility
+        backend_options: dict | None = None,  # kept for compatibility
+        cookies=None,
+        headers: dict | None = None,
+        follow_redirects: bool = True,
+        client: tuple[str, int] = ("testclient", 50000),
+    ):
+        self.app = app
+        self.base_url = base_url
+        self.raise_server_exceptions = raise_server_exceptions
+        self.root_path = root_path
+        self.follow_redirects = follow_redirects
+        self.client = client
+        self.headers = dict(headers or {})
+        self.headers.setdefault("user-agent", "testclient")
+        self.cookies = httpx.Cookies(cookies)
+
+    @staticmethod
+    def _run_coro(coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                return asyncio.run(coro)
+            finally:
+                # Keep legacy get_event_loop() callers working on Python 3.12+
+                try:
+                    asyncio.get_event_loop()
+                except RuntimeError:
+                    asyncio.set_event_loop(asyncio.new_event_loop())
+
+        result: dict = {}
+        error: dict = {}
+
+        def _runner():
+            try:
+                result["value"] = asyncio.run(coro)
+            except Exception as exc:  # pragma: no cover - defensive path
+                error["exc"] = exc
+
+        thread = threading.Thread(target=_runner, daemon=True)
+        thread.start()
+        thread.join()
+
+        if "exc" in error:
+            raise error["exc"]
+        return result.get("value")
+
+    def request(self, method: str, url: str, **kwargs):
+        follow_redirects = kwargs.pop("follow_redirects", self.follow_redirects)
+
+        async def _do_request():
+            transport = httpx.ASGITransport(
+                app=self.app,
+                raise_app_exceptions=self.raise_server_exceptions,
+                root_path=self.root_path,
+                client=self.client,
+            )
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url=self.base_url,
+                headers=self.headers,
+                cookies=self.cookies,
+                follow_redirects=follow_redirects,
+            ) as async_client:
+                response = await async_client.request(method, url, **kwargs)
+                self.cookies.update(response.cookies)
+                return response
+
+        return self._run_coro(_do_request())
+
+    def get(self, url: str, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs):
+        return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs):
+        return self.request("PUT", url, **kwargs)
+
+    def patch(self, url: str, **kwargs):
+        return self.request("PATCH", url, **kwargs)
+
+    def delete(self, url: str, **kwargs):
+        return self.request("DELETE", url, **kwargs)
+
+    def options(self, url: str, **kwargs):
+        return self.request("OPTIONS", url, **kwargs)
+
+    def head(self, url: str, **kwargs):
+        return self.request("HEAD", url, **kwargs)
+
+    def close(self):
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
+
+# Patch TestClient globally for tests before test modules are imported.
+try:
+    import fastapi.testclient as fastapi_testclient
+    import starlette.testclient as starlette_testclient
+
+    fastapi_testclient.TestClient = SandboxSafeTestClient
+    starlette_testclient.TestClient = SandboxSafeTestClient
+except Exception:
+    pass
+
+
+# In this sandbox, anyio threadpool workers may block indefinitely.
+# FastAPI sync-generator dependencies use contextmanager_in_threadpool, so
+# patch them to inline execution for tests.
+@asynccontextmanager
+async def _contextmanager_inline(cm):
+    value = cm.__enter__()
+    try:
+        yield value
+    except Exception as exc:
+        suppress = cm.__exit__(type(exc), exc, exc.__traceback__)
+        if not suppress:
+            raise
+    else:
+        cm.__exit__(None, None, None)
+
+
+try:
+    import fastapi.concurrency as fastapi_concurrency
+    import fastapi.dependencies.utils as fastapi_dependencies_utils
+    import fastapi.routing as fastapi_routing
+    import starlette.concurrency as starlette_concurrency
+
+    fastapi_concurrency.contextmanager_in_threadpool = _contextmanager_inline
+    fastapi_dependencies_utils.contextmanager_in_threadpool = _contextmanager_inline
+
+    async def _run_in_threadpool_inline(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    fastapi_concurrency.run_in_threadpool = _run_in_threadpool_inline
+    fastapi_dependencies_utils.run_in_threadpool = _run_in_threadpool_inline
+    fastapi_routing.run_in_threadpool = _run_in_threadpool_inline
+    starlette_concurrency.run_in_threadpool = _run_in_threadpool_inline
+except Exception:
+    pass
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -37,6 +211,19 @@ except Exception:
 
 try:
     import prometheus_client  # noqa: F401
+except Exception:
+    pass
+
+# Keep cryptography ciphers loaded in baseline sys.modules.
+# The autouse patch.dict fixture can otherwise remove lazily imported
+# submodules between tests, causing inconsistent crypto backend state.
+try:
+    import cryptography  # noqa: F401
+    from cryptography.hazmat.primitives.ciphers import (  # noqa: F401
+        Cipher,
+        algorithms,
+        modes,
+    )
 except Exception:
     pass
 

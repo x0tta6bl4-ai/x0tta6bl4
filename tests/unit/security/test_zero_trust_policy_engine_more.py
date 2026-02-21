@@ -29,9 +29,9 @@ def test_time_window_spans_midnight(monkeypatch):
     assert engine._check_time_window({"start": "23:00", "end": "02:00"}) is True
 
 
-def test_time_window_invalid_format_defaults_allow():
+def test_time_window_invalid_format_defaults_deny():
     engine = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)
-    assert engine._check_time_window({"start": "BAD", "end": "WORSE"}) is True
+    assert engine._check_time_window({"start": "BAD", "end": "WORSE"}) is False
 
 
 def test_rate_limit_blocks(monkeypatch):

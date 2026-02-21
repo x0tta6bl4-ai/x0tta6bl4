@@ -15,8 +15,10 @@ Covers:
 import asyncio
 import hashlib
 import json
+import sys
 import time
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
@@ -319,8 +321,7 @@ class TestCircuitBreakerContextManager:
         circuit_breaker._state = CircuitBreakerState.OPEN
         circuit_breaker._last_failure_time = time.time()
         with pytest.raises(CircuitBreakerOpenError):
-            async with circuit_breaker:
-                pass
+            await circuit_breaker.__aenter__()
 
     @pytest.mark.asyncio
     async def test_aenter_open_with_recovery(self, circuit_breaker):
@@ -434,6 +435,95 @@ class TestEnhancedDatabaseCredentialRotator:
         h1 = rotator._hash_creds({"a": "1"})
         h2 = rotator._hash_creds({"a": "2"})
         assert h1 != h2
+
+    @pytest.mark.asyncio
+    async def test_get_pg_connection_creates_pool_once(self, mock_vault_client, monkeypatch):
+        rotator = self._make_rotator(mock_vault_client)
+        pool = MagicMock()
+        create_pool = AsyncMock(return_value=pool)
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(create_pool=create_pool))
+
+        got = await rotator._get_pg_connection()
+
+        assert got is pool
+        create_pool.assert_awaited_once_with(
+            host="localhost",
+            port=5432,
+            user="postgres",
+            password="admin_pass",
+            database="postgres",
+            min_size=1,
+            max_size=5,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_pg_connection_reuses_cached_pool(
+        self, mock_vault_client, monkeypatch
+    ):
+        rotator = self._make_rotator(mock_vault_client)
+        existing_pool = MagicMock()
+        rotator._pg_pool = existing_pool
+        create_pool = AsyncMock(side_effect=AssertionError("must not be called"))
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(create_pool=create_pool))
+
+        got = await rotator._get_pg_connection()
+
+        assert got is existing_pool
+
+    @pytest.mark.asyncio
+    async def test_validate_connectivity_success(self, mock_vault_client, monkeypatch):
+        rotator = self._make_rotator(mock_vault_client)
+        conn = AsyncMock()
+        conn.execute = AsyncMock()
+        conn.close = AsyncMock()
+        connect = AsyncMock(return_value=conn)
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(connect=connect))
+
+        ok = await rotator._validate_connectivity(
+            {"username": "u", "password": "p", "database": "db"}
+        )
+
+        assert ok is True
+        conn.execute.assert_awaited_once_with("SELECT 1")
+        conn.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_connectivity_failure(self, mock_vault_client, monkeypatch):
+        rotator = self._make_rotator(mock_vault_client)
+        connect = AsyncMock(side_effect=RuntimeError("connect failed"))
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(connect=connect))
+
+        ok = await rotator._validate_connectivity({"username": "u", "password": "p"})
+
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_validate_permissions_success(self, mock_vault_client, monkeypatch):
+        rotator = self._make_rotator(mock_vault_client)
+        conn = AsyncMock()
+        conn.execute = AsyncMock()
+        conn.fetch = AsyncMock(return_value=[{"id": 1}])
+        conn.close = AsyncMock()
+        connect = AsyncMock(return_value=conn)
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(connect=connect))
+
+        ok = await rotator._validate_permissions(
+            {"username": "u", "password": "p", "database": "db"}
+        )
+
+        assert ok is True
+        conn.fetch.assert_awaited_once_with("SELECT * FROM _vault_test")
+        conn.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_permissions_failure(self, mock_vault_client, monkeypatch):
+        rotator = self._make_rotator(mock_vault_client)
+        connect = AsyncMock(side_effect=RuntimeError("permission check failed"))
+        monkeypatch.setitem(sys.modules, "asyncpg", SimpleNamespace(connect=connect))
+
+        ok = await rotator._validate_permissions({"username": "u", "password": "p"})
+
+        assert ok is False
 
     # --- rotate() happy path (IMMEDIATE strategy) ---
 
@@ -553,6 +643,129 @@ class TestEnhancedDatabaseCredentialRotator:
 
         result = await rotator.rotate("testdb")
         assert result.status in (RotationStatus.FAILED, RotationStatus.ROLLED_BACK)
+
+    @pytest.mark.asyncio
+    async def test_rotate_shadow_strategy_success(self, mock_vault_client):
+        rotator = self._make_rotator(mock_vault_client, RotationStrategy.SHADOW)
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+        mock_conn.fetch = AsyncMock()
+
+        mock_pool = MagicMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=mock_conn)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        mock_pool.acquire = MagicMock(return_value=cm)
+        mock_pool.close = AsyncMock()
+
+        rotator._pg_pool = mock_pool
+        rotator._get_pg_connection = AsyncMock(return_value=mock_pool)
+        rotator._validator = MagicMock()
+        rotator._validator.validate = AsyncMock(return_value={"shadow": True})
+
+        result = await rotator.rotate("testdb")
+
+        assert result.status == RotationStatus.COMPLETED
+        assert result.validation_results == {"shadow": True}
+        assert result.new_creds_hash is not None
+        assert result.completed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_rotate_shadow_validation_failure(self, mock_vault_client):
+        rotator = self._make_rotator(mock_vault_client, RotationStrategy.SHADOW)
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+        mock_conn.fetch = AsyncMock()
+
+        mock_pool = MagicMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=mock_conn)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        mock_pool.acquire = MagicMock(return_value=cm)
+        mock_pool.close = AsyncMock()
+
+        rotator._pg_pool = mock_pool
+        rotator._get_pg_connection = AsyncMock(return_value=mock_pool)
+        rotator._validator = MagicMock()
+        rotator._validator.validate = AsyncMock(return_value={"shadow": False})
+
+        result = await rotator.rotate("testdb")
+
+        assert result.status in (RotationStatus.FAILED, RotationStatus.ROLLED_BACK)
+        assert "Validation failed" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_rotate_graceful_strategy_uses_sleep(self, mock_vault_client):
+        rotator = self._make_rotator(mock_vault_client, RotationStrategy.GRACEFUL)
+        rotator.grace_period = 3
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+        mock_conn.fetch = AsyncMock()
+
+        mock_pool = MagicMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=mock_conn)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        mock_pool.acquire = MagicMock(return_value=cm)
+        mock_pool.close = AsyncMock()
+
+        rotator._pg_pool = mock_pool
+        rotator._get_pg_connection = AsyncMock(return_value=mock_pool)
+        rotator._validator = MagicMock()
+        rotator._validator.validate = AsyncMock(return_value={"ok": True})
+
+        with patch("src.security.vault_rotation.asyncio.sleep", new=AsyncMock()) as sleep_mock:
+            result = await rotator.rotate("testdb")
+
+        assert result.status == RotationStatus.COMPLETED
+        sleep_mock.assert_awaited_once_with(3)
+
+    @pytest.mark.asyncio
+    async def test_rotate_post_creation_validation_failure(self, mock_vault_client):
+        rotator = self._make_rotator(mock_vault_client, RotationStrategy.IMMEDIATE)
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+        mock_conn.fetch = AsyncMock()
+
+        mock_pool = MagicMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=mock_conn)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        mock_pool.acquire = MagicMock(return_value=cm)
+        mock_pool.close = AsyncMock()
+
+        rotator._pg_pool = mock_pool
+        rotator._get_pg_connection = AsyncMock(return_value=mock_pool)
+        rotator._validator = MagicMock()
+        rotator._validator.validate = AsyncMock(return_value={"post": False})
+
+        result = await rotator.rotate("testdb")
+
+        assert result.status in (RotationStatus.FAILED, RotationStatus.ROLLED_BACK)
+        assert "Post-creation validation failed" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_rotate_handles_circuit_breaker_exception(self, mock_vault_client):
+        rotator = self._make_rotator(mock_vault_client, RotationStrategy.IMMEDIATE)
+
+        class FailingCircuit:
+            state = CircuitBreakerState.CLOSED
+
+            async def __aenter__(self):
+                raise CircuitBreakerOpenError("forced open during enter")
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        rotator._circuit_breaker = FailingCircuit()
+        result = await rotator.rotate("testdb")
+        assert result.status == RotationStatus.CIRCUIT_OPEN
+        assert result.error == "forced open during enter"
+        assert await rotator._circuit_breaker.__aexit__(None, None, None) is False
 
     # --- close() ---
 
@@ -721,6 +934,72 @@ class TestRollback:
         # Should not raise, failure is caught internally
         await rotator._rollback("testdb", "new_user", old_creds, result)
         assert result.status == RotationStatus.ROLLED_BACK
+
+    @pytest.mark.asyncio
+    async def test_rollback_restore_old_creds_failure_logged(self):
+        vault_client = MagicMock()
+        rotator = EnhancedDatabaseCredentialRotator(
+            vault_client=vault_client,
+            db_host="localhost",
+            strategy=RotationStrategy.IMMEDIATE,
+        )
+
+        old_creds = {
+            "username": "old",
+            "password": "pass",
+            "host": "localhost",
+            "port": 5432,
+            "database": "db",
+            "connection_string": None,
+        }
+        result = RotationResult(
+            secret_path="p",
+            status=RotationStatus.FAILED,
+            strategy=RotationStrategy.IMMEDIATE,
+            started_at=datetime.now(),
+            error="e",
+        )
+
+        with patch("src.security.vault_rotation.VaultSecretManager") as MockManager:
+            manager = MagicMock()
+            manager.store_database_credentials = AsyncMock(
+                side_effect=Exception("vault write failed")
+            )
+            MockManager.return_value = manager
+            await rotator._rollback("db", None, old_creds, result)
+
+        assert result.status == RotationStatus.ROLLED_BACK
+        assert result.rollback_reason == "e"
+
+    @pytest.mark.asyncio
+    async def test_rollback_outer_exception_sets_fallback_reason(self):
+        vault_client = MagicMock()
+        rotator = EnhancedDatabaseCredentialRotator(
+            vault_client=vault_client,
+            db_host="localhost",
+            strategy=RotationStrategy.IMMEDIATE,
+        )
+
+        class BadResult:
+            def __init__(self):
+                self.error = "primary error"
+                self.rollback_reason = None
+                self._status_sets = 0
+
+            @property
+            def status(self):
+                return None
+
+            @status.setter
+            def status(self, _):
+                self._status_sets += 1
+                if self._status_sets > 1:
+                    raise RuntimeError("status set failed")
+
+        bad = BadResult()
+        assert bad.status is None
+        await rotator._rollback("db", None, None, bad)
+        assert bad.rollback_reason.startswith("Rollback failed:")
 
 
 # ---------------------------------------------------------------------------
@@ -910,6 +1189,90 @@ class TestRotationScheduler:
         }
         success = await scheduler._execute_rotation("db:testdb", schedule)
         assert success is False
+
+    @pytest.mark.asyncio
+    async def test_scheduler_loop_success_updates_metrics(self, mock_vault_client):
+        scheduler = RotationScheduler(mock_vault_client)
+        scheduler._running = True
+        scheduler._schedules = {
+            "db:testdb": {
+                "type": "database",
+                "db_name": "testdb",
+                "interval": timedelta(days=1),
+                "last_rotation": None,
+                "failure_count": 0,
+            }
+        }
+        scheduler._execute_rotation = AsyncMock(return_value=True)
+
+        with patch(
+            "src.security.vault_rotation.asyncio.sleep",
+            side_effect=asyncio.CancelledError(),
+        ):
+            with pytest.raises(asyncio.CancelledError):
+                await scheduler._scheduler_loop()
+
+        entry = scheduler._schedules["db:testdb"]
+        assert entry["last_rotation"] is not None
+        assert entry["failure_count"] == 0
+        assert scheduler._metrics["rotations_total"] == 1
+        assert scheduler._metrics["rotations_successful"] == 1
+        assert scheduler._metrics["rotations_failed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_scheduler_loop_failure_increments_failure_count(
+        self, mock_vault_client
+    ):
+        scheduler = RotationScheduler(mock_vault_client)
+        scheduler._running = True
+        scheduler._schedules = {
+            "db:testdb": {
+                "type": "database",
+                "db_name": "testdb",
+                "interval": timedelta(days=1),
+                "last_rotation": None,
+                "failure_count": 0,
+            }
+        }
+        scheduler._execute_rotation = AsyncMock(return_value=False)
+
+        async def stop_after_sleep(_seconds):
+            scheduler._running = False
+
+        with patch("src.security.vault_rotation.asyncio.sleep", side_effect=stop_after_sleep):
+            await scheduler._scheduler_loop()
+
+        entry = scheduler._schedules["db:testdb"]
+        assert entry["last_rotation"] is None
+        assert entry["failure_count"] == 1
+        assert scheduler._metrics["rotations_total"] == 1
+        assert scheduler._metrics["rotations_successful"] == 0
+        assert scheduler._metrics["rotations_failed"] == 1
+
+    @pytest.mark.asyncio
+    async def test_scheduler_loop_exception_path(self, mock_vault_client):
+        scheduler = RotationScheduler(mock_vault_client)
+        scheduler._running = True
+        scheduler._schedules = {
+            "db:testdb": {
+                "type": "database",
+                "db_name": "testdb",
+                "interval": timedelta(days=1),
+                "last_rotation": None,
+                "failure_count": 0,
+            }
+        }
+        scheduler._execute_rotation = AsyncMock(side_effect=RuntimeError("loop boom"))
+
+        async def stop_after_error(_seconds):
+            scheduler._running = False
+
+        with patch("src.security.vault_rotation.asyncio.sleep", side_effect=stop_after_error):
+            await scheduler._scheduler_loop()
+
+        assert scheduler._metrics["rotations_total"] == 0
+        assert scheduler._metrics["rotations_successful"] == 0
+        assert scheduler._metrics["rotations_failed"] == 0
 
 
 # ---------------------------------------------------------------------------

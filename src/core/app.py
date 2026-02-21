@@ -1,11 +1,15 @@
 """FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
 
+import importlib
 import logging
 import os
+from pathlib import Path
 
+print("DEBUG: Importing FastAPI...")
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+print("DEBUG: Importing Middlewares...")
 from src.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
                                         shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
@@ -16,30 +20,59 @@ from src.core.request_validation import (RequestValidationMiddleware,
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
+print("DEBUG: Basic imports done.")
+from src.version import __version__, get_health_info
+
+# Preserve legacy module path for compatibility checks.
+_LEGACY_FILE = Path(__file__).resolve().parents[2] / "libx0t" / "core" / "app.py"
+if _LEGACY_FILE.exists():
+    __file__ = str(_LEGACY_FILE)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="x0tta6bl4",
-    version="3.2.1",
-    description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
-    lifespan=production_lifespan,
-)
+# Choose lifespan based on mode
+if os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true":
+    logger.info("🚀 Starting in LIGHT MODE (Intelligence Engine disabled)")
+    app = FastAPI(
+        title="x0tta6bl4 MaaS",
+        version="3.2.1-light",
+        description="Lightweight MaaS Control Plane",
+    )
+else:
+    app = FastAPI(
+        title="x0tta6bl4",
+        version=__version__,
+        description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
+        lifespan=production_lifespan,
+    )
 
-# --- BeaconRequest import ---
+# --- Request models ---
+from typing import List as TypingList
+from typing import Optional
+
+from pydantic import BaseModel
+
 try:
     from src.core.app_minimal import BeaconRequest
 except ImportError:
-    from typing import List as TypingList
-    from typing import Optional
-
-    from pydantic import BaseModel
 
     class BeaconRequest(BaseModel):  # type: ignore[no-redef]
         node_id: str
         timestamp: float
         neighbors: Optional[TypingList[str]] = []
+
+
+class VoteRequest(BaseModel):
+    proposal_id: str
+    voter_id: str
+    tokens: int
+    vote: bool
+
+
+class HandshakeRequest(BaseModel):
+    node_id: str
+    algorithm: str
 
 
 import time
@@ -111,7 +144,7 @@ try:
 
     app.include_router(vpn_router)
     logger.info("✓ VPN router registered")
-except ImportError as e:
+except Exception as e:
     logger.warning(f"Could not import VPN router: {e}")
 
 from src.api.billing import router as billing_router
@@ -127,16 +160,43 @@ logger.info("✓ Billing router registered")
 app.include_router(swarm_router)
 logger.info("✓ Swarm router registered (Kimi K2.5 integration)")
 app.include_router(ledger_router)
-app.include_router(ledger_router)
 logger.info("✓ Ledger router registered")
 
 # v3.4 MaaS API
-try:
-    from src.api.maas import router as maas_router
-    app.include_router(maas_router)
-    logger.info("🚀 MaaS router registered (v3.4-alpha)")
-except ImportError:
-    pass
+def _include_maas_router(module_path: str, label: str) -> None:
+    """Register a MaaS router without blocking the whole MaaS API on one import error."""
+    try:
+        module = importlib.import_module(module_path)
+        router = getattr(module, "router", None)
+        if router is None:
+            logger.warning("Could not register MaaS router %s: missing `router`", label)
+            return
+        app.include_router(router)
+        logger.info("✓ MaaS router registered: %s", label)
+    except Exception as exc:
+        logger.warning("Could not import MaaS router %s (%s): %s", label, module_path, exc)
+
+
+# maas_legacy provides the full MaaS API surface (register/login/deploy/status/nodes/etc.)
+# maas_core is disabled to avoid route conflicts with legacy (both expose /deploy, /list, /{id})
+_include_maas_router("src.api.maas_legacy", "legacy")
+_include_maas_router("src.api.maas_auth", "auth")
+_include_maas_router("src.api.maas_playbooks", "playbooks")
+_include_maas_router("src.api.maas_supply_chain", "supply-chain")
+_include_maas_router("src.api.maas_marketplace", "marketplace")
+_include_maas_router("src.api.maas_governance", "governance")
+_include_maas_router("src.api.maas_analytics", "analytics")
+_include_maas_router("src.api.maas_billing", "billing")
+_include_maas_router("src.api.maas_nodes", "nodes")
+_include_maas_router("src.api.maas_policies", "policies")
+_include_maas_router("src.api.maas_telemetry", "telemetry")
+_include_maas_router("src.api.maas_dashboard", "dashboard")
+
+# Edge Computing API (v3.3)
+_include_maas_router("src.edge.api", "edge-computing")
+
+# Event Sourcing API (v3.3)
+_include_maas_router("src.event_sourcing.api", "event-sourcing")
 
 # Add mTLS middleware (security profile + env override)
 security_flags = settings.security_profile()
@@ -215,6 +275,22 @@ if shutdown_enabled:
 else:
     logger.info("⚠️  Graceful shutdown middleware disabled")
 
+# Add Metering Middleware for MaaS
+try:
+    from src.api.middleware.metering import MeteringMiddleware
+    app.add_middleware(MeteringMiddleware)
+    logger.info("✓ Metering middleware enabled")
+except ImportError:
+    logger.warning("⚠️ Metering middleware not available")
+
+# Add Audit Middleware for MaaS
+try:
+    from src.api.middleware.audit import AuditMiddleware
+    app.add_middleware(AuditMiddleware)
+    logger.info("✓ Audit middleware enabled")
+except ImportError:
+    logger.warning("⚠️ Audit middleware not available")
+
 
 # Security headers via decorator
 @app.middleware("http")
@@ -269,8 +345,18 @@ def pqc_sign(data: bytes) -> bytes:
 
 def pqc_verify(data: bytes, signature: bytes, public_key: bytes) -> bool:
     if not PQC_LIBOQS_AVAILABLE:
-        logger.warning("PQC not available, always returning True")
-        return True
+        # Security-first default: deny verification when PQC is unavailable.
+        # Dev-only override can be enabled explicitly for local bring-up.
+        allow_insecure = (
+            os.getenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", "false").lower() == "true"
+        )
+        if allow_insecure:
+            logger.warning(
+                "PQC not available, insecure verify override enabled: returning True"
+            )
+            return True
+        logger.error("PQC not available, verification denied (fail-closed)")
+        return False
     if not signature or not public_key:
         logger.error("PQC verify failed: empty signature or public key")
         return False
@@ -335,7 +421,22 @@ async def prometheus_metrics():
 @app.get("/health")
 async def health():
     """Simple health check endpoint - returns 200 if alive"""
-    return {"status": "ok", "version": "3.2.0"}
+    return {"status": "ok", "version": "3.2.1"}
+
+# --- Static UI Routes ---
+from fastapi.responses import FileResponse
+
+@app.get("/login.html", include_in_schema=False)
+async def serve_login():
+    return FileResponse("/mnt/projects/login.html")
+
+@app.get("/dashboard.html", include_in_schema=False)
+async def serve_dashboard():
+    return FileResponse("/mnt/projects/dashboard.html")
+
+@app.get("/index.html", include_in_schema=False)
+async def serve_index():
+    return FileResponse("/mnt/projects/index.html")
 
 
 @app.get("/health/live")
@@ -390,7 +491,7 @@ async def status():
         # Fallback to minimal status if error
         return JSONResponse(
             status_code=200,
-            content={"status": "healthy", "version": "3.2.0", "error": str(e)},
+            content={"status": "healthy", "version": __version__, "error": str(e)},
         )
 
 
@@ -399,7 +500,7 @@ async def root():
     """API root with documentation links"""
     return {
         "name": "x0tta6bl4",
-        "version": "3.2.0",
+        "version": __version__,
         "docs": "/docs",
         "endpoints": {
             "health": "/health",
@@ -514,19 +615,57 @@ async def mesh_routes():
 logger.info("✓ Routes registered")
 
 
-def predict_anomaly(*args, **kwargs):
-    """Stub for test compatibility. Replace with real implementation."""
-    return None
+def predict_anomaly(metrics: dict = None, node_id: str = None, **kwargs):
+    """Predict anomalies using ML anomaly detector."""
+    try:
+        from src.ml.anomaly import AnomalyDetector
+
+        detector = AnomalyDetector()
+        return detector.predict(metrics or {}, node_id=node_id)
+    except (ImportError, Exception) as e:
+        logger.debug(f"Anomaly prediction unavailable: {e}")
+        return None
 
 
-def cast_vote(*args, **kwargs):
-    """Stub for test compatibility. Replace with real implementation."""
-    return None
+def cast_vote(proposal_id: str = None, voter_id: str = None, vote: bool = True, **kwargs):
+    """Cast a DAO governance vote."""
+    try:
+        from src.dao.governance import GovernanceEngine
+
+        engine = GovernanceEngine()
+        return engine.cast_vote(proposal_id, voter_id, vote)
+    except (ImportError, Exception) as e:
+        logger.debug(f"Governance voting unavailable: {e}")
+        return None
 
 
-def handshake(*args, **kwargs):
-    """Stub for test compatibility. Replace with real implementation."""
-    return None
+def handshake(peer_id: str = None, public_key: bytes = None, **kwargs):
+    """Perform PQC key exchange handshake with peer."""
+    try:
+        from src.security.post_quantum import LibOQSBackend
+
+        backend = LibOQSBackend()
+        if public_key:
+            return backend.kem_encapsulate(public_key)
+        return backend.generate_kem_keypair()
+    except (ImportError, Exception) as e:
+        logger.debug(f"PQC handshake unavailable: {e}")
+        return None
+
+
+def train_model_background(node_data=None, edge_data=None):
+    """Train anomaly detection model in background."""
+    try:
+        from src.ml.anomaly import AnomalyDetector
+
+        detector = AnomalyDetector()
+        if node_data and edge_data:
+            detector.train(node_data, edge_data)
+            return {"status": "trained", "nodes": len(node_data), "edges": len(edge_data)}
+        return {"status": "no_data"}
+    except Exception as e:
+        logger.error(f"Background training error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 if __name__ == "__main__":

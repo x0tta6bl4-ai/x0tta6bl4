@@ -182,6 +182,9 @@ class GovernanceEngine:
         self.dispatcher = dispatcher or ActionDispatcher()
         # Append-only ledger for audit trail
         self.ledger_path = ledger_path
+        # Backward-compatible enum access expected by some call sites/tests.
+        self.VoteType = VoteType
+        self.ProposalState = ProposalState
 
     def _get_initial_voting_power(self) -> Dict[str, float]:
         """
@@ -191,9 +194,9 @@ class GovernanceEngine:
         # This is a more realistic mock than an empty dict
         return {
             "node-1": 100.0,
-            "node-2": 150.0,
-            "node-3": 80.0,
-            "node-4": 200.0,
+            "node-2": 100.0,
+            "node-3": 100.0,
+            "node-4": 100.0,
         }
 
     def create_proposal(
@@ -238,16 +241,24 @@ class GovernanceEngine:
         return proposal
 
     def cast_vote(
-        self, proposal_id: str, voter_id: str, vote: VoteType, tokens: float = 1.0
+        self,
+        proposal_id: str,
+        voter_id: str,
+        vote: VoteType,
+        tokens: float = 1.0,
+        signature: Optional[str] = None,
+        voter_pubkey: Optional[str] = None
     ) -> bool:
         """
-        Cast a vote on a proposal with quadratic voting support.
+        Cast a vote on a proposal with quadratic voting and PQC signature verification.
 
         Args:
             proposal_id: ID of the proposal
             voter_id: ID of the voter
             vote: Vote type (YES, NO, ABSTAIN)
             tokens: Number of tokens held by voter (for quadratic voting)
+            signature: Hex-encoded PQC signature of (proposal_id + voter_id + vote.value)
+            voter_pubkey: Hex-encoded public key of the voter (ML-DSA-65)
 
         Returns:
             True if vote was recorded, False otherwise
@@ -261,6 +272,45 @@ class GovernanceEngine:
         if proposal.state != ProposalState.ACTIVE:
             logger.warning(f"Voting closed for {proposal_id} (State: {proposal.state})")
             return False
+            
+        # PQC Signature Verification
+        if signature and voter_pubkey:
+            try:
+                # Import verification utility locally to avoid circular imports
+                from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
+                
+                if LIBOQS_AVAILABLE:
+                    # Construct payload that was signed: proposal_id + voter_id + vote_value
+                    payload = f"{proposal_id}:{voter_id}:{vote.value}".encode('utf-8')
+                    
+                    # Create a temporary security backend to verify (algorithm is part of the key/sig)
+                    # We assume ML-DSA-65 by default for now, or infer from key length
+                    # But verifying logic is generic in backend usually
+                    
+                    # We can use a static method or instantiate a verifier. 
+                    # For simplicity, we'll try to use the backend directly if possible, 
+                    # or better: use the PQCNodeIdentity utility if available.
+                    
+                    # NOTE: Here we simply verify using the backend wrapper
+                    # Ideally we should resolve the DID to get the public key, 
+                    # but we accept it as an argument for this MVP stage.
+                    
+                    verifier = PQMeshSecurityLibOQS("verifier-temp")
+                    sig_bytes = bytes.fromhex(signature)
+                    pub_bytes = bytes.fromhex(voter_pubkey)
+                    
+                    if not verifier.verify(payload, sig_bytes, pub_bytes):
+                        logger.error(f"Invalid PQC signature for vote from {voter_id}")
+                        return False
+                    logger.info(f"PQC Vote Signature Verified for {voter_id}")
+                else:
+                    logger.warning("LIBOQS not available, skipping vote signature check (DEV MODE)")
+
+            except Exception as e:
+                logger.error(f"Error verifying vote signature: {e}")
+                return False
+        elif not signature:
+             logger.warning(f"Unsigned vote from {voter_id} accepted (Legacy Mode)")
 
         if time.time() > proposal.end_time:
             self._tally_votes(proposal)

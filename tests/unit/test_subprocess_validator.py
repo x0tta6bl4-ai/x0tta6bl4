@@ -50,6 +50,18 @@ def test_validate_tc_subcommands():
         validate_command(["tc", "x", "y"])
 
 
+def test_validate_ip_requires_subcommand():
+    """Test that ip command requires at least one subcommand"""
+    with pytest.raises(ValueError, match="requires at least one subcommand"):
+        validate_command(["ip"])
+
+
+def test_validate_tc_requires_subcommand():
+    """Test that tc command requires at least one subcommand"""
+    with pytest.raises(ValueError, match="requires at least one subcommand"):
+        validate_command(["tc"])
+
+
 def test_validate_arguments_safe():
     """Test that safe arguments pass validation"""
     assert validate_arguments(["safe", "arg1", "arg2"])

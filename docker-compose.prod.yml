@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # x0tta6bl4 MaaS API (Modular & DB-backed)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: x0tta6bl4/maas-api:latest
+    container_name: maas-api
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://x0t_admin:x0t_secure_pass@db:5432/maas_prod
+      - REDIS_URL=redis://redis:6379/0
+      - VAULT_URL=http://vault:8200
+      - OIDC_ISSUER=${OIDC_ISSUER:-https://accounts.google.com}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - MAAS_TOKEN_SECRET=${MAAS_TOKEN_SECRET}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      vault:
+        condition: service_started
+
+  # Persistent Storage
+  db:
+    image: postgres:15-alpine
+    container_name: maas-db
+    restart: always
+    environment:
+      - POSTGRES_USER=x0t_admin
+      - POSTGRES_PASSWORD=x0t_secure_pass
+      - POSTGRES_DB=maas_prod
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x0t_admin -d maas_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Telemetry Layer
+  redis:
+    image: redis:7-alpine
+    container_name: maas-redis
+    restart: always
+    volumes:
+      - redis_prod_data:/data
+
+  # PQC Secret Management
+  vault:
+    image: hashicorp/vault:1.13
+    container_name: maas-vault
+    restart: always
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=x0t-master-token
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+
+  # Observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: maas-prometheus
+    restart: always
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_prod_data:/prometheus
+    ports:
+      - "9090:9090"
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  prometheus_prod_data:

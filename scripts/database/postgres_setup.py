@@ -74,23 +74,44 @@ class PostgresSchemaManager:
         self.config = config
         self.connection_string = f"postgresql://{config.admin_user}:{config.admin_password}@{config.host}:{config.port}/postgres"
 
+    def _psql_base(self, database: Optional[str] = None) -> List[str]:
+        """Build base psql command as a list."""
+        db = database or self.config.database
+        return [
+            "psql",
+            "-h", self.config.host,
+            "-p", str(self.config.port),
+            "-U", self.config.admin_user,
+            "-d", db,
+        ]
+
     async def create_database(self) -> bool:
         """Create main application database"""
         try:
-            cmd = f"""
-            psql -h {self.config.host} -p {self.config.port} -U {self.config.admin_user} \
-              -tc "SELECT 1 FROM pg_database WHERE datname = '{self.config.database}'" | grep -q 1
-            """
+            result = subprocess.run(
+                [
+                    "psql",
+                    "-h", self.config.host,
+                    "-p", str(self.config.port),
+                    "-U", self.config.admin_user,
+                    "-tc", f"SELECT 1 FROM pg_database WHERE datname = '{self.config.database}'",
+                ],
+                capture_output=True,
+                text=True,
+            )
 
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-            if result.returncode != 0:
+            if "1" not in result.stdout:
                 logger.info(f"📦 Creating database: {self.config.database}")
-                create_cmd = f"""
-                psql -h {self.config.host} -p {self.config.port} -U {self.config.admin_user} \
-                  -c "CREATE DATABASE {self.config.database} ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';"
-                """
-                subprocess.run(create_cmd, shell=True, check=True)
+                subprocess.run(
+                    [
+                        "psql",
+                        "-h", self.config.host,
+                        "-p", str(self.config.port),
+                        "-U", self.config.admin_user,
+                        "-c", f"CREATE DATABASE {self.config.database} ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';",
+                    ],
+                    check=True,
+                )
                 logger.info("✅ Database created")
                 return True
             else:
@@ -130,8 +151,7 @@ class PostgresSchemaManager:
 
             for stmt in statements:
                 result = subprocess.run(
-                    f'echo "{stmt}" | {psql_cmd}',
-                    shell=True,
+                    self._psql_base() + ["-c", stmt],
                     capture_output=True,
                     text=True,
                 )
@@ -165,8 +185,7 @@ class PostgresSchemaManager:
             for ext in extensions:
                 stmt = f"CREATE EXTENSION IF NOT EXISTS {ext};"
                 result = subprocess.run(
-                    f'echo "{stmt}" | {psql_cmd}',
-                    shell=True,
+                    self._psql_base() + ["-c", stmt],
                     capture_output=True,
                     text=True,
                 )
@@ -293,8 +312,8 @@ class PostgresSchemaManager:
             """
 
             result = subprocess.run(
-                f"cat << 'EOF' | {psql_cmd}\n{schema_sql}\nEOF",
-                shell=True,
+                self._psql_base(),
+                input=schema_sql,
                 capture_output=True,
                 text=True,
             )
@@ -374,18 +393,31 @@ class PostgresBackupManager:
 
             logger.info(f"💾 Creating backup: {backup_file}")
 
-            cmd = f"""
-            PGPASSWORD={self.config.admin_password} pg_dump \
-              -h {self.config.host} \
-              -p {self.config.port} \
-              -U {self.config.admin_user} \
-              -d {self.config.database} \
-              --no-password \
-              --format=plain \
-              | gzip > {backup_file}
-            """
-
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            env = {**os.environ, "PGPASSWORD": self.config.admin_password}
+            pg_dump = subprocess.Popen(
+                [
+                    "pg_dump",
+                    "-h", self.config.host,
+                    "-p", str(self.config.port),
+                    "-U", self.config.admin_user,
+                    "-d", self.config.database,
+                    "--no-password",
+                    "--format=plain",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            gzip_proc = subprocess.Popen(
+                ["gzip"],
+                stdin=pg_dump.stdout,
+                stdout=open(backup_file, "wb"),
+                stderr=subprocess.PIPE,
+            )
+            pg_dump.stdout.close()
+            gzip_proc.communicate()
+            pg_dump.wait()
+            result = pg_dump
 
             if result.returncode == 0:
                 size_mb = backup_file.stat().st_size / (1024 * 1024)
@@ -407,26 +439,39 @@ class PostgresBackupManager:
             if not backup_file.exists():
                 raise FileNotFoundError(f"Backup file not found: {backup_file}")
 
-            if str(backup_file).endswith(".gz"):
-                cmd = f"""
-                gunzip -c {backup_file} | \
-                PGPASSWORD={self.config.admin_password} psql \
-                  -h {self.config.host} \
-                  -p {self.config.port} \
-                  -U {self.config.admin_user} \
-                  -d {self.config.database}
-                """
-            else:
-                cmd = f"""
-                PGPASSWORD={self.config.admin_password} psql \
-                  -h {self.config.host} \
-                  -p {self.config.port} \
-                  -U {self.config.admin_user} \
-                  -d {self.config.database} \
-                  -f {backup_file}
-                """
+            env = {**os.environ, "PGPASSWORD": self.config.admin_password}
+            psql_cmd = [
+                "psql",
+                "-h", self.config.host,
+                "-p", str(self.config.port),
+                "-U", self.config.admin_user,
+                "-d", self.config.database,
+            ]
 
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if str(backup_file).endswith(".gz"):
+                gunzip = subprocess.Popen(
+                    ["gunzip", "-c", str(backup_file)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                psql = subprocess.Popen(
+                    psql_cmd,
+                    stdin=gunzip.stdout,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
+                gunzip.stdout.close()
+                psql.communicate()
+                gunzip.wait()
+                result = psql
+            else:
+                result = subprocess.run(
+                    psql_cmd + ["-f", str(backup_file)],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
 
             if result.returncode == 0:
                 logger.info("✅ Restore completed successfully")
@@ -471,6 +516,16 @@ class PostgresReplicationManager:
     def __init__(self, config: PostgresConfig):
         self.config = config
 
+    def _psql_base(self) -> List[str]:
+        """Build base psql command as a list."""
+        return [
+            "psql",
+            "-h", self.config.host,
+            "-p", str(self.config.port),
+            "-U", self.config.admin_user,
+            "-d", self.config.database,
+        ]
+
     async def setup_replication(self) -> bool:
         """Setup streaming replication on primary"""
         try:
@@ -495,8 +550,7 @@ class PostgresReplicationManager:
 
             for stmt in statements:
                 result = subprocess.run(
-                    f'echo "{stmt}" | {psql_cmd}',
-                    shell=True,
+                    self._psql_base() + ["-c", stmt],
                     capture_output=True,
                     text=True,
                 )
@@ -567,19 +621,14 @@ class PostgresSetupOrchestrator:
     async def get_status(self) -> Dict[str, Any]:
         """Get PostgreSQL cluster status"""
         try:
-            psql_cmd = f"""
-            psql -h {self.config.host} -p {self.config.port} -U {self.config.admin_user} \
-              -d {self.config.database} -t -c
-            """
+            psql_base = self.schema_manager._psql_base()
 
             status = {}
 
             # Check version
             result = subprocess.run(
-                f"{psql_cmd} 'SELECT version();'",
-                shell=True,
-                capture_output=True,
-                text=True,
+                psql_base + ["-t", "-c", "SELECT version();"],
+                capture_output=True, text=True,
             )
             status["version"] = (
                 result.stdout.strip() if result.returncode == 0 else "unknown"
@@ -587,10 +636,8 @@ class PostgresSetupOrchestrator:
 
             # Check connection count
             result = subprocess.run(
-                f"{psql_cmd} 'SELECT count(*) FROM pg_stat_activity;'",
-                shell=True,
-                capture_output=True,
-                text=True,
+                psql_base + ["-t", "-c", "SELECT count(*) FROM pg_stat_activity;"],
+                capture_output=True, text=True,
             )
             status["active_connections"] = (
                 int(result.stdout.strip()) if result.returncode == 0 else 0
@@ -598,10 +645,8 @@ class PostgresSetupOrchestrator:
 
             # Check database size
             result = subprocess.run(
-                f"{psql_cmd} \"SELECT pg_size_pretty(pg_database_size('{self.config.database}'));\"",
-                shell=True,
-                capture_output=True,
-                text=True,
+                psql_base + ["-t", "-c", f"SELECT pg_size_pretty(pg_database_size('{self.config.database}'));"],
+                capture_output=True, text=True,
             )
             status["database_size"] = (
                 result.stdout.strip() if result.returncode == 0 else "unknown"
@@ -610,10 +655,8 @@ class PostgresSetupOrchestrator:
             # Check replication status if enabled
             if self.config.enable_replication:
                 result = subprocess.run(
-                    f'{psql_cmd} "SELECT count(*) FROM pg_stat_replication;"',
-                    shell=True,
-                    capture_output=True,
-                    text=True,
+                    psql_base + ["-t", "-c", "SELECT count(*) FROM pg_stat_replication;"],
+                    capture_output=True, text=True,
                 )
                 status["replication_slots"] = (
                     int(result.stdout.strip()) if result.returncode == 0 else 0

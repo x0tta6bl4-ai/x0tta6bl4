@@ -66,33 +66,30 @@ class KubernetesDeployer:
 
     def __init__(self, config: DeploymentConfig):
         self.config = config
-        self.kubectl_cmd = f"kubectl -n {config.namespace}"
 
     async def check_prerequisites(self) -> bool:
         """Check deployment prerequisites"""
         try:
-            logger.info("🔍 Checking deployment prerequisites...")
+            logger.info("Checking deployment prerequisites...")
 
             # Check kubectl
             result = subprocess.run(
-                "kubectl version --client", shell=True, capture_output=True, text=True
+                ["kubectl", "version", "--client"],
+                capture_output=True, text=True,
             )
             if result.returncode != 0:
-                logger.error("❌ kubectl not found or not configured")
+                logger.error("kubectl not found or not configured")
                 return False
 
             # Check namespace
             result = subprocess.run(
-                f"kubectl get namespace {self.config.namespace}",
-                shell=True,
-                capture_output=True,
-                text=True,
+                ["kubectl", "get", "namespace", self.config.namespace],
+                capture_output=True, text=True,
             )
             if result.returncode != 0:
-                logger.info(f"📦 Creating namespace: {self.config.namespace}")
+                logger.info(f"Creating namespace: {self.config.namespace}")
                 subprocess.run(
-                    f"kubectl create namespace {self.config.namespace}",
-                    shell=True,
+                    ["kubectl", "create", "namespace", self.config.namespace],
                     check=True,
                 )
 
@@ -100,86 +97,97 @@ class KubernetesDeployer:
             crds = ["ServiceMonitor", "PodDisruptionBudget"]
             for crd in crds:
                 result = subprocess.run(
-                    f"kubectl api-resources | grep {crd.lower()}",
-                    shell=True,
-                    capture_output=True,
-                    text=True,
+                    ["kubectl", "api-resources", "--api-group=", "-o", "name"],
+                    capture_output=True, text=True,
                 )
-                if result.returncode != 0:
-                    logger.warning(f"⚠️  CRD not found: {crd}")
+                if crd.lower() not in result.stdout.lower():
+                    logger.warning(f"CRD not found: {crd}")
 
-            logger.info("✅ Prerequisites check passed")
+            logger.info("Prerequisites check passed")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Prerequisites check failed: {e}")
+            logger.error(f"Prerequisites check failed: {e}")
             return False
 
     async def deploy_helm(self) -> bool:
         """Deploy using Helm"""
         try:
             logger.info(
-                f"📦 Deploying with Helm (strategy: {self.config.strategy.value})"
+                f"Deploying with Helm (strategy: {self.config.strategy.value})"
             )
 
-            helm_cmd = f"""
-            helm upgrade --install {self.config.deployment_name} {self.config.chart_path} \
-              -n {self.config.namespace} \
-              -f {self.config.values_file} \
-              --set image.tag={self.config.image_tag} \
-              --set image.repository={self.config.registry}/{self.config.deployment_name} \
-              --timeout 10m \
-              --wait \
-              --atomic
-            """
+            helm_cmd = [
+                "helm", "upgrade", "--install",
+                self.config.deployment_name, self.config.chart_path,
+                "-n", self.config.namespace,
+                "-f", self.config.values_file,
+                "--set", f"image.tag={self.config.image_tag}",
+                "--set", f"image.repository={self.config.registry}/{self.config.deployment_name}",
+                "--timeout", "10m",
+                "--wait",
+                "--atomic",
+            ]
 
             result = subprocess.run(
-                helm_cmd, shell=True, capture_output=True, text=True
+                helm_cmd, capture_output=True, text=True,
             )
 
             if result.returncode == 0:
-                logger.info("✅ Helm deployment successful")
+                logger.info("Helm deployment successful")
                 return True
             else:
-                logger.error(f"❌ Helm deployment failed: {result.stderr}")
+                logger.error(f"Helm deployment failed: {result.stderr}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Helm deployment error: {e}")
+            logger.error(f"Helm deployment error: {e}")
             return False
 
     async def wait_for_rollout(self) -> bool:
         """Wait for rollout to complete"""
         try:
-            logger.info("⏳ Waiting for deployment rollout...")
+            logger.info("Waiting for deployment rollout...")
 
-            cmd = f"{self.kubectl_cmd} rollout status deployment/{self.config.deployment_name} --timeout=5m"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "rollout", "status",
+                    f"deployment/{self.config.deployment_name}",
+                    "--timeout=5m",
+                ],
+                capture_output=True, text=True,
+            )
 
             if result.returncode == 0:
-                logger.info("✅ Deployment rollout complete")
+                logger.info("Deployment rollout complete")
                 return True
             else:
-                logger.error(f"❌ Deployment rollout failed: {result.stderr}")
+                logger.error(f"Deployment rollout failed: {result.stderr}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Rollout wait error: {e}")
+            logger.error(f"Rollout wait error: {e}")
             return False
 
     async def get_pods(self) -> List[Dict[str, Any]]:
         """Get deployment pods"""
         try:
-            cmd = f"{self.kubectl_cmd} get pods -l app.kubernetes.io/name={self.config.deployment_name} -o json"
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, check=True
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "get", "pods",
+                    "-l", f"app.kubernetes.io/name={self.config.deployment_name}",
+                    "-o", "json",
+                ],
+                capture_output=True, text=True, check=True,
             )
 
             data = json.loads(result.stdout)
             return data.get("items", [])
 
         except Exception as e:
-            logger.error(f"❌ Failed to get pods: {e}")
+            logger.error(f"Failed to get pods: {e}")
             return []
 
     async def check_pod_health(self) -> Tuple[bool, int]:
@@ -201,15 +209,15 @@ class KubernetesDeployer:
                     healthy_count += 1
                 else:
                     pod_name = pod.get("metadata", {}).get("name", "unknown")
-                    logger.warning(f"⚠️  Pod not ready: {pod_name}")
+                    logger.warning(f"Pod not ready: {pod_name}")
 
             total_count = len(pods)
-            logger.info(f"📊 Pod health: {healthy_count}/{total_count} ready")
+            logger.info(f"Pod health: {healthy_count}/{total_count} ready")
 
             return healthy_count > 0, healthy_count
 
         except Exception as e:
-            logger.error(f"❌ Pod health check failed: {e}")
+            logger.error(f"Pod health check failed: {e}")
             return False, 0
 
 
@@ -223,7 +231,7 @@ class HealthValidator:
     async def validate_deployment(self) -> bool:
         """Validate complete deployment health"""
         try:
-            logger.info("🏥 Validating deployment health...")
+            logger.info("Validating deployment health...")
 
             start_time = time.time()
 
@@ -232,48 +240,54 @@ class HealthValidator:
                 is_healthy, pod_count = await self.deployer.check_pod_health()
 
                 if is_healthy:
-                    logger.info("✅ Deployment validation passed")
+                    logger.info("Deployment validation passed")
                     return True
 
-                logger.info(f"⏳ Waiting for deployment ({pod_count} pods healthy)...")
+                logger.info(f"Waiting for deployment ({pod_count} pods healthy)...")
                 await asyncio.sleep(self.config.health_check_interval)
 
-            logger.error("❌ Deployment health check timeout")
+            logger.error("Deployment health check timeout")
             return False
 
         except Exception as e:
-            logger.error(f"❌ Health validation error: {e}")
+            logger.error(f"Health validation error: {e}")
             return False
 
     async def run_smoke_tests(self) -> bool:
         """Run smoke tests on deployment"""
         try:
-            logger.info("🧪 Running smoke tests...")
+            logger.info("Running smoke tests...")
 
             # Get a pod to test
             pods = await self.deployer.get_pods()
             if not pods:
-                logger.error("❌ No pods found for testing")
+                logger.error("No pods found for testing")
                 return False
 
             pod_name = pods[0].get("metadata", {}).get("name", "")
             if not pod_name:
-                logger.error("❌ Could not get pod name")
+                logger.error("Could not get pod name")
                 return False
 
             # Run health check inside pod
-            cmd = f"{self.deployer.kubectl_cmd} exec {pod_name} -- curl -s http://localhost:8000/health/ready"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "exec", pod_name, "--",
+                    "curl", "-s", "http://localhost:8000/health/ready",
+                ],
+                capture_output=True, text=True,
+            )
 
             if result.returncode == 0:
-                logger.info("✅ Smoke tests passed")
+                logger.info("Smoke tests passed")
                 return True
             else:
-                logger.error(f"❌ Smoke tests failed: {result.stderr}")
+                logger.error(f"Smoke tests failed: {result.stderr}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Smoke test error: {e}")
+            logger.error(f"Smoke test error: {e}")
             return False
 
 
@@ -287,7 +301,7 @@ class CanaryDeployment:
     async def deploy_canary(self) -> bool:
         """Execute canary deployment"""
         try:
-            logger.info("🐤 Starting canary deployment...")
+            logger.info("Starting canary deployment...")
 
             # Deploy canary version with initial weight
             success = await self.deployer.deploy_helm()
@@ -297,11 +311,11 @@ class CanaryDeployment:
             current_weight = self.config.canary_weight_initial
 
             while current_weight < self.config.canary_weight_final:
-                logger.info(f"📊 Canary traffic: {current_weight}%")
+                logger.info(f"Canary traffic: {current_weight}%")
 
                 # Validate current weight
                 if not await self._validate_canary():
-                    logger.error("❌ Canary validation failed, rolling back")
+                    logger.error("Canary validation failed, rolling back")
                     return False
 
                 # Increment weight
@@ -311,38 +325,45 @@ class CanaryDeployment:
 
                 # Wait before increasing weight
                 logger.info(
-                    f"⏳ Waiting {self.config.canary_increment_interval}s before increasing traffic..."
+                    f"Waiting {self.config.canary_increment_interval}s before increasing traffic..."
                 )
                 await asyncio.sleep(self.config.canary_increment_interval)
 
-            logger.info("✅ Canary deployment completed successfully")
+            logger.info("Canary deployment completed successfully")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Canary deployment error: {e}")
+            logger.error(f"Canary deployment error: {e}")
             return False
 
     async def _validate_canary(self) -> bool:
         """Validate canary metrics"""
         try:
-            # Check error rates from metrics
-            cmd = f"""
-            {self.deployer.kubectl_cmd} exec {await self._get_pod_name()} -- \
-              curl -s http://localhost:8000/metrics | grep -E 'http_requests_total|http_request_duration_seconds'
-            """
+            pod_name = await self._get_pod_name()
+            if not pod_name:
+                logger.warning("No pod for canary validation")
+                return True
 
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            # Check error rates from metrics
+            result = subprocess.run(
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "exec", pod_name, "--",
+                    "curl", "-s", "http://localhost:8000/metrics",
+                ],
+                capture_output=True, text=True,
+            )
 
             # Basic validation - metrics endpoint responds
             if result.returncode == 0 and "http_requests_total" in result.stdout:
-                logger.info("✅ Canary metrics valid")
+                logger.info("Canary metrics valid")
                 return True
             else:
-                logger.warning("⚠️  Canary metrics check inconclusive")
+                logger.warning("Canary metrics check inconclusive")
                 return True
 
         except Exception as e:
-            logger.error(f"⚠️  Canary validation error: {e}")
+            logger.error(f"Canary validation error: {e}")
             return True
 
     async def _get_pod_name(self) -> str:
@@ -361,51 +382,54 @@ class BlueGreenDeployment:
     async def deploy_blue_green(self) -> bool:
         """Execute blue-green deployment"""
         try:
-            logger.info("🟢🔵 Starting blue-green deployment...")
+            logger.info("Starting blue-green deployment...")
 
             # Deploy green version
             green_config = DeploymentConfig(**vars(self.config))
             green_config.deployment_name = f"{self.config.deployment_name}-green"
 
-            logger.info("📦 Deploying green version...")
+            logger.info("Deploying green version...")
             success = await self.deployer.deploy_helm()
             if not success:
                 return False
 
             # Validate green
             if not await self.deployer.check_pod_health():
-                logger.error("❌ Green deployment validation failed")
+                logger.error("Green deployment validation failed")
                 return False
 
-            logger.info("✅ Green deployment validated")
+            logger.info("Green deployment validated")
 
             # Switch traffic to green
-            logger.info("🔀 Switching traffic to green...")
+            logger.info("Switching traffic to green...")
             await self._switch_traffic("green")
 
             # Monitor for issues
             await asyncio.sleep(30)
 
-            logger.info("✅ Blue-green deployment completed successfully")
+            logger.info("Blue-green deployment completed successfully")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Blue-green deployment error: {e}")
+            logger.error(f"Blue-green deployment error: {e}")
             return False
 
     async def _switch_traffic(self, version: str) -> None:
         """Switch traffic between blue and green"""
         try:
-            cmd = f"""
-            {self.deployer.kubectl_cmd} patch service {self.config.deployment_name} \
-              -p '{{"spec":{{"selector":{{"version":"{version}"}}}}}}'
-            """
-
-            subprocess.run(cmd, shell=True, check=True)
-            logger.info(f"✅ Traffic switched to {version}")
+            patch_json = json.dumps({"spec": {"selector": {"version": version}}})
+            subprocess.run(
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "patch", "service", self.config.deployment_name,
+                    "-p", patch_json,
+                ],
+                check=True,
+            )
+            logger.info(f"Traffic switched to {version}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to switch traffic: {e}")
+            logger.error(f"Failed to switch traffic: {e}")
 
 
 class GitOpsIntegration:
@@ -418,29 +442,30 @@ class GitOpsIntegration:
         """Sync ArgoCD application"""
         try:
             if not self.config.enable_gitops:
-                logger.info("ℹ️  GitOps disabled")
+                logger.info("GitOps disabled")
                 return True
 
-            logger.info("🔄 Syncing ArgoCD application...")
+            logger.info("Syncing ArgoCD application...")
 
-            cmd = f"""
-            argocd app sync {self.config.argocd_app_name} \
-              --prune \
-              --self-heal \
-              --timeout 5m
-            """
-
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "argocd", "app", "sync", self.config.argocd_app_name,
+                    "--prune",
+                    "--self-heal",
+                    "--timeout", "300",
+                ],
+                capture_output=True, text=True,
+            )
 
             if result.returncode == 0:
-                logger.info("✅ GitOps sync successful")
+                logger.info("GitOps sync successful")
                 return True
             else:
-                logger.error(f"❌ GitOps sync failed: {result.stderr}")
+                logger.error(f"GitOps sync failed: {result.stderr}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ GitOps integration error: {e}")
+            logger.error(f"GitOps integration error: {e}")
             return False
 
 
@@ -456,7 +481,7 @@ class DeploymentOrchestrator:
     async def execute_deployment(self) -> bool:
         """Execute production deployment"""
         try:
-            logger.info("🚀 Starting production deployment")
+            logger.info("Starting production deployment")
             logger.info(f"   Namespace: {self.config.namespace}")
             logger.info(f"   Strategy: {self.config.strategy.value}")
             logger.info(f"   Image tag: {self.config.image_tag}")
@@ -478,7 +503,7 @@ class DeploymentOrchestrator:
                 success = await self.deployer.deploy_helm()
 
             if not success:
-                logger.error("❌ Deployment failed")
+                logger.error("Deployment failed")
                 return False
 
             # Wait for rollout
@@ -487,44 +512,50 @@ class DeploymentOrchestrator:
 
             # Validate health
             if not await self.health_validator.validate_deployment():
-                logger.error("❌ Health validation failed, rolling back")
+                logger.error("Health validation failed, rolling back")
                 await self.rollback()
                 return False
 
             # Run smoke tests
             if not await self.health_validator.run_smoke_tests():
-                logger.error("❌ Smoke tests failed")
+                logger.error("Smoke tests failed")
                 await self.rollback()
                 return False
 
             # GitOps sync
             await self.gitops.sync_application()
 
-            logger.info("✅ Deployment completed successfully")
+            logger.info("Deployment completed successfully")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Deployment failed: {e}")
+            logger.error(f"Deployment failed: {e}")
             await self.rollback()
             return False
 
     async def rollback(self) -> bool:
         """Rollback deployment"""
         try:
-            logger.info("🔄 Rolling back deployment...")
+            logger.info("Rolling back deployment...")
 
-            cmd = f"{self.deployer.kubectl_cmd} rollout undo deployment/{self.config.deployment_name}"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "kubectl", "-n", self.config.namespace,
+                    "rollout", "undo",
+                    f"deployment/{self.config.deployment_name}",
+                ],
+                capture_output=True, text=True,
+            )
 
             if result.returncode == 0:
-                logger.info("✅ Rollback successful")
+                logger.info("Rollback successful")
                 return True
             else:
-                logger.error(f"❌ Rollback failed: {result.stderr}")
+                logger.error(f"Rollback failed: {result.stderr}")
                 return False
 
         except Exception as e:
-            logger.error(f"❌ Rollback error: {e}")
+            logger.error(f"Rollback error: {e}")
             return False
 
     async def get_status(self) -> Dict[str, Any]:
@@ -545,7 +576,7 @@ class DeploymentOrchestrator:
             }
 
         except Exception as e:
-            logger.error(f"❌ Failed to get status: {e}")
+            logger.error(f"Failed to get status: {e}")
             return {}
 
 

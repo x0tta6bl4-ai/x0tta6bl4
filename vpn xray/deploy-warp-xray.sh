@@ -6,7 +6,7 @@
 # Дата: 2025-01-31
 ###############################################################################
 
-set -e
+set -euo pipefail
 
 # ============================================================================
 # CONFIG
@@ -14,7 +14,7 @@ set -e
 
 SSH_USER="root"
 SSH_HOST="89.125.1.107"
-SSH_PASS="lH7SEcWM812blV50sz"
+SSH_PASS="${SSH_PASS:?Set SSH_PASS in environment}"
 SSH_CMD="sshpass -p '$SSH_PASS' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30"
 
 XRAY_CONFIG_PATH="/usr/local/etc/xray/config.json"

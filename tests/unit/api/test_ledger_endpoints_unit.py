@@ -131,7 +131,7 @@ class TestSearchLedgerPost:
         async with _make_client(app) as tc:
             resp = await tc.post("/api/v1/ledger/search", json={"query": "q"})
         assert resp.status_code == 500
-        assert "search failed" in resp.json()["detail"]
+        assert resp.json()["detail"] == "Internal server error"
 
 
 # ===========================================================================
@@ -207,7 +207,7 @@ class TestIndexLedger:
         async with _make_client(app) as tc:
             resp = await tc.post("/api/v1/ledger/index")
         assert resp.status_code == 500
-        assert "disk full" in resp.json()["detail"]
+        assert resp.json()["detail"] == "Internal server error"
 
 
 # ===========================================================================

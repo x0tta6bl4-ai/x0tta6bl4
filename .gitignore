@@ -15,6 +15,36 @@ __pycache__/
 build/
 dist/
 
+# Local generated artifacts
+coverage*.xml
+junit.xml
+*.pid
+.paradox
+.paradox.log
+.secrets.baseline
+detect_secrets_*_scan.json
+release_v3.3/
+System Volume Information/
+prometheus_data/
+alertmanager_data/
+results/
+test-results/
+другие проекты/
+node_stats.json
+x0tta6bl4_framework_execution.json
+data/deep_intelligence.json
+PRIVATE_KEY_VALUE
+PUBLIC_KEY_VALUE
+deploy/proxy/*.pem
+
+# Accidental root artifacts from shell/pip output
+/=*
+/130
+/1462
+/202
+/514
+/66
+
 # Archives & Artifacts
 archive/artifacts/
 archive/legacy/
@@ -41,6 +71,8 @@ node_modules/
 
 # Misc
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # Test & Coverage Artifacts
 junit.xml
@@ -167,6 +199,9 @@ project_files_list.txt
 **/*.secret
 **/*.key
 **/secrets/
+# Local AI tool permission snapshots (can include plaintext creds)
+.claude/settings.local.json
+.claude/.fuse_hidden*
 
 # Google OAuth credentials (contains client_id, client_secret)
 credentials.json
@@ -201,6 +236,8 @@ metrics/
 x0tta6bl4-mesh-mvp/
 x0tta6bl4_paradox_zone/
 LocalDesk
+mutants/
+www/
 
 # ML model files (use DVC/LFS for large models)
 **/*.gguf
@@ -208,3 +245,6 @@ LocalDesk
 **/*.safetensors
 **/*.onnx
 models/
+
+# Browser test artifacts
+playwright-report/

@@ -605,6 +605,10 @@ class ResourceExhaustionChaos(ChaosScenario):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not os.getenv("X0T_CHAOS_CLUSTER"),
+    reason="Requires live x0tta6bl4 cluster (set X0T_CHAOS_CLUSTER=1)",
+)
 async def test_consciousness_resilience():
     """
     Master test: Проверяем устойчивость consciousness-driven системы

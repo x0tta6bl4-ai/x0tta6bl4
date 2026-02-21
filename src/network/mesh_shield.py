@@ -148,13 +148,31 @@ class MeshShield:
         node.reputation = min(1.0, node.reputation * self.REPUTATION_RECOVERY)
 
     async def _beacon_loop(self):
-        """Send beacons to all registered nodes."""
+        """Send beacons to all registered nodes and detect stale ones."""
         while self._running:
+            now = time.time()
             for node_id, node in list(self.nodes.items()):
-                if not node.is_quarantined():
-                    # In real implementation, send actual beacon
-                    # Here we just check if we received one recently
-                    pass
+                if node.is_quarantined():
+                    continue
+
+                time_since_beacon = now - node.last_beacon
+
+                if time_since_beacon > self.FAILURE_THRESHOLD:
+                    if node.status != NodeStatus.DEAD:
+                        node.status = NodeStatus.DEAD
+                        node.failure_count += 1
+                        node.reputation *= self.REPUTATION_DECAY
+                        logger.warning(
+                            f"Node {node_id} missed beacon for "
+                            f"{time_since_beacon:.1f}s — marking DEAD"
+                        )
+                elif time_since_beacon > self.DEGRADED_THRESHOLD:
+                    if node.status == NodeStatus.HEALTHY:
+                        node.status = NodeStatus.DEGRADED
+                        logger.info(
+                            f"Node {node_id} beacon delayed "
+                            f"{time_since_beacon:.1f}s — DEGRADED"
+                        )
 
             await asyncio.sleep(self.BEACON_INTERVAL)
 

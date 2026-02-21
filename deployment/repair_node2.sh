@@ -1,6 +1,6 @@
 #!/bin/bash
 SERVER="root@77.83.245.27"
-PASS="13Vbkkbjyjd$"
+PASS="${NODE23_PASS:?Set NODE23_PASS in environment}"
 
 echo "🔧 Repairing Node 2..."
 

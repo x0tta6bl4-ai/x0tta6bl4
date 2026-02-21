@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "vpn-nodes"
+    static_configs:
+      - targets: ["vpn-ingress:8080", "vpn-mesh-1:8080", "vpn-exit:8080"]
+    metrics_path: "/metrics"

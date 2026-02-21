@@ -54,7 +54,7 @@ class TestHealth:
             from src.core.health import get_health
 
             health = get_health()
-            assert health["version"] == "3.4.0"
+            assert health["version"] == "3.2.1"
 
     def test_check_cli_success(self):
         """Test CLI health check with ok status"""

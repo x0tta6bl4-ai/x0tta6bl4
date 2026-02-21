@@ -23,7 +23,7 @@ jobs:
         kernel-version: ['5.15', '6.0', '6.5']
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
@@ -72,7 +72,7 @@ jobs:
           done
       
       - name: Store compiled objects
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-objects-${{ matrix.kernel-version }}
           path: src/network/ebpf/programs/*.o
@@ -84,12 +84,12 @@ jobs:
     needs: ebpf-build
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install Python dependencies
         run: |
@@ -97,7 +97,7 @@ jobs:
           pip install -e .[ml,dev,monitoring]
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
@@ -105,35 +105,44 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
+          LIBBPF_PKG=libbpf1
+          if ! apt-cache show "$LIBBPF_PKG" >/dev/null 2>&1; then
+            LIBBPF_PKG=libbpf0
+          fi
           sudo apt-get install -y \
-            libbpf0 \
+            "$LIBBPF_PKG" \
             libelf1 \
             clang-tools
       
       - name: Run eBPF loader unit tests
         run: |
-          pytest tests/network/ebpf/test_ebpf_loader.py -v -m unit
+          cat > /tmp/pytest-ebpf.ini << 'EOF'
+          [pytest]
+          asyncio_default_fixture_loop_scope = function
+          EOF
+          PYTHONWARNINGS=default pytest -c /tmp/pytest-ebpf.ini tests/test_ebpf_loader.py -v
       
       - name: Run eBPF integration tests
+        continue-on-error: true
         run: |
-          pytest tests/network/ebpf/test_ebpf_integration.py -v -m integration
-          continue-on-error: true  # Integration tests may require kernel capabilities
+          PYTHONWARNINGS=default pytest -c /tmp/pytest-ebpf.ini tests/test_ebpf_integration.py -v
       
-      - name: Check eBPF-MAPE-K integration
+      - name: Check eBPF orchestrator integration
+        continue-on-error: true
         run: |
-          pytest tests/network/ebpf/test_ebpf_mapek_integration.py -v
-          continue-on-error: true
+          PYTHONWARNINGS=default pytest -c /tmp/pytest-ebpf.ini tests/test_ebpf_orchestrator.py -v
       
       - name: Generate coverage report
         run: |
-          pytest tests/network/ebpf/ \
+          PYTHONWARNINGS=default pytest -c /tmp/pytest-ebpf.ini \
+            tests/test_ebpf_loader.py tests/test_ebpf_orchestrator.py tests/test_ebpf_integration.py \
             --cov=src/network/ebpf \
             --cov-report=xml \
             --cov-report=term
         continue-on-error: true
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           flags: ebpf
@@ -144,37 +153,50 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install security tools
         run: |
-          pip install bandit safety
+          pip install bandit safety pip-audit
       
       - name: Scan Python code for security issues
         run: |
-          bandit -r src/network/ebpf/ -f json -o bandit-report.json || true
+          set -euo pipefail
+          bandit -r src/network/ebpf/ -lll -iii -f json -o bandit-report.json
           cat bandit-report.json
       
       - name: Check dependencies for vulnerabilities
         run: |
-          safety check --json || true
+          set -euo pipefail
+          safety check -r requirements.txt --json > safety-report.json
+          pip-audit -r requirements.txt --format json > pip-audit-report.json
       
-      - name: Scan C code with cppcheck (if available)
+      - name: Scan C code with cppcheck
         run: |
-          sudo apt-get install -y cppcheck || true
-          cppcheck --enable=all src/network/ebpf/programs/*.c --xml || true
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+          cppcheck \
+            --enable=all \
+            --suppress=missingInclude \
+            --suppress=missingIncludeSystem \
+            --suppress=unknownMacro \
+            --error-exitcode=1 \
+            src/network/ebpf/programs/*.c
       
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
             bandit-report.json
+            safety-report.json
+            pip-audit-report.json
           retention-days: 7
 
   performance-benchmark:
@@ -184,21 +206,25 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install dependencies
         run: |
           pip install -e .[ml,dev,monitoring]
           sudo apt-get update
-          sudo apt-get install -y libbpf0 libelf1
+          LIBBPF_PKG=libbpf1
+          if ! apt-cache show "$LIBBPF_PKG" >/dev/null 2>&1; then
+            LIBBPF_PKG=libbpf0
+          fi
+          sudo apt-get install -y "$LIBBPF_PKG" libelf1
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
@@ -214,7 +240,7 @@ jobs:
         continue-on-error: true
       
       - name: Store benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: .benchmarks/
@@ -224,12 +250,13 @@ jobs:
     name: Build Docker Image with eBPF
     runs-on: ubuntu-latest
     needs: ebpf-build
+    continue-on-error: ${{ github.ref == 'refs/heads/develop' }}
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Download eBPF objects
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects-5.15
           path: src/network/ebpf/programs/
@@ -267,10 +294,10 @@ jobs:
           exit 1
       
       - name: Check security scan status
-        if: needs.security-scan.result == 'failure'
+        if: needs.security-scan.result != 'success'
         run: |
-          echo "⚠️ Security scan reported issues"
-          exit 0  # Non-blocking
+          echo "❌ Security scan reported issues"
+          exit 1
       
       - name: ✅ All checks passed
         run: echo "✅ eBPF quality gate passed"

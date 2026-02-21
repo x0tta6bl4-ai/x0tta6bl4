@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 Pending Approvals</title>
+    <style>
+        :root {
+            --bg: #0a1018;
+            --panel: #111a25;
+            --muted: #8da2b8;
+            --text: #dce8f4;
+            --accent: #4ad7d1;
+            --ok: #53d37a;
+            --warn: #ffb366;
+            --err: #ff6f6f;
+            --border: #263748;
+        }
+        body {
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top right, #15314a, var(--bg) 45%);
+            color: var(--text);
+        }
+        .wrap {
+            max-width: 980px;
+            margin: 32px auto;
+            padding: 0 16px 24px;
+        }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+            letter-spacing: 0.2px;
+        }
+        p {
+            margin: 0;
+            color: var(--muted);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 12px;
+        }
+        label {
+            font-size: 12px;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 6px;
+        }
+        input,
+        select {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0d1620;
+            color: var(--text);
+            padding: 10px 12px;
+            box-sizing: border-box;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        button {
+            border: 1px solid var(--border);
+            background: #132131;
+            color: var(--text);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        button.primary {
+            border-color: #2f8f8a;
+            background: linear-gradient(180deg, #1e756f, #155651);
+        }
+        button.ok {
+            border-color: #2d8d4d;
+            background: linear-gradient(180deg, #2f8b4f, #23693c);
+        }
+        .row {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .meta {
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .status.ok { color: var(--ok); }
+        .status.warn { color: var(--warn); }
+        .status.err { color: var(--err); }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="panel">
+        <h1>Pending Approvals</h1>
+        <p>Zero-trust admission queue for MaaS Control Plane.</p>
+    </div>
+
+    <div class="panel">
+        <div class="grid">
+            <div>
+                <label for="meshId">Mesh ID</label>
+                <input id="meshId" placeholder="mesh-xxxxxxxx" />
+            </div>
+            <div>
+                <label for="apiKey">X-API-Key</label>
+                <input id="apiKey" type="password" placeholder="x0t_..." />
+            </div>
+            <div>
+                <label for="aclProfile">ACL Profile on approve</label>
+                <select id="aclProfile">
+                    <option value="default">default</option>
+                    <option value="strict">strict</option>
+                    <option value="isolated">isolated</option>
+                </select>
+            </div>
+            <div>
+                <label for="tagsCsv">Tags CSV (optional)</label>
+                <input id="tagsCsv" placeholder="robot,warehouse" />
+            </div>
+        </div>
+        <div class="actions">
+            <button class="primary" id="saveBtn">Save Context</button>
+            <button id="refreshBtn">Refresh Pending</button>
+        </div>
+        <div id="statusLine" class="status">Waiting for context...</div>
+    </div>
+
+    <div class="panel">
+        <div id="pendingList"></div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "/api/v1/maas";
+    const statusLine = document.getElementById("statusLine");
+    const pendingList = document.getElementById("pendingList");
+    const meshEl = document.getElementById("meshId");
+    const keyEl = document.getElementById("apiKey");
+    const aclEl = document.getElementById("aclProfile");
+    const tagsEl = document.getElementById("tagsCsv");
+
+    function setStatus(message, level = "") {
+        statusLine.textContent = message;
+        statusLine.className = "status" + (level ? " " + level : "");
+    }
+
+    function defaultTagsFor(node) {
+        const raw = tagsEl.value.trim();
+        if (raw.length) {
+            return raw.split(",").map(x => x.trim()).filter(Boolean);
+        }
+        const cls = node.device_class || "edge";
+        return [cls];
+    }
+
+    function currentHeaders() {
+        return { "X-API-Key": keyEl.value.trim(), "Content-Type": "application/json" };
+    }
+
+    function renderPending(pending) {
+        const ids = Object.keys(pending || {});
+        if (!ids.length) {
+            pendingList.innerHTML = "<div class=\"meta\">No pending requests.</div>";
+            return;
+        }
+        pendingList.innerHTML = "";
+        for (const nodeId of ids) {
+            const node = pending[nodeId];
+            const row = document.createElement("div");
+            row.className = "row";
+            row.innerHTML = `
+                <div>
+                    <div><strong>${nodeId}</strong></div>
+                    <div class="meta">class=${node.device_class || "edge"} | requested=${node.requested_at || "n/a"}</div>
+                </div>
+                <div class="actions">
+                    <button class="ok" data-node="${nodeId}">Approve</button>
+                </div>
+            `;
+            row.querySelector("button").addEventListener("click", async () => {
+                await approveNode(nodeId, node);
+            });
+            pendingList.appendChild(row);
+        }
+    }
+
+    async function refreshPending() {
+        const meshId = meshEl.value.trim();
+        const apiKey = keyEl.value.trim();
+        if (!meshId || !apiKey) {
+            setStatus("Set mesh_id and API key first.", "warn");
+            return;
+        }
+        setStatus("Loading pending nodes...");
+        try {
+            const response = await fetch(`${API_BASE}/${meshId}/nodes/pending`, {
+                headers: currentHeaders(),
+            });
+            if (!response.ok) {
+                setStatus(`Load failed: HTTP ${response.status}`, "err");
+                return;
+            }
+            const data = await response.json();
+            renderPending(data.pending || {});
+            setStatus(`Loaded pending queue: ${Object.keys(data.pending || {}).length}`, "ok");
+        } catch (err) {
+            setStatus(`Load failed: ${err}`, "err");
+        }
+    }
+
+    async function approveNode(nodeId, nodePayload) {
+        const meshId = meshEl.value.trim();
+        const body = {
+            acl_profile: aclEl.value,
+            tags: defaultTagsFor(nodePayload),
+        };
+        setStatus(`Approving ${nodeId}...`);
+        try {
+            const response = await fetch(`${API_BASE}/${meshId}/nodes/${nodeId}/approve`, {
+                method: "POST",
+                headers: currentHeaders(),
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                setStatus(`Approve failed for ${nodeId}: HTTP ${response.status} ${text}`, "err");
+                return;
+            }
+            setStatus(`Approved ${nodeId}`, "ok");
+            await refreshPending();
+        } catch (err) {
+            setStatus(`Approve failed: ${err}`, "err");
+        }
+    }
+
+    function saveContext() {
+        localStorage.setItem("x0t_maas_mesh_id", meshEl.value.trim());
+        localStorage.setItem("x0t_maas_api_key", keyEl.value.trim());
+        localStorage.setItem("x0t_maas_acl_profile", aclEl.value);
+        localStorage.setItem("x0t_maas_tags_csv", tagsEl.value.trim());
+        setStatus("Context saved to localStorage.", "ok");
+    }
+
+    function restoreContext() {
+        meshEl.value = localStorage.getItem("x0t_maas_mesh_id") || "";
+        keyEl.value = localStorage.getItem("x0t_maas_api_key") || "";
+        aclEl.value = localStorage.getItem("x0t_maas_acl_profile") || "default";
+        tagsEl.value = localStorage.getItem("x0t_maas_tags_csv") || "";
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", saveContext);
+    document.getElementById("refreshBtn").addEventListener("click", refreshPending);
+    restoreContext();
+</script>
+</body>
+</html>

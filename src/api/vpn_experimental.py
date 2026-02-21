@@ -113,7 +113,7 @@ async def get_vpn_config(
         )
     except Exception as e:
         logger.error(f"Error generating experimental VPN config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/config")
@@ -180,7 +180,7 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         )
     except Exception as e:
         logger.error(f"Error getting experimental VPN status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/users")
@@ -214,7 +214,7 @@ async def get_vpn_users(
         return {"total": len(users), "users": users}
     except Exception as e:
         logger.error(f"Error getting experimental VPN users: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/user/{user_id}")
@@ -240,4 +240,4 @@ async def delete_vpn_user(
         }
     except Exception as e:
         logger.error(f"Error deleting experimental VPN user: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

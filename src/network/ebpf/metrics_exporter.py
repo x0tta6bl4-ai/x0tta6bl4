@@ -722,7 +722,7 @@ class EBPFMetricsExporter:
 
     @with_retry(
         config=RetryConfig(max_retries=2, base_delay=1.0),
-        exceptions=(BpftoolError, subprocess.TimeoutExpired),
+        exceptions=(subprocess.TimeoutExpired,),
     )
     def _read_map_via_bpftool(self, map_name: str) -> Optional[Dict]:
         """

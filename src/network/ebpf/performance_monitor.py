@@ -25,11 +25,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 try:
-    from prometheus_client import AlertManager, Counter, Gauge, Histogram
+    from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
+    CollectorRegistry = None  # type: ignore[assignment]
+    Counter = Gauge = Histogram = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,7 @@ class EBPFPerformanceMonitor:
     def __init__(self, prometheus_port: int = 9090):
         self.prometheus_port = prometheus_port
         self.metrics: Dict[str, Any] = {}
+        self._registry = CollectorRegistry() if PROMETHEUS_AVAILABLE else None
         self.alert_rules: List[AlertRule] = []
         self.thresholds: List[PerformanceThreshold] = []
         self.performance_history: Dict[str, List[float]] = {}
@@ -176,15 +179,15 @@ class EBPFPerformanceMonitor:
 
         if metric.type == MetricType.COUNTER:
             self.metrics[metric.name] = Counter(
-                metric.name, metric.description, metric.labels
+                metric.name, metric.description, metric.labels, registry=self._registry
             )
         elif metric.type == MetricType.GAUGE:
             self.metrics[metric.name] = Gauge(
-                metric.name, metric.description, metric.labels
+                metric.name, metric.description, metric.labels, registry=self._registry
             )
         elif metric.type == MetricType.HISTOGRAM:
             self.metrics[metric.name] = Histogram(
-                metric.name, metric.description, metric.labels
+                metric.name, metric.description, metric.labels, registry=self._registry
             )
 
     def _init_standard_alerts(self):

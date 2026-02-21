@@ -25,15 +25,23 @@ from src.swarm.agent import Agent, AgentCapability, AgentState
 
 # Optional imports - graceful degradation if not available
 try:
-    from src.swarm.parl.controller import PARLController
+    from src.parl import PARLController, PARLConfig
 
     HAS_PARL = True
 except ImportError:
     PARLController = None
+    PARLConfig = None
     HAS_PARL = False
 
-AntiMeaveOracle = None
-HAS_ANTI_MEAVE = False
+try:
+    from src.security.anti_meave_oracle import AntiMeaveOracle, Capability, CapabilityType
+
+    HAS_ANTI_MEAVE = True
+except ImportError:
+    AntiMeaveOracle = None
+    Capability = None
+    CapabilityType = None
+    HAS_ANTI_MEAVE = False
 
 logger = logging.getLogger(__name__)
 
@@ -240,10 +248,32 @@ class SwarmOrchestrator:
             )
 
             # Register with Anti-Meave if enabled
-            # Note: Full Anti-Meave integration requires capability conversion
-            # This is a placeholder for future integration
-            if self.anti_meave_oracle:
-                logger.debug(f"Anti-Meave: Agent {agent_id} registered (placeholder)")
+            if self.anti_meave_oracle and Capability is not None and CapabilityType is not None:
+                # Convert agent capabilities to Anti-Meave capabilities
+                oracle_capabilities = []
+                for cap in capabilities:
+                    cap_type = CapabilityType.EXECUTE
+                    if cap.name == "monitoring":
+                        cap_type = CapabilityType.READ
+                    elif cap.name == "communication":
+                        cap_type = CapabilityType.NETWORK
+                    
+                    oracle_cap = Capability(
+                        name=cap.name,
+                        capability_type=cap_type,
+                        scope=cap.scope,
+                        max_affected_nodes=10 if cap.scope == "regional" else 1,
+                        max_affected_percentage=0.1 if cap.scope == "network" else 0.01,
+                    )
+                    oracle_capabilities.append(oracle_cap)
+                
+                # Register with oracle
+                await self.anti_meave_oracle.register_agent(
+                    agent_id=agent_id,
+                    swarm_id=self.swarm_id,
+                    capabilities=oracle_capabilities,
+                )
+                logger.debug(f"Anti-Meave: Agent {agent_id} registered with {len(oracle_capabilities)} capabilities")
 
             # Initialize agent
             await agent.initialize()

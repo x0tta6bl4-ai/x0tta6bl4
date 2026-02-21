@@ -32,9 +32,10 @@ jobs:
             llvm-${{ env.LLVM_VERSION }} \
             clang-${{ env.LLVM_VERSION }} \
             libelf-dev \
+            libbpf-dev \
             libz-dev \
             pkg-config \
-            linux-headers-$(uname -r)
+            linux-libc-dev
       
       - name: Create build directory
         run: |
@@ -44,104 +45,70 @@ jobs:
       - name: Compile XDP programs
         working-directory: src/network/ebpf/programs
         run: |
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+
           # Compile XDP counter
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c xdp_counter.c \
-            -o xdp_counter.ll
+            -o ../../../../build/ebpf/xdp_counter.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_counter.o \
-            xdp_counter.ll
           
           # Compile XDP mesh filter
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c xdp_mesh_filter.c \
-            -o xdp_mesh_filter.ll
+            -o ../../../../build/ebpf/xdp_mesh_filter.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_mesh_filter.o \
-            xdp_mesh_filter.ll
           
           # Compile XDP PQC verify
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c xdp_pqc_verify.c \
-            -o xdp_pqc_verify.ll
+            -o ../../../../build/ebpf/xdp_pqc_verify.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/xdp_pqc_verify.o \
-            xdp_pqc_verify.ll
           
           echo "✓ XDP programs compiled"
       
       - name: Compile kprobe programs
         working-directory: src/network/ebpf/programs
         run: |
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+
           # Compile kprobe syscall latency
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c kprobe_syscall_latency_secure.c \
-            -o kprobe_syscall_latency.ll
+            -o ../../../../build/ebpf/kprobe_syscall_latency.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/kprobe_syscall_latency.o \
-            kprobe_syscall_latency.ll
           
           echo "✓ kprobe programs compiled"
       
       - name: Compile tracepoint programs
         working-directory: src/network/ebpf/programs
         run: |
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+
           # Compile tracepoint net events
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c tracepoint_net.c \
-            -o tracepoint_net.ll
+            -o ../../../../build/ebpf/tracepoint_net.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/tracepoint_net.o \
-            tracepoint_net.ll
           
           echo "✓ tracepoint programs compiled"
       
       - name: Compile TC programs
         working-directory: src/network/ebpf/programs
         run: |
+          COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
+
           # Compile TC classifier
           clang-${{ env.LLVM_VERSION }} \
-            -S -target bpf \
-            -D__KERNEL__ -D__BPF_TRACING__ \
-            -O2 \
+            $COMMON_FLAGS \
             -c tc_classifier.c \
-            -o tc_classifier.ll
+            -o ../../../../build/ebpf/tc_classifier.o
           
-          llc-${{ env.LLVM_VERSION }} \
-            -march=bpf \
-            -filetype=obj \
-            -o ../../../build/ebpf/tc_classifier.o \
-            tc_classifier.ll
           
           echo "✓ TC programs compiled"
       
@@ -161,7 +128,7 @@ jobs:
           done
       
       - name: Upload compiled artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ebpf-objects
           path: build/ebpf/
@@ -183,11 +150,17 @@ jobs:
           sudo apt-get install -y \
             llvm-${{ env.LLVM_VERSION }} \
             clang-${{ env.LLVM_VERSION }} \
-            libelf-dev \
-            bpftool
+            libelf-dev
+
+          # bpftool is not available on all ubuntu-latest images.
+          if apt-cache policy bpftool | awk '/Candidate:/ {print $2}' | grep -vq "(none)"; then
+            sudo apt-get install -y bpftool
+          else
+            echo "bpftool package is unavailable; falling back to static object validation"
+          fi
       
       - name: Download compiled artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects
           path: build/ebpf/
@@ -227,18 +200,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install pytest pytest-cov pyelftools
-          
-          # Install core dependencies
-          pip install -r requirements-core.txt 2>/dev/null || true
+          pip install pytest pytest-cov pyelftools prometheus-client
+
+          # Keep this job lightweight and deterministic; avoid full ML/dev dependency tree.
+          if [ -f requirements-core.txt ]; then
+            pip install -r requirements-core.txt
+          fi
       
       - name: Download compiled artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects
           path: build/ebpf/
@@ -249,11 +224,15 @@ jobs:
       
       - name: Test eBPF loader
         run: |
-          python -m pytest tests/test_ebpf_loader.py -v --tb=short
+          cat > /tmp/pytest-ebpf.ini << 'EOF'
+          [pytest]
+          asyncio_default_fixture_loop_scope = function
+          EOF
+          PYTHONWARNINGS=default python -m pytest -c /tmp/pytest-ebpf.ini tests/test_ebpf_loader.py -v --tb=short
       
       - name: Test eBPF orchestrator
         run: |
-          python -m pytest tests/test_ebpf_orchestrator.py -v --tb=short
+          PYTHONWARNINGS=default python -m pytest -c /tmp/pytest-ebpf.ini tests/test_ebpf_orchestrator.py -v --tb=short
   
   # Job 4: Create releases with compiled objects
   package:
@@ -267,7 +246,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Download compiled artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ebpf-objects
           path: build/ebpf/
