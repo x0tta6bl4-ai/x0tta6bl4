@@ -17,7 +17,7 @@ requests==2.32.4
 urllib3==2.6.3
 
 # Cryptography (Core)
-cryptography==46.0.3
+cryptography==46.0.5
 # python-jose removed: unused, contains vulnerable ecdsa (CVE-2024-23342)
 PyJWT==2.10.1
 bcrypt==5.0.0
