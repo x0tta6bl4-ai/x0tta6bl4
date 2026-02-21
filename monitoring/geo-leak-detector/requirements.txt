@@ -3,7 +3,7 @@
 fastapi>=0.119.1
 uvicorn[standard]==0.38.0
 websockets==12.0
-python-socketio==5.10.0
+python-socketio==5.16.1
 
 # Database
 sqlalchemy>=2.0.23
@@ -33,7 +33,7 @@ python-dotenv>=1.0.0
 pyyaml>=6.0.3
 
 # Security
-cryptography>=46.0.3
+cryptography>=46.0.5
 # python-jose REMOVED: CVE-2024-23342, use PyJWT instead
 PyJWT>=2.10.1
 passlib[bcrypt]==1.7.4
