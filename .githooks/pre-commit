@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK_SCRIPT="$ROOT/scripts/agents/check_swarm_ownership.py"
+COORD_SCRIPT="$ROOT/scripts/agents/swarm_coord.py"
+GIT_DIR="$(git rev-parse --git-dir)"
+AGENT_FILE="$GIT_DIR/swarm_agent"
+
+AGENT="${SWARM_AGENT:-}"
+if [[ -z "$AGENT" ]] && [[ -f "$AGENT_FILE" ]]; then
+  AGENT="$(tr -d '[:space:]' < "$AGENT_FILE")"
+fi
+
+if [[ -z "$AGENT" ]]; then
+  echo "[swarm] agent is not configured." >&2
+  echo "[swarm] run: scripts/agents/start_swarm_session.sh <agent-key>" >&2
+  echo "[swarm] or export SWARM_AGENT=<agent-key>" >&2
+  exit 1
+fi
+
+if [[ ! -f "$CHECK_SCRIPT" ]]; then
+  echo "[swarm] check script not found: $CHECK_SCRIPT" >&2
+  exit 2
+fi
+
+"$CHECK_SCRIPT" --agent "$AGENT"
+
+if [[ ! -f "$COORD_SCRIPT" ]]; then
+  echo "[swarm] coordinator script not found: $COORD_SCRIPT" >&2
+  exit 2
+fi
+
+TTL="${SWARM_LEASE_TTL:-1800}"
+exec "$COORD_SCRIPT" ensure-staged --agent "$AGENT" --ttl "$TTL"

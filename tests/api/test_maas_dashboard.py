@@ -1,0 +1,235 @@
+"""
+Integration tests for MaaS Dashboard:
+- Summary endpoint (meshes, node stats, security attestation, audit, invoices)
+- /nodes/{mesh_id} per-mesh node detail
+- HARDWARE_ROOTED vs SOFTWARE_ONLY attestation classification
+- Node health based on last_seen timestamp
+"""
+
+import os
+import uuid
+from datetime import datetime, timedelta
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.core.app import app
+from src.database import Base, get_db, User, MeshInstance, MeshNode
+
+_TEST_DB_PATH = f"./test_dashboard_{uuid.uuid4().hex}.db"
+engine = create_engine(
+    f"sqlite:///{_TEST_DB_PATH}", connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(scope="module")
+def client():
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
+    if os.path.exists(_TEST_DB_PATH):
+        os.remove(_TEST_DB_PATH)
+
+
+@pytest.fixture(scope="module")
+def user_data(client):
+    """Register user and return (token, user_id, mesh_id)."""
+    email = f"dash-{uuid.uuid4().hex[:8]}@test.com"
+    r = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": email, "password": "password123"},
+    )
+    token = r.json()["access_token"]
+
+    db = TestingSessionLocal()
+    user = db.query(User).filter(User.api_key == token).first()
+    user_id = user.id
+
+    # Create a DB-backed mesh + nodes
+    mesh_id = f"mesh-dash-{uuid.uuid4().hex[:6]}"
+    mesh = MeshInstance(
+        id=mesh_id,
+        name="Dashboard Test Mesh",
+        owner_id=user_id,
+        status="active",
+        pqc_enabled=True,
+    )
+    db.add(mesh)
+
+    # Node 1: hardware-rooted, recently seen (healthy)
+    db.add(MeshNode(
+        id=f"nd-hw-{uuid.uuid4().hex[:6]}",
+        mesh_id=mesh_id,
+        status="approved",
+        device_class="gateway",
+        hardware_id="tpm-abc123",
+        enclave_enabled=True,
+        last_seen=datetime.utcnow() - timedelta(minutes=1),
+    ))
+    # Node 2: software-only, stale
+    db.add(MeshNode(
+        id=f"nd-sw-{uuid.uuid4().hex[:6]}",
+        mesh_id=mesh_id,
+        status="approved",
+        device_class="edge",
+        hardware_id=None,
+        enclave_enabled=False,
+        last_seen=datetime.utcnow() - timedelta(minutes=15),
+    ))
+    # Node 3: no last_seen (unknown health)
+    db.add(MeshNode(
+        id=f"nd-un-{uuid.uuid4().hex[:6]}",
+        mesh_id=mesh_id,
+        status="approved",
+        device_class="sensor",
+        hardware_id=None,
+        enclave_enabled=False,
+        last_seen=None,
+    ))
+    db.commit()
+    db.close()
+
+    return {"token": token, "user_id": user_id, "mesh_id": mesh_id}
+
+
+class TestDashboardSummary:
+    def test_summary_requires_auth(self, client):
+        r = client.get("/api/v1/maas/dashboard/summary")
+        assert r.status_code == 401
+
+    def test_summary_returns_user_info(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "user" in data
+        assert data["user"]["plan"] == "starter"
+
+    def test_summary_mesh_count(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        data = r.json()
+        assert data["stats"]["total_meshes"] >= 1
+        mesh_ids = [m["id"] for m in data["meshes"]]
+        assert user_data["mesh_id"] in mesh_ids
+
+    def test_summary_node_attestation_stats(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        data = r.json()
+        security = data["stats"]["security"]
+        assert "HARDWARE_ROOTED" in security
+        assert "SOFTWARE_ONLY" in security
+        # We created 1 hardware-rooted node
+        assert security["HARDWARE_ROOTED"] >= 1
+        # We created 2 software-only nodes
+        assert security["SOFTWARE_ONLY"] >= 2
+
+    def test_summary_node_health_stats(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        data = r.json()
+        health = data["stats"]["node_health"]
+        assert health.get("healthy", 0) >= 1   # 1 min old = healthy
+        assert health.get("stale", 0) >= 1     # 15 min old = stale
+        assert health.get("unknown", 0) >= 1   # no last_seen
+
+    def test_summary_total_nodes(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        data = r.json()
+        assert data["stats"]["total_nodes"] >= 3
+
+    def test_summary_has_audit_and_invoices(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        data = r.json()
+        assert "recent_audit" in data
+        assert "pending_invoices" in data
+        assert isinstance(data["recent_audit"], list)
+        assert isinstance(data["pending_invoices"], list)
+
+
+class TestDashboardNodeDetail:
+    def test_nodes_detail_returns_list(self, client, user_data):
+        mesh_id = user_data["mesh_id"]
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{mesh_id}",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["mesh_id"] == mesh_id
+        assert data["count"] >= 3
+
+    def test_nodes_hardware_rooted_classification(self, client, user_data):
+        mesh_id = user_data["mesh_id"]
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{mesh_id}",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        nodes = r.json()["nodes"]
+        att_types = {n["attestation"] for n in nodes}
+        assert "HARDWARE_ROOTED" in att_types
+        assert "SOFTWARE_ONLY" in att_types
+
+    def test_nodes_health_classification(self, client, user_data):
+        mesh_id = user_data["mesh_id"]
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{mesh_id}",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        nodes = r.json()["nodes"]
+        health_values = {n["health"] for n in nodes}
+        assert "healthy" in health_values
+        assert "stale" in health_values
+        assert "unknown" in health_values
+
+    def test_nodes_unknown_mesh_404(self, client, user_data):
+        r = client.get(
+            "/api/v1/maas/dashboard/nodes/mesh-nonexistent",
+            headers={"X-API-Key": user_data["token"]},
+        )
+        assert r.status_code == 404
+
+    def test_nodes_requires_auth(self, client, user_data):
+        r = client.get(f"/api/v1/maas/dashboard/nodes/{user_data['mesh_id']}")
+        assert r.status_code == 401
+
+    def test_nodes_other_user_mesh_404(self, client, user_data):
+        # Register another user and try to access first user's mesh
+        r2 = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": f"other-{uuid.uuid4().hex[:8]}@test.com", "password": "pw123456"},
+        )
+        other_token = r2.json()["access_token"]
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{user_data['mesh_id']}",
+            headers={"X-API-Key": other_token},
+        )
+        assert r.status_code == 404
