@@ -1,7 +1,7 @@
 # Dockerfile for building x0tta6bl4 with eBPF support
 # Multi-stage build: compile eBPF programs, then build runtime
 
-FROM ubuntu:22.04 as ebpf-builder
+FROM ubuntu:24.04 as ebpf-builder
 
 LABEL maintainer="x0tta6bl4 Team"
 LABEL description="eBPF Programs Builder for x0tta6bl4"
