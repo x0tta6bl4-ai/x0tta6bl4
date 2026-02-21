@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 CHECK_SCRIPT="$ROOT/scripts/agents/check_swarm_ownership.py"
+COORD_SCRIPT="$ROOT/scripts/agents/swarm_coord.py"
 
 if [[ -z "${SWARM_AGENT:-}" ]]; then
   exit 0
@@ -13,4 +14,12 @@ if [[ ! -f "$CHECK_SCRIPT" ]]; then
   exit 2
 fi
 
-exec "$CHECK_SCRIPT" --agent "$SWARM_AGENT"
+"$CHECK_SCRIPT" --agent "$SWARM_AGENT"
+
+if [[ ! -f "$COORD_SCRIPT" ]]; then
+  echo "[swarm] coordinator script not found: $COORD_SCRIPT" >&2
+  exit 2
+fi
+
+TTL="${SWARM_LEASE_TTL:-1800}"
+exec "$COORD_SCRIPT" ensure-staged --agent "$SWARM_AGENT" --ttl "$TTL"
