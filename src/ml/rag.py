@@ -110,16 +110,6 @@ class HNSWVectorStore:
         ef: int = 50,
         persist_dir: Optional[str] = None,
     ):
-        """
-        Initialize HNSW vector store
-
-        Args:
-            embedding_dim: Dimension of embeddings
-            max_elements: Maximum number of elements in the index
-            ef_construction: Size of dynamic list (construction parameter)
-            ef: Size of dynamic list (search parameter)
-            persist_dir: Directory to persist index to disk
-        """
         self.embedding_dim = embedding_dim
         self.max_elements = max_elements
         self.ef_construction = ef_construction
@@ -129,15 +119,23 @@ class HNSWVectorStore:
         self.id_to_label: Dict[str, int] = {}
         self.label_to_id: Dict[int, str] = {}
         self.next_label = 0
+        self.index = None
+        self._hnsw_available = None
 
-        if HNSWLIB_AVAILABLE:
-            self.index = hnswlib.Index(space="cosine", dim=embedding_dim)
+    def _ensure_hnsw(self) -> bool:
+        if self._hnsw_available is not None:
+            return self._hnsw_available
+        try:
+            import hnswlib
+            self.index = hnswlib.Index(space="cosine", dim=self.embedding_dim)
             self.index.init_index(
-                max_elements=max_elements, ef_construction=ef_construction, M=16
+                max_elements=self.max_elements, ef_construction=self.ef_construction, M=16
             )
-            self.index.set_ef(ef)
-        else:
-            self.index = None
+            self.index.set_ef(self.ef)
+            self._hnsw_available = True
+        except ImportError:
+            self._hnsw_available = False
+        return self._hnsw_available
 
     def add_document(self, doc: Document) -> None:
         """Add document to store"""
@@ -146,7 +144,7 @@ class HNSWVectorStore:
 
         self.documents[doc.id] = doc
 
-        if self.index is not None:
+        if self._ensure_hnsw():
             label = self.next_label
             self.id_to_label[doc.id] = label
             self.label_to_id[label] = doc.id
@@ -322,27 +320,14 @@ class RAGAnalyzer:
         use_hnsw: bool = True,
         persist_dir: Optional[str] = None,
     ):
-        """
-        Initialize RAG analyzer
-
-        Args:
-            embedding_dim: Dimension of embeddings
-            use_langchain: Use LangChain if available
-            use_hnsw: Use HNSW vector store if available
-            persist_dir: Directory to persist HNSW index
-        """
         self.embedding_dim = embedding_dim
-        self.use_langchain = use_langchain and LANGCHAIN_AVAILABLE
-        self.use_hnsw = use_hnsw and HNSWLIB_AVAILABLE
+        self.use_langchain = use_langchain
+        self.use_hnsw = use_hnsw
         self.persist_dir = persist_dir
-
-        # Use HNSW if available, otherwise fall back to simple VectorStore
-        if self.use_hnsw:
-            self.vector_store = HNSWVectorStore(
-                embedding_dim=embedding_dim, persist_dir=persist_dir
-            )
-        else:
-            self.vector_store = VectorStore(embedding_dim)
+        self.vector_store = None
+        self._embeddings = None
+        self._text_splitter = None
+        self._langchain_available = None
 
         self.query_history: List[Dict] = []
         self.index_stats = {
@@ -351,29 +336,36 @@ class RAGAnalyzer:
             "retrieval_times": [],
         }
 
-        if self.use_langchain:
-            try:
-                self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-            except Exception as e:
-                print(f"Warning: LangChain embeddings not available: {e}")
-                self.use_langchain = False
+    def _ensure_vector_store(self):
+        if self.vector_store is not None:
+            return
+        if self.use_hnsw:
+            self.vector_store = HNSWVectorStore(
+                embedding_dim=self.embedding_dim, persist_dir=self.persist_dir
+            )
+        else:
+            self.vector_store = VectorStore(self.embedding_dim)
 
-        self.text_splitter = (
-            RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-            if self.use_langchain
-            else None
-        )
+    def _ensure_langchain(self) -> bool:
+        if self._langchain_available is not None:
+            return self._langchain_available
+        if not self.use_langchain:
+            self._langchain_available = False
+            return False
+        try:
+            from langchain.embeddings import HuggingFaceEmbeddings
+            from langchain.text_splitter import RecursiveCharacterTextSplitter
+            self._embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            self._text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+            self._langchain_available = True
+        except Exception as e:
+            logger.warning(f"LangChain/HuggingFace not available: {e}")
+            self._langchain_available = False
+        return self._langchain_available
 
     async def index_knowledge(self, knowledge_entries: List[Dict[str, Any]]) -> int:
-        """
-        Index knowledge entries for retrieval
-
-        Args:
-            knowledge_entries: List of knowledge entries from Knowledge module
-
-        Returns:
-            Number of documents indexed
-        """
+        self._ensure_vector_store()
+        use_lc = self._ensure_langchain()
         documents = []
 
         for i, entry in enumerate(knowledge_entries):
@@ -397,9 +389,9 @@ class RAGAnalyzer:
                 )
 
             # Generate embedding
-            if doc.embedding is None and self.use_langchain:
+            if doc.embedding is None and use_lc:
                 try:
-                    embedding = self.embeddings.embed_query(content)
+                    embedding = self._embeddings.embed_query(content)
                     doc.embedding = np.array(embedding)
                 except Exception:
                     doc.embedding = np.random.randn(self.embedding_dim)
@@ -424,23 +416,14 @@ class RAGAnalyzer:
     async def retrieve_context(
         self, query: str, k: int = 5, threshold: float = 0.3
     ) -> RetrievalResult:
-        """
-        Retrieve relevant context for a query
-
-        Args:
-            query: Query string
-            k: Number of documents to retrieve
-            threshold: Minimum similarity threshold
-
-        Returns:
-            RetrievalResult with documents and similarities
-        """
+        self._ensure_vector_store()
+        use_lc = self._ensure_langchain()
         start_time = time.time()
 
         # Generate query embedding
-        if self.use_langchain:
+        if use_lc:
             try:
-                query_emb = self.embeddings.embed_query(query)
+                query_emb = self._embeddings.embed_query(query)
                 query_embedding = np.array(query_emb)
             except Exception:
                 query_embedding = np.random.randn(self.embedding_dim)
