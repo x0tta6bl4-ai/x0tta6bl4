@@ -48,6 +48,7 @@ If a file is not listed in your agent scope, do not stage or commit it.
 - `scripts/agents/start_swarm_session.sh`
 - `scripts/agents/stop_swarm_session.sh`
 - `.githooks/pre-commit`
+- `.githooks/post-commit`
 
 ## Commit rules
 

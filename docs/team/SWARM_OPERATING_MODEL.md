@@ -59,6 +59,7 @@ Automatic:
    - ownership validation
    - staged lease acquire/refresh (`ensure-staged`)
 2. If any staged path is leased by another agent, commit is blocked.
+3. After successful commit, post-commit releases leases for committed paths.
 
 Manual:
 

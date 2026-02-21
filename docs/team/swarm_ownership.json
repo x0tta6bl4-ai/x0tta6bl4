@@ -51,7 +51,8 @@
         "scripts/agents/install_swarm_hook.sh",
         "scripts/agents/start_swarm_session.sh",
         "scripts/agents/stop_swarm_session.sh",
-        ".githooks/pre-commit"
+        ".githooks/pre-commit",
+        ".githooks/post-commit"
       ]
     }
   }
