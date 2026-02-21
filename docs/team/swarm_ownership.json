@@ -47,7 +47,10 @@
         "docs/team/SWARM_OPERATING_MODEL.md",
         "docs/team/swarm_ownership.json",
         "scripts/agents/check_swarm_ownership.py",
+        "scripts/agents/swarm_coord.py",
         "scripts/agents/install_swarm_hook.sh",
+        "scripts/agents/start_swarm_session.sh",
+        "scripts/agents/stop_swarm_session.sh",
         ".githooks/pre-commit"
       ]
     }
