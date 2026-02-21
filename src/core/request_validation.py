@@ -197,6 +197,12 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(excluded) for excluded in self.config.excluded_paths):
             return await call_next(request)
 
+        return await self._validate_and_process(request, call_next, path=path)
+
+    async def _validate_and_process(
+        self, request: Request, call_next, *, path: str
+    ) -> Response:
+
         # Validate URL length
         if len(str(request.url)) > self.config.max_url_length:
             logger.warning(f"URL too long: {len(str(request.url))} bytes")
