@@ -2,9 +2,6 @@
 Tests for Request Validation Middleware.
 """
 
-from unittest.mock import AsyncMock, Mock
-
-import pytest
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
@@ -330,3 +327,41 @@ class TestSecurityPatterns:
 
         response = self.client.get("/api?name=John%20Doe")
         assert response.status_code == 200
+
+
+class TestHeaderValidationExceptions:
+    """Regression tests for header validation edge cases."""
+
+    def test_html_path_allows_browser_like_suspicious_header_values(self):
+        """HTML routes should not be rejected by suspicious header value checks."""
+        app = FastAPI()
+
+        @app.get("/dashboard.html")
+        async def dashboard():
+            return {"ok": True}
+
+        app.add_middleware(RequestValidationMiddleware)
+        client = TestClient(app)
+
+        response = client.get(
+            "/dashboard.html",
+            headers={"x-custom-header": "test;$(whoami)"},
+        )
+        assert response.status_code == 200
+
+    def test_api_path_still_blocks_suspicious_custom_header_values(self):
+        """Non-HTML API routes must continue to block suspicious custom headers."""
+        app = FastAPI()
+
+        @app.get("/api")
+        async def api():
+            return {"ok": True}
+
+        app.add_middleware(RequestValidationMiddleware)
+        client = TestClient(app)
+
+        response = client.get(
+            "/api",
+            headers={"x-custom-header": "test;$(whoami)"},
+        )
+        assert response.status_code == 400
