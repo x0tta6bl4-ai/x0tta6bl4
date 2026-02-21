@@ -41,11 +41,13 @@
       ]
     },
     "claude-maas-reviewer": {
-      "description": "Claude Code — MaaS RBAC, security review, playbook/dashboard tests",
+      "description": "Claude Code — MaaS RBAC, security review, playbook/dashboard/analytics tests",
       "allow": [
         "src/api/maas_auth.py",
+        "src/api/maas_analytics.py",
         "tests/api/test_maas_playbooks.py",
-        "tests/api/test_maas_dashboard.py"
+        "tests/api/test_maas_dashboard.py",
+        "tests/api/test_maas_analytics.py"
       ]
     },
     "lead-coordinator": {
