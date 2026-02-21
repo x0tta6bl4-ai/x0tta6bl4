@@ -1,0 +1,36 @@
+apiVersion: v2
+name: maas-event-store
+description: MaaS Event Store - Persistent event storage with PostgreSQL and MongoDB backends
+
+type: application
+version: 1.0.0
+appVersion: "3.3.0"
+
+maintainers:
+  - name: MaaS Team
+    email: team@maas-platform.io
+
+sources:
+  - https://github.com/maas-platform/maas-event-store
+
+keywords:
+  - event-sourcing
+  - cqrs
+  - postgresql
+  - mongodb
+  - event-store
+
+home: https://maas-platform.io
+
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    alias: postgresql
+
+  - name: mongodb
+    version: "13.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: mongodb.enabled
+    alias: mongodb
