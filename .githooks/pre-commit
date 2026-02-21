@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK_SCRIPT="$ROOT/scripts/agents/check_swarm_ownership.py"
+
+if [[ -z "${SWARM_AGENT:-}" ]]; then
+  exit 0
+fi
+
+if [[ ! -f "$CHECK_SCRIPT" ]]; then
+  echo "[swarm] check script not found: $CHECK_SCRIPT" >&2
+  exit 2
+fi
+
+exec "$CHECK_SCRIPT" --agent "$SWARM_AGENT"
