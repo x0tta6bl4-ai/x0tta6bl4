@@ -99,7 +99,7 @@ ml = [
     "nltk==3.9.2",
     "matplotlib==3.10.7",
     "seaborn==0.13.2",
-    "plotly==5.17.0",
+    "plotly==6.5.2",
 ]
 
 # Dependencies for LoRA / PEFT
