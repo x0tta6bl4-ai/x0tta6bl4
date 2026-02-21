@@ -61,10 +61,6 @@ class MaaSAuthService:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         valid, should_rehash = verify_password(req.password, user.password_hash)
-        if not valid and user.password_hash == req.password:
-            # Backward-compatible migration path for legacy plaintext rows.
-            valid = True
-            should_rehash = True
         if not valid:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
