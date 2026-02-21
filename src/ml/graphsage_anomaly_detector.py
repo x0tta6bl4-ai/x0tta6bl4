@@ -31,58 +31,194 @@ except ImportError:
         pass
 
 
-# Optional causal analysis imports
-try:
-    from src.ml.causal_analysis import (CausalAnalysisEngine, IncidentEvent,
-                                        IncidentSeverity)
-
-    CAUSAL_ANALYSIS_AVAILABLE = True
-except ImportError:
-    CAUSAL_ANALYSIS_AVAILABLE = False
-    logger.warning("⚠️ Causal analysis not available. Install dependencies if needed.")
-
-# Optional SHAP imports for explainability
-try:
-    import shap
-
-    SHAP_AVAILABLE = True
-except ImportError:
-    SHAP_AVAILABLE = False
-    logger.warning("⚠️ SHAP not available. Install with: pip install shap")
-
-# Optional PyTorch imports for GNN
-try:
-    import torch
-    import torch.nn as nn
-    import torch.nn.functional as F
-    from torch_geometric.data import Data
-    from torch_geometric.nn import SAGEConv
-
-    _TORCH_AVAILABLE = True
-
-    # Optional quantization imports
+# Lazy loading for causal analysis
+CAUSAL_ANALYSIS_AVAILABLE = None
+def _ensure_causal():
+    global CAUSAL_ANALYSIS_AVAILABLE, CausalAnalysisEngine, IncidentEvent, IncidentSeverity
+    if CAUSAL_ANALYSIS_AVAILABLE is not None:
+        return CAUSAL_ANALYSIS_AVAILABLE
     try:
-        import torch.quantization as quantization
-        from torch.quantization import DeQuantStub, QuantStub
-
-        _QUANTIZATION_AVAILABLE = True
+        from src.ml.causal_analysis import (CausalAnalysisEngine, IncidentEvent, IncidentSeverity)
+        CAUSAL_ANALYSIS_AVAILABLE = True
     except ImportError:
-        _QUANTIZATION_AVAILABLE = False
-except ImportError:
-    _TORCH_AVAILABLE = False
-    _QUANTIZATION_AVAILABLE = False
-    # Create dummy classes for type hints
+        CAUSAL_ANALYSIS_AVAILABLE = False
+    return CAUSAL_ANALYSIS_AVAILABLE
+
+# Lazy loading for SHAP
+SHAP_AVAILABLE = None
+def _ensure_shap():
+    global SHAP_AVAILABLE, shap
+    if SHAP_AVAILABLE is not None:
+        return SHAP_AVAILABLE
+    try:
+        import shap
+        SHAP_AVAILABLE = True
+    except ImportError:
+        SHAP_AVAILABLE = False
+    return SHAP_AVAILABLE
+
+def get_model_class():
+    """Get the GraphSAGEAnomalyDetectorV2 class (lazy loaded)."""
+    return _ensure_torch()["ModelClass"]
+
+def is_torch_available() -> bool:
+    """Check if torch and torch_geometric are available."""
+    return _ensure_torch()["available"]
+
+def is_quantization_available() -> bool:
+    """Check if quantization support is available."""
+    t_comp = _ensure_torch()
+    if not t_comp["available"]:
+        return False
+    try:
+        import torch.quantization
+        return True
+    except ImportError:
+        return False
+
+# Backward compatibility (lazy evaluated when accessed)
+class _CompatibilityMeta(type):
+    @property
+    def _TORCH_AVAILABLE(cls):
+        return is_torch_available()
+    @property
+    def _QUANTIZATION_AVAILABLE(cls):
+        return is_quantization_available()
+
+_TORCH_INTERNAL = None
+
+
+def _ensure_torch():
+    """Lazy loader for torch and torch_geometric components."""
+    global _TORCH_INTERNAL
+    if _TORCH_INTERNAL is not None:
+        return _TORCH_INTERNAL
+
+    try:
+        import torch
+        import torch.nn as nn
+        import torch.nn.functional as F
+        from torch_geometric.data import Data
+        from torch_geometric.nn import SAGEConv
+
+        # Define the model class here to ensure nn.Module is available
+        class GraphSAGEAnomalyDetectorV2(nn.Module):
+            """
+            GraphSAGE v2 model for anomaly detection with attention mechanism.
+            """
+            def __init__(
+                self,
+                input_dim: int = 8,
+                hidden_dim: int = 64,
+                num_layers: int = 2,
+                dropout: float = 0.3,
+            ):
+                super(GraphSAGEAnomalyDetectorV2, self).__init__()
+                self.num_layers = num_layers
+                self.convs = nn.ModuleList()
+                self.convs.append(SAGEConv(input_dim, hidden_dim))
+                for _ in range(num_layers - 1):
+                    self.convs.append(SAGEConv(hidden_dim, hidden_dim))
+                self.attention = nn.Sequential(
+                    nn.Linear(hidden_dim, hidden_dim // 2),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim // 2, 1),
+                    nn.Sigmoid(),
+                )
+                self.anomaly_predictor = nn.Sequential(
+                    nn.Linear(hidden_dim, hidden_dim // 2),
+                    nn.ReLU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(hidden_dim // 2, 1),
+                    nn.Sigmoid(),
+                )
+                try:
+                    import torch.quantization as quantization
+                    from torch.quantization import DeQuantStub, QuantStub
+                    self.quant = QuantStub()
+                    self.dequant = DeQuantStub()
+                    self._has_quant = True
+                except ImportError:
+                    self._has_quant = False
+
+            def forward(self, x, edge_index, batch=None):
+                if getattr(self, "_has_quant", False):
+                    x = self.quant(x)
+                for i, conv in enumerate(self.convs):
+                    x = conv(x, edge_index)
+                    if i != self.num_layers - 1:
+                        x = F.relu(x)
+                        x = F.dropout(x, p=0.3, training=self.training)
+                attention_weights = self.attention(x)
+                x_attended = x * attention_weights
+                anomaly_prob = self.anomaly_predictor(x_attended)
+                if getattr(self, "_has_quant", False):
+                    anomaly_prob = self.dequant(anomaly_prob)
+                return anomaly_prob
+
+            def prepare_for_quantization(self):
+                import torch.quantization as quantization
+                self.eval()
+                self.qconfig = quantization.get_default_qconfig("fbgemm")
+                quantization.prepare(self, inplace=True)
+
+            def convert_to_int8(self):
+                import torch.quantization as quantization
+                quantization.convert(self, inplace=True)
+                logger.info("Model converted to INT8 quantized format")
+
+        _TORCH_INTERNAL = {
+            "torch": torch,
+            "nn": nn,
+            "F": F,
+            "Data": Data,
+            "SAGEConv": SAGEConv,
+            "ModelClass": GraphSAGEAnomalyDetectorV2,
+            "available": True
+        }
+    except ImportError as e:
+        logger.warning(f"⚠️ GraphSAGE: torch components not available: {e}")
+        _TORCH_INTERNAL = {"available": False}
+    
+    return _TORCH_INTERNAL
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible module globals (used by tests and older callers)
+# ---------------------------------------------------------------------------
+_torch_components = _ensure_torch()
+_TORCH_AVAILABLE = bool(_torch_components.get("available", False))
+
+if _TORCH_AVAILABLE:
+    torch = _torch_components["torch"]
+    nn = _torch_components["nn"]
+    F = _torch_components["F"]
+    Data = _torch_components["Data"]
+    SAGEConv = _torch_components["SAGEConv"]
+    GraphSAGEAnomalyDetectorV2 = _torch_components["ModelClass"]
+else:
     torch = None
     nn = None
     F = None
-    SAGEConv = None
     Data = None
+    SAGEConv = None
 
+    class GraphSAGEAnomalyDetectorV2:  # type: ignore[override]
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("Torch stack is unavailable")
+
+if _TORCH_AVAILABLE:
+    try:
+        import torch.quantization as _qmod  # noqa: F401
+        _QUANTIZATION_AVAILABLE = True
+    except ImportError:
+        _QUANTIZATION_AVAILABLE = False
+else:
+    _QUANTIZATION_AVAILABLE = False
 
 @dataclass
 class AnomalyPrediction:
     """Anomaly detection prediction result"""
-
     is_anomaly: bool
     anomaly_score: float  # 0.0-1.0
     confidence: float  # 0.0-1.0
@@ -90,123 +226,10 @@ class AnomalyPrediction:
     features: Dict[str, float]
     inference_time_ms: float
 
-
-if _TORCH_AVAILABLE:
-
-    class GraphSAGEAnomalyDetectorV2(nn.Module):
-        """
-        GraphSAGE v2 model for anomaly detection with attention mechanism.
-
-        Architecture:
-        - Input: 8D node features (RSSI, SNR, loss rate, link age, etc.)
-        - Hidden: 64-dim (lightweight for edge deployment)
-        - Layers: 2 (vs typical 3-4 for efficiency)
-        - Output: Anomaly probability [0, 1]
-        - Params: ~15K (fits in RPi RAM)
-        """
-
-        def __init__(
-            self,
-            input_dim: int = 8,
-            hidden_dim: int = 64,
-            num_layers: int = 2,
-            dropout: float = 0.3,
-        ):
-            super(GraphSAGEAnomalyDetectorV2, self).__init__()
-
-            self.num_layers = num_layers
-            self.convs = nn.ModuleList()
-
-            # First layer
-            self.convs.append(SAGEConv(input_dim, hidden_dim))
-
-            # Hidden layers
-            for _ in range(num_layers - 1):
-                self.convs.append(SAGEConv(hidden_dim, hidden_dim))
-
-            # Attention mechanism for better accuracy
-            self.attention = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim // 2),
-                nn.ReLU(),
-                nn.Linear(hidden_dim // 2, 1),
-                nn.Sigmoid(),
-            )
-
-            # Output: anomaly probability
-            self.anomaly_predictor = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim // 2),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim // 2, 1),
-                nn.Sigmoid(),
-            )
-
-            # Quantization stubs for INT8
-            self.quant = QuantStub()
-            self.dequant = DeQuantStub()
-
-        def forward(self, x, edge_index, batch=None):
-            """
-            Forward pass with attention mechanism.
-
-            Args:
-                x: Node features (N, input_dim)
-                edge_index: Graph connectivity (2, E)
-                batch: Batch vector (optional)
-
-            Returns:
-                anomaly_prob: Anomaly probability per node (N, 1)
-            """
-            # Quantize input
-            x = self.quant(x)
-
-            # GraphSAGE layers
-            for i, conv in enumerate(self.convs):
-                x = conv(x, edge_index)
-                if i != self.num_layers - 1:
-                    x = F.relu(x)
-                    x = F.dropout(x, p=0.3, training=self.training)
-
-            # Attention mechanism
-            attention_weights = self.attention(x)
-            x_attended = x * attention_weights
-
-            # Anomaly prediction
-            anomaly_prob = self.anomaly_predictor(x_attended)
-
-            # Dequantize output
-            anomaly_prob = self.dequant(anomaly_prob)
-
-            return anomaly_prob
-
-        def prepare_for_quantization(self):
-            """Prepare model for INT8 quantization."""
-            self.eval()
-            # Set quantization config
-            self.qconfig = quantization.get_default_qconfig("fbgemm")
-            quantization.prepare(self, inplace=True)
-
-        def convert_to_int8(self):
-            """Convert model to INT8 quantized format."""
-            quantization.convert(self, inplace=True)
-            logger.info("Model converted to INT8 quantized format")
-
-else:
-
-    class GraphSAGEAnomalyDetectorV2:
-        """Dummy class when PyTorch is not available"""
-
-        pass
-
-
 class GraphSAGEAnomalyDetector:
     """
     GraphSAGE v2 Anomaly Detector with INT8 quantization support.
-
-    Detects anomalies in mesh network topology using GraphSAGE
-    with attention mechanism and INT8 quantization for edge deployment.
     """
-
     def __init__(
         self,
         input_dim: int = 8,
@@ -215,46 +238,22 @@ class GraphSAGEAnomalyDetector:
         anomaly_threshold: float = 0.6,
         use_quantization: bool = True,
     ):
-        """
-        Initialize GraphSAGE anomaly detector.
-
-        Args:
-            input_dim: Input feature dimension (default: 8)
-            hidden_dim: Hidden layer dimension (default: 64)
-            num_layers: Number of GraphSAGE layers (default: 2)
-            anomaly_threshold: Threshold for anomaly detection (default: 0.6)
-            use_quantization: Enable INT8 quantization (default: True)
-        """
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.anomaly_threshold = anomaly_threshold
-        self.use_quantization = use_quantization and _QUANTIZATION_AVAILABLE
-        self.recall = 0.96  # Default recall for validation
-        self.precision = 0.98  # Default precision for validation
-
-        if not _TORCH_AVAILABLE:
-            logger.warning(
-                "⚠️ GraphSAGE: torch not available, using rule-based fallback"
-            )
-            self.device = None
-            self.model = None
-            return
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = GraphSAGEAnomalyDetectorV2(
-            input_dim=input_dim, hidden_dim=hidden_dim, num_layers=num_layers
-        ).to(self.device)
-
-        # Prepare for quantization if enabled
-        if self.use_quantization:
-            self.model.prepare_for_quantization()
-            logger.info("Model prepared for INT8 quantization")
-
+        self.use_quantization = bool(use_quantization and _QUANTIZATION_AVAILABLE)
+        self.recall = 0.96
+        self.precision = 0.98
         self.is_trained = False
-
+        self.model = None
+        self.device = None
+        
+        # We don't call _ensure_torch here to keep __init__ fast
+        # unless we explicitly need to create the model.
+        
         # Initialize causal analysis engine if available
-        self.causal_engine: Optional[CausalAnalysisEngine] = None
+        self.causal_engine: Optional[Any] = None
         if CAUSAL_ANALYSIS_AVAILABLE:
             try:
                 self.causal_engine = CausalAnalysisEngine(
@@ -264,7 +263,33 @@ class GraphSAGEAnomalyDetector:
             except Exception as e:
                 logger.warning(f"Failed to initialize causal engine: {e}")
 
-        logger.info(f"GraphSAGE v2 detector initialized on {self.device}")
+    def _init_model_if_needed(self):
+        """Deferred initialization of the torch model."""
+        if self.model is not None:
+            return True
+        if not _TORCH_AVAILABLE:
+            return False
+            
+        t_comp = _ensure_torch()
+        if not t_comp["available"]:
+            return False
+            
+        torch = t_comp["torch"]
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = t_comp["ModelClass"](
+            input_dim=self.input_dim, 
+            hidden_dim=self.hidden_dim, 
+            num_layers=self.num_layers
+        ).to(self.device)
+
+        if self.use_quantization:
+            try:
+                self.model.prepare_for_quantization()
+                logger.info("Model prepared for INT8 quantization")
+            except Exception as e:
+                logger.warning(f"Quantization prep failed: {e}")
+        
+        return True
 
     def train(
         self,
@@ -274,72 +299,44 @@ class GraphSAGEAnomalyDetector:
         epochs: int = 50,
         lr: float = 0.001,
     ):
-        """
-        Train GraphSAGE model on mesh topology data.
-
-        Args:
-            node_features: List of node feature dicts
-            edge_index: List of (source, target) edge tuples
-            labels: Optional anomaly labels (1.0 = anomaly, 0.0 = normal)
-            epochs: Training epochs
-            lr: Learning rate
-        """
-        if not _TORCH_AVAILABLE or self.model is None:
-            logger.warning(
-                "⚠️ GraphSAGE training skipped: PyTorch not available or model not initialized"
-            )
+        if not self._init_model_if_needed():
             return
+
+        t_comp = _ensure_torch()
+        torch = t_comp["torch"]
+        nn = t_comp["nn"]
+        Data = t_comp["Data"]
 
         if not node_features or not edge_index:
-            logger.warning("Training skipped: insufficient data")
             return
 
-        logger.info(
-            f"Training GraphSAGE v2 model: {len(node_features)} nodes, {len(edge_index)} edges"
-        )
-
-        # Convert to PyTorch format
         x = self._features_to_tensor(node_features)
         edge_index_tensor = self._edges_to_tensor(edge_index)
 
-        # Generate labels if not provided (use simple heuristic)
         if labels is None:
             labels = self._generate_labels(node_features)
 
         y = torch.tensor(labels, dtype=torch.float).unsqueeze(1).to(self.device)
-
-        # Create data object
         data = Data(x=x, edge_index=edge_index_tensor, y=y)
 
-        # Training setup
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.BCELoss()
-
         self.model.train()
 
         for epoch in range(epochs):
             optimizer.zero_grad()
-
-            # Forward pass
             predictions = self.model(data.x, data.edge_index)
-
-            # Compute loss
             loss = criterion(predictions, data.y)
-
-            # Backward pass
             loss.backward()
             optimizer.step()
 
-            if (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch + 1}/{epochs}, Loss: {loss.item():.4f}")
-
-        # Convert to INT8 if quantization enabled
         if self.use_quantization:
-            self.model.convert_to_int8()
-            logger.info("Model converted to INT8 quantized format")
+            try:
+                self.model.convert_to_int8()
+            except Exception:
+                pass
 
         self.is_trained = True
-        logger.info("GraphSAGE v2 training completed")
 
     def predict(
         self,
@@ -348,49 +345,54 @@ class GraphSAGEAnomalyDetector:
         neighbors: List[Tuple[str, Dict[str, float]]],
         edge_index: Optional[List[Tuple[int, int]]] = None,
     ) -> AnomalyPrediction:
-        """
-        Predict anomaly for a single node.
-
-        Args:
-            node_id: Node identifier
-            node_features: Node feature dict (RSSI, SNR, loss rate, etc.)
-            neighbors: List of (neighbor_id, neighbor_features) tuples
-            edge_index: Optional edge connectivity (auto-generated if None)
-
-        Returns:
-            AnomalyPrediction with anomaly score and confidence
-        """
         start_time = time.time()
 
-        # Early exit if model or torch is not available
-        if self.model is None or torch is None:
-            # Fallback to rule-based or mock prediction
-            return AnomalyPrediction(
-                is_anomaly=False,
-                anomaly_score=0.0,
-                confidence=0.5,
-                node_id=node_id,
-                features=node_features,
-                inference_time_ms=0.0,
-            )
-
-        # If model weights are untrained, use deterministic rule-based scoring
-        # to avoid random false positives from uninitialized network outputs.
-        if not getattr(self, "is_trained", False):
+        # If torch not available or model not ready, use rule-based fallback
+        if not self._init_model_if_needed() or not self.is_trained:
             labels = self._generate_labels([node_features])
             anomaly_score = float(labels[0]) if labels else 0.0
             is_anomaly = anomaly_score >= self.anomaly_threshold
-            # Keep legacy confidence for untrained fallback path.
-            confidence = 0.8
-            inference_time = (time.time() - start_time) * 1000
             return AnomalyPrediction(
                 is_anomaly=is_anomaly,
                 anomaly_score=anomaly_score,
-                confidence=confidence,
+                confidence=0.8,
                 node_id=node_id,
                 features=node_features,
-                inference_time_ms=inference_time,
+                inference_time_ms=(time.time() - start_time) * 1000,
             )
+
+        t_comp = _ensure_torch()
+        torch = t_comp["torch"]
+
+        all_nodes = [(node_id, node_features)] + neighbors
+        x = self._features_to_tensor([features for _, features in all_nodes])
+
+        if edge_index is None:
+            edge_index = [(0, i + 1) for i in range(len(neighbors))]
+            edge_index += [(i + 1, 0) for i in range(len(neighbors))]
+
+        edge_index_tensor = self._edges_to_tensor(edge_index)
+
+        self.model.eval()
+        with torch.no_grad():
+            predictions = self.model(
+                x.to(self.device), edge_index_tensor.to(self.device)
+            )
+            anomaly_score = float(predictions[0].item())
+
+        inf_time = (time.time() - start_time) * 1000
+        is_anomaly = anomaly_score >= self.anomaly_threshold
+        
+        record_graphsage_inference(inf_time, is_anomaly, "CRITICAL" if is_anomaly else "NORMAL")
+
+        return AnomalyPrediction(
+            is_anomaly=is_anomaly,
+            anomaly_score=anomaly_score,
+            confidence=abs(anomaly_score - 0.5) * 2,
+            node_id=node_id,
+            features=node_features,
+            inference_time_ms=inf_time,
+        )
 
         # Prepare graph data
         all_nodes = [(node_id, node_features)] + neighbors
@@ -600,6 +602,11 @@ class GraphSAGEAnomalyDetector:
 
     def _features_to_tensor(self, features_list: List[Dict[str, float]]):
         """Convert list of feature dicts to tensor."""
+        t_comp = _ensure_torch()
+        if not t_comp["available"]:
+            return None
+        torch = t_comp["torch"]
+
         feature_names = [
             "rssi",
             "snr",
@@ -616,15 +623,14 @@ class GraphSAGEAnomalyDetector:
             row = [features.get(name, 0.0) for name in feature_names]
             tensor_data.append(row)
 
-        if torch is None:
-            return None
-
         return torch.tensor(tensor_data, dtype=torch.float)
 
     def _edges_to_tensor(self, edges: List[Tuple[int, int]]):
         """Convert edge list to tensor format."""
-        if torch is None:
+        t_comp = _ensure_torch()
+        if not t_comp["available"]:
             return None
+        torch = t_comp["torch"]
 
         if not edges:
             return torch.tensor([[], []], dtype=torch.long)
@@ -745,6 +751,9 @@ class GraphSAGEAnomalyDetector:
             logger.warning("Cannot save model: model not initialized")
             return
 
+        t_comp = _ensure_torch()
+        torch = t_comp["torch"]
+
         torch.save(
             {
                 "model_state_dict": self.model.state_dict(),
@@ -760,21 +769,24 @@ class GraphSAGEAnomalyDetector:
 
     def load_model(self, path: str):
         """Load model from file."""
-        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
+        if not self._init_model_if_needed():
+            return
+        
+        t_comp = _ensure_torch()
+        torch = t_comp["torch"]
 
-        self.model = GraphSAGEAnomalyDetectorV2(
-            input_dim=checkpoint["input_dim"],
-            hidden_dim=checkpoint["hidden_dim"],
-            num_layers=checkpoint["num_layers"],
-        ).to(self.device)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.anomaly_threshold = checkpoint["anomaly_threshold"]
         self.is_trained = checkpoint.get("is_trained", False)
 
         if self.use_quantization:
-            self.model.prepare_for_quantization()
-            self.model.convert_to_int8()
+            try:
+                self.model.prepare_for_quantization()
+                self.model.convert_to_int8()
+            except Exception:
+                pass
 
         logger.info(f"Model loaded from {path}")
 
@@ -806,7 +818,7 @@ def create_graphsage_detector_for_mapek(
         use_quantization=use_quantization,  # Use the new parameter
     )
 
-    if pretrain and _TORCH_AVAILABLE:
+    if pretrain:
         detector.train_from_telemetry(
             num_snapshots=num_snapshots,
             epochs=epochs,
