@@ -1,0 +1,286 @@
+# MaaS Helm Chart - Staging Environment Values
+# ==============================================
+# Override values for staging deployment.
+# Usage: helm install maas deploy/helm/maas -f deploy/helm/maas/values-staging.yaml
+
+global:
+  environment: "staging"
+
+# API Server - Staging Configuration
+api:
+  replicaCount: 2
+  
+  image:
+    repository: maas-x0tta6bl4/api
+    tag: "staging"
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    hosts:
+      - host: api.staging.maas-x0tta6bl4.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: maas-api-staging-tls
+        hosts:
+          - api.staging.maas-x0tta6bl4.local
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Controller - Staging Configuration
+controller:
+  replicaCount: 1
+  
+  image:
+    tag: "staging"
+  
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Worker - Staging Configuration
+worker:
+  replicaCount: 2
+  
+  image:
+    tag: "staging"
+  
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  
+  concurrency: 2
+  queues: "default,staging,provisioning,billing"
+
+# SPIRE - Staging Configuration
+spire:
+  enabled: true
+  
+  server:
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# PostgreSQL - Staging Configuration
+postgresql:
+  enabled: true
+  
+  auth:
+    postgresPassword: "staging-postgres-password"
+    username: "maas"
+    password: "staging-maas-password"
+    database: "maas_staging"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "standard"
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  
+  readReplicas:
+    enabled: false
+
+# Redis - Staging Configuration
+redis:
+  enabled: true
+  
+  auth:
+    enabled: true
+    password: "staging-redis-password"
+  
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  
+  replica:
+    enabled: false
+
+# Prometheus - Staging Configuration
+prometheus:
+  enabled: true
+
+  serviceMonitor:
+    enabled: true
+    additionalLabels: {}
+    interval: "30s"
+    scrapeTimeout: "10s"
+    relabelings: []
+    metricRelabelings: []
+
+  rules:
+    enabled: true
+    additionalLabels: {}
+  
+  server:
+    retention: "7d"
+    persistence:
+      enabled: true
+      size: 5Gi
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  
+  alertmanager:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 1Gi
+
+# Grafana - Staging Configuration
+grafana:
+  enabled: true
+  
+  adminPassword: "staging-admin"
+  
+  persistence:
+    enabled: true
+    size: 2Gi
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Stripe - Staging Configuration (Test Mode)
+stripe:
+  enabled: true
+  # Use Stripe test mode keys
+  secretKey: ""  # Set via: --set stripe.secretKey=sk_test_xxx
+  webhookSecret: ""  # Set via: --set stripe.webhookSecret=whsec_xxx
+  
+  webhook:
+    enabled: true
+    path: /webhooks/stripe
+
+# Feature Flags - Staging
+features:
+  pqcEnabled: true
+  meshProvisioning: true
+  usageMetering: true
+  billingIntegration: true
+  federatedLearning: false
+  anomalyDetection: true
+
+# Logging - Staging
+logging:
+  level: "DEBUG"
+  format: "json"
+  output: "stdout"
+  
+  structured:
+    enabled: true
+    includeTimestamp: true
+    includeRequestId: true
+    includeUserId: true
+
+# Tracing - Staging (Higher sampling for debugging)
+tracing:
+  enabled: true
+  exporter:
+    type: "otlp"
+    endpoint: "http://otel-collector:4317"
+  sampling:
+    type: "probabilistic"
+    rate: 0.5  # 50% sampling for staging
+
+# Network Policies - Staging
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 443  # External APIs (Stripe, etc.)
+
+# Pod Anti-Affinity - Staging
+podAntiAffinity:
+  enabled: true
+  topologyKey: "kubernetes.io/hostname"
+
+# Service Account - Staging
+serviceAccount:
+  create: true
+  annotations:
+    "eks.amazonaws.com/role-arn": "arn:aws:iam::ACCOUNT_ID:role/maas-staging-role"
+
+# Node Selector - Staging (if using dedicated staging nodes)
+nodeSelector:
+  environment: staging
+
+# Tolerations - Staging
+tolerations:
+  - key: "environment"
+    operator: "Equal"
+    value: "staging"
+    effect: "NoSchedule"

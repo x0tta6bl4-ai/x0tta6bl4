@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from src.api.maas_auth import require_role, require_permission
 from src.api.maas_security import token_signer
-from src.database import SignedPlaybook, User, get_db
+from src.database import PlaybookAck, SignedPlaybook, User, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -170,12 +170,41 @@ async def poll_playbooks(mesh_id: str, node_id: str) -> Dict[str, Any]:
 
 @router.post("/ack/{playbook_id}/{node_id}")
 async def acknowledge_playbook(
-    playbook_id: str, node_id: str, status: str = "completed"
+    playbook_id: str,
+    node_id: str,
+    status: str = "completed",
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
+    """Acknowledge playbook execution. Persists to DB for audit trail."""
+    now = datetime.utcnow()
+
+    # Update in-memory (fast path for same-process consumers)
     _playbook_acks.setdefault(playbook_id, {})[node_id] = {
         "status": status,
-        "acknowledged_at": datetime.utcnow().isoformat(),
+        "acknowledged_at": now.isoformat(),
     }
+
+    # Persist to DB
+    if _db_session_available(db):
+        existing = (
+            db.query(PlaybookAck)
+            .filter(PlaybookAck.playbook_id == playbook_id, PlaybookAck.node_id == node_id)
+            .first()
+        )
+        if existing:
+            existing.status = status
+            existing.acknowledged_at = now
+        else:
+            db.add(PlaybookAck(
+                id=f"ack-{uuid.uuid4().hex[:8]}",
+                playbook_id=playbook_id,
+                node_id=node_id,
+                status=status,
+                acknowledged_at=now,
+            ))
+        db.commit()
+
+    logger.info("✅ Playbook %s ack from node %s: %s", playbook_id, node_id, status)
     return {
         "status": "received",
         "playbook_id": playbook_id,
@@ -187,10 +216,57 @@ async def acknowledge_playbook(
 async def list_playbooks(
     mesh_id: str,
     current_user: User = Depends(require_permission("playbook:view")),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Audit log of playbooks for a mesh."""
     if _db_session_available(db) and hasattr(db, "query"):
-        return db.query(SignedPlaybook).filter(SignedPlaybook.mesh_id == mesh_id).all()
-
+        rows = db.query(SignedPlaybook).filter(SignedPlaybook.mesh_id == mesh_id).all()
+        return [
+            {
+                "playbook_id": r.id,
+                "name": r.name,
+                "algorithm": r.algorithm,
+                "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
     return [pb for pb in _playbook_store.values() if pb.get("mesh_id") == mesh_id]
+
+
+@router.get("/status/{playbook_id}")
+async def get_playbook_status(
+    playbook_id: str,
+    current_user: User = Depends(require_permission("playbook:view")),
+    db: Session = Depends(get_db),
+):
+    """Get execution status across all target nodes for a playbook."""
+    # Check DB first
+    acks_db: Dict[str, Any] = {}
+    if _db_session_available(db):
+        rows = db.query(PlaybookAck).filter(PlaybookAck.playbook_id == playbook_id).all()
+        for r in rows:
+            acks_db[r.node_id] = {
+                "status": r.status,
+                "acknowledged_at": r.acknowledged_at.isoformat() if r.acknowledged_at else None,
+            }
+
+    # Merge with in-memory (may have newer entries)
+    acks_mem = _playbook_acks.get(playbook_id, {})
+    merged = {**acks_db, **acks_mem}
+
+    pb = _playbook_store.get(playbook_id)
+    if not pb and _db_session_available(db):
+        db_pb = db.query(SignedPlaybook).filter(SignedPlaybook.id == playbook_id).first()
+        if db_pb:
+            pb = {"playbook_id": db_pb.id, "name": db_pb.name}
+
+    if not pb:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+
+    return {
+        "playbook_id": playbook_id,
+        "name": pb.get("name", ""),
+        "node_statuses": merged,
+        "total_acks": len(merged),
+    }

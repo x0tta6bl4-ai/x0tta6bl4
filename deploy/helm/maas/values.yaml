@@ -1,0 +1,398 @@
+# MaaS Helm Chart - Default Values
+# =================================
+# This file contains default configuration values for MaaS deployment.
+# Override these values in values-staging.yaml or values-production.yaml.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  environment: "development"
+
+# MaaS API Server Configuration
+api:
+  replicaCount: 2
+  
+  image:
+    repository: maas-x0tta6bl4/api
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+    annotations: {}
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: api.maas-staging.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: maas-api-tls
+        hosts:
+          - api.maas-staging.local
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  
+  # Security Context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+  
+  # Liveness and Readiness Probes
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health/live
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# MaaS Mesh Controller
+controller:
+  replicaCount: 2
+  
+  image:
+    repository: maas-x0tta6bl4/controller
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# MaaS Worker (Background Jobs)
+worker:
+  replicaCount: 2
+  
+  image:
+    repository: maas-x0tta6bl4/worker
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  # Celery worker configuration
+  concurrency: 4
+  queues: "default,provisioning,billing,notifications"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+# SPIRE/SPIFFE Identity Service
+spire:
+  enabled: true
+  
+  server:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/spiffe/spire-server
+      tag: "1.8.0"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  agent:
+    image:
+      repository: ghcr.io/spiffe/spire-agent
+      tag: "1.8.0"
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# PostgreSQL Database
+postgresql:
+  enabled: true
+  
+  auth:
+    postgresPassword: "change-me-in-production"
+    username: "maas"
+    password: "change-me-in-production"
+    database: "maas"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  
+  readReplicas:
+    enabled: false
+    replicaCount: 1
+
+# Redis Cache and Message Broker
+redis:
+  enabled: true
+  
+  auth:
+    enabled: true
+    password: "change-me-in-production"
+  
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  replica:
+    enabled: false
+    replicaCount: 1
+
+# Prometheus Monitoring
+prometheus:
+  enabled: true
+
+  serviceMonitor:
+    enabled: true
+    additionalLabels: {}
+    interval: "30s"
+    scrapeTimeout: "10s"
+    relabelings: []
+    metricRelabelings: []
+
+  rules:
+    enabled: true
+    additionalLabels: {}
+  
+  server:
+    retention: "15d"
+    persistence:
+      enabled: true
+      size: 10Gi
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  
+  alertmanager:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 2Gi
+
+# Grafana Dashboards
+grafana:
+  enabled: true
+  
+  adminPassword: "admin"
+  
+  persistence:
+    enabled: true
+    size: 5Gi
+  
+  dashboards:
+    default:
+      maas-overview:
+        file: dashboards/maas-overview.json
+      maas-mesh:
+        file: dashboards/maas-mesh.json
+  
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://maas-prometheus:9090
+          access: proxy
+          isDefault: true
+
+# Stripe Integration
+stripe:
+  enabled: true
+  secretKey: ""  # Set via --set or in values-staging.yaml
+  webhookSecret: ""  # Set via --set or in values-staging.yaml
+  
+  # Webhook endpoint configuration
+  webhook:
+    enabled: true
+    path: /webhooks/stripe
+
+# Feature Flags
+features:
+  pqcEnabled: true
+  meshProvisioning: true
+  usageMetering: true
+  billingIntegration: true
+  federatedLearning: false
+  anomalyDetection: true
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "json"
+  output: "stdout"
+  
+  # Structured logging
+  structured:
+    enabled: true
+    includeTimestamp: true
+    includeRequestId: true
+    includeUserId: true
+
+# Tracing Configuration (OpenTelemetry)
+tracing:
+  enabled: true
+  exporter:
+    type: "otlp"  # otlp, jaeger, zipkin
+    endpoint: "http://otel-collector:4317"
+  sampling:
+    type: "probabilistic"
+    rate: 0.1  # 10% sampling
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 6379  # Redis
+
+# Pod Anti-Affinity (for HA)
+podAntiAffinity:
+  enabled: true
+  topologyKey: "kubernetes.io/hostname"
+
+# Priority Class
+priorityClassName: ""
+
+# Termination Grace Period
+terminationGracePeriodSeconds: 30
+
+# ConfigMaps and Secrets
+configMaps:
+  create: true
+
+secrets:
+  create: true
+  # Override secret names if using external secrets
+  external:
+    enabled: false
+    secretStore: ""
+    refreshInterval: "1h"
