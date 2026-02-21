@@ -185,7 +185,7 @@ jobs:
           aws-region: us-east-1
       
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
       
       - name: Update kubeconfig
         run: |
