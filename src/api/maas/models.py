@@ -111,14 +111,19 @@ class ScaleResponse(BaseModel):
 
 class NodeRegisterRequest(BaseModel):
     """Headless agent registration request."""
+    mesh_id: Optional[str] = None
     node_id: Optional[str] = None
-    enrollment_token: str = Field(..., min_length=16)
+    enrollment_token: Optional[str] = Field(default=None, min_length=16)
     device_class: str = Field(
         default="edge",
         pattern="^(edge|robot|drone|gateway|sensor|server)$",
     )
     labels: Dict[str, str] = Field(default_factory=dict)
     public_keys: Dict[str, str] = Field(default_factory=dict)
+    # Legacy single-key fields used by older clients/tests.
+    public_key: Optional[str] = None
+    capabilities: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     hardware_id: Optional[str] = None
     attestation_data: Optional[Dict[str, Any]] = None
     enclave_enabled: bool = False
@@ -178,12 +183,18 @@ class NodeReissueTokenResponse(BaseModel):
 
 class NodeHeartbeatRequest(BaseModel):
     """Node heartbeat telemetry."""
+    mesh_id: Optional[str] = None
     node_id: str
-    cpu_usage: float
-    memory_usage: float
-    neighbors_count: int
-    routing_table_size: int
-    uptime: float
+    cpu_usage: float = 0.0
+    memory_usage: float = 0.0
+    neighbors_count: int = 0
+    routing_table_size: int = 0
+    uptime: float = 0.0
+    # Legacy compatibility fields used by some callers/tests.
+    cpu_percent: Optional[float] = None
+    memory_percent: Optional[float] = None
+    active_connections: Optional[int] = None
+    custom_metrics: Dict[str, Any] = Field(default_factory=dict)
     pheromones: Optional[Dict[str, Dict[str, float]]] = None  # For Stigmergy viz
 
 
