@@ -14,6 +14,7 @@ from ..auth import UserContext, get_current_user, require_mesh_access
 from ..models import NodeHeartbeatRequest, NodeRegisterRequest, NodeRegisterResponse
 from ..registry import (
     add_pending_node,
+    get_mesh,
     get_node_telemetry,
     get_pending_nodes,
     is_node_revoked,
@@ -39,6 +40,24 @@ def get_provisioner() -> MeshProvisioner:
     return _provisioner
 
 
+async def _resolve_mesh_for_user(mesh_id: str, user: UserContext) -> Any:
+    """Resolve mesh and validate access (owner or ACL)."""
+    instance = get_mesh(mesh_id)
+    if instance is None:
+        await require_mesh_access(mesh_id, user)
+        instance = get_mesh(mesh_id)
+        if instance is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Mesh {mesh_id} not found",
+            )
+
+    if instance.owner_id != user.user_id:
+        await require_mesh_access(mesh_id, user)
+
+    return instance
+
+
 @router.post(
     "/register",
     response_model=NodeRegisterResponse,
@@ -55,8 +74,19 @@ async def register_node(
 
     The node will be in pending state until approved by the mesh owner.
     """
-    # Check mesh access
-    await require_mesh_access(request.mesh_id, user)
+    if not request.mesh_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="mesh_id is required",
+        )
+
+    if not request.node_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="node_id is required",
+        )
+
+    await _resolve_mesh_for_user(request.mesh_id, user)
 
     # Check if node is revoked
     if is_node_revoked(request.mesh_id, request.node_id):
@@ -67,11 +97,17 @@ async def register_node(
 
     # Add to pending nodes
     add_pending_node(request.mesh_id, request.node_id, {
-        "public_key": request.public_key,
-        "capabilities": request.capabilities,
+        "public_key": request.public_key or request.public_keys.get("pqc"),
+        "public_keys": request.public_keys,
+        "capabilities": request.capabilities or [request.device_class],
         "metadata": request.metadata,
+        "labels": request.labels,
+        "hardware_id": request.hardware_id,
+        "attestation_data": request.attestation_data,
+        "enclave_enabled": request.enclave_enabled,
         "requested_at": datetime.utcnow().isoformat(),
         "requested_by": user.user_id,
+        "enrollment_token_present": bool(request.enrollment_token),
     })
 
     return NodeRegisterResponse(
@@ -98,19 +134,42 @@ async def node_heartbeat(
     In production, this would use node authentication (SPIFFE SVID).
     """
     # Update telemetry
-    update_node_telemetry(request.node_id, {
+    now = datetime.utcnow().isoformat()
+    cpu_percent = (
+        request.cpu_percent
+        if request.cpu_percent is not None
+        else request.cpu_usage
+    )
+    memory_percent = (
+        request.memory_percent
+        if request.memory_percent is not None
+        else request.memory_usage
+    )
+
+    telemetry_payload = {
         "mesh_id": request.mesh_id,
-        "cpu_percent": request.cpu_percent,
-        "memory_percent": request.memory_percent,
-        "active_connections": request.active_connections,
-        "timestamp": datetime.utcnow().isoformat(),
+        "cpu_percent": cpu_percent,
+        "memory_percent": memory_percent,
+        "active_connections": (
+            request.active_connections
+            if request.active_connections is not None
+            else request.neighbors_count
+        ),
+        "cpu_usage": request.cpu_usage,
+        "memory_usage": request.memory_usage,
+        "neighbors_count": request.neighbors_count,
+        "routing_table_size": request.routing_table_size,
+        "uptime": request.uptime,
+        "timestamp": now,
         "custom_metrics": request.custom_metrics,
-    })
+    }
+
+    update_node_telemetry(request.node_id, telemetry_payload)
 
     return {
         "status": "ok",
         "node_id": request.node_id,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now,
     }
 
 
@@ -124,8 +183,7 @@ async def list_pending_nodes(
     user: UserContext = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
     """List all pending node registrations for a mesh."""
-    # Check access
-    await require_mesh_access(mesh_id, user)
+    await _resolve_mesh_for_user(mesh_id, user)
 
     pending = get_pending_nodes(mesh_id)
 
@@ -150,8 +208,7 @@ async def approve_node(
     user: UserContext = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Approve a pending node registration."""
-    # Check access
-    await require_mesh_access(mesh_id, user)
+    await _resolve_mesh_for_user(mesh_id, user)
 
     provisioner = get_provisioner()
 
@@ -182,8 +239,7 @@ async def revoke_node(
     reason: str = Query(..., description="Revocation reason"),
 ) -> Dict[str, Any]:
     """Revoke a node from the mesh."""
-    # Check access
-    await require_mesh_access(mesh_id, user)
+    await _resolve_mesh_for_user(mesh_id, user)
 
     provisioner = get_provisioner()
 
@@ -214,8 +270,7 @@ async def get_telemetry(
     user: UserContext = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get telemetry data for a node."""
-    # Check access
-    await require_mesh_access(mesh_id, user)
+    await _resolve_mesh_for_user(mesh_id, user)
 
     telemetry = get_node_telemetry(node_id)
 
@@ -248,8 +303,7 @@ async def request_reissue(
     from datetime import timedelta
     from ..registry import add_reissue_token
 
-    # Check access
-    await require_mesh_access(mesh_id, user)
+    await _resolve_mesh_for_user(mesh_id, user)
 
     # Generate one-time token
     token = f"reissue_{secrets.token_urlsafe(32)}"

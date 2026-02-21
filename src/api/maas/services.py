@@ -22,18 +22,14 @@ from .constants import (
 from .mesh_instance import MeshInstance
 from .registry import (
     add_mapek_event,
-    add_pending_node,
-    add_reissue_token,
     audit_sync,
     get_mesh,
-    get_mesh_policies,
     get_pending_nodes,
-    get_reissue_token,
     is_node_revoked,
     record_audit_log,
     register_mesh,
     remove_pending_node,
-    revoke_node,
+    revoke_node as mark_node_revoked,
     unregister_mesh,
 )
 
@@ -302,10 +298,10 @@ class MeshProvisioner:
     async def provision_mesh(
         self,
         owner_id: str,
-        plan: str,
-        region: str,
-        node_count: int,
-        pqc_profile: str,
+        plan: Optional[str] = None,
+        region: Optional[str] = None,
+        node_count: Optional[int] = None,
+        pqc_profile: Optional[str] = None,
         enable_consciousness: bool = False,
         **kwargs,
     ) -> MeshInstance:
@@ -323,34 +319,55 @@ class MeshProvisioner:
         Returns:
             Provisioned MeshInstance
         """
+        name = kwargs.get("name") or f"mesh-{owner_id}"
+        billing_plan = kwargs.get("billing_plan", plan or "starter")
+        normalized_plan = PLAN_ALIASES.get(billing_plan, billing_plan)
+        normalized_region = region or kwargs.get("deployment_region", "global")
+        normalized_nodes = int(kwargs.get("nodes", node_count or 5))
+        normalized_pqc_profile = pqc_profile or kwargs.get("pqc_profile", "edge")
+        pqc_enabled = bool(kwargs.get("pqc_enabled", True))
+        obfuscation = kwargs.get("obfuscation", "none")
+        traffic_profile = kwargs.get("traffic_profile", "none")
+        join_token_ttl_sec = int(kwargs.get("join_token_ttl_sec", 604800))
+
         # Validate plan limits
-        limits = self._billing.get_plan_limits(plan)
-        if node_count > limits["max_nodes"]:
+        limits = self._billing.get_plan_limits(normalized_plan)
+        if normalized_nodes > limits["max_nodes"]:
             raise ValueError(
-                f"Node count {node_count} exceeds plan limit {limits['max_nodes']}"
+                f"Node count {normalized_nodes} exceeds plan limit {limits['max_nodes']}"
             )
 
         # Generate mesh ID
         mesh_id = f"mesh-{secrets.token_hex(8)}"
 
-        # Get PQC profile configuration
-        pqc_config = get_pqc_profile(pqc_profile)
+        # Get PQC profile configuration (mapped by device class)
+        pqc_config = get_pqc_profile(normalized_pqc_profile)
 
         # Create mesh instance
         instance = MeshInstance(
             mesh_id=mesh_id,
+            name=name,
             owner_id=owner_id,
-            plan=plan,
-            region=region,
-            node_count=node_count,
-            pqc_profile=pqc_profile,
+            plan=normalized_plan,
+            region=normalized_region,
+            nodes=normalized_nodes,
+            pqc_profile=normalized_pqc_profile,
+            pqc_enabled=pqc_enabled,
+            obfuscation=obfuscation,
+            traffic_profile=traffic_profile,
             enable_consciousness=enable_consciousness,
             created_at=datetime.utcnow(),
             pqc_config=pqc_config,
         )
+        instance.join_token = f"join_{secrets.token_urlsafe(24)}"
+        instance.join_token_ttl_sec = join_token_ttl_sec
+        instance.join_token_issued_at = datetime.utcnow()
+        instance.join_token_expires_at = (
+            instance.join_token_issued_at + timedelta(seconds=join_token_ttl_sec)
+        )
 
         # Provision nodes
-        instance.provision()
+        await instance.provision()
 
         # Register in global registry
         register_mesh(instance)
@@ -360,7 +377,7 @@ class MeshProvisioner:
             mesh_id,
             owner_id,
             "mesh.provision",
-            f"Mesh created with {node_count} nodes in {region}",
+            f"Mesh created with {normalized_nodes} nodes in {normalized_region}",
         )
 
         # Record metrics
@@ -368,7 +385,7 @@ class MeshProvisioner:
             self._metrics.record_meter(
                 "mesh.provisioned",
                 1,
-                {"plan": plan, "region": region},
+                {"plan": normalized_plan, "region": normalized_region},
             )
 
         logger.info(f"Provisioned mesh {mesh_id} for user {owner_id}")
@@ -407,11 +424,11 @@ class MeshProvisioner:
 
         if target_count > current_count:
             # Scale up
-            instance.scale(target_count)
+            instance.scale("scale_up", target_count - current_count)
             action = "scale_up"
         elif target_count < current_count:
             # Scale down
-            instance.scale(target_count)
+            instance.scale("scale_down", current_count - target_count)
             action = "scale_down"
         else:
             action = "no_change"
@@ -436,7 +453,7 @@ class MeshProvisioner:
             "mesh_id": mesh_id,
             "action": action,
             "previous_count": current_count,
-            "current_count": target_count,
+            "current_count": len(instance.node_instances),
         }
 
     async def terminate_mesh(
@@ -461,7 +478,7 @@ class MeshProvisioner:
             raise ValueError(f"Mesh {mesh_id} not found")
 
         # Terminate all nodes
-        instance.terminate()
+        await instance.terminate()
 
         # Remove from registry
         unregister_mesh(mesh_id)
@@ -553,7 +570,7 @@ class MeshProvisioner:
             raise ValueError(f"Mesh {mesh_id} not found")
 
         # Add to revoked list
-        revoke_node(mesh_id, node_id, {
+        mark_node_revoked(mesh_id, node_id, {
             "reason": reason,
             "revoked_by": actor,
             "revoked_at": datetime.utcnow().isoformat(),

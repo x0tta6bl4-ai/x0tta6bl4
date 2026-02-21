@@ -94,6 +94,7 @@ class MeshNode(Base):
     acl_profile = Column(String, default="default")
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)
+    last_seen = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -106,8 +107,26 @@ class MarketplaceListing(Base):
     region = Column(String, index=True)
     price_per_hour = Column(Integer)  # In cents
     bandwidth_mbps = Column(Integer)
-    status = Column(String, default="available") # available, rented
+    status = Column(String, default="available")  # available, escrow, rented
+    renter_id = Column(String, ForeignKey("users.id"), nullable=True)
+    mesh_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    escrows = relationship("MarketplaceEscrow", back_populates="listing")
+
+
+class MarketplaceEscrow(Base):
+    """Escrow records holding payment until node health is confirmed."""
+    __tablename__ = "marketplace_escrows"
+    id = Column(String, primary_key=True)
+    listing_id = Column(String, ForeignKey("marketplace_listings.id"), index=True)
+    renter_id = Column(String, ForeignKey("users.id"), nullable=False)
+    amount_cents = Column(Integer, nullable=False)  # 1-hour deposit
+    status = Column(String, default="held")  # held, released, refunded
+    created_at = Column(DateTime, default=datetime.utcnow)
+    released_at = Column(DateTime, nullable=True)
+
+    listing = relationship("MarketplaceListing", back_populates="escrows")
 
 
 class Invoice(Base):
@@ -205,6 +224,36 @@ class BillingWebhookEvent(Base):
     last_error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     processed_at = Column(DateTime, nullable=True)
+
+
+class GovernanceProposal(Base):
+    """DAO governance proposals with DB-backed persistence."""
+    __tablename__ = "governance_proposals"
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    state = Column(String, default="active")  # active, passed, rejected, executed
+    actions_json = Column(Text, nullable=True)   # JSON of action list
+    end_time = Column(DateTime, nullable=False)
+    created_by = Column(String, ForeignKey("users.id"), nullable=False)
+    execution_hash = Column(String, nullable=True)  # Finality hash on execution
+    executed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    votes = relationship("GovernanceVote", back_populates="proposal")
+
+
+class GovernanceVote(Base):
+    """Individual votes on governance proposals."""
+    __tablename__ = "governance_votes"
+    id = Column(String, primary_key=True)
+    proposal_id = Column(String, ForeignKey("governance_proposals.id"), index=True)
+    voter_id = Column(String, nullable=False, index=True)  # user email or id
+    vote = Column(String, nullable=False)  # yes, no, abstain
+    tokens = Column(Integer, nullable=False)  # raw voting power * 100 (cents)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    proposal = relationship("GovernanceProposal", back_populates="votes")
 
 
 class AuditLog(Base):
