@@ -10,7 +10,7 @@ httpx==0.28.1
 
 # Linting & Formatting
 black==26.1.0
-isort==7.0.0
+isort==8.0.0
 flake8==7.3.0
 mypy==1.18.2
 ruff==0.15.0
