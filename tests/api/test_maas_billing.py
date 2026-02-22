@@ -1191,19 +1191,34 @@ class TestBillingEventStateMachine:
     """Direct tests for _finalize, _fail, and _cleanup billing event helpers."""
 
     @pytest.fixture()
-    def db_session(self):
+    def db_engine(self):
         from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
         from src.database import Base
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
         Base.metadata.create_all(bind=engine)
-        SL = sessionmaker(bind=engine)
+        yield engine
+        Base.metadata.drop_all(bind=engine)
+
+    @pytest.fixture()
+    def db_session(self, db_engine):
+        from sqlalchemy.orm import sessionmaker
+        SL = sessionmaker(bind=db_engine)
         db = SL()
         try:
             yield db
         finally:
             db.close()
-            Base.metadata.drop_all(bind=engine)
+
+    @pytest.fixture()
+    def db_session2(self, db_engine):
+        """Second session (same engine) for pre-inserting test data."""
+        from sqlalchemy.orm import sessionmaker
+        SL = sessionmaker(bind=db_engine)
+        db = SL()
+        try:
+            yield db
+        finally:
+            db.close()
 
     def _make_event(self, db, event_id, status="processing"):
         from src.database import BillingWebhookEvent
@@ -1275,3 +1290,72 @@ class TestBillingEventStateMachine:
         _cleanup_expired_billing_events(db_session)
         row = db_session.query(BillingWebhookEvent).filter_by(event_id=eid).first()
         assert row is None
+
+    def test_start_new_event_returns_none(self, db_session):
+        """New event_id → inserted successfully → returns None."""
+        from src.api.maas_legacy import _start_billing_event_processing
+        eid = f"new-{uuid.uuid4().hex[:8]}"
+        result = _start_billing_event_processing(db_session, eid, "plan.upgraded", "hash123")
+        assert result is None
+
+    def test_start_duplicate_done_event_returns_cached(self, db_session, db_session2):
+        """Duplicate event_id with status=done and valid JSON response → returns cached dict."""
+        import json
+        from src.api.maas_legacy import _start_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"dup-done-{uuid.uuid4().hex[:8]}"
+        cached_response = {"processed": True, "plan": "pro"}
+        # Insert via a separate session so db_session identity map is clean
+        event = BillingWebhookEvent(
+            event_id=eid,
+            event_type="plan.upgraded",
+            payload_hash="same-hash",
+            status="done",
+            response_json=json.dumps(cached_response),
+        )
+        db_session2.add(event)
+        db_session2.commit()
+        db_session2.close()
+        result = _start_billing_event_processing(db_session, eid, "plan.upgraded", "same-hash")
+        assert result == cached_response
+
+    def test_start_duplicate_processing_event_raises_409(self, db_session, db_session2):
+        """Duplicate event_id with status=processing → 409."""
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _start_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"dup-proc-{uuid.uuid4().hex[:8]}"
+        event = BillingWebhookEvent(
+            event_id=eid,
+            event_type="plan.upgraded",
+            payload_hash="same-hash",
+            status="processing",
+        )
+        db_session2.add(event)
+        db_session2.commit()
+        db_session2.close()
+        with pytest.raises(HTTPException) as exc:
+            _start_billing_event_processing(db_session, eid, "plan.upgraded", "same-hash")
+        assert exc.value.status_code == 409
+        assert "already being processed" in exc.value.detail
+
+    def test_start_payload_hash_mismatch_raises_409(self, db_session, db_session2):
+        """Duplicate event_id but different payload hash → 409 mismatch."""
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _start_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"dup-mismatch-{uuid.uuid4().hex[:8]}"
+        event = BillingWebhookEvent(
+            event_id=eid,
+            event_type="plan.upgraded",
+            payload_hash="original-hash",
+            status="done",
+            response_json='{"ok": true}',
+        )
+        db_session2.add(event)
+        db_session2.commit()
+        db_session2.close()
+        with pytest.raises(HTTPException) as exc:
+            _start_billing_event_processing(db_session, eid, "plan.upgraded", "different-hash")
+        assert exc.value.status_code == 409
+        assert "mismatch" in exc.value.detail
