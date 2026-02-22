@@ -65,6 +65,7 @@
       "allow": [
         "src/api/maas/constants.py",
         "src/api/maas/services.py",
+        "src/core/swarm_sync.py",
         "src/agents/final_organizer.py",
         "src/agents/ultra_recovery.py",
         "src/mesh/network_manager.py",
