@@ -24,6 +24,7 @@ Note:
 
 import os
 import uuid
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -1072,3 +1073,111 @@ class TestBillingService:
         user = User(plan="starter")
         with pytest.raises(Exception, match="Plan escalation blocked"):
             svc.check_quota(user, requested_nodes=5, requested_plan="enterprise")
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _is_join_token_expired
+# ---------------------------------------------------------------------------
+
+class TestIsJoinTokenExpired:
+    """Direct tests for _is_join_token_expired (no TestClient needed)."""
+
+    def test_expired_token_returns_true(self):
+        from datetime import timedelta
+        from src.api.maas_legacy import _is_join_token_expired
+        mock_instance = type("MI", (), {
+            "join_token_expires_at": datetime.utcnow() - timedelta(hours=1)
+        })()
+        assert _is_join_token_expired(mock_instance) is True
+
+    def test_future_token_returns_false(self):
+        from datetime import timedelta
+        from src.api.maas_legacy import _is_join_token_expired
+        mock_instance = type("MI", (), {
+            "join_token_expires_at": datetime.utcnow() + timedelta(hours=24)
+        })()
+        assert _is_join_token_expired(mock_instance) is False
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _resolve_billing_user
+# ---------------------------------------------------------------------------
+
+class TestResolveBillingUser:
+    """Direct tests for _resolve_billing_user with in-memory SQLite (no TestClient needed)."""
+
+    @pytest.fixture()
+    def db_session(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        SL = sessionmaker(bind=engine)
+        db = SL()
+        try:
+            yield db
+        finally:
+            db.close()
+            Base.metadata.drop_all(bind=engine)
+
+    def _make_user(self, db, **kwargs):
+        from src.database import User
+        import uuid
+        user = User(
+            id=str(uuid.uuid4()),
+            email=f"test-{uuid.uuid4().hex[:8]}@resolve.test",
+            password_hash="$2b$12$fakehash" + "x" * 53,  # bcrypt-format placeholder
+            api_key=f"x0t_{uuid.uuid4().hex}",
+            plan="starter",
+            **kwargs,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def test_resolves_by_user_id(self, db_session):
+        from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
+        user = self._make_user(db_session)
+        req = BillingWebhookRequest(event_type="plan.upgraded", user_id=user.id)
+        result = _resolve_billing_user(db_session, req)
+        assert result is not None
+        assert result.id == user.id
+
+    def test_resolves_by_customer_id(self, db_session):
+        from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
+        user = self._make_user(db_session, stripe_customer_id="cus_test_123")
+        req = BillingWebhookRequest(
+            event_type="subscription.created",
+            customer_id="cus_test_123",
+        )
+        result = _resolve_billing_user(db_session, req)
+        assert result is not None
+        assert result.stripe_customer_id == "cus_test_123"
+
+    def test_resolves_by_email(self, db_session):
+        from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
+        user = self._make_user(db_session)
+        req = BillingWebhookRequest(event_type="plan.upgraded", email=user.email)
+        result = _resolve_billing_user(db_session, req)
+        assert result is not None
+        assert result.email == user.email
+
+    def test_no_match_returns_none(self, db_session):
+        from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
+        req = BillingWebhookRequest(event_type="plan.upgraded")
+        result = _resolve_billing_user(db_session, req)
+        assert result is None
+
+    def test_resolves_by_user_id_from_metadata(self, db_session):
+        """user_id not on req but in metadata → resolved via metadata."""
+        from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
+        user = self._make_user(db_session)
+        req = BillingWebhookRequest(
+            event_type="plan.upgraded",
+            metadata={"user_id": user.id},
+        )
+        result = _resolve_billing_user(db_session, req)
+        assert result is not None
+        assert result.id == user.id
