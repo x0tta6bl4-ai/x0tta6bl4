@@ -1,5 +1,7 @@
 """Unit tests for src/api/maas/endpoints/nodes.py."""
 
+import secrets
+from datetime import datetime
 from types import SimpleNamespace
 import uuid
 
@@ -164,6 +166,40 @@ async def test_node_heartbeat_updates_registry_and_export_status(monkeypatch):
     assert result["telemetry_exported"] is True
     assert captured["node_id"] == "node-1"
     assert captured["payload"]["active_connections"] == 4
+
+
+@pytest.mark.asyncio
+async def test_request_reissue_persists_token_and_returns_payload(monkeypatch):
+    captured = {}
+
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    def _add_reissue_token(mesh_id, token, payload):
+        captured["mesh_id"] = mesh_id
+        captured["token"] = token
+        captured["payload"] = payload
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr("src.api.maas.registry.add_reissue_token", _add_reissue_token)
+    monkeypatch.setattr(secrets, "token_urlsafe", lambda _n: "fixed-token")
+
+    user = UserContext(user_id="owner-1", plan="starter")
+    result = await mod.request_reissue("mesh-1", "node-7", user)
+
+    assert result["mesh_id"] == "mesh-1"
+    assert result["node_id"] == "node-7"
+    assert result["reissue_token"] == "reissue_fixed-token"
+    assert result["expires_in"] == 3600
+
+    assert captured["mesh_id"] == "mesh-1"
+    assert captured["token"] == "reissue_fixed-token"
+    assert captured["payload"]["node_id"] == "node-7"
+    assert captured["payload"]["used"] is False
+    assert captured["payload"]["issued_by"] == "owner-1"
+    issued_at = datetime.fromisoformat(captured["payload"]["issued_at"])
+    expires_at = datetime.fromisoformat(captured["payload"]["expires_at"])
+    assert expires_at > issued_at
 
 
 def _build_maas_nodes_db(*, role: str, create_mesh: bool, owner_is_user: bool):
