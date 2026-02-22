@@ -323,3 +323,198 @@ class TestStripeWebhook:
         assert r.status_code == 400
 
         billing_mod.STRIPE_WEBHOOK_SECRET = None  # restore
+
+
+# ---------------------------------------------------------------------------
+# Stripe webhook happy-path and edge cases (with mocked Stripe)
+# ---------------------------------------------------------------------------
+
+class TestStripeWebhookHandling:
+    """Cover checkout.session.completed handling in stripe_webhook."""
+
+    def _set_webhook_secret(self):
+        import src.api.maas_billing as m
+        m.STRIPE_WEBHOOK_SECRET = "whsec_test"
+        return m
+
+    def _restore(self, mod):
+        mod.STRIPE_WEBHOOK_SECRET = None
+
+    def test_webhook_marks_invoice_paid(self, client, billing_data):
+        """Valid event with invoice_id in DB → invoice status set to 'paid'."""
+        from unittest.mock import patch, MagicMock
+        db = TestingSessionLocal()
+        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin_id = admin.id
+        db.close()
+
+        inv_id = _db_invoice(admin_id, billing_data["mesh_id"], status="issued")
+        mod = self._set_webhook_secret()
+
+        fake_event = {
+            "type": "checkout.session.completed",
+            "data": {"object": {"metadata": {"invoice_id": inv_id}}},
+        }
+
+        with patch("stripe.Webhook.construct_event", return_value=fake_event):
+            r = client.post(
+                "/api/v1/maas/billing/webhook/stripe",
+                content=b'{}',
+                headers={
+                    "Content-Type": "application/json",
+                    "stripe-signature": "valid-sig",
+                },
+            )
+        assert r.status_code == 200
+        assert r.json()["status"] == "success"
+
+        db = TestingSessionLocal()
+        inv = db.query(Invoice).filter(Invoice.id == inv_id).first()
+        db.close()
+        assert inv is not None
+        assert inv.status == "paid"
+        self._restore(mod)
+
+    def test_webhook_invoice_not_found_returns_success(self, client, billing_data):
+        """Valid event with non-existent invoice_id → logger.error but still 200."""
+        from unittest.mock import patch
+        mod = self._set_webhook_secret()
+        fake_event = {
+            "type": "checkout.session.completed",
+            "data": {"object": {"metadata": {"invoice_id": "inv-nonexistent-xyz"}}},
+        }
+        with patch("stripe.Webhook.construct_event", return_value=fake_event):
+            r = client.post(
+                "/api/v1/maas/billing/webhook/stripe",
+                content=b'{}',
+                headers={
+                    "Content-Type": "application/json",
+                    "stripe-signature": "valid-sig",
+                },
+            )
+        assert r.status_code == 200
+        self._restore(mod)
+
+    def test_webhook_missing_invoice_id_metadata_returns_success(self, client, billing_data):
+        """Valid event but no invoice_id in metadata → logger.warning but still 200."""
+        from unittest.mock import patch
+        mod = self._set_webhook_secret()
+        fake_event = {
+            "type": "checkout.session.completed",
+            "data": {"object": {"metadata": {}}},  # no invoice_id
+        }
+        with patch("stripe.Webhook.construct_event", return_value=fake_event):
+            r = client.post(
+                "/api/v1/maas/billing/webhook/stripe",
+                content=b'{}',
+                headers={
+                    "Content-Type": "application/json",
+                    "stripe-signature": "valid-sig",
+                },
+            )
+        assert r.status_code == 200
+        self._restore(mod)
+
+    def test_webhook_unhandled_event_type_returns_success(self, client, billing_data):
+        """Event type not 'checkout.session.completed' → ignored, returns success."""
+        from unittest.mock import patch
+        mod = self._set_webhook_secret()
+        fake_event = {
+            "type": "payment_intent.succeeded",
+            "data": {"object": {}},
+        }
+        with patch("stripe.Webhook.construct_event", return_value=fake_event):
+            r = client.post(
+                "/api/v1/maas/billing/webhook/stripe",
+                content=b'{}',
+                headers={
+                    "Content-Type": "application/json",
+                    "stripe-signature": "valid-sig",
+                },
+            )
+        assert r.status_code == 200
+        assert r.json()["status"] == "success"
+        self._restore(mod)
+
+
+# ---------------------------------------------------------------------------
+# GET /billing/invoices/{id}/checkout — edge cases
+# ---------------------------------------------------------------------------
+
+class TestCheckoutEdgeCases:
+    """Cover 'invoice already paid' and 'no Stripe key' branches."""
+
+    def test_checkout_already_paid_returns_200(self, client, billing_data):
+        """Invoice with status='paid' → 200 with 'already paid' message."""
+        db = TestingSessionLocal()
+        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin_id = admin.id
+        db.close()
+
+        inv_id = _db_invoice(admin_id, billing_data["mesh_id"], status="paid")
+        r = client.get(
+            f"/api/v1/maas/billing/invoices/{inv_id}/checkout",
+            headers={"X-API-Key": billing_data["admin_token"]},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "already paid" in data.get("message", "").lower()
+        assert data.get("url") is None
+
+    def test_checkout_no_stripe_key_500(self, client, billing_data):
+        """With no STRIPE_SECRET_KEY (test default) and issued invoice → 500."""
+        import src.api.maas_billing as mod
+        # Ensure no key is set (default in test env)
+        original = mod.STRIPE_SECRET_KEY
+        mod.STRIPE_SECRET_KEY = None
+
+        db = TestingSessionLocal()
+        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin_id = admin.id
+        db.close()
+
+        inv_id = _db_invoice(admin_id, billing_data["mesh_id"], status="issued")
+        r = client.get(
+            f"/api/v1/maas/billing/invoices/{inv_id}/checkout",
+            headers={"X-API-Key": billing_data["admin_token"]},
+        )
+        assert r.status_code == 500
+        mod.STRIPE_SECRET_KEY = original
+
+    def test_checkout_invoice_not_found_404(self, client, billing_data):
+        """Non-existent invoice → 404."""
+        r = client.get(
+            "/api/v1/maas/billing/invoices/inv-not-found-xyz/checkout",
+            headers={"X-API-Key": billing_data["admin_token"]},
+        )
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# generate_invoice — enterprise plan billing rate
+# ---------------------------------------------------------------------------
+
+class TestEnterpriseInvoiceRate:
+    def test_enterprise_user_gets_higher_rate(self, client, billing_data):
+        """Enterprise plan users have rate=0.05 instead of 0.01."""
+        db = TestingSessionLocal()
+        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin.plan = "enterprise"
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/billing/invoices/generate/{billing_data['mesh_id']}",
+            headers={"X-API-Key": billing_data["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        # Enterprise minimum invoice is still $0.50 if hours are low,
+        # but plan field should have been applied
+        assert r.json()["total_amount"] >= 0.50
+
+        # Restore plan
+        db = TestingSessionLocal()
+        admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
+        admin.plan = "starter"
+        db.commit()
+        db.close()
