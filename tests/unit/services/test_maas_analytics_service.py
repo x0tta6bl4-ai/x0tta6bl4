@@ -687,5 +687,86 @@ class TestAggregateHourlyBucketPartialData(unittest.TestCase):
         self.assertAlmostEqual(result[hour_key]["latency_ms_avg"], 12.5)
 
 
+class TestNormalizeDt(unittest.TestCase):
+    """Cover all branches of the _normalize_dt static method."""
+
+    def test_normalize_dt_none_returns_none(self):
+        """None input → None output (line 36-37)."""
+        self.assertIsNone(MaaSAnalyticsService._normalize_dt(None))
+
+    def test_normalize_dt_naive_returns_unchanged(self):
+        """Naive datetime → returned as-is (line 40)."""
+        dt = datetime(2026, 2, 22, 12, 0, 0)
+        result = MaaSAnalyticsService._normalize_dt(dt)
+        self.assertEqual(result, dt)
+        self.assertIsNone(result.tzinfo)
+
+    def test_normalize_dt_aware_strips_tzinfo(self):
+        """Timezone-aware datetime → converted to naive UTC (lines 38-39)."""
+        dt = datetime(2026, 2, 22, 12, 0, 0, tzinfo=timezone.utc)
+        result = MaaSAnalyticsService._normalize_dt(dt)
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.tzinfo)
+        self.assertEqual(result, datetime(2026, 2, 22, 12, 0, 0))
+
+
+class TestParseTelemetryTimestamp(unittest.TestCase):
+    """Cover all branches of the _parse_telemetry_timestamp static method."""
+
+    def test_non_string_returns_none(self):
+        """Non-string input → None (line 72-73 isinstance check)."""
+        self.assertIsNone(MaaSAnalyticsService._parse_telemetry_timestamp(12345))
+        self.assertIsNone(MaaSAnalyticsService._parse_telemetry_timestamp(None))
+        self.assertIsNone(MaaSAnalyticsService._parse_telemetry_timestamp([]))
+
+    def test_empty_string_returns_none(self):
+        """Empty string → None (line 72 `not value` guard)."""
+        self.assertIsNone(MaaSAnalyticsService._parse_telemetry_timestamp(""))
+
+    def test_invalid_format_raises_value_error_returns_none(self):
+        """Invalid ISO format string → ValueError → None (lines 76-78)."""
+        result = MaaSAnalyticsService._parse_telemetry_timestamp("not-a-date")
+        self.assertIsNone(result)
+
+    def test_utc_z_suffix_returns_naive_utc(self):
+        """ISO string with 'Z' suffix → naive UTC datetime (lines 74-80)."""
+        result = MaaSAnalyticsService._parse_telemetry_timestamp("2026-02-22T12:30:00Z")
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.tzinfo)
+        self.assertEqual(result, datetime(2026, 2, 22, 12, 30, 0))
+
+
+class TestGetRedisTelemetryBytesHappyPath(unittest.TestCase):
+    """Cover bytes → valid JSON success path in _get_redis_telemetry (lines 96-98)."""
+
+    def test_bytes_valid_json_decoded_and_returned(self):
+        """redis.get() returns bytes with valid JSON → decoded and returned as dict."""
+        import json as _json
+        redis_client = MagicMock()
+        payload = {"traffic_mbps": 99.1, "latency_ms": 4.4}
+        redis_client.get.return_value = _json.dumps(payload).encode("utf-8")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry("node-bytes-ok")
+        self.assertEqual(result["traffic_mbps"], 99.1)
+        self.assertEqual(result["latency_ms"], 4.4)
+
+
+class TestAggregateHourlyTelemetryEmptyNodes(unittest.TestCase):
+    """Cover `not nodes` early-return path in _aggregate_hourly_telemetry_from_history."""
+
+    def test_empty_nodes_with_live_redis_returns_empty_dict(self):
+        """nodes=[] with valid redis client → {} via `not nodes` short-circuit (line 141)."""
+        redis_client = MagicMock()
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        since = now - timedelta(hours=1)
+        result = service._aggregate_hourly_telemetry_from_history(
+            nodes=[], since=since, now=now, hours_count=1
+        )
+        self.assertEqual(result, {})
+        # lrange should NOT be called since we return early
+        redis_client.lrange.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
