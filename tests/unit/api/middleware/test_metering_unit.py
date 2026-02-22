@@ -34,9 +34,11 @@ def _make_request(app: FastAPI, path: str, headers: Optional[Dict[str, str]] = N
 
 
 class _DummyDB:
-    def __init__(self, user: Optional[SimpleNamespace]):
+    def __init__(self, user: Optional[SimpleNamespace], commit_error: Optional[Exception] = None):
         self._user = user
+        self._commit_error = commit_error
         self.committed = False
+        self.rolled_back = False
         self.closed = False
 
     def query(self, _model):
@@ -49,7 +51,12 @@ class _DummyDB:
         return self._user
 
     def commit(self):
+        if self._commit_error is not None:
+            raise self._commit_error
         self.committed = True
+
+    def rollback(self):
+        self.rolled_back = True
 
     def close(self):
         self.closed = True
@@ -179,3 +186,35 @@ def test_update_usage_no_user_does_not_commit():
     assert db.committed is False
     assert db.closed is True
 
+
+def test_update_usage_handles_null_requests_count():
+    app = FastAPI()
+    middleware = MeteringMiddleware(app=app)
+    user = SimpleNamespace(requests_count=None)
+    db = _DummyDB(user)
+    app.dependency_overrides[mod.get_db] = lambda: db
+    request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
+
+    middleware._update_usage(request, "k")
+
+    assert user.requests_count == 1
+    assert db.committed is True
+    assert db.rolled_back is False
+    assert db.closed is True
+
+
+def test_update_usage_rolls_back_and_reraises_on_commit_error():
+    app = FastAPI()
+    middleware = MeteringMiddleware(app=app)
+    user = SimpleNamespace(requests_count=4)
+    db = _DummyDB(user, commit_error=RuntimeError("commit failed"))
+    app.dependency_overrides[mod.get_db] = lambda: db
+    request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        middleware._update_usage(request, "k")
+
+    assert user.requests_count == 5
+    assert db.committed is False
+    assert db.rolled_back is True
+    assert db.closed is True
