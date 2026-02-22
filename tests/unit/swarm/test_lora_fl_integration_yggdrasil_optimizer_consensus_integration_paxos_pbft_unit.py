@@ -171,8 +171,8 @@ async def test_paxos_pbft_and_consensus_integration_basics(monkeypatch):
     old_view = pbft_node.view
     pbft_node.start_view_change()
     assert pbft_node.view == old_view + 1
-    entry = pbft.PBFTLogEntry(sequence=1, view=pbft_node.view, digest="d")
-    pbft_node._log[1] = entry
+    entry = pbft_node._get_or_create_entry(1)
+    assert entry.view == pbft_node.view
     entry.executed = True
     assert pbft_node.get_executed() == [1]
 
