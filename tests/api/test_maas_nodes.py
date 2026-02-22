@@ -1229,3 +1229,120 @@ class TestMeshOperatorMethods:
         assert op.has_permission(MeshPermission.MESH_READ) is False
         assert op.has_any_permission({MeshPermission.MESH_READ}) is False
         assert op.has_all_permissions(set()) is True  # empty subset is always True
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _check_permission and _ensure_mesh_visibility
+# ---------------------------------------------------------------------------
+
+class TestCheckPermissionAndEnsureVisibility:
+    """Tests for _check_permission and _ensure_mesh_visibility with in-memory DB."""
+
+    def _setup_db_with_mesh_and_user(self, user_role="operator", is_owner=False):
+        """Create an in-memory DB with a MeshInstance and User."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User, MeshInstance
+        import uuid as _uuid
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user_id = f"u-{_uuid.uuid4().hex[:6]}"
+        mesh_id = f"mesh-{_uuid.uuid4().hex[:6]}"
+
+        user = User(
+            id=user_id,
+            email=f"test-{_uuid.uuid4().hex[:8]}@mesh.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key=f"key-{_uuid.uuid4().hex}",
+            role=user_role,
+        )
+        db.add(user)
+
+        owner_id = user_id if is_owner else "other-owner"
+        mesh = MeshInstance(
+            id=mesh_id,
+            name="Test Mesh",
+            owner_id=owner_id,
+        )
+        db.add(mesh)
+        db.commit()
+        db.refresh(user)
+        db.refresh(mesh)
+
+        return db, user, mesh_id
+
+    def test_check_permission_true_for_admin(self):
+        """Admin role gets all permissions from ROLE_PERMISSIONS."""
+        from src.api.maas_nodes import _check_permission, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="admin")
+        try:
+            result = _check_permission(user, mesh_id, MeshPermission.MESH_DELETE, db)
+            assert result is True
+        finally:
+            db.close()
+
+    def test_check_permission_false_for_operator_without_mesh_delete(self):
+        """Operator role doesn't have MESH_DELETE permission."""
+        from src.api.maas_nodes import _check_permission, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="operator")
+        try:
+            result = _check_permission(user, mesh_id, MeshPermission.MESH_DELETE, db)
+            assert result is False
+        finally:
+            db.close()
+
+    def test_ensure_mesh_visibility_raises_404_when_mesh_missing(self):
+        """_ensure_mesh_visibility raises 404 when mesh doesn't exist."""
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user = User(
+            id="u-miss", email="miss@test.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="key-miss", role="operator",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        with pytest.raises(HTTPException) as exc:
+            _ensure_mesh_visibility("nonexistent-mesh", user, db, MeshPermission.MESH_READ)
+        assert exc.value.status_code == 404
+        db.close()
+
+    def test_ensure_mesh_visibility_admin_always_passes(self):
+        """Admin role bypasses permission check → no exception raised."""
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(user_role="admin")
+        try:
+            # Should not raise even for high-privilege operations
+            _ensure_mesh_visibility(mesh_id, user, db, MeshPermission.MESH_DELETE)
+        finally:
+            db.close()
+
+    def test_ensure_mesh_visibility_raises_403_for_non_owner_without_perm(self):
+        """Non-owner operator without explicit permission → 403."""
+        from fastapi import HTTPException
+        from src.api.maas_nodes import _ensure_mesh_visibility, MeshPermission
+        db, user, mesh_id = self._setup_db_with_mesh_and_user(
+            user_role="operator", is_owner=False
+        )
+        try:
+            with pytest.raises(HTTPException) as exc:
+                # MESH_DELETE is not in operator's default permissions
+                _ensure_mesh_visibility(mesh_id, user, db, MeshPermission.MESH_DELETE)
+            assert exc.value.status_code == 403
+        finally:
+            db.close()
