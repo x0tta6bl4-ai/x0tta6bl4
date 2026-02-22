@@ -92,11 +92,13 @@ class Projection(ABC):
     
     def _register_handlers(self) -> None:
         """Register event handlers from decorated methods."""
-        for attr_name in dir(self):
-            attr = getattr(self, attr_name)
-            if hasattr(attr, '_handles_event'):
-                event_type = attr._handles_event
-                self._handlers[event_type] = attr
+        # Iterate class dictionaries directly to avoid evaluating @property
+        # descriptors before subclass fields are initialized.
+        for cls in reversed(type(self).mro()):
+            for attr_name, attr in cls.__dict__.items():
+                if callable(attr) and hasattr(attr, "_handles_event"):
+                    event_type = attr._handles_event
+                    self._handlers[event_type] = getattr(self, attr_name)
     
     @staticmethod
     def handles(event_type: str):
