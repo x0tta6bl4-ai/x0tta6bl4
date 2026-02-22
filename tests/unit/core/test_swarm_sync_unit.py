@@ -64,6 +64,20 @@ def test_sync_tech_to_business_keeps_state_for_non_hybrid_mode():
     assert state["business_stream"]["offer_ready"] is False
 
 
+def test_sync_tech_to_business_creates_business_stream_when_missing():
+    state = {
+        "technical_stream": {"routing_mode": "hybrid_ml"},
+    }
+    mod.sync_tech_to_business(state)
+    assert state["business_stream"]["offer_ready"] is True
+
+
+def test_sync_tech_to_business_handles_missing_technical_stream():
+    state = {"business_stream": {"offer_ready": False}}
+    mod.sync_tech_to_business(state)
+    assert state["business_stream"]["offer_ready"] is False
+
+
 def test_save_state_writes_pretty_json(tmp_path, monkeypatch):
     state_file = tmp_path / "swarm_state.json"
     monkeypatch.setattr(mod, "STATE_FILE", str(state_file))
@@ -74,4 +88,3 @@ def test_save_state_writes_pretty_json(tmp_path, monkeypatch):
 
     assert "\n" in text
     assert json.loads(text) == state
-

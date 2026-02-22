@@ -35,8 +35,10 @@ def sync_recovery(state):
 
 def sync_tech_to_business(state):
     # Если в тех-стриме готов гибридный роутинг, сообщаем бизнесу, что пора обновлять офер
-    if state["technical_stream"]["routing_mode"] == "hybrid_ml":
-        state["business_stream"]["offer_ready"] = True
+    technical_stream = state.get("technical_stream") or {}
+    if technical_stream.get("routing_mode") == "hybrid_ml":
+        business_stream = state.setdefault("business_stream", {})
+        business_stream["offer_ready"] = True
 
 def main():
     while True:
