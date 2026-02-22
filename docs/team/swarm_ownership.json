@@ -55,7 +55,8 @@
         "tests/api/test_maas_billing.py",
         "tests/unit/api/test_maas_security_unit.py",
         "tests/api/test_maas_auth.py",
-        "tests/api/test_maas_governance_edge.py"
+        "tests/api/test_maas_governance_edge.py",
+        "tests/unit/services/test_maas_analytics_service.py"
       ]
     },
     "lead-coordinator": {
