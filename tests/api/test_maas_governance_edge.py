@@ -328,3 +328,85 @@ class TestExecuteActionTypes:
         """Proposal with no actions → empty results list."""
         results = self._create_and_execute(client, pro_token, free_token, [])
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for governance utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestGovernanceUtilityFunctions:
+    """Direct tests for _execute_action, _tally, _resolve_state, get_gov_power.
+
+    These functions are tested without the HTTP layer (no TestClient needed).
+    """
+
+    def test_execute_action_unknown_type_returns_failure(self):
+        """_execute_action with unhandled type (e.g. restart_node) → success=False."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({"type": "restart_node", "params": {}})
+        assert result["success"] is False
+        assert "Unknown action type" in result["detail"]
+
+    def test_execute_action_uses_action_type_key_fallback(self):
+        """_execute_action reads 'action_type' key as fallback for 'type' missing."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({"action_type": "rotate_keys", "params": {}})
+        assert result["success"] is True
+        assert result["action"] == "rotate_keys"
+
+    def test_get_gov_power_known_plans(self):
+        """get_gov_power returns correct power for each known plan."""
+        from src.api.maas_governance import get_gov_power
+        from src.database import User
+        for plan, expected in [("free", 10.0), ("starter", 100.0), ("pro", 1000.0), ("enterprise", 10000.0)]:
+            user = User(plan=plan)
+            assert get_gov_power(user) == expected
+
+    def test_get_gov_power_unknown_plan_defaults_to_10(self):
+        """get_gov_power falls back to 10.0 for unrecognized plans."""
+        from src.api.maas_governance import get_gov_power
+        from src.database import User
+        user = User(plan="custom-unknown-plan")
+        assert get_gov_power(user) == 10.0
+
+    def test_tally_empty_votes(self):
+        """_tally with no votes → all zeroes."""
+        from src.api.maas_governance import _tally
+        proposal = GovernanceProposal(id="p1", title="T", description="D",
+                                      state="active", votes=[])
+        result = _tally(proposal)
+        assert result == {"yes": 0.0, "no": 0.0, "abstain": 0.0}
+
+    def test_tally_with_votes(self):
+        """_tally applies quadratic formula: qv = sqrt(tokens / 100)."""
+        import math
+        from src.api.maas_governance import _tally
+        votes = [
+            GovernanceVote(voter_id="v1", vote="yes", tokens=10000.0),  # sqrt(100) = 10
+            GovernanceVote(voter_id="v2", vote="no", tokens=2500.0),    # sqrt(25) = 5
+        ]
+        proposal = GovernanceProposal(id="p2", title="T", description="D",
+                                      state="active", votes=votes)
+        result = _tally(proposal)
+        assert math.isclose(result["yes"], 10.0, rel_tol=1e-6)
+        assert math.isclose(result["no"], 5.0, rel_tol=1e-6)
+        assert result["abstain"] == 0.0
+
+    def test_resolve_state_already_executed(self):
+        """_resolve_state returns 'executed' immediately if proposal is already executed."""
+        from src.api.maas_governance import _resolve_state
+        proposal = GovernanceProposal(
+            id="p3", title="T", description="D", state="executed",
+            end_time=datetime.utcnow() - timedelta(hours=1), votes=[],
+        )
+        assert _resolve_state(proposal) == "executed"
+
+    def test_resolve_state_non_active_non_executed_returns_current(self):
+        """_resolve_state returns proposal.state for non-active, non-executed states."""
+        from src.api.maas_governance import _resolve_state
+        for state in ("cancelled", "rejected", "passed"):
+            proposal = GovernanceProposal(
+                id="px", title="T", description="D", state=state,
+                end_time=datetime.utcnow() - timedelta(hours=1), votes=[],
+            )
+            assert _resolve_state(proposal) == state
