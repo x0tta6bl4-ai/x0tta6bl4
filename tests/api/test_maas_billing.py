@@ -1181,3 +1181,97 @@ class TestResolveBillingUser:
         result = _resolve_billing_user(db_session, req)
         assert result is not None
         assert result.id == user.id
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for billing event state machine helpers
+# ---------------------------------------------------------------------------
+
+class TestBillingEventStateMachine:
+    """Direct tests for _finalize, _fail, and _cleanup billing event helpers."""
+
+    @pytest.fixture()
+    def db_session(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        SL = sessionmaker(bind=engine)
+        db = SL()
+        try:
+            yield db
+        finally:
+            db.close()
+            Base.metadata.drop_all(bind=engine)
+
+    def _make_event(self, db, event_id, status="processing"):
+        from src.database import BillingWebhookEvent
+        event = BillingWebhookEvent(
+            event_id=event_id,
+            event_type="plan.upgraded",
+            payload_hash="abc123",
+            status=status,
+        )
+        db.add(event)
+        db.commit()
+        return event
+
+    def test_finalize_updates_event_to_done(self, db_session):
+        from src.api.maas_legacy import _finalize_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"fin-evt-{uuid.uuid4().hex[:8]}"
+        self._make_event(db_session, eid)
+        _finalize_billing_event_processing(db_session, eid, {"result": "ok"})
+        row = db_session.query(BillingWebhookEvent).filter_by(event_id=eid).first()
+        assert row.status == "done"
+        assert row.last_error is None
+        assert row.processed_at is not None
+
+    def test_finalize_raises_runtime_error_when_event_missing(self, db_session):
+        from src.api.maas_legacy import _finalize_billing_event_processing
+        with pytest.raises(RuntimeError, match="Billing event reservation missing"):
+            _finalize_billing_event_processing(db_session, "ghost-event-id", {})
+
+    def test_fail_updates_event_to_failed(self, db_session):
+        from src.api.maas_legacy import _fail_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"fail-evt-{uuid.uuid4().hex[:8]}"
+        self._make_event(db_session, eid)
+        _fail_billing_event_processing(db_session, eid, "Something went wrong")
+        row = db_session.query(BillingWebhookEvent).filter_by(event_id=eid).first()
+        assert row.status == "failed"
+        assert "Something went wrong" in row.last_error
+
+    def test_fail_missing_event_returns_silently(self, db_session):
+        from src.api.maas_legacy import _fail_billing_event_processing
+        # Should not raise, just return
+        _fail_billing_event_processing(db_session, "ghost-event-id", "err")
+
+    def test_fail_truncates_long_error_to_2000_chars(self, db_session):
+        from src.api.maas_legacy import _fail_billing_event_processing
+        from src.database import BillingWebhookEvent
+        eid = f"fail-long-{uuid.uuid4().hex[:8]}"
+        self._make_event(db_session, eid)
+        long_error = "x" * 3000
+        _fail_billing_event_processing(db_session, eid, long_error)
+        row = db_session.query(BillingWebhookEvent).filter_by(event_id=eid).first()
+        assert len(row.last_error) == 2000
+
+    def test_cleanup_removes_expired_events(self, db_session):
+        from datetime import timedelta
+        from src.api.maas_legacy import _cleanup_expired_billing_events
+        from src.database import BillingWebhookEvent
+        eid = f"clean-evt-{uuid.uuid4().hex[:8]}"
+        event = BillingWebhookEvent(
+            event_id=eid,
+            event_type="plan.upgraded",
+            payload_hash="old",
+            status="done",
+            created_at=datetime.utcnow() - timedelta(days=2),
+        )
+        db_session.add(event)
+        db_session.commit()
+        _cleanup_expired_billing_events(db_session)
+        row = db_session.query(BillingWebhookEvent).filter_by(event_id=eid).first()
+        assert row is None
