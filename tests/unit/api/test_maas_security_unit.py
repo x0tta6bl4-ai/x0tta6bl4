@@ -713,3 +713,132 @@ class TestPQCTokenSignerVault:
         # Should fall back to HMAC
         assert result["algorithm"] == "HMAC-SHA256"
         assert result["pqc_secured"] is False
+
+
+# ---------------------------------------------------------------------------
+# PQC success paths and OIDC discovery cold-start
+# ---------------------------------------------------------------------------
+
+class TestPQCSuccessPaths:
+    """Cover PQC sign/verify success paths (lines 147-160 and 182-188)."""
+
+    def test_sign_token_pqc_success_returns_pqc_secured(self):
+        """PQC signer and keypair present, sign() succeeds → pqc_secured=True."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        mock_sig = MagicMock()
+        mock_sig.signature_bytes = b"\xab" * 64
+        mock_sig.signer_key_id = "maas-token-signer"
+        mock_pqc = MagicMock()
+        mock_pqc.sign.return_value = mock_sig
+        signer._pqc_signer = mock_pqc
+        signer._signing_keypair = MagicMock()
+
+        result = signer.sign_token("tok1", "mesh-xyz")
+
+        assert result["pqc_secured"] is True
+        assert result["algorithm"] == "ML-DSA-65"
+        assert result["token"] == "tok1"
+        mock_pqc.sign.assert_called_once()
+
+    def test_verify_token_pqc_success_returns_true(self):
+        """PQC signer present, verify() returns True → verify_token returns True."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        mock_pqc = MagicMock()
+        mock_pqc.verify.return_value = True
+        signer._pqc_signer = mock_pqc
+        signer._signing_keypair = MagicMock()
+
+        # Provide a valid hex signature (64 chars = 32 bytes)
+        hex_sig = "ab" * 32
+        result = signer.verify_token("tok1", "mesh-xyz", hex_sig)
+
+        assert result is True
+        mock_pqc.verify.assert_called_once()
+
+
+class TestOIDCValidatorDiscoveryColdStart:
+    """Cover _fetch_jwks() full cold-start path: discovery succeeds, then JWKS fetched."""
+
+    def test_fetch_jwks_discovery_then_jwks_success(self):
+        """_jwks_uri=None → discovery fetched → _jwks_uri set → JWKS fetched (lines 254-271)."""
+        import jwt as pyjwt
+
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://coldstart.example.com",
+            "OIDC_CLIENT_ID": "cold-client",
+        }):
+            v = OIDCValidator()
+        v._jwks_uri = None
+        v._jwks_cache = None
+        v._jwks_fetched_at = 0.0
+
+        discovery_payload = {"jwks_uri": "https://coldstart.example.com/jwks"}
+        jwks_payload = {"keys": [{"kid": "cs-k1", "kty": "RSA"}]}
+
+        discovery_resp = MagicMock()
+        discovery_resp.json.return_value = discovery_payload
+        discovery_resp.raise_for_status = MagicMock()
+
+        jwks_resp = MagicMock()
+        jwks_resp.json.return_value = jwks_payload
+        jwks_resp.raise_for_status = MagicMock()
+
+        # First call → discovery URL, second call → JWKS URL
+        with patch("httpx.get", side_effect=[discovery_resp, jwks_resp]) as mock_get:
+            result = v._fetch_jwks()
+
+        assert result == jwks_payload
+        assert v._jwks_uri == "https://coldstart.example.com/jwks"
+        assert mock_get.call_count == 2
+
+
+class TestOIDCValidatorFromJwkException:
+    """Cover the from_jwk() exception → continue path in validate() (line 304)."""
+
+    def _enabled_validator(self):
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://fromjwk.example.com",
+            "OIDC_CLIENT_ID": "fromjwk-client",
+        }):
+            return OIDCValidator()
+
+    def test_from_jwk_raises_continue_then_succeeds_with_next_key(self):
+        """First key's from_jwk() raises, second key succeeds → claims returned.
+
+        Uses a header with NO 'kid' field so the `not kid` branch is True and
+        ALL keys in the JWKS are tried in order.
+        """
+        import jwt as pyjwt
+        v = self._enabled_validator()
+        # Two keys, no 'kid' filtering — all will be tried
+        jwks = {"keys": [{"kty": "RSA"}, {"kty": "RSA"}]}
+        v._fetch_jwks = MagicMock(return_value=jwks)
+
+        good_key = MagicMock()
+        claims = {
+            "sub": "user-42", "email": "u@t.com", "name": "U", "iat": 1, "exp": 9999999999,
+        }
+
+        call_count = [0]
+
+        def from_jwk_side_effect(key_data):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise ValueError("bad jwk")
+            return good_key
+
+        # No 'kid' in header → not kid is True → tries all keys
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               side_effect=from_jwk_side_effect):
+                with patch.object(pyjwt, "decode", return_value=claims):
+                    result = v.validate("test.jwt.token")
+
+        # First key raised (continue), second key succeeded
+        assert result.sub == "user-42"
+        assert call_count[0] == 2
