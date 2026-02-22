@@ -518,3 +518,111 @@ class TestEnterpriseInvoiceRate:
         admin.plan = "starter"
         db.commit()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for billing/legacy utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestBillingUtilityFunctions:
+    """Direct tests for billing utility functions in maas_legacy.
+
+    These functions are tested without the HTTP layer (no TestClient needed).
+    """
+
+    def test_is_reissue_token_expired_non_string_returns_true(self):
+        """expires_at not a string → True (line 816-817)."""
+        from src.api.maas_legacy import _is_reissue_token_expired
+        assert _is_reissue_token_expired({"expires_at": None}) is True
+        assert _is_reissue_token_expired({"expires_at": 12345}) is True
+        assert _is_reissue_token_expired({}) is True
+
+    def test_is_reissue_token_expired_invalid_iso_returns_true(self):
+        """expires_at is an invalid ISO string → ValueError → True (line 820-821)."""
+        from src.api.maas_legacy import _is_reissue_token_expired
+        assert _is_reissue_token_expired({"expires_at": "not-a-date"}) is True
+
+    def test_is_reissue_token_expired_past_returns_true(self):
+        """expires_at is in the past → True."""
+        from datetime import datetime, timedelta
+        from src.api.maas_legacy import _is_reissue_token_expired
+        past = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+        assert _is_reissue_token_expired({"expires_at": past}) is True
+
+    def test_is_reissue_token_expired_future_returns_false(self):
+        """expires_at is in the future → False."""
+        from datetime import datetime, timedelta
+        from src.api.maas_legacy import _is_reissue_token_expired
+        future = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+        assert _is_reissue_token_expired({"expires_at": future}) is False
+
+    def test_billing_webhook_tolerance_invalid_env_returns_default(self):
+        """Non-int env value → ValueError → 300 default (line 844-845)."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "not-an-int"}):
+            assert _billing_webhook_tolerance_seconds() == 300
+
+    def test_billing_webhook_tolerance_clamped_to_min(self):
+        """Value below 30 → clamped to 30."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "5"}):
+            assert _billing_webhook_tolerance_seconds() == 30
+
+    def test_billing_webhook_tolerance_clamped_to_max(self):
+        """Value above 3600 → clamped to 3600."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "9999"}):
+            assert _billing_webhook_tolerance_seconds() == 3600
+
+    def test_billing_event_ttl_invalid_env_returns_default(self):
+        """Non-int env value → ValueError → 86400 default (line 853-854)."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_EVENT_TTL_SEC": "not-an-int"}):
+            assert _billing_event_ttl_seconds() == 86_400
+
+    def test_billing_event_ttl_clamped_to_min(self):
+        """Value below 300 → clamped to 300."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_EVENT_TTL_SEC": "10"}):
+            assert _billing_event_ttl_seconds() == 300
+
+    def test_verify_billing_webhook_secret_no_env_passes(self):
+        """No X0T_BILLING_WEBHOOK_SECRET env → passes without raising."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        with patch.dict(os.environ, {}, clear=True):
+            _verify_billing_webhook_secret("any-value")  # should not raise
+
+    def test_verify_billing_webhook_secret_mismatch_raises_401(self):
+        """Expected secret set, provided doesn't match → 401."""
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_SECRET": "correct-secret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_secret("wrong-secret")
+            assert exc.value.status_code == 401
+
+    def test_verify_billing_webhook_secret_none_raises_401(self):
+        """Expected secret set, provided is None → 401."""
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_SECRET": "correct-secret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_secret(None)
+            assert exc.value.status_code == 401
+
+    def test_payload_sha256_hex_returns_hex_string(self):
+        """_payload_sha256_hex returns a 64-char hex string."""
+        import hashlib
+        from src.api.maas_legacy import _payload_sha256_hex
+        result = _payload_sha256_hex(b"test payload")
+        assert len(result) == 64
+        expected = hashlib.sha256(b"test payload").hexdigest()
+        assert result == expected
