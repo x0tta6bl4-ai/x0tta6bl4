@@ -95,7 +95,15 @@
         "src/security/pqc_identity.py",
         "tests/unit/security/test_pqc_identity_unit.py",
         "src/security/anti_meave_oracle.py",
-        "tests/unit/security/test_anti_meave_oracle_unit.py"
+        "tests/unit/security/test_anti_meave_oracle_unit.py",
+        "src/network/ebpf/metrics/logging_utils.py",
+        "src/network/routing/mesh/forwarding.py",
+        "src/network/routing/mesh/routing_table.py",
+        "src/network/routing/mesh/statistics.py",
+        "tests/unit/network/ebpf/test_logging_utils_unit.py",
+        "tests/unit/network/routing/mesh/test_forwarding_unit.py",
+        "tests/unit/network/routing/mesh/test_routing_table_unit.py",
+        "tests/unit/network/routing/mesh/test_statistics_unit.py"
       ]
     },
     "lead-coordinator": {
