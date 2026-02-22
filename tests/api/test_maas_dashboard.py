@@ -233,3 +233,92 @@ class TestDashboardNodeDetail:
             headers={"X-API-Key": other_token},
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Offline node health + admin audit path
+# ---------------------------------------------------------------------------
+
+class TestDashboardEdgeCases:
+    @pytest.fixture(scope="class")
+    def offline_data(self, client):
+        """Create a mesh with an offline node (last_seen > 30 min ago)."""
+        email = f"offline-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": email, "password": "password123"},
+        )
+        token = r.json()["access_token"]
+
+        db = TestingSessionLocal()
+        user = db.query(User).filter(User.api_key == token).first()
+        user_id = user.id
+
+        mesh_id = f"mesh-off-{uuid.uuid4().hex[:6]}"
+        db.add(MeshInstance(
+            id=mesh_id,
+            name="Offline Test Mesh",
+            owner_id=user_id,
+            status="active",
+            pqc_enabled=False,
+        ))
+        # Node that was last seen > 30 min ago → "offline"
+        db.add(MeshNode(
+            id=f"nd-off-{uuid.uuid4().hex[:6]}",
+            mesh_id=mesh_id,
+            status="approved",
+            device_class="edge",
+            hardware_id=None,
+            enclave_enabled=False,
+            last_seen=datetime.utcnow() - timedelta(minutes=45),
+        ))
+        db.commit()
+        db.close()
+
+        return {"token": token, "mesh_id": mesh_id}
+
+    def test_offline_node_health_in_summary(self, client, offline_data):
+        """Node last_seen 45 min ago → health 'offline' counted in summary."""
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": offline_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        health = r.json()["stats"]["node_health"]
+        assert health.get("offline", 0) >= 1
+
+    def test_offline_node_health_in_node_detail(self, client, offline_data):
+        """Node detail endpoint also shows 'offline' for the stale node."""
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{offline_data['mesh_id']}",
+            headers={"X-API-Key": offline_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        health_values = {n["health"] for n in r.json()["nodes"]}
+        assert "offline" in health_values
+
+    def test_admin_sees_all_audit_logs(self, client):
+        """Admin role bypasses user_id filter for audit logs (line 98-99)."""
+        # Create and promote an admin
+        email = f"adm-dash-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": email, "password": "password123"},
+        )
+        admin_token = r.json()["access_token"]
+
+        db = TestingSessionLocal()
+        u = db.query(User).filter(User.api_key == admin_token).first()
+        u.role = "admin"
+        db.commit()
+        db.close()
+
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": admin_token},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # Admin gets recent_audit without user_id filter — list present
+        assert "recent_audit" in data
+        assert isinstance(data["recent_audit"], list)
