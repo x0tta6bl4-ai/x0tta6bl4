@@ -994,3 +994,140 @@ class TestNodeUtilityFunctions:
         assert payload["status"] == "degraded"
         assert payload["cpu_percent"] == 55.0
         assert payload["timestamp"] == "2026-02-22T12:00:00"
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _to_optional_float
+# ---------------------------------------------------------------------------
+
+class TestToOptionalFloat:
+    """Direct tests for _to_optional_float conversion helper."""
+
+    def test_none_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float(None) is None
+
+    def test_valid_int_returns_float(self):
+        from src.api.maas_nodes import _to_optional_float
+        result = _to_optional_float(42)
+        assert result == 42.0
+        assert isinstance(result, float)
+
+    def test_valid_string_returns_float(self):
+        from src.api.maas_nodes import _to_optional_float
+        result = _to_optional_float("3.14")
+        assert abs(result - 3.14) < 1e-9
+
+    def test_invalid_string_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float("not-a-number") is None
+
+    def test_invalid_type_returns_none(self):
+        from src.api.maas_nodes import _to_optional_float
+        assert _to_optional_float({"key": "value"}) is None
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _export_analytics_telemetry,
+# _read_external_telemetry, _read_external_telemetry_history
+# ---------------------------------------------------------------------------
+
+class TestExternalTelemetryHelpers:
+    """Tests for telemetry import/export helper functions."""
+
+    def test_export_returns_false_when_setter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        with patch.object(mod, "_set_external_telemetry", None):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is False
+
+    def test_export_returns_true_when_setter_succeeds(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        mock_setter = MagicMock()
+        with patch.object(mod, "_set_external_telemetry", mock_setter):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is True
+        mock_setter.assert_called_once_with("node-x", {"cpu": 10.0})
+
+    def test_export_returns_false_when_setter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _export_analytics_telemetry
+        mock_setter = MagicMock(side_effect=Exception("redis down"))
+        with patch.object(mod, "_set_external_telemetry", mock_setter):
+            result = _export_analytics_telemetry("node-x", {"cpu": 10.0})
+        assert result is False
+
+    def test_read_external_returns_empty_when_getter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        with patch.object(mod, "_get_external_telemetry", None):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_empty_when_getter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(side_effect=Exception("timeout"))
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_empty_when_result_not_dict(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(return_value=["not", "a", "dict"])
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {}
+
+    def test_read_external_returns_dict_when_getter_succeeds(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry
+        mock_getter = MagicMock(return_value={"cpu": 42.0})
+        with patch.object(mod, "_get_external_telemetry", mock_getter):
+            result = _read_external_telemetry("node-x")
+        assert result == {"cpu": 42.0}
+
+    def test_read_history_returns_empty_when_getter_is_none(self):
+        from unittest.mock import patch
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        with patch.object(mod, "_get_external_telemetry_history", None):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_returns_empty_when_getter_raises(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(side_effect=Exception("oops"))
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_returns_empty_when_result_not_list(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value={"not": "a list"})
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=5)
+        assert result == []
+
+    def test_read_history_filters_non_dicts(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value=[{"cpu": 1}, "bad", 42, {"mem": 2}])
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=10)
+        assert result == [{"cpu": 1}, {"mem": 2}]
