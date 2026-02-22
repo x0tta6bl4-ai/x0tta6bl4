@@ -942,3 +942,133 @@ class TestMeshHelperFunctions:
         assert result["recommendation"] == "maintain"
         assert result["phase"] == "MONITOR"
         assert result["node_id"] == "n4"
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for PQC profile lookup
+# ---------------------------------------------------------------------------
+
+class TestGetPQCProfile:
+    """Direct tests for _get_pqc_profile (no TestClient needed)."""
+
+    def test_known_device_class_sensor_returned(self):
+        from src.api.maas_legacy import _get_pqc_profile
+        profile = _get_pqc_profile("sensor")
+        assert profile["kem"] == "ML-KEM-512"
+        assert profile["sig"] == "ML-DSA-44"
+        assert profile["security_level"] == 1
+
+    def test_known_device_class_gateway_returned(self):
+        from src.api.maas_legacy import _get_pqc_profile
+        profile = _get_pqc_profile("gateway")
+        assert profile["kem"] == "ML-KEM-1024"
+        assert profile["security_level"] == 5
+
+    def test_unknown_device_class_returns_default_profile(self):
+        from src.api.maas_legacy import _get_pqc_profile, _PQC_DEFAULT_PROFILE
+        profile = _get_pqc_profile("unknown-device-xyz")
+        assert profile == _PQC_DEFAULT_PROFILE
+        assert profile["security_level"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _audit helper
+# ---------------------------------------------------------------------------
+
+class TestAuditHelper:
+    """Direct tests for _audit (no TestClient needed)."""
+
+    def test_audit_creates_new_list_for_new_mesh(self):
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import _audit
+        mesh_id = f"mesh-audit-{uuid.uuid4().hex[:8]}"
+        assert mesh_id not in leg._mesh_audit_log
+        _audit(mesh_id, "user-1", "deploy", "deployed 5 nodes")
+        assert mesh_id in leg._mesh_audit_log
+        assert len(leg._mesh_audit_log[mesh_id]) == 1
+        entry = leg._mesh_audit_log[mesh_id][0]
+        assert entry["actor"] == "user-1"
+        assert entry["event"] == "deploy"
+        assert entry["details"] == "deployed 5 nodes"
+        # Cleanup
+        del leg._mesh_audit_log[mesh_id]
+
+    def test_audit_appends_to_existing_list(self):
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import _audit
+        mesh_id = f"mesh-audit2-{uuid.uuid4().hex[:8]}"
+        _audit(mesh_id, "user-a", "create", "first event")
+        _audit(mesh_id, "user-b", "update", "second event")
+        assert len(leg._mesh_audit_log[mesh_id]) == 2
+        assert leg._mesh_audit_log[mesh_id][1]["actor"] == "user-b"
+        # Cleanup
+        del leg._mesh_audit_log[mesh_id]
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for BillingService
+# ---------------------------------------------------------------------------
+
+class TestBillingService:
+    """Direct tests for BillingService methods (no TestClient needed)."""
+
+    def test_normalize_plan_free_maps_to_starter(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan("free") == "starter"
+
+    def test_normalize_plan_starter_maps_to_starter(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan("starter") == "starter"
+
+    def test_normalize_plan_pro_maps_to_pro(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan("pro") == "pro"
+
+    def test_normalize_plan_enterprise_maps_to_enterprise(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan("enterprise") == "enterprise"
+
+    def test_normalize_plan_none_defaults_to_starter(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan(None) == "starter"
+
+    def test_normalize_plan_unknown_defaults_to_starter(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        assert svc.normalize_plan("unknown-plan") == "starter"
+
+    def test_plan_catalog_has_all_plans(self):
+        from src.api.maas_legacy import BillingService
+        svc = BillingService()
+        catalog = svc.plan_catalog()
+        assert "starter" in catalog
+        assert "pro" in catalog
+        assert "enterprise" in catalog
+
+    def test_check_quota_within_limit_returns_true(self):
+        from src.api.maas_legacy import BillingService
+        from src.database import User
+        svc = BillingService()
+        user = User(plan="pro")
+        assert svc.check_quota(user, requested_nodes=10) is True
+
+    def test_check_quota_exceeds_plan_limit_raises(self):
+        from src.api.maas_legacy import BillingService
+        from src.database import User
+        svc = BillingService()
+        user = User(plan="starter")
+        with pytest.raises(Exception, match="Quota exceeded"):
+            svc.check_quota(user, requested_nodes=100)
+
+    def test_check_quota_plan_escalation_blocked(self):
+        from src.api.maas_legacy import BillingService
+        from src.database import User
+        svc = BillingService()
+        user = User(plan="starter")
+        with pytest.raises(Exception, match="Plan escalation blocked"):
+            svc.check_quota(user, requested_nodes=5, requested_plan="enterprise")
