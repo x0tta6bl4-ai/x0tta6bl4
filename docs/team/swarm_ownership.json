@@ -64,6 +64,7 @@
       "description": "Codex implementation lane for MaaS 80/20 delivery",
       "allow": [
         "src/api/maas/constants.py",
+        "src/api/maas/mesh_instance.py",
         "src/api/maas/services.py",
         "src/core/swarm_sync.py",
         "src/agents/final_organizer.py",
@@ -71,6 +72,8 @@
         "src/mesh/network_manager.py",
         "tests/unit/api/test_maas_services_billing_unit.py",
         "tests/unit/api/test_maas_acl_unit.py",
+        "tests/unit/api/test_maas_constants_unit.py",
+        "tests/unit/api/test_maas_mesh_instance_unit.py",
         "tests/unit/test_maas_package.py",
         "skills/x0tta6bl4-80-20-executor/SKILL.md",
         "skills/x0tta6bl4-80-20-executor/references/agent_cycle_profiles_80_20.json",
