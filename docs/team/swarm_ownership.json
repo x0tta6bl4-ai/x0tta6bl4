@@ -60,6 +60,22 @@
         "tests/unit/services/test_maas_auth_service_unit.py"
       ]
     },
+    "codex-implementer": {
+      "description": "Codex implementation lane for MaaS 80/20 delivery",
+      "allow": [
+        "src/api/maas/constants.py",
+        "src/api/maas/services.py",
+        "src/agents/final_organizer.py",
+        "src/agents/ultra_recovery.py",
+        "src/mesh/network_manager.py",
+        "tests/unit/api/test_maas_services_billing_unit.py",
+        "tests/unit/api/test_maas_acl_unit.py",
+        "tests/unit/test_maas_package.py",
+        "skills/x0tta6bl4-80-20-executor/SKILL.md",
+        "skills/x0tta6bl4-80-20-executor/references/agent_cycle_profiles_80_20.json",
+        "skills/x0tta6bl4-80-20-executor/scripts/run_80_20_cycle.sh"
+      ]
+    },
     "lead-coordinator": {
       "description": "Swarm governance and guardrails",
       "allow": [
