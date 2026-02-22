@@ -516,3 +516,41 @@ class TestCancelListing:
             headers={"X-API-Key": market_data["seller_token"]},
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: 404 and 400 for release/refund on nonexistent/wrong-state listings
+# ---------------------------------------------------------------------------
+
+class TestEscrowEdgeCases:
+    def test_release_nonexistent_listing_404(self, client, market_data):
+        """release_escrow on a listing that doesn't exist → 404."""
+        r = client.post(
+            "/api/v1/maas/marketplace/escrow/lst-does-not-exist/release",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 404
+
+    def test_refund_nonexistent_listing_404(self, client, market_data):
+        """refund_escrow on a listing that doesn't exist → 404."""
+        r = client.post(
+            "/api/v1/maas/marketplace/escrow/lst-does-not-exist-x/refund",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 404
+
+    def test_refund_listing_not_in_escrow_400(self, client, market_data):
+        """refund_escrow on an available (not-in-escrow) listing → 400."""
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "us-east",
+                  "price_per_hour": 0.5, "bandwidth_mbps": 100},
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        listing_id = r.json()["listing_id"]
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 400
