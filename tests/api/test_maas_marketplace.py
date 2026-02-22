@@ -554,3 +554,71 @@ class TestEscrowEdgeCases:
             headers={"X-API-Key": market_data["buyer_token"]},
         )
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _db_session_available and _as_listing_response
+# ---------------------------------------------------------------------------
+
+class TestMarketplaceUtilityFunctions:
+    """Direct tests for marketplace utility helpers (no TestClient needed)."""
+
+    def test_db_session_available_with_session_like_object(self):
+        """Object with 'query' and 'commit' → True."""
+        from unittest.mock import MagicMock
+        from src.api.maas_marketplace import _db_session_available
+        mock_db = MagicMock(spec=["query", "commit"])
+        assert _db_session_available(mock_db) is True
+
+    def test_db_session_available_with_dict_returns_false(self):
+        """Plain dict has no 'query' attr → False."""
+        from src.api.maas_marketplace import _db_session_available
+        assert _db_session_available({}) is False
+
+    def test_db_session_available_with_none_returns_false(self):
+        """None → False."""
+        from src.api.maas_marketplace import _db_session_available
+        assert _db_session_available(None) is False
+
+    def test_db_session_available_has_query_but_no_commit_returns_false(self):
+        """Object with 'query' only (no 'commit') → False."""
+        from unittest.mock import MagicMock
+        from src.api.maas_marketplace import _db_session_available
+        mock_db = MagicMock(spec=["query"])  # has query but not commit
+        assert _db_session_available(mock_db) is False
+
+    def test_as_listing_response_maps_all_fields(self):
+        """_as_listing_response maps all expected keys from the data dict."""
+        from src.api.maas_marketplace import _as_listing_response
+        import datetime
+        data = {
+            "listing_id": "lst-abc123",
+            "owner_id": "owner-1",
+            "node_id": "node-xyz",
+            "region": "us-east",
+            "price_per_hour": 0.75,
+            "bandwidth_mbps": 100,
+            "status": "available",
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        result = _as_listing_response(data)
+        assert result["listing_id"] == "lst-abc123"
+        assert result["owner_id"] == "owner-1"
+        assert result["node_id"] == "node-xyz"
+        assert result["region"] == "us-east"
+        assert result["price_per_hour"] == 0.75
+        assert result["bandwidth_mbps"] == 100
+        assert result["status"] == "available"
+        assert "created_at" in result
+
+    def test_as_listing_response_preserves_status(self):
+        """_as_listing_response preserves status field as-is."""
+        from src.api.maas_marketplace import _as_listing_response
+        import datetime
+        data = {
+            "listing_id": "lst-xyz", "owner_id": "o1", "node_id": "n1",
+            "region": "eu-central", "price_per_hour": 1.0, "bandwidth_mbps": 50,
+            "status": "in_escrow", "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        result = _as_listing_response(data)
+        assert result["status"] == "in_escrow"
