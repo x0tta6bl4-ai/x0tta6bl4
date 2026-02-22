@@ -1,13 +1,18 @@
 """Unit tests for src/api/maas/endpoints/nodes.py."""
 
 from types import SimpleNamespace
+import uuid
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from src.api.maas.auth import UserContext
 from src.api.maas.endpoints import nodes as mod
 from src.api.maas.models import NodeHeartbeatRequest, NodeRegisterRequest
+from src.api.maas_nodes import MeshPermission, _ensure_owner_or_admin_access
+from src.database import Base, MeshInstance, User
 
 
 def test_to_optional_float_handles_valid_and_invalid_values():
@@ -160,3 +165,84 @@ async def test_node_heartbeat_updates_registry_and_export_status(monkeypatch):
     assert captured["node_id"] == "node-1"
     assert captured["payload"]["active_connections"] == 4
 
+
+def _build_maas_nodes_db(*, role: str, create_mesh: bool, owner_is_user: bool):
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    user = User(
+        id=f"user-{uuid.uuid4().hex[:8]}",
+        email=f"user-{uuid.uuid4().hex[:8]}@test.local",
+        password_hash="$2b$12$fakehash" + "x" * 53,
+        api_key=f"key-{uuid.uuid4().hex}",
+        role=role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
+    if create_mesh:
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="guard-test-mesh",
+                owner_id=user.id if owner_is_user else "foreign-owner",
+            )
+        )
+        db.commit()
+
+    return db, user, mesh_id
+
+
+def test_owner_or_admin_access_allows_admin_without_mesh_when_enabled():
+    db, user, _ = _build_maas_nodes_db(role="admin", create_mesh=False, owner_is_user=False)
+    try:
+        mesh = _ensure_owner_or_admin_access(
+            "mesh-missing",
+            user,
+            db,
+            MeshPermission.TELEMETRY_READ,
+            allow_admin_without_mesh=True,
+        )
+        assert mesh is None
+    finally:
+        db.close()
+
+
+def test_owner_or_admin_access_raises_404_for_operator_when_mesh_missing():
+    db, user, _ = _build_maas_nodes_db(role="operator", create_mesh=False, owner_is_user=False)
+    try:
+        with pytest.raises(HTTPException) as exc:
+            _ensure_owner_or_admin_access(
+                "mesh-missing",
+                user,
+                db,
+                MeshPermission.TELEMETRY_READ,
+                allow_admin_without_mesh=True,
+            )
+        assert exc.value.status_code == 404
+    finally:
+        db.close()
+
+
+def test_owner_or_admin_access_hides_foreign_mesh_from_operator():
+    db, user, mesh_id = _build_maas_nodes_db(role="operator", create_mesh=True, owner_is_user=False)
+    try:
+        with pytest.raises(HTTPException) as exc:
+            _ensure_owner_or_admin_access(mesh_id, user, db, MeshPermission.ACL_READ)
+        assert exc.value.status_code == 404
+    finally:
+        db.close()
+
+
+def test_owner_or_admin_access_allows_owner_operator():
+    db, user, mesh_id = _build_maas_nodes_db(role="operator", create_mesh=True, owner_is_user=True)
+    try:
+        mesh = _ensure_owner_or_admin_access(mesh_id, user, db, MeshPermission.TELEMETRY_READ)
+        assert mesh is not None
+        assert mesh.id == mesh_id
+    finally:
+        db.close()
