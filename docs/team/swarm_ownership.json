@@ -68,6 +68,7 @@
         "src/api/maas/services.py",
         "src/api/maas/endpoints/nodes.py",
         "src/api/maas/endpoints/combined.py",
+        "src/api/maas_nodes.py",
         "src/api/middleware/metering.py",
         "src/core/swarm_sync.py",
         "src/agents/final_organizer.py",
