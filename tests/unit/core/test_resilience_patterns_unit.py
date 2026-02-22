@@ -59,6 +59,27 @@ async def test_circuit_breaker_half_open_then_closed_on_success():
 
 
 @pytest.mark.asyncio
+async def test_circuit_breaker_resets_failures_after_closed_state_success():
+    cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60)
+
+    async def fail_once():
+        raise RuntimeError("transient")
+
+    async def ok():
+        return "ok"
+
+    with pytest.raises(RuntimeError, match="transient"):
+        await cb.call(fail_once)
+    assert cb.failure_count == 1
+    assert cb.state == CircuitState.CLOSED
+
+    result = await cb.call(ok)
+    assert result == "ok"
+    assert cb.failure_count == 0
+    assert cb.state == CircuitState.CLOSED
+
+
+@pytest.mark.asyncio
 async def test_bulkhead_limits_concurrency_to_one():
     bulkhead = Bulkhead(max_concurrent_calls=1)
     active = 0
@@ -123,4 +144,3 @@ async def test_retry_with_jitter_raises_after_max_retries(monkeypatch):
     with pytest.raises(RuntimeError, match="nope"):
         await retry_with_jitter(always_fail, max_retries=3, initial_delay=1.0, max_delay=10.0)
     assert attempts["count"] == 3
-
