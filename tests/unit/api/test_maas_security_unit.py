@@ -495,6 +495,178 @@ class TestOIDCValidator:
 
 
 # ---------------------------------------------------------------------------
+# OIDCValidator — additional branch coverage
+# ---------------------------------------------------------------------------
+
+class TestOIDCValidatorAdditionalBranches:
+    """Cover branches not exercised by TestOIDCValidator."""
+
+    def _enabled_validator(self):
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://extra.example.com",
+            "OIDC_CLIENT_ID": "extra-client",
+        }):
+            return OIDCValidator()
+
+    def test_fetch_jwks_with_preknown_uri_success(self):
+        """_jwks_uri already set, cache stale → fetches JWKS directly (lines 266-271)."""
+        import jwt as pyjwt
+        v = self._enabled_validator()
+        v._jwks_uri = "https://extra.example.com/jwks"
+        v._jwks_cache = None
+        v._jwks_fetched_at = 0.0
+
+        fake_jwks = {"keys": [{"kid": "k1", "kty": "RSA"}]}
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = fake_jwks
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("httpx.get", return_value=mock_resp) as mock_get:
+            result = v._fetch_jwks()
+
+        assert result == fake_jwks
+        assert v._jwks_cache == fake_jwks
+        # Only one httpx.get call (skipped discovery since _jwks_uri was set)
+        assert mock_get.call_count == 1
+        mock_get.assert_called_once_with("https://extra.example.com/jwks", timeout=5.0)
+
+    def test_validate_no_kid_in_header_uses_first_valid_key(self):
+        """When header has no 'kid', code tries all JWKS keys (not kid → True branch)."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        jwks = {"keys": [{"kty": "RSA"}]}  # No 'kid' in key → no-kid matching
+        v._fetch_jwks = MagicMock(return_value=jwks)
+        claims = {"sub": "user-1", "email": "u@t.com", "name": "U", "iat": 1, "exp": 9999999999}
+
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"alg": "RS256"}):  # no 'kid' field
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode", return_value=claims):
+                    result = v.validate("no-kid.jwt.token")
+
+        assert result.sub == "user-1"
+
+    def test_validate_preferred_username_fallback_for_email(self):
+        """When 'email' claim is empty, preferred_username is used."""
+        import jwt as pyjwt
+
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        # email is empty → should fall back to preferred_username
+        claims = {
+            "sub": "u1",
+            "email": "",
+            "preferred_username": "myuser",
+            "name": "My User",
+            "iat": 1,
+            "exp": 9999999999,
+        }
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode", return_value=claims):
+                    result = v.validate("pu.jwt.token")
+
+        assert result.email == "myuser"
+
+    def test_validate_given_name_fallback_for_name(self):
+        """When 'name' claim is empty, given_name is used."""
+        import jwt as pyjwt
+
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        claims = {
+            "sub": "u2",
+            "email": "u2@test.com",
+            "name": "",            # empty → should fall back to given_name
+            "given_name": "Alice",
+            "iat": 1,
+            "exp": 9999999999,
+        }
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode", return_value=claims):
+                    result = v.validate("gn.jwt.token")
+
+        assert result.name == "Alice"
+
+    def test_validate_sub_used_as_email_fallback(self):
+        """When both email and preferred_username are empty, sub is used as email."""
+        import jwt as pyjwt
+
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        claims = {
+            "sub": "sub-used-as-email",
+            "email": "",
+            "preferred_username": "",
+            "name": "Test",
+            "iat": 1,
+            "exp": 9999999999,
+        }
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode", return_value=claims):
+                    result = v.validate("sub-email.jwt.token")
+
+        assert result.email == "sub-used-as-email"
+
+
+# ---------------------------------------------------------------------------
+# PQCTokenSigner — verify_token PQC exception path + _get_hmac_secret Vault
+# ---------------------------------------------------------------------------
+
+class TestPQCVerifyToken:
+    """verify_token() branches: PQC verify raises → HMAC fallback."""
+
+    def test_verify_token_pqc_raises_falls_through_to_hmac(self):
+        """When PQC signer raises on verify(), falls through to HMAC check."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        signer._get_hmac_secret = lambda: "test-secret"
+        signer._pqc_signer = MagicMock()
+        signer._pqc_signer.verify.side_effect = Exception("PQC verify failed")
+        signer._signing_keypair = MagicMock()
+
+        token = "join-token"
+        mesh_id = "mesh-1"
+        # Compute the expected HMAC signature as the signer would
+        import hmac as hmac_mod
+        import hashlib
+        payload = f"{mesh_id}:{token}".encode()
+        expected_sig = hmac_mod.new("test-secret".encode(), payload, hashlib.sha256).hexdigest()
+
+        # verify_token with PQC raising should fall back to HMAC
+        result = signer.verify_token(token, mesh_id, expected_sig)
+        assert result is True
+
+    def test_verify_token_hmac_mismatch_returns_false(self):
+        """Wrong signature → HMAC comparison fails → returns False."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        signer._pqc_signer = None
+        signer._signing_keypair = None
+        signer._get_hmac_secret = lambda: "correct-secret"
+
+        result = signer.verify_token("token", "mesh", "wrong-signature" * 4)
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
 # PQCTokenSigner — _get_hmac_secret Vault success path
 # ---------------------------------------------------------------------------
 
