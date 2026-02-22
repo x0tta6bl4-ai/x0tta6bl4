@@ -79,6 +79,13 @@ PLAN_ALIASES = {
 }
 
 BILLING_WEBHOOK_EVENTS = {
+    # Canonical provider-style events (used by modular billing endpoints).
+    "invoice.paid",
+    "invoice.payment_failed",
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+    # Legacy/internal events kept for compatibility with older emitters.
     "plan.upgraded",
     "plan.downgraded",
     "subscription.created",
