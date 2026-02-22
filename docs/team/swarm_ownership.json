@@ -52,7 +52,8 @@
         "tests/api/test_maas_marketplace.py",
         "tests/api/test_maas_policies.py",
         "tests/api/test_maas_telemetry.py",
-        "tests/api/test_maas_billing.py"
+        "tests/api/test_maas_billing.py",
+        "tests/unit/api/test_maas_security_unit.py"
       ]
     },
     "lead-coordinator": {
