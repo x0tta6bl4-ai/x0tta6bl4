@@ -135,7 +135,9 @@
         "tests/unit/services/test_provisioning_service_unit.py",
         "tests/unit/coordination/test_conflicts_events_tasks_unit.py",
         "tests/unit/anti_censorship/test_censorship_detector_transports_unit.py",
-        "tests/unit/event_sourcing/test_aggregate_command_bus_event_store_projection_query_bus_mongodb_postgres_unit.py"
+        "tests/unit/event_sourcing/test_aggregate_command_bus_event_store_projection_query_bus_mongodb_postgres_unit.py",
+        "tests/unit/edge/test_edge_node_task_distributor_unit.py",
+        "tests/unit/swarm/test_lora_fl_integration_yggdrasil_optimizer_consensus_integration_paxos_pbft_unit.py"
       ]
     },
     "lead-coordinator": {
