@@ -215,3 +215,91 @@ class TestTopology:
         assert r.status_code == 200, r.text
         # nodes list should exist (may be empty if simulated provisioning)
         assert isinstance(r.json()["nodes"], list)
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for telemetry module utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestTelemetryUtilityFunctions:
+    """Direct tests for _store_local_fallback, _get_telemetry, _get_telemetry_history.
+
+    These functions are tested without the HTTP layer, so the module-scoped
+    TestClient is not needed. REDIS_AVAILABLE is patched to False to ensure
+    deterministic behaviour in CI environments without Redis.
+    """
+
+    def test_store_local_fallback_list_history(self):
+        """_store_local_fallback with list history → inserts item at index 0."""
+        from src.api import maas_telemetry as tmod
+        fallback: dict = {}
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+
+        tmod._store_local_fallback("k1", "k1:history", {"val": 1})
+        assert tmod._LOCAL_TELEMETRY_FALLBACK["k1"] == {"val": 1}
+        history = tmod._LOCAL_TELEMETRY_FALLBACK["k1:history"]
+        assert isinstance(history, list)
+        assert history[0] == {"val": 1}
+
+    def test_store_local_fallback_non_list_history_replaced(self):
+        """_store_local_fallback: if history_key holds a non-list → replaced with [data]."""
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["k:history"] = "corrupt"  # non-list existing value
+
+        tmod._store_local_fallback("k", "k:history", {"val": 42})
+        result = tmod._LOCAL_TELEMETRY_FALLBACK["k:history"]
+        assert isinstance(result, list)
+        assert result[0] == {"val": 42}
+
+    def test_get_telemetry_fallback_dict_returned(self):
+        """_get_telemetry with REDIS_AVAILABLE=False → returns fallback dict."""
+        from unittest.mock import patch
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:n1"] = {"cpu": 0.5}
+
+        with patch.object(tmod, "REDIS_AVAILABLE", False):
+            result = tmod._get_telemetry("n1")
+        assert result == {"cpu": 0.5}
+
+    def test_get_telemetry_fallback_non_dict_returns_empty(self):
+        """_get_telemetry: fallback is non-dict (e.g. list) → returns {}."""
+        from unittest.mock import patch
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:bad"] = ["not", "a", "dict"]
+
+        with patch.object(tmod, "REDIS_AVAILABLE", False):
+            result = tmod._get_telemetry("bad")
+        assert result == {}
+
+    def test_get_telemetry_history_limit_zero_returns_empty(self):
+        """_get_telemetry_history with limit=0 → [] immediately (line 93-94)."""
+        from src.api import maas_telemetry as tmod
+        result = tmod._get_telemetry_history("node-x", limit=0)
+        assert result == []
+
+    def test_get_telemetry_history_fallback_non_list_returns_empty(self):
+        """_get_telemetry_history: fallback key holds non-list → [] (line 119)."""
+        from unittest.mock import patch
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:n2:history"] = "oops"
+
+        with patch.object(tmod, "REDIS_AVAILABLE", False):
+            result = tmod._get_telemetry_history("n2", limit=10)
+        assert result == []
+
+    def test_get_telemetry_history_fallback_list_filters_non_dicts(self):
+        """_get_telemetry_history: fallback list with mixed items → only dicts returned."""
+        from unittest.mock import patch
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:n3:history"] = [
+            {"ok": True}, "bad", 123, {"also": "good"},
+        ]
+
+        with patch.object(tmod, "REDIS_AVAILABLE", False):
+            result = tmod._get_telemetry_history("n3", limit=10)
+        assert result == [{"ok": True}, {"also": "good"}]
