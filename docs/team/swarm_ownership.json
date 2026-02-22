@@ -116,7 +116,11 @@
         "src/sdk/mobile_bridge.py",
         "tests/unit/sdk/test_mobile_bridge_unit.py",
         "src/llm/providers/ollama.py",
-        "tests/unit/llm/test_ollama_unit.py"
+        "tests/unit/llm/test_ollama_unit.py",
+        "src/agents/marketplace_agent.py",
+        "src/agents/security_audit_agent.py",
+        "tests/unit/agents/test_marketplace_agent_unit.py",
+        "tests/unit/agents/test_security_audit_agent_unit.py"
       ]
     },
     "lead-coordinator": {
