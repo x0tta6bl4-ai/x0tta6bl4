@@ -179,12 +179,16 @@ class TestPQCTokenSigner:
     def signer(self):
         """
         PQCTokenSigner with PQC disabled (ImportError path → HMAC-SHA256 fallback).
-        Vault is also unavailable → uses MAAS_TOKEN_SECRET env var.
+        _get_hmac_secret is patched to always return a plain string — this avoids
+        the test pollution issue where tests/api/conftest.py mocks hvac in sys.modules,
+        causing hvac.Client() to return a MagicMock that doesn't raise, which makes
+        _get_hmac_secret() return a MagicMock instead of a string.
         """
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
             s = PQCTokenSigner()
             s._pqc_signer = None
             s._signing_keypair = None
+        s._get_hmac_secret = lambda: "test-unit-secret-key"
         return s
 
     def test_sign_token_returns_dict(self, signer):
