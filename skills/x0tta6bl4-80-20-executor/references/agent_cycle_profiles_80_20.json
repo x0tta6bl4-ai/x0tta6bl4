@@ -1,0 +1,40 @@
+{
+  "profiles": [
+    {
+      "agent_id": "agent-1",
+      "role": "architect",
+      "skill_name": "x0tta6bl4-mesh-orchestrator",
+      "skill_path": "skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
+      "role_file": "ai/roles/architect.md",
+      "command": "python3 -m pytest --no-cov -q tests/api/test_maas_nodes.py tests/api/test_maas_escrow.py tests/api/test_maas_analytics.py tests/unit/api/test_maas_registry_unit.py tests/unit/coordination/test_state_lock_hashing_unit.py tests/unit/anti_censorship/test_steganography_stream_cipher_unit.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-2",
+      "role": "security",
+      "skill_name": "security-audit",
+      "skill_path": "skills/security-audit/SKILL.md",
+      "role_file": null,
+      "command": "python3 skills/security-audit/scripts/check_crypto.py",
+      "critical": false
+    },
+    {
+      "agent_id": "agent-3",
+      "role": "network",
+      "skill_name": "deploy-mesh-node",
+      "skill_path": "skills/deploy-mesh-node/SKILL.md",
+      "role_file": null,
+      "command": "python3 -m pytest --no-cov -q tests/unit/network/routing/test_mesh_router_unit.py tests/unit/network/test_mesh_routing_unit.py tests/network/test_mesh_router.py",
+      "critical": true
+    },
+    {
+      "agent_id": "agent-4",
+      "role": "quality",
+      "skill_name": "test-coverage-boost",
+      "skill_path": "skills/test-coverage-boost/SKILL.md",
+      "role_file": "ai/roles/ops.md",
+      "command": "python3 skills/test-coverage-boost/scripts/coverage_gaps.py",
+      "critical": true
+    }
+  ]
+}
