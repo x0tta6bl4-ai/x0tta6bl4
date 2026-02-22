@@ -123,6 +123,7 @@
         "tests/unit/agents/test_security_audit_agent_unit.py",
         "src/resilience/timeout.py",
         "tests/unit/resilience/test_timeout_unit.py",
+        "tests/unit/resilience/test_bulkhead_unit.py",
         "src/llm/rate_limiter.py",
         "tests/unit/llm/test_rate_limiter_unit.py",
         "src/llm/providers/openai_compatible.py",
