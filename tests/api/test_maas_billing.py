@@ -626,3 +626,319 @@ class TestBillingUtilityFunctions:
         assert len(result) == 64
         expected = hashlib.sha256(b"test payload").hexdigest()
         assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for HMAC webhook verification
+# ---------------------------------------------------------------------------
+
+class TestBillingWebhookHMAC:
+    """Direct tests for _verify_billing_webhook_hmac (no TestClient needed)."""
+
+    def test_no_secret_env_returns_none(self):
+        """When X0T_BILLING_WEBHOOK_HMAC_SECRET is not set → returns immediately."""
+        from unittest.mock import patch
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        with patch.dict(os.environ, {}, clear=True):
+            # Should not raise
+            result = _verify_billing_webhook_hmac(b"payload", "12345", "sig")
+            assert result is None
+
+    def test_missing_timestamp_header_raises_401(self):
+        """Secret set, but no timestamp header → 401."""
+        import hashlib
+        import hmac as hmac_mod
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": "testsecret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_hmac(b"payload", None, "sig")
+            assert exc.value.status_code == 401
+
+    def test_missing_signature_header_raises_401(self):
+        """Secret set, timestamp provided, but no signature → 401."""
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": "testsecret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_hmac(b"payload", "12345", None)
+            assert exc.value.status_code == 401
+
+    def test_invalid_timestamp_raises_400(self):
+        """Non-integer timestamp header → 400."""
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": "testsecret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_hmac(b"payload", "not-a-number", "sig")
+            assert exc.value.status_code == 400
+
+    def test_expired_timestamp_raises_401(self):
+        """Timestamp too far in the past → 401."""
+        import time
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        old_ts = str(int(time.time()) - 9999)  # Way expired
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": "testsecret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_hmac(b"payload", old_ts, "sha256=fakesig")
+            assert exc.value.status_code == 401
+
+    def test_valid_hmac_with_sha256_prefix(self):
+        """Valid HMAC with 'sha256=' prefix → no exception."""
+        import time
+        import hashlib
+        import hmac as hmac_mod
+        from unittest.mock import patch
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        secret = "valid-hmac-secret"
+        payload = b"test billing payload"
+        ts = str(int(time.time()))
+        signed = f"{ts}.".encode("utf-8") + payload
+        expected = hmac_mod.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": secret}):
+            # Should not raise
+            _verify_billing_webhook_hmac(payload, ts, f"sha256={expected}")
+
+    def test_wrong_signature_raises_401(self):
+        """Valid timestamp but wrong HMAC → 401."""
+        import time
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_hmac
+        ts = str(int(time.time()))
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_HMAC_SECRET": "mysecret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_hmac(b"payload", ts, "wrong" * 16)
+            assert exc.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for billing event ID extraction
+# ---------------------------------------------------------------------------
+
+class TestExtractBillingEventId:
+    """Direct tests for _extract_billing_event_id (no TestClient needed)."""
+
+    def test_event_id_from_req_field(self):
+        """req.event_id set → returned directly (stripped)."""
+        from src.api.maas_legacy import _extract_billing_event_id, BillingWebhookRequest
+        req = BillingWebhookRequest(event_id="evt-123456789", event_type="payment.succeeded")
+        result = _extract_billing_event_id(req)
+        assert result == "evt-123456789"
+
+    def test_event_id_from_metadata_event_id_key(self):
+        """req.event_id is None → fallback to metadata['event_id']."""
+        from src.api.maas_legacy import _extract_billing_event_id, BillingWebhookRequest
+        req = BillingWebhookRequest(
+            event_type="payment.succeeded",
+            metadata={"event_id": "meta-evt-99999"},
+        )
+        result = _extract_billing_event_id(req)
+        assert result == "meta-evt-99999"
+
+    def test_event_id_from_metadata_id_key(self):
+        """req.event_id None, no metadata.event_id → fallback to metadata['id']."""
+        from src.api.maas_legacy import _extract_billing_event_id, BillingWebhookRequest
+        req = BillingWebhookRequest(
+            event_type="payment.succeeded",
+            metadata={"id": "meta-id-77777"},
+        )
+        result = _extract_billing_event_id(req)
+        assert result == "meta-id-77777"
+
+    def test_missing_event_id_raises_400(self):
+        """No event_id anywhere → HTTPException 400."""
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _extract_billing_event_id, BillingWebhookRequest
+        req = BillingWebhookRequest(event_type="payment.succeeded")
+        with pytest.raises(HTTPException) as exc:
+            _extract_billing_event_id(req)
+        assert exc.value.status_code == 400
+
+    def test_whitespace_event_id_raises_400(self):
+        """Whitespace-only metadata id → HTTPException 400."""
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _extract_billing_event_id, BillingWebhookRequest
+        req = BillingWebhookRequest(
+            event_type="payment.succeeded",
+            metadata={"id": "   "},
+        )
+        with pytest.raises(HTTPException) as exc:
+            _extract_billing_event_id(req)
+        assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for billing event response deserialization
+# ---------------------------------------------------------------------------
+
+class TestDeserializeBillingEventResponse:
+    """Direct tests for _deserialize_billing_event_response (no TestClient needed)."""
+
+    def test_none_returns_none(self):
+        from src.api.maas_legacy import _deserialize_billing_event_response
+        assert _deserialize_billing_event_response(None) is None
+
+    def test_empty_string_returns_none(self):
+        from src.api.maas_legacy import _deserialize_billing_event_response
+        assert _deserialize_billing_event_response("") is None
+
+    def test_invalid_json_returns_none(self):
+        from src.api.maas_legacy import _deserialize_billing_event_response
+        assert _deserialize_billing_event_response("{not valid json}") is None
+
+    def test_non_dict_json_returns_none(self):
+        """JSON list is valid but not a dict → None."""
+        from src.api.maas_legacy import _deserialize_billing_event_response
+        assert _deserialize_billing_event_response("[1, 2, 3]") is None
+
+    def test_valid_dict_json_returned(self):
+        """Valid JSON dict → returned as dict."""
+        import json
+        from src.api.maas_legacy import _deserialize_billing_event_response
+        payload = {"status": "ok", "amount": 9.99}
+        result = _deserialize_billing_event_response(json.dumps(payload))
+        assert result == payload
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for ACL and mesh helper functions
+# ---------------------------------------------------------------------------
+
+class TestACLFunctions:
+    """Direct tests for _rule_matches and _evaluate_acl_decision (no TestClient needed)."""
+
+    def test_rule_matches_both_tags_present(self):
+        """Both source and target tags present → True."""
+        from src.api.maas_legacy import _rule_matches
+        assert _rule_matches(["robot", "sensor"], ["gateway", "cloud"], "robot", "gateway") is True
+
+    def test_rule_matches_source_tag_missing(self):
+        """source_tag not in source_tags → False."""
+        from src.api.maas_legacy import _rule_matches
+        assert _rule_matches(["sensor"], ["gateway"], "robot", "gateway") is False
+
+    def test_rule_matches_target_tag_missing(self):
+        """target_tag not in target_tags → False."""
+        from src.api.maas_legacy import _rule_matches
+        assert _rule_matches(["robot"], ["cloud"], "robot", "gateway") is False
+
+    def test_evaluate_acl_isolated_profile_always_denies(self):
+        """acl_profile='isolated' → deny regardless of rules."""
+        from src.api.maas_legacy import _evaluate_acl_decision
+        policies = [{"source_tag": "robot", "target_tag": "gateway", "action": "allow"}]
+        result = _evaluate_acl_decision(["robot"], ["gateway"], policies, "isolated")
+        assert result["action"] == "deny"
+        assert result["reason"] == "acl_profile_isolated"
+
+    def test_evaluate_acl_explicit_deny_wins_over_allow(self):
+        """Deny rule present among matched rules → deny."""
+        from src.api.maas_legacy import _evaluate_acl_decision
+        policies = [
+            {"source_tag": "robot", "target_tag": "gateway", "action": "deny"},
+            {"source_tag": "robot", "target_tag": "gateway", "action": "allow"},
+        ]
+        result = _evaluate_acl_decision(["robot"], ["gateway"], policies, "default")
+        assert result["action"] == "deny"
+        assert result["reason"] == "explicit_deny"
+
+    def test_evaluate_acl_explicit_allow(self):
+        """Allow rule matched, no deny → allow."""
+        from src.api.maas_legacy import _evaluate_acl_decision
+        policies = [{"source_tag": "robot", "target_tag": "gateway", "action": "allow"}]
+        result = _evaluate_acl_decision(["robot"], ["gateway"], policies, "default")
+        assert result["action"] == "allow"
+        assert result["reason"] == "explicit_allow"
+
+    def test_evaluate_acl_no_policies_default_legacy_open(self):
+        """Empty policies + default profile → legacy_open_mesh allow."""
+        from src.api.maas_legacy import _evaluate_acl_decision
+        result = _evaluate_acl_decision(["robot"], ["gateway"], [], "default")
+        assert result["action"] == "allow"
+        assert result["reason"] == "legacy_open_mesh"
+
+    def test_evaluate_acl_no_matching_rules_default_deny(self):
+        """Policies exist but none match → default_deny_zero_trust."""
+        from src.api.maas_legacy import _evaluate_acl_decision
+        policies = [{"source_tag": "sensor", "target_tag": "cloud", "action": "allow"}]
+        result = _evaluate_acl_decision(["robot"], ["gateway"], policies, "default")
+        assert result["action"] == "deny"
+        assert result["reason"] == "default_deny_zero_trust"
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for mesh helper functions (_find_mesh_id_for_node, _build_mapek_heartbeat_event)
+# ---------------------------------------------------------------------------
+
+class TestMeshHelperFunctions:
+    """Direct tests for mesh helper functions (no TestClient needed)."""
+
+    def test_find_mesh_id_for_node_found(self):
+        """Node is in a registered mesh → returns mesh_id."""
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import _find_mesh_id_for_node
+        mesh_id = f"mesh-find-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-find-{uuid.uuid4().hex[:8]}"
+        mock_instance = type("MI", (), {"node_instances": {node_id: {}}})()
+        leg._mesh_registry[mesh_id] = mock_instance
+        try:
+            result = _find_mesh_id_for_node(node_id)
+            assert result == mesh_id
+        finally:
+            del leg._mesh_registry[mesh_id]
+
+    def test_find_mesh_id_for_node_not_found(self):
+        """Node is not in any mesh → returns None."""
+        from src.api.maas_legacy import _find_mesh_id_for_node
+        result = _find_mesh_id_for_node(f"ghost-node-{uuid.uuid4().hex}")
+        assert result is None
+
+    def test_build_mapek_critical_no_neighbors(self):
+        """neighbors_count == 0 → critical health state."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="n1", cpu_usage=10.0, memory_usage=20.0,
+            neighbors_count=0, routing_table_size=5, uptime=3600.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "critical"
+        assert result["recommendation"] == "reroute_and_recover"
+
+    def test_build_mapek_critical_high_cpu(self):
+        """cpu_usage >= 95 → critical health state."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="n2", cpu_usage=95.5, memory_usage=50.0,
+            neighbors_count=3, routing_table_size=8, uptime=7200.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "critical"
+
+    def test_build_mapek_degraded(self):
+        """cpu_usage >= 85 but < 95, memory < 95, neighbors > 0 → degraded."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="n3", cpu_usage=87.0, memory_usage=60.0,
+            neighbors_count=2, routing_table_size=10, uptime=1800.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "degraded"
+        assert result["recommendation"] == "scale_or_rebalance"
+
+    def test_build_mapek_healthy(self):
+        """All metrics in normal range → healthy state."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="n4", cpu_usage=30.0, memory_usage=40.0,
+            neighbors_count=4, routing_table_size=12, uptime=86400.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "healthy"
+        assert result["recommendation"] == "maintain"
+        assert result["phase"] == "MONITOR"
+        assert result["node_id"] == "n4"
