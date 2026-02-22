@@ -1131,3 +1131,101 @@ class TestExternalTelemetryHelpers:
         with patch.object(mod, "_get_external_telemetry_history", mock_getter):
             result = _read_external_telemetry_history("node-x", limit=10)
         assert result == [{"cpu": 1}, {"mem": 2}]
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for MeshOperator methods
+# (uses custom_permissions to avoid DB permission resolution)
+# ---------------------------------------------------------------------------
+
+class TestMeshOperatorMethods:
+    """Direct tests for MeshOperator.has_permission, require_permission,
+    has_any_permission, has_all_permissions using custom_permissions injection."""
+
+    def _make_operator(self, permissions_set):
+        """Build a MeshOperator with an in-memory DB and custom permissions."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User
+        from src.api.maas_nodes import MeshOperator, MeshPermission
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        user = User(
+            id="u-test",
+            email="test@mesh.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="test-key-abc",
+            role="operator",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        op = MeshOperator(
+            user=user,
+            mesh_id="mesh-unit-test",
+            db=db,
+            custom_permissions=permissions_set,
+        )
+        db.close()
+        return op
+
+    def test_has_permission_returns_true_when_present(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ, MeshPermission.NODE_READ})
+        assert op.has_permission(MeshPermission.MESH_READ) is True
+
+    def test_has_permission_returns_false_when_absent(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        assert op.has_permission(MeshPermission.NODE_DELETE) is False
+
+    def test_require_permission_passes_when_granted(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.TELEMETRY_READ})
+        op.require_permission(MeshPermission.TELEMETRY_READ)  # should not raise
+
+    def test_require_permission_raises_403_when_not_granted(self):
+        from fastapi import HTTPException
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        with pytest.raises(HTTPException) as exc:
+            op.require_permission(MeshPermission.ACL_WRITE)
+        assert exc.value.status_code == 403
+
+    def test_has_any_permission_true_when_at_least_one_matches(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_any_permission({MeshPermission.MESH_READ, MeshPermission.NODE_DELETE})
+        assert result is True
+
+    def test_has_any_permission_false_when_none_match(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_any_permission({MeshPermission.NODE_DELETE, MeshPermission.ACL_WRITE})
+        assert result is False
+
+    def test_has_all_permissions_true_when_superset(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({
+            MeshPermission.MESH_READ, MeshPermission.NODE_READ, MeshPermission.TELEMETRY_READ
+        })
+        result = op.has_all_permissions({MeshPermission.MESH_READ, MeshPermission.NODE_READ})
+        assert result is True
+
+    def test_has_all_permissions_false_when_one_missing(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator({MeshPermission.MESH_READ})
+        result = op.has_all_permissions({MeshPermission.MESH_READ, MeshPermission.NODE_DELETE})
+        assert result is False
+
+    def test_empty_permissions_set_denies_all(self):
+        from src.api.maas_nodes import MeshPermission
+        op = self._make_operator(set())
+        assert op.has_permission(MeshPermission.MESH_READ) is False
+        assert op.has_any_permission({MeshPermission.MESH_READ}) is False
+        assert op.has_all_permissions(set()) is True  # empty subset is always True
