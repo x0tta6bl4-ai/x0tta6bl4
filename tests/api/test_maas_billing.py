@@ -1732,3 +1732,113 @@ class TestVerifyBillingWebhookSecret:
         with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_SECRET": "my-secret"}):
             # Should not raise
             _verify_billing_webhook_secret("my-secret")
+
+
+# ---------------------------------------------------------------------------
+# Additional unit tests for _build_mapek_heartbeat_event branches
+# and MeshProvisioner registry operations
+# ---------------------------------------------------------------------------
+
+class TestMapekHeartbeatAdditionalBranches:
+    """Additional branch tests for _build_mapek_heartbeat_event."""
+
+    def test_critical_when_high_memory(self):
+        """memory_usage >= 95 → critical (even if cpu < 95 and neighbors > 0)."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="mem-node", cpu_usage=40.0, memory_usage=95.0,
+            neighbors_count=3, routing_table_size=8, uptime=3600.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "critical"
+        assert result["recommendation"] == "reroute_and_recover"
+
+    def test_degraded_when_memory_85_to_95(self):
+        """memory_usage >= 85 but < 95, cpu < 85, neighbors > 0 → degraded."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="mem-deg", cpu_usage=30.0, memory_usage=88.0,
+            neighbors_count=2, routing_table_size=5, uptime=7200.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["health_state"] == "degraded"
+        assert result["recommendation"] == "scale_or_rebalance"
+
+    def test_signals_included_in_result(self):
+        """Signals dict should include all telemetry fields."""
+        from src.api.maas_legacy import _build_mapek_heartbeat_event, NodeHeartbeatRequest
+        telemetry = NodeHeartbeatRequest(
+            node_id="sig-node", cpu_usage=25.0, memory_usage=30.0,
+            neighbors_count=4, routing_table_size=12, uptime=10000.0,
+        )
+        result = _build_mapek_heartbeat_event(telemetry)
+        assert result["signals"]["cpu_usage"] == 25.0
+        assert result["signals"]["memory_usage"] == 30.0
+        assert result["signals"]["neighbors_count"] == 4
+        assert result["signals"]["routing_table_size"] == 12
+        assert result["signals"]["uptime"] == 10000.0
+        assert "event_id" in result
+        assert "timestamp" in result
+
+
+class TestMeshProvisioner:
+    """Direct tests for MeshProvisioner.get and list_for_owner registry operations."""
+
+    def test_get_returns_none_for_missing_mesh(self):
+        """MeshProvisioner.get() for non-existent mesh → None."""
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import MeshProvisioner
+        prov = MeshProvisioner()
+        result = prov.get("nonexistent-mesh-xyz")
+        assert result is None
+
+    def test_get_returns_instance_for_registered_mesh(self):
+        """MeshProvisioner.get() for registered mesh → returns instance."""
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import MeshProvisioner, MeshInstance
+        prov = MeshProvisioner()
+        mesh_id = f"prov-{uuid.uuid4().hex[:8]}"
+        inst = MeshInstance(mesh_id=mesh_id, name="Test", owner_id="o1", nodes=2)
+        leg._mesh_registry[mesh_id] = inst
+        try:
+            result = prov.get(mesh_id)
+            assert result is inst
+        finally:
+            del leg._mesh_registry[mesh_id]
+
+    def test_list_for_owner_returns_active_meshes(self):
+        """list_for_owner filters by owner_id and excludes terminated."""
+        import src.api.maas_legacy as leg
+        from src.api.maas_legacy import MeshProvisioner, MeshInstance
+        prov = MeshProvisioner()
+        owner_id = f"owner-{uuid.uuid4().hex[:8]}"
+        mid1 = f"prov-a-{uuid.uuid4().hex[:6]}"
+        mid2 = f"prov-b-{uuid.uuid4().hex[:6]}"
+        mid3 = f"prov-c-{uuid.uuid4().hex[:6]}"
+
+        inst1 = MeshInstance(mesh_id=mid1, name="M1", owner_id=owner_id, nodes=1)
+        inst1.status = "active"
+        inst2 = MeshInstance(mesh_id=mid2, name="M2", owner_id=owner_id, nodes=1)
+        inst2.status = "terminated"  # should be excluded
+        inst3 = MeshInstance(mesh_id=mid3, name="M3", owner_id="other-owner", nodes=1)
+        inst3.status = "active"  # different owner, excluded
+
+        leg._mesh_registry[mid1] = inst1
+        leg._mesh_registry[mid2] = inst2
+        leg._mesh_registry[mid3] = inst3
+        try:
+            result = prov.list_for_owner(owner_id)
+            mesh_ids = [m.mesh_id for m in result]
+            assert mid1 in mesh_ids
+            assert mid2 not in mesh_ids  # terminated
+            assert mid3 not in mesh_ids  # different owner
+        finally:
+            for mid in [mid1, mid2, mid3]:
+                leg._mesh_registry.pop(mid, None)
+
+    def test_list_for_owner_empty_when_no_meshes(self):
+        """list_for_owner with no matching owner → []."""
+        from src.api.maas_legacy import MeshProvisioner
+        prov = MeshProvisioner()
+        result = prov.list_for_owner("nonexistent-owner-xyz")
+        assert result == []
