@@ -300,3 +300,71 @@ class TestPlaybookList:
         assert isinstance(data, list)
         pb_ids = [pb.get("playbook_id", "") for pb in data]
         assert pytest.shared_playbook_id not in pb_ids
+
+
+# ---------------------------------------------------------------------------
+# Auth guard tests for endpoints that require permission
+# ---------------------------------------------------------------------------
+
+class TestPlaybookAuthGuards:
+    def test_create_no_auth_401(self, client):
+        r = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            json={
+                "name": "no-auth-test",
+                "target_nodes": [_NODE_A],
+                "actions": [{"action": "restart", "params": {}}],
+            },
+        )
+        assert r.status_code == 401
+
+    def test_list_no_auth_401(self, client):
+        r = client.get(f"/api/v1/maas/playbooks/list/{_MESH_ID}")
+        assert r.status_code == 401
+
+    def test_status_no_auth_401(self, client):
+        r = client.get("/api/v1/maas/playbooks/status/pbk-any")
+        assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Expired playbook is NOT delivered on poll
+# ---------------------------------------------------------------------------
+
+class TestPlaybookExpiry:
+    def test_expired_playbook_not_delivered(self, client, admin_token):
+        """
+        Inject an expired entry directly into the in-memory store, then poll.
+        The poll should skip expired playbooks (expires_at <= now → continue).
+        """
+        import src.api.maas_playbooks as pb_mod
+        from datetime import datetime, timedelta
+
+        node_id = f"node-exp-{uuid.uuid4().hex[:8]}"
+        pb_id = f"pbk-exp-{uuid.uuid4().hex[:8]}"
+        mesh_id = f"mesh-exp-{uuid.uuid4().hex[:6]}"
+
+        # Insert a playbook that already expired 1 hour ago
+        pb_mod._playbook_store[pb_id] = {
+            "playbook_id": pb_id,
+            "mesh_id": mesh_id,
+            "name": "expired-test",
+            "payload": "{}",
+            "signature": "sig",
+            "algorithm": "HMAC-SHA256",
+            "target_nodes": [node_id],
+            "created_at": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+            "expires_at": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
+        }
+        pb_mod._node_queues.setdefault(node_id, []).append(pb_id)
+
+        r = client.get(f"/api/v1/maas/playbooks/poll/{mesh_id}/{node_id}")
+        assert r.status_code == 200
+        data = r.json()
+        # Expired playbook must NOT appear in delivery list
+        delivered_ids = [pb["playbook_id"] for pb in data["playbooks"]]
+        assert pb_id not in delivered_ids
+
+        # Cleanup
+        pb_mod._playbook_store.pop(pb_id, None)
+        pb_mod._node_queues.pop(node_id, None)
