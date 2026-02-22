@@ -1359,3 +1359,73 @@ class TestBillingEventStateMachine:
             _start_billing_event_processing(db_session, eid, "plan.upgraded", "different-hash")
         assert exc.value.status_code == 409
         assert "mismatch" in exc.value.detail
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for MeshInstance utility methods
+# ---------------------------------------------------------------------------
+
+class TestMeshInstance:
+    """Direct tests for MeshInstance scale, health score, and uptime methods."""
+
+    def _make_instance(self, nodes=3):
+        from src.api.maas_legacy import MeshInstance
+        inst = MeshInstance(
+            mesh_id=f"test-mesh-{uuid.uuid4().hex[:6]}",
+            name="Test Mesh",
+            owner_id="owner-1",
+            nodes=nodes,
+        )
+        # Populate node_instances manually (skip async provision)
+        for i in range(nodes):
+            inst.node_instances[f"{inst.mesh_id}-node-{i}"] = {
+                "id": f"{inst.mesh_id}-node-{i}",
+                "status": "healthy",
+                "started_at": "2026-01-01T00:00:00",
+                "latency_ms": 0.0,
+            }
+        return inst
+
+    def test_scale_up_adds_nodes(self):
+        from src.api.maas_legacy import MeshInstance
+        inst = self._make_instance(nodes=3)
+        new_count = inst.scale("scale_up", 2)
+        assert new_count == 5
+        assert inst.target_nodes == 5
+
+    def test_scale_down_removes_nodes(self):
+        inst = self._make_instance(nodes=5)
+        new_count = inst.scale("scale_down", 2)
+        assert new_count == 3
+        assert inst.target_nodes == 3
+
+    def test_scale_down_capped_to_keep_one(self):
+        """scale_down by more than (nodes-1) → keeps at least 1 node."""
+        inst = self._make_instance(nodes=3)
+        new_count = inst.scale("scale_down", 999)
+        assert new_count == 1  # capped at len-1 = 2 removed, 1 remaining
+
+    def test_get_health_score_all_healthy(self):
+        inst = self._make_instance(nodes=4)
+        assert inst.get_health_score() == 1.0
+
+    def test_get_health_score_mixed(self):
+        inst = self._make_instance(nodes=4)
+        # Mark 2 as unhealthy
+        keys = list(inst.node_instances.keys())
+        inst.node_instances[keys[0]]["status"] = "unhealthy"
+        inst.node_instances[keys[1]]["status"] = "degraded"
+        score = inst.get_health_score()
+        assert score == 0.5  # 2 healthy out of 4
+
+    def test_get_health_score_empty_returns_zero(self):
+        from src.api.maas_legacy import MeshInstance
+        inst = MeshInstance(
+            mesh_id="empty-mesh", name="E", owner_id="o", nodes=0
+        )
+        assert inst.get_health_score() == 0.0
+
+    def test_get_uptime_positive(self):
+        inst = self._make_instance()
+        uptime = inst.get_uptime()
+        assert uptime >= 0.0
