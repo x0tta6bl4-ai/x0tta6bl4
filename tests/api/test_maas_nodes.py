@@ -939,3 +939,58 @@ class TestNodeUtilityFunctions:
                           MagicMock(side_effect=Exception("err"))):
             result = nmod._read_external_telemetry_history("n-err", 5)
         assert result == []
+
+    # _build_analytics_telemetry_payload branch coverage
+
+    def test_build_analytics_telemetry_payload_latency_from_req(self):
+        """latency_ms set on req → included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", latency_ms=25.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["latency_ms"] == 25.0
+
+    def test_build_analytics_telemetry_payload_latency_from_custom_metrics(self):
+        """latency_ms not on req but in custom_metrics → used."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", custom_metrics={"latency_ms": 15.5})
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["latency_ms"] == 15.5
+
+    def test_build_analytics_telemetry_payload_negative_latency_excluded(self):
+        """Negative latency → NOT included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", latency_ms=-1.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert "latency_ms" not in payload
+
+    def test_build_analytics_telemetry_payload_traffic_from_req(self):
+        """traffic_mbps set on req → included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", traffic_mbps=100.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["traffic_mbps"] == 100.0
+
+    def test_build_analytics_telemetry_payload_traffic_from_custom_metrics(self):
+        """traffic_mbps not on req but in custom_metrics → used."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", custom_metrics={"traffic_mbps": 50.0})
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert payload["traffic_mbps"] == 50.0
+
+    def test_build_analytics_telemetry_payload_negative_traffic_excluded(self):
+        """Negative traffic → NOT included in payload."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="healthy", traffic_mbps=-5.0)
+        payload = _build_analytics_telemetry_payload("m1", "n1", req, "2026-01-01T00:00:00")
+        assert "traffic_mbps" not in payload
+
+    def test_build_analytics_telemetry_payload_core_fields_always_present(self):
+        """Core fields always present regardless of optional values."""
+        from src.api.maas_nodes import _build_analytics_telemetry_payload, HeartbeatRequest
+        req = HeartbeatRequest(status="degraded", cpu_percent=55.0)
+        payload = _build_analytics_telemetry_payload("mesh-x", "node-y", req, "2026-02-22T12:00:00")
+        assert payload["mesh_id"] == "mesh-x"
+        assert payload["node_id"] == "node-y"
+        assert payload["status"] == "degraded"
+        assert payload["cpu_percent"] == 55.0
+        assert payload["timestamp"] == "2026-02-22T12:00:00"
