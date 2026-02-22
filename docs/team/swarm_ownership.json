@@ -104,7 +104,9 @@
         "tests/unit/network/routing/mesh/test_forwarding_unit.py",
         "tests/unit/network/routing/mesh/test_routing_table_unit.py",
         "tests/unit/network/routing/mesh/test_statistics_unit.py",
-        "tests/unit/agents/test_final_organizer_unit.py"
+        "tests/unit/agents/test_final_organizer_unit.py",
+        "src/agents/sales_notify_bot.py",
+        "tests/unit/agents/test_sales_notify_bot_unit.py"
       ]
     },
     "lead-coordinator": {
