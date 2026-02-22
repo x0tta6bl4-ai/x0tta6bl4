@@ -80,7 +80,8 @@
         "skills/x0tta6bl4-80-20-executor/references/agent_cycle_profiles_80_20.json",
         "skills/x0tta6bl4-80-20-executor/scripts/run_80_20_cycle.sh",
         "src/core/resilience_patterns.py",
-        "tests/unit/core/test_resilience_patterns_unit.py"
+        "tests/unit/core/test_resilience_patterns_unit.py",
+        "src/anti_censorship/steganography.py"
       ]
     },
     "lead-coordinator": {
