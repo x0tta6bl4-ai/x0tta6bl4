@@ -340,3 +340,95 @@ class TestBearerTokenAuth:
             },
         )
         assert r.status_code in (200, 401)  # depends on whether auth_data token is still valid
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/set-admin/{email}  — promote user to admin
+# ---------------------------------------------------------------------------
+
+class TestSetAdmin:
+    @pytest.fixture(scope="class")
+    def admin_context(self, client):
+        """Create an admin user and a target user for promotion tests."""
+        email_admin = f"sa-adm-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post("/api/v1/maas/auth/register",
+                        json={"email": email_admin, "password": "password123"})
+        admin_token = r.json()["access_token"]
+
+        email_target = f"sa-tgt-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post("/api/v1/maas/auth/register",
+                        json={"email": email_target, "password": "password123"})
+
+        # Elevate the admin user
+        db = TestingSessionLocal()
+        u = db.query(User).filter(User.api_key == admin_token).first()
+        u.role = "admin"
+        db.commit()
+        db.close()
+
+        return {"admin_token": admin_token, "target_email": email_target}
+
+    def test_set_admin_no_auth_401(self, client, admin_context):
+        r = client.post(f"/api/v1/maas/auth/set-admin/{admin_context['target_email']}")
+        assert r.status_code == 401
+
+    def test_set_admin_non_admin_403(self, client, admin_context):
+        """Non-admin user cannot promote others."""
+        token = _fresh_user(client)
+        r = client.post(
+            f"/api/v1/maas/auth/set-admin/{admin_context['target_email']}",
+            headers={"X-API-Key": token},
+        )
+        assert r.status_code == 403
+
+    def test_set_admin_success(self, client, admin_context):
+        r = client.post(
+            f"/api/v1/maas/auth/set-admin/{admin_context['target_email']}",
+            headers={"X-API-Key": admin_context["admin_token"]},
+        )
+        assert r.status_code == 200, r.text
+        assert "ADMIN" in r.json()["message"].upper() or "admin" in r.json()["message"].lower()
+
+    def test_set_admin_nonexistent_user_404(self, client, admin_context):
+        r = client.post(
+            "/api/v1/maas/auth/set-admin/nobody@nonexistent.test",
+            headers={"X-API-Key": admin_context["admin_token"]},
+        )
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/bootstrap-admin  — first admin creation
+# ---------------------------------------------------------------------------
+
+class TestBootstrapAdmin:
+    def test_bootstrap_no_token_configured_403(self, client, monkeypatch):
+        """BOOTSTRAP_TOKEN env var not set → 403."""
+        monkeypatch.delenv("BOOTSTRAP_TOKEN", raising=False)
+        r = client.post(
+            "/api/v1/maas/auth/bootstrap-admin",
+            json={"email": "bootstrap@test.com", "password": "password123"},
+        )
+        assert r.status_code == 403
+
+    def test_bootstrap_wrong_token_403(self, client, monkeypatch):
+        """Correct BOOTSTRAP_TOKEN set but wrong token provided → 403."""
+        monkeypatch.setenv("BOOTSTRAP_TOKEN", "super-secret-bootstrap")
+        import src.api.maas_auth as auth_mod
+        # Update the live module reference (module-level read happens at request time)
+        r = client.post(
+            "/api/v1/maas/auth/bootstrap-admin",
+            headers={"X-Bootstrap-Token": "wrong-token"},
+            json={"email": "bootstrap@test.com", "password": "password123"},
+        )
+        assert r.status_code == 403
+
+    def test_bootstrap_disabled_when_admin_exists_409(self, client, monkeypatch):
+        """Once an admin exists (created by TestSetAdmin), bootstrap returns 409."""
+        monkeypatch.setenv("BOOTSTRAP_TOKEN", "super-secret-bootstrap")
+        r = client.post(
+            "/api/v1/maas/auth/bootstrap-admin",
+            headers={"X-Bootstrap-Token": "super-secret-bootstrap"},
+            json={"email": "second-admin@test.com", "password": "password123"},
+        )
+        assert r.status_code == 409
