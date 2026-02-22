@@ -328,3 +328,216 @@ class TestOIDCValidator:
         assert claims.sub == "user-123"
         assert claims.email == "user@example.com"
         assert claims.name == "Test User"
+
+    # ------------------------------------------------------------------
+    # _fetch_jwks branches
+    # ------------------------------------------------------------------
+
+    def test_fetch_jwks_returns_cache_when_fresh(self):
+        """Cache hit path: _jwks_cache populated and TTL not expired."""
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://cache.example.com",
+            "OIDC_CLIENT_ID": "c1",
+        }):
+            v = OIDCValidator()
+        cached = {"keys": [{"kid": "cached-k"}]}
+        v._jwks_cache = cached
+        v._jwks_fetched_at = time.monotonic()  # just now → still fresh
+        v._jwks_uri = "https://cache.example.com/jwks"
+        result = v._fetch_jwks()
+        assert result is cached
+
+    def test_fetch_jwks_discovery_failure_raises_503(self):
+        """No _jwks_uri, httpx.get raises → HTTPException 503."""
+        from fastapi import HTTPException
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://disc-fail.example.com",
+            "OIDC_CLIENT_ID": "c2",
+        }):
+            v = OIDCValidator()
+        v._jwks_uri = None
+        v._jwks_cache = None
+        with patch("httpx.get", side_effect=Exception("connection refused")):
+            with pytest.raises(HTTPException) as exc:
+                v._fetch_jwks()
+            assert exc.value.status_code == 503
+            assert "discovery" in exc.value.detail.lower()
+
+    def test_fetch_jwks_fetch_failure_raises_503(self):
+        """_jwks_uri set but httpx.get for JWKS raises → HTTPException 503."""
+        from fastapi import HTTPException
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://jwks-fail.example.com",
+            "OIDC_CLIENT_ID": "c3",
+        }):
+            v = OIDCValidator()
+        v._jwks_uri = "https://jwks-fail.example.com/jwks"
+        v._jwks_cache = None
+        with patch("httpx.get", side_effect=Exception("JWKS endpoint down")):
+            with pytest.raises(HTTPException) as exc:
+                v._fetch_jwks()
+            assert exc.value.status_code == 503
+            assert "jwks" in exc.value.detail.lower()
+
+    # ------------------------------------------------------------------
+    # validate() branches requiring a valid JWT header but failing later
+    # ------------------------------------------------------------------
+
+    def _enabled_validator(self):
+        with patch.dict(os.environ, {
+            "OIDC_ISSUER": "https://test.example.com",
+            "OIDC_CLIENT_ID": "test-client",
+        }):
+            return OIDCValidator()
+
+    def test_validate_no_matching_jwks_key_raises_401(self):
+        """kid in header doesn't match any key in JWKS → 401."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "other-kid"}]})
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "no-such-kid", "alg": "RS256"}):
+            with pytest.raises(HTTPException) as exc:
+                v.validate("header.payload.sig")
+            assert exc.value.status_code == 401
+            assert "No matching JWKS key" in exc.value.detail
+
+    def test_validate_expired_token_raises_401(self):
+        """jwt.ExpiredSignatureError → HTTPException 401 with 'expired'."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode",
+                                  side_effect=pyjwt.ExpiredSignatureError()):
+                    with pytest.raises(HTTPException) as exc:
+                        v.validate("expired.jwt.token")
+                    assert exc.value.status_code == 401
+                    assert "expired" in exc.value.detail.lower()
+
+    def test_validate_audience_mismatch_raises_401(self):
+        """jwt.InvalidAudienceError → HTTPException 401 with 'audience'."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode",
+                                  side_effect=pyjwt.InvalidAudienceError()):
+                    with pytest.raises(HTTPException) as exc:
+                        v.validate("aud.jwt.token")
+                    assert exc.value.status_code == 401
+                    assert "audience" in exc.value.detail.lower()
+
+    def test_validate_issuer_mismatch_raises_401(self):
+        """jwt.InvalidIssuerError → HTTPException 401 with 'issuer'."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode",
+                                  side_effect=pyjwt.InvalidIssuerError()):
+                    with pytest.raises(HTTPException) as exc:
+                        v.validate("iss.jwt.token")
+                    assert exc.value.status_code == 401
+                    assert "issuer" in exc.value.detail.lower()
+
+    def test_validate_generic_jwt_error_raises_401(self):
+        """Generic jwt.PyJWTError → HTTPException 401 with 'invalid'."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode",
+                                  side_effect=pyjwt.PyJWTError("bad sig")):
+                    with pytest.raises(HTTPException) as exc:
+                        v.validate("bad.jwt.token")
+                    assert exc.value.status_code == 401
+                    assert "invalid" in exc.value.detail.lower()
+
+    def test_validate_missing_sub_claim_raises_401(self):
+        """Claims without 'sub' → HTTPException 401 mentioning 'sub'."""
+        import jwt as pyjwt
+        from fastapi import HTTPException
+        v = self._enabled_validator()
+        mock_key = MagicMock()
+        v._fetch_jwks = MagicMock(return_value={"keys": [{"kid": "k1"}]})
+        claims_no_sub = {"email": "user@test.com", "iat": 1, "exp": 9999999999}
+        with patch.object(pyjwt, "get_unverified_header",
+                          return_value={"kid": "k1", "alg": "RS256"}):
+            with patch.object(pyjwt.algorithms.RSAAlgorithm, "from_jwk",
+                               return_value=mock_key):
+                with patch.object(pyjwt, "decode", return_value=claims_no_sub):
+                    with pytest.raises(HTTPException) as exc:
+                        v.validate("nosub.jwt.token")
+                    assert exc.value.status_code == 401
+                    assert "sub" in exc.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# PQCTokenSigner — _get_hmac_secret Vault success path
+# ---------------------------------------------------------------------------
+
+class TestPQCTokenSignerVault:
+    def test_get_hmac_secret_vault_success(self):
+        """When Vault returns data, _get_hmac_secret returns the secret."""
+        vault_response = {
+            "data": {"data": {"secret": "vault-derived-secret"}}
+        }
+        mock_client = MagicMock()
+        mock_client.secrets.kv.v2.read_secret_version.return_value = vault_response
+
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", return_value=mock_client):
+            secret = signer._get_hmac_secret()
+
+        assert secret == "vault-derived-secret"
+
+    def test_get_hmac_secret_vault_failure_uses_env_fallback(self):
+        """When Vault raises, _get_hmac_secret falls back to env var."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", side_effect=Exception("vault down")):
+            with patch.dict(os.environ, {"MAAS_TOKEN_SECRET": "env-fallback-secret"}):
+                secret = signer._get_hmac_secret()
+
+        assert secret == "env-fallback-secret"
+
+    def test_sign_token_pqc_exception_falls_through_to_hmac(self):
+        """PQC signer raises on sign() → falls through to HMAC-SHA256."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        mock_pqc = MagicMock()
+        mock_pqc.sign.side_effect = Exception("PQC unavailable")
+        signer._pqc_signer = mock_pqc
+        signer._signing_keypair = MagicMock()
+        signer._get_hmac_secret = lambda: "test-secret"
+
+        result = signer.sign_token("mytoken", "mesh-1")
+        # Should fall back to HMAC
+        assert result["algorithm"] == "HMAC-SHA256"
+        assert result["pqc_secured"] is False
