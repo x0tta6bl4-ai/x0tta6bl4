@@ -368,3 +368,48 @@ class TestPlaybookExpiry:
         # Cleanup
         pb_mod._playbook_store.pop(pb_id, None)
         pb_mod._node_queues.pop(node_id, None)
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for playbook utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestPlaybookUtilityFunctions:
+    """Direct unit tests for _db_session_available and _action_to_dict."""
+
+    def test_db_session_available_with_real_session_like_object(self):
+        """Object with 'add' and 'commit' → True."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _db_session_available
+        mock_db = MagicMock(spec=["add", "commit"])
+        assert _db_session_available(mock_db) is True
+
+    def test_db_session_available_with_dict_returns_false(self):
+        """Plain dict has no 'add' attr → False."""
+        from src.api.maas_playbooks import _db_session_available
+        assert _db_session_available({}) is False
+
+    def test_db_session_available_with_none_returns_false(self):
+        """None → False."""
+        from src.api.maas_playbooks import _db_session_available
+        assert _db_session_available(None) is False
+
+    def test_action_to_dict_uses_model_dump_for_pydantic_v2(self):
+        """When action has model_dump() → uses it (Pydantic v2 path)."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _action_to_dict
+        mock_action = MagicMock(spec=["model_dump"])
+        mock_action.model_dump.return_value = {"type": "restart", "params": {}}
+        result = _action_to_dict(mock_action)
+        assert result == {"type": "restart", "params": {}}
+        mock_action.model_dump.assert_called_once()
+
+    def test_action_to_dict_uses_dict_for_pydantic_v1(self):
+        """When action lacks model_dump() → falls back to .dict() (Pydantic v1 path)."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _action_to_dict
+        mock_action = MagicMock(spec=["dict"])  # no model_dump attribute
+        mock_action.dict.return_value = {"type": "restart", "params": {}}
+        result = _action_to_dict(mock_action)
+        assert result == {"type": "restart", "params": {}}
+        mock_action.dict.assert_called_once()
