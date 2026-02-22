@@ -7,7 +7,7 @@ Provides statistics, route management, and healing operations for MAPE-K loop.
 import logging
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
