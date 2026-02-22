@@ -1,0 +1,111 @@
+import asyncio
+import hashlib
+import hmac
+import time
+
+from src.api.maas.services import BillingService
+
+
+def _signature(secret: str, payload: bytes, timestamp: str | None = None, with_prefix: bool = True) -> str:
+    message = payload if timestamp is None else f"{timestamp}.".encode("utf-8") + payload
+    digest = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    return f"sha256={digest}" if with_prefix else digest
+
+
+def test_verify_webhook_signature_with_timestamp():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    timestamp = str(int(time.time()))
+    signature = _signature(secret, payload, timestamp=timestamp, with_prefix=True)
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature, timestamp=timestamp) is True
+
+
+def test_verify_webhook_signature_accepts_unprefixed_digest():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    signature = _signature(secret, payload, with_prefix=False)
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature) is True
+
+
+def test_verify_webhook_signature_rejects_timestamp_outside_skew():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    timestamp = str(int(time.time()) + 1200)
+    signature = _signature(secret, payload, timestamp=timestamp, with_prefix=True)
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature, timestamp=timestamp) is False
+
+
+def test_process_webhook_handles_invoice_paid():
+    billing = BillingService(webhook_secret="test")
+
+    result = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.paid",
+            event_data={"customer_id": "cus_123", "amount": 42},
+            event_id="evt_1",
+        )
+    )
+
+    assert result["status"] == "processed"
+    assert result["action"] == "subscription_extended"
+    assert result["customer_id"] == "cus_123"
+
+
+def test_process_webhook_normalizes_legacy_subscription_event_name():
+    billing = BillingService(webhook_secret="test")
+
+    result = asyncio.run(
+        billing.process_webhook(
+            event_type="subscription.updated",
+            event_data={"customer_id": "cus_123", "plan": "pro"},
+            event_id="evt_2",
+        )
+    )
+
+    assert result["status"] == "processed"
+    assert result["action"] == "plan_updated"
+    assert result["customer_id"] == "cus_123"
+    assert result["new_plan"] == "pro"
+
+
+def test_process_webhook_idempotency_returns_cached_result():
+    billing = BillingService(webhook_secret="test")
+    first = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_first", "attempt": 1},
+            event_id="evt_same",
+        )
+    )
+    second = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_second", "attempt": 999},
+            event_id="evt_same",
+        )
+    )
+
+    assert first == second
+    assert second["customer_id"] == "cus_first"
+    assert second["attempt"] == 1
+
+
+def test_process_webhook_unknown_event_is_ignored():
+    billing = BillingService(webhook_secret="test")
+
+    result = asyncio.run(
+        billing.process_webhook(
+            event_type="totally.unknown.event",
+            event_data={},
+            event_id="evt_unknown",
+        )
+    )
+
+    assert result["status"] == "ignored"
+    assert result["reason"] == "unknown_event_type"

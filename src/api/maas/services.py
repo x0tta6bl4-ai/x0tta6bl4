@@ -93,6 +93,15 @@ class BillingService:
         self._provider = payment_provider
         self._webhook_secret = webhook_secret or secrets.token_hex(32)
         self._idempotency_cache: Dict[str, Dict] = {}
+        # Legacy/alternate event names normalized to canonical provider-style names.
+        self._event_aliases: Dict[str, str] = {
+            "plan.upgraded": "customer.subscription.updated",
+            "plan.downgraded": "customer.subscription.updated",
+            "subscription.created": "customer.subscription.created",
+            "subscription.updated": "customer.subscription.updated",
+            "subscription.canceled": "customer.subscription.deleted",
+            "subscription.deleted": "customer.subscription.deleted",
+        }
 
     @property
     def webhook_secret(self) -> str:
@@ -120,23 +129,31 @@ class BillingService:
             # Replay protection: reject if timestamp is too old
             try:
                 ts = int(timestamp)
-                if time.time() - ts > 300:  # 5 minutes
-                    logger.warning("Webhook timestamp too old")
+                if abs(int(time.time()) - ts) > 300:  # 5 minutes (past or future)
+                    logger.warning("Webhook timestamp outside allowed skew")
                     return False
             except ValueError:
                 return False
 
-            message = f"{timestamp}.{payload.decode()}"
+            message = f"{timestamp}.".encode("utf-8") + payload
         else:
-            message = payload.decode()
+            message = payload
 
         expected = hmac.new(
             self._webhook_secret.encode(),
-            message.encode(),
+            message,
             hashlib.sha256,
         ).hexdigest()
 
-        return hmac.compare_digest(f"sha256={expected}", signature)
+        signature = signature.strip()
+        if signature.startswith("sha256="):
+            return hmac.compare_digest(f"sha256={expected}", signature)
+        return hmac.compare_digest(expected, signature)
+
+    def _normalize_event_type(self, event_type: str) -> str:
+        """Normalize webhook event type to canonical provider-style name."""
+        normalized = (event_type or "").strip().lower()
+        return self._event_aliases.get(normalized, normalized)
 
     async def process_webhook(
         self,
@@ -160,6 +177,8 @@ class BillingService:
             logger.info(f"Webhook event {event_id} already processed")
             return self._idempotency_cache[event_id]
 
+        event_type = self._normalize_event_type(event_type)
+
         if event_type not in BILLING_WEBHOOK_EVENTS:
             logger.warning(f"Unknown webhook event type: {event_type}")
             return {"status": "ignored", "reason": "unknown_event_type"}
@@ -175,6 +194,12 @@ class BillingService:
                 result = await self._handle_subscription_updated(event_data)
             elif event_type == "customer.subscription.deleted":
                 result = await self._handle_subscription_deleted(event_data)
+            elif event_type == "customer.subscription.created":
+                result = {
+                    "status": "processed",
+                    "action": "subscription_created",
+                    "customer_id": event_data.get("customer_id"),
+                }
         except Exception as e:
             logger.error(f"Error processing webhook {event_id}: {e}")
             result = {"status": "error", "error": str(e)}
