@@ -103,7 +103,8 @@
         "tests/unit/network/ebpf/test_logging_utils_unit.py",
         "tests/unit/network/routing/mesh/test_forwarding_unit.py",
         "tests/unit/network/routing/mesh/test_routing_table_unit.py",
-        "tests/unit/network/routing/mesh/test_statistics_unit.py"
+        "tests/unit/network/routing/mesh/test_statistics_unit.py",
+        "tests/unit/agents/test_final_organizer_unit.py"
       ]
     },
     "lead-coordinator": {
