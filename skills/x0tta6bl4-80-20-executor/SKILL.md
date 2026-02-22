@@ -8,7 +8,7 @@ description: Run an 80/20 automation cycle for x0tta6bl4 with preconfigured agen
 ## Overview
 
 Execute a high-leverage cycle that focuses on the small set of checks giving most value:
-- MaaS API regression (`nodes + escrow + analytics + acl + billing units`)
+- MaaS API regression (`nodes + escrow + analytics + acl + billing + constants + mesh + swarm_sync units`)
 - security crypto scan
 - coverage-gap prioritization
 
