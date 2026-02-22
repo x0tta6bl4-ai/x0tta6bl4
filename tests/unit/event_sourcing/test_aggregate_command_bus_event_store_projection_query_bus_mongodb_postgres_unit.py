@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from src.event_sourcing.aggregate import AggregateRoot, InMemoryRepository, event_handler
+from src.event_sourcing.aggregate import AggregateRoot, InMemoryRepository, UserAggregate, event_handler
 from src.event_sourcing.backends import mongodb as mongo_backend
 from src.event_sourcing.backends import postgres as pg_backend
 from src.event_sourcing.command_bus import (
@@ -19,7 +19,7 @@ from src.event_sourcing.command_bus import (
     command_handler,
 )
 from src.event_sourcing.event_store import Event, EventStore, EventVersion, FileEventStore
-from src.event_sourcing.projection import Projection, ProjectionManager
+from src.event_sourcing.projection import Projection, ProjectionManager, UserSummaryProjection
 from src.event_sourcing.query_bus import Query, QueryBus, QueryHandler, QueryResult, query_handler
 
 
@@ -151,6 +151,16 @@ async def test_aggregate_and_repository_flow():
     assert await repo.exists("u-1") is True
     await repo.delete("u-1")
     assert await repo.exists("u-1") is False
+
+
+def test_regression_user_aggregate_and_projection_initialization():
+    user = UserAggregate.create("u-init", "init@example.com", "Init")
+    assert user.email == "init@example.com"
+    assert user.name == "Init"
+
+    projection = UserSummaryProjection(EventStore())
+    assert projection.user_count == 0
+    assert projection.active_users == set()
 
 
 @pytest.mark.asyncio

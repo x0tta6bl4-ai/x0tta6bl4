@@ -79,11 +79,13 @@ class Aggregate(ABC):
     
     def _register_event_handlers(self) -> None:
         """Register event handlers from decorated methods."""
-        for attr_name in dir(self):
-            attr = getattr(self, attr_name)
-            if hasattr(attr, '_event_type'):
-                event_type = attr._event_type
-                self._event_handlers[event_type] = attr
+        # Iterate class dictionaries directly to avoid evaluating @property
+        # descriptors before subclass fields are initialized.
+        for cls in reversed(type(self).mro()):
+            for attr_name, attr in cls.__dict__.items():
+                if callable(attr) and hasattr(attr, "_event_type"):
+                    event_type = attr._event_type
+                    self._event_handlers[event_type] = getattr(self, attr_name)
     
     def apply_event(self, event: Event) -> None:
         """Apply an event to update state."""
