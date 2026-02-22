@@ -1429,3 +1429,306 @@ class TestMeshInstance:
         inst = self._make_instance()
         uptime = inst.get_uptime()
         assert uptime >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for MeshInstance.get_consciousness_metrics,
+# get_mape_k_state, and get_network_metrics
+# ---------------------------------------------------------------------------
+
+class TestMeshInstanceConsciousnessAndMapeK:
+    """Tests for get_consciousness_metrics, get_mape_k_state, get_network_metrics."""
+
+    def _make_instance_with_health(self, total: int, healthy: int):
+        from src.api.maas_legacy import MeshInstance
+        inst = MeshInstance(
+            mesh_id=f"csc-{uuid.uuid4().hex[:6]}",
+            name="Consciousness Mesh",
+            owner_id="owner-1",
+            nodes=total,
+        )
+        for i in range(total):
+            status = "healthy" if i < healthy else "degraded"
+            inst.node_instances[f"{inst.mesh_id}-node-{i}"] = {
+                "id": f"{inst.mesh_id}-node-{i}",
+                "status": status,
+                "started_at": "2026-01-01T00:00:00",
+                "latency_ms": 0.0,
+            }
+        return inst
+
+    def test_consciousness_all_healthy_transcendent(self):
+        """All nodes healthy → health=1.0 ≥ 0.95 → TRANSCENDENT."""
+        inst = self._make_instance_with_health(4, 4)
+        metrics = inst.get_consciousness_metrics()
+        assert metrics["state"] == "TRANSCENDENT"
+        assert metrics["nodes_total"] == 4
+        assert metrics["nodes_healthy"] == 4
+        assert 1.0 <= metrics["phi_ratio"] <= 1.618
+
+    def test_consciousness_flow_state(self):
+        """4 of 5 healthy → health=0.8 → FLOW."""
+        inst = self._make_instance_with_health(5, 4)
+        metrics = inst.get_consciousness_metrics()
+        assert metrics["state"] == "FLOW"
+
+    def test_consciousness_aware_state(self):
+        """3 of 6 healthy → health=0.5 → AWARE."""
+        inst = self._make_instance_with_health(6, 3)
+        metrics = inst.get_consciousness_metrics()
+        assert metrics["state"] == "AWARE"
+
+    def test_consciousness_dormant_state(self):
+        """1 of 4 healthy → health=0.25 < 0.5 → DORMANT."""
+        inst = self._make_instance_with_health(4, 1)
+        metrics = inst.get_consciousness_metrics()
+        assert metrics["state"] == "DORMANT"
+        assert metrics["entropy"] > 0.5
+
+    def test_mape_k_high_aggressiveness_below_half(self):
+        """health < 0.5 → high aggressiveness, scale_up, interval 10."""
+        inst = self._make_instance_with_health(4, 1)  # health=0.25
+        state = inst.get_mape_k_state()
+        assert state["directives"]["self_healing_aggressiveness"] == "high"
+        assert state["directives"]["scaling_recommendation"] == "scale_up"
+        assert state["interval_seconds"] == 10
+
+    def test_mape_k_medium_aggressiveness_midrange(self):
+        """0.5 ≤ health < 0.8 → medium aggressiveness."""
+        inst = self._make_instance_with_health(6, 3)  # health=0.5
+        state = inst.get_mape_k_state()
+        assert state["directives"]["self_healing_aggressiveness"] == "medium"
+        assert state["directives"]["scaling_recommendation"] == "maintain"
+
+    def test_mape_k_low_aggressiveness_high_health(self):
+        """health ≥ 0.8 → low aggressiveness, interval 30."""
+        inst = self._make_instance_with_health(5, 4)  # health=0.8
+        state = inst.get_mape_k_state()
+        assert state["directives"]["self_healing_aggressiveness"] == "low"
+        assert state["interval_seconds"] == 30
+        assert "last_cycle" in state
+
+    def test_network_metrics_high_health_low_packet_loss(self):
+        """All healthy → health=1.0 > 0.9 → packet_loss_pct 0.01."""
+        inst = self._make_instance_with_health(3, 3)
+        metrics = inst.get_network_metrics()
+        assert metrics["packet_loss_pct"] == 0.01
+        assert metrics["nodes_active"] == 3
+        assert metrics["throughput_mbps"] == 30.0
+
+    def test_network_metrics_low_health_high_packet_loss(self):
+        """Degraded health → packet_loss_pct 0.5."""
+        inst = self._make_instance_with_health(4, 1)  # health=0.25
+        metrics = inst.get_network_metrics()
+        assert metrics["packet_loss_pct"] == 0.5
+        assert metrics["obfuscation_mode"] == "none"
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _is_reissue_token_expired
+# ---------------------------------------------------------------------------
+
+class TestIsReissueTokenExpired:
+    """Tests for _is_reissue_token_expired utility."""
+
+    def test_non_string_expires_at_returns_true(self):
+        from src.api.maas_legacy import _is_reissue_token_expired
+        result = _is_reissue_token_expired({"expires_at": None})
+        assert result is True
+
+    def test_missing_expires_at_returns_true(self):
+        from src.api.maas_legacy import _is_reissue_token_expired
+        result = _is_reissue_token_expired({})
+        assert result is True
+
+    def test_invalid_iso_format_returns_true(self):
+        from src.api.maas_legacy import _is_reissue_token_expired
+        result = _is_reissue_token_expired({"expires_at": "not-a-date"})
+        assert result is True
+
+    def test_past_expiry_returns_true(self):
+        from src.api.maas_legacy import _is_reissue_token_expired
+        result = _is_reissue_token_expired({"expires_at": "2020-01-01T00:00:00"})
+        assert result is True
+
+    def test_future_expiry_returns_false(self):
+        from src.api.maas_legacy import _is_reissue_token_expired
+        result = _is_reissue_token_expired({"expires_at": "2099-01-01T00:00:00"})
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _billing_webhook_tolerance_seconds and
+# _billing_event_ttl_seconds
+# ---------------------------------------------------------------------------
+
+class TestBillingWebhookTolerance:
+    """Tests for _billing_webhook_tolerance_seconds."""
+
+    def test_default_is_300(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("X0T_BILLING_WEBHOOK_TOLERANCE_SEC", None)
+            result = _billing_webhook_tolerance_seconds()
+        assert result == 300
+
+    def test_valid_custom_value(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "600"}):
+            result = _billing_webhook_tolerance_seconds()
+        assert result == 600
+
+    def test_too_low_clamped_to_30(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "5"}):
+            result = _billing_webhook_tolerance_seconds()
+        assert result == 30
+
+    def test_too_high_clamped_to_3600(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "9999"}):
+            result = _billing_webhook_tolerance_seconds()
+        assert result == 3600
+
+    def test_invalid_string_returns_default(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_webhook_tolerance_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_TOLERANCE_SEC": "not-a-number"}):
+            result = _billing_webhook_tolerance_seconds()
+        assert result == 300
+
+
+class TestBillingEventTtl:
+    """Tests for _billing_event_ttl_seconds."""
+
+    def test_default_is_86400(self):
+        import os
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        os.environ.pop("X0T_BILLING_EVENT_TTL_SEC", None)
+        result = _billing_event_ttl_seconds()
+        assert result == 86_400
+
+    def test_valid_custom_value(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_EVENT_TTL_SEC": "3600"}):
+            result = _billing_event_ttl_seconds()
+        assert result == 3600
+
+    def test_too_low_clamped_to_300(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_EVENT_TTL_SEC": "60"}):
+            result = _billing_event_ttl_seconds()
+        assert result == 300
+
+    def test_invalid_string_returns_default(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _billing_event_ttl_seconds
+        with patch.dict(os.environ, {"X0T_BILLING_EVENT_TTL_SEC": "garbage"}):
+            result = _billing_event_ttl_seconds()
+        assert result == 86_400
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for UsageMeteringService
+# ---------------------------------------------------------------------------
+
+class TestUsageMeteringService:
+    """Direct tests for UsageMeteringService.get_mesh_usage and get_account_usage."""
+
+    def _make_instance(self, nodes=2, owner_id="owner-1"):
+        from src.api.maas_legacy import MeshInstance
+        inst = MeshInstance(
+            mesh_id=f"usage-{uuid.uuid4().hex[:6]}",
+            name="Usage Mesh",
+            owner_id=owner_id,
+            nodes=nodes,
+        )
+        for i in range(nodes):
+            inst.node_instances[f"{inst.mesh_id}-node-{i}"] = {
+                "id": f"{inst.mesh_id}-node-{i}",
+                "status": "healthy",
+                "started_at": "2024-01-01T00:00:00",
+                "latency_ms": 0.0,
+            }
+        return inst
+
+    def test_get_mesh_usage_has_required_keys(self):
+        from src.api.maas_legacy import UsageMeteringService
+        svc = UsageMeteringService()
+        inst = self._make_instance(nodes=2)
+        usage = svc.get_mesh_usage(inst)
+        assert usage["mesh_id"] == inst.mesh_id
+        assert usage["active_nodes"] == 2
+        assert usage["total_node_hours"] >= 0.0
+        assert "billing_period_start" in usage
+        assert "nodes" in usage
+
+    def test_get_mesh_usage_missing_started_at_falls_back(self):
+        """Node without started_at → falls back to instance.created_at."""
+        from src.api.maas_legacy import UsageMeteringService, MeshInstance
+        svc = UsageMeteringService()
+        inst = MeshInstance(
+            mesh_id="usage-fallback", name="F", owner_id="o1", nodes=0
+        )
+        # Node without started_at
+        inst.node_instances["n1"] = {"id": "n1", "status": "healthy"}
+        usage = svc.get_mesh_usage(inst)
+        assert usage["total_node_hours"] >= 0.0
+        assert len(usage["nodes"]) == 1
+
+    def test_get_account_usage_empty_returns_zero_hours(self):
+        """owner_id with no meshes → total_node_hours=0."""
+        from src.api.maas_legacy import UsageMeteringService
+        svc = UsageMeteringService()
+        usage = svc.get_account_usage("nonexistent-owner-xyz")
+        assert usage["total_node_hours"] == 0.0
+        assert usage["mesh_count"] == 0
+        assert usage["meshes"] == []
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _verify_billing_webhook_secret
+# ---------------------------------------------------------------------------
+
+class TestVerifyBillingWebhookSecret:
+    """Tests for _verify_billing_webhook_secret."""
+
+    def test_no_env_secret_passes_any_input(self):
+        import os
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        os.environ.pop("X0T_BILLING_WEBHOOK_SECRET", None)
+        # Should not raise even with wrong/None secret when env not set
+        _verify_billing_webhook_secret(None)
+        _verify_billing_webhook_secret("wrong-secret")
+
+    def test_wrong_secret_raises_401(self):
+        import os
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_SECRET": "correct-secret"}):
+            with pytest.raises(HTTPException) as exc:
+                _verify_billing_webhook_secret("wrong-secret")
+            assert exc.value.status_code == 401
+
+    def test_correct_secret_passes(self):
+        import os
+        from unittest.mock import patch
+        from src.api.maas_legacy import _verify_billing_webhook_secret
+        with patch.dict(os.environ, {"X0T_BILLING_WEBHOOK_SECRET": "my-secret"}):
+            # Should not raise
+            _verify_billing_webhook_secret("my-secret")
