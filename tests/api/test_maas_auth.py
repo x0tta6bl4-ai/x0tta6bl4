@@ -452,3 +452,107 @@ class TestBootstrapAdmin:
             json={"email": "second-admin@test.com", "password": "password123"},
         )
         assert r.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for require_role and require_permission dependency factories
+# ---------------------------------------------------------------------------
+
+class TestRequireRoleUnit:
+    """Direct tests for require_role inner checker (no TestClient needed)."""
+
+    def test_correct_role_passes(self):
+        from src.api.maas_auth import require_role
+        from src.database import User
+        checker = require_role("operator")
+        user = User(role="operator")
+        result = checker(user=user)
+        assert result is user
+
+    def test_admin_always_passes(self):
+        """Admin user passes require_role even for non-admin role."""
+        from src.api.maas_auth import require_role
+        from src.database import User
+        checker = require_role("operator")
+        user = User(role="admin")
+        result = checker(user=user)
+        assert result is user
+
+    def test_wrong_role_raises_403(self):
+        from fastapi import HTTPException
+        from src.api.maas_auth import require_role
+        from src.database import User
+        checker = require_role("admin")
+        user = User(role="user")
+        with pytest.raises(HTTPException) as exc:
+            checker(user=user)
+        assert exc.value.status_code == 403
+
+
+class TestRequirePermissionUnit:
+    """Direct tests for require_permission inner checker (no TestClient needed)."""
+
+    def test_admin_bypasses_permission_check(self):
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("billing:pay")
+        user = User(role="admin", permissions=None)
+        result = perm_checker(user=user)
+        assert result is user
+
+    def test_explicit_permission_grants_access(self):
+        """User with explicit permissions string → granted if permission listed."""
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("billing:pay")
+        user = User(role="user", permissions="billing:view,billing:pay,mesh:view")
+        result = perm_checker(user=user)
+        assert result is user
+
+    def test_wildcard_permission_grants_any_access(self):
+        """User with '*' in permissions → any permission granted."""
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("superpower:destroy")
+        user = User(role="user", permissions="*")
+        result = perm_checker(user=user)
+        assert result is user
+
+    def test_role_default_grants_access(self):
+        """Role default permission applied when no explicit permissions."""
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("billing:view")
+        user = User(role="user", permissions=None)
+        result = perm_checker(user=user)
+        assert result is user
+
+    def test_operator_role_default_grants_mesh_view(self):
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("mesh:view")
+        user = User(role="operator", permissions=None)
+        result = perm_checker(user=user)
+        assert result is user
+
+    def test_missing_permission_raises_403(self):
+        """User role doesn't have the required permission → 403."""
+        from fastapi import HTTPException
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("billing:pay")
+        user = User(role="operator", permissions=None)
+        with pytest.raises(HTTPException) as exc:
+            perm_checker(user=user)
+        assert exc.value.status_code == 403
+
+    def test_non_matching_explicit_permissions_raises_403(self):
+        """Explicit permissions set but doesn't include required → 403."""
+        from fastapi import HTTPException
+        from src.api.maas_auth import require_permission
+        from src.database import User
+        perm_checker = require_permission("billing:pay")
+        user = User(role="user", permissions="mesh:view,node:view")
+        with pytest.raises(HTTPException) as exc:
+            perm_checker(user=user)
+        assert exc.value.status_code == 403
