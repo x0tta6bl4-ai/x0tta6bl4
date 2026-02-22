@@ -108,7 +108,9 @@
         "src/agents/sales_notify_bot.py",
         "tests/unit/agents/test_sales_notify_bot_unit.py",
         "src/utils/pqc_id_utils.py",
-        "tests/unit/utils/test_pqc_id_utils_unit.py"
+        "tests/unit/utils/test_pqc_id_utils_unit.py",
+        "src/ai/dynamic_pricing.py",
+        "tests/unit/ai/test_dynamic_pricing_unit.py"
       ]
     },
     "lead-coordinator": {
