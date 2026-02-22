@@ -170,3 +170,55 @@ def test_rotate_api_key_updates_user(db_session):
     refreshed = db_session.query(User).filter(User.id == user.id).first()
     assert refreshed is not None
     assert refreshed.api_key == "rotated-key"
+
+
+# ---------------------------------------------------------------------------
+# Missing branch coverage
+# ---------------------------------------------------------------------------
+
+def test_register_empty_email_raises_400(db_session):
+    """register() with empty string email → 400 (line 36-37 of service)."""
+    service = MaaSAuthService(
+        api_key_factory=lambda: "x0t_empty",
+        default_plan="starter",
+    )
+    with pytest.raises(HTTPException) as exc:
+        service.register(db_session, UserRegisterRequest(email="", password="StrongPassword123!"))
+    assert exc.value.status_code == 400
+    assert "required" in exc.value.detail.lower()
+
+
+def test_register_whitespace_only_email_raises_400(db_session):
+    """register() with whitespace-only email → 400 after _normalize_email strips it."""
+    service = MaaSAuthService(
+        api_key_factory=lambda: "x0t_ws",
+        default_plan="starter",
+    )
+    with pytest.raises(HTTPException) as exc:
+        service.register(db_session, UserRegisterRequest(email="   ", password="StrongPassword123!"))
+    assert exc.value.status_code == 400
+
+
+def test_login_nonexistent_user_raises_401(db_session):
+    """login() with an email that doesn't exist → 401 (line 60-61 of service)."""
+    service = MaaSAuthService(
+        api_key_factory=lambda: "x0t_nope",
+        default_plan="starter",
+    )
+    with pytest.raises(HTTPException) as exc:
+        service.login(
+            db_session,
+            UserLoginRequest(email="nobody@nonexistent.test", password="any-password"),
+        )
+    assert exc.value.status_code == 401
+
+
+def test_normalize_email_none_returns_empty():
+    """_normalize_email(None) → empty string (the `or ''` guard)."""
+    result = MaaSAuthService._normalize_email(None)
+    assert result == ""
+
+
+def test_normalize_email_strips_and_lowercases():
+    result = MaaSAuthService._normalize_email("  HELLO@WORLD.COM  ")
+    assert result == "hello@world.com"
