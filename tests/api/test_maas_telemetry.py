@@ -303,3 +303,30 @@ class TestTelemetryUtilityFunctions:
         with patch.object(tmod, "REDIS_AVAILABLE", False):
             result = tmod._get_telemetry_history("n3", limit=10)
         assert result == [{"ok": True}, {"also": "good"}]
+
+    def test_set_telemetry_redis_failure_falls_back_to_local(self):
+        """_set_telemetry: REDIS_AVAILABLE=True but setex raises → local fallback used."""
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+
+        mock_redis = MagicMock()
+        mock_redis.setex.side_effect = Exception("Redis connection error")
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            tmod._set_telemetry("failnode", {"cpu": 80.0})
+
+        # Data should have fallen back to the local store
+        assert tmod._LOCAL_TELEMETRY_FALLBACK.get("maas:telemetry:failnode") == {"cpu": 80.0}
+
+    def test_set_telemetry_without_redis_writes_to_local(self):
+        """_set_telemetry: REDIS_AVAILABLE=False → writes directly to local fallback."""
+        from unittest.mock import patch
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+
+        with patch.object(tmod, "REDIS_AVAILABLE", False):
+            tmod._set_telemetry("noredis-node", {"mem": 50.0})
+
+        assert tmod._LOCAL_TELEMETRY_FALLBACK.get("maas:telemetry:noredis-node") == {"mem": 50.0}

@@ -410,3 +410,42 @@ class TestGovernanceUtilityFunctions:
                 end_time=datetime.utcnow() - timedelta(hours=1), votes=[],
             )
             assert _resolve_state(proposal) == state
+
+    def test_compute_finality_hash_empty_votes_returns_hex_string(self):
+        """_compute_finality_hash with no votes returns a 64-char hex SHA-256."""
+        from src.api.maas_governance import _compute_finality_hash
+        proposal = GovernanceProposal(
+            id="fin-p1", title="T", description="D", state="passed", votes=[],
+        )
+        result = _compute_finality_hash(proposal, [])
+        assert isinstance(result, str)
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_compute_finality_hash_is_deterministic(self):
+        """Same inputs → same hash (deterministic serialization)."""
+        from src.api.maas_governance import _compute_finality_hash
+        votes = [
+            GovernanceVote(voter_id="v1", vote="yes", tokens=500.0),
+            GovernanceVote(voter_id="v2", vote="no", tokens=200.0),
+        ]
+        proposal = GovernanceProposal(
+            id="fin-p2", title="T", description="D", state="passed", votes=votes,
+        )
+        results = [{"action": "rotate_keys", "success": True}]
+        h1 = _compute_finality_hash(proposal, results)
+        h2 = _compute_finality_hash(proposal, results)
+        assert h1 == h2
+
+    def test_compute_finality_hash_changes_with_different_votes(self):
+        """Different vote set → different hash."""
+        from src.api.maas_governance import _compute_finality_hash
+        proposal_a = GovernanceProposal(
+            id="fin-p3", title="T", description="D", state="passed",
+            votes=[GovernanceVote(voter_id="v1", vote="yes", tokens=100.0)],
+        )
+        proposal_b = GovernanceProposal(
+            id="fin-p3", title="T", description="D", state="passed",
+            votes=[GovernanceVote(voter_id="v1", vote="no", tokens=100.0)],
+        )
+        assert _compute_finality_hash(proposal_a, []) != _compute_finality_hash(proposal_b, [])
