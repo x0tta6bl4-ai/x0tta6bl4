@@ -13,13 +13,29 @@ import hashlib
 import io
 import logging
 import math
+import os
 import random
 import struct
+import warnings
 import zlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+# Try to import cryptography library for secure stream cipher
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
+    from cryptography.hazmat.backends import default_backend
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    CRYPTOGRAPHY_AVAILABLE = False
+    warnings.warn(
+        "cryptography library not available. Falling back to SHA-256 counter mode "
+        "which is NOT cryptographically secure. Install 'cryptography' package "
+        "for secure ChaCha20 encryption.",
+        RuntimeWarning
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +92,10 @@ class ExtractionResult:
 class SteganographyCarrier(ABC):
     """Abstract base class for steganographic carriers."""
     
+    # ChaCha20 in cryptography library requires 16-byte (128-bit) nonce
+    _STREAM_NONCE_SIZE = 16
+    _CHACHA20_NONCE_SIZE = 16
+
     def __init__(self, config: Optional[SteganographyConfig] = None):
         self.config = config or SteganographyConfig()
     
@@ -102,13 +122,103 @@ class SteganographyCarrier(ABC):
             return hashlib.sha256(self.config.encryption_key).digest()
         return hashlib.sha256(b"default_stego_key").digest()
     
-    def _xor_encrypt(self, data: bytes, key: bytes) -> bytes:
-        """Simple XOR encryption with key stream."""
-        key_stream = hashlib.sha256(key).digest()
-        result = bytearray(len(data))
-        for i, byte in enumerate(data):
-            result[i] = byte ^ key_stream[i % len(key_stream)]
-        return bytes(result)
+    def _generate_keystream_fallback(self, key: bytes, nonce: bytes, length: int) -> bytes:
+        """
+        Generate deterministic keystream blocks from key+nonce using SHA-256 counter mode.
+        
+        WARNING: This is a FALLBACK implementation used only when the 'cryptography'
+        library is not available. SHA-256 in counter mode is NOT a cryptographically
+        vetted stream cipher. For production use with sensitive data, ensure the
+        'cryptography' package is installed to use ChaCha20.
+        """
+        stream = bytearray()
+        counter = 0
+        while len(stream) < length:
+            block = hashlib.sha256(
+                key + nonce + counter.to_bytes(8, byteorder="big")
+            ).digest()
+            stream.extend(block)
+            counter += 1
+        return bytes(stream[:length])
+
+    def _stream_cipher_encrypt(self, data: bytes, key: bytes) -> bytes:
+        """
+        Encrypt data using ChaCha20 stream cipher.
+        
+        Uses the 'cryptography' library for cryptographically secure encryption.
+        Falls back to SHA-256 counter mode (INSECURE) if cryptography is unavailable.
+        
+        Output format: nonce (16 bytes) || ciphertext
+        
+        Security properties:
+        - ChaCha20 is a vetted stream cipher with 256-bit security
+        - Nonce must never be reused with the same key (enforced via random generation)
+        - Key is derived via SHA-256 from input key material
+        """
+        nonce_size = (
+            self._CHACHA20_NONCE_SIZE
+            if CRYPTOGRAPHY_AVAILABLE
+            else self._STREAM_NONCE_SIZE
+        )
+        nonce = os.urandom(nonce_size)
+        key_material = hashlib.sha256(key).digest()
+        
+        if CRYPTOGRAPHY_AVAILABLE:
+            # Use ChaCha20 for secure encryption
+            cipher = Cipher(
+                algorithms.ChaCha20(key_material, nonce),
+                mode=None,
+                backend=default_backend()
+            )
+            encryptor = cipher.encryptor()
+            ciphertext = encryptor.update(data)
+            return nonce + ciphertext
+        else:
+            # Fallback to insecure SHA-256 counter mode
+            keystream = self._generate_keystream_fallback(key_material, nonce, len(data))
+            ciphertext = bytearray(len(data))
+            for i, byte in enumerate(data):
+                ciphertext[i] = byte ^ keystream[i]
+            return nonce + bytes(ciphertext)
+
+    def _stream_cipher_decrypt(self, payload: bytes, key: bytes) -> bytes:
+        """
+        Decrypt data encrypted with ChaCha20 stream cipher.
+        
+        Input format: nonce (16 bytes) || ciphertext
+        
+        Uses the 'cryptography' library for cryptographically secure decryption.
+        Falls back to SHA-256 counter mode (INSECURE) if cryptography is unavailable.
+        """
+        nonce_size = (
+            self._CHACHA20_NONCE_SIZE
+            if CRYPTOGRAPHY_AVAILABLE
+            else self._STREAM_NONCE_SIZE
+        )
+        if len(payload) < nonce_size:
+            return b""
+        
+        nonce = payload[:nonce_size]
+        ciphertext = payload[nonce_size:]
+        key_material = hashlib.sha256(key).digest()
+        
+        if CRYPTOGRAPHY_AVAILABLE:
+            # Use ChaCha20 for secure decryption
+            cipher = Cipher(
+                algorithms.ChaCha20(key_material, nonce),
+                mode=None,
+                backend=default_backend()
+            )
+            decryptor = cipher.decryptor()
+            plaintext = decryptor.update(ciphertext)
+            return plaintext
+        else:
+            # Fallback to insecure SHA-256 counter mode
+            keystream = self._generate_keystream_fallback(key_material, nonce, len(ciphertext))
+            plaintext = bytearray(len(ciphertext))
+            for i, byte in enumerate(ciphertext):
+                plaintext[i] = byte ^ keystream[i]
+            return bytes(plaintext)
     
     def _add_integrity(self, data: bytes) -> bytes:
         """Add integrity checksum to data."""
@@ -151,7 +261,7 @@ class ImageSteganography(SteganographyCarrier):
             # Prepare hidden data
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_encrypt(hidden_data, key)
             
             # Add length prefix and integrity
             data_with_length = struct.pack(">I", len(hidden_data)) + hidden_data
@@ -249,7 +359,7 @@ class ImageSteganography(SteganographyCarrier):
             # Decrypt if needed
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_decrypt(hidden_data, key)
             
             return ExtractionResult(
                 success=True,
@@ -331,7 +441,7 @@ class TextSteganography(SteganographyCarrier):
             # Prepare hidden data
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_encrypt(hidden_data, key)
             
             # Add integrity
             data_with_length = struct.pack(">I", len(hidden_data)) + hidden_data
@@ -413,7 +523,7 @@ class TextSteganography(SteganographyCarrier):
             # Decrypt if needed
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_decrypt(hidden_data, key)
             
             return ExtractionResult(
                 success=True,
@@ -454,7 +564,7 @@ class ProtocolSteganography(SteganographyCarrier):
             # Prepare data
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_encrypt(hidden_data, key)
             
             # Base32 encode for DNS compatibility
             import base64
@@ -506,7 +616,7 @@ class ProtocolSteganography(SteganographyCarrier):
             # Decrypt if needed
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_decrypt(hidden_data, key)
             
             return ExtractionResult(
                 success=True,
@@ -525,7 +635,7 @@ class ProtocolSteganography(SteganographyCarrier):
             # Prepare data
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_encrypt(hidden_data, key)
             
             # Add integrity
             data_with_integrity = self._add_integrity(hidden_data)
@@ -586,7 +696,7 @@ class AudioSteganography(SteganographyCarrier):
             # Prepare hidden data
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_encrypt(hidden_data, key)
             
             data_with_length = struct.pack(">I", len(hidden_data)) + hidden_data
             data_with_length = self._add_integrity(data_with_length)
@@ -667,7 +777,7 @@ class AudioSteganography(SteganographyCarrier):
             # Decrypt if needed
             if self.config.use_encryption:
                 key = self._derive_key()
-                hidden_data = self._xor_encrypt(hidden_data, key)
+                hidden_data = self._stream_cipher_decrypt(hidden_data, key)
             
             return ExtractionResult(
                 success=True,
