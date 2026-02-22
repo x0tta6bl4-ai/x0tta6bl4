@@ -158,6 +158,26 @@ class TestOIDCEndpoints:
         r = client.get("/api/v1/maas/auth/callback")
         assert "OIDC" in r.json()["detail"] or "oidc" in r.json()["detail"].lower()
 
+    def test_login_oidc_authlib_unavailable_501(self, client, monkeypatch):
+        """When OIDC IS configured but authlib (oauth) is None → 501 'redirect flow'."""
+        import src.api.maas_auth as auth_mod
+        monkeypatch.setattr(auth_mod.oidc_validator, "issuer", "https://fake-oidc.example.com")
+        monkeypatch.setattr(auth_mod.oidc_validator, "client_id", "fake-client")
+        monkeypatch.setattr(auth_mod, "oauth", None)
+        r = client.get("/api/v1/maas/auth/login/oidc")
+        assert r.status_code == 501
+        assert "redirect flow" in r.json()["detail"].lower() or "authlib" in r.json()["detail"].lower()
+
+    def test_callback_authlib_unavailable_501(self, client, monkeypatch):
+        """When OIDC IS configured but authlib (oauth) is None → 501 'redirect flow'."""
+        import src.api.maas_auth as auth_mod
+        monkeypatch.setattr(auth_mod.oidc_validator, "issuer", "https://fake-oidc.example.com")
+        monkeypatch.setattr(auth_mod.oidc_validator, "client_id", "fake-client")
+        monkeypatch.setattr(auth_mod, "oauth", None)
+        r = client.get("/api/v1/maas/auth/callback")
+        assert r.status_code == 501
+        assert "redirect flow" in r.json()["detail"].lower() or "authlib" in r.json()["detail"].lower()
+
 
 # ---------------------------------------------------------------------------
 # require_permission() with explicit user.permissions field
