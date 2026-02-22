@@ -74,6 +74,7 @@
         "tests/unit/api/test_maas_acl_unit.py",
         "tests/unit/api/test_maas_constants_unit.py",
         "tests/unit/api/test_maas_mesh_instance_unit.py",
+        "tests/unit/core/test_swarm_sync_unit.py",
         "tests/unit/test_maas_package.py",
         "skills/x0tta6bl4-80-20-executor/SKILL.md",
         "skills/x0tta6bl4-80-20-executor/references/agent_cycle_profiles_80_20.json",
