@@ -583,5 +583,109 @@ class TestGetMeshSummaryEdgeCases(unittest.TestCase):
         self.assertEqual(result["cost_aws_estimate"], 0.0)
 
 
+class TestNodeHealthScoreEdgeCases(unittest.TestCase):
+    """Cover the empty-nodes → 1.0 branch in _node_health_score."""
+
+    def test_empty_nodes_returns_one(self):
+        """_node_health_score([]) → 1.0 (line 84-85 branch)."""
+        service = MaaSAnalyticsService(MagicMock(), None)
+        score = service._node_health_score([])
+        self.assertEqual(score, 1.0)
+
+
+class TestGetRedisTelemetryHistoryBytesPath(unittest.TestCase):
+    """Cover bytes-decoding path in _get_redis_telemetry_history (line 120-121)."""
+
+    def test_bytes_items_decoded_and_parsed(self):
+        """lrange returns bytes items → decoded to str → parsed as JSON."""
+        import json as _json
+        redis_client = MagicMock()
+        payload = {"traffic_mbps": 77.7, "latency_ms": 3.3}
+        redis_client.lrange.return_value = [_json.dumps(payload).encode("utf-8")]
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry_history("bytes-node", 5)
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0]["traffic_mbps"], 77.7)
+
+
+class TestGetMeshTimeseriesRealtimePath(unittest.TestCase):
+    """Cover realtime telemetry fallback path in get_mesh_timeseries (lines 291-293)."""
+
+    def setUp(self):
+        self.db = MagicMock()
+        self.redis = MagicMock()
+        self.mesh_id = "mesh-realtime-test"
+        self.owner_id = "owner-realtime"
+
+    def test_realtime_telemetry_used_for_current_hour_when_no_history(self):
+        """When history has no bucket for the current hour, realtime telemetry is used."""
+        now = datetime(2026, 2, 22, 15, 45, 0)  # fixed for reproducibility
+        instance = MeshInstance(id=self.mesh_id, owner_id=self.owner_id, pqc_enabled=False)
+        nodes = [MeshNode(id="n1", status="healthy", last_seen=now)]
+
+        q_instance = MagicMock()
+        q_instance.filter.return_value.first.return_value = instance
+        q_nodes = MagicMock()
+        q_nodes.filter.return_value.all.return_value = nodes
+        q_health = MagicMock()
+        q_health.filter.return_value.group_by.return_value.all.return_value = []
+        q_traffic = MagicMock()
+        q_traffic.join.return_value.filter.return_value.scalar.return_value = 0.0
+
+        def _query_side_effect(*args, **kwargs):
+            if args and args[0] is MeshInstance:
+                return q_instance
+            if args and args[0] is MeshNode:
+                return q_nodes
+            if args and len(args) == 2:
+                return q_health
+            return q_traffic
+
+        self.db.query.side_effect = _query_side_effect
+        service = MaaSAnalyticsService(self.db, self.redis)
+        service._utcnow_naive = MagicMock(return_value=now)
+        # No history buckets at all
+        service._aggregate_hourly_telemetry_from_history = MagicMock(return_value={})
+        # Realtime has data
+        service._aggregate_realtime_telemetry = MagicMock(return_value={
+            "traffic_mbps_total": 42.0,
+            "latency_ms_avg": 8.5,
+        })
+
+        result = service.get_mesh_timeseries(self.mesh_id, self.owner_id, time_range="1h")
+        self.assertIsNotNone(result)
+        # The single data point should use realtime telemetry
+        point = result["data"][0]
+        self.assertEqual(point["traffic_mbps"], 42.0)
+        self.assertEqual(point["latency_ms"], 8.5)
+
+
+class TestAggregateHourlyBucketPartialData(unittest.TestCase):
+    """Cover bucket with only latency (no valid traffic) → traffic_mbps_total is 0.0."""
+
+    def test_bucket_only_latency_valid_traffic_zero(self):
+        """Negative traffic + positive latency → bucket included with traffic=0.0."""
+        import json as _json
+        redis_client = MagicMock()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        since = now - timedelta(hours=1)
+        sample = {
+            "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S"),
+            "traffic_mbps": -1.0,   # negative → excluded from traffic list
+            "latency_ms": 12.5,     # positive → included in latency list
+        }
+        redis_client.lrange.return_value = [_json.dumps(sample)]
+        node = MeshNode(id="n-latency-only", mesh_id="m1", status="approved")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._aggregate_hourly_telemetry_from_history(
+            nodes=[node], since=since, now=now, hours_count=1
+        )
+        # Bucket should exist (latency is valid)
+        self.assertEqual(len(result), 1)
+        hour_key = list(result.keys())[0]
+        self.assertEqual(result[hour_key]["traffic_mbps_total"], 0.0)
+        self.assertAlmostEqual(result[hour_key]["latency_ms_avg"], 12.5)
+
+
 if __name__ == "__main__":
     unittest.main()
