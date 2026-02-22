@@ -330,3 +330,101 @@ class TestTelemetryUtilityFunctions:
             tmod._set_telemetry("noredis-node", {"mem": 50.0})
 
         assert tmod._LOCAL_TELEMETRY_FALLBACK.get("maas:telemetry:noredis-node") == {"mem": 50.0}
+
+    def test_get_telemetry_redis_failure_falls_back_to_local(self):
+        """_get_telemetry: REDIS_AVAILABLE=True but get() raises → reads from local fallback."""
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:failread"] = {"cpu": 33.0}
+
+        mock_redis = MagicMock()
+        mock_redis.get.side_effect = Exception("connection refused")
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry("failread")
+
+        assert result == {"cpu": 33.0}
+
+    def test_get_telemetry_redis_returns_valid_json(self):
+        """_get_telemetry: REDIS_AVAILABLE=True and get() returns JSON string → parsed dict."""
+        import json
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+
+        mock_redis = MagicMock()
+        mock_redis.get.return_value = json.dumps({"cpu": 77.5})
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry("goodnode")
+
+        assert result == {"cpu": 77.5}
+
+    def test_get_telemetry_redis_returns_none_gives_empty(self):
+        """_get_telemetry: REDIS_AVAILABLE=True and get() returns None → {}."""
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+
+        mock_redis = MagicMock()
+        mock_redis.get.return_value = None
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry("missing-node")
+
+        assert result == {}
+
+    def test_get_telemetry_history_redis_failure_fallback_list(self):
+        """_get_telemetry_history: Redis lrange raises → fallback list returned."""
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:fallhist:history"] = [
+            {"cpu": 1.0}, {"cpu": 2.0}
+        ]
+
+        mock_redis = MagicMock()
+        mock_redis.lrange.side_effect = Exception("Redis down")
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry_history("fallhist", limit=10)
+
+        assert result == [{"cpu": 1.0}, {"cpu": 2.0}]
+
+    def test_get_telemetry_history_redis_failure_fallback_non_list(self):
+        """_get_telemetry_history: Redis lrange raises, fallback is non-list → []."""
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+        tmod._LOCAL_TELEMETRY_FALLBACK.clear()
+        tmod._LOCAL_TELEMETRY_FALLBACK["maas:telemetry:badfall:history"] = "corrupted"
+
+        mock_redis = MagicMock()
+        mock_redis.lrange.side_effect = Exception("Redis down")
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry_history("badfall", limit=10)
+
+        assert result == []
+
+    def test_get_telemetry_history_redis_parses_json_strings(self):
+        """_get_telemetry_history: Redis returns JSON strings → parsed dicts."""
+        import json
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_telemetry as tmod
+
+        mock_redis = MagicMock()
+        mock_redis.lrange.return_value = [
+            json.dumps({"cpu": 10.0}),
+            json.dumps({"cpu": 20.0}),
+            "invalid-json{{{",
+        ]
+
+        with patch.object(tmod, "REDIS_AVAILABLE", True), \
+             patch.object(tmod, "r_client", mock_redis):
+            result = tmod._get_telemetry_history("redis-node", limit=10)
+
+        assert result == [{"cpu": 10.0}, {"cpu": 20.0}]

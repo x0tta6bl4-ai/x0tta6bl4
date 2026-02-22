@@ -449,3 +449,88 @@ class TestGovernanceUtilityFunctions:
             votes=[GovernanceVote(voter_id="v1", vote="no", tokens=100.0)],
         )
         assert _compute_finality_hash(proposal_a, []) != _compute_finality_hash(proposal_b, [])
+
+    def test_resolve_state_active_with_future_deadline_stays_active(self):
+        """Active proposal with deadline in the future → stays 'active'."""
+        from src.api.maas_governance import _resolve_state
+        proposal = GovernanceProposal(
+            id="pa", title="T", description="D", state="active",
+            end_time=datetime.utcnow() + timedelta(hours=24), votes=[],
+        )
+        assert _resolve_state(proposal) == "active"
+
+    def test_resolve_state_active_past_deadline_yes_wins(self):
+        """Active proposal, deadline passed, yes > no → 'passed'."""
+        from src.api.maas_governance import _resolve_state
+        votes = [
+            GovernanceVote(voter_id="v1", vote="yes", tokens=10000.0),
+            GovernanceVote(voter_id="v2", vote="no", tokens=100.0),
+        ]
+        proposal = GovernanceProposal(
+            id="pb", title="T", description="D", state="active",
+            end_time=datetime.utcnow() - timedelta(minutes=1), votes=votes,
+        )
+        assert _resolve_state(proposal) == "passed"
+
+    def test_resolve_state_active_past_deadline_no_wins(self):
+        """Active proposal, deadline passed, no > yes → 'rejected'."""
+        from src.api.maas_governance import _resolve_state
+        votes = [
+            GovernanceVote(voter_id="v1", vote="yes", tokens=100.0),
+            GovernanceVote(voter_id="v2", vote="no", tokens=10000.0),
+        ]
+        proposal = GovernanceProposal(
+            id="pc", title="T", description="D", state="active",
+            end_time=datetime.utcnow() - timedelta(minutes=1), votes=votes,
+        )
+        assert _resolve_state(proposal) == "rejected"
+
+    def test_execute_action_update_config_supported_key_succeeds(self):
+        """_execute_action update_config with global_price_multiplier → success=True."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({
+            "type": "update_config",
+            "params": {"key": "global_price_multiplier", "value": 1.5},
+        })
+        assert result["success"] is True
+        assert result["action"] == "update_config"
+
+    def test_execute_action_update_config_unsupported_key_fails(self):
+        """_execute_action update_config with unsupported key → success=False."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({
+            "type": "update_config",
+            "params": {"key": "unknown_setting", "value": 999},
+        })
+        assert result["success"] is False
+        assert "Unsupported config key" in result["detail"]
+
+    def test_execute_action_update_price_succeeds(self):
+        """_execute_action update_price → success=True."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({
+            "type": "update_price",
+            "params": {"tier": "pro", "price": 99.0},
+        })
+        assert result["success"] is True
+        assert result["action"] == "update_price"
+
+    def test_execute_action_rotate_keys_via_type_key(self):
+        """_execute_action rotate_keys via 'type' key → success=True."""
+        from src.api.maas_governance import _execute_action
+        result = _execute_action({"type": "rotate_keys", "params": {}})
+        assert result["success"] is True
+        assert "rotation" in result["detail"].lower()
+
+    def test_tally_abstain_vote_counted(self):
+        """_tally counts abstain votes via quadratic formula."""
+        import math
+        from src.api.maas_governance import _tally
+        votes = [
+            GovernanceVote(voter_id="v1", vote="abstain", tokens=400.0),  # sqrt(4) = 2
+        ]
+        proposal = GovernanceProposal(id="p5", title="T", description="D",
+                                      state="active", votes=votes)
+        result = _tally(proposal)
+        assert math.isclose(result["abstain"], 2.0, rel_tol=1e-6)
+        assert result["yes"] == 0.0
