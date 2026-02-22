@@ -128,7 +128,9 @@
         "src/llm/providers/openai_compatible.py",
         "src/llm/providers/vllm.py",
         "tests/unit/llm/test_openai_compatible_unit.py",
-        "tests/unit/llm/test_vllm_unit.py"
+        "tests/unit/llm/test_vllm_unit.py",
+        "src/services/provisioning_service.py",
+        "tests/unit/services/test_provisioning_service_unit.py"
       ]
     },
     "lead-coordinator": {
