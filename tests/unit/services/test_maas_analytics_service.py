@@ -454,5 +454,134 @@ class TestGetMarketplaceRoiEdgeCases(unittest.TestCase):
         self.assertEqual(result["listings"]["available"], 2)
 
 
+class TestGetRedisTelemetryEdgeCases(unittest.TestCase):
+    """Cover exception path in _get_redis_telemetry."""
+
+    def test_redis_get_raises_returns_empty(self):
+        """redis.get() raises an exception → logger.warning → return {}."""
+        import json
+        redis_client = MagicMock()
+        redis_client.get.side_effect = Exception("connection refused")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry("node-exc")
+        self.assertEqual(result, {})
+
+
+class TestGetRedisTelemetryHistoryEdgeCases(unittest.TestCase):
+    """Cover no-lrange, lrange exception, dict payload, and invalid payload paths."""
+
+    def test_redis_without_lrange_returns_empty(self):
+        """redis client without lrange attribute → return []."""
+        redis_client = MagicMock(spec=[])  # object with no attributes
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry_history("node-1", 10)
+        self.assertEqual(result, [])
+
+    def test_lrange_raises_returns_empty(self):
+        """redis.lrange() raises → logger.warning → return []."""
+        redis_client = MagicMock()
+        redis_client.lrange.side_effect = Exception("lrange error")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry_history("node-err", 5)
+        self.assertEqual(result, [])
+
+    def test_lrange_dict_payload_included(self):
+        """Dict item in lrange result → parsed and included."""
+        import json as _json
+        redis_client = MagicMock()
+        redis_client.lrange.return_value = [{"traffic_mbps": 10.0, "latency_ms": 5.0}]
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry_history("node-dict", 5)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["traffic_mbps"], 10.0)
+
+    def test_lrange_invalid_type_skipped(self):
+        """Non-str/bytes/dict item (int) in lrange → continue → skipped."""
+        redis_client = MagicMock()
+        redis_client.lrange.return_value = [42, None]
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._get_redis_telemetry_history("node-invalid", 5)
+        self.assertEqual(result, [])
+
+
+class TestAggregateRealtimeTelemetryEdgeCases(unittest.TestCase):
+    """Cover empty-values → None branch in _aggregate_realtime_telemetry."""
+
+    def test_all_negative_values_returns_none(self):
+        """Nodes with negative traffic AND latency → nothing appended → return None."""
+        import json as _json
+        redis_client = MagicMock()
+        redis_client.get.return_value = _json.dumps({"traffic_mbps": -1.0, "latency_ms": -2.0})
+        node = MeshNode(id="n1", mesh_id="m1", status="approved")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._aggregate_realtime_telemetry([node])
+        self.assertIsNone(result)
+
+    def test_no_nodes_returns_none(self):
+        """Empty node list → return None immediately."""
+        redis_client = MagicMock()
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._aggregate_realtime_telemetry([])
+        self.assertIsNone(result)
+
+
+class TestAggregateHourlyTelemetryEdgeCases(unittest.TestCase):
+    """Cover bucket exclusion when all values are negative/invalid."""
+
+    def test_bucket_with_no_valid_values_excluded(self):
+        """Samples whose traffic AND latency are negative → bucket not in result."""
+        import json as _json
+        redis_client = MagicMock()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        since = now - timedelta(hours=1)
+        sample = {
+            "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S"),
+            "traffic_mbps": -5.0,
+            "latency_ms": -2.0,
+        }
+        redis_client.lrange.return_value = [_json.dumps(sample)]
+        node = MeshNode(id="n-bad", mesh_id="m1", status="approved")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._aggregate_hourly_telemetry_from_history(
+            nodes=[node], since=since, now=now, hours_count=1
+        )
+        self.assertEqual(result, {})
+
+    def test_timestamp_out_of_range_excluded(self):
+        """Sample timestamp before 'since' → skipped (not added to buckets)."""
+        import json as _json
+        redis_client = MagicMock()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        since = now - timedelta(hours=1)
+        # Timestamp 3 hours ago — outside the window
+        old_ts = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S")
+        sample = {"timestamp": old_ts, "traffic_mbps": 50.0, "latency_ms": 10.0}
+        redis_client.lrange.return_value = [_json.dumps(sample)]
+        node = MeshNode(id="n-old", mesh_id="m1", status="approved")
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        result = service._aggregate_hourly_telemetry_from_history(
+            nodes=[node], since=since, now=now, hours_count=1
+        )
+        self.assertEqual(result, {})
+
+
+class TestGetMeshSummaryEdgeCases(unittest.TestCase):
+    """Cover savings_pct=0 when no nodes (cost_aws=0)."""
+
+    def test_savings_zero_when_no_nodes(self):
+        """No nodes → cost_aws=0 → savings_pct=0.0 (no division by zero)."""
+        db = MagicMock()
+        instance = MeshInstance(id="mesh-1", owner_id="user-1", pqc_enabled=True)
+        db.query.return_value.filter.return_value.first.return_value = instance
+        db.query.return_value.filter.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.scalar.return_value = None
+        service = MaaSAnalyticsService(db, None)
+        result = service.get_mesh_summary("mesh-1", "user-1")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["savings_pct"], 0.0)
+        self.assertEqual(result["nodes_total"], 0)
+        self.assertEqual(result["cost_aws_estimate"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
