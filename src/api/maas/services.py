@@ -125,17 +125,20 @@ class BillingService:
         Returns:
             True if signature is valid
         """
-        if timestamp:
+        parsed_timestamp, signature_candidates = self._parse_signature_header(signature)
+        effective_timestamp = timestamp or parsed_timestamp
+
+        if effective_timestamp:
             # Replay protection: reject if timestamp is too old
             try:
-                ts = int(timestamp)
+                ts = int(effective_timestamp)
                 if abs(int(time.time()) - ts) > 300:  # 5 minutes (past or future)
                     logger.warning("Webhook timestamp outside allowed skew")
                     return False
             except ValueError:
                 return False
 
-            message = f"{timestamp}.".encode("utf-8") + payload
+            message = f"{effective_timestamp}.".encode("utf-8") + payload
         else:
             message = payload
 
@@ -145,15 +148,185 @@ class BillingService:
             hashlib.sha256,
         ).hexdigest()
 
-        signature = signature.strip()
-        if signature.startswith("sha256="):
-            return hmac.compare_digest(f"sha256={expected}", signature)
-        return hmac.compare_digest(expected, signature)
+        for candidate in signature_candidates:
+            normalized = candidate.strip().lower()
+            if normalized.startswith("sha256="):
+                normalized = normalized.split("=", 1)[1]
+            if hmac.compare_digest(expected, normalized):
+                return True
+        return False
+
+    def _parse_signature_header(self, signature: str) -> tuple[Optional[str], List[str]]:
+        """
+        Parse webhook signature header.
+
+        Supports:
+        - raw digest: "<hex>"
+        - prefixed digest: "sha256=<hex>"
+        - provider style: "t=<ts>,v1=<hex>[,v1=<hex>...]"
+        """
+        raw = (signature or "").strip()
+        if not raw:
+            return None, []
+
+        # Fast path for simple signatures.
+        if "," not in raw and "v1=" not in raw and "t=" not in raw:
+            return None, [raw]
+
+        timestamp: Optional[str] = None
+        candidates: List[str] = []
+        for token in raw.split(","):
+            part = token.strip()
+            if not part:
+                continue
+            if "=" not in part:
+                candidates.append(part)
+                continue
+            key, value = part.split("=", 1)
+            key = key.strip().lower()
+            value = value.strip()
+            if not value:
+                continue
+            if key == "t" and timestamp is None:
+                timestamp = value
+            elif key in {"v1", "sha256", "sig", "signature"}:
+                candidates.append(value)
+
+        if not candidates:
+            candidates.append(raw)
+        return timestamp, candidates
 
     def _normalize_event_type(self, event_type: str) -> str:
         """Normalize webhook event type to canonical provider-style name."""
         normalized = (event_type or "").strip().lower()
         return self._event_aliases.get(normalized, normalized)
+
+    async def create_payment_session(self, user_id: str, plan: str) -> Dict[str, str]:
+        """Create a Stripe payment session."""
+        normalized_plan = PLAN_ALIASES.get(plan, plan)
+        
+        # Simulate Stripe Checkout Session
+        session_id = f"cs_test_{secrets.token_hex(16)}"
+        url = f"https://checkout.x0tta6bl4.io/pay/{session_id}"
+        
+        logger.info(f"Created Stripe payment session for user {user_id} (plan: {normalized_plan})")
+        
+        return {
+            "session_id": session_id,
+            "payment_url": url,
+            "status": "requires_payment"
+        }
+    
+    async def create_crypto_payment_session(self, user_id: str, plan: str) -> Dict[str, Any]:
+        """
+        Create a crypto payment session.
+        
+        Returns payment details for blockchain-based payment.
+        The user must send the exact amount to the provided address.
+        """
+        import os
+        
+        normalized_plan = PLAN_ALIASES.get(plan, plan)
+        
+        # Plan pricing (in USD, will be converted to crypto)
+        plan_prices = {
+            "pro": 29.00,
+            "enterprise": 99.00,
+        }
+        amount_usd = plan_prices.get(normalized_plan, 29.00)
+        
+        # Generate unique payment reference
+        payment_ref = f"pay_{secrets.token_hex(12)}"
+        
+        # In production, this would:
+        # 1. Generate a unique deposit address per user
+        # 2. Set up webhook for blockchain events
+        # 3. Calculate crypto amount based on current exchange rate
+        
+        # Stub deposit address (in production, use HD wallet derivation)
+        deposit_address = os.getenv(
+            "CRYPTO_DEPOSIT_ADDRESS",
+            "0x0000000000000000000000000000000000000000"  # Placeholder
+        )
+        
+        logger.info(
+            f"Created crypto payment session for user {user_id} "
+            f"(plan: {normalized_plan}, amount: ${amount_usd})"
+        )
+        
+        return {
+            "session_id": payment_ref,
+            "payment_url": f"https://pay.x0tta6bl4.io/crypto/{payment_ref}",
+            "status": "awaiting_payment",
+            "deposit_address": deposit_address,
+            "amount_usd": amount_usd,
+            "amount_crypto": None,  # Would be calculated from exchange rate
+            "network": "ethereum",
+            "expires_at": (
+                datetime.utcnow() + timedelta(minutes=30)
+            ).isoformat(),
+            "instructions": (
+                f"Send exactly ${amount_usd} worth of ETH or USDC to the deposit address. "
+                "Payment will be confirmed automatically after blockchain confirmation."
+            ),
+        }
+
+    async def verify_crypto_payment(self, tx_hash: str, expected_amount: float) -> bool:
+        """
+        Verify on-chain crypto payment via DAO contracts.
+        
+        SECURITY WARNING: This is a STUB implementation. In production, this MUST
+        be replaced with actual blockchain verification via RPC (etherscan, alchemy, etc.)
+        
+        For production safety, this stub REJECTS all payments when PRODUCTION=true.
+        """
+        import os
+        
+        logger.warning(
+            "⚠️ Crypto payment verification is a STUB - not production ready! "
+            f"tx_hash={tx_hash[:16]}... expected_amount={expected_amount}"
+        )
+        
+        # Production safety: reject all payments in production environment
+        if os.getenv("PRODUCTION", "false").lower() == "true":
+            logger.error(
+                "BLOCKED: Crypto payment verification not implemented for production. "
+                "Integrate with blockchain RPC (etherscan, alchemy, etc.) before enabling."
+            )
+            raise NotImplementedError(
+                "Crypto payment verification not implemented for production. "
+                "Set PRODUCTION=false for testing only."
+            )
+        
+        # Stub validation for testing/development only
+        # This only checks format - NOT actual blockchain verification
+        if not tx_hash or not isinstance(tx_hash, str):
+            return False
+        
+        # Basic format validation (Ethereum-style tx hash)
+        if not tx_hash.startswith("0x"):
+            return False
+        
+        if len(tx_hash) != 66:  # 0x + 64 hex chars
+            return False
+        
+        # Validate hex characters
+        try:
+            int(tx_hash[2:], 16)
+        except ValueError:
+            return False
+        
+        # STUB: In production, verify:
+        # 1. Transaction exists on blockchain
+        # 2. Transaction is confirmed (sufficient confirmations)
+        # 3. Recipient address matches expected
+        # 4. Amount matches expected_amount
+        # 5. Transaction is not double-spent
+        
+        logger.info(
+            f"STUB: Accepting crypto payment format (testing only): {tx_hash[:16]}..."
+        )
+        return True
 
     async def process_webhook(
         self,

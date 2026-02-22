@@ -41,6 +41,37 @@ def test_verify_webhook_signature_rejects_timestamp_outside_skew():
     assert billing.verify_webhook_signature(payload, signature, timestamp=timestamp) is False
 
 
+def test_verify_webhook_signature_provider_header_uses_embedded_timestamp():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    timestamp = str(int(time.time()))
+    digest = _signature(secret, payload, timestamp=timestamp, with_prefix=False)
+    signature = f"t={timestamp},v1=deadbeef,v1={digest}"
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature) is True
+
+
+def test_verify_webhook_signature_provider_header_rejects_when_no_v1_matches():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    timestamp = str(int(time.time()))
+    signature = f"t={timestamp},v1=deadbeef,v1=badbad"
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature) is False
+
+
+def test_verify_webhook_signature_provider_header_rejects_invalid_timestamp():
+    secret = "test-webhook-secret"
+    payload = b'{"type":"invoice.paid","data":{"customer_id":"cus_1"}}'
+    digest = _signature(secret, payload, with_prefix=False)
+    signature = f"t=not-a-number,v1={digest}"
+    billing = BillingService(webhook_secret=secret)
+
+    assert billing.verify_webhook_signature(payload, signature) is False
+
+
 def test_process_webhook_handles_invoice_paid():
     billing = BillingService(webhook_secret="test")
 
