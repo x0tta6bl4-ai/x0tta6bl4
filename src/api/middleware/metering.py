@@ -61,7 +61,13 @@ class MeteringMiddleware(BaseHTTPMiddleware):
         try:
             user = db.query(User).filter(User.api_key == api_key).first()
             if user:
-                user.requests_count += 1
-                db.commit()
+                user.requests_count = (user.requests_count or 0) + 1
+                try:
+                    db.commit()
+                except Exception:
+                    rollback = getattr(db, "rollback", None)
+                    if callable(rollback):
+                        rollback()
+                    raise
         finally:
             self._close_db(db, generator)
