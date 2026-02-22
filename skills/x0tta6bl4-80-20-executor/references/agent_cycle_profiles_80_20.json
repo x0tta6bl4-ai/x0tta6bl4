@@ -6,7 +6,7 @@
       "skill_name": "x0tta6bl4-mesh-orchestrator",
       "skill_path": "skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
       "role_file": "ai/roles/architect.md",
-      "command": "python3 -m pytest --no-cov -q tests/api/test_maas_nodes.py tests/api/test_maas_escrow.py tests/api/test_maas_analytics.py tests/unit/api/test_maas_registry_unit.py tests/unit/api/test_maas_acl_unit.py tests/unit/api/test_maas_services_billing_unit.py tests/unit/api/test_maas_constants_unit.py tests/unit/api/test_maas_mesh_instance_unit.py tests/unit/api/middleware/test_metering_unit.py tests/unit/core/test_swarm_sync_unit.py tests/unit/core/test_resilience_patterns_unit.py tests/unit/coordination/test_state_lock_hashing_unit.py tests/unit/anti_censorship/test_steganography_stream_cipher_unit.py",
+      "command": "python3 -m pytest --no-cov -q tests/api/test_maas_nodes.py tests/api/test_maas_escrow.py tests/api/test_maas_analytics.py tests/unit/api/test_maas_registry_unit.py tests/unit/api/test_maas_acl_unit.py tests/unit/api/test_maas_services_billing_unit.py tests/unit/api/test_maas_constants_unit.py tests/unit/api/test_maas_mesh_instance_unit.py tests/unit/api/middleware/test_metering_unit.py tests/unit/api/endpoints/test_nodes_unit.py tests/unit/core/test_swarm_sync_unit.py tests/unit/core/test_resilience_patterns_unit.py tests/unit/coordination/test_state_lock_hashing_unit.py tests/unit/anti_censorship/test_steganography_stream_cipher_unit.py",
       "critical": true
     },
     {

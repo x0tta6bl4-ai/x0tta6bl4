@@ -1,0 +1,162 @@
+"""Unit tests for src/api/maas/endpoints/nodes.py."""
+
+from types import SimpleNamespace
+
+import pytest
+from fastapi import HTTPException
+
+from src.api.maas.auth import UserContext
+from src.api.maas.endpoints import nodes as mod
+from src.api.maas.models import NodeHeartbeatRequest, NodeRegisterRequest
+
+
+def test_to_optional_float_handles_valid_and_invalid_values():
+    assert mod._to_optional_float(12) == 12.0
+    assert mod._to_optional_float("3.5") == 3.5
+    assert mod._to_optional_float(None) is None
+    assert mod._to_optional_float("not-a-number") is None
+
+
+def test_build_external_telemetry_payload_uses_fallbacks_and_filters_negative_metrics():
+    request = NodeHeartbeatRequest(
+        mesh_id="mesh-1",
+        node_id="node-1",
+        cpu_usage=55.0,
+        memory_usage=44.0,
+        neighbors_count=7,
+        custom_metrics={"latency_ms": "-1", "traffic_mbps": "12.5"},
+    )
+
+    payload = mod._build_external_telemetry_payload(request, "2026-01-01T00:00:00Z")
+
+    assert payload["cpu_percent"] == 55.0
+    assert payload["memory_percent"] == 44.0
+    assert payload["active_connections"] == 7
+    assert "latency_ms" not in payload
+    assert payload["traffic_mbps"] == 12.5
+
+
+def test_export_external_telemetry_returns_false_when_not_configured(monkeypatch):
+    monkeypatch.setattr(mod, "_set_external_telemetry", None)
+    assert mod._export_external_telemetry("node-1", {"x": 1}) is False
+
+
+def test_export_external_telemetry_handles_export_errors(monkeypatch):
+    def _boom(_node_id, _payload):
+        raise RuntimeError("broken")
+
+    monkeypatch.setattr(mod, "_set_external_telemetry", _boom)
+    assert mod._export_external_telemetry("node-1", {"x": 1}) is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_mesh_for_user_requires_acl_when_owner_differs(monkeypatch):
+    instance = SimpleNamespace(owner_id="owner-1")
+    calls = {"require": 0}
+
+    monkeypatch.setattr(mod, "get_mesh", lambda _mesh_id: instance)
+
+    async def _require(_mesh_id, _user):
+        calls["require"] += 1
+
+    monkeypatch.setattr(mod, "require_mesh_access", _require)
+    user = UserContext(user_id="other-user", plan="starter")
+
+    resolved = await mod._resolve_mesh_for_user("mesh-1", user)
+    assert resolved is instance
+    assert calls["require"] == 1
+
+
+@pytest.mark.asyncio
+async def test_resolve_mesh_for_user_raises_404_when_not_found_after_acl_check(monkeypatch):
+    monkeypatch.setattr(mod, "get_mesh", lambda _mesh_id: None)
+
+    async def _require(_mesh_id, _user):
+        return None
+
+    monkeypatch.setattr(mod, "require_mesh_access", _require)
+    user = UserContext(user_id="user-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod._resolve_mesh_for_user("mesh-404", user)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_register_node_success_adds_pending(monkeypatch):
+    captured = {}
+
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "is_node_revoked", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        mod,
+        "add_pending_node",
+        lambda mesh_id, node_id, data: captured.update(
+            {"mesh_id": mesh_id, "node_id": node_id, "data": data}
+        ),
+    )
+
+    request = NodeRegisterRequest(
+        mesh_id="mesh-1",
+        node_id="node-1",
+        device_class="edge",
+        public_key="legacy-key",
+        public_keys={"pqc": "pqc-key"},
+        capabilities=["edge", "routing"],
+        metadata={"region": "us"},
+        labels={"tier": "prod"},
+        hardware_id="hw-1",
+    )
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    response = await mod.register_node(request, user)
+    assert response.status == "pending"
+    assert captured["mesh_id"] == "mesh-1"
+    assert captured["node_id"] == "node-1"
+    assert captured["data"]["public_key"] == "legacy-key"
+    assert captured["data"]["requested_by"] == "owner-1"
+
+
+@pytest.mark.asyncio
+async def test_register_node_rejects_revoked(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "is_node_revoked", lambda *_args, **_kwargs: True)
+
+    request = NodeRegisterRequest(mesh_id="mesh-1", node_id="node-1")
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.register_node(request, user)
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_node_heartbeat_updates_registry_and_export_status(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        mod,
+        "update_node_telemetry",
+        lambda node_id, payload: captured.update({"node_id": node_id, "payload": payload}),
+    )
+    monkeypatch.setattr(mod, "_export_external_telemetry", lambda *_args, **_kwargs: True)
+
+    request = NodeHeartbeatRequest(
+        mesh_id="mesh-1",
+        node_id="node-1",
+        cpu_usage=20.0,
+        memory_usage=30.0,
+        neighbors_count=4,
+    )
+
+    result = await mod.node_heartbeat(request)
+    assert result["status"] == "ok"
+    assert result["telemetry_exported"] is True
+    assert captured["node_id"] == "node-1"
+    assert captured["payload"]["active_connections"] == 4
+
