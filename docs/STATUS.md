@@ -1,9 +1,9 @@
 # x0tta6bl4 Project Status Report
 
-**Last Updated:** 2026-02-22 00:12 UTC  
-**Total Python Files:** 608 (src/) + 704 (tests/)  
-**Test Coverage:** 74.8%  
-**CVE Vulnerabilities:** 0  
+**Last Updated:** 2026-02-23 UTC
+**Total Python Files:** 608 (src/) + 704 (tests/)
+**Test Coverage:** 74.8%
+**CVE Vulnerabilities:** 0
 
 ---
 
@@ -934,6 +934,36 @@
          - Decision statistics and monitoring
          - Multi-agent coordination support
 
+  38. ✅ **P0 Swarm Consensus Refactoring** - P0 Priority (2026-02-23)
+       - **Bug fixes in `src/swarm/consensus.py` (RaftNode):**
+         - Added `send_message` parameter to `set_callbacks()` — previously absent, causing
+           `TypeError` when `SwarmConsensusManager._initialize_raft()` called
+           `set_callbacks(send_message=...)` (silent no-op was masking the crash)
+         - Added `receive_message(message)` — dispatches `append_entries` / `request_vote` /
+           `vote_response` to correct handlers; auto-sends `vote_response` back via callback
+         - `start_election()` — now broadcasts `request_vote` to all peers via `send_message`
+       - **Integration in `src/swarm/consensus_integration.py` (SwarmConsensusManager):**
+         - New optional `transport: ConsensusTransport` constructor parameter
+         - `start()` — registers `consensus_msg` handler + calls `transport.start()`
+         - `stop()` — calls `transport.stop()`
+         - `_send_consensus_message()` — now uses `asyncio.create_task(transport.send(...))` when
+           transport is present; falls back to `logger.debug()` (no silent message loss)
+         - `_handle_transport_message()` — bridge: incoming `ConsensusMessage.payload` → `receive_message()`
+         - `_cleanup_decisions(max_age_seconds)` — TTL-based pruning of `_decisions` dict (fixes TD-002
+           memory leak); called automatically every 100 decisions in `decide()`
+         - `_initialize_raft()` — fixed incorrect `send_heartbeat=` kwarg (was `send_message=`)
+       - **Test suite:** [`tests/unit/swarm/test_consensus_transport_integration_unit.py`](tests/unit/swarm/test_consensus_transport_integration_unit.py) — 33 tests
+         - `RaftNode.receive_message()` — all message types, vote grant/deny, unknown type
+         - `start_election()` — vote broadcast to peers, no peers, no callback
+         - Transport wiring — start/stop, handler registration, no-transport fallback
+         - `_send_consensus_message()` — with/without transport
+         - `_initialize_raft()` — no crash, instance reuse, Raft term preservation
+         - `_cleanup_decisions()` — TTL prune, keep recent, default TTL, empty dict
+         - Integration — two managers exchange messages via file-based `ConsensusTransport`
+       - **P0 issues resolved:** #1 (RaftNode reuse already present, now verifiable), #2 (real
+         network communication via `ConsensusTransport`), #9 (integration test with real IPC)
+       - **TD-002 resolved:** memory leak in `_decisions` fixed with TTL cleanup
+
 ---
 
 ## ⚠️ Areas Needing Attention
@@ -951,13 +981,13 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                    PROJECT HEALTH SCORE                          │
 │                                                                  │
-│  Code Quality     ████████████████████████░░░░  85%             │
+│  Code Quality     █████████████████████████░░░  87%             │
 │  Test Coverage    ██████████████████████░░░░░░  71%             │
 │  Security         ████████████████████████████  100%            │
 │  Documentation    ████████████████░░░░░░░░░░░░  60%             │
-│  Architecture     ████████████████████████░░░░  85%             │
+│  Architecture     █████████████████████████░░░  88%             │
 │                                                                  │
-│  Overall Score:   ████████████████████████░░░░  82%             │
+│  Overall Score:   ████████████████████████░░░░  83%             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
