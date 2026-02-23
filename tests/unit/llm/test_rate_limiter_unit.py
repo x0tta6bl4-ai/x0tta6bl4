@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from src.llm.rate_limiter import (
     MultiProviderRateLimiter,
     RateLimitConfig,
@@ -85,3 +87,26 @@ def test_multiprovider_register_acquire_wait_and_stats():
     stats = m.get_all_stats()
     assert "ollama" in stats
     assert stats["ollama"]["total_requests"] == 1
+
+
+def test_acquire_rejects_non_positive_tokens():
+    limiter = RateLimiter(RateLimitConfig())
+    with pytest.raises(ValueError, match="tokens must be > 0"):
+        limiter.acquire(tokens=0, blocking=False)
+    with pytest.raises(ValueError, match="tokens must be > 0"):
+        limiter.acquire(tokens=-1, blocking=False)
+
+
+def test_get_wait_time_handles_zero_token_refill_rate():
+    cfg = RateLimitConfig(
+        requests_per_minute=60,
+        tokens_per_minute=0,
+        burst_size=1,
+        strategy=RateLimitStrategy.TOKEN_BUCKET,
+    )
+    limiter = RateLimiter(cfg)
+    limiter._state.available_requests = 0
+    limiter._state.available_tokens = 0.0
+
+    wait = limiter.get_wait_time(tokens=1)
+    assert wait == float("inf")
