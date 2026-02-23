@@ -49,7 +49,14 @@ jobs:
     - name: Test with pytest
       run: |
         pytest tests/unit/core/test_health.py -v --tb=short --junitxml=junit.xml --cov=src --cov-report=xml --cov-fail-under=0
-      continue-on-error: true
+
+    - name: Validate runtime API contracts
+      run: |
+        python scripts/validate_runtime_contracts.py
+
+    - name: Validate version contract
+      run: |
+        python scripts/validate_version_contract.py
 
     - name: Upload coverage
       uses: codecov/codecov-action@v3
