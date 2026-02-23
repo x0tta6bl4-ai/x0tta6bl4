@@ -213,7 +213,8 @@
         "scripts/agents/start_swarm_session.sh",
         "scripts/agents/stop_swarm_session.sh",
         ".githooks/pre-commit",
-        ".githooks/post-commit"
+        ".githooks/post-commit",
+        "plans/NEXT_PRIORITIES_MESH_FL.md"
       ]
     }
   }
