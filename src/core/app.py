@@ -183,9 +183,11 @@ def _include_maas_router(module_path: str, label: str) -> None:
         logger.warning("Could not import MaaS router %s (%s): %s", label, module_path, exc)
 
 
-# maas_legacy provides the full MaaS API surface (register/login/deploy/status/nodes/etc.)
-# maas_core is disabled to avoid route conflicts with legacy (both expose /deploy, /list, /{id})
+# maas_legacy provides the canonical MaaS API surface for /api/v1/maas/*
+# We keep compatibility aliases in a dedicated router and avoid duplicate
+# method+path registrations from modular nodes/policies/telemetry by default.
 _include_maas_router("src.api.maas_legacy", "legacy")
+_include_maas_router("src.api.maas_compat", "compat")
 _include_maas_router("src.api.maas_auth", "auth")
 _include_maas_router("src.api.maas_playbooks", "playbooks")
 _include_maas_router("src.api.maas_supply_chain", "supply-chain")
@@ -193,9 +195,19 @@ _include_maas_router("src.api.maas_marketplace", "marketplace")
 _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_billing", "billing")
-_include_maas_router("src.api.maas_nodes", "nodes")
-_include_maas_router("src.api.maas_policies", "policies")
-_include_maas_router("src.api.maas_telemetry", "telemetry")
+
+include_modular_node_policy_telemetry = (
+    os.getenv("MAAS_ENABLE_MODULAR_NODE_POLICY_TELEMETRY", "false").lower() == "true"
+)
+if include_modular_node_policy_telemetry:
+    _include_maas_router("src.api.maas_nodes", "nodes")
+    _include_maas_router("src.api.maas_policies", "policies")
+    _include_maas_router("src.api.maas_telemetry", "telemetry")
+else:
+    logger.info(
+        "⏩ Skipping modular nodes/policies/telemetry routers to avoid legacy route collisions"
+    )
+
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 
 # Edge Computing API (v3.3)

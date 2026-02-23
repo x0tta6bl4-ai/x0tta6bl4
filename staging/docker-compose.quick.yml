@@ -4,7 +4,6 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile.staging
-      no_cache: false
     container_name: x0tta6bl4-api
     ports:
       - "${API_PORT:-8000}:8000"
@@ -47,8 +46,8 @@ services:
       POSTGRES_DB: x0tta6bl4
     ports:
       - "5432:5432"
-    volumes:
-      - x0tta6bl4_db_data:/var/lib/postgresql/data
+    tmpfs:
+      - /var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - x0tta6bl4_staging
@@ -106,7 +105,6 @@ services:
       retries: 5
 
 volumes:
-  x0tta6bl4_db_data:
   x0tta6bl4_prometheus_data:
   x0tta6bl4_grafana_data:
 

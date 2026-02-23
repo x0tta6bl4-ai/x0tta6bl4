@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>x0tta6bl4 | my dashboard</title>
+    <style>
+        body { background: #050505; color: #00ff41; font-family: monospace; padding: 50px; }
+        .box { border: 1px solid #00ff41; padding: 20px; max-width: 500px; }
+        .btn { background: #00ff41; color: #000; padding: 10px 20px; text-decoration: none; font-weight: bold; cursor: pointer; border: none; }
+        input { background: #000; border: 1px solid #333; color: #fff; padding: 10px; width: 100%; margin-bottom: 10px; }
+        .status { color: #888; font-size: 0.8rem; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>[ welcome back, user ]</h2>
+        <p>your security status: <b>OFFLINE</b></p>
+        <hr color="#111">
+        <div id="setup">
+            <p>1. enter your email:</p>
+            <input type="email" placeholder="you@example.com">
+            <p>2. one click setup:</p>
+            <button class="btn" onclick="deploy()">DEPLOY MY SECURE MESH</button>
+        </div>
+        <div id="result" style="display:none">
+            <p>✅ YOUR MESH IS LIVE!</p>
+            <p>Copy this command to your devices:</p>
+            <code>curl -sSL https://get.x0t.io | bash -s <span id="token"></span></code>
+        </div>
+        <div class="status">>>> encryption: ML-KEM-768 active</div>
+    </div>
+
+    <script>
+        function deploy() {
+            // Здесь будет реальный вызов API /api/v1/maas/deploy
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('token').innerText = 'x0t_magic_token_2026_xyz';
+        }
+    </script>
+</body>
+</html>
