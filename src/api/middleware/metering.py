@@ -4,6 +4,7 @@ import time
 from typing import Callable, Generator, Optional, Tuple
 
 from fastapi import Request, Response
+from sqlalchemy import func
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.database import User, get_db
@@ -59,7 +60,24 @@ class MeteringMiddleware(BaseHTTPMiddleware):
     def _update_usage(self, request: Request, api_key: str) -> None:
         db, generator = self._resolve_db(request)
         try:
-            user = db.query(User).filter(User.api_key == api_key).first()
+            usage_query = db.query(User).filter(User.api_key == api_key)
+            if hasattr(usage_query, "update"):
+                updated_rows = usage_query.update(
+                    {User.requests_count: func.coalesce(User.requests_count, 0) + 1},
+                    synchronize_session=False,
+                )
+                if updated_rows:
+                    try:
+                        db.commit()
+                    except Exception:
+                        rollback = getattr(db, "rollback", None)
+                        if callable(rollback):
+                            rollback()
+                        raise
+                return
+
+            # Compatibility fallback for non-SQLAlchemy test doubles.
+            user = usage_query.first()
             if user:
                 user.requests_count = (user.requests_count or 0) + 1
                 try:

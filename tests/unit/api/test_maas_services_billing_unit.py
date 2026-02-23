@@ -140,3 +140,57 @@ def test_process_webhook_unknown_event_is_ignored():
 
     assert result["status"] == "ignored"
     assert result["reason"] == "unknown_event_type"
+
+
+def test_process_webhook_idempotency_cache_expires():
+    billing = BillingService(webhook_secret="test")
+    first = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_first", "attempt": 1},
+            event_id="evt_expire",
+        )
+    )
+    assert first["customer_id"] == "cus_first"
+
+    # Force immediate expiration to ensure stale cached values are not reused.
+    billing._idempotency_ttl_seconds = 0
+    second = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_second", "attempt": 2},
+            event_id="evt_expire",
+        )
+    )
+
+    assert second["customer_id"] == "cus_second"
+    assert second["attempt"] == 2
+
+
+def test_process_webhook_idempotency_cache_evicts_oldest_entry():
+    billing = BillingService(webhook_secret="test")
+    billing._idempotency_max_entries = 2
+
+    asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.paid",
+            event_data={"customer_id": "cus_a", "amount": 1},
+            event_id="evt_a",
+        )
+    )
+    asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.paid",
+            event_data={"customer_id": "cus_b", "amount": 2},
+            event_id="evt_b",
+        )
+    )
+    asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.paid",
+            event_data={"customer_id": "cus_c", "amount": 3},
+            event_id="evt_c",
+        )
+    )
+
+    assert list(billing._idempotency_cache.keys()) == ["evt_b", "evt_c"]
