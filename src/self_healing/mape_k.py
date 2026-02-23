@@ -750,31 +750,64 @@ class MAPEKKnowledge:
             return self.threshold_adjustments[metric_name]
         return default_threshold
 
+    # Default baselines used for threshold initialisation — mirrors MAPEKMonitor defaults.
+    _THRESHOLD_BASELINES: Dict[str, float] = {
+        "cpu_percent": 90.0,
+        "memory_percent": 85.0,
+        "packet_loss_percent": 5.0,
+    }
+    # Hard caps: percentage metrics cannot exceed 100 %; others are unbounded.
+    _THRESHOLD_CAPS: Dict[str, float] = {
+        "cpu_percent": 100.0,
+        "memory_percent": 100.0,
+        "packet_loss_percent": 100.0,
+    }
+
     def _update_thresholds(self, metrics: Dict, issue: str, success: bool):
         """
         Update detection thresholds based on feedback.
 
-        If successful recovery with low MTTR, thresholds can be slightly relaxed.
-        If failed recovery, thresholds should be tightened.
+        Initialises from the *default* baseline for known metrics (not from the
+        anomaly-triggering value, which would push the threshold above 100 % for
+        percentage metrics and blind the Monitor phase).
+
+        If successful recovery: slightly relax threshold (+2 %).
+        If failed recovery: tighten threshold (-5 %).
+        Hard cap at 100 % for percentage metrics to prevent impossible thresholds.
         """
-        # Simple adaptive threshold adjustment
         for metric_name, value in metrics.items():
-            if isinstance(value, (int, float)):
-                if metric_name not in self.threshold_adjustments:
-                    self.threshold_adjustments[metric_name] = (
-                        value * 1.1
-                    )  # Initial: 10% above
+            if not isinstance(value, (int, float)):
+                continue
 
-                # Adjust based on success rate
-                if success:
-                    # Successful recovery: slightly relax threshold (reduce by 2%)
-                    self.threshold_adjustments[metric_name] *= 0.98
-                else:
-                    # Failed recovery: tighten threshold (increase by 5%)
-                    self.threshold_adjustments[metric_name] *= 1.05
+            if metric_name not in self.threshold_adjustments:
+                # Use the known baseline, fall back to current value only for
+                # unknown metrics (where 10 % headroom is a reasonable heuristic).
+                baseline = self._THRESHOLD_BASELINES.get(metric_name, value)
+                self.threshold_adjustments[metric_name] = baseline
 
-                # Keep within reasonable bounds (50% to 150% of original)
-                # This would need original baseline, simplified here
+            # Adjust based on success rate
+            if success:
+                # Successful recovery: slightly relax threshold (raise by 2 %)
+                self.threshold_adjustments[metric_name] *= 1.02
+            else:
+                # Failed recovery: tighten threshold (lower by 5 %)
+                self.threshold_adjustments[metric_name] *= 0.95
+
+            # Clamp within ±10 % of the baseline to prevent unbounded drift.
+            baseline = self._THRESHOLD_BASELINES.get(metric_name)
+            if baseline is not None:
+                lo = baseline * 0.90
+                hi = min(baseline * 1.10, self._THRESHOLD_CAPS.get(metric_name, float("inf")))
+                self.threshold_adjustments[metric_name] = max(
+                    lo, min(self.threshold_adjustments[metric_name], hi)
+                )
+            else:
+                # For unknown metrics: cap at hard ceiling if applicable
+                cap = self._THRESHOLD_CAPS.get(metric_name)
+                if cap is not None:
+                    self.threshold_adjustments[metric_name] = max(
+                        1.0, min(self.threshold_adjustments[metric_name], cap)
+                    )
 
 
 class SelfHealingManager:

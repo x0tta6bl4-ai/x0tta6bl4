@@ -46,6 +46,44 @@ def get_usage_service() -> UsageMeteringService:
 
 
 @router.post(
+    "/pay",
+    summary="Create payment session",
+    description="Create a Stripe Checkout session or crypto payment intent.",
+)
+async def create_payment(
+    plan: str = Query(..., pattern="^(pro|enterprise)$"),
+    method: str = Query("stripe", pattern="^(stripe|crypto)$"),
+    user: UserContext = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Create a payment session.
+    
+    Args:
+        plan: Subscription plan (pro or enterprise)
+        method: Payment method - 'stripe' for card payments, 'crypto' for blockchain
+        user: Authenticated user context
+        
+    Returns:
+        Payment session details including URL for checkout
+    """
+    billing = get_billing_service()
+    
+    if method == "crypto":
+        # Create crypto payment intent
+        session = await billing.create_crypto_payment_session(user.user_id, plan)
+    else:
+        # Default: Create Stripe Checkout session
+        session = await billing.create_payment_session(user.user_id, plan)
+    
+    return {
+        "payment_url": session["payment_url"],
+        "session_id": session["session_id"],
+        "status": session["status"],
+        "method": method,
+        "plan": plan,
+    }
+
+@router.post(
     "/webhook",
     status_code=status.HTTP_200_OK,
     summary="Handle billing webhook",

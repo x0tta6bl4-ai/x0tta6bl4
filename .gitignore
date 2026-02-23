@@ -203,6 +203,25 @@ project_files_list.txt
 .claude/settings.local.json
 .claude/.fuse_hidden*
 
+# FUSE hidden files (temporary files from FUSE filesystems)
+.fuse_hidden*
+
+# PhotoRec recovery files (personal data recovery)
+photorec.cfg
+photorec.ses
+recovered_photos/
+
+# Personal photo archives (NOT FOR GIT)
+ALL_IMAGES_FINAL/
+ALL_RECOVERED_PHOTOS/
+FAMILY_ARCHIVE/
+FINAL_FAMILY_ARCHIVE/
+MY_PHOTOS_RECOVERED/
+PHOTOS_COLLECTION/
+RECOVERED_2016/
+RECOVERED_STREAMS/
+RECOVERY_BATCHES/
+
 # Google OAuth credentials (contains client_id, client_secret)
 credentials.json
 token.json
