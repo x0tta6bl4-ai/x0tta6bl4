@@ -116,7 +116,7 @@ class TestConsciousnessEngine:
         )
         directives = engine.get_operational_directive(metrics)
         assert directives["scaling_action"] == "optimize"
-        assert directives["route_preference"] == "performance"
+        assert directives["route_preference"] == "low_latency"
 
     def test_get_operational_directive_mystical(self, engine):
         metrics = ConsciousnessMetrics(
