@@ -35,6 +35,7 @@
         "docker/Dockerfile.api",
         "docker/Dockerfile.controller",
         "docker/Dockerfile.worker",
+        "Dockerfile.production",
         "tests/load/maas_load_test.js",
         "tests/load/run_load_tests.sh",
         "src/services/maas_auth_service.py"
@@ -45,6 +46,10 @@
       "allow": [
         "src/api/maas_auth.py",
         "src/api/maas_analytics.py",
+        "src/api/maas_governance.py",
+        "src/api/maas_dashboard.py",
+        "src/api/maas_marketplace.py",
+        "src/api/maas_security.py",
         "tests/api/test_maas_playbooks.py",
         "tests/api/test_maas_dashboard.py",
         "tests/api/test_maas_analytics.py",
@@ -56,6 +61,7 @@
         "tests/unit/api/test_maas_security_unit.py",
         "tests/api/test_maas_auth.py",
         "tests/api/test_maas_governance_edge.py",
+        "tests/api/test_maas_governance.py",
         "tests/unit/services/test_maas_analytics_service.py",
         "tests/unit/services/test_maas_auth_service_unit.py"
       ]
@@ -157,6 +163,13 @@
         "src/consensus/raft_production.py",
         "src/core/consciousness.py",
         "src/core/mape_k_loop.py",
+        "src/network/__init__.py",
+        "src/network/yggdrasil_client.py",
+        "src/network/routing/stigmergy.py",
+        "src/agent/headless.py",
+        "src/core/app.py",
+        "alembic/versions/v001_event_store_postgres.py",
+        "src/ml/anomaly.py",
         "src/federated_learning/__init__.py",
         "src/monitoring/opentelemetry_tracing.py",
         "src/self_healing/mape_k.py",
