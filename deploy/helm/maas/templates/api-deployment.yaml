@@ -22,6 +22,9 @@ spec:
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
       labels:
         {{- include "maas.api.selectorLabels" . | nindent 8 }}
+        {{- if .Values.istioLike.enabled }}
+        {{ .Values.istioLike.routing.subsetLabelKey }}: {{ .Values.istioLike.routing.defaultSubsetLabelValue | quote }}
+        {{- end }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:

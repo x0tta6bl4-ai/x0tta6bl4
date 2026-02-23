@@ -364,6 +364,20 @@ networkPolicy:
         - protocol: TCP
           port: 443
 
+# Istio-like profile - production
+istioLike:
+  enabled: true
+  authorization:
+    enabled: false
+  routing:
+    defaultSubsetLabelValue: stable
+    canaryWeight: 0
+  virtualService:
+    timeout: 2s
+    retries:
+      attempts: 2
+      perTryTimeout: 700ms
+
 # Pod Anti-Affinity - Production
 podAntiAffinity:
   enabled: true
