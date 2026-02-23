@@ -142,7 +142,27 @@
         "src/event_sourcing/aggregate.py",
         "src/event_sourcing/projection.py",
         "src/swarm/pbft.py",
-        "src/swarm/parl/controller.py"
+        "src/swarm/parl/controller.py",
+        ".gitignore",
+        "libx0t/network/batman/__init__.py",
+        "libx0t/network/mesh_vpn_bridge.py",
+        "skills/mape-k-troubleshoot/SKILL.md",
+        "src/ai/federated_learning.py",
+        "src/api/maas/endpoints/billing.py",
+        "src/api/maas/models.py",
+        "src/api/maas_telemetry.py",
+        "src/consensus/raft_production.py",
+        "src/core/consciousness.py",
+        "src/core/mape_k_loop.py",
+        "src/federated_learning/__init__.py",
+        "src/monitoring/opentelemetry_tracing.py",
+        "src/self_healing/mape_k.py",
+        "src/self_healing/recovery_actions.py",
+        "src/swarm/__init__.py",
+        "tests/api/test_maas_escrow.py",
+        "tests/chaos/__init__.py",
+        "tests/unit/api/test_maas_telemetry.py",
+        "tests/unit/consensus/test_raft_snapshots.py"
       ]
     },
     "lead-coordinator": {
