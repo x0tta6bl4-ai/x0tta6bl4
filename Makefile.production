@@ -1,0 +1,26 @@
+# MaaS Enterprise Production Makefile
+
+.PHONY: build test migrate deploy status cleanup
+
+build:
+	docker-compose -f docker-compose.production.yml build
+
+test:
+	export PYTHONPATH=. && pytest tests/integration/maas_enterprise_full_flow.py
+
+migrate:
+	docker-compose -f docker-compose.production.yml run --rm control-plane alembic upgrade head
+
+deploy:
+	docker-compose -f docker-compose.production.yml up -d
+	@echo "🚀 MaaS Enterprise is flying at http://localhost:8000"
+
+status:
+	docker-compose -f docker-compose.production.yml ps
+
+cleanup:
+	docker-compose -f docker-compose.production.yml down -v
+	@echo "🧹 Infrastructure cleared."
+
+sdk-init:
+	cd sdk/python && pip install -e .
