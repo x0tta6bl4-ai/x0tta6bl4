@@ -12,9 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from ..auth import UserContext, get_current_user
 from ..billing_helpers import (
     generate_invoice,
-    get_idempotency_store,
     verify_webhook_with_timestamp,
-    with_idempotency,
 )
 from ..models import BillingWebhookRequest
 from ..services import BillingService, UsageMeteringService
@@ -128,17 +126,12 @@ async def billing_webhook(
 
     event_type = data.get("type", "unknown")
 
-    # Process with idempotency
-    async def process():
-        return await billing.process_webhook(
-            event_type=event_type,
-            event_data=data.get("data", {}),
-            event_id=x_event_id,
-        )
-
-    result = await with_idempotency(x_event_id, process)
-
-    return result
+    return await billing.process_webhook(
+        event_type=event_type,
+        event_data=data.get("data", {}),
+        event_id=x_event_id,
+        include_idempotency_metadata=True,
+    )
 
 
 @router.get(

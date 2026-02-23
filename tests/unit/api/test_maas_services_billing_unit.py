@@ -127,6 +127,31 @@ def test_process_webhook_idempotency_returns_cached_result():
     assert second["attempt"] == 1
 
 
+def test_process_webhook_idempotency_metadata_flag():
+    billing = BillingService(webhook_secret="test")
+    first = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_meta", "attempt": 1},
+            event_id="evt_meta",
+            include_idempotency_metadata=True,
+        )
+    )
+    second = asyncio.run(
+        billing.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_other", "attempt": 9},
+            event_id="evt_meta",
+            include_idempotency_metadata=True,
+        )
+    )
+
+    assert first["_idempotent"] is False
+    assert second["_idempotent"] is True
+    assert second["customer_id"] == "cus_meta"
+    assert second["attempt"] == 1
+
+
 def test_process_webhook_unknown_event_is_ignored():
     billing = BillingService(webhook_secret="test")
 
@@ -233,6 +258,34 @@ def test_process_webhook_idempotency_is_shared_across_instances():
     )
 
     assert first == second
+    assert second["customer_id"] == "cus_a"
+    assert second["attempt"] == 1
+
+
+def test_process_webhook_idempotency_metadata_is_shared_across_instances():
+    shared = _SharedStateFake()
+    billing_a = BillingService(webhook_secret="test", shared_state=shared)
+    billing_b = BillingService(webhook_secret="test", shared_state=shared)
+
+    first = asyncio.run(
+        billing_a.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_a", "attempt": 1},
+            event_id="evt_shared_meta",
+            include_idempotency_metadata=True,
+        )
+    )
+    second = asyncio.run(
+        billing_b.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_b", "attempt": 999},
+            event_id="evt_shared_meta",
+            include_idempotency_metadata=True,
+        )
+    )
+
+    assert first["_idempotent"] is False
+    assert second["_idempotent"] is True
     assert second["customer_id"] == "cus_a"
     assert second["attempt"] == 1
 
