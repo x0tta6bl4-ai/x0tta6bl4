@@ -17,7 +17,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class ProvisioningService:
         self,
         email: str,
         plan: str = "pro",
-        source: ProvisioningSource = ProvisioningSource.STRIPE_WEBHOOK,
+        source: Union[ProvisioningSource, str] = ProvisioningSource.STRIPE_WEBHOOK,
         user_id: Optional[str] = None,
         telegram_chat_id: Optional[int] = None,
     ) -> ProvisioningResult:
@@ -130,8 +130,9 @@ class ProvisioningService:
                 success=False, email=email, error="Invalid email"
             )
 
+        source_label = source.value if isinstance(source, ProvisioningSource) else str(source)
         logger.info(
-            f"[PROVISION] Start: email={email}, plan={plan}, source={source.value}"
+            f"[PROVISION] Start: email={email}, plan={plan}, source={source_label}"
         )
 
         try:
