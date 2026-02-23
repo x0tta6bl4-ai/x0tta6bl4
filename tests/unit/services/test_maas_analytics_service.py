@@ -768,5 +768,85 @@ class TestAggregateHourlyTelemetryEmptyNodes(unittest.TestCase):
         redis_client.lrange.assert_not_called()
 
 
+class TestRedisBatchPaths(unittest.TestCase):
+    """Performance-focused tests for bulk Redis access paths."""
+
+    def test_aggregate_realtime_telemetry_uses_mget_when_available(self):
+        redis_client = MagicMock()
+        redis_client.mget.return_value = [
+            '{"traffic_mbps": 10.0, "latency_ms": 20.0}',
+            b'{"traffic_mbps": 5.0, "latency_ms": 40.0}',
+        ]
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        nodes = [
+            MeshNode(id="n1", status="healthy", last_seen=None),
+            MeshNode(id="n2", status="healthy", last_seen=None),
+        ]
+
+        aggregated = service._aggregate_realtime_telemetry(nodes)
+        self.assertIsNotNone(aggregated)
+        self.assertEqual(aggregated["traffic_mbps_total"], 15.0)
+        self.assertEqual(aggregated["latency_ms_avg"], 30.0)
+        redis_client.mget.assert_called_once_with(
+            ["maas:telemetry:n1", "maas:telemetry:n2"]
+        )
+        redis_client.get.assert_not_called()
+
+    def test_aggregate_hourly_telemetry_uses_pipeline_when_available(self):
+        class _Pipeline:
+            def __init__(self, responses):
+                self._responses = responses
+                self.calls = []
+
+            def lrange(self, key, start, stop):
+                self.calls.append((key, start, stop))
+                return self
+
+            def execute(self):
+                return self._responses
+
+        now = datetime(2026, 2, 22, 12, 30, 0)
+        since = now - timedelta(hours=1)
+        hour_key = "2026-02-22T12:00:00"
+
+        pipe = _Pipeline(
+            responses=[
+                [
+                    '{"timestamp": "2026-02-22T12:10:00", "traffic_mbps": 10.0, "latency_ms": 20.0}',
+                ],
+                [
+                    '{"timestamp": "2026-02-22T12:20:00", "traffic_mbps": 5.0, "latency_ms": 40.0}',
+                    "not-json",
+                ],
+            ]
+        )
+        redis_client = MagicMock()
+        redis_client.pipeline.return_value = pipe
+        service = MaaSAnalyticsService(MagicMock(), redis_client)
+        nodes = [
+            MeshNode(id="n1", status="healthy", last_seen=None),
+            MeshNode(id="n2", status="healthy", last_seen=None),
+        ]
+
+        aggregated = service._aggregate_hourly_telemetry_from_history(
+            nodes=nodes,
+            since=since,
+            now=now,
+            hours_count=1,
+        )
+        self.assertIn(hour_key, aggregated)
+        self.assertEqual(aggregated[hour_key]["traffic_mbps_total"], 15.0)
+        self.assertEqual(aggregated[hour_key]["latency_ms_avg"], 30.0)
+        redis_client.pipeline.assert_called_once_with(transaction=False)
+        redis_client.lrange.assert_not_called()
+        self.assertEqual(
+            pipe.calls,
+            [
+                ("maas:telemetry:n1:history", 0, 23),
+                ("maas:telemetry:n2:history", 0, 23),
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

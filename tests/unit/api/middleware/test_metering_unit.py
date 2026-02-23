@@ -40,6 +40,8 @@ class _DummyDB:
         self.committed = False
         self.rolled_back = False
         self.closed = False
+        self.first_calls = 0
+        self.update_calls = 0
 
     def query(self, _model):
         return self
@@ -48,7 +50,15 @@ class _DummyDB:
         return self
 
     def first(self):
+        self.first_calls += 1
         return self._user
+
+    def update(self, _values, synchronize_session=False):
+        self.update_calls += 1
+        if self._user is None:
+            return 0
+        self._user.requests_count = (self._user.requests_count or 0) + 1
+        return 1
 
     def commit(self):
         if self._commit_error is not None:
@@ -147,6 +157,8 @@ def test_update_usage_increments_and_commits_with_override_object_provider():
     middleware._update_usage(request, "k")
 
     assert user.requests_count == 11
+    assert db.update_calls == 1
+    assert db.first_calls == 0
     assert db.committed is True
     assert db.closed is True
 
@@ -170,6 +182,8 @@ def test_update_usage_with_generator_provider_closes_generator():
     middleware._update_usage(request, "k")
 
     assert user.requests_count == 2
+    assert db.update_calls == 1
+    assert db.first_calls == 0
     assert db.committed is True
     assert finalized["closed"] is True
 
@@ -183,6 +197,8 @@ def test_update_usage_no_user_does_not_commit():
 
     middleware._update_usage(request, "k")
 
+    assert db.update_calls == 1
+    assert db.first_calls == 0
     assert db.committed is False
     assert db.closed is True
 
@@ -198,6 +214,8 @@ def test_update_usage_handles_null_requests_count():
     middleware._update_usage(request, "k")
 
     assert user.requests_count == 1
+    assert db.update_calls == 1
+    assert db.first_calls == 0
     assert db.committed is True
     assert db.rolled_back is False
     assert db.closed is True
@@ -215,6 +233,8 @@ def test_update_usage_rolls_back_and_reraises_on_commit_error():
         middleware._update_usage(request, "k")
 
     assert user.requests_count == 5
+    assert db.update_calls == 1
+    assert db.first_calls == 0
     assert db.committed is False
     assert db.rolled_back is True
     assert db.closed is True
