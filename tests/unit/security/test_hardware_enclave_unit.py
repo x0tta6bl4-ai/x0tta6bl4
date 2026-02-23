@@ -53,6 +53,13 @@ def test_verify_hardware_attestation_returns_true():
     assert hsm.verify_hardware_attestation(b"quote", b"nonce") is True
 
 
+def test_verify_hardware_attestation_rejects_missing_inputs():
+    hsm = HardwareSecurityModule()
+    assert hsm.verify_hardware_attestation(b"", b"nonce") is False
+    assert hsm.verify_hardware_attestation(b"quote", b"") is False
+    assert hsm.verify_hardware_attestation(b"", b"") is False
+
+
 def test_attestation_service_security_level():
     assert AttestationService.validate_node(
         {"hardware_id": "node-1", "enclave_enabled": True}
