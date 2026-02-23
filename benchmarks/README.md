@@ -64,6 +64,29 @@ python -m tests.performance.benchmark_mttr \
 **Output:**
 - `mttr_benchmark_YYYYMMDD_HHMMSS.json` - MTTR statistics
 
+### 3. Competitive Self-Healing Benchmark (`benchmark_competitive_self_healing.py`)
+
+Compares profile-driven failover behavior between:
+- `x0tta6bl4-current`
+- `x0tta6bl4-make-make-target`
+- `rajant-like`
+- `istio-like-wan`
+
+This benchmark is synthetic and reproducible (seed-based), useful for
+relative architecture decisions and roadmap tracking.
+
+**Usage:**
+```bash
+python benchmarks/benchmark_competitive_self_healing.py \
+    --iterations 250 \
+    --seed 42 \
+    --output-dir benchmarks/results
+```
+
+**Output:**
+- `competitive_self_healing_YYYYMMDD_HHMMSS.json` - structured metrics
+- `competitive_self_healing_YYYYMMDD_HHMMSS.md` - human-readable report
+
 ## Target Metrics
 
 | Metric | Target | Current |
@@ -156,4 +179,3 @@ pip install torch torch-geometric
 2. **Add Chaos Engineering**: Real node/link failures in docker-compose
 3. **Add Kubernetes Benchmarks**: MTTR in k8s environment
 4. **Add Load Testing**: k6/locust integration for sustained load
-
