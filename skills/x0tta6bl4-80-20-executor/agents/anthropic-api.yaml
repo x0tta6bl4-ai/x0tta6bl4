@@ -1,0 +1,52 @@
+interface:
+  display_name: "x0tta6bl4 Anthropic API Executor"
+  short_description: "Runs x0tta6bl4 80/20 cycle via Anthropic API (Claude Sonnet 4.6)."
+  default_prompt: "Run the full 80/20 automation cycle for x0tta6bl4 with MaaS regression, FL validation, and security scan."
+  model: "claude-sonnet-4-6"
+  provider: "anthropic"
+
+cycle:
+  mode: "full"
+  parallel: true
+  timeout_seconds: 2700
+
+agents:
+  - agent_id: "api-architect"
+    role: "architect"
+    skill_path: "skills/x0tta6bl4-mesh-orchestrator/SKILL.md"
+    role_file: "ai/roles/architect.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/api/endpoints/ tests/unit/api/ tests/unit/core/ tests/unit/services/ tests/unit/security/ tests/unit/network/ tests/unit/agents/ tests/unit/utils/ tests/unit/ai/ tests/unit/llm/ tests/unit/resilience/ tests/unit/coordination/ tests/unit/anti_censorship/ tests/unit/event_sourcing/ tests/unit/edge/ tests/unit/swarm/"
+    critical: true
+
+  - agent_id: "api-maas"
+    role: "maas-dev"
+    skill_path: "skills/maas-dev/SKILL.md"
+    role_file: "ai/roles/maas.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/api/endpoints/ tests/unit/api/test_maas_telemetry.py tests/unit/api/test_maas_services_billing_unit.py tests/unit/api/test_maas_acl_unit.py tests/unit/services/test_maas_analytics_service.py"
+    critical: true
+
+  - agent_id: "api-fl"
+    role: "fl"
+    skill_path: "skills/fl-experiment/SKILL.md"
+    role_file: "ai/roles/fl.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/swarm/test_swarm_learning.py tests/unit/swarm/test_lora_fl_integration_yggdrasil_optimizer_consensus_integration_paxos_pbft_unit.py"
+    critical: false
+
+  - agent_id: "api-security"
+    role: "security"
+    skill_path: "skills/security-audit/SKILL.md"
+    command: "python3 skills/security-audit/scripts/check_crypto.py"
+    critical: false
+
+  - agent_id: "api-consensus"
+    role: "consensus"
+    skill_path: "skills/consensus-debug/SKILL.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/consensus/"
+    critical: true
+
+  - agent_id: "api-quality"
+    role: "quality"
+    skill_path: "skills/test-coverage-boost/SKILL.md"
+    role_file: "ai/roles/ops.md"
+    command: "python3 skills/test-coverage-boost/scripts/coverage_gaps.py"
+    critical: false

@@ -1,3 +1,4 @@
+import logging
 import math
 import time
 from dataclasses import dataclass
@@ -5,6 +6,8 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from src.llm.local_llm import LocalLLM
+
+logger = logging.getLogger(__name__)
 from src.ml.graphsage_anomaly_detector import (
     AnomalyPrediction, create_graphsage_detector_for_mapek)
 
@@ -200,6 +203,19 @@ Focus on what needs to change to achieve higher harmony.
         # Map harmony score to phi-ratio space (0 to ~1.618)
         # Perfect harmony (1.0) should yield PHI
         current_phi = harmony_score * PHI
+
+        # --- CRITICAL FIX: Offline Node Penalty ---
+        # If we have zero mesh connectivity but expected nodes, 
+        # or explicit offline signals, force state to MYSTICAL.
+        if metrics.get("mesh_connectivity", 0) == 0 and metrics.get("packet_loss", 0) > 0:
+            current_phi *= 0.5  # Severe drop
+            
+        # Support for explicit offline_nodes count in metrics
+        offline_nodes = metrics.get("offline_nodes", 0)
+        if offline_nodes > 0:
+            # 20% penalty per offline node, capped at 80%
+            penalty = min(0.8, offline_nodes * 0.2)
+            current_phi *= (1.0 - penalty)
 
         return current_phi
 

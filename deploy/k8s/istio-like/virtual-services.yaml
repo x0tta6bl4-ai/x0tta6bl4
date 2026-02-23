@@ -1,0 +1,43 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: x0tta6bl4-api
+  namespace: x0tta6bl4
+spec:
+  hosts:
+    - x0tta6bl4-api.x0tta6bl4.svc.cluster.local
+  http:
+    - name: api-default-route
+      timeout: 3s
+      retries:
+        attempts: 2
+        perTryTimeout: 800ms
+        retryOn: connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes
+      route:
+        - destination:
+            host: x0tta6bl4-api.x0tta6bl4.svc.cluster.local
+            subset: stable
+          weight: 90
+        - destination:
+            host: x0tta6bl4-api.x0tta6bl4.svc.cluster.local
+            subset: canary
+          weight: 10
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: x0tta6bl4-worker
+  namespace: x0tta6bl4
+spec:
+  hosts:
+    - x0tta6bl4-worker.x0tta6bl4.svc.cluster.local
+  http:
+    - name: worker-route
+      timeout: 5s
+      retries:
+        attempts: 1
+        perTryTimeout: 1s
+        retryOn: connect-failure,unavailable
+      route:
+        - destination:
+            host: x0tta6bl4-worker.x0tta6bl4.svc.cluster.local
