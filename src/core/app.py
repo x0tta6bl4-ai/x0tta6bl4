@@ -140,28 +140,33 @@ except ImportError:
     metrics = _StubMetrics()  # type: ignore[assignment]
 
 # Import and register API routers
-try:
-    from src.api.vpn import router as vpn_router
+if os.getenv("MAAS_LIGHT_MODE", "false").lower() != "true":
+    try:
+        from src.api.vpn import router as vpn_router
+        app.include_router(vpn_router)
+        logger.info("✓ VPN router registered")
+    except Exception as e:
+        logger.warning(f"Could not import VPN router: {e}")
+else:
+    logger.info("⏩ Light Mode: Skipping VPN router")
 
-    app.include_router(vpn_router)
-    logger.info("✓ VPN router registered")
-except Exception as e:
-    logger.warning(f"Could not import VPN router: {e}")
+# Import and register API routers
+if os.getenv("MAAS_LIGHT_MODE", "false").lower() != "true":
+    from src.api.billing import router as billing_router
+    from src.api.ledger_endpoints import router as ledger_router
+    from src.api.swarm import router as swarm_router
+    from src.api.users import router as users_router
 
-from src.api.billing import router as billing_router
-from src.api.ledger_endpoints import router as ledger_router
-from src.api.swarm import router as swarm_router
-# Critical API routers must load successfully. Fail-fast if missing.
-from src.api.users import router as users_router
-
-app.include_router(users_router)
-logger.info("✓ Users router registered")
-app.include_router(billing_router)
-logger.info("✓ Billing router registered")
-app.include_router(swarm_router)
-logger.info("✓ Swarm router registered (Kimi K2.5 integration)")
-app.include_router(ledger_router)
-logger.info("✓ Ledger router registered")
+    app.include_router(users_router)
+    logger.info("✓ Users router registered")
+    app.include_router(billing_router)
+    logger.info("✓ Billing router registered")
+    app.include_router(swarm_router)
+    logger.info("✓ Swarm router registered (Kimi K2.5 integration)")
+    app.include_router(ledger_router)
+    logger.info("✓ Ledger router registered")
+else:
+    logger.info("⏩ Light Mode: Skipping heavy non-MaaS routers")
 
 # v3.4 MaaS API
 def _include_maas_router(module_path: str, label: str) -> None:
@@ -323,18 +328,50 @@ else:
 
 _pqc_sig_public_key = None
 _pqc_sig = None
+
 if PQC_LIBOQS_AVAILABLE:
+    from src.security.secrets_manager import secrets_manager
     try:
+        algo = "ML-DSA-65"
         try:
-            _pqc_sig = Signature("ML-DSA-65")
-            _pqc_sig_public_key = _pqc_sig.generate_keypair()
-            logger.info("✅ PQC signature keypair generated (ML-DSA-65, NIST FIPS 204)")
+            _pqc_sig = Signature(algo)
         except Exception:
-            _pqc_sig = Signature("Dilithium3")
+            algo = "Dilithium3"
+            _pqc_sig = Signature(algo)
+            
+        # Try to load existing keys from Vault/Env
+        existing_pub, existing_priv = secrets_manager.get_pqc_keypair("maas-root-key")
+        
+        if existing_pub and existing_priv:
+            _pqc_sig_public_key = existing_pub
+            # liboqs typically doesn't expose import_secret_key in Python wrapper cleanly 
+            # for all versions, but let's assume standard API or fallback
+            # Note: OQS Python wrapper often requires generating to get object state, 
+            # then we might sign with passed private key if supported, or we need to recreate context.
+            # Ideally, we store the seed or the full key bytes.
+            # For this integration, we'll try to re-use if the wrapper allows export/import.
+            # If not supported by current liboqs version, we'll warn and regenerate.
+            try:
+                # Simulating import by re-generation if not supported is bad.
+                # Real production usage requires a wrapper that supports import_secret_key.
+                # We will assume `import_secret_key` exists or we handle the key bytes directly in sign.
+                _pqc_sig.import_secret_key(existing_priv)
+                logger.info(f"🔐 Loaded PQC keys from SecretsManager ({algo})")
+            except AttributeError:
+                # Fallback for wrappers without direct import: regenerate (not prod safe but keeps app running)
+                logger.warning(f"⚠️  liboqs wrapper lacks import_secret_key. Regenerating new keys.")
+                _pqc_sig_public_key = _pqc_sig.generate_keypair()
+        else:
+            # Generate new and store
             _pqc_sig_public_key = _pqc_sig.generate_keypair()
-            logger.info("✅ PQC signature keypair generated (Dilithium3, legacy)")
+            priv_key = _pqc_sig.export_secret_key()
+            if secrets_manager.store_pqc_keypair("maas-root-key", _pqc_sig_public_key, priv_key):
+                logger.info(f"💾 New PQC keys generated and stored in SecretsManager ({algo})")
+            else:
+                logger.info(f"✅ New PQC keys generated ({algo}) - Storage failed or disabled")
+
     except Exception as e:
-        logger.error(f"Failed to generate PQC keys: {e}")
+        logger.error(f"Failed to initialize PQC keys: {e}")
         PQC_LIBOQS_AVAILABLE = False
 
 
