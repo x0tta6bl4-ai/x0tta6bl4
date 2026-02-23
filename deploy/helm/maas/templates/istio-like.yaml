@@ -1,0 +1,103 @@
+{{/*
+Istio-like policy profile for MaaS API.
+Enabled with .Values.istioLike.enabled
+*/}}
+{{- if .Values.istioLike.enabled }}
+{{- $apiHost := printf "%s-api.%s.svc.cluster.local" (include "maas.fullname" .) .Release.Namespace -}}
+{{- $apiCanaryWeight := int (.Values.istioLike.routing.canaryWeight | default 0) -}}
+{{- if or (lt $apiCanaryWeight 0) (gt $apiCanaryWeight 100) -}}
+{{- fail "istioLike.routing.canaryWeight must be between 0 and 100" -}}
+{{- end -}}
+{{- $apiStableWeight := sub 100 $apiCanaryWeight -}}
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "maas.fullname" . }}-default-strict
+  labels:
+    {{- include "maas.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: STRICT
+---
+{{- if .Values.istioLike.authorization.enabled }}
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "maas.fullname" . }}-api-allow
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "maas.api.selectorLabels" . | nindent 6 }}
+  rules:
+    - from:
+        - source:
+            principals:
+              {{- range .Values.istioLike.authorization.principals }}
+              - {{ . | quote }}
+              {{- end }}
+      to:
+        - operation:
+            methods:
+              {{- range .Values.istioLike.authorization.methods }}
+              - {{ . | quote }}
+              {{- end }}
+---
+{{- end }}
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ include "maas.fullname" . }}-api
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+spec:
+  host: {{ $apiHost }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: {{ .Values.istioLike.destinationRule.connectionPool.tcp.maxConnections }}
+      http:
+        http1MaxPendingRequests: {{ .Values.istioLike.destinationRule.connectionPool.http.http1MaxPendingRequests }}
+        maxRequestsPerConnection: {{ .Values.istioLike.destinationRule.connectionPool.http.maxRequestsPerConnection }}
+    outlierDetection:
+      consecutive5xxErrors: {{ .Values.istioLike.destinationRule.outlierDetection.consecutive5xxErrors }}
+      interval: {{ .Values.istioLike.destinationRule.outlierDetection.interval }}
+      baseEjectionTime: {{ .Values.istioLike.destinationRule.outlierDetection.baseEjectionTime }}
+      maxEjectionPercent: {{ .Values.istioLike.destinationRule.outlierDetection.maxEjectionPercent }}
+  subsets:
+    - name: stable
+      labels:
+        {{ .Values.istioLike.routing.subsetLabelKey }}: {{ .Values.istioLike.routing.stableSubsetLabelValue | quote }}
+    - name: canary
+      labels:
+        {{ .Values.istioLike.routing.subsetLabelKey }}: {{ .Values.istioLike.routing.canarySubsetLabelValue | quote }}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "maas.fullname" . }}-api
+  labels:
+    {{- include "maas.api.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ $apiHost }}
+  http:
+    - name: api-default-route
+      timeout: {{ .Values.istioLike.virtualService.timeout }}
+      retries:
+        attempts: {{ .Values.istioLike.virtualService.retries.attempts }}
+        perTryTimeout: {{ .Values.istioLike.virtualService.retries.perTryTimeout }}
+        retryOn: {{ .Values.istioLike.virtualService.retries.retryOn | quote }}
+      route:
+        - destination:
+            host: {{ $apiHost }}
+            subset: stable
+          weight: {{ $apiStableWeight }}
+        - destination:
+            host: {{ $apiHost }}
+            subset: canary
+          weight: {{ $apiCanaryWeight }}
+{{- end }}

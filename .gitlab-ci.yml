@@ -277,6 +277,28 @@ test:mutation:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_MERGE_REQUEST_IID
 
+test:competitive-benchmark-gate:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  script:
+    - mkdir -p benchmarks/results
+    - |
+      echo "🧪 Running competitive self-healing gate..."
+      python3 scripts/check_competitive_self_healing_gate.py \
+        --iterations 120 \
+        --seed 42 \
+        --output-dir benchmarks/results
+  artifacts:
+    when: always
+    paths:
+      - benchmarks/results/competitive_self_healing_*.json
+      - benchmarks/results/competitive_self_healing_*.md
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_MERGE_REQUEST_IID
+
 # ============================================================================
 # Stage 4: Security
 # ============================================================================

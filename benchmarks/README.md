@@ -129,6 +129,16 @@ benchmark_thresholds:
         --threshold 0.10  # 10% degradation allowed
 ```
 
+### Competitive Gate (Self-Healing)
+
+```bash
+python scripts/check_competitive_self_healing_gate.py \
+  --thresholds benchmarks/baseline/competitive_self_healing_gate.json \
+  --iterations 120 \
+  --seed 42 \
+  --output-dir benchmarks/results
+```
+
 ## Results Directory
 
 Results are saved to `benchmarks/results/`:

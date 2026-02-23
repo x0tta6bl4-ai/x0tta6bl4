@@ -6,13 +6,20 @@ on:
     paths:
       - 'src/security/**'
       - 'src/network/**'
+      - 'src/testing/**'
+      - 'scripts/check_competitive_self_healing_gate.py'
       - 'benchmarks/**'
+      - 'benchmarks/baseline/**'
       - '.github/workflows/performance-benchmark.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
       - 'src/security/**'
       - 'src/network/**'
+      - 'src/testing/**'
+      - 'scripts/check_competitive_self_healing_gate.py'
+      - 'benchmarks/**'
+      - 'benchmarks/baseline/**'
   schedule:
     - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
@@ -77,6 +84,21 @@ jobs:
           set -e
           echo "GATES_STATUS=$gate_status" >> "$GITHUB_OUTPUT"
           exit "$gate_status"
+
+      - name: Check competitive self-healing gate
+        id: competitive_gate
+        continue-on-error: true
+        run: |
+          mkdir -p benchmarks/results
+          set +e
+          python3 scripts/check_competitive_self_healing_gate.py \
+            --iterations 120 \
+            --seed 42 \
+            --output-dir benchmarks/results
+          gate_status=$?
+          set -e
+          echo "COMPETITIVE_GATES_STATUS=$gate_status" >> "$GITHUB_OUTPUT"
+          exit "$gate_status"
       
       - name: Upload benchmark artifacts
         if: always()
@@ -140,10 +162,12 @@ jobs:
               body: comment
             });
       
-      - name: Fail if gates failed
-        if: steps.gates.outcome == 'failure' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+      - name: Fail if any gates failed
+        if: (steps.gates.outcome == 'failure' || steps.competitive_gate.outcome == 'failure') && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
         run: |
-          echo "❌ Performance gates check failed"
+          echo "❌ Performance gate check failed"
+          echo "baseline gates: ${{ steps.gates.outcome }}"
+          echo "competitive gate: ${{ steps.competitive_gate.outcome }}"
           exit 1
       
       - name: Summary
@@ -153,6 +177,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Benchmark Status: ${{ steps.benchmark.outputs.BENCHMARK_STATUS }}" >> $GITHUB_STEP_SUMMARY
           echo "- Gates Status: ${{ steps.gates.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Competitive Gate Status: ${{ steps.competitive_gate.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View full results in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
 
