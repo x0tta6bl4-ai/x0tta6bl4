@@ -428,7 +428,7 @@ class TestConsciousnessEngine:
 
         assert directive["state"] == "EUPHORIC"
         assert directive["monitoring_interval_sec"] == 120
-        assert directive["route_preference"] == "performance"
+        assert directive["route_preference"] == "low_latency"
         assert directive["scaling_action"] == "optimize"
         assert "Желание исполнено" in directive["message"]
 
@@ -470,7 +470,7 @@ class TestConsciousnessEngine:
         assert directive["state"] == "MYSTICAL"
         assert directive["monitoring_interval_sec"] == 10
         assert directive["enable_aggressive_healing"] is True
-        assert directive["route_preference"] == "survival"
+        assert directive["route_preference"] == "reliability"
         assert directive["scaling_action"] == "emergency_scale"
         assert directive["alert_level"] == "critical"
         assert "Погружение в глубину" in directive["message"]

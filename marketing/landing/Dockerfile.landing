@@ -1,0 +1,5 @@
+# Dockerfile for x0tta6bl4 Landing Page
+FROM nginx:alpine
+COPY marketing/landing/index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

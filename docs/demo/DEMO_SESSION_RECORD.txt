@@ -1,0 +1,24 @@
+[0;34m====================================================[0m
+[0;34m    x0tta6bl4 v3.3 - Swarm Intelligence Demo        [0m
+[0;34m====================================================[0m
+
+[SCENE 1] Узел C обнаруживает аномалию: 'Power instability'.
+[1;33mTesting Recovery Action A (Restart)... FAILED[0m
+[1;33mTesting Recovery Action B (Voltage Regulate)... SUCCESS![0m
+[0;32m✅ Node-C recovered in 12.4s. Experience saved locally.[0m
+
+[SCENE 2] Синхронизация знаний через PQC туннель...
+Node-C sending 'Semantic Lesson' to KnowledgeAggregator...
+[0;34mSwarm Brain: Merging new insight into Global Base (v3.3.42)[0m
+[0;32m✅ Knowledge synchronized across 50 nodes.[0m
+
+[SCENE 3] Узел E (на другом конце сети) получает такой же сбой.
+[0;31mNode-E Power Anomaly detected![0m
+Node-E querying Swarm Brain for known patterns...
+[0;34mSwarm Brain: match found. Action B recommended.[0m
+[0;32m✅ Node-E immediately applies Action B. Recovered in 0.8s![0m
+
+[0;34m====================================================[0m
+[1;33mSUMMARY:[0m MTTR reduced from 12.4s to 0.8s (93% boost)
+Intelligence: x0tta6bl4 Collective Memory
+[0;34m====================================================[0m
