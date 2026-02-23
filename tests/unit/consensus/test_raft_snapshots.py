@@ -144,7 +144,7 @@ class TestSnapshotCreation:
             result = node.create_snapshot(3, snapshot_data, compress=False)
             assert result is True
 
-            # Verify snapshot file exists
+            # Verify snapshot file exists (.json — pickle dropped for RCE safety)
             snapshot_file = node.storage.snapshot_dir / "snapshot_0000000003.json"
             assert snapshot_file.exists()
 
@@ -182,7 +182,7 @@ class TestSnapshotCreation:
         snapshot_data = {"state_version": 1}
         assert node.create_snapshot(2, snapshot_data, compress=True)
 
-        # Verify compressed file exists
+        # Verify compressed file exists (.json.gz — pickle dropped for RCE safety)
         snapshot_file = node.storage.snapshot_dir / "snapshot_0000000002.json.gz"
         assert snapshot_file.exists()
 

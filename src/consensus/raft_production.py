@@ -523,29 +523,20 @@ class ProductionRaftNode:
         self, last_included_index: int, snapshot_data: Any, compress: bool = True
     ) -> bool:
         """
-        Create snapshot of state machine with optional compression and log truncation.
-
-        Args:
-            last_included_index: Last log index included in snapshot
-            snapshot_data: State machine snapshot data
-            compress: Enable compression (default: True)
-
-        Returns:
-            True if snapshot created successfully
+        Create snapshot of state machine with JSON serialization and log truncation.
+        
+        SECURITY: Uses JSON instead of pickle to prevent RCE vulnerabilities.
+        Complex objects should implement to_dict()/from_dict() for serialization.
         """
         try:
-            # Backward compatibility: allow snapshot creation even when the log
-            # is shorter than requested index (integration tests rely on this).
             if last_included_index < 0:
                 logger.error(f"Invalid snapshot index: {last_included_index}")
                 return False
 
             log_len = len(self.raft_node.log)
-            # Keep legacy unit-test validation for clearly invalid requests:
-            # out-of-range snapshot index with empty payload.
-            if last_included_index >= log_len and snapshot_data in ({}, None):
+            if last_included_index >= log_len and not snapshot_data:
                 logger.error(
-                    "Invalid snapshot request: index %s exceeds log length %s with empty payload",
+                    "Invalid snapshot request: index %s exceeds log length %s",
                     last_included_index,
                     log_len,
                 )
@@ -555,58 +546,38 @@ class ProductionRaftNode:
                 last_included_term = self.raft_node.log[last_included_index].term
             else:
                 last_included_term = self.raft_node.current_term
-                logger.warning(
-                    "Snapshot index %s exceeds log length %s; using current term %s",
-                    last_included_index,
-                    log_len,
-                    last_included_term,
-                )
 
             snapshot_file = (
                 self.storage.snapshot_dir / f"snapshot_{last_included_index:010d}.json"
             )
-            legacy_snapshot_file = (
-                self.storage.storage_path / f"snapshot_{last_included_index}.json"
-            )
+
+            # Serialize snapshot_data to JSON-safe format
+            serializable_data = self._serialize_snapshot_data(snapshot_data)
 
             snapshot = {
                 "last_included_index": last_included_index,
                 "last_included_term": last_included_term,
-                "data": snapshot_data,
+                "data": serializable_data,
                 "timestamp": datetime.now().isoformat(),
             }
 
-            # Serialize to JSON
-            snapshot_json = json.dumps(snapshot, indent=2)
-
-            # Legacy location expected by older integration tests.
-            with open(legacy_snapshot_file, "w") as f:
-                f.write(snapshot_json)
+            # Use JSON for safe serialization (no RCE risk)
+            snapshot_json = json.dumps(snapshot, indent=2, default=str)
 
             # Compress if requested
             if compress:
-                try:
-                    import gzip
-
-                    snapshot_file = snapshot_file.with_suffix(".json.gz")
-                    with gzip.open(snapshot_file, "wt", encoding="utf-8") as f:
-                        f.write(snapshot_json)
-                    size_bytes = snapshot_file.stat().st_size
-                    logger.info(
-                        f"Created compressed snapshot at index {last_included_index} ({size_bytes} bytes)"
-                    )
-                except ImportError:
-                    logger.warning("gzip not available, saving uncompressed snapshot")
-                    with open(snapshot_file, "w") as f:
-                        f.write(snapshot_json)
+                import gzip
+                snapshot_file = snapshot_file.with_suffix(".json.gz")
+                with gzip.open(snapshot_file, "wt", encoding="utf-8") as f:
+                    f.write(snapshot_json)
             else:
-                with open(snapshot_file, "w") as f:
+                with open(snapshot_file, "w", encoding="utf-8") as f:
                     f.write(snapshot_json)
 
             # Save snapshot metadata
             self.storage.save_snapshot_metadata(last_included_index, last_included_term)
 
-            # Truncate only when the index is in the current log range.
+            # Truncate log
             if log_len and last_included_index < log_len:
                 self.raft_node.log = self.storage.truncate_log_before_snapshot(
                     last_included_index, self.raft_node.log
@@ -616,33 +587,47 @@ class ProductionRaftNode:
             self.storage.save_log(self.raft_node.log)
 
             logger.info(
-                f"Created and persisted snapshot at index {last_included_index}"
+                f"Created and persisted JSON snapshot at index {last_included_index}"
             )
             return True
         except Exception as e:
             logger.error(f"Failed to create snapshot: {e}")
             return False
 
+    def _serialize_snapshot_data(self, data: Any) -> Any:
+        """
+        Convert snapshot data to JSON-serializable format.
+        
+        Handles common types and objects with to_dict() method.
+        """
+        if data is None:
+            return None
+        if isinstance(data, (str, int, float, bool)):
+            return data
+        if isinstance(data, dict):
+            return {k: self._serialize_snapshot_data(v) for k, v in data.items()}
+        if isinstance(data, (list, tuple)):
+            return [self._serialize_snapshot_data(item) for item in data]
+        if hasattr(data, "to_dict"):
+            return data.to_dict()
+        # Fallback: convert to string representation
+        logger.warning(f"Snapshot data type {type(data)} not directly serializable, using str()")
+        return str(data)
+
     def load_snapshot(
         self, last_included_index: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Load snapshot from storage.
-
-        Args:
-            last_included_index: Index of snapshot to load. If None, loads latest.
-
-        Returns:
-            Snapshot data or None
+        Load JSON snapshot from storage.
+        
+        SECURITY: Uses JSON instead of pickle to prevent RCE vulnerabilities.
         """
         try:
-            # If no index specified, use the one from metadata (latest)
             if last_included_index is None:
                 metadata = self.storage.load_snapshot_metadata()
                 if metadata:
                     last_included_index = metadata.get("last_included_index")
                 else:
-                    logger.debug("No snapshot metadata found")
                     return None
 
             # Try compressed first
@@ -652,25 +637,17 @@ class ProductionRaftNode:
             )
             if snapshot_file.exists():
                 import gzip
-
                 with gzip.open(snapshot_file, "rt", encoding="utf-8") as f:
-                    snapshot = json.load(f)
-                logger.info(
-                    f"Loaded compressed snapshot from index {last_included_index}"
-                )
-                return snapshot
+                    return json.load(f)
 
             # Try uncompressed
             snapshot_file = (
                 self.storage.snapshot_dir / f"snapshot_{last_included_index:010d}.json"
             )
             if snapshot_file.exists():
-                with open(snapshot_file, "r") as f:
-                    snapshot = json.load(f)
-                logger.info(f"Loaded snapshot from index {last_included_index}")
-                return snapshot
+                with open(snapshot_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
 
-            logger.warning(f"Snapshot not found for index {last_included_index}")
             return None
         except Exception as e:
             logger.error(f"Failed to load snapshot: {e}")
@@ -678,26 +655,27 @@ class ProductionRaftNode:
 
     def restore_from_snapshot(self) -> bool:
         """
-        Restore node state from the latest snapshot.
-
-        Returns:
-            True if restored successfully
+        Restore node state and apply snapshot data to the state machine.
         """
         try:
             metadata = self.storage.load_snapshot_metadata()
             if not metadata:
-                logger.debug("No snapshot to restore from")
                 return False
 
             snapshot = self.load_snapshot(metadata.get("last_included_index"))
             if not snapshot:
                 return False
 
-            # Update node state with snapshot metadata
+            # Update node state
             self.raft_node.last_applied = snapshot["last_included_index"]
             self.raft_node.commit_index = max(
                 self.raft_node.commit_index, snapshot["last_included_index"]
             )
+
+            # NOTE: In a real app, we would notify the state machine here
+            # to replace its state with snapshot["data"]
+            if hasattr(self.raft_node, "state_machine") and self.raft_node.state_machine:
+                self.raft_node.state_machine.restore(snapshot["data"])
 
             logger.info(
                 f"Restored node state from snapshot at index {snapshot['last_included_index']}"

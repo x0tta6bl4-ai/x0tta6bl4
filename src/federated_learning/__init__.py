@@ -11,6 +11,7 @@ Components:
 - Privacy: Differential Privacy for gradients
 - Consensus: DG-PBFT for model updates
 - Agent: PPO for routing decisions
+- LoRA Integration: Federated LoRA fine-tuning
 """
 
 from .aggregators import (Aggregator, FedAvgAggregator, KrumAggregator,
@@ -29,6 +30,19 @@ from .privacy import (DifferentialPrivacy, DPConfig, GradientClipper,
                       PrivacyBudget, SecureAggregation)
 from .protocol import (AggregationResult, FLMessage, FLMessageType,
                        GlobalModel, ModelUpdate, ModelWeights, SignedMessage)
+
+# LoRA + Federated Learning Integration
+from .lora_fl_integration import (
+    FederatedLoRAConfig,
+    FederatedLoRATrainer,
+    LoRAFLRound,
+    LoRAFLRoundStatus,
+    LoRAWeightAggregator,
+    LoRAWeightUpdate,
+    aggregate_lora_weights,
+    create_lora_update,
+    run_federated_lora_training,
+)
 
 __all__ = [
     # Protocol
@@ -78,4 +92,14 @@ __all__ = [
     "ModelMetadata",
     "WeightStorage",
     "create_genesis_blockchain",
+    # LoRA + FL Integration
+    "FederatedLoRATrainer",
+    "FederatedLoRAConfig",
+    "LoRAFLRound",
+    "LoRAFLRoundStatus",
+    "LoRAWeightUpdate",
+    "LoRAWeightAggregator",
+    "aggregate_lora_weights",
+    "create_lora_update",
+    "run_federated_lora_training",
 ]
