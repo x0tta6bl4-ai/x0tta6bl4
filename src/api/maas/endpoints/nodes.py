@@ -346,6 +346,13 @@ async def get_telemetry(
             detail=f"No telemetry found for node {node_id}",
         )
 
+    telemetry_mesh_id = telemetry.get("mesh_id")
+    if telemetry_mesh_id and telemetry_mesh_id != mesh_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No telemetry found for node {node_id} in mesh {mesh_id}",
+        )
+
     return telemetry
 
 
