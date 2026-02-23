@@ -111,7 +111,7 @@ class PQCTokenSigner:
         self._signing_keypair = None
         self.vault_url = os.getenv("VAULT_URL", "http://localhost:8200")
         self.vault_token = os.getenv("VAULT_TOKEN", "x0t-master-token")
-        self._init_pqc()
+        self._pqc_initialized = False
 
     def _get_hmac_secret(self) -> str:
         """Retrieve HMAC secret from Vault with env fallback for dev."""
@@ -126,6 +126,8 @@ class PQCTokenSigner:
 
     def _init_pqc(self):
         """Try to initialize PQC signer."""
+        if self._pqc_initialized:
+            return
         try:
             from src.libx0t.security.pqc_core import PQCDigitalSignature
 
@@ -133,15 +135,18 @@ class PQCTokenSigner:
             self._signing_keypair = self._pqc_signer.generate_keypair(
                 key_id="maas-token-signer"
             )
+            self._pqc_initialized = True
             logger.info("[MaaS Security] PQC ML-DSA-65 token signing initialized")
         except (ImportError, Exception) as e:
             logger.warning(
                 f"[MaaS Security] PQC not available, using HMAC-SHA256: {e}"
             )
             self._pqc_signer = None
+            self._pqc_initialized = True
 
     def sign_token(self, token: str, mesh_id: str) -> Dict:
         """Sign a join token with PQC or dynamic HMAC fallback."""
+        self._init_pqc()
         payload = f"{mesh_id}:{token}".encode()
 
         if self._pqc_signer and self._signing_keypair:
@@ -177,6 +182,7 @@ class PQCTokenSigner:
 
     def verify_token(self, token: str, mesh_id: str, signature: str) -> bool:
         """Verify a signed join token using dynamic secret."""
+        self._init_pqc()
         payload = f"{mesh_id}:{token}".encode()
 
         if self._pqc_signer and self._signing_keypair:

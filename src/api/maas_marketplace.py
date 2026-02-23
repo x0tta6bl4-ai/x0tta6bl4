@@ -57,33 +57,31 @@ def _to_dollars(cents: int) -> float:
     return round(cents / 100.0, 2)
 
 
-def _as_listing_response(data: Dict[str, Any]) -> Dict[str, Any]:
-    listing_id = data.get("listing_id") or data.get("id")
-    if not listing_id:
-        raise ValueError("listing_id is required")
+def _as_listing_response(data: Any) -> Dict[str, Any]:
+    def _val(obj, key, default=None):
+        if isinstance(obj, dict): return obj.get(key, default)
+        return getattr(obj, key, default)
 
-    created_at = data.get("created_at")
-    if isinstance(created_at, datetime):
-        created_at_iso = created_at.isoformat()
-    elif isinstance(created_at, str):
-        created_at_iso = created_at
-    else:
-        created_at_iso = datetime.utcnow().isoformat()
+    listing_id = _val(data, "listing_id") or _val(data, "id")
+    if not listing_id: raise ValueError("listing_id is required")
 
-    raw_price = data.get("price_per_hour", 0.0)
-    if isinstance(raw_price, int):
-        price_per_hour = _to_dollars(raw_price)
-    else:
-        price_per_hour = float(raw_price)
+    created_at = _val(data, "created_at")
+    if isinstance(created_at, datetime): created_at_iso = created_at.isoformat()
+    elif isinstance(created_at, str): created_at_iso = created_at
+    else: created_at_iso = datetime.utcnow().isoformat()
+
+    raw_price = _val(data, "price_per_hour", 0.0)
+    if isinstance(raw_price, int): price_per_hour = _to_dollars(raw_price)
+    else: price_per_hour = float(raw_price or 0.0)
 
     return {
         "listing_id": listing_id,
-        "owner_id": data.get("owner_id"),
-        "node_id": data.get("node_id"),
-        "region": data.get("region"),
+        "owner_id": _val(data, "owner_id"),
+        "node_id": _val(data, "node_id"),
+        "region": _val(data, "region"),
         "price_per_hour": price_per_hour,
-        "bandwidth_mbps": int(data.get("bandwidth_mbps", 0)),
-        "status": data.get("status", "available"),
+        "bandwidth_mbps": int(_val(data, "bandwidth_mbps") or 0),
+        "status": _val(data, "status", "available"),
         "created_at": created_at_iso,
     }
 
@@ -212,13 +210,17 @@ async def search_listings(
 
     result: List[Dict[str, Any]] = []
     for listing in source:
-        if listing.get("status") != "available":
+        def _v(obj, key, default=None):
+            if isinstance(obj, dict): return obj.get(key, default)
+            return getattr(obj, key, default)
+
+        if _v(listing, "status") != "available":
             continue
-        if region and listing.get("region") != region:
+        if region and _v(listing, "region") != region:
             continue
-        if max_price is not None and float(listing.get("price_per_hour", 0.0)) > float(max_price):
+        if max_price is not None and float(_v(listing, "price_per_hour", 0.0)) > float(max_price):
             continue
-        if min_bandwidth is not None and int(listing.get("bandwidth_mbps", 0)) < int(min_bandwidth):
+        if min_bandwidth is not None and int(_v(listing, "bandwidth_mbps") or 0) < int(min_bandwidth or 0):
             continue
         result.append(_as_listing_response(listing))
 
