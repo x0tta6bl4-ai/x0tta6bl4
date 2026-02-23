@@ -7,13 +7,16 @@ Includes Autonomous Market Regulation via PricingAgent.
 """
 
 import logging
-import uuid
+import os
 import secrets
+import threading
+import uuid
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.database import User, MeshInstance, MeshNode, get_db
@@ -23,6 +26,35 @@ from src.ai.dynamic_pricing import pricing_agent
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Core"])
+
+_PRICING_AGENT_INTERVAL_SECONDS = max(
+    5,
+    int(os.getenv("MAAS_PRICING_AGENT_INTERVAL_SECONDS", "60")),
+)
+_pricing_agent_lock = threading.Lock()
+_last_pricing_agent_attempt_at: Optional[datetime] = None
+
+
+def _maybe_run_pricing_agent(db: Session) -> None:
+    """Run pricing regulation at most once per interval per process."""
+    global _last_pricing_agent_attempt_at
+
+    now = datetime.utcnow()
+    last_attempt = _last_pricing_agent_attempt_at
+    if last_attempt and (now - last_attempt).total_seconds() < _PRICING_AGENT_INTERVAL_SECONDS:
+        return
+
+    with _pricing_agent_lock:
+        now = datetime.utcnow()
+        last_attempt = _last_pricing_agent_attempt_at
+        if last_attempt and (now - last_attempt).total_seconds() < _PRICING_AGENT_INTERVAL_SECONDS:
+            return
+        _last_pricing_agent_attempt_at = now
+
+        try:
+            pricing_agent.analyze_and_propose(db)
+        except Exception:
+            logger.exception("AI Pricing failed")
 
 class MeshDeployRequest(BaseModel):
     name: str = Field(..., min_length=3)
@@ -85,25 +117,38 @@ def list_meshes(
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db)
 ):
-    # 🤖 Autonomous Market Regulation
-    # Triggered on user activity to ensure market prices are fair
-    try:
-        pricing_agent.analyze_and_propose(db)
-    except Exception as e:
-        logger.error(f"AI Pricing failed: {e}")
+    # Trigger market regulation lazily, but avoid re-running on every request.
+    _maybe_run_pricing_agent(db)
 
-    meshes = db.query(MeshInstance).filter(MeshInstance.owner_id == current_user.id).all()
-    results = []
-    for m in meshes:
-        count = db.query(MeshNode).filter(MeshNode.mesh_id == m.id).count()
-        results.append({
-            "id": m.id,
-            "name": m.name,
-            "status": m.status,
-            "nodes_count": count,
-            "created_at": m.created_at
-        })
-    return results
+    mesh_rows = (
+        db.query(
+            MeshInstance.id.label("id"),
+            MeshInstance.name.label("name"),
+            MeshInstance.status.label("status"),
+            MeshInstance.created_at.label("created_at"),
+            func.count(MeshNode.id).label("nodes_count"),
+        )
+        .outerjoin(MeshNode, MeshNode.mesh_id == MeshInstance.id)
+        .filter(MeshInstance.owner_id == current_user.id)
+        .group_by(
+            MeshInstance.id,
+            MeshInstance.name,
+            MeshInstance.status,
+            MeshInstance.created_at,
+        )
+        .all()
+    )
+
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "status": row.status,
+            "nodes_count": int(row.nodes_count or 0),
+            "created_at": row.created_at,
+        }
+        for row in mesh_rows
+    ]
 
 @router.delete("/{mesh_id}")
 async def terminate_mesh(

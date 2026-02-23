@@ -11,8 +11,9 @@ import os
 import secrets
 import time
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 import aiohttp
 
 from .constants import (
@@ -94,7 +95,15 @@ class BillingService:
     ):
         self._provider = payment_provider
         self._webhook_secret = webhook_secret or secrets.token_hex(32)
-        self._idempotency_cache: Dict[str, Dict] = {}
+        self._idempotency_ttl_seconds = max(
+            60,
+            int(os.getenv("MAAS_BILLING_IDEMPOTENCY_TTL_SECONDS", "86400")),
+        )
+        self._idempotency_max_entries = max(
+            128,
+            int(os.getenv("MAAS_BILLING_IDEMPOTENCY_MAX_ENTRIES", "10000")),
+        )
+        self._idempotency_cache: OrderedDict[str, Tuple[float, Dict[str, Any]]] = OrderedDict()
         # Legacy/alternate event names normalized to canonical provider-style names.
         self._event_aliases: Dict[str, str] = {
             "plan.upgraded": "customer.subscription.updated",
@@ -104,6 +113,25 @@ class BillingService:
             "subscription.canceled": "customer.subscription.deleted",
             "subscription.deleted": "customer.subscription.deleted",
         }
+
+    def _get_cached_webhook_result(self, event_id: str) -> Optional[Dict[str, Any]]:
+        cached = self._idempotency_cache.get(event_id)
+        if not cached:
+            return None
+
+        cached_at, result = cached
+        if (time.time() - cached_at) > self._idempotency_ttl_seconds:
+            self._idempotency_cache.pop(event_id, None)
+            return None
+
+        self._idempotency_cache.move_to_end(event_id)
+        return result
+
+    def _cache_webhook_result(self, event_id: str, result: Dict[str, Any]) -> None:
+        self._idempotency_cache[event_id] = (time.time(), result)
+        self._idempotency_cache.move_to_end(event_id)
+        while len(self._idempotency_cache) > self._idempotency_max_entries:
+            self._idempotency_cache.popitem(last=False)
 
     @property
     def webhook_secret(self) -> str:
@@ -504,9 +532,10 @@ class BillingService:
             Processing result
         """
         # Idempotency check
-        if event_id in self._idempotency_cache:
+        cached_result = self._get_cached_webhook_result(event_id)
+        if cached_result is not None:
             logger.info(f"Webhook event {event_id} already processed")
-            return self._idempotency_cache[event_id]
+            return cached_result
 
         event_type = self._normalize_event_type(event_type)
 
@@ -536,7 +565,7 @@ class BillingService:
             result = {"status": "error", "error": str(e)}
 
         # Cache result for idempotency
-        self._idempotency_cache[event_id] = result
+        self._cache_webhook_result(event_id, result)
 
         return result
 
@@ -1071,8 +1100,21 @@ class AuthService:
 
     def __init__(self, api_key_secret: Optional[str] = None):
         self._secret = api_key_secret or secrets.token_hex(32)
-        self._api_keys: Dict[str, Dict[str, Any]] = {}
-        self._sessions: Dict[str, Dict[str, Any]] = {}
+        self._max_api_keys = max(
+            128,
+            int(os.getenv("MAAS_AUTH_MAX_API_KEYS", "50000")),
+        )
+        self._max_sessions = max(
+            128,
+            int(os.getenv("MAAS_AUTH_MAX_SESSIONS", "50000")),
+        )
+        self._api_keys: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self._sessions: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+    @staticmethod
+    def _evict_oldest(store: OrderedDict[str, Dict[str, Any]], max_entries: int) -> None:
+        while len(store) > max_entries:
+            store.popitem(last=False)
 
     def generate_api_key(self, user_id: str, plan: str) -> str:
         """Generate a new API key for a user."""
@@ -1085,6 +1127,7 @@ class AuthService:
             "last_used": None,
             "request_count": 0,
         }
+        self._evict_oldest(self._api_keys, self._max_api_keys)
 
         return key
 
@@ -1098,15 +1141,13 @@ class AuthService:
         # Update last used
         key_data["last_used"] = datetime.utcnow().isoformat()
         key_data["request_count"] += 1
+        self._api_keys.move_to_end(api_key)
 
         return key_data
 
     def revoke_api_key(self, api_key: str) -> bool:
         """Revoke an API key."""
-        if api_key in self._api_keys:
-            del self._api_keys[api_key]
-            return True
-        return False
+        return self._api_keys.pop(api_key, None) is not None
 
     def create_session(self, user_id: str, ttl_hours: int = 24) -> str:
         """Create a new session token."""
@@ -1119,6 +1160,7 @@ class AuthService:
                 datetime.utcnow() + timedelta(hours=ttl_hours)
             ).isoformat(),
         }
+        self._evict_oldest(self._sessions, self._max_sessions)
 
         return token
 
@@ -1132,17 +1174,15 @@ class AuthService:
         # Check expiration
         expires = datetime.fromisoformat(session["expires_at"])
         if datetime.utcnow() > expires:
-            del self._sessions[token]
+            self._sessions.pop(token, None)
             return None
 
+        self._sessions.move_to_end(token)
         return session
 
     def end_session(self, token: str) -> bool:
         """End a session."""
-        if token in self._sessions:
-            del self._sessions[token]
-            return True
-        return False
+        return self._sessions.pop(token, None) is not None
 
 
 __all__ = [
