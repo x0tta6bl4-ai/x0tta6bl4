@@ -12,6 +12,7 @@ Permissions:
 
 import os
 import uuid
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -341,6 +342,126 @@ class TestAnalyticsTimeseries:
             headers={"X-API-Key": analytics_data["op_token"]},
         )
         assert r.status_code == 404
+
+    def test_timeseries_uses_heartbeat_telemetry_from_store(self, client, analytics_data, monkeypatch):
+        import src.api.maas_analytics as analytics_mod
+        import src.api.maas_telemetry as telemetry_mod
+
+        mesh_id = f"mesh-ts-{uuid.uuid4().hex[:6]}"
+        node_id = f"nd-ts-{uuid.uuid4().hex[:8]}"
+
+        db = TestingSessionLocal()
+        db.add(MeshInstance(
+            id=mesh_id,
+            name="Timeseries Telemetry Mesh",
+            owner_id=analytics_data["op_id"],
+            status="active",
+            pqc_enabled=True,
+        ))
+        db.add(MeshNode(
+            id=node_id,
+            mesh_id=mesh_id,
+            status="approved",
+            device_class="edge",
+            last_seen=datetime.utcnow(),
+        ))
+        db.commit()
+        db.close()
+
+        # Use in-memory telemetry backend so the test does not depend on external Redis.
+        local_store = {}
+
+        class _InMemoryRedisAdapter:
+            def __init__(self, store):
+                self.store = store
+
+            def setex(self, key, _ttl, value):
+                self.store[key] = value
+
+            def get(self, key):
+                value = self.store.get(key)
+                if isinstance(value, dict):
+                    return json.dumps(value)
+                return value
+
+            def lpush(self, key, value):
+                values = self.store.setdefault(key, [])
+                if not isinstance(values, list):
+                    values = []
+                    self.store[key] = values
+                values.insert(0, value)
+                return len(values)
+
+            def ltrim(self, key, start, end):
+                values = self.store.get(key, [])
+                if not isinstance(values, list):
+                    return
+                if end < 0:
+                    end = len(values) - 1
+                self.store[key] = values[start:end + 1]
+
+            def expire(self, _key, _ttl):
+                return True
+
+            def pipeline(self):
+                return _InMemoryPipeline(self)
+
+            def lrange(self, key, start, end):
+                values = self.store.get(key, [])
+                if not isinstance(values, list):
+                    return []
+                if end < 0:
+                    end = len(values) - 1
+                return values[start:end + 1]
+
+        class _InMemoryPipeline:
+            def __init__(self, adapter):
+                self.adapter = adapter
+                self.ops = []
+
+            def lpush(self, key, value):
+                self.ops.append(("lpush", key, value))
+                return self
+
+            def ltrim(self, key, start, end):
+                self.ops.append(("ltrim", key, start, end))
+                return self
+
+            def expire(self, key, ttl):
+                self.ops.append(("expire", key, ttl))
+                return self
+
+            def execute(self):
+                for op in self.ops:
+                    method = getattr(self.adapter, op[0])
+                    method(*op[1:])
+                self.ops.clear()
+                return True
+
+        redis_adapter = _InMemoryRedisAdapter(local_store)
+        monkeypatch.setattr(telemetry_mod, "REDIS_AVAILABLE", True)
+        monkeypatch.setattr(telemetry_mod, "r_client", redis_adapter)
+        monkeypatch.setattr(analytics_mod, "_redis_client", redis_adapter)
+
+        hb = client.post(
+            f"/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat",
+            json={
+                "status": "healthy",
+                "latency_ms": 19.5,
+                "traffic_mbps": 123.4,
+            },
+        )
+        assert hb.status_code == 200, hb.text
+        assert hb.json()["telemetry_exported"] is True
+
+        r = client.get(
+            f"/api/v1/maas/analytics/{mesh_id}/timeseries?time_range=1h",
+            headers={"X-API-Key": analytics_data["op_token"]},
+        )
+        assert r.status_code == 200, r.text
+        point = r.json()["data"][0]
+        assert point["traffic_mbps"] == 123.4
+        assert point["latency_ms"] == 19.5
 
 
 # ---------------------------------------------------------------------------

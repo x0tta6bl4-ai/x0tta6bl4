@@ -3,7 +3,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from ..dao.ipfs_logger import DAOAuditLogger
 from ..mesh.network_manager import MeshNetworkManager
@@ -13,6 +13,21 @@ from .consciousness import ConsciousnessEngine, ConsciousnessMetrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+
+# Optional imports with graceful fallback
+try:
+    from src.monitoring.opentelemetry_tracing import get_mapek_spans
+except ImportError:
+    get_mapek_spans = None
+
+try:
+    from src.database import SessionLocal, MeshNode
+    DATABASE_AVAILABLE = True
+except ImportError:
+    SessionLocal = None
+    MeshNode = None
+    DATABASE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +36,7 @@ class MAPEKState:
     """State container for MAPE-K loop"""
 
     metrics: ConsciousnessMetrics
-    directives: Dict[str, any]
+    directives: Dict[str, Any]
     actions_taken: List[str]
     timestamp: float
 
@@ -86,25 +101,49 @@ class MAPEKLoop:
         logger.info("MAPE-K loop stopped")
 
     async def _execute_cycle(self):
-        """Execute one complete MAPE-K cycle"""
+        """Execute one complete MAPE-K cycle with tracing."""
         cycle_start = time.time()
+        mapek_spans = get_mapek_spans() if get_mapek_spans is not None else None
+        node_id = "local-node" # Fallback if mesh manager not ready
 
         # ===== MONITOR =====
-        raw_metrics = await self._monitor()
+        if mapek_spans:
+            with mapek_spans.monitor_phase(node_id):
+                raw_metrics = await self._monitor()
+        else:
+            raw_metrics = await self._monitor()
 
         # ===== ANALYZE =====
-        consciousness_metrics = await self._analyze(raw_metrics)
+        if mapek_spans:
+            with mapek_spans.analyze_phase(node_id):
+                consciousness_metrics = await self._analyze(raw_metrics)
+        else:
+            consciousness_metrics = await self._analyze(raw_metrics)
 
         # ===== PLAN =====
-        directives = self._plan(consciousness_metrics)
+        if mapek_spans:
+            with mapek_spans.plan_phase(node_id):
+                directives = self._plan(consciousness_metrics)
+        else:
+            directives = self._plan(consciousness_metrics)
 
         # ===== EXECUTE =====
-        actions_taken = await self._execute(directives)
+        if mapek_spans:
+            with mapek_spans.execute_phase(node_id):
+                actions_taken = await self._execute(directives)
+        else:
+            actions_taken = await self._execute(directives)
 
         # ===== KNOWLEDGE =====
-        await self._knowledge(
-            consciousness_metrics, directives, actions_taken, raw_metrics
-        )
+        if mapek_spans:
+            with mapek_spans.knowledge_phase(node_id):
+                await self._knowledge(
+                    consciousness_metrics, directives, actions_taken, raw_metrics
+                )
+        else:
+            await self._knowledge(
+                consciousness_metrics, directives, actions_taken, raw_metrics
+            )
 
         cycle_duration = time.time() - cycle_start
         self.cycle_count += 1
@@ -154,6 +193,19 @@ class MAPEKLoop:
         # Security metrics
         zt_stats = self.zero_trust.get_validation_stats()
         metrics["zero_trust_success_rate"] = zt_stats.get("success_rate", 0.95)
+
+        # DB Metrics: Offline nodes count for consciousness penalty
+        if DATABASE_AVAILABLE and SessionLocal is not None:
+            try:
+                with SessionLocal() as db:
+                    metrics["offline_nodes"] = db.query(MeshNode).filter(
+                        MeshNode.status == "offline"
+                    ).count()
+            except Exception as e:
+                logger.warning(f"Failed to query offline nodes: {e}")
+                metrics["offline_nodes"] = 0
+        else:
+            metrics["offline_nodes"] = 0
 
         return metrics
 
@@ -213,7 +265,7 @@ class MAPEKLoop:
             raw_metrics, swarm_risk_penalty=swarm_risk_penalty
         )
 
-    def _plan(self, metrics: ConsciousnessMetrics) -> Dict[str, any]:
+    def _plan(self, metrics: ConsciousnessMetrics) -> Dict[str, Any]:
         """
         PLAN phase: Generate operational directives
         """
@@ -230,7 +282,7 @@ class MAPEKLoop:
 
         return directives
 
-    async def _execute(self, directives: Dict[str, any]) -> List[str]:
+    async def _execute(self, directives: Dict[str, Any]) -> List[str]:
         """
         EXECUTE phase: Take action based on directives
         """
@@ -274,7 +326,7 @@ class MAPEKLoop:
     async def _knowledge(
         self,
         metrics: ConsciousnessMetrics,
-        directives: Dict[str, any],
+        directives: Dict[str, Any],
         actions: List[str],
         raw_metrics: Dict[str, float] = None,
     ):  # Added raw_metrics
