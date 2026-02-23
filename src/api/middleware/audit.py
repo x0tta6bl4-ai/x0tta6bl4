@@ -1,18 +1,36 @@
 
 import logging
 import json
-from typing import Callable, Optional, Tuple, Generator
+import os
+import threading
+import time
+from collections import OrderedDict
+from typing import Any, Callable, Optional, Tuple, Generator
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db
 
 logger = logging.getLogger(__name__)
 
+_IDENTITY_CACHE_TTL_SECONDS = max(
+    5,
+    int(os.getenv("MAAS_AUDIT_IDENTITY_CACHE_TTL_SECONDS", "60")),
+)
+_IDENTITY_CACHE_MAX_SIZE = max(
+    128,
+    int(os.getenv("MAAS_AUDIT_IDENTITY_CACHE_MAX_SIZE", "4096")),
+)
+
 class AuditMiddleware(BaseHTTPMiddleware):
     """
     Middleware for centralized audit logging of MaaS API requests.
     Captures user identity, action, payload (filtered), and outcome.
     """
+    def __init__(self, app):
+        super().__init__(app)
+        self._identity_cache: OrderedDict[str, Tuple[str, float]] = OrderedDict()
+        self._identity_cache_lock = threading.Lock()
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Only audit MaaS API
         if not request.url.path.startswith("/api/v1/maas"):
@@ -57,7 +75,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    def _filter_sensitive_data(self, data: any, sensitive_keys: list):
+    def _filter_sensitive_data(self, data: Any, sensitive_keys: list):
         """Recursively redact sensitive keys from a dictionary or list."""
         if isinstance(data, dict):
             for key in list(data.keys()):
@@ -69,28 +87,67 @@ class AuditMiddleware(BaseHTTPMiddleware):
             for item in data:
                 self._filter_sensitive_data(item, sensitive_keys)
 
+    def _cache_identity_get(self, cache_key: str) -> Optional[str]:
+        if _IDENTITY_CACHE_TTL_SECONDS <= 0:
+            return None
+        now = time.time()
+        with self._identity_cache_lock:
+            cached = self._identity_cache.get(cache_key)
+            if cached is None:
+                return None
+            user_id, expires_at = cached
+            if expires_at <= now:
+                self._identity_cache.pop(cache_key, None)
+                return None
+            self._identity_cache.move_to_end(cache_key)
+            return user_id
+
+    def _cache_identity_set(self, cache_key: str, user_id: str) -> None:
+        if _IDENTITY_CACHE_TTL_SECONDS <= 0 or not user_id:
+            return
+        expires_at = time.time() + _IDENTITY_CACHE_TTL_SECONDS
+        with self._identity_cache_lock:
+            self._identity_cache[cache_key] = (user_id, expires_at)
+            self._identity_cache.move_to_end(cache_key)
+            while len(self._identity_cache) > _IDENTITY_CACHE_MAX_SIZE:
+                self._identity_cache.popitem(last=False)
+
+    def _resolve_user_id(self, db: Any, request: Request) -> Optional[str]:
+        # 1) Prefer API key lookup
+        api_key = request.headers.get("X-API-Key")
+        if api_key:
+            cache_key = f"api:{api_key}"
+            cached = self._cache_identity_get(cache_key)
+            if cached:
+                return cached
+
+            user = db.query(User).filter(User.api_key == api_key).first()
+            if user:
+                self._cache_identity_set(cache_key, user.id)
+                return user.id
+
+        # 2) Fallback to bearer session lookup
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            cache_key = f"sess:{token}"
+            cached = self._cache_identity_get(cache_key)
+            if cached:
+                return cached
+
+            from src.database import Session as UserSession
+
+            session = db.query(UserSession).filter(UserSession.token == token).first()
+            if session:
+                self._cache_identity_set(cache_key, session.user_id)
+                return session.user_id
+
+        return None
+
     def _log_audit(self, request: Request, response: Response, payload: Optional[str]):
         db, generator = self._resolve_db(request)
         try:
-            # Try to identify user
-            user_id = None
-            
-            # 1. Try X-API-Key
-            api_key = request.headers.get("X-API-Key")
-            if api_key:
-                user = db.query(User).filter(User.api_key == api_key).first()
-                if user:
-                    user_id = user.id
-            
-            # 2. Try Authorization Bearer
-            if not user_id:
-                auth_header = request.headers.get("Authorization")
-                if auth_header and auth_header.startswith("Bearer "):
-                    token = auth_header[7:]
-                    from src.database import Session as UserSession
-                    session = db.query(UserSession).filter(UserSession.token == token).first()
-                    if session:
-                        user_id = session.user_id
+            user_id = self._resolve_user_id(db, request)
 
             # Create Audit Log entry
             audit_entry = AuditLog(
