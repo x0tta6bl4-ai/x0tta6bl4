@@ -21,6 +21,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from src.monitoring.opentelemetry_tracing import get_swarm_spans
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +39,10 @@ class PARLConfig:
     clip_epsilon: float = 0.2
     update_interval: int = 100
     experience_buffer_size: int = 100000
+    # Policy update configuration
+    # When True, policy updates are skipped (PPO not implemented yet)
+    # Experience buffer will naturally evict oldest entries when full
+    skip_policy_update: bool = True
 
 
 @dataclass
@@ -74,8 +80,7 @@ class TaskScheduler:
     Features:
     - Priority-based scheduling
     - Load balancing across workers
-    - Dependency resolution
-    - Dynamic worker allocation
+    - Adaptive scoring based on worker specialization
     """
 
     def __init__(self, max_workers: int):
@@ -83,24 +88,30 @@ class TaskScheduler:
         self.task_queue: asyncio.PriorityQueue[Any] = asyncio.PriorityQueue()
         self.worker_loads: Dict[str, int] = {}
         self.task_assignments: Dict[str, str] = {}
+        self.worker_specialization: Dict[str, Dict[str, float]] = {} # type -> success_rate
 
     async def submit(self, task: Dict[str, Any], priority: int = 5) -> None:
         """Submit task to queue."""
         await self.task_queue.put((priority, time.time(), task))
 
-    def get_best_worker(self, available_workers: List[str]) -> Optional[str]:
-        """Get worker with lowest load."""
+    def get_best_worker(self, available_workers: List[str], task_type: str = "unknown") -> Optional[str]:
+        """Get best worker based on load and specialization score."""
         if not available_workers:
             return None
 
-        # Find worker with minimum load
-        min_load = float("inf")
-        best_worker = available_workers[0]
+        # Score = Load + (1 - Specialization)
+        # We want lowest score
+        best_worker = None
+        min_score = float("inf")
 
         for worker_id in available_workers:
             load = self.worker_loads.get(worker_id, 0)
-            if load < min_load:
-                min_load = load
+            spec_bonus = self.worker_specialization.get(worker_id, {}).get(task_type, 0.5)
+            
+            score = load + (1.0 - spec_bonus)
+            
+            if score < min_score:
+                min_score = score
                 best_worker = worker_id
 
         return best_worker
@@ -110,11 +121,19 @@ class TaskScheduler:
         self.task_assignments[task_id] = worker_id
         self.worker_loads[worker_id] = self.worker_loads.get(worker_id, 0) + 1
 
-    def complete_task(self, task_id: str) -> None:
-        """Mark task as complete."""
+    def complete_task(self, task_id: str, success: bool = True, task_type: str = "unknown") -> None:
+        """Mark task as complete and update specialization metrics."""
         worker_id = self.task_assignments.pop(task_id, None)
         if worker_id and worker_id in self.worker_loads:
             self.worker_loads[worker_id] = max(0, self.worker_loads[worker_id] - 1)
+            
+            # Update specialization (moving average)
+            if worker_id not in self.worker_specialization:
+                self.worker_specialization[worker_id] = {}
+            
+            old_score = self.worker_specialization[worker_id].get(task_type, 0.5)
+            new_val = 1.0 if success else 0.0
+            self.worker_specialization[worker_id][task_type] = old_score * 0.9 + new_val * 0.1
 
 
 class AgentWorker:
@@ -159,19 +178,21 @@ class AgentWorker:
         logger.debug(f"Worker {self.worker_id} stopped")
 
     async def _execute_task(self, task: Dict[str, Any]) -> None:
-        """Execute a single task."""
+        """Execute a single task with tracing."""
         start_time = time.time()
         task_id = task.get("task_id", "unknown")
+        task_type = task.get("task_type", "unknown")
         self.current_task = task_id
+        
+        swarm_spans = get_swarm_spans()
 
         try:
-            # Simulate task execution
-            # In real implementation, this would call actual task handlers
-            task_type = task.get("task_type", "unknown")
-            payload = task.get("payload", {})
-
-            # Execute based on task type
-            result = await self._process_task(task_type, payload)
+            # Execute based on task type with tracing
+            if swarm_spans:
+                with swarm_spans.task_execution(task_id, task_type, self.worker_id):
+                    result = await self._process_task(task_type, task.get("payload", {}))
+            else:
+                result = await self._process_task(task_type, task.get("payload", {}))
 
             # Report success
             execution_time = time.time() - start_time
@@ -288,25 +309,25 @@ class PARLController:
         self, tasks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Execute tasks in parallel using PARL.
-
-        Args:
-            tasks: List of task specifications
-
-        Returns:
-            List of task results
+        Execute tasks in parallel using PARL with tracing.
         """
         if not tasks:
             return []
 
         results: List[Dict[str, Any]] = []
-
-        # Process in batches to respect max_parallel_steps
         batch_size = self.config.max_parallel_steps
+        
+        swarm_spans = get_swarm_spans()
 
         for i in range(0, len(tasks), batch_size):
             batch = tasks[i : i + batch_size]
-            batch_results = await self._execute_batch(batch)
+            
+            if swarm_spans:
+                with swarm_spans.parallel_batch(len(batch)):
+                    batch_results = await self._execute_batch(batch)
+            else:
+                batch_results = await self._execute_batch(batch)
+                
             results.extend(batch_results)
 
         return results
@@ -340,10 +361,7 @@ class PARLController:
             if isinstance(result, Exception):
                 processed_results.append({"success": False, "error": str(result)})
             else:
-                if isinstance(result, Exception):
-                    processed_results.append({"error": str(result), "status": "failed"})
-                else:
-                    processed_results.append(result)
+                processed_results.append(result)
 
         return processed_results
 
@@ -367,11 +385,36 @@ class PARLController:
     async def report_task_complete(
         self, task_id: str, result: Any, execution_time: float
     ) -> None:
-        """Report task completion."""
+        """Report task completion and record experience."""
         async with self._task_lock:
-            self.scheduler.complete_task(task_id)
+            task = self.pending_tasks.get(task_id, {})
+            task_type = task.get("task_type", "unknown")
+            self.scheduler.complete_task(task_id, success=True, task_type=task_type)
 
-            # Store result
+            # 1. Record experience for learning
+            # State is current worker loads and task metadata
+            state = {
+                "worker_loads": list(self.scheduler.worker_loads.values()),
+                "task_type": task.get("task_type"),
+                "priority": task.get("priority")
+            }
+            
+            # Reward: inverse of execution time + success bonus
+            # Cap reward to prevent extreme values when execution_time is near zero
+            reward = min(100.0, 1.0 / max(execution_time, 0.001) + 5.0) 
+            
+            exp = Experience(
+                state=state,
+                action=0, # Simplified action index for now
+                reward=reward,
+                next_state={}, # Will be populated if needed for sequential tasks
+                done=True,
+                log_prob=0.0,
+                value=0.0
+            )
+            self.experience_buffer.append(exp)
+
+            # 2. Update internal state
             self.completed_tasks[task_id] = {
                 "task_id": task_id,
                 "success": True,
@@ -389,11 +432,33 @@ class PARLController:
 
             # Update metrics
             self.metrics.completed_tasks += 1
+            
+            # 3. Check for policy update
+            if len(self.experience_buffer) >= self.config.update_interval:
+                await self._update_policy()
 
     async def report_task_failed(self, task_id: str, error: str) -> None:
-        """Report task failure."""
+        """Report task failure and record negative experience."""
         async with self._task_lock:
-            self.scheduler.complete_task(task_id)
+            task = self.pending_tasks.get(task_id, {})
+            task_type = task.get("task_type", "unknown")
+            self.scheduler.complete_task(task_id, success=False, task_type=task_type)
+
+            # Record negative experience
+            state = {
+                "worker_loads": list(self.scheduler.worker_loads.values()),
+                "task_type": task.get("task_type")
+            }
+            exp = Experience(
+                state=state,
+                action=0,
+                reward=-10.0, # Strong penalty for failure
+                next_state={},
+                done=True,
+                log_prob=0.0,
+                value=0.0
+            )
+            self.experience_buffer.append(exp)
 
             # Store failure
             self.completed_tasks[task_id] = {
@@ -412,6 +477,44 @@ class PARLController:
 
             # Update metrics
             self.metrics.failed_tasks += 1
+
+    async def _update_policy(self) -> None:
+        """
+        PPO policy update placeholder.
+        
+        When skip_policy_update=True (default), this method logs a warning
+        and returns without clearing the buffer. The experience buffer will
+        naturally evict oldest entries when it reaches max size (FIFO).
+        
+        When skip_policy_update=False, this method should be implemented with:
+        1. Sample mini-batches from the experience buffer
+        2. Compute advantages using GAE (Generalized Advantage Estimation)
+        3. Update policy network using PPO clipped objective
+        4. Update value function to estimate expected returns
+        """
+        self.metrics.policy_update_count += 1
+        buffer_size = len(self.experience_buffer)
+        
+        if self.config.skip_policy_update:
+            # Skip update - buffer will naturally evict old entries when full
+            logger.debug(
+                f"Policy update skipped (skip_policy_update=True). "
+                f"Buffer size: {buffer_size}/{self.config.experience_buffer_size}"
+            )
+            return
+        
+        # When skip_policy_update=False, implement actual PPO update
+        # TODO: Implement actual PPO update for production use
+        swarm_spans = get_swarm_spans()
+        
+        logger.info(
+            f"Policy update triggered with {buffer_size} experiences "
+            f"(PPO not yet implemented - buffer preserved)"
+        )
+        
+        if swarm_spans:
+            with swarm_spans.policy_update(buffer_size):
+                pass  # Placeholder for actual PPO implementation
 
     async def _collect_metrics(self) -> None:
         """Background metrics collection."""
