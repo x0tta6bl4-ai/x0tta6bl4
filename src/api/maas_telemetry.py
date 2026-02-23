@@ -101,7 +101,28 @@ class LRUCache:
     def __len__(self) -> int:
         with self._lock:
             return len(self._cache)
-    
+
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is None and key not in self._cache:
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.set(key, value)
+
+    def __contains__(self, key: str) -> bool:
+        with self._lock:
+            return key in self._cache
+
+    def clear(self) -> None:
+        """Clear all entries from the cache."""
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+            self._evictions = 0
+
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         with self._lock:

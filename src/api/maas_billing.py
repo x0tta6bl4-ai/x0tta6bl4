@@ -302,7 +302,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     payload={"plan": plan, "subscription_id": subscription_id},
                     status_code=200
                 )
-        elif mode == 'payment':
+        else:
+            # payment mode or mode not set — handle invoice_id if present
             invoice_id = metadata.get('invoice_id')
             if invoice_id:
                 inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
@@ -315,6 +316,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         payload={"invoice_id": invoice_id},
                         status_code=200
                     )
+                else:
+                    logger.error("Invoice %s not found for webhook", invoice_id)
 
     elif event_type == 'customer.subscription.updated':
         subscription = data_object
