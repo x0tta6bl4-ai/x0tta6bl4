@@ -190,6 +190,7 @@
         ".github/workflows/test.yml",
         ".github/workflows/v3_tests.yml",
         ".github/workflows/docker.yml",
+        "Dockerfile",
         ".gitlab-ci.yml",
         "benchmarks/README.md",
         "benchmarks/baseline/competitive_self_healing_gate.json",
