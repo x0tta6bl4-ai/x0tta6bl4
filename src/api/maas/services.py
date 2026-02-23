@@ -6,6 +6,7 @@ Contains service classes for billing, mesh provisioning, usage metering, and aut
 
 import hashlib
 import hmac
+import json
 import logging
 import os
 import secrets
@@ -13,6 +14,7 @@ import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 import aiohttp
 
@@ -37,6 +39,110 @@ from .registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SHARED_STATE_STORE_LOCK = Lock()
+_SHARED_STATE_STORE: Optional["_SharedStateStore"] = None
+
+
+class _SharedStateStore:
+    """Redis-backed JSON key/value store with graceful fallback."""
+
+    def __init__(self, redis_client: Optional[Any] = None):
+        self._redis = redis_client
+        self._enabled = redis_client is not None and not isinstance(redis_client, dict)
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def get_json(self, key: str) -> Optional[Dict[str, Any]]:
+        if not self._enabled:
+            return None
+        try:
+            raw = self._redis.get(key)
+            if not raw:
+                return None
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="ignore")
+            payload = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(payload, dict):
+                return payload
+        except Exception as exc:
+            logger.warning("Shared state read failed for key %s: %s", key, exc)
+        return None
+
+    def set_json(
+        self,
+        key: str,
+        value: Dict[str, Any],
+        ttl_seconds: Optional[int] = None,
+    ) -> bool:
+        if not self._enabled:
+            return False
+        try:
+            serialized = json.dumps(value)
+            if ttl_seconds and ttl_seconds > 0:
+                if hasattr(self._redis, "setex"):
+                    self._redis.setex(key, int(ttl_seconds), serialized)
+                else:
+                    self._redis.set(key, serialized, ex=int(ttl_seconds))
+            else:
+                self._redis.set(key, serialized)
+            return True
+        except Exception as exc:
+            logger.warning("Shared state write failed for key %s: %s", key, exc)
+            return False
+
+    def delete(self, key: str) -> bool:
+        if not self._enabled:
+            return False
+        try:
+            deleted = self._redis.delete(key)
+            return bool(deleted)
+        except Exception as exc:
+            logger.warning("Shared state delete failed for key %s: %s", key, exc)
+            return False
+
+
+def _build_shared_state_store() -> _SharedStateStore:
+    enabled_flag = os.getenv("MAAS_SHARED_STATE_REDIS_ENABLED", "false").strip().lower()
+    if enabled_flag not in {"1", "true", "yes", "on"}:
+        return _SharedStateStore()
+
+    redis_url = (
+        os.getenv("MAAS_SHARED_STATE_REDIS_URL")
+        or os.getenv("REDIS_URL")
+        or "redis://localhost:6379"
+    )
+    try:
+        import redis
+
+        client = redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        client.ping()
+        logger.info("Shared state Redis backend enabled: %s", redis_url)
+        return _SharedStateStore(client)
+    except Exception as exc:
+        logger.warning("Shared state Redis unavailable (%s). Falling back to local memory.", exc)
+        return _SharedStateStore()
+
+
+def _resolve_shared_state_store(shared_state: Optional[Any] = None) -> Any:
+    if shared_state is not None:
+        if all(hasattr(shared_state, attr) for attr in ("get_json", "set_json", "delete")):
+            return shared_state
+        return _SharedStateStore(shared_state)
+
+    global _SHARED_STATE_STORE
+    if _SHARED_STATE_STORE is None:
+        with _SHARED_STATE_STORE_LOCK:
+            if _SHARED_STATE_STORE is None:
+                _SHARED_STATE_STORE = _build_shared_state_store()
+    return _SHARED_STATE_STORE
 
 
 # ---------------------------------------------------------------------------
@@ -92,9 +198,11 @@ class BillingService:
         self,
         payment_provider: Optional[PaymentProvider] = None,
         webhook_secret: Optional[str] = None,
+        shared_state: Optional[Any] = None,
     ):
         self._provider = payment_provider
         self._webhook_secret = webhook_secret or secrets.token_hex(32)
+        self._shared_state = _resolve_shared_state_store(shared_state)
         self._idempotency_ttl_seconds = max(
             60,
             int(os.getenv("MAAS_BILLING_IDEMPOTENCY_TTL_SECONDS", "86400")),
@@ -114,7 +222,19 @@ class BillingService:
             "subscription.deleted": "customer.subscription.deleted",
         }
 
+    @staticmethod
+    def _idempotency_shared_key(event_id: str) -> str:
+        return f"maas:billing:idempotency:{event_id}"
+
     def _get_cached_webhook_result(self, event_id: str) -> Optional[Dict[str, Any]]:
+        shared_cached = self._shared_state.get_json(self._idempotency_shared_key(event_id))
+        if isinstance(shared_cached, dict):
+            self._idempotency_cache[event_id] = (time.time(), shared_cached)
+            self._idempotency_cache.move_to_end(event_id)
+            while len(self._idempotency_cache) > self._idempotency_max_entries:
+                self._idempotency_cache.popitem(last=False)
+            return shared_cached
+
         cached = self._idempotency_cache.get(event_id)
         if not cached:
             return None
@@ -128,6 +248,11 @@ class BillingService:
         return result
 
     def _cache_webhook_result(self, event_id: str, result: Dict[str, Any]) -> None:
+        self._shared_state.set_json(
+            self._idempotency_shared_key(event_id),
+            result,
+            ttl_seconds=self._idempotency_ttl_seconds,
+        )
         self._idempotency_cache[event_id] = (time.time(), result)
         self._idempotency_cache.move_to_end(event_id)
         while len(self._idempotency_cache) > self._idempotency_max_entries:
@@ -1098,8 +1223,12 @@ class AuthService:
     - Session management
     """
 
-    def __init__(self, api_key_secret: Optional[str] = None):
+    def __init__(self, api_key_secret: Optional[str] = None, shared_state: Optional[Any] = None):
         self._secret = api_key_secret or secrets.token_hex(32)
+        self._shared_state = _resolve_shared_state_store(shared_state)
+        self._shared_state_authoritative = (
+            shared_state is not None or getattr(self._shared_state, "enabled", False)
+        )
         self._max_api_keys = max(
             128,
             int(os.getenv("MAAS_AUTH_MAX_API_KEYS", "50000")),
@@ -1107,6 +1236,10 @@ class AuthService:
         self._max_sessions = max(
             128,
             int(os.getenv("MAAS_AUTH_MAX_SESSIONS", "50000")),
+        )
+        self._api_key_ttl_seconds = max(
+            0,
+            int(os.getenv("MAAS_AUTH_API_KEY_TTL_SECONDS", "0")),
         )
         self._api_keys: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self._sessions: OrderedDict[str, Dict[str, Any]] = OrderedDict()
@@ -1116,73 +1249,120 @@ class AuthService:
         while len(store) > max_entries:
             store.popitem(last=False)
 
+    @staticmethod
+    def _api_key_store_key(api_key: str) -> str:
+        return f"maas:auth:api_key:{api_key}"
+
+    @staticmethod
+    def _session_store_key(token: str) -> str:
+        return f"maas:auth:session:{token}"
+
     def generate_api_key(self, user_id: str, plan: str) -> str:
         """Generate a new API key for a user."""
         key = f"maas_{secrets.token_urlsafe(32)}"
 
-        self._api_keys[key] = {
+        key_record = {
             "user_id": user_id,
             "plan": plan,
             "created_at": datetime.utcnow().isoformat(),
             "last_used": None,
             "request_count": 0,
         }
+        self._api_keys[key] = key_record
         self._evict_oldest(self._api_keys, self._max_api_keys)
+        self._shared_state.set_json(
+            self._api_key_store_key(key),
+            key_record,
+            ttl_seconds=self._api_key_ttl_seconds if self._api_key_ttl_seconds > 0 else None,
+        )
 
         return key
 
     def validate_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         """Validate an API key and return associated data."""
-        if api_key not in self._api_keys:
+        key_data = self._shared_state.get_json(self._api_key_store_key(api_key))
+        if key_data is None:
+            if self._shared_state_authoritative:
+                self._api_keys.pop(api_key, None)
+                return None
+            key_data = self._api_keys.get(api_key)
+        if key_data is None:
             return None
 
-        key_data = self._api_keys[api_key]
+        key_data = dict(key_data)
 
         # Update last used
         key_data["last_used"] = datetime.utcnow().isoformat()
         key_data["request_count"] += 1
+
+        self._shared_state.set_json(
+            self._api_key_store_key(api_key),
+            key_data,
+            ttl_seconds=self._api_key_ttl_seconds if self._api_key_ttl_seconds > 0 else None,
+        )
+        self._api_keys[api_key] = key_data
         self._api_keys.move_to_end(api_key)
+        self._evict_oldest(self._api_keys, self._max_api_keys)
 
         return key_data
 
     def revoke_api_key(self, api_key: str) -> bool:
         """Revoke an API key."""
-        return self._api_keys.pop(api_key, None) is not None
+        deleted_local = self._api_keys.pop(api_key, None) is not None
+        deleted_shared = self._shared_state.delete(self._api_key_store_key(api_key))
+        return deleted_local or deleted_shared
 
     def create_session(self, user_id: str, ttl_hours: int = 24) -> str:
         """Create a new session token."""
         token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
 
-        self._sessions[token] = {
+        session_record = {
             "user_id": user_id,
             "created_at": datetime.utcnow().isoformat(),
-            "expires_at": (
-                datetime.utcnow() + timedelta(hours=ttl_hours)
-            ).isoformat(),
+            "expires_at": expires_at.isoformat(),
         }
+        self._sessions[token] = session_record
         self._evict_oldest(self._sessions, self._max_sessions)
+        ttl_seconds = max(1, int((expires_at - datetime.utcnow()).total_seconds()))
+        self._shared_state.set_json(
+            self._session_store_key(token),
+            session_record,
+            ttl_seconds=ttl_seconds,
+        )
 
         return token
 
     def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
         """Validate a session token."""
-        if token not in self._sessions:
+        session = self._shared_state.get_json(self._session_store_key(token))
+        if session is None:
+            if self._shared_state_authoritative:
+                self._sessions.pop(token, None)
+                return None
+            session = self._sessions.get(token)
+        if session is None:
             return None
 
-        session = self._sessions[token]
+        session = dict(session)
 
         # Check expiration
         expires = datetime.fromisoformat(session["expires_at"])
         if datetime.utcnow() > expires:
+            self._shared_state.delete(self._session_store_key(token))
             self._sessions.pop(token, None)
             return None
 
+        self._sessions[token] = session
         self._sessions.move_to_end(token)
+        self._evict_oldest(self._sessions, self._max_sessions)
         return session
 
     def end_session(self, token: str) -> bool:
         """End a session."""
-        return self._sessions.pop(token, None) is not None
+        deleted_local = self._sessions.pop(token, None) is not None
+        deleted_shared = self._shared_state.delete(self._session_store_key(token))
+        return deleted_local or deleted_shared
 
 
 __all__ = [

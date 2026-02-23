@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import time
 
-from src.api.maas.services import BillingService
+from src.api.maas.services import AuthService, BillingService
 
 
 def _signature(secret: str, payload: bytes, timestamp: str | None = None, with_prefix: bool = True) -> str:
@@ -194,3 +194,69 @@ def test_process_webhook_idempotency_cache_evicts_oldest_entry():
     )
 
     assert list(billing._idempotency_cache.keys()) == ["evt_b", "evt_c"]
+
+
+class _SharedStateFake:
+    def __init__(self):
+        self._store = {}
+
+    def get_json(self, key):
+        value = self._store.get(key)
+        return dict(value) if isinstance(value, dict) else None
+
+    def set_json(self, key, value, ttl_seconds=None):
+        self._store[key] = dict(value)
+        return True
+
+    def delete(self, key):
+        return self._store.pop(key, None) is not None
+
+
+def test_process_webhook_idempotency_is_shared_across_instances():
+    shared = _SharedStateFake()
+    billing_a = BillingService(webhook_secret="test", shared_state=shared)
+    billing_b = BillingService(webhook_secret="test", shared_state=shared)
+
+    first = asyncio.run(
+        billing_a.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_a", "attempt": 1},
+            event_id="evt_shared",
+        )
+    )
+    second = asyncio.run(
+        billing_b.process_webhook(
+            event_type="invoice.payment_failed",
+            event_data={"customer_id": "cus_b", "attempt": 999},
+            event_id="evt_shared",
+        )
+    )
+
+    assert first == second
+    assert second["customer_id"] == "cus_a"
+    assert second["attempt"] == 1
+
+
+def test_auth_service_shared_api_keys_work_across_instances():
+    shared = _SharedStateFake()
+    auth_a = AuthService(api_key_secret="test", shared_state=shared)
+    auth_b = AuthService(api_key_secret="test", shared_state=shared)
+
+    api_key = auth_a.generate_api_key(user_id="u1", plan="pro")
+    validated = auth_b.validate_api_key(api_key)
+
+    assert validated is not None
+    assert validated["user_id"] == "u1"
+    assert validated["plan"] == "pro"
+    assert validated["request_count"] == 1
+
+
+def test_auth_service_shared_sessions_work_across_instances():
+    shared = _SharedStateFake()
+    auth_a = AuthService(api_key_secret="test", shared_state=shared)
+    auth_b = AuthService(api_key_secret="test", shared_state=shared)
+
+    token = auth_a.create_session(user_id="u1", ttl_hours=1)
+    assert auth_b.validate_session(token) is not None
+    assert auth_b.end_session(token) is True
+    assert auth_a.validate_session(token) is None
