@@ -14,7 +14,7 @@ def test_get_yggdrasil_peers_called_process_error(monkeypatch):
     res = yggdrasil_client.get_yggdrasil_peers()
     assert res["status"] == "error"
     assert res["count"] == 0
-    assert "boom" in res["error"]
+    assert "non-zero exit status 1" in res["error"]
 
 
 def test_get_yggdrasil_status_timeout(monkeypatch):
@@ -23,5 +23,5 @@ def test_get_yggdrasil_status_timeout(monkeypatch):
     )
     monkeypatch.setattr(subprocess, "run", mock_run)
     res = yggdrasil_client.get_yggdrasil_status()
-    assert res["status"] == "error"
-    assert "timeout" in res["error"].lower()
+    assert res["status"] == "offline"
+    assert "timed out" in res["error"].lower()
