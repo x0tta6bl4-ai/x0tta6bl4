@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, get_db
+from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, MarketplaceEscrow, get_db
 from src.api.maas_auth import require_permission
 
 logger = logging.getLogger(__name__)
@@ -82,47 +82,38 @@ async def get_dashboard_summary(
             health = _node_health(node)
             health_stats[health] = health_stats.get(health, 0) + 1
 
-    mesh_list = [
-        {
-            "id": m.id,
-            "name": m.name,
-            "status": m.status,
-            "pqc_enabled": m.pqc_enabled,
-            "created_at": m.created_at,
-        }
-        for m in meshes
-    ]
+    # 3. Marketplace Activity
+    active_rentals = db.query(MarketplaceListing).filter(
+        MarketplaceListing.renter_id == current_user.id,
+        MarketplaceListing.status == "rented"
+    ).all()
+    my_listings = db.query(MarketplaceListing).filter(
+        MarketplaceListing.owner_id == current_user.id
+    ).all()
 
-    # 3. Recent audit logs (last 10)
+    # 4. Recent audit logs (last 20)
     query = db.query(AuditLog)
     if current_user.role != "admin":
         query = query.filter(AuditLog.user_id == current_user.id)
-    recent_logs = query.order_by(AuditLog.created_at.desc()).limit(10).all()
+    recent_logs = query.order_by(AuditLog.created_at.desc()).limit(20).all()
     log_list = [
         {
             "id": log.id,
             "action": log.action,
+            "method": log.method,
+            "path": log.path,
             "status_code": log.status_code,
             "created_at": log.created_at,
         }
         for log in recent_logs
     ]
 
-    # 4. Pending invoices
+    # 5. Pending invoices
     invoices = (
         db.query(Invoice)
         .filter(Invoice.user_id == current_user.id, Invoice.status == "issued")
         .all()
     )
-    invoice_list = [
-        {
-            "id": inv.id,
-            "amount": inv.total_amount / 100.0,
-            "currency": inv.currency,
-            "issued_at": inv.issued_at,
-        }
-        for inv in invoices
-    ]
 
     return {
         "user": {
@@ -130,16 +121,23 @@ async def get_dashboard_summary(
             "plan": current_user.plan,
             "role": current_user.role,
         },
-        "meshes": mesh_list,
-        "recent_audit": log_list,
-        "pending_invoices": invoice_list,
         "stats": {
-            "total_meshes": len(mesh_list),
+            "total_meshes": len(meshes),
             "total_nodes": total_nodes,
-            "pending_payment": len(invoice_list) > 0,
+            "active_rentals": len(active_rentals),
+            "my_listings": len(my_listings),
             "security": security_stats,
             "node_health": health_stats,
         },
+        "meshes": [
+            {"id": m.id, "name": m.name, "status": m.status, "created_at": m.created_at} 
+            for m in meshes
+        ],
+        "recent_audit": log_list,
+        "pending_invoices": [
+            {"id": i.id, "amount": i.total_amount / 100.0, "currency": i.currency, "issued_at": i.issued_at}
+            for i in invoices
+        ],
     }
 
 
