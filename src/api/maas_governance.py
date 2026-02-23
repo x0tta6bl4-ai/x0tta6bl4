@@ -85,6 +85,7 @@ def _tally(proposal: GovernanceProposal) -> Dict[str, float]:
 
 def _resolve_state(proposal: GovernanceProposal) -> str:
     if proposal.state == "executed": return "executed"
+    if proposal.state != "active": return proposal.state  # preserve cancelled/rejected/passed
     if datetime.utcnow() < proposal.end_time: return "active"
     tally = _tally(proposal)
     return "passed" if tally["yes"] > tally["no"] else "rejected"
@@ -196,7 +197,13 @@ async def execute_maas_proposal(
         payload={"proposal_id": proposal_id, "hash": finality_hash, "pqc": pqc_attestation},
         status_code=200
     )
-    return {"status": "executed", "finality_hash": finality_hash, "pqc_attestation": pqc_attestation}
+    return {
+        "status": "executed",
+        "proposal_id": proposal_id,
+        "finality_hash": finality_hash,
+        "pqc_attestation": pqc_attestation,
+        "results": results,
+    }
 
 @router.get("/proposals")
 async def list_proposals(db: Session = Depends(get_db)):
