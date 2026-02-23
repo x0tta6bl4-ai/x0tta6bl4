@@ -50,6 +50,8 @@
         "src/api/maas_dashboard.py",
         "src/api/maas_marketplace.py",
         "src/api/maas_security.py",
+        "src/api/maas_billing.py",
+        "src/api/maas_telemetry.py",
         "tests/api/test_maas_playbooks.py",
         "tests/api/test_maas_dashboard.py",
         "tests/api/test_maas_analytics.py",
