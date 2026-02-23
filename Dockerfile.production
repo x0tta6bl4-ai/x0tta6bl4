@@ -1,68 +1,52 @@
-# ===== STAGE 1: BUILDER =====
-FROM python:3.14-slim as builder
+# Stage 1: Build dependencies
+FROM python:3.12-slim AS builder
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    X0TTA6BL4_VERSION=3.4.0 \
-    PIP_NO_CACHE_DIR=1
+WORKDIR /build
 
-# Установить инструменты сборки и системные зависимости
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
-    libssl-dev \
-    libffi-dev \
-    pkg-config \
-    git \
-    libtool \
-    autoconf \
+    liboqs-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Скопировать authoritative requirements file
-COPY requirements-complete.txt ./
-
-# Установить зависимости в virtualenv
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements-complete.txt
-
-# ===== STAGE 2: RUNNER =====
-FROM python:3.14-slim
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    X0TTA6BL4_VERSION=3.4.0 \
-    X0TTA6BL4_PRODUCTION=true \
-    LOG_LEVEL=INFO
-
-# Установить только runtime зависимости
+# Install runtime libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev \
+    liboqs-dev \
     curl \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
 
-# Скопировать virtualenv из builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy application code
+COPY src/ /app/src/
+COPY alembic/ /app/alembic/
+COPY alembic.ini /app/
+COPY sdk/ /app/sdk/
 
-# Скопировать приложение
-COPY src/ ./src/
-COPY scripts/ ./scripts/
+# Create data and logs directory
+RUN mkdir -p /app/data /app/logs
 
-# Создать non-root пользователя
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Environment defaults
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV X0TTA6BL4_PRODUCTION=true
 
-USER appuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run
-CMD ["python", "-m", "uvicorn", "src.core.app:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+
+# Default entrypoint (will be overridden by docker-compose for different services)
+CMD ["uvicorn", "src.core.app:app", "--host", "0.0.0.0", "--port", "8000"]
