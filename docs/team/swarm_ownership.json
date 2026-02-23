@@ -195,7 +195,10 @@
         "deploy/helm/maas/values.yaml",
         "deploy/helm/maas/values-staging.yaml",
         "deploy/helm/maas/values-production.yaml",
-        "tests/unit/scripts/test_check_competitive_self_healing_gate_unit.py"
+        "tests/unit/scripts/test_check_competitive_self_healing_gate_unit.py",
+        "tests/unit/swarm/test_consensus_transport_integration_unit.py",
+        "src/swarm/consensus.py",
+        "src/swarm/consensus_integration.py"
       ]
     },
     "lead-coordinator": {
