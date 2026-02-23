@@ -168,7 +168,21 @@
         "tests/unit/consensus/test_raft_snapshots.py",
         "tests/api/test_maas_analytics.py",
         "tests/unit/self_healing/test_mape_k_unit.py",
-        "tests/unit/self_healing/test_recovery_actions_unit.py"
+        "tests/unit/self_healing/test_recovery_actions_unit.py",
+        "skills/maas-dev/SKILL.md",
+        "skills/maas-dev/references/swarm-ownership.md",
+        "skills/maas-dev/references/test-patterns.md",
+        "skills/db-migrate/SKILL.md",
+        "skills/db-migrate/references/migration-checklist.md",
+        "skills/fl-experiment/SKILL.md",
+        "skills/fl-experiment/references/fl-modules.md",
+        "skills/consensus-debug/SKILL.md",
+        "skills/consensus-debug/references/raft-troubleshooting.md",
+        "skills/load-test/SKILL.md",
+        "skills/x0tta6bl4-80-20-executor/agents/gemini.yaml",
+        "skills/x0tta6bl4-80-20-executor/agents/anthropic-api.yaml",
+        "ai/roles/maas.md",
+        "ai/roles/fl.md"
       ]
     },
     "lead-coordinator": {
