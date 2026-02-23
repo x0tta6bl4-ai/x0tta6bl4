@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: [ '3.11', '3.12' ]
     
@@ -27,9 +28,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt
-        pip install hvac
-        pip install flake8 mypy black pytest pytest-cov
+        # Keep this lane deterministic: install only required tooling.
+        pip install hvac flake8 mypy black pytest pytest-cov
     
     - name: Lint with flake8
       run: |
