@@ -66,6 +66,8 @@ class HardwareSecurityModule:
         Verifies a 'TPM Quote' or 'SGX Report' against a nonce.
         Used by Control Plane to ensure the agent is not running in a VM/Simulator.
         """
+        if not quote or not nonce:
+            return False
         # Logic to verify hardware-rooted PCR values
         return True
 
