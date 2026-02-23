@@ -163,7 +163,9 @@
         "tests/chaos/__init__.py",
         "tests/unit/api/test_maas_telemetry.py",
         "tests/unit/consensus/test_raft_snapshots.py",
-        "tests/api/test_maas_analytics.py"
+        "tests/api/test_maas_analytics.py",
+        "tests/unit/self_healing/test_mape_k_unit.py",
+        "tests/unit/self_healing/test_recovery_actions_unit.py"
       ]
     },
     "lead-coordinator": {
