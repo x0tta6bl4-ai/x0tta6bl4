@@ -41,6 +41,7 @@ from sqlalchemy import and_, or_
 from src.database import ACLPolicy, MarketplaceEscrow, MarketplaceListing, MeshInstance, MeshNode, User, get_db
 from src.api.maas_auth import require_role
 from src.api.maas_security import token_signer
+from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
@@ -634,6 +635,18 @@ async def node_heartbeat(
                 escrow.released_at = datetime.utcnow()
                 listing.status = "rented"
                 released_escrow = escrow.id
+                
+                record_audit_log(
+                    db, None, "MARKETPLACE_ESCROW_RELEASED_AUTO",
+                    user_id=listing.renter_id,
+                    payload={
+                        "listing_id": listing.id, 
+                        "escrow_id": escrow.id, 
+                        "node_id": node_id
+                    },
+                    status_code=200
+                )
+                
                 logger.info(
                     "✅ Heartbeat auto-released escrow %s for node %s (listing %s)",
                     escrow.id, node_id, listing.id,
