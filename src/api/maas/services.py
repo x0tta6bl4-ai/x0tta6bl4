@@ -644,6 +644,7 @@ class BillingService:
         event_type: str,
         event_data: Dict[str, Any],
         event_id: str,
+        include_idempotency_metadata: bool = False,
     ) -> Dict[str, Any]:
         """
         Process a billing webhook event.
@@ -660,6 +661,11 @@ class BillingService:
         cached_result = self._get_cached_webhook_result(event_id)
         if cached_result is not None:
             logger.info(f"Webhook event {event_id} already processed")
+            if include_idempotency_metadata:
+                return {
+                    **cached_result,
+                    "_idempotent": True,
+                }
             return cached_result
 
         event_type = self._normalize_event_type(event_type)
@@ -691,6 +697,12 @@ class BillingService:
 
         # Cache result for idempotency
         self._cache_webhook_result(event_id, result)
+
+        if include_idempotency_metadata:
+            return {
+                **result,
+                "_idempotent": False,
+            }
 
         return result
 
