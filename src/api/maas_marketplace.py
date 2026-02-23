@@ -283,6 +283,14 @@ async def rent_node(
     listing["mesh_id"] = mesh_id
     _save_listing_to_cache(listing)
 
+    # Automated Orchestration: Push node to target mesh
+    try:
+        from src.services.maas_orchestrator import maas_orchestrator
+        import asyncio
+        asyncio.create_task(maas_orchestrator.provision_rented_node(db, listing_id, current_user.id, mesh_id))
+    except Exception as orch_err:
+        logger.error(f"Failed to trigger orchestration: {orch_err}")
+
     try:
         record_audit_log(
             db, None, "MARKETPLACE_RENT_INITIATED",
@@ -323,6 +331,8 @@ async def release_escrow(
     if listing.get("renter_id") != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    released_at = datetime.utcnow().isoformat()
+
     if _db_session_available(db):
         row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
         if not row:
@@ -336,7 +346,7 @@ async def release_escrow(
         ).first()
         if escrow:
             escrow.status = "released"
-            escrow.released_at = datetime.utcnow()
+            escrow.released_at = datetime.fromisoformat(released_at)
         row.status = "rented"
         db.commit()
 
@@ -353,7 +363,7 @@ async def release_escrow(
     listing["status"] = "rented"
     _save_listing_to_cache(listing)
 
-    return {"status": "released", "listing_id": listing_id}
+    return {"status": "released", "listing_id": listing_id, "released_at": released_at}
 
 
 @router.post("/escrow/{listing_id}/refund")
