@@ -141,7 +141,8 @@
         "tests/unit/swarm/test_lora_fl_integration_yggdrasil_optimizer_consensus_integration_paxos_pbft_unit.py",
         "src/event_sourcing/aggregate.py",
         "src/event_sourcing/projection.py",
-        "src/swarm/pbft.py"
+        "src/swarm/pbft.py",
+        "src/swarm/parl/controller.py"
       ]
     },
     "lead-coordinator": {
