@@ -77,13 +77,13 @@ class TestMAPEKLoop:
 
     @pytest.mark.asyncio
     async def test_execute_route_preference(self, loop):
-        directives = {"route_preference": "performance"}
+        directives = {"route_preference": "low_latency"}
         loop.mesh.set_route_preference = AsyncMock(return_value=True)
         
         actions = await loop._execute(directives)
         
-        loop.mesh.set_route_preference.assert_called_with("performance")
-        assert "route_preference=performance" in actions
+        loop.mesh.set_route_preference.assert_called_with("low_latency")
+        assert "route_preference=low_latency" in actions
 
     @pytest.mark.asyncio
     async def test_execute_aggressive_healing(self, loop):

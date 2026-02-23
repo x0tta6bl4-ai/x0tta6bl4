@@ -1,0 +1,4 @@
+interface:
+  display_name: "x0tta6bl4 80/20 Executor"
+  short_description: "Runs high-leverage automated agent cycle for x0tta6bl4."
+  default_prompt: "Run the 80/20 automation cycle for x0tta6bl4."

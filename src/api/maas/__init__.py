@@ -48,6 +48,8 @@ API Endpoints:
 from importlib import import_module
 from typing import Any
 
+from src.version import __version__
+
 # Public API - lazy loading
 __all__ = [
     # Constants
@@ -163,7 +165,3 @@ def __getattr__(name: str) -> Any:
         return getattr(legacy, name)
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-# Package metadata
-__version__ = "2.0.0"

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 | system_v3.3</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;400;800&display=swap');
+
+        :root {
+            --amber: #ffb000;
+            --atomic-red: #ff3e3e;
+            --bg: #000;
+            --steel: #1a1a1a;
+            --font: 'JetBrains Mono', monospace;
+        }
+
+        * { 
+            margin: 0; padding: 0; box-sizing: border-box; 
+            text-transform: lowercase !important; /* Глобальный приказ: только нижний регистр */
+        }
+        
+        body {
+            background: var(--bg);
+            color: var(--amber);
+            font-family: var(--font);
+            overflow-x: hidden;
+            cursor: crosshair;
+        }
+
+        /* CRT Scanlines */
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            z-index: 1000;
+            background-size: 100% 2px, 2px 100%;
+            pointer-events: none;
+        }
+
+        .industrial-grid {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 100px 100px;
+            z-index: -1;
+        }
+
+        nav {
+            padding: 2rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            border-bottom: 1px solid var(--steel);
+            position: fixed;
+            width: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .brand-name {
+            font-size: 15vw;
+            font-weight: 800;
+            letter-spacing: -0.08em;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .status-dot {
+            width: 10px; height: 10px;
+            background: var(--atomic-red);
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--atomic-red);
+            display: inline-block;
+            margin-right: 10px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .bento {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1px;
+            background: var(--steel);
+            border: 1px solid var(--steel);
+            margin: 0 2rem 4rem 2rem;
+        }
+
+        .card {
+            grid-column: span 4;
+            background: var(--bg);
+            padding: 3rem;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .card:hover { background: #050505; }
+        .card::before {
+            content: "[ " attr(data-label) " ]";
+            font-size: 0.6rem;
+            color: #444;
+        }
+
+        .card h2 { font-size: 1.5rem; color: #eee; margin-top: 1rem; }
+        .card p { font-size: 0.8rem; color: #666; line-height: 1.6; }
+
+        .span-8 { grid-column: span 8; }
+
+        .footer {
+            padding: 10vh 2rem;
+            text-align: center;
+            border-top: 1px solid var(--steel);
+        }
+
+        .btn-init {
+            border: 1px solid var(--amber);
+            padding: 1.5rem 4rem;
+            color: var(--amber);
+            text-decoration: none;
+            font-weight: 800;
+            display: inline-block;
+            transition: 0.3s;
+        }
+
+        .btn-init:hover {
+            background: var(--amber);
+            color: #000;
+            box-shadow: 0 0 40px var(--amber);
+        }
+
+        /* Ambient visuals */
+        #core-visual {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40vw; height: 40vw;
+            background: radial-gradient(circle, rgba(255, 62, 62, 0.03) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="industrial-grid"></div>
+    <div id="core-visual"></div>
+
+    <nav>
+        <div><span class="status-dot"></span>system_active: x0tta6bl4</div>
+        <div>[ protocol_3826_stable ]</div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <h1 class="brand-name">x0tta6bl4</h1>
+            <p style="color: #444; letter-spacing: 0.5em; margin-top: -2rem;">autonomous_self_healing_mesh</p>
+        </section>
+
+        <div class="bento">
+            <div class="card span-8" data-label="module_01">
+                <h2>self-healing algorithm</h2>
+                <p>mape-k control loops continuously analyze network health. if a link fails, the mesh reroutes in under 3.2 seconds. built for survival in contested digital spaces.</p>
+            </div>
+            <div class="card" data-label="module_02">
+                <h2 style="color: var(--atomic-red);">zero trust</h2>
+                <p>identity is verified, not assumed. spiffe/spire fabric with mandatory mtls for every byte. no perimeter, no backdoors.</p>
+            </div>
+            <div class="card" data-label="module_03">
+                <h2>post-quantum</h2>
+                <p>ml-kem-768 standard protection. your data is secure against the computational power of tomorrow. cryptographically immortal.</p>
+            </div>
+            <div class="card span-8" data-label="module_04">
+                <h2>hybrid ml routing</h2>
+                <p>graphsage neural networks predict and score routes based on delivery probability. combining classical aodv reliability with future-ready intelligence.</p>
+            </div>
+        </div>
+
+        <section class="footer">
+            <a href="#" class="btn-init">initiate_deployment</a>
+            <div style="margin-top: 2rem; font-size: 0.6rem; color: #222;">all_rights_reserved_entity_x0tta6bl4</div>
+        </section>
+    </main>
+
+    <script>
+        // Intro Animation
+        gsap.from(".brand-name", { opacity: 0, y: 50, duration: 2, ease: "expo.out" });
+        gsap.from(".card", { 
+            opacity: 0, 
+            scale: 0.95, 
+            stagger: 0.1, 
+            duration: 1, 
+            ease: "power2.out",
+            delay: 1
+        });
+
+        // Mouse Parallax for "Steel" grid
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth - 0.5) * 15;
+            const y = (e.clientY / window.innerHeight - 0.5) * 15;
+            gsap.to(".industrial-grid", { x: x, y: y, duration: 1.5 });
+            gsap.to(".brand-name", { x: -x, y: -y, duration: 2 });
+        });
+    </script>
+</body>
+</html>

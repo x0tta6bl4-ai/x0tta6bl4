@@ -1,0 +1,17 @@
+{
+  "recovery_stream": {
+    "status": "active",
+    "last_processed_dir": null,
+    "files_rescued": 0,
+    "organized_count": 0
+  },
+  "technical_stream": {
+    "routing_mode": "hybrid_ml",
+    "reliability_target": 0.9997,
+    "pqc_status": "active"
+  },
+  "business_stream": {
+    "maas_api_version": "3.3.0",
+    "offer_ready": true
+  }
+}

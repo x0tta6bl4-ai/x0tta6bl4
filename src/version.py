@@ -33,7 +33,7 @@ from typing import Dict, Any, Optional
 
 # Major.Minor.Patch - Semantic Versioning
 # Update this for each release
-__version__ = "3.2.1"
+__version__ = "3.3.0"
 
 # Build metadata (optional, for CI/CD)
 __build__ = os.getenv("X0TTA6BL4_BUILD", "")
