@@ -42,4 +42,7 @@ def test_extract_node_id_from_did_valid_and_invalid_cases():
     assert extract_node_id_from_did("did:mesh:pqc:node-123:key-abc") == "node-123"
     assert extract_node_id_from_did("did:mesh:pqc:node-only") == "node-only"
     assert extract_node_id_from_did("did:other:pqc:node-123:key-abc") is None
+    assert extract_node_id_from_did("did:mesh:legacy:node-123:key-abc") is None
+    assert extract_node_id_from_did("did:mesh:pqc::key-abc") is None
+    assert extract_node_id_from_did(None) is None
     assert extract_node_id_from_did("not-a-did") is None
