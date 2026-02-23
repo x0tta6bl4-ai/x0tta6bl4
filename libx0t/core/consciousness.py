@@ -442,7 +442,7 @@ class ConsciousnessEngine:
             directives.update(
                 {
                     "monitoring_interval_sec": 120,
-                    "route_preference": "performance",
+                    "route_preference": "low_latency",
                     "scaling_action": "optimize",
                     "message": "Желание исполнено! Система в эйфории.",
                 }
@@ -475,7 +475,7 @@ class ConsciousnessEngine:
                 {
                     "monitoring_interval_sec": 10,
                     "enable_aggressive_healing": True,
-                    "route_preference": "survival",
+                    "route_preference": "reliability",
                     "scaling_action": "emergency_scale",
                     "alert_level": "critical",
                     "message": "Погружение в глубину. Активировано аварийное самовосстановление.",

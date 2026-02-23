@@ -12,13 +12,13 @@ All version information is managed in [`src/version.py`](../src/version.py):
 from src.version import __version__, get_version_info
 
 # Get current version
-print(__version__)  # "3.2.1"
+print(__version__)  # "3.3.0"
 
 # Get structured version info
 info = get_version_info()
-print(info.api_version)    # "3.2.1"
-print(info.docker_tag)     # "3.2.1"
-print(info.user_agent)     # "x0tta6bl4/3.2.1"
+print(info.api_version)    # "3.3.0"
+print(info.docker_tag)     # "3.3.0"
+print(info.user_agent)     # "x0tta6bl4/3.3.0"
 ```
 
 ## Version Policy
@@ -60,14 +60,14 @@ async def health():
 
 # Use in metrics
 info = get_health_info()
-# Returns: {"version": "3.2.1", "full_version": "3.2.1", "channel": "stable", ...}
+# Returns: {"version": "3.3.0", "full_version": "3.3.0", "channel": "stable", ...}
 ```
 
 ### In Docker
 
 ```bash
 # Build with version tag
-docker build -t x0tta6bl4:3.2.1 .
+docker build -t x0tta6bl4:3.3.0 .
 
 # Or use the docker_tag helper
 VERSION=$(python -c "from src.version import get_docker_tag; print(get_docker_tag())")
@@ -101,11 +101,11 @@ build:
 from src.version import is_compatible, check_min_version
 
 # Check if compatible with required version
-if is_compatible("3.2.0"):
+if is_compatible("3.3.0"):
     print("Compatible!")
 
 # Enforce minimum version (raises RuntimeError if not met)
-check_min_version("3.2.0")
+check_min_version("3.3.0")
 ```
 
 ## Migration Guide
@@ -114,8 +114,8 @@ check_min_version("3.2.0")
 
 ```python
 # DON'T DO THIS
-_VERSION = "3.2.1"
-app = FastAPI(version="3.2.1")
+_VERSION = "3.3.0"
+app = FastAPI(version="3.3.0")
 return {"version": "3.2.0"}  # Inconsistent!
 ```
 
@@ -152,6 +152,7 @@ pytest tests/unit/test_version.py -v
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.3.0 | 2026-02-23 | Version source unification and contract automation |
 | 3.2.1 | 2026-02-20 | Version contract unification |
 | 3.2.0 | 2026-02-20 | Event Store Database Backends |
 | 3.1.0 | 2026-02-17 | MeshRouter refactoring |

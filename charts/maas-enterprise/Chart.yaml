@@ -1,0 +1,6 @@
+apiVersion: v2
+name: maas-enterprise
+description: A Post-Quantum Secure Mesh-as-a-Service platform.
+type: application
+version: 1.0.0
+appVersion: "3.4.0"

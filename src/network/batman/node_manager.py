@@ -72,6 +72,13 @@ try:
 except ImportError:
     TRAFFIC_SHAPING_AVAILABLE = False
 
+# Stego-mesh Integration
+try:
+    from src.anti_censorship.stego_mesh import StegoMeshProtocol
+    STEGO_MESH_AVAILABLE = True
+except ImportError:
+    STEGO_MESH_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Batman-adv Optimizations
@@ -141,7 +148,14 @@ class NodeManager:
         self.attestation_strategy = AttestationStrategy.SPIFFE
         self.bootstrap_nodes: List[str] = []
         self.obfuscation_transport = obfuscation_transport
-
+        self.stego_mimic = os.getenv("STEGO_MIMIC_PROTOCOL", "http")
+        self.stego_protocol = None
+        
+        if STEGO_MESH_AVAILABLE:
+            # Use mesh_id as basis for master key if not provided
+            master_key = hashlib.sha256(mesh_id.encode()).digest()
+            self.stego_protocol = StegoMeshProtocol(master_key)
+            logger.info(f"Stego-mesh initialized with mimic: {self.stego_mimic}")
         # Initialize Batman-adv optimizations from Paradox Zone
         self.optimizations: Optional["BatmanAdvOptimizations"] = None
         if enable_optimizations and BATMAN_OPTIMIZATIONS_AVAILABLE:
@@ -324,6 +338,19 @@ class NodeManager:
             )
             data = shaped_data
 
+        # Apply Stego-mesh encoding
+        if self.stego_protocol:
+            try:
+                data = self.stego_protocol.encode_packet(data, protocol_mimic=self.stego_mimic)
+                try:
+                    from src.monitoring.metrics import heartbeat_stego_encoded_total
+                    heartbeat_stego_encoded_total.labels(node_id=self.local_node_id, mimic=self.stego_mimic).inc()
+                except ImportError:
+                    pass
+            except Exception as e:
+                logger.error(f"Stego encoding failed for heartbeat: {e}")
+                return False
+
         # In a real system, we would apply delay and send 'data' over the network.
         # logger.debug(f"Sent heartbeat to {target_node} ({len(data)} bytes, delay={delay:.3f}s)")
         return True
@@ -416,6 +443,14 @@ class NodeManager:
                 len(data), len(shaped_data), delay, profile
             )
             data = shaped_data
+
+        # Apply Stego-mesh encoding
+        if self.stego_protocol:
+            try:
+                data = self.stego_protocol.encode_packet(data, protocol_mimic=self.stego_mimic)
+            except Exception as e:
+                logger.error(f"Stego encoding failed for topology update: {e}")
+                return False
 
         # In a real system, we would apply delay and send 'data' over the network.
         return True

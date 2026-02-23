@@ -3,8 +3,9 @@
 Decentralized self-healing mesh network with Zero Trust security.
 """
 
-__version__ = "1.0.0"
 __author__ = "x0tta6bl4 Team"
+
+from .version import __version__
 
 # Import core modules immediately
 from . import core, monitoring, network, security
