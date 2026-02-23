@@ -4,7 +4,6 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile.staging
-      no_cache: false
     container_name: x0tta6bl4-api
     ports:
       - "${API_PORT:-8000}:8000"
