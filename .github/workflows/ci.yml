@@ -58,6 +58,10 @@ jobs:
       run: |
         python scripts/validate_version_contract.py
 
+    - name: Validate enterprise workflow policy
+      run: |
+        python scripts/validate_enterprise_workflows.py
+
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:

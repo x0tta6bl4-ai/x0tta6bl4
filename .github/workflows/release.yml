@@ -55,40 +55,52 @@ jobs:
         run: python -m build
 
       - name: Publish to PyPI
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+      - name: PyPI publish skipped (token not configured)
+        if: ${{ secrets.PYPI_API_TOKEN == '' }}
         run: |
-          if [ -n "$TWINE_PASSWORD" ]; then
-            twine upload dist/*
-          else
-            echo "⚠️ PyPI_API_TOKEN not set, skipping PyPI upload"
-          fi
-        continue-on-error: true
+          echo "PyPI publish skipped: PYPI_API_TOKEN is not configured"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-        continue-on-error: true
 
       - name: Build and push Docker image
+        if: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != '' }}
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ secrets.DOCKER_PASSWORD != '' }}
+          push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/x0tta6bl4:${{ steps.version.outputs.version }}
             ${{ secrets.DOCKER_USERNAME }}/x0tta6bl4:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
-        continue-on-error: true
+
+      - name: Build Docker image (push skipped, no credentials)
+        if: ${{ secrets.DOCKER_USERNAME == '' || secrets.DOCKER_PASSWORD == '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: x0tta6bl4:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
 
       - name: Generate release notes
         id: release_notes
