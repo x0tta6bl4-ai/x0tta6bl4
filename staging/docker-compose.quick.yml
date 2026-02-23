@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Main API Server
   api:
@@ -9,13 +7,15 @@ services:
       no_cache: false
     container_name: x0tta6bl4-api
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8000}:8000"
     environment:
       - NODE_ID=api-staging
       - ENVIRONMENT=staging
       - LOG_LEVEL=INFO
-      - DATABASE_URL=postgresql://x0tta6bl4:x0tta6bl4_password@db:5432/x0tta6bl4
+      - DATABASE_URL=postgresql://x0tta6bl4:${DB_PASSWORD:-x0tta6bl4_password}@db:5432/x0tta6bl4
       - PYTHONUNBUFFERED=1
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8000
     restart: unless-stopped
     depends_on:
       db:
@@ -23,7 +23,7 @@ services:
     networks:
       - x0tta6bl4_staging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -43,7 +43,7 @@ services:
     container_name: x0tta6bl4-db
     environment:
       POSTGRES_USER: x0tta6bl4
-      POSTGRES_PASSWORD: x0tta6bl4_password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-x0tta6bl4_password}
       POSTGRES_DB: x0tta6bl4
     ports:
       - "5432:5432"
@@ -81,8 +81,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
     volumes:
       - x0tta6bl4_grafana_data:/var/lib/grafana
     restart: unless-stopped
