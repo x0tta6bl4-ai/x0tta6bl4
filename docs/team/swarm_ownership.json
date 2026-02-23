@@ -162,7 +162,8 @@
         "tests/api/test_maas_escrow.py",
         "tests/chaos/__init__.py",
         "tests/unit/api/test_maas_telemetry.py",
-        "tests/unit/consensus/test_raft_snapshots.py"
+        "tests/unit/consensus/test_raft_snapshots.py",
+        "tests/api/test_maas_analytics.py"
       ]
     },
     "lead-coordinator": {
