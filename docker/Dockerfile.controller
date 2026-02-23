@@ -1,0 +1,63 @@
+# MaaS Controller - Production Dockerfile
+# ========================================
+# Mesh orchestration controller
+
+# Build stage
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim as production
+
+ARG BUILD_DATE
+ARG GIT_COMMIT
+ARG VERSION=1.0.0
+
+LABEL org.opencontainers.image.title="MaaS Controller" \
+      org.opencontainers.image.description="MaaS Mesh Orchestration Controller" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN groupadd -r maas && useradd -r -g maas maas
+
+COPY --chown=maas:maas src/ /app/src/
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    APP_NAME=maas-controller \
+    LEADER_ELECTION_ENABLED=true
+
+USER maas
+
+EXPOSE 9091
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:9091/healthz || exit 1
+
+# Run the controller
+CMD ["python", "-m", "src.controller.main"]

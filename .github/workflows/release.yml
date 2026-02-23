@@ -37,16 +37,14 @@ jobs:
 
       - name: Update version files
         run: |
-          # Update pyproject.toml if needed
-          if [ -f pyproject.toml ]; then
-            python -c "
-            import re
-            with open('pyproject.toml', 'r') as f:
-                content = f.read()
-            content = re.sub(r'version = \"[^\"]+\"', f'version = \"${{ steps.version.outputs.version }}\"', content)
-            with open('pyproject.toml', 'w') as f:
-                f.write(content)
-            "
+          if [ -f scripts/sync_version.py ]; then
+            python scripts/sync_version.py --version "${{ steps.version.outputs.version }}"
+          else
+            echo "${{ steps.version.outputs.version }}" > VERSION
+          fi
+          if [ -f scripts/validate_version_contract.py ]; then
+            python scripts/validate_version_contract.py
+          fi
 
       - name: Install build dependencies
         run: |
