@@ -182,7 +182,9 @@
         "skills/x0tta6bl4-80-20-executor/agents/gemini.yaml",
         "skills/x0tta6bl4-80-20-executor/agents/anthropic-api.yaml",
         "ai/roles/maas.md",
-        "ai/roles/fl.md"
+        "ai/roles/fl.md",
+        "tests/unit/coordination/test_consensus_transport_unit.py",
+        "tests/unit/services/test_marketplace_janitor_unit.py"
       ]
     },
     "lead-coordinator": {
