@@ -5,8 +5,10 @@ Lifecycle management and health checks for mesh nodes
 
 import asyncio
 import copy
+import hashlib
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -160,8 +162,6 @@ class NodeManager:
         self.optimizations: Optional["BatmanAdvOptimizations"] = None
         if enable_optimizations and BATMAN_OPTIMIZATIONS_AVAILABLE:
             try:
-                import os
-
                 config = BatmanAdvConfig(
                     multipath_enabled=os.getenv(
                         "BATMAN_MULTIPATH_ENABLED", "true"
