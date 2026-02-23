@@ -691,6 +691,10 @@ class TestInternalActions:
         )
 
     def test_restart_service_systemd_success(self, executor, monkeypatch):
+        executor._available_backends["systemctl"] = True
+        executor._available_backends["docker"] = False
+        executor._available_backends["kubectl"] = False
+
         mock_result = MagicMock()
         mock_result.returncode = 0
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_result)
@@ -700,6 +704,10 @@ class TestInternalActions:
         assert result.details["method"] == "systemd"
 
     def test_restart_service_docker_fallback(self, executor, monkeypatch):
+        executor._available_backends["systemctl"] = True
+        executor._available_backends["docker"] = True
+        executor._available_backends["kubectl"] = False
+
         call_count = {"n": 0}
 
         def mock_run(cmd, **kwargs):
@@ -734,6 +742,10 @@ class TestInternalActions:
         assert result.details["method"] == "kubernetes"
 
     def test_restart_service_all_fail_simulated(self, executor, monkeypatch):
+        executor._available_backends["systemctl"] = True
+        executor._available_backends["docker"] = True
+        executor._available_backends["kubectl"] = True
+
         monkeypatch.setattr(
             subprocess,
             "run",
@@ -745,6 +757,9 @@ class TestInternalActions:
 
     def test_restart_service_nonzero_exit_falls_through(self, executor, monkeypatch):
         """When subprocess returns nonzero, it falls through to next method."""
+        executor._available_backends["systemctl"] = True
+        executor._available_backends["docker"] = True
+        executor._available_backends["kubectl"] = True
 
         def mock_run(cmd, **kwargs):
             result = MagicMock()
