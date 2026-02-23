@@ -207,6 +207,35 @@ async def test_register_node_success_adds_pending(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_register_node_uses_pqc_public_key_when_legacy_key_missing(monkeypatch):
+    captured = {}
+
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "is_node_revoked", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        mod,
+        "add_pending_node",
+        lambda mesh_id, node_id, data: captured.update(
+            {"mesh_id": mesh_id, "node_id": node_id, "data": data}
+        ),
+    )
+
+    request = NodeRegisterRequest(
+        mesh_id="mesh-1",
+        node_id="node-1",
+        public_key=None,
+        public_keys={"pqc": "pqc-only-key"},
+    )
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    await mod.register_node(request, user)
+    assert captured["data"]["public_key"] == "pqc-only-key"
+
+
+@pytest.mark.asyncio
 async def test_register_node_defaults_capability_to_device_class(monkeypatch):
     captured = {}
 
@@ -317,6 +346,31 @@ async def test_approve_node_maps_value_error_to_http_400(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_approve_node_success_passes_actor_and_returns_result(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    captured = {}
+
+    class _Provisioner:
+        async def approve_node(self, **kwargs):
+            captured.update(kwargs)
+            return {"status": "approved", "node_id": kwargs["node_id"]}
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner())
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    result = await mod.approve_node("mesh-1", "node-1", user)
+    assert result["status"] == "approved"
+    assert captured == {
+        "mesh_id": "mesh-1",
+        "node_id": "node-1",
+        "actor": "owner-1",
+    }
+
+
+@pytest.mark.asyncio
 async def test_revoke_node_maps_value_error_to_http_400(monkeypatch):
     async def _resolve(_mesh_id, _user):
         return SimpleNamespace(owner_id="owner-1")
@@ -334,6 +388,32 @@ async def test_revoke_node_maps_value_error_to_http_400(monkeypatch):
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "bad revoke request"
+
+
+@pytest.mark.asyncio
+async def test_revoke_node_success_passes_reason_and_returns_result(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    captured = {}
+
+    class _Provisioner:
+        async def revoke_node(self, **kwargs):
+            captured.update(kwargs)
+            return {"status": "revoked", "reason": kwargs["reason"]}
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner())
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    result = await mod.revoke_node("mesh-1", "node-1", user, reason="manual")
+    assert result["status"] == "revoked"
+    assert captured == {
+        "mesh_id": "mesh-1",
+        "node_id": "node-1",
+        "actor": "owner-1",
+        "reason": "manual",
+    }
 
 
 @pytest.mark.asyncio
