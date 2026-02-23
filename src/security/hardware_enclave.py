@@ -55,15 +55,19 @@ class HardwareSecurityModule:
         # In real TPM implementation:
         # return subprocess.run(["tpm2_sign", ...])
         
-        # Mock signing for POC
+        # Mock signing for POC. hashlib.blake3 is not available in stdlib,
+        # so fall back to blake2b unless runtime provides blake3.
         digest = hashlib.sha256(data).digest()
-        return hashlib.blake3(digest + b"hw-secret").digest()
+        blake_fn = getattr(hashlib, "blake3", hashlib.blake2b)
+        return blake_fn(digest + b"hw-secret").digest()
 
     def verify_hardware_attestation(self, quote: bytes, nonce: bytes) -> bool:
         """
         Verifies a 'TPM Quote' or 'SGX Report' against a nonce.
         Used by Control Plane to ensure the agent is not running in a VM/Simulator.
         """
+        if not quote or not nonce:
+            return False
         # Logic to verify hardware-rooted PCR values
         return True
 

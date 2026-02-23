@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from src.database import User, Invoice, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.utils.audit import record_audit_log
 
 # Prefer legacy MaaS internals directly to avoid circular import
 try:
@@ -31,6 +32,13 @@ logger = logging.getLogger(__name__)
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_DOMAIN = os.getenv("APP_DOMAIN", "https://app.x0tta6bl4.com")
+
+# Stripe Plan Price IDs (should come from env in production)
+STRIPE_PLANS = {
+    "starter": os.getenv("STRIPE_PRICE_STARTER", "price_starter_id"),
+    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_id"),
+    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise_id"),
+}
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -51,6 +59,100 @@ class InvoiceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SubscriptionResponse(BaseModel):
+    id: Optional[str]
+    plan: str
+    status: str
+    current_period_end: Optional[datetime]
+    cancel_at_period_end: bool = False
+
+@router.post("/subscriptions/checkout")
+async def create_subscription_session(
+    plan: str,
+    request: Request,
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
+):
+    """Create a Stripe Checkout session for a subscription."""
+    if plan not in STRIPE_PLANS:
+        raise HTTPException(status_code=400, detail="Invalid plan selected")
+
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    try:
+        # Create or retrieve Stripe Customer
+        if not current_user.stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=current_user.full_name,
+                metadata={"user_id": current_user.id}
+            )
+            current_user.stripe_customer_id = customer.id
+            db.commit()
+
+        checkout_session = stripe.checkout.Session.create(
+            customer=current_user.stripe_customer_id,
+            payment_method_types=['card'],
+            line_items=[{
+                'price': STRIPE_PLANS[plan],
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=APP_DOMAIN + "/billing/success?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=APP_DOMAIN + "/billing/cancel",
+            metadata={
+                "user_id": current_user.id,
+                "plan": plan
+            }
+        )
+        
+        record_audit_log(
+            db, request, "SUBSCRIPTION_SESSION_CREATED",
+            user_id=current_user.id,
+            payload={"plan": plan},
+            status_code=200
+        )
+        
+        return {"url": checkout_session.url}
+    except Exception as e:
+        logger.error(f"Failed to create Stripe subscription session: {e}")
+        raise HTTPException(status_code=500, detail="Payment gateway error")
+
+@router.post("/customer-portal")
+async def create_customer_portal(
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
+):
+    """Create a link to the Stripe Customer Portal for subscription management."""
+    if not current_user.stripe_customer_id:
+        raise HTTPException(status_code=400, detail="No billing history found")
+
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=current_user.stripe_customer_id,
+            return_url=APP_DOMAIN + "/billing",
+        )
+        return {"url": session.url}
+    except Exception as e:
+        logger.error(f"Failed to create Stripe portal session: {e}")
+        raise HTTPException(status_code=500, detail="Portal error")
+
+@router.get("/status", response_model=SubscriptionResponse)
+async def get_subscription_status(
+    current_user: User = Depends(get_current_user_from_maas)
+):
+    """Fetch current subscription status from User model/Stripe."""
+    # In a real app, we'd sync this via webhooks. 
+    # Here we just return what's in the DB for the POC.
+    return SubscriptionResponse(
+        id=current_user.stripe_subscription_id,
+        plan=current_user.plan,
+        status="active" if current_user.stripe_subscription_id else "free",
+        current_period_end=None, # To be synced from Stripe
+        cancel_at_period_end=False
+    )
 
 @router.post("/invoices/generate/{mesh_id}", response_model=InvoiceResponse)
 async def generate_invoice(
@@ -154,7 +256,7 @@ async def create_checkout_session(
 
 @router.post("/webhook/stripe")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle Stripe webhooks for payment confirmation."""
+    """Handle Stripe webhooks for payment confirmation and subscription lifecycle."""
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
 
@@ -170,20 +272,82 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         logger.warning(f"Invalid Stripe webhook signature: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    if event['type'] == 'checkout.session.completed':
-        session = event['data']['object']
-        invoice_id = session.get('metadata', {}).get('invoice_id')
+    event_type = event['type']
+    data_object = event['data']['object']
+
+    if event_type == 'checkout.session.completed':
+        session = data_object
+        mode = session.get('mode')
+        metadata = session.get('metadata', {})
+        user_id = metadata.get('user_id')
         
-        if invoice_id:
-            inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
-            if inv:
-                inv.status = "paid"
+        if mode == 'subscription':
+            plan = metadata.get('plan')
+            subscription_id = session.get('subscription')
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                # Validate plan from metadata to prevent tampering
+                if plan not in STRIPE_PLANS:
+                    logger.error(
+                        "Invalid plan '%s' in Stripe webhook metadata for user %s",
+                        plan, user.id
+                    )
+                    return {"status": "error", "reason": "invalid_plan"}
+                user.plan = plan
+                user.stripe_subscription_id = subscription_id
                 db.commit()
-                logger.info(f"Invoice {invoice_id} marked as PAID via Stripe webhook")
-            else:
-                logger.error(f"Invoice {invoice_id} not found from Stripe webhook")
+                record_audit_log(
+                    db, request, "SUBSCRIPTION_ACTIVATED",
+                    user_id=user.id,
+                    payload={"plan": plan, "subscription_id": subscription_id},
+                    status_code=200
+                )
         else:
-            logger.warning("Stripe checkout.session.completed missing invoice_id metadata")
+            # payment mode or mode not set — handle invoice_id if present
+            invoice_id = metadata.get('invoice_id')
+            if invoice_id:
+                inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+                if inv:
+                    inv.status = "paid"
+                    db.commit()
+                    record_audit_log(
+                        db, request, "INVOICE_PAID",
+                        user_id=inv.user_id,
+                        payload={"invoice_id": invoice_id},
+                        status_code=200
+                    )
+                else:
+                    logger.error("Invoice %s not found for webhook", invoice_id)
+
+    elif event_type == 'customer.subscription.updated':
+        subscription = data_object
+        customer_id = subscription.get('customer')
+        status = subscription.get('status')
+        # Here we'd map Stripe price ID back to our plan name if needed
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if user:
+            # Simple status sync
+            record_audit_log(
+                db, request, "SUBSCRIPTION_UPDATED",
+                user_id=user.id,
+                payload={"status": status, "sub_id": subscription.get('id')},
+                status_code=200
+            )
+
+    elif event_type == 'customer.subscription.deleted':
+        subscription = data_object
+        customer_id = subscription.get('customer')
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if user:
+            user.plan = "free"
+            user.stripe_subscription_id = None
+            db.commit()
+            record_audit_log(
+                db, request, "SUBSCRIPTION_CANCELLED",
+                user_id=user.id,
+                payload={"sub_id": subscription.get('id')},
+                status_code=200
+            )
 
     return {"status": "success"}
 

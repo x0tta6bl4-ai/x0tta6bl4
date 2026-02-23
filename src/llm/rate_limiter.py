@@ -151,6 +151,9 @@ class RateLimiter:
         Returns:
             True if permission granted, False otherwise
         """
+        if tokens <= 0:
+            raise ValueError("tokens must be > 0")
+
         start_time = time.time()
         
         while True:
@@ -247,6 +250,9 @@ class RateLimiter:
         Returns:
             Estimated wait time in seconds (0 if no wait needed)
         """
+        if tokens <= 0:
+            raise ValueError("tokens must be > 0")
+
         with self._lock:
             if self.config.strategy == RateLimitStrategy.TOKEN_BUCKET:
                 self._refill_token_bucket()
@@ -260,6 +266,8 @@ class RateLimiter:
                 # Calculate time to refill enough tokens
                 tokens_needed = tokens - self._state.available_tokens
                 tokens_per_second = self.config.tokens_per_minute / 60.0
+                if tokens_per_second <= 0:
+                    return float("inf") if tokens_needed > 0 else 0.0
                 return max(0, tokens_needed / tokens_per_second)
                 
             else:  # SLIDING_WINDOW or FIXED_WINDOW

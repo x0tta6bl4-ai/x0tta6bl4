@@ -1116,18 +1116,18 @@ class TestMAPEKKnowledge:
     def test_update_thresholds_initial_success(self):
         k = MAPEKKnowledge()
         k._update_thresholds({"cpu_percent": 95.0}, "High CPU", success=True)
-        # Initial: 95 * 1.1 = 104.5, then * 0.98 = 102.41
+        # Baseline for cpu_percent = 90.0; success → baseline * 1.02 = 91.8
         assert "cpu_percent" in k.threshold_adjustments
         assert k.threshold_adjustments["cpu_percent"] == pytest.approx(
-            95.0 * 1.1 * 0.98, rel=1e-3
+            90.0 * 1.02, rel=1e-3
         )
 
     def test_update_thresholds_initial_failure(self):
         k = MAPEKKnowledge()
         k._update_thresholds({"cpu_percent": 95.0}, "High CPU", success=False)
-        # Initial: 95 * 1.1, then * 1.05
+        # Baseline for cpu_percent = 90.0; failure → baseline * 0.95 = 85.5
         assert k.threshold_adjustments["cpu_percent"] == pytest.approx(
-            95.0 * 1.1 * 1.05, rel=1e-3
+            90.0 * 0.95, rel=1e-3
         )
 
     def test_update_thresholds_non_numeric_ignored(self):
@@ -1138,11 +1138,11 @@ class TestMAPEKKnowledge:
     def test_update_thresholds_successive(self):
         k = MAPEKKnowledge()
         k._update_thresholds({"cpu_percent": 90.0}, "High CPU", success=True)
-        first = k.threshold_adjustments["cpu_percent"]
+        first = k.threshold_adjustments["cpu_percent"]  # = 90.0 * 1.02 = 91.8
         k._update_thresholds({"cpu_percent": 90.0}, "High CPU", success=True)
-        # Already set, so just *= 0.98
+        # Second success: first *= 1.02, clamped to ±10% of baseline 90.0
         assert k.threshold_adjustments["cpu_percent"] == pytest.approx(
-            first * 0.98, rel=1e-3
+            first * 1.02, rel=1e-3
         )
 
 

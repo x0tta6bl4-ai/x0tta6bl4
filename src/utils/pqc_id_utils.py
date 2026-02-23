@@ -36,8 +36,15 @@ def verify_pqc_manifest(signed_manifest: Dict[str, Any], identity_manager: Any) 
         return False
 
 def extract_node_id_from_did(did: str) -> Optional[str]:
-    """Extracts node_id from did:mesh:pqc:<node_id>:<key_id>"""
+    """Extract node_id from did:mesh:pqc:<node_id>[:<key_id>]."""
+    if not isinstance(did, str):
+        return None
+
     parts = did.split(":")
-    if len(parts) >= 4 and parts[0] == "did" and parts[1] == "mesh":
-        return parts[3]
-    return None
+    if len(parts) < 4:
+        return None
+    if parts[0] != "did" or parts[1] != "mesh" or parts[2] != "pqc":
+        return None
+
+    node_id = parts[3].strip()
+    return node_id or None

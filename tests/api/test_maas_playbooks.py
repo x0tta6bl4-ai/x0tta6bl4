@@ -300,3 +300,116 @@ class TestPlaybookList:
         assert isinstance(data, list)
         pb_ids = [pb.get("playbook_id", "") for pb in data]
         assert pytest.shared_playbook_id not in pb_ids
+
+
+# ---------------------------------------------------------------------------
+# Auth guard tests for endpoints that require permission
+# ---------------------------------------------------------------------------
+
+class TestPlaybookAuthGuards:
+    def test_create_no_auth_401(self, client):
+        r = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            json={
+                "name": "no-auth-test",
+                "target_nodes": [_NODE_A],
+                "actions": [{"action": "restart", "params": {}}],
+            },
+        )
+        assert r.status_code == 401
+
+    def test_list_no_auth_401(self, client):
+        r = client.get(f"/api/v1/maas/playbooks/list/{_MESH_ID}")
+        assert r.status_code == 401
+
+    def test_status_no_auth_401(self, client):
+        r = client.get("/api/v1/maas/playbooks/status/pbk-any")
+        assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Expired playbook is NOT delivered on poll
+# ---------------------------------------------------------------------------
+
+class TestPlaybookExpiry:
+    def test_expired_playbook_not_delivered(self, client, admin_token):
+        """
+        Inject an expired entry directly into the in-memory store, then poll.
+        The poll should skip expired playbooks (expires_at <= now → continue).
+        """
+        import src.api.maas_playbooks as pb_mod
+        from datetime import datetime, timedelta
+
+        node_id = f"node-exp-{uuid.uuid4().hex[:8]}"
+        pb_id = f"pbk-exp-{uuid.uuid4().hex[:8]}"
+        mesh_id = f"mesh-exp-{uuid.uuid4().hex[:6]}"
+
+        # Insert a playbook that already expired 1 hour ago
+        pb_mod._playbook_store[pb_id] = {
+            "playbook_id": pb_id,
+            "mesh_id": mesh_id,
+            "name": "expired-test",
+            "payload": "{}",
+            "signature": "sig",
+            "algorithm": "HMAC-SHA256",
+            "target_nodes": [node_id],
+            "created_at": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+            "expires_at": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
+        }
+        pb_mod._node_queues.setdefault(node_id, []).append(pb_id)
+
+        r = client.get(f"/api/v1/maas/playbooks/poll/{mesh_id}/{node_id}")
+        assert r.status_code == 200
+        data = r.json()
+        # Expired playbook must NOT appear in delivery list
+        delivered_ids = [pb["playbook_id"] for pb in data["playbooks"]]
+        assert pb_id not in delivered_ids
+
+        # Cleanup
+        pb_mod._playbook_store.pop(pb_id, None)
+        pb_mod._node_queues.pop(node_id, None)
+
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for playbook utility functions (no TestClient needed)
+# ---------------------------------------------------------------------------
+
+class TestPlaybookUtilityFunctions:
+    """Direct unit tests for _db_session_available and _action_to_dict."""
+
+    def test_db_session_available_with_real_session_like_object(self):
+        """Object with 'add' and 'commit' → True."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _db_session_available
+        mock_db = MagicMock(spec=["add", "commit"])
+        assert _db_session_available(mock_db) is True
+
+    def test_db_session_available_with_dict_returns_false(self):
+        """Plain dict has no 'add' attr → False."""
+        from src.api.maas_playbooks import _db_session_available
+        assert _db_session_available({}) is False
+
+    def test_db_session_available_with_none_returns_false(self):
+        """None → False."""
+        from src.api.maas_playbooks import _db_session_available
+        assert _db_session_available(None) is False
+
+    def test_action_to_dict_uses_model_dump_for_pydantic_v2(self):
+        """When action has model_dump() → uses it (Pydantic v2 path)."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _action_to_dict
+        mock_action = MagicMock(spec=["model_dump"])
+        mock_action.model_dump.return_value = {"type": "restart", "params": {}}
+        result = _action_to_dict(mock_action)
+        assert result == {"type": "restart", "params": {}}
+        mock_action.model_dump.assert_called_once()
+
+    def test_action_to_dict_uses_dict_for_pydantic_v1(self):
+        """When action lacks model_dump() → falls back to .dict() (Pydantic v1 path)."""
+        from unittest.mock import MagicMock
+        from src.api.maas_playbooks import _action_to_dict
+        mock_action = MagicMock(spec=["dict"])  # no model_dump attribute
+        mock_action.dict.return_value = {"type": "restart", "params": {}}
+        result = _action_to_dict(mock_action)
+        assert result == {"type": "restart", "params": {}}
+        mock_action.dict.assert_called_once()

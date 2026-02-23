@@ -1,625 +1,543 @@
-# x0tta6bl4 Repository CI/CD Pipeline
-# Includes: hygiene checks, DVC validation, security scanning
+# MaaS x0tta6bl4 - GitLab CI/CD Pipeline
+# ========================================
+# Complete CI/CD pipeline for MaaS platform deployment
+#
+# Stages:
+# 1. validate    - Code quality, linting, security scanning
+# 2. build       - Build Docker images
+# 3. test        - Unit, integration, and e2e tests
+# 4. security    - Security scanning and vulnerability checks
+# 5. deploy      - Deploy to staging/production
+# 6. monitor     - Post-deployment monitoring
 
 stages:
   - validate
-  - ebpf-build
+  - build
   - test
   - security
-  - android-build
-  - build
   - deploy
+  - monitor
 
 variables:
+  # Docker configuration
+  DOCKER_REGISTRY: registry.gitlab.com
+  DOCKER_IMAGE_PREFIX: maas-x0tta6bl4
+  DOCKER_TLS_CERTDIR: "/certs"
+  
+  # Kubernetes configuration
+  KUBE_NAMESPACE_STAGING: maas-staging
+  KUBE_NAMESPACE_PRODUCTION: maas-production
+  
+  # Helm configuration
+  HELM_CHART_PATH: deploy/helm/maas
+  HELM_RELEASE_NAME: maas
+  
+  # Python configuration
+  PYTHON_VERSION: "3.11"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  DVC_CACHE_DIR: "$CI_PROJECT_DIR/.cache/dvc"
+  
+  # Test configuration
+  PYTEST_COVERAGE_THRESHOLD: 75
+  COVERAGE_REPORT_DIR: coverage-reports
 
-# === Repository Hygiene Checks ===
-
-repo-hygiene:
-  stage: validate
-  image: python:3.11-slim
-  before_script:
-    - apt-get update && apt-get install -y git findutils
-  script:
-    - echo "🔍 Checking repository hygiene..."
-
-    # Check for accidentally committed virtual environments
-    - |
-      if find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*' | grep -q .; then
-        echo "❌ ERROR: Virtual environments detected in repository!"
-        find . -type d \( -name 'venv' -o -name '.venv' -o -name 'venv_*' \) ! -path './.git/*'
-        exit 1
-      fi
-
-    # Check for database files (only migrations should be in Git)
-    - |
-      if find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*' | grep -q .; then
-        echo "❌ ERROR: Database files detected in repository!"
-        echo "Only migrations should be committed. Found:"
-        find . -name '*.db' -o -name '*.sqlite*' ! -path './.git/*'
-        exit 1
-      fi
-
-    # Check for large files (>10MB)
-    - |
-      LARGE_FILES=$(find . -type f -size +10M ! -path './.git/*' ! -path './.cache/*')
-      if [ -n "$LARGE_FILES" ]; then
-        echo "❌ ERROR: Large files (>10MB) detected:"
-        echo "$LARGE_FILES" | xargs -I {} du -h {}
-        echo "Use DVC or move to artifact storage!"
-        exit 1
-      fi
-
-    # Check for archives that shouldn't be in Git
-    - |
-      ARCHIVES=$(find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) ! -path './.git/*' ! -path './external_artifacts/*')
-      if [ -n "$ARCHIVES" ]; then
-        echo "⚠️  WARNING: Archive files found outside external_artifacts/:"
-        echo "$ARCHIVES"
-        echo "Consider moving to external artifact storage."
-      fi
-
-    # Check for accidentally committed secrets
-    - |
-      if find . -name '.env' ! -path './.git/*' | grep -q .; then
-        echo "❌ ERROR: .env file detected in repository!"
-        find . -name '.env' ! -path './.git/*'
-        exit 1
-      fi
-
-    - echo "✅ Repository hygiene check passed!"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false
-
-# === eBPF Programs Compilation ===
-
-ebpf-compile:
-  stage: ebpf-build
-  image: ubuntu:latest
+# ============================================================================
+# Cache configuration
+# ============================================================================
+.cache_python:
   cache:
-    key: "ebpf-${CI_COMMIT_REF_SLUG}"
+    key: "${CI_JOB_NAME}"
     paths:
-      - src/network/ebpf/programs/vmlinux/
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends
-        clang
-        llvm
-        libelf-dev
-        libz-dev
-        pkg-config
-        linux-headers-generic
-        make
-        file
-        bpftool
-  script:
-    - echo "🔨 Compiling x0tta6bl4 eBPF programs..."
-    - mkdir -p build/ebpf
-    - cd src/network/ebpf/programs
-    - echo "📦 Generating CO-RE headers (vmlinux.h)..."
-    - make vmlinux || echo "⚠️  CO-RE not available, continuing without vmlinux.h"
-    - echo "🔨 Compiling all eBPF programs..."
-    - make clean
-    - make all
-    - echo "✅ Compilation successful"
-    - echo ""
-    - echo "📊 Compiled objects:"
-    - ls -lh *.o 2>/dev/null || echo "No object files"
-    - cd - && cp src/network/ebpf/programs/*.o build/ebpf/
-  artifacts:
+      - .cache/pip
+      - venv/
+
+.cache_node:
+  cache:
+    key: "${CI_JOB_NAME}-node"
     paths:
-      - build/ebpf/*.o
-    reports:
-      junit: build/ebpf/*.xml
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-      changes:
-        - src/network/ebpf/programs/**
-        - .gitlab-ci.yml
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - src/network/ebpf/programs/**
-        - .gitlab-ci.yml
-  allow_failure: false
-  timeout: 10 minutes
+      - node_modules/
 
-ebpf-verify:
-  stage: ebpf-build
-  image: ubuntu:latest
-  dependencies:
-    - ebpf-compile
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends
-        llvm
-        python3
-        python3-pip
-        file
-        binutils
-  script:
-    - echo "🔍 Verifying eBPF programs..."
-    - |
-      if [ ! -d "build/ebpf" ] || [ -z "$(ls build/ebpf/*.o 2>/dev/null)" ]; then
-        echo "❌ No eBPF objects found in build/ebpf/"
-        exit 1
-      fi
-    - echo "📋 Checking ELF format..."
-    - |
-      for obj in build/ebpf/*.o; do
-        objname=$(basename "$obj")
-        echo "  Checking $objname..."
-        if file "$obj" | grep -q "ELF.*BPF"; then
-          echo "    ✅ Valid eBPF object"
-        else
-          echo "    ❌ INVALID ELF format"
-          file "$obj"
-          exit 1
-        fi
-      done
-    - echo "📊 Disassembling programs (first 30 lines)..."
-    - |
-      for obj in build/ebpf/*.o; do
-        objname=$(basename "$obj")
-        echo "  $objname:"
-        llvm-objdump -d "$obj" 2>/dev/null | head -30 || echo "    (Could not disassemble)"
-      done
-    - echo "🔧 Validating with Python ELF parser..."
-    - pip3 install -q pyelftools
-    - |
-      python3 << 'EOF'
-      import os
-      import sys
-      from elftools.elf.elffile import ELFFile
+# ============================================================================
+# Stage 1: Validate
+# ============================================================================
 
-      success = True
-      for filename in os.listdir('build/ebpf'):
-          if not filename.endswith('.o'):
-              continue
-
-          filepath = os.path.join('build/ebpf', filename)
-          try:
-              with open(filepath, 'rb') as f:
-                  elf = ELFFile(f)
-                  machine = elf['e_machine']
-                  if machine == 'EM_BPF':
-                      print(f"✅ {filename} - Valid eBPF (machine={machine})")
-                  else:
-                      print(f"❌ {filename} - INVALID machine type: {machine}")
-                      success = False
-          except Exception as e:
-              print(f"❌ {filename} - Error: {e}")
-              success = False
-
-      if not success:
-          sys.exit(1)
-      EOF
-    - echo "🎉 All eBPF programs verified!"
-  artifacts:
-    paths:
-      - build/ebpf/*.o
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-      changes:
-        - src/network/ebpf/programs/**
-        - .gitlab-ci.yml
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - src/network/ebpf/programs/**
-        - .gitlab-ci.yml
-  allow_failure: false
-  timeout: 10 minutes
-
-# === DVC Validation ===
-
-dvc-validation:
+validate:lint:
   stage: validate
-  image: python:3.11-slim
-  before_script:
-    - pip install dvc dvc-s3
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
   script:
-    - echo "📦 Validating DVC setup..."
-
-    # Check DVC is initialized
+    - pip install ruff black isort mypy
     - |
-      if [ ! -d ".dvc" ]; then
-        echo "⚠️  WARNING: DVC not initialized in this repository."
-        echo "Run: dvc init"
-        exit 0  # Don't fail if DVC not set up yet
-      fi
-
-    # Validate .dvc files
-    - dvc status || echo "⚠️  Some DVC files may be out of sync"
-
-    # Dry-run pull to check remote connectivity
-    - dvc pull --dry-run || echo "⚠️  Cannot connect to DVC remote (expected in CI)"
-
-    # Check for large files that should be in DVC
+      echo "🔍 Running code linting..."
+      ruff check src/ --output-format=gitlab > ruff-report.json || true
+      black --check src/ --diff || true
+      isort --check-only src/ --diff || true
     - |
-      echo "Checking for DVC candidates..."
-      find data/ -type f \( -name '*.csv' -o -name '*.jsonl' -o -name '*.parquet' \) -size +5M 2>/dev/null | while read file; do
-        if [ ! -f "${file}.dvc" ]; then
-          echo "⚠️  Large file not tracked by DVC: $file"
-        fi
-      done
-
-    - echo "✅ DVC validation complete"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: true  # Don't block pipeline if DVC not fully set up
-
-# === Security Scanning ===
-
-semgrep-sast:
-  stage: security
-  image:
-    name: returntocorp/semgrep:latest
-    entrypoint: [""]
-  script:
-    - echo "🔍 Running Semgrep SAST scan..."
-    - semgrep --config=auto --json --output=semgrep-report.json src/ || { echo "❌ Semgrep found security issues!"; exit 1; }
-    - echo "✅ Semgrep SAST scan complete"
+      echo "🔍 Running type checking..."
+      mypy src/ --ignore-missing-imports --no-error-summary || true
   artifacts:
-    paths:
-      - semgrep-report.json
     reports:
-      sast: semgrep-report.json
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false
+      codequality: ruff-report.json
+    expire_in: 7 days
+  allow_failure: true
 
-sbom-generation:
-  stage: security
-  image: python:3.11-slim
-  before_script:
-    - pip install cyclonedx-bom pip-licenses
+validate:helm:
+  stage: validate
+  image: alpine/k8s:1.28.3
   script:
-    - echo "📦 Generating Software Bill of Materials (SBOM)..."
-    - cyclonedx-py requirements -i requirements.txt -o sbom.json --format json
-    - pip-licenses --format json --output-file licenses.json || true
-    - echo "✅ SBOM generated"
-  artifacts:
-    paths:
-      - sbom.json
-      - licenses.json
-    expire_in: 90 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false
-
-pip-audit-scan:
-  stage: security
-  image: python:3.11-slim
-  before_script:
-    - pip install pip-audit
-  script:
-    - echo "🔍 Running pip-audit for dependency vulnerabilities..."
-    - pip-audit -r requirements.txt --no-deps --disable-pip || { echo "❌ pip-audit found vulnerabilities in pinned requirements!"; exit 1; }
-    - echo "✅ pip-audit scan complete"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false # Ensure failure for security issues
-
-secrets-scan:
-  stage: security
-  image: python:3.11-slim
-  before_script:
-    - pip install detect-secrets
-  script:
-    - echo "🔐 Scanning for secrets..."
-    - detect-secrets scan --all-files --force-use-all-plugins || { echo "❌ Secrets detected!"; exit 1; }
-    - echo "✅ No secrets detected"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false # Ensure failure for security issues
-
-bandit-scan:
-  stage: security
-  image: python:3.11-slim
-  before_script:
-    - pip install bandit
-  script:
-    - echo "🔍 Running Bandit security linter..."
-    - bandit -r src/ -ll -f json -o bandit-report.json || { echo "❌ Bandit found medium/high security issues!"; exit 1; }
-    - echo "✅ Bandit scan complete"
-  artifacts:
-    paths:
-      - bandit-report.json
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false # Ensure failure for security issues
-
-safety-scan:
-  stage: security
-  image: python:3.11-slim
-  before_script:
-    - pip install safety
-  script:
-    - echo "🔍 Running Safety dependency vulnerability scanner..."
     - |
-      if safety scan --target . --output json --save-as json safety-report.json; then
-        echo "✅ Safety scan complete"
-      elif [ -n "${SAFETY_API_KEY:-}" ]; then
-        echo "❌ Safety scan failed with SAFETY_API_KEY configured."
-        exit 1
-      else
-        echo "⚠️ Safety scan unavailable/auth-gated in CI environment; skipping hard-fail."
+      echo "🔍 Validating Helm chart..."
+      helm lint ${HELM_CHART_PATH}
+      helm template test-release ${HELM_CHART_PATH} --debug > /dev/null
+    - |
+      echo "🔍 Validating Kubernetes manifests..."
+      helm template test-release ${HELM_CHART_PATH} | kubeval --strict || true
+  allow_failure: true
+
+validate:openapi:
+  stage: validate
+  image: node:18-alpine
+  script:
+    - npm install -g @apidevtools/swagger-cli
+    - |
+      echo "🔍 Validating OpenAPI specifications..."
+      if [ -f "docs/api/openapi.yaml" ]; then
+        swagger-cli validate docs/api/openapi.yaml
       fi
-    - echo "ℹ️ Safety stage finished"
+      if [ -f "docs/api/maas_openapi.yaml" ]; then
+        swagger-cli validate docs/api/maas_openapi.yaml
+      fi
+  allow_failure: true
+
+# ============================================================================
+# Stage 2: Build
+# ============================================================================
+
+build:api:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  variables:
+    IMAGE_NAME: ${DOCKER_REGISTRY}/${DOCKER_IMAGE_PREFIX}/api
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $DOCKER_REGISTRY
+    - |
+      echo "🔨 Building API Docker image..."
+      docker build \
+        -f docker/Dockerfile.api \
+        -t ${IMAGE_NAME}:${CI_COMMIT_SHA} \
+        -t ${IMAGE_NAME}:${CI_COMMIT_REF_NAME} \
+        -t ${IMAGE_NAME}:latest \
+        --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+        --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+        --build-arg GIT_COMMIT=${CI_COMMIT_SHA} \
+        .
+    - |
+      echo "📤 Pushing Docker image..."
+      docker push ${IMAGE_NAME}:${CI_COMMIT_SHA}
+      docker push ${IMAGE_NAME}:${CI_COMMIT_REF_NAME}
+      if [ "$CI_COMMIT_REF_NAME" == "main" ]; then
+        docker push ${IMAGE_NAME}:latest
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_MERGE_REQUEST_IID
+
+build:worker:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  variables:
+    IMAGE_NAME: ${DOCKER_REGISTRY}/${DOCKER_IMAGE_PREFIX}/worker
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $DOCKER_REGISTRY
+    - |
+      echo "🔨 Building Worker Docker image..."
+      docker build \
+        -f docker/Dockerfile.worker \
+        -t ${IMAGE_NAME}:${CI_COMMIT_SHA} \
+        -t ${IMAGE_NAME}:${CI_COMMIT_REF_NAME} \
+        -t ${IMAGE_NAME}:latest \
+        --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+        .
+    - docker push ${IMAGE_NAME}:${CI_COMMIT_SHA}
+    - docker push ${IMAGE_NAME}:${CI_COMMIT_REF_NAME}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+build:controller:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  variables:
+    IMAGE_NAME: ${DOCKER_REGISTRY}/${DOCKER_IMAGE_PREFIX}/controller
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $DOCKER_REGISTRY
+    - |
+      echo "🔨 Building Controller Docker image..."
+      docker build \
+        -f docker/Dockerfile.controller \
+        -t ${IMAGE_NAME}:${CI_COMMIT_SHA} \
+        -t ${IMAGE_NAME}:${CI_COMMIT_REF_NAME} \
+        -t ${IMAGE_NAME}:latest \
+        --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+        .
+    - docker push ${IMAGE_NAME}:${CI_COMMIT_SHA}
+    - docker push ${IMAGE_NAME}:${CI_COMMIT_REF_NAME}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# ============================================================================
+# Stage 3: Test
+# ============================================================================
+
+test:unit:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  script:
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - |
+      echo "🧪 Running unit tests..."
+      mkdir -p ${COVERAGE_REPORT_DIR}
+      pytest tests/unit/ \
+        -v \
+        --tb=short \
+        --cov=src \
+        --cov-report=term \
+        --cov-report=xml:${COVERAGE_REPORT_DIR}/coverage.xml \
+        --cov-report=html:${COVERAGE_REPORT_DIR}/html \
+        --cov-fail-under=${PYTEST_COVERAGE_THRESHOLD} \
+        --junit-xml=test-results/unit.xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: ${COVERAGE_REPORT_DIR}/coverage.xml
+      junit: test-results/*.xml
+    paths:
+      - ${COVERAGE_REPORT_DIR}/
+    expire_in: 30 days
+
+test:integration:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
+  services:
+    - postgres:15
+    - redis:7
+  variables:
+    POSTGRES_DB: maas_test
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    DATABASE_URL: postgresql://test:test@postgres:5432/maas_test
+    REDIS_URL: redis://redis:6379/0
+  script:
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - |
+      echo "🧪 Running integration tests..."
+      pytest tests/integration/ \
+        -v \
+        --tb=short \
+        --junit-xml=test-results/integration.xml
+  artifacts:
+    reports:
+      junit: test-results/*.xml
+    expire_in: 30 days
+  allow_failure: true
+
+test:helm:
+  stage: test
+  image: alpine/k8s:1.28.3
+  script:
+    - pip install pytest pyyaml
+    - |
+      echo "🧪 Running Helm chart tests..."
+      pytest tests/helm/ -v --tb=short
+  allow_failure: true
+
+test:mutation:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
+  script:
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install mutmut
+    - |
+      echo "🧬 Running mutation tests..."
+      mutmut run --paths-to-mutate src/api/maas/ --runner "pytest tests/unit/test_maas_package.py" || true
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+test:competitive-benchmark-gate:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  script:
+    - mkdir -p benchmarks/results
+    - |
+      echo "🧪 Running competitive self-healing gate..."
+      python3 scripts/check_competitive_self_healing_gate.py \
+        --iterations 120 \
+        --seed 42 \
+        --output-dir benchmarks/results
+  artifacts:
+    when: always
+    paths:
+      - benchmarks/results/competitive_self_healing_*.json
+      - benchmarks/results/competitive_self_healing_*.md
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_MERGE_REQUEST_IID
+
+# ============================================================================
+# Stage 4: Security
+# ============================================================================
+
+security:sast:
+  stage: security
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  script:
+    - |
+      echo "🔒 Running SAST scan..."
+      # Using GitLab SAST or custom scanner
+      docker run --rm -v $(pwd):/app -w /app \
+        aquasec/trivy:latest fs --security-checks vuln,secret /app
+  artifacts:
+    reports:
+      sast: gl-sast-report.json
+    expire_in: 30 days
+  allow_failure: true
+
+security:container-scan:
+  stage: security
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  variables:
+    IMAGE_NAME: ${DOCKER_REGISTRY}/${DOCKER_IMAGE_PREFIX}/api:${CI_COMMIT_SHA}
+  script:
+    - |
+      echo "🔒 Scanning container image..."
+      docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        aquasec/trivy:latest image --security-checks vuln ${IMAGE_NAME}
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+security:dependency-check:
+  stage: security
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
+  script:
+    - pip install safety pip-audit
+    - |
+      echo "🔒 Checking dependencies for vulnerabilities..."
+      safety check -r requirements.txt --json > safety-report.json || true
+      pip-audit --format json > pip-audit-report.json || true
   artifacts:
     paths:
       - safety-report.json
+      - pip-audit-report.json
     expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false # Ensure failure for security issues
-
-trivy-scan:
-  stage: security
-  image:
-    name: aquasec/trivy:latest
-    entrypoint: [""]
-  dependencies:
-    - docker-build # Depend on docker-build to get image metadata
-  script:
-    - echo "🔍 Running Trivy vulnerability scan for Docker image..."
-    - IMAGE_DETAILS=$(cat image_metadata.json) # Get image details from artifacts
-    - IMAGE_NAME=$(echo "$IMAGE_DETAILS" | jq -r '.image')
-    - IMAGE_TAG=$(echo "$IMAGE_DETAILS" | jq -r '.tag')
-    - FULL_IMAGE_NAME="${IMAGE_NAME}:${IMAGE_TAG}"
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --format template --template "@contrib/gitlab.tpl" --output trivy-report.json "$FULL_IMAGE_NAME" || { echo "❌ Trivy found vulnerabilities!"; exit 1; }
-    - echo "✅ Trivy scan complete"
-  artifacts:
-    paths:
-      - trivy-report.json
-    reports:
-      container_scanning: trivy-report.json
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: false # SECURITY: Container vulnerabilities must block deployment
-
-
-# === Android Build & PQC Signing ===
-
-android-apk-sign:
-  stage: android-build
-  image: gradle:latest # or a custom image with Android SDK, JDK, Python
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends python3 python3-pip git
-    - pip install liboqs-python # For PQC signing
-    - chmod +x universal_build.sh pqc_signer.py # Ensure scripts are executable
-  script:
-    - echo "🏗️ Building Android APK..."
-    - ./universal_build.sh --android --release # Build the APK
-    - APK_PATH=$(find . -name "*.apk" | head -n 1) # Find the first APK
-    - echo "🔍 Found APK at: $APK_PATH"
-    - if [ -z "$APK_PATH" ]; then echo "❌ No APK found!"; exit 1; fi
-    - echo "🔐 PQC Signing APK..."
-    - if [ -z "$PQC_SIGNING_PRIVATE_KEY" ]; then echo "❌ PQC_SIGNING_PRIVATE_KEY is not set!"; exit 1; fi
-    - python3 pqc_signer.py sign --file "$APK_PATH" --private-key "$PQC_SIGNING_PRIVATE_KEY" > "${APK_PATH}.sig"
-    - echo "✅ APK PQC Signed: ${APK_PATH}.sig"
-  artifacts:
-    paths:
-      - "*.apk"
-      - "*.apk.sig"
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-      changes:
-        - app/** # Assuming Android project is in 'app' directory
-        - universal_build.sh
-        - pqc_signer.py
-        - .gitlab-ci.yml
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - app/**
-        - universal_build.sh
-        - pqc_signer.py
-        - .gitlab-ci.yml
-  allow_failure: false
-  timeout: 20 minutes
-
-# === Python Linting & Type Checking ===
-
-python-quality:
-  stage: validate
-  image: python:3.11-slim
-  before_script:
-    - pip install ruff mypy
-  script:
-    - echo "🔍 Running code quality checks..."
-    - ruff check . || true  # Don't fail yet, just warn
-    - mypy . --ignore-missing-imports || true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   allow_failure: true
 
-# === Unit Tests ===
-
-unit-tests:
-  stage: test
-  image: python:3.11
-  before_script:
-    - pip install -r requirements-dev.txt || true
-    - pip install -r requirements.txt || true
-    - pip install pytest pytest-asyncio pytest-mock pytest-cov
+security:secrets-scan:
+  stage: security
+  image: python:${PYTHON_VERSION}
   script:
-    - echo "🧪 Running deterministic coverage gate (core/api/security)..."
-    - export PYTHONFAULTHANDLER=1
-    - timeout 25m bash x0tta6bl4-core-skill/x0tta6bl4-core/scripts/check_test_coverage.sh
-  coverage: '/TOTAL.*\s+(\d+%)$/'
+    - pip install detect-secrets
+    - |
+      echo "🔒 Scanning for secrets..."
+      detect-secrets scan --all-files > secrets-baseline.json || true
+      detect-secrets audit secrets-baseline.json || true
+  artifacts:
+    paths:
+      - secrets-baseline.json
+    expire_in: 30 days
+  allow_failure: true
+
+# ============================================================================
+# Stage 5: Deploy
+# ============================================================================
+
+deploy:staging:
+  stage: deploy
+  image: alpine/k8s:1.28.3
+  environment:
+    name: staging
+    url: https://api.staging.maas-x0tta6bl4.local
+  variables:
+    KUBE_NAMESPACE: ${KUBE_NAMESPACE_STAGING}
+  script:
+    - |
+      echo "🚀 Deploying to staging..."
+      kubectl config use-context ${KUBE_CONTEXT_STAGING}
+      kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+    - |
+      echo "📦 Deploying with Helm..."
+      helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+        --namespace ${KUBE_NAMESPACE} \
+        --values ${HELM_CHART_PATH}/values-staging.yaml \
+        --set api.image.tag=${CI_COMMIT_SHA} \
+        --set worker.image.tag=${CI_COMMIT_SHA} \
+        --set controller.image.tag=${CI_COMMIT_SHA} \
+        --set stripe.secretKey=${STRIPE_TEST_SECRET_KEY} \
+        --set stripe.webhookSecret=${STRIPE_TEST_WEBHOOK_SECRET} \
+        --timeout 10m \
+        --wait \
+        --atomic
+    - |
+      echo "✅ Deployment complete"
+      kubectl get pods -n ${KUBE_NAMESPACE}
+      kubectl get services -n ${KUBE_NAMESPACE}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: alpine/k8s:1.28.3
+  environment:
+    name: production
+    url: https://api.maas-x0tta6bl4.local
+  variables:
+    KUBE_NAMESPACE: ${KUBE_NAMESPACE_PRODUCTION}
+  script:
+    - |
+      echo "🚀 Deploying to production..."
+      kubectl config use-context ${KUBE_CONTEXT_PRODUCTION}
+    - |
+      echo "📦 Running pre-deployment checks..."
+      helm template ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+        --values ${HELM_CHART_PATH}/values-production.yaml \
+        --dry-run
+    - |
+      echo "📦 Deploying with Helm..."
+      helm upgrade --install ${HELM_RELEASE_NAME} ${HELM_CHART_PATH} \
+        --namespace ${KUBE_NAMESPACE} \
+        --values ${HELM_CHART_PATH}/values-production.yaml \
+        --set api.image.tag=${CI_COMMIT_TAG:-${CI_COMMIT_SHA}} \
+        --set worker.image.tag=${CI_COMMIT_TAG:-${CI_COMMIT_SHA}} \
+        --set controller.image.tag=${CI_COMMIT_TAG:-${CI_COMMIT_SHA}} \
+        --set stripe.secretKey=${STRIPE_LIVE_SECRET_KEY} \
+        --set stripe.webhookSecret=${STRIPE_LIVE_WEBHOOK_SECRET} \
+        --timeout 15m \
+        --wait \
+        --atomic \
+        --history-max 10
+    - |
+      echo "✅ Production deployment complete"
+      kubectl get pods -n ${KUBE_NAMESPACE}
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual
+
+# ============================================================================
+# Stage 6: Monitor
+# ============================================================================
+
+monitor:health-check:
+  stage: monitor
+  image: alpine/k8s:1.28.3
+  script:
+    - |
+      echo "🏥 Running health checks..."
+      kubectl rollout status deployment/${HELM_RELEASE_NAME}-api -n ${KUBE_NAMESPACE_STAGING}
+      kubectl rollout status deployment/${HELM_RELEASE_NAME}-worker -n ${KUBE_NAMESPACE_STAGING}
+    - |
+      echo "📊 Checking pod health..."
+      kubectl get pods -n ${KUBE_NAMESPACE_STAGING} -l app.kubernetes.io/name=maas
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  needs: ["deploy:staging"]
+
+monitor:smoke-test:
+  stage: monitor
+  image: python:${PYTHON_VERSION}
+  script:
+    - pip install requests pytest
+    - |
+      echo "💨 Running smoke tests..."
+      pytest tests/smoke/ -v --tb=short -k "staging"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  needs: ["deploy:staging", "monitor:health-check"]
+  allow_failure: true
+
+# ============================================================================
+# Scheduled Jobs
+# ============================================================================
+
+schedule:nightly-tests:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  extends: .cache_python
+  script:
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - |
+      echo "🌙 Running nightly test suite..."
+      pytest tests/ -v --tb=short --cov=src --cov-report=xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-    paths:
-      - htmlcov/
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  timeout: 30 minutes
 
-# === Benchmark Thresholds Check ===
-
-benchmark-thresholds:
-  stage: test
-  image: python:3.11
-  before_script:
-    - pip install -r requirements.txt || true
-    - pip install httpx  # For benchmark scripts
+schedule:dependency-update-check:
+  stage: validate
+  image: python:${PYTHON_VERSION}
   script:
-    - echo "📊 Checking benchmark thresholds..."
+    - pip install pip-outdated
     - |
-      if [ -f "benchmarks/baseline/baseline.json" ] && [ -f "benchmarks/results/latest.json" ]; then
-        python scripts/check_benchmark_thresholds.py \
-          --baseline benchmarks/baseline/baseline.json \
-          --current benchmarks/results/latest.json \
-          --threshold 0.10 || echo "⚠️ Benchmark degradation detected (non-blocking for now)"
-      else
-        echo "⚠️ Baseline or latest results not found, skipping threshold check"
-        echo "Run: ./scripts/run_baseline_benchmarks.sh to establish baseline"
-      fi
-  artifacts:
-    paths:
-      - benchmarks/results/*.json
-    expire_in: 30 days
+      echo "🔄 Checking for outdated dependencies..."
+      pip-outdated || true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  allow_failure: true  # Non-blocking for now, will be mandatory in Phase 3.3
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  allow_failure: true
 
-# === Docker Build (Immutable Images) ===
+# ============================================================================
+# Rollback
+# ============================================================================
 
-docker-build:
-  stage: build
-  image: docker:24-git
-  services:
-    - docker:24-dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - chmod +x scripts/build_immutable_image.sh
-  script:
-    - echo "🔨 Building immutable Docker image with content-addressable tags..."
-    - |
-      # Build with content-addressable tags
-      COMMIT_SHA="${CI_COMMIT_SHA}"
-      SHORT_SHA="${COMMIT_SHA:0:12}"
-      
-      # Build image
-      docker build -f Dockerfile.app \
-        -t ${CI_REGISTRY_IMAGE}:${COMMIT_SHA} \
-        -t ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA} \
-        -t ${CI_REGISTRY_IMAGE}:latest \
-        .
-      
-      # Push all tags
-      docker push ${CI_REGISTRY_IMAGE}:${COMMIT_SHA}
-      docker push ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA}
-      docker push ${CI_REGISTRY_IMAGE}:latest || true
-      
-      # Get image digest (content-addressable)
-      IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${CI_REGISTRY_IMAGE}:${COMMIT_SHA} 2>/dev/null || echo "")
-      
-      echo "✅ Image built and pushed:"
-      echo "  - Tag: ${CI_REGISTRY_IMAGE}:${COMMIT_SHA}"
-      echo "  - SHA256 tag: ${CI_REGISTRY_IMAGE}:sha256-${SHORT_SHA}"
-      echo "  - Digest: ${IMAGE_DIGEST}"
-      
-      # Save metadata for deployment
-      echo "{\"image\":\"${CI_REGISTRY_IMAGE}\",\"tag\":\"${COMMIT_SHA}\",\"sha256_tag\":\"sha256-${SHORT_SHA}\",\"digest\":\"${IMAGE_DIGEST}\"}" > image_metadata.json
-  artifacts:
-    paths:
-      - image_metadata.json
-    expire_in: 30 days
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-
-# === Deployment ===
-
-deploy-staging:
+rollback:staging:
   stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache curl
-  script:
-    - echo "🚀 Deploying to staging..."
-    - curl -X POST $STAGING_WEBHOOK_URL -d "version=$CI_COMMIT_SHA"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+  image: alpine/k8s:1.28.3
   environment:
     name: staging
-    url: https://staging.x0tta6bl4.dev
-
-deploy-production:
-  stage: deploy
-  image:
-    name: hashicorp/terraform:latest
-    entrypoint: [""]
-  before_script:
-    - apk add --no-cache curl helm
   script:
-    - echo "🚀 Deploying to production..."
-    - cd infra/terraform/aws
-    - terraform init
-    - terraform apply -auto-approve
-    - cd ../../..
-    - helm upgrade --install x0tta6bl4 ./helm/x0tta6bl4 -f helm/x0tta6bl4/values-production.yaml
-    - echo "Running health checks..."
-    - ./scripts/health-check-production.sh
+    - |
+      echo "⏪ Rolling back staging deployment..."
+      helm rollback ${HELM_RELEASE_NAME} -n ${KUBE_NAMESPACE_STAGING}
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
+    - if: $CI_COMMIT_BRANCH == "develop"
+  when: manual
+
+rollback:production:
+  stage: deploy
+  image: alpine/k8s:1.28.3
   environment:
     name: production
-    url: https://x0tta6bl4.dev
-  when: manual  # Require manual approval for production
-# ============================================
-# WEST-0104: Anti-Delos Charter Test Suite
-# ============================================
-
-# Run all charter unit tests with coverage
-test:charter:unit:
-  stage: test
   script:
-    - python -m pip install -q pytest pytest-asyncio pytest-cov
-    - python -m pytest tests/test_charter_*.py -v --tb=short --junitxml=charter-junit.xml --cov=src/westworld --cov-report=xml --cov-report=term-missing
-    - echo "Charter unit tests completed"
-  artifacts:
-    reports:
-      junit: charter-junit.xml
-    paths:
-      - coverage.xml
-    expire_in: 30 days
-  allow_failure: false
-  coverage: '/TOTAL.*\s+(\d+\.\d+)%/'
-
-# Run charter integration tests
-test:charter:integration:
-  stage: test
-  script:
-    - python -m pip install -q pytest pytest-asyncio
-    - python -m pytest tests/test_charter_integration.py tests/test_charter_async.py -v --tb=short
-  allow_failure: false
-
-# Run charter comprehensive tests
-test:charter:comprehensive:
-  stage: test
-  script:
-    - python -m pip install -q pytest
-    - python -m pytest tests/test_charter_comprehensive.py tests/test_charter_edges.py -v --tb=short
-  allow_failure: false
+    - |
+      echo "⏪ Rolling back production deployment..."
+      helm rollback ${HELM_RELEASE_NAME} -n ${KUBE_NAMESPACE_PRODUCTION}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual

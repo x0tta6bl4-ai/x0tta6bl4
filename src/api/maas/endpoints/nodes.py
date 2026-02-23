@@ -5,7 +5,7 @@ Provides REST API endpoints for node registration, heartbeats, and revocation.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -26,6 +26,11 @@ from ..services import MeshProvisioner
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
+
+try:
+    from src.api.maas_telemetry import _set_telemetry as _set_external_telemetry
+except Exception:
+    _set_external_telemetry = None
 
 
 # Service instance
@@ -56,6 +61,64 @@ async def _resolve_mesh_for_user(mesh_id: str, user: UserContext) -> Any:
         await require_mesh_access(mesh_id, user)
 
     return instance
+
+
+def _to_optional_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_external_telemetry_payload(request: NodeHeartbeatRequest, timestamp_iso: str) -> Dict[str, Any]:
+    latency = _to_optional_float((request.custom_metrics or {}).get("latency_ms"))
+    traffic = _to_optional_float((request.custom_metrics or {}).get("traffic_mbps"))
+    payload: Dict[str, Any] = {
+        "mesh_id": request.mesh_id,
+        "node_id": request.node_id,
+        "status": "healthy",
+        "timestamp": timestamp_iso,
+        "last_seen": timestamp_iso,
+        "cpu_percent": (
+            request.cpu_percent
+            if request.cpu_percent is not None
+            else request.cpu_usage
+        ),
+        "memory_percent": (
+            request.memory_percent
+            if request.memory_percent is not None
+            else request.memory_usage
+        ),
+        "active_connections": (
+            request.active_connections
+            if request.active_connections is not None
+            else request.neighbors_count
+        ),
+        "cpu_usage": request.cpu_usage,
+        "memory_usage": request.memory_usage,
+        "neighbors_count": request.neighbors_count,
+        "routing_table_size": request.routing_table_size,
+        "uptime": request.uptime,
+        "custom_metrics": request.custom_metrics,
+    }
+    if latency is not None and latency >= 0:
+        payload["latency_ms"] = latency
+    if traffic is not None and traffic >= 0:
+        payload["traffic_mbps"] = traffic
+    return payload
+
+
+def _export_external_telemetry(node_id: str, payload: Dict[str, Any]) -> bool:
+    if _set_external_telemetry is None:
+        return False
+    try:
+        _set_external_telemetry(node_id, payload)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to export modular heartbeat telemetry (node=%s): %s", node_id, exc)
+        return False
 
 
 @router.post(
@@ -165,11 +228,14 @@ async def node_heartbeat(
     }
 
     update_node_telemetry(request.node_id, telemetry_payload)
+    external_payload = _build_external_telemetry_payload(request, now)
+    telemetry_exported = _export_external_telemetry(request.node_id, external_payload)
 
     return {
         "status": "ok",
         "node_id": request.node_id,
         "timestamp": now,
+        "telemetry_exported": telemetry_exported,
     }
 
 
@@ -278,6 +344,13 @@ async def get_telemetry(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No telemetry found for node {node_id}",
+        )
+
+    telemetry_mesh_id = telemetry.get("mesh_id")
+    if telemetry_mesh_id and telemetry_mesh_id != mesh_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No telemetry found for node {node_id} in mesh {mesh_id}",
         )
 
     return telemetry

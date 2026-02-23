@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: x0tta6bl4
+  labels:
+    istio-injection: enabled
+    x0tta6bl4.mesh.profile: istio-like
