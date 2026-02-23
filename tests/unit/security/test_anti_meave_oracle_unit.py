@@ -8,6 +8,7 @@ import time
 import pytest
 
 from src.security.anti_meave_oracle import (
+    AgentProfile,
     AntiMeaveOracle,
     Capability,
     CapabilityType,
@@ -150,3 +151,13 @@ def test_oracle_singleton_set_and_get():
     custom = AntiMeaveOracle(network_size=7)
     set_oracle(custom)
     assert get_oracle() is custom
+
+
+def test_calculate_threat_score_handles_zero_network_size():
+    oracle = AntiMeaveOracle(network_size=0)
+    profile = AgentProfile(agent_id="a1", swarm_id="swarm-1")
+    profile.nodes_affected.update({"n1", "n2"})
+
+    score = oracle._calculate_threat_score(profile)
+    assert isinstance(score, float)
+    assert 0.0 <= score <= 1.0

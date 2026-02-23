@@ -427,7 +427,7 @@ class AntiMeaveOracle:
             score += 0.3
         
         # Factor 2: Nodes affected
-        node_ratio = len(profile.nodes_affected) / self.network_size
+        node_ratio = len(profile.nodes_affected) / max(self.network_size, 1)
         if node_ratio > 0.1:  # Affecting > 10% of network
             score += 0.4
         elif node_ratio > 0.05:  # Affecting > 5%
