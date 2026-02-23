@@ -79,6 +79,31 @@ async def test_provision_vpn_user_xui_failure_uses_fallback_link(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_provision_vpn_user_accepts_string_source(monkeypatch):
+    svc = ProvisioningService()
+    svc._xui_client = MagicMock()
+    svc._xui_client.create_user.return_value = {
+        "uuid": "uuid-from-xui",
+        "vless_link": "vless://from-xui",
+    }
+
+    async def _noop(**_kwargs):
+        return None
+
+    monkeypatch.setattr(svc, "_update_database", _noop)
+    monkeypatch.setattr(svc, "_send_telegram_config", _noop)
+
+    out = await svc.provision_vpn_user(
+        email="user@example.com",
+        source="admin_api",
+    )
+
+    assert out.success is True
+    assert out.vpn_uuid == "uuid-from-xui"
+    assert out.vless_link == "vless://from-xui"
+
+
+@pytest.mark.asyncio
 async def test_revoke_vpn_user_variants():
     svc = ProvisioningService()
     assert await svc.revoke_vpn_user("") is False
