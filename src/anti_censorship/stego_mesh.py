@@ -98,24 +98,24 @@ class StegoMeshProtocol:
             encryptor = cipher.encryptor()
             encrypted = encryptor.update(real_payload) + encryptor.finalize()
 
+            # 3.5. Lower entropy by using Base64 encoding for the encrypted part
+            # This makes it look more like text/standard data and less like random bits
+            import base64
+            encoded_payload = base64.b64encode(nonce + payload_prefix + encrypted)
+
             # 4. Создаём стеганографический заголовок в зависимости от протокола
             if protocol_mimic == "http":
-                header = self._create_http_header(
-                    len(encrypted) + 32 + 16
-                )  # encrypted + payload_prefix + nonce
+                header = self._create_http_header(len(encoded_payload))
             elif protocol_mimic == "icmp":
                 header = self._create_icmp_header()
             elif protocol_mimic == "dns":
-                header = self._create_dns_header(len(encrypted) + 32 + 16)
+                header = self._create_dns_header(len(encoded_payload))
             else:
-                # По умолчанию HTTP
-                header = self._create_http_header(len(encrypted) + 32 + 16)
+                header = self._create_http_header(len(encoded_payload))
 
-            # 5. Встраиваем nonce, payload_prefix и зашифрованные данные
-            # Структура: header + nonce (16) + payload_prefix (32) + encrypted + noise
-            # Добавляем шум в конце для дополнительной маскировки
-            noise = secrets.token_bytes(secrets.randbelow(25) + 8)  # 8-32 bytes
-            stego_packet = header + nonce + payload_prefix + encrypted + noise
+            # 5. Встраиваем закодированные данные
+            noise = secrets.token_bytes(secrets.randbelow(10) + 2)
+            stego_packet = header + encoded_payload + noise
 
             logger.debug(
                 f"Encoded packet: {len(real_payload)} bytes -> "
@@ -140,9 +140,13 @@ class StegoMeshProtocol:
         return header
 
     def _create_icmp_header(self) -> bytes:
-        """Создание ICMP-заголовка для маскировки"""
-        # ICMP Echo Request (type=8, code=0)
-        header = struct.pack("!BBHHH", 8, 0, 0, 0, 0)
+        """Создание ICMP-заголовка для маскировки (RFC 792)"""
+        # ICMP Echo Request: Type(8), Code(0), Checksum(0), ID, Sequence
+        import time
+        header = struct.pack("!BBHHH", 8, 0, 0, secrets.randbelow(65535), 1)
+        # Add standard ICMP data: timestamp (8 bytes) + dummy data
+        ts = struct.pack("!Q", int(time.time() * 1000))
+        header += ts + b"abcdefghijklmnopqrstuvw" # Standard payload size padding
         header += self.STEGO_MARKER_ICMP
         return header
 
@@ -151,115 +155,62 @@ class StegoMeshProtocol:
         # DNS Query header (ID, flags, questions, answers, etc.)
         header = struct.pack(
             "!HHHHHH",
-            secrets.randbelow(65536),  # Transaction ID (crypto-secure)
+            secrets.randbelow(65535) + 1,  # Transaction ID
             0x0100,  # Flags: standard query
             1,  # Questions
-            0,  # Answer RRs
-            0,  # Authority RRs
-            0,  # Additional RRs
+            0,
+            0,
+            0,
         )
-        # Query name: x0tta6bl4.stego
-        header += b"\x08x0tta6bl4\x04stego\x00"
+        # Query name: stego.x0tta6bl4.mesh
+        header += b"\x05stego\x08x0tta6bl4\x04mesh\x00"
         header += struct.pack("!HH", 1, 1)  # Type A, Class IN
-        header += self.STEGO_MARKER_DNS
         return header
 
     def decode_packet(self, stego_packet: bytes) -> Optional[bytes]:
         """
         Декодирование стеганографического пакета.
-
-        Args:
-            stego_packet: Стеганографический пакет
-
-        Returns:
-            Расшифрованные данные или None при ошибке
         """
+        import base64
         try:
-            # Ищем секретный маркер и извлекаем данные
-            encrypted_with_noise = None
-            marker_len = 0
-
+            encoded_data = None
             if self.STEGO_MARKER_HTTP in stego_packet:
-                # Это HTTP-маскировка
                 parts = stego_packet.split(b"\r\n\r\n")
                 if len(parts) > 1:
-                    encrypted_with_noise = parts[1]
-                    marker_len = len(self.STEGO_MARKER_HTTP)
-
+                    encoded_data = parts[1]
             elif self.STEGO_MARKER_ICMP in stego_packet:
-                # Это ICMP-маскировка
                 marker_pos = stego_packet.find(self.STEGO_MARKER_ICMP)
-                if marker_pos > 0:
-                    encrypted_with_noise = stego_packet[
-                        marker_pos + len(self.STEGO_MARKER_ICMP) :
-                    ]
-                    marker_len = len(self.STEGO_MARKER_ICMP)
-                else:
-                    return None
-
+                encoded_data = stego_packet[marker_pos + len(self.STEGO_MARKER_ICMP):]
             elif self.STEGO_MARKER_DNS in stego_packet:
-                # Это DNS-маскировка
                 marker_pos = stego_packet.find(self.STEGO_MARKER_DNS)
-                if marker_pos > 0:
-                    encrypted_with_noise = stego_packet[
-                        marker_pos + len(self.STEGO_MARKER_DNS) :
-                    ]
-                    marker_len = len(self.STEGO_MARKER_DNS)
-                else:
-                    return None
-            else:
-                # Не stego-пакет
+                encoded_data = stego_packet[marker_pos + len(self.STEGO_MARKER_DNS):]
+            
+            if not encoded_data:
+                # Try fallback: just find anything that looks like base64 after headers
                 return None
 
-            if encrypted_with_noise is None or len(encrypted_with_noise) < 16 + 32:
-                return None
-
-            # Извлекаем nonce (первые 16 байт после маркера)
-            nonce = encrypted_with_noise[:16]
-            # Извлекаем payload_prefix (следующие 32 байта)
-            payload_prefix = encrypted_with_noise[16:48]
-            # Остальное - зашифрованные данные + шум
-            encrypted = encrypted_with_noise[48:]
-
-            # Пробуем удалить шум (последние 8-32 байта)
-            # Пробуем разные размеры шума
-            for noise_len in range(8, 33):
-                if len(encrypted) > noise_len:
-                    ciphertext = encrypted[:-noise_len]
-                    if len(ciphertext) == 0:
-                        continue
-
-                    # Деривируем ключ используя сохраненный payload_prefix
-                    session_key, derived_nonce = self._derive_session_key(
-                        payload_prefix
-                    )
-
-                    # Проверяем, совпадает ли nonce
-                    if derived_nonce == nonce:
-                        # Расшифровываем
-                        cipher = Cipher(
-                            algorithms.ChaCha20(session_key, nonce),
-                            mode=None,
-                            backend=self.backend,
-                        )
-                        decryptor = cipher.decryptor()
-                        decrypted = decryptor.update(ciphertext) + decryptor.finalize()
-
-                        # Убираем padding (нулевые байты в конце, если они были добавлены)
-                        # В реальности нужно знать оригинальный размер, но для демо обрезаем нули
-                        decrypted = decrypted.rstrip(b"\x00")
-
-                        logger.debug(
-                            f"Decoded packet: {len(stego_packet)} bytes -> {len(decrypted)} bytes"
-                        )
-                        return decrypted
-
-            # Если не удалось расшифровать, возвращаем None
-            logger.debug("Failed to decode stego packet")
+            # Handle noise and base64 decoding
+            # In production, we would use a more robust way to find the end of base64
+            # For now, we try to strip noise from the end until base64 decodes
+            for i in range(len(encoded_data), 10, -1):
+                try:
+                    candidate = encoded_data[:i]
+                    decoded = base64.b64decode(candidate)
+                    if len(decoded) < 48: continue
+                    
+                    nonce = decoded[:16]
+                    payload_prefix = decoded[16:48]
+                    ciphertext = decoded[48:]
+                    
+                    session_key, _ = self._derive_session_key(payload_prefix)
+                    cipher = Cipher(algorithms.ChaCha20(session_key, nonce), mode=None, backend=self.backend)
+                    decryptor = cipher.decryptor()
+                    return (decryptor.update(ciphertext) + decryptor.finalize()).rstrip(b"\x00")
+                except:
+                    continue
             return None
-
         except Exception as e:
-            logger.debug(f"Error decoding packet (may not be stego): {e}")
+            logger.debug(f"Decode error: {e}")
             return None
 
     def test_dpi_evasion(self, payload: bytes, protocol: str = "http") -> bool:

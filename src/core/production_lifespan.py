@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -8,6 +9,7 @@ from fastapi import FastAPI
 from src.core.consciousness import ConsciousnessEngine
 from src.core.mape_k_loop import MAPEKLoop
 from src.core.settings import settings
+from src.database import ensure_schema_compatible
 from src.federated_learning.app_integration import create_fl_integration
 from src.mesh.network_manager import MeshNetworkManager
 from src.monitoring.prometheus_client import PrometheusExporter
@@ -54,6 +56,20 @@ class OptimizationEngine:
         logger.info("🚀 Initializing Production Intelligence Engine...")
 
         try:
+            testing_mode = (
+                settings.is_testing()
+                or os.getenv("TESTING", "false").lower() == "true"
+                or bool(os.getenv("PYTEST_CURRENT_TEST"))
+            )
+            enforce_schema = os.getenv("DB_ENFORCE_SCHEMA", "true").lower() == "true"
+            auto_default = "true" if settings.is_production() else "false"
+            auto_migrate = (
+                os.getenv("DB_AUTO_MIGRATE", auto_default).lower() == "true"
+            )
+            if enforce_schema and not testing_mode:
+                ensure_schema_compatible(auto_migrate=auto_migrate)
+                logger.info("✅ Database schema validation passed")
+
             # 1. Initialize Core Components
             self.network_manager = MeshNetworkManager()
             # Note: In a real deployment, we might need to wait for Yggdrasil to be ready

@@ -1,0 +1,43 @@
+# Default values for maas-enterprise.
+replicaCount: 3
+
+image:
+  repository: x0tta6bl4/control-plane
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: api.maas.x0tta6bl4.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+postgresql:
+  enabled: true
+  auth:
+    database: maas_db
+    username: maas_user
+    password: "changeme"
+
+vault:
+  enabled: true
+  address: "http://vault:8200"
+
+janitor:
+  enabled: true
+  replicaCount: 1
+
+monitoring:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
