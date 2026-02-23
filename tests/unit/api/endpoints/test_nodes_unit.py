@@ -446,6 +446,26 @@ async def test_get_telemetry_returns_payload(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_telemetry_raises_404_on_mesh_mismatch(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(
+        mod,
+        "get_node_telemetry",
+        lambda _node_id: {"mesh_id": "mesh-other", "cpu_percent": 10.0},
+    )
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.get_telemetry("mesh-1", "node-1", user)
+
+    assert exc.value.status_code == 404
+    assert "mesh-1" in exc.value.detail
+
+
+@pytest.mark.asyncio
 async def test_request_reissue_persists_token_and_returns_payload(monkeypatch):
     captured = {}
 
