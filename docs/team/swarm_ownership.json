@@ -38,7 +38,8 @@
         "Dockerfile.production",
         "tests/load/maas_load_test.js",
         "tests/load/run_load_tests.sh",
-        "src/services/maas_auth_service.py"
+        "src/services/maas_auth_service.py",
+        "staging/docker-compose.quick.yml"
       ]
     },
     "claude-maas-reviewer": {
@@ -171,6 +172,7 @@
         "src/agent/headless.py",
         "src/core/app.py",
         "alembic/versions/v001_event_store_postgres.py",
+        "alembic/versions/814b34e139dc_add_auditlog_and_extend_user_billing_.py",
         "src/ml/anomaly.py",
         "src/federated_learning/__init__.py",
         "src/monitoring/opentelemetry_tracing.py",
