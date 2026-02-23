@@ -65,6 +65,13 @@ curl -s http://localhost:8080/api/v1/mesh/status
 curl -s http://localhost:9090/api/v1/query?query=mape_k_cycle_duration_seconds
 ```
 
+```python
+# Programmatic health check (no server required)
+from src.core.health import get_health_with_dependencies
+import json
+print(json.dumps(get_health_with_dependencies(), indent=2))
+```
+
 ### Step 3: Review Logs
 
 ```bash
@@ -93,7 +100,13 @@ Based on the stuck phase, apply fixes:
 1. Verify metrics collection:
    ```python
    from src.monitoring.metrics import MetricsRegistry
-   MetricsRegistry.get_all_metrics()  # Should return dict
+   # MetricsRegistry exposes individual class-level Prometheus objects.
+   # Check key MAPE-K counters directly:
+   print(MetricsRegistry.mapek_cycles_total)       # Counter
+   print(MetricsRegistry.mapek_anomalies_detected) # Counter
+   print(MetricsRegistry.mapek_cycle_duration)     # Histogram
+   print(MetricsRegistry.self_healing_mttr_seconds)# Histogram
+   # Full list: inspect.getmembers(MetricsRegistry, lambda v: not callable(v))
    ```
 2. Check Prometheus target is up: `http://localhost:9090/targets`
 3. Verify health providers are registered in `src/core/health.py`
@@ -117,11 +130,22 @@ Based on the stuck phase, apply fixes:
 #### Fix Execute Phase
 1. Reset circuit breaker if stuck open:
    ```python
-   # Circuit breaker auto-resets after timeout
-   # Force reset by restarting the MAPE-K loop
+   from src.self_healing.recovery_actions import RecoveryActionExecutor
+   executor = RecoveryActionExecutor()
+   # Check circuit breaker state
+   print(executor.get_circuit_breaker_status())
+   # {'enabled': True, 'state': 'open'/'closed'/'half_open', 'failures': N, ...}
+   # Circuit breaker auto-resets after timeout; force reset by re-instantiating
    ```
-2. Check SPIFFE certificate expiry
-3. Verify target node is reachable
+2. Inspect recovery action history:
+   ```python
+   history = executor.get_action_history(limit=20)  # List[RecoveryResult]
+   for r in history:
+       print(f"{r.action_type.value}: success={r.success}, duration={r.duration_seconds:.2f}s")
+   print(executor.get_success_rate())  # Overall 0.0–1.0
+   ```
+3. Check SPIFFE certificate expiry
+4. Verify target node is reachable
 
 ### Step 5: Validate Fix
 

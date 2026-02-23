@@ -188,6 +188,9 @@ class TestTelemetryHelpers:
             mod._set_telemetry(node_id, data)
             result = mod._get_telemetry(node_id)
             assert result == data
+            history = mod._get_telemetry_history(node_id, limit=10)
+            assert len(history) == 1
+            assert history[0] == data
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
@@ -222,6 +225,7 @@ class TestTelemetryHelpers:
             call_args = mock_redis.setex.call_args[0]
             assert call_args[0] == "maas:telemetry:test-node"
             assert call_args[1] == 300  # 5-minute TTL
+            mock_redis.pipeline.assert_called_once()
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
@@ -260,3 +264,78 @@ class TestTelemetryHelpers:
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
+
+    def test_get_history_redis_parses_json_entries(self):
+        import src.api.maas_telemetry as mod
+        from unittest.mock import MagicMock
+        mock_redis = MagicMock()
+        mock_redis.lrange.return_value = [
+            json.dumps({"cpu": 0.7, "last_seen": "2026-02-21T10:00:00"}),
+            "invalid-json",
+            json.dumps({"cpu": 0.5, "last_seen": "2026-02-21T09:55:00"}),
+        ]
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        mod.REDIS_AVAILABLE = True
+        mod.r_client = mock_redis
+        try:
+            result = mod._get_telemetry_history("history-node", limit=10)
+            assert len(result) == 2
+            assert result[0]["cpu"] == 0.7
+            assert result[1]["cpu"] == 0.5
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+
+    def test_get_history_memory_fallback_honors_limit(self):
+        import src.api.maas_telemetry as mod
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_local_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+        mod.REDIS_AVAILABLE = False
+        mod.r_client = {}
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=200)
+        try:
+            node_id = "history-memory-node"
+            mod._set_telemetry(node_id, {"cpu": 0.1})
+            mod._set_telemetry(node_id, {"cpu": 0.2})
+            mod._set_telemetry(node_id, {"cpu": 0.3})
+            result = mod._get_telemetry_history(node_id, limit=2)
+            assert len(result) == 2
+            assert result[0]["cpu"] == 0.3
+            assert result[1]["cpu"] == 0.2
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_local_fallback
+
+    def test_redis_failure_falls_back_to_local_cache(self):
+        import src.api.maas_telemetry as mod
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        mock_redis.setex.side_effect = RuntimeError("redis unavailable")
+        mock_redis.get.side_effect = RuntimeError("redis unavailable")
+        mock_redis.lrange.side_effect = RuntimeError("redis unavailable")
+
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_local_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+
+        mod.REDIS_AVAILABLE = True
+        mod.r_client = mock_redis
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=200)
+        try:
+            node_id = "redis-fallback-node"
+            payload = {"cpu": 0.4, "latency_ms": 11.0}
+            mod._set_telemetry(node_id, payload)
+
+            latest = mod._get_telemetry(node_id)
+            history = mod._get_telemetry_history(node_id, limit=5)
+            assert latest == payload
+            assert len(history) == 1
+            assert history[0] == payload
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_local_fallback

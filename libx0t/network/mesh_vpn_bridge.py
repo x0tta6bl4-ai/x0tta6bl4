@@ -1,6 +1,12 @@
 """
 x0tta6bl4 Mesh-VPN Bridge
 Integates SOCKS5 proxy with Mesh Network and Rotating Exit Nodes.
+
+Features:
+- Batman-adv layer 2 mesh networking integration
+- PQC encryption for inter-node traffic
+- Multi-hop routing through mesh
+- Health monitoring and MAPE-K integration
 """
 
 import asyncio
@@ -10,13 +16,28 @@ import random
 import socket
 import time
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from src.crypto.pqc_crypto import PQCCrypto
 from src.dao.token_rewards import TokenRewards
 # Import MeshNode from our existing implementation
 from .mesh_node import MeshNode, MeshNodeConfig
 from .mesh_router import MeshConnection, MeshRouter
+
+# Batman-adv integration
+try:
+    from .batman import (
+        BatmanHealthMonitor,
+        BatmanMetricsCollector,
+        BatmanMAPEKLoop,
+        create_batman_mapek_loop,
+    )
+    BATMAN_AVAILABLE = True
+except ImportError:
+    BATMAN_AVAILABLE = False
+    BatmanHealthMonitor = None
+    BatmanMetricsCollector = None
+    BatmanMAPEKLoop = None
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -92,9 +113,61 @@ class MeshVPNBridge:
         self.bytes_relayed = 0
         self.start_time = time.time()
 
+        # Batman-adv integration
+        self.batman_interface = os.getenv("BATMAN_INTERFACE", "bat0")
+        self.batman_enabled = os.getenv("BATMAN_ENABLED", "false").lower() == "true"
+        self.batman_health_monitor: Optional[BatmanHealthMonitor] = None
+        self.batman_metrics_collector: Optional[BatmanMetricsCollector] = None
+        self.batman_mapek_loop: Optional[BatmanMAPEKLoop] = None
+        
+        if BATMAN_AVAILABLE and self.batman_enabled:
+            self._init_batman_components()
+
         # Load saved stats if exist
         self.stats_file = "node_stats.json"
         self._load_stats()
+    
+    def _init_batman_components(self) -> None:
+        """Initialize Batman-adv components for mesh networking."""
+        try:
+            # Initialize health monitor
+            self.batman_health_monitor = BatmanHealthMonitor(
+                node_id=self.node_id,
+                interface=self.batman_interface,
+                enable_prometheus=True,
+                alert_callback=self._on_batman_health_alert,
+            )
+            logger.info(f"Batman health monitor initialized on {self.batman_interface}")
+            
+            # Initialize metrics collector
+            self.batman_metrics_collector = BatmanMetricsCollector(
+                node_id=self.node_id,
+                interface=self.batman_interface,
+            )
+            logger.info("Batman metrics collector initialized")
+            
+            # Initialize MAPE-K loop for autonomous healing
+            self.batman_mapek_loop = create_batman_mapek_loop(
+                node_id=self.node_id,
+                interface=self.batman_interface,
+                auto_heal=True,
+            )
+            logger.info("Batman MAPE-K loop initialized with auto-heal enabled")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Batman components: {e}")
+            self.batman_enabled = False
+    
+    def _on_batman_health_alert(self, health_report) -> None:
+        """Callback for Batman health alerts."""
+        logger.warning(
+            f"Batman health alert: {health_report.overall_status.value} "
+            f"(score: {health_report.overall_score:.2f})"
+        )
+        
+        # Log recommendations
+        for recommendation in health_report.recommendations:
+            logger.info(f"Recommendation: {recommendation}")
 
     def _load_stats(self):
         try:
@@ -128,6 +201,7 @@ class MeshVPNBridge:
                     "earnings_today": str(self.rewards.daily_earnings),
                     "active_connections": 0,
                     "mesh": self.router.get_stats(),
+                    "batman": self._get_batman_stats(),
                 }
 
                 # Fix async bottleneck: wrap file I/O in thread pool
@@ -138,6 +212,65 @@ class MeshVPNBridge:
                 await asyncio.to_thread(_write_stats)
             except Exception as e:
                 logger.error(f"Stats save error: {e}")
+    
+    def _get_batman_stats(self) -> Dict[str, Any]:
+        """Get Batman-adv statistics."""
+        if not self.batman_enabled or not self.batman_metrics_collector:
+            return {"enabled": False}
+        
+        snapshot = self.batman_metrics_collector.get_last_snapshot()
+        if snapshot:
+            return {
+                "enabled": True,
+                "interface": self.batman_interface,
+                "originators_count": snapshot.originators_count,
+                "avg_link_quality": snapshot.avg_link_quality,
+                "gateways_count": snapshot.gateways_count,
+                "latency_ms": snapshot.latency_ms,
+                "packet_loss_percent": snapshot.packet_loss_percent,
+            }
+        
+        return {"enabled": True, "interface": self.batman_interface}
+    
+    async def _batman_health_loop(self) -> None:
+        """Background task for Batman health monitoring."""
+        if not self.batman_enabled or not self.batman_health_monitor:
+            return
+        
+        while True:
+            try:
+                # Run health checks
+                report = await self.batman_health_monitor.run_health_checks()
+                
+                # Collect metrics
+                if self.batman_metrics_collector:
+                    await self.batman_metrics_collector.collect()
+                
+                # Log health status periodically
+                logger.debug(
+                    f"Batman health: {report.overall_status.value} "
+                    f"(score: {report.overall_score:.2f})"
+                )
+                
+                await asyncio.sleep(30)  # Check every 30 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Batman health loop error: {e}")
+                await asyncio.sleep(30)
+    
+    async def _batman_mapek_loop(self) -> None:
+        """Background task for Batman MAPE-K autonomous healing."""
+        if not self.batman_enabled or not self.batman_mapek_loop:
+            return
+        
+        try:
+            await self.batman_mapek_loop.start()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"Batman MAPE-K loop error: {e}")
 
     async def start(self):
         """Start the bridge."""
@@ -149,6 +282,18 @@ class MeshVPNBridge:
 
         # Start mesh router
         await self.router.start()
+        
+        # Start Batman-adv components if enabled
+        if self.batman_enabled:
+            logger.info("Starting Batman-adv components...")
+            
+            # Start health monitoring loop
+            asyncio.create_task(self._batman_health_loop())
+            
+            # Start MAPE-K autonomous healing loop
+            asyncio.create_task(self._batman_mapek_loop())
+            
+            logger.info("Batman-adv components started")
 
         logger.info("=" * 60)
         logger.info(f"🌉 Mesh-VPN Bridge: {self.node_id}")
@@ -160,6 +305,8 @@ class MeshVPNBridge:
             logger.info(f"   Peers: {len(self.router.peers)}")
             for peer_id, peer in self.router.peers.items():
                 logger.info(f"      → {peer_id}: {peer.address}")
+        if self.batman_enabled:
+            logger.info(f"   Batman-adv: ENABLED ({self.batman_interface})")
         logger.info("=" * 60)
 
         server = await asyncio.start_server(
@@ -327,6 +474,88 @@ class MeshVPNBridge:
                 writer.close()
             except:
                 pass
+    
+    def get_batman_status(self) -> Dict[str, Any]:
+        """
+        Get Batman-adv status for this node.
+        
+        Returns:
+            Dict with Batman health, metrics, and MAPE-K status
+        """
+        if not self.batman_enabled:
+            return {"enabled": False}
+        
+        status = {
+            "enabled": True,
+            "interface": self.batman_interface,
+            "node_id": self.node_id,
+        }
+        
+        # Get health status
+        if self.batman_health_monitor:
+            last_report = self.batman_health_monitor.get_last_report()
+            if last_report:
+                status["health"] = {
+                    "overall_status": last_report.overall_status.value,
+                    "overall_score": last_report.overall_score,
+                    "recommendations": last_report.recommendations,
+                }
+                status["health_trend"] = self.batman_health_monitor.get_health_trend()
+        
+        # Get metrics
+        if self.batman_metrics_collector:
+            snapshot = self.batman_metrics_collector.get_last_snapshot()
+            if snapshot:
+                status["metrics"] = snapshot.to_dict()
+        
+        # Get MAPE-K status
+        if self.batman_mapek_loop:
+            status["mapek"] = self.batman_mapek_loop.get_status()
+        
+        return status
+    
+    async def trigger_batman_healing(self, action: str) -> Dict[str, Any]:
+        """
+        Manually trigger a Batman healing action.
+        
+        Args:
+            action: Healing action to perform
+        
+        Returns:
+            Dict with action result
+        """
+        if not self.batman_enabled:
+            return {"success": False, "error": "Batman not enabled"}
+        
+        if not self.batman_mapek_loop:
+            return {"success": False, "error": "MAPE-K loop not initialized"}
+        
+        from .batman.mape_k_integration import BatmanRecoveryAction, BatmanMAPEKExecutor
+        
+        try:
+            recovery_action = BatmanRecoveryAction(action)
+        except ValueError:
+            valid_actions = [a.value for a in BatmanRecoveryAction]
+            return {
+                "success": False,
+                "error": f"Invalid action. Valid actions: {valid_actions}",
+            }
+        
+        executor = BatmanMAPEKExecutor(interface=self.batman_interface)
+        
+        try:
+            result = await executor._execute_action(recovery_action, None)
+            return {
+                "success": result.get("status") == "success",
+                "action": action,
+                "result": result,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "action": action,
+                "error": str(e),
+            }
 
 
 if __name__ == "__main__":

@@ -44,6 +44,8 @@ class MeshDeployRequest(BaseModel):
     pqc_enabled: bool = Field(default=True)
     obfuscation: str = Field(default="none", pattern="^(none|xor|aes)$")
     traffic_profile: str = Field(default="none", pattern="^(none|gaming|streaming|voip)$")
+    optimization_mode: str = Field(default="standard", pattern="^(standard|ml_routing|genetic_topo)$")
+    federated_strategy: str = Field(default="fedavg", pattern="^(fedavg|hw_fedavg)$")
     join_token_ttl_sec: int = Field(default=604800, ge=3600, le=2592000)  # 1h–30d, default 7d
 
 
@@ -78,6 +80,8 @@ class MeshStatusResponse(BaseModel):
     pqc_enabled: bool
     obfuscation: str
     traffic_profile: str
+    optimization_mode: str = "standard"
+    federated_strategy: str = "fedavg"
     peers: List[Dict[str, Any]]
     health_score: float  # 0.0 - 1.0
 

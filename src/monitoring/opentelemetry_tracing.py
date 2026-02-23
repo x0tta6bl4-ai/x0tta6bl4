@@ -129,11 +129,13 @@ class OTelTracingManager:
             self.tracer = trace.get_tracer(__name__)
 
             # Setup metrics (optional)
-            if enable_metrics:
+            if enable_metrics and PROMETHEUS_EXPORTER_AVAILABLE and PrometheusMetricReader is not None:
                 prometheus_reader = PrometheusMetricReader()
                 meter_provider = MeterProvider(metric_readers=[prometheus_reader])
                 metrics.set_meter_provider(meter_provider)
                 self.meter = metrics.get_meter(__name__)
+            elif enable_metrics:
+                logger.warning("Prometheus exporter not available, metrics disabled")
 
             logger.info(f"✅ OpenTelemetry initialized for {service_name}")
             self.enabled = True
@@ -382,12 +384,51 @@ class MLSpans:
             yield span
 
 
+class SwarmSpans:
+    """Spans for Swarm Intelligence and PARL operations."""
+
+    def __init__(self, tracer_manager: OTelTracingManager):
+        self.tracer = tracer_manager
+
+    @contextmanager
+    def task_execution(self, task_id: str, task_type: str, worker_id: str):
+        """Span for a single task execution by a worker."""
+        with self.tracer.span(
+            "swarm.task_exec",
+            {
+                "task_id": task_id,
+                "task_type": task_type,
+                "worker_id": worker_id,
+            },
+        ) as span:
+            yield span
+
+    @contextmanager
+    def parallel_batch(self, batch_size: int):
+        """Span for a parallel execution batch."""
+        with self.tracer.span(
+            "swarm.parallel_batch",
+            {"batch_size": batch_size},
+        ) as span:
+            yield span
+
+    @contextmanager
+    def policy_update(self, buffer_size: int):
+        """Span for swarm policy/intelligence update."""
+        with self.tracer.span(
+            "swarm.policy_update",
+            {"experience_buffer_size": buffer_size},
+        ) as span:
+            yield span
+
+
 # Global tracer manager instance
 _tracer_manager = None
 _mapek_spans = None
 _network_spans = None
 _spiffe_spans = None
 _ml_spans = None
+_swarm_spans = None
 
 
 def initialize_tracing(service_name: str = "x0tta6bl4", app=None):
@@ -398,7 +439,7 @@ def initialize_tracing(service_name: str = "x0tta6bl4", app=None):
         service_name: Service name for tracing
         app: FastAPI app instance (optional, for auto-instrumentation)
     """
-    global _tracer_manager, _mapek_spans, _network_spans, _spiffe_spans, _ml_spans
+    global _tracer_manager, _mapek_spans, _network_spans, _spiffe_spans, _ml_spans, _swarm_spans
 
     _tracer_manager = OTelTracingManager(service_name)
 
@@ -407,6 +448,7 @@ def initialize_tracing(service_name: str = "x0tta6bl4", app=None):
         _network_spans = NetworkSpans(_tracer_manager)
         _spiffe_spans = SPIFFESpans(_tracer_manager)
         _ml_spans = MLSpans(_tracer_manager)
+        _swarm_spans = SwarmSpans(_tracer_manager)
 
         if app:
             _tracer_manager.instrument_fastapi(app)
@@ -440,16 +482,23 @@ def get_ml_spans() -> Optional[MLSpans]:
     return _ml_spans
 
 
+def get_swarm_spans() -> Optional[SwarmSpans]:
+    """Get Swarm spans helper."""
+    return _swarm_spans
+
+
 __all__ = [
     "OTelTracingManager",
     "MAPEKSpans",
     "NetworkSpans",
     "SPIFFESpans",
     "MLSpans",
+    "SwarmSpans",
     "initialize_tracing",
     "get_tracer_manager",
     "get_mapek_spans",
     "get_network_spans",
     "get_spiffe_spans",
     "get_ml_spans",
+    "get_swarm_spans",
 ]
