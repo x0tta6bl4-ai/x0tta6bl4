@@ -7,8 +7,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "x0tta6bl4"
 # Version is read from VERSION file at build time
-# For development, update VERSION file: echo "3.2.0" > VERSION
-version = "3.2.1"
+# For development, update VERSION file: echo "3.3.0" > VERSION
+version = "3.3.0"
 description = "PRODUCTION READY: Self-healing mesh-architecture with Zero-Trust, Post-Quantum Cryptography (FIPS 203/204), DAO-governance, CI/CD automation, 17 ML/AI components (94-98% accuracy), and complete DevOps infrastructure. Logical completion: Jan 20, 2026."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -272,6 +272,5 @@ exclude_lines = [
 
 
 directory = "htmlcov"
-
 
 

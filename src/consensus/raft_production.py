@@ -176,24 +176,26 @@ class RaftPersistentStorage:
     ) -> List[LogEntry]:
         """
         Truncate log entries that are included in the snapshot.
-
-        Args:
-            last_included_index: Last index included in snapshot
-            log: Current log
-
-        Returns:
-            Log with entries up to last_included_index removed
         """
         try:
-            if last_included_index >= len(log):
-                logger.warning(
-                    f"Snapshot index {last_included_index} exceeds log length {len(log)}"
-                )
+            # We keep the entry at last_included_index as a sentinel for prev_log_term calculations
+            # Raft log indexing starts at 1 (real entries), 0 is sentinel.
+            
+            # Find the actual index in the list
+            found_idx = -1
+            for i, entry in enumerate(log):
+                if entry.index == last_included_index:
+                    found_idx = i
+                    break
+            
+            if found_idx == -1:
+                logger.warning(f"Last included index {last_included_index} not found in log")
                 return log
 
-            truncated_log = log[last_included_index:]
+            # Keep entry at last_included_index and everything after it
+            truncated_log = log[found_idx:]
             logger.info(
-                f"Truncated log: removed entries 0-{last_included_index}, keeping {len(truncated_log)} entries"
+                f"Truncated log: removed entries before index {last_included_index}, keeping {len(truncated_log)} entries"
             )
             return truncated_log
         except Exception as e:
@@ -461,6 +463,14 @@ class ProductionRaftNode:
 
     def _restore_state(self):
         """Restore Raft node state from persistent storage"""
+        # Load snapshot metadata if it exists
+        metadata = self.storage.load_snapshot_metadata()
+        if metadata:
+            self.raft_node.last_included_index = metadata["last_included_index"]
+            self.raft_node.last_included_term = metadata["last_included_term"]
+            self.raft_node.last_applied = self.raft_node.last_included_index
+            self.raft_node.commit_index = self.raft_node.last_included_index
+
         # Try to restore from latest snapshot first
         snapshot_restored = self.restore_from_snapshot()
 
@@ -576,6 +586,10 @@ class ProductionRaftNode:
 
             # Save snapshot metadata
             self.storage.save_snapshot_metadata(last_included_index, last_included_term)
+            
+            # Update core RaftNode metadata
+            self.raft_node.last_included_index = last_included_index
+            self.raft_node.last_included_term = last_included_term
 
             # Truncate log
             if log_len and last_included_index < log_len:
