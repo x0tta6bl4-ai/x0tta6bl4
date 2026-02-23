@@ -56,6 +56,19 @@ def test_export_external_telemetry_handles_export_errors(monkeypatch):
     assert mod._export_external_telemetry("node-1", {"x": 1}) is False
 
 
+def test_export_external_telemetry_returns_true_on_success(monkeypatch):
+    captured = {}
+
+    def _ok(node_id, payload):
+        captured["node_id"] = node_id
+        captured["payload"] = payload
+
+    monkeypatch.setattr(mod, "_set_external_telemetry", _ok)
+
+    assert mod._export_external_telemetry("node-1", {"x": 1}) is True
+    assert captured == {"node_id": "node-1", "payload": {"x": 1}}
+
+
 @pytest.mark.asyncio
 async def test_resolve_mesh_for_user_requires_acl_when_owner_differs(monkeypatch):
     instance = SimpleNamespace(owner_id="owner-1")
@@ -75,6 +88,48 @@ async def test_resolve_mesh_for_user_requires_acl_when_owner_differs(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_resolve_mesh_for_user_skips_acl_for_owner(monkeypatch):
+    instance = SimpleNamespace(owner_id="owner-1")
+    calls = {"require": 0}
+
+    monkeypatch.setattr(mod, "get_mesh", lambda _mesh_id: instance)
+
+    async def _require(_mesh_id, _user):
+        calls["require"] += 1
+
+    monkeypatch.setattr(mod, "require_mesh_access", _require)
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    resolved = await mod._resolve_mesh_for_user("mesh-1", user)
+    assert resolved is instance
+    assert calls["require"] == 0
+
+
+@pytest.mark.asyncio
+async def test_resolve_mesh_for_user_retries_lookup_after_acl_check(monkeypatch):
+    instance = SimpleNamespace(owner_id="owner-1")
+    calls = {"get": 0, "require": 0}
+
+    def _get_mesh(_mesh_id):
+        calls["get"] += 1
+        if calls["get"] == 1:
+            return None
+        return instance
+
+    async def _require(_mesh_id, _user):
+        calls["require"] += 1
+
+    monkeypatch.setattr(mod, "get_mesh", _get_mesh)
+    monkeypatch.setattr(mod, "require_mesh_access", _require)
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    resolved = await mod._resolve_mesh_for_user("mesh-1", user)
+    assert resolved is instance
+    assert calls["require"] == 1
+    assert calls["get"] == 2
+
+
+@pytest.mark.asyncio
 async def test_resolve_mesh_for_user_raises_404_when_not_found_after_acl_check(monkeypatch):
     monkeypatch.setattr(mod, "get_mesh", lambda _mesh_id: None)
 
@@ -87,6 +142,30 @@ async def test_resolve_mesh_for_user_raises_404_when_not_found_after_acl_check(m
     with pytest.raises(HTTPException) as exc:
         await mod._resolve_mesh_for_user("mesh-404", user)
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_register_node_requires_mesh_id():
+    request = NodeRegisterRequest(mesh_id=None, node_id="node-1")
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.register_node(request, user)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "mesh_id is required"
+
+
+@pytest.mark.asyncio
+async def test_register_node_requires_node_id():
+    request = NodeRegisterRequest(mesh_id="mesh-1", node_id=None)
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.register_node(request, user)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "node_id is required"
 
 
 @pytest.mark.asyncio
@@ -128,6 +207,35 @@ async def test_register_node_success_adds_pending(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_register_node_defaults_capability_to_device_class(monkeypatch):
+    captured = {}
+
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "is_node_revoked", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        mod,
+        "add_pending_node",
+        lambda mesh_id, node_id, data: captured.update(
+            {"mesh_id": mesh_id, "node_id": node_id, "data": data}
+        ),
+    )
+
+    request = NodeRegisterRequest(
+        mesh_id="mesh-1",
+        node_id="node-1",
+        device_class="gateway",
+    )
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    await mod.register_node(request, user)
+
+    assert captured["data"]["capabilities"] == ["gateway"]
+
+
+@pytest.mark.asyncio
 async def test_register_node_rejects_revoked(monkeypatch):
     async def _resolve(_mesh_id, _user):
         return SimpleNamespace(owner_id="owner-1")
@@ -166,6 +274,95 @@ async def test_node_heartbeat_updates_registry_and_export_status(monkeypatch):
     assert result["telemetry_exported"] is True
     assert captured["node_id"] == "node-1"
     assert captured["payload"]["active_connections"] == 4
+
+
+@pytest.mark.asyncio
+async def test_list_pending_nodes_returns_flat_list(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    pending = {
+        "node-1": {"requested_by": "user-1"},
+        "node-2": {"requested_by": "user-2"},
+    }
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_pending_nodes", lambda _mesh_id: pending)
+
+    user = UserContext(user_id="owner-1", plan="starter")
+    result = await mod.list_pending_nodes("mesh-1", user)
+
+    assert len(result) == 2
+    assert {"node_id": "node-1", "mesh_id": "mesh-1", "requested_by": "user-1"} in result
+    assert {"node_id": "node-2", "mesh_id": "mesh-1", "requested_by": "user-2"} in result
+
+
+@pytest.mark.asyncio
+async def test_approve_node_maps_value_error_to_http_400(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    class _Provisioner:
+        async def approve_node(self, **_kwargs):
+            raise ValueError("bad approval request")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner())
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.approve_node("mesh-1", "node-1", user)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "bad approval request"
+
+
+@pytest.mark.asyncio
+async def test_revoke_node_maps_value_error_to_http_400(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    class _Provisioner:
+        async def revoke_node(self, **_kwargs):
+            raise ValueError("bad revoke request")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner())
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.revoke_node("mesh-1", "node-1", user, reason="manual")
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "bad revoke request"
+
+
+@pytest.mark.asyncio
+async def test_get_telemetry_raises_404_when_missing(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_node_telemetry", lambda _node_id: {})
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    with pytest.raises(HTTPException) as exc:
+        await mod.get_telemetry("mesh-1", "node-1", user)
+
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_telemetry_returns_payload(monkeypatch):
+    async def _resolve(_mesh_id, _user):
+        return SimpleNamespace(owner_id="owner-1")
+
+    telemetry = {"cpu_percent": 12.3}
+    monkeypatch.setattr(mod, "_resolve_mesh_for_user", _resolve)
+    monkeypatch.setattr(mod, "get_node_telemetry", lambda _node_id: telemetry)
+    user = UserContext(user_id="owner-1", plan="starter")
+
+    result = await mod.get_telemetry("mesh-1", "node-1", user)
+    assert result == telemetry
 
 
 @pytest.mark.asyncio
