@@ -5,12 +5,21 @@ SQLAlchemy ORM setup and database models.
 """
 
 import os
+import logging
 from datetime import datetime
+from pathlib import Path
+from typing import List
 
+from dotenv import load_dotenv
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer, String,
-                        Text, create_engine)
+                        Text, create_engine, inspect as sqlalchemy_inspect)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+
+logger = logging.getLogger(__name__)
+
+# Ensure DATABASE_URL from local .env is available before engine setup.
+load_dotenv(override=False)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./x0tta6bl4.db")
@@ -314,6 +323,79 @@ class AuditLog(Base):
     status_code = Column(Integer, nullable=True)
     ip_address = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+def get_required_schema_gaps() -> List[str]:
+    """
+    Return a list of required schema gaps that must be fixed before startup.
+    """
+    required_columns = {
+        "marketplace_listings": {"renter_id", "mesh_id"},
+        "mesh_nodes": {"last_seen"},
+    }
+
+    inspector = sqlalchemy_inspect(engine)
+    table_names = set(inspector.get_table_names())
+    missing: List[str] = []
+
+    for table, columns in required_columns.items():
+        if table not in table_names:
+            missing.append(f"missing table '{table}'")
+            continue
+        existing = {col["name"] for col in inspector.get_columns(table)}
+        for col in sorted(columns):
+            if col not in existing:
+                missing.append(f"missing column '{table}.{col}'")
+
+    return missing
+
+
+def run_alembic_upgrade(target: str = "head") -> None:
+    """
+    Run Alembic migrations for the configured DATABASE_URL.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    repo_root = Path(__file__).resolve().parents[2]
+    alembic_ini = repo_root / "alembic.ini"
+    alembic_dir = repo_root / "alembic"
+
+    if not alembic_ini.exists():
+        raise RuntimeError(f"Alembic config not found: {alembic_ini}")
+    if not alembic_dir.exists():
+        raise RuntimeError(f"Alembic script directory not found: {alembic_dir}")
+
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("script_location", str(alembic_dir))
+    cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+    command.upgrade(cfg, target)
+
+
+def ensure_schema_compatible(auto_migrate: bool = False) -> None:
+    """
+    Fail fast on known schema drift. Optionally try auto-migration first.
+    """
+    missing = get_required_schema_gaps()
+    if not missing:
+        return
+
+    if auto_migrate:
+        logger.warning(
+            "Database schema drift detected (%s). Running alembic upgrade head.",
+            "; ".join(missing),
+        )
+        run_alembic_upgrade("head")
+        missing = get_required_schema_gaps()
+        if not missing:
+            logger.info("Database schema upgraded and validated successfully")
+            return
+
+    raise RuntimeError(
+        "Database schema is incompatible: "
+        + "; ".join(missing)
+        + ". Run `alembic upgrade head`."
+    )
 
 
 # Create all tables

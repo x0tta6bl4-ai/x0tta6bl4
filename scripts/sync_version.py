@@ -1,122 +1,172 @@
 #!/usr/bin/env python3
 """
-Version synchronization script for x0tta6bl4
+Version synchronization script for x0tta6bl4.
 
-Reads version from VERSION file and updates:
-- pyproject.toml
-- Dockerfile LABEL
-- Any other files that need version
+Canonical source by default: src/version.py::__version__
+
+Sync targets:
+- src/version.py
+- VERSION
+- pyproject.toml [project.version]
+- ROADMAP.md (**Version:**)
+- Dockerfile LABEL version (if present)
 
 Usage:
     python scripts/sync_version.py
-    python scripts/sync_version.py --version 3.2.1
+    python scripts/sync_version.py --version 3.3.1
+    python scripts/sync_version.py --source version-file
 """
+
+from __future__ import annotations
 
 import argparse
 import re
 from pathlib import Path
 
 
-def read_version(version_file: Path) -> str:
-    """Read version from VERSION file."""
-    if not version_file.exists():
-        raise FileNotFoundError(f"VERSION file not found: {version_file}")
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.\-]+)?$")
 
-    version = version_file.read_text().strip()
-    if not re.match(r"^\d+\.\d+\.\d+", version):
-        raise ValueError(f"Invalid version format: {version}")
 
+def _validate_version(version: str) -> str:
+    version = version.strip()
+    if not SEMVER_RE.match(version):
+        raise ValueError(f"Invalid semver: {version!r}")
     return version
 
 
-def update_pyproject_toml(pyproject_path: Path, version: str) -> bool:
-    """Update version in pyproject.toml."""
-    if not pyproject_path.exists():
+def _read_src_version(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"Source file not found: {path}")
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r'^__version__\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    if not match:
+        raise ValueError(f"Could not parse __version__ from {path}")
+    return _validate_version(match.group(1))
+
+
+def _read_version_file(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"VERSION file not found: {path}")
+    return _validate_version(path.read_text(encoding="utf-8"))
+
+
+def _replace_regex(path: Path, pattern: str, replacement: str, dry_run: bool) -> bool:
+    if not path.exists():
         return False
-
-    content = pyproject_path.read_text()
-
-    # Update version in [project] section
-    pattern = r'(version\s*=\s*")[^"]+(")'
-    replacement = rf"\g<1>{version}\g<2>"
-
-    new_content = re.sub(pattern, replacement, content)
-
-    if new_content != content:
-        pyproject_path.write_text(new_content)
-        return True
-    return False
-
-
-def update_dockerfile(dockerfile_path: Path, version: str) -> bool:
-    """Update version in Dockerfile LABEL."""
-    if not dockerfile_path.exists():
+    old = path.read_text(encoding="utf-8")
+    new = re.sub(pattern, replacement, old, flags=re.MULTILINE)
+    if new == old:
         return False
-
-    content = dockerfile_path.read_text()
-
-    # Update LABEL version
-    pattern = r'(LABEL\s+version=")[^"]+(")'
-    replacement = rf"\g<1>{version}\g<2>"
-
-    new_content = re.sub(pattern, replacement, content)
-
-    if new_content != content:
-        dockerfile_path.write_text(new_content)
-        return True
-    return False
+    if not dry_run:
+        path.write_text(new, encoding="utf-8")
+    return True
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Sync version across project files")
+def _set_exact_file(path: Path, content: str, dry_run: bool) -> bool:
+    old = path.read_text(encoding="utf-8") if path.exists() else ""
+    if old == content:
+        return False
+    if not dry_run:
+        path.write_text(content, encoding="utf-8")
+    return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Sync version across contract files")
     parser.add_argument(
-        "--version", type=str, help="Version to set (overrides VERSION file)"
+        "--version",
+        type=str,
+        help="Version to set explicitly (overrides source file)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be updated"
+        "--source",
+        choices=("src", "version-file"),
+        default="src",
+        help="Source of truth when --version is not provided (default: src)",
     )
-
+    parser.add_argument("--dry-run", action="store_true", help="Do not write files")
     args = parser.parse_args()
 
-    project_root = Path(__file__).parent.parent
-    version_file = project_root / "VERSION"
+    root = Path(__file__).resolve().parents[1]
+    src_version_file = root / "src" / "version.py"
+    version_file = root / "VERSION"
+    pyproject_file = root / "pyproject.toml"
+    roadmap_file = root / "ROADMAP.md"
+    dockerfile = root / "Dockerfile"
 
     if args.version:
-        version = args.version
-        if args.dry_run:
-            print(f"Would write version '{version}' to {version_file}")
-        else:
-            version_file.write_text(f"{version}\n")
-            print(f"✅ Updated VERSION file: {version}")
+        version = _validate_version(args.version)
+        print(f"Using explicit version: {version}")
+    elif args.source == "version-file":
+        version = _read_version_file(version_file)
+        print(f"Using VERSION as source: {version}")
     else:
-        version = read_version(version_file)
-        print(f"📖 Reading version from {version_file}: {version}")
+        version = _read_src_version(src_version_file)
+        print(f"Using src/version.py as source: {version}")
 
-    updated_files = []
+    updated: list[str] = []
 
-    # Update pyproject.toml
-    pyproject_path = project_root / "pyproject.toml"
-    if update_pyproject_toml(pyproject_path, version):
-        updated_files.append("pyproject.toml")
-        if not args.dry_run:
-            print(f"✅ Updated {pyproject_path}")
+    if _replace_regex(
+        src_version_file,
+        r'^__version__\s*=\s*"[^"]+"',
+        f'__version__ = "{version}"',
+        args.dry_run,
+    ):
+        updated.append("src/version.py")
 
-    # Update Dockerfile
-    dockerfile_path = project_root / "Dockerfile"
-    if update_dockerfile(dockerfile_path, version):
-        updated_files.append("Dockerfile")
-        if not args.dry_run:
-            print(f"✅ Updated {dockerfile_path}")
+    if _set_exact_file(version_file, f"{version}\n", args.dry_run):
+        updated.append("VERSION")
+
+    if _replace_regex(
+        pyproject_file,
+        r'^(version\s*=\s*")[^"]+(")$',
+        rf'\g<1>{version}\g<2>',
+        args.dry_run,
+    ):
+        updated.append("pyproject.toml (project.version)")
+
+    if _replace_regex(
+        pyproject_file,
+        r'^(# For development, update VERSION file: echo ")[^"]+(" > VERSION)$',
+        rf'\g<1>{version}\g<2>',
+        args.dry_run,
+    ):
+        updated.append("pyproject.toml (version comment)")
+
+    if _replace_regex(
+        roadmap_file,
+        r"(\*\*Version:\*\*\s*)[^\n]+",
+        rf"\g<1>{version}",
+        args.dry_run,
+    ):
+        updated.append("ROADMAP.md")
+
+    if _replace_regex(
+        dockerfile,
+        r'(LABEL\s+version=")[^"]+(")',
+        rf"\g<1>{version}\g<2>",
+        args.dry_run,
+    ):
+        updated.append("Dockerfile")
 
     if args.dry_run:
-        print(
-            f"\n📋 Would update: {', '.join(updated_files) if updated_files else 'nothing'}"
-        )
-    elif updated_files:
-        print(f"\n✅ Version synchronized across {len(updated_files)} file(s)")
+        if updated:
+            print("Would update:")
+            for item in updated:
+                print(f" - {item}")
+        else:
+            print("No updates needed.")
+        return 0
+
+    if updated:
+        print("Updated:")
+        for item in updated:
+            print(f" - {item}")
     else:
-        print("\n✅ All files already in sync")
+        print("All version targets already in sync.")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

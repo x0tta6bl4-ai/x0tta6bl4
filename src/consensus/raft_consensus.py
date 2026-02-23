@@ -86,6 +86,10 @@ class RaftNode:
         self.voted_for: Optional[str] = None
         # Log index starts at 0 with a sentinel entry
         self.log: List[LogEntry] = [LogEntry(term=0, index=0, command=None)]
+        
+        # Snapshot metadata (persistent)
+        self.last_included_index: int = 0
+        self.last_included_term: int = 0
 
         # Volatile
         self.state: RaftState = RaftState.FOLLOWER
@@ -150,12 +154,22 @@ class RaftNode:
     # ------------------------------------------------------------------
     # Elections
     # ------------------------------------------------------------------
+    def _get_last_log_index(self) -> int:
+        if self.log:
+            return self.log[-1].index
+        return self.last_included_index
+
+    def _get_last_log_term(self) -> int:
+        if self.log:
+            return self.log[-1].term
+        return self.last_included_term
+
     async def start_election_async(self) -> bool:
         """Async election using real network RPC."""
         self._become_candidate()
         votes = 1  # self vote
-        last_log_index = len(self.log) - 1
-        last_log_term = self.log[last_log_index].term
+        last_log_index = self._get_last_log_index()
+        last_log_term = self._get_last_log_term()
         for peer in self.peers:
             granted = await self._request_vote_rpc_async(
                 peer, self.current_term, last_log_index, last_log_term
@@ -171,8 +185,8 @@ class RaftNode:
         """Sync election using simulation (for backward compatibility)."""
         self._become_candidate()
         votes = 1  # self vote
-        last_log_index = len(self.log) - 1
-        last_log_term = self.log[last_log_index].term
+        last_log_index = self._get_last_log_index()
+        last_log_term = self._get_last_log_term()
         for peer in self.peers:
             if self._request_vote_rpc_sim(
                 peer, self.current_term, last_log_index, last_log_term
@@ -239,7 +253,7 @@ class RaftNode:
         if self.state != RaftState.LEADER:
             logger.warning(f"[{self.node_id}] Reject append: not leader")
             return False
-        entry = LogEntry(term=self.current_term, index=len(self.log), command=command)
+        entry = LogEntry(term=self.current_term, index=self._get_last_log_index() + 1, command=command)
         self.log.append(entry)
         logger.info(
             f"[{self.node_id}] Appended log index={entry.index} term={entry.term}"
@@ -252,7 +266,7 @@ class RaftNode:
         if self.state != RaftState.LEADER:
             logger.warning(f"[{self.node_id}] Reject append: not leader")
             return False
-        entry = LogEntry(term=self.current_term, index=len(self.log), command=command)
+        entry = LogEntry(term=self.current_term, index=self._get_last_log_index() + 1, command=command)
         self.log.append(entry)
         logger.info(
             f"[{self.node_id}] Appended log index={entry.index} term={entry.term}"
@@ -275,8 +289,20 @@ class RaftNode:
     ) -> bool:
         """Send AppendEntries RPC — uses real network if available."""
         prev_index = self.next_index[peer] - 1
-        prev_term = self.log[prev_index].term if prev_index < len(self.log) else 0
-        entries = [] if heartbeat else self.log[self.next_index[peer] :]
+        
+        # Correctly calculate prev_term from log or snapshot metadata
+        if prev_index == self.last_included_index:
+            prev_term = self.last_included_term
+        elif prev_index > self.last_included_index:
+            log_idx = prev_index - self.last_included_index
+            prev_term = self.log[log_idx].term if log_idx < len(self.log) else 0
+        else:
+            # prev_index is even before snapshot (should trigger InstallSnapshot in real Raft)
+            prev_term = 0
+
+        # Calculate entries to send
+        log_start_idx = self.next_index[peer] - self.last_included_index
+        entries = [] if heartbeat else self.log[max(0, log_start_idx) :]
 
         if self.network_client and peer in self.peer_addresses:
             try:
@@ -324,8 +350,18 @@ class RaftNode:
     def _append_entries_rpc(self, peer: str, heartbeat: bool = False) -> bool:
         """Sync simulation AppendEntries (backward compat)."""
         prev_index = self.next_index[peer] - 1
-        prev_term = self.log[prev_index].term if prev_index < len(self.log) else 0
-        entries = [] if heartbeat else self.log[self.next_index[peer] :]
+        
+        # Correctly calculate prev_term
+        if prev_index == self.last_included_index:
+            prev_term = self.last_included_term
+        elif prev_index > self.last_included_index:
+            log_idx = prev_index - self.last_included_index
+            prev_term = self.log[log_idx].term if log_idx < len(self.log) else 0
+        else:
+            prev_term = 0
+
+        log_start_idx = self.next_index[peer] - self.last_included_index
+        entries = [] if heartbeat else self.log[max(0, log_start_idx) :]
         success = self._append_entries_rpc_sim(
             peer, heartbeat, prev_index, prev_term, entries
         )
@@ -354,12 +390,23 @@ class RaftNode:
         if self.state != RaftState.LEADER:
             return
         # Find highest N > commit_index such that a majority have match_index >= N and log[N].term == current_term
-        for N in range(len(self.log) - 1, self.commit_index, -1):
+        last_log_index = self._get_last_log_index()
+        for N in range(last_log_index, self.commit_index, -1):
             count = 1  # leader itself
             for peer in self.peers:
                 if self.match_index[peer] >= N:
                     count += 1
-            if count > len(self.peers) // 2 and self.log[N].term == self.current_term:
+            
+            # Find term of Nth entry
+            n_term = 0
+            if N == self.last_included_index:
+                n_term = self.last_included_term
+            elif N > self.last_included_index:
+                log_idx = N - self.last_included_index
+                if log_idx < len(self.log):
+                    n_term = self.log[log_idx].term
+
+            if count > len(self.peers) // 2 and n_term == self.current_term:
                 old_commit = self.commit_index
                 self.commit_index = N
                 logger.debug(
@@ -373,8 +420,9 @@ class RaftNode:
     # ------------------------------------------------------------------
     def _apply_entries(self, from_index: int):
         for i in range(from_index + 1, self.commit_index + 1):
-            if i < len(self.log):
-                entry = self.log[i]
+            log_idx = i - self.last_included_index
+            if 0 <= log_idx < len(self.log):
+                entry = self.log[log_idx]
                 self.last_applied = i
                 for cb in self.apply_callbacks:
                     try:
@@ -402,16 +450,31 @@ class RaftNode:
         if term > self.current_term or self.state != RaftState.FOLLOWER:
             self._become_follower(term=term)
         self.last_activity = datetime.now()
+        
         # Consistency check
-        if prev_log_index >= len(self.log):
+        last_log_index = self._get_last_log_index()
+        if prev_log_index > last_log_index:
             return False
-        if prev_log_index > 0 and self.log[prev_log_index].term != prev_log_term:
+        
+        # Term check at prev_log_index
+        if prev_log_index == self.last_included_index:
+            if prev_log_term != self.last_included_term:
+                return False
+        elif prev_log_index > self.last_included_index:
+            log_idx = prev_log_index - self.last_included_index
+            if self.log[log_idx].term != prev_log_term:
+                return False
+        else:
+            # prev_log_index is behind our snapshot - old message or needs InstallSnapshot
             return False
+
         # Append any new entries (overwrite conflicting)
-        self.log = self.log[: prev_log_index + 1] + entries
+        target_log_idx = prev_log_index - self.last_included_index
+        self.log = self.log[: target_log_idx + 1] + entries
+        
         if leader_commit > self.commit_index:
             old_commit = self.commit_index
-            self.commit_index = min(leader_commit, len(self.log) - 1)
+            self.commit_index = min(leader_commit, self._get_last_log_index())
             self._apply_entries(old_commit)
         return True
 
@@ -426,8 +489,8 @@ class RaftNode:
         if self.voted_for is not None and self.voted_for != candidate_id:
             return False
         # Section 5.4.1: candidate's log must be at least as up-to-date
-        my_last_index = len(self.log) - 1
-        my_last_term = self.log[my_last_index].term
+        my_last_index = self._get_last_log_index()
+        my_last_term = self._get_last_log_term()
         if last_log_term < my_last_term:
             return False
         if last_log_term == my_last_term and last_log_index < my_last_index:
@@ -476,10 +539,11 @@ class RaftNode:
             "node_id": self.node_id,
             "state": self.state.value,
             "term": self.current_term,
-            "log_length": len(self.log),
+            "log_length": self._get_last_log_index() + 1,
             "commit_index": self.commit_index,
             "last_applied": self.last_applied,
             "voted_for": self.voted_for,
+            "last_included_index": self.last_included_index,
         }
 
 
