@@ -238,3 +238,67 @@ def test_update_usage_rolls_back_and_reraises_on_commit_error():
     assert db.committed is False
     assert db.rolled_back is True
     assert db.closed is True
+
+
+def test_update_usage_batching_flushes_on_threshold(monkeypatch):
+    app = FastAPI()
+    middleware = MeteringMiddleware(app=app)
+    middleware._batch_size = 2
+    middleware._flush_interval_seconds = 999.0
+    middleware._usage_buffer = {}
+
+    flushed = []
+
+    def _flush(_request, pending):
+        flushed.append(dict(pending))
+
+    monkeypatch.setattr(middleware, "_flush_usage_batch", _flush)
+    request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
+
+    middleware._update_usage(request, "k")
+    assert flushed == []
+    assert middleware._usage_buffer == {"k": 1}
+
+    middleware._update_usage(request, "k")
+    assert flushed == [{"k": 2}]
+    assert middleware._usage_buffer == {}
+
+
+def test_update_usage_batching_flushes_on_interval(monkeypatch):
+    app = FastAPI()
+    middleware = MeteringMiddleware(app=app)
+    middleware._batch_size = 100
+    middleware._flush_interval_seconds = 0.0
+    middleware._usage_buffer = {}
+
+    flushed = []
+
+    def _flush(_request, pending):
+        flushed.append(dict(pending))
+
+    monkeypatch.setattr(middleware, "_flush_usage_batch", _flush)
+    request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
+
+    middleware._update_usage(request, "k")
+    assert flushed == [{"k": 1}]
+    assert middleware._usage_buffer == {}
+
+
+def test_update_usage_batching_requeues_on_flush_error(monkeypatch):
+    app = FastAPI()
+    middleware = MeteringMiddleware(app=app)
+    middleware._batch_size = 2
+    middleware._flush_interval_seconds = 999.0
+    middleware._usage_buffer = {}
+
+    def _boom(_request, _pending):
+        raise RuntimeError("flush failed")
+
+    monkeypatch.setattr(middleware, "_flush_usage_batch", _boom)
+    request = _make_request(app, "/api/v1/maas/meshes", {"X-API-Key": "k"})
+
+    middleware._update_usage(request, "k")
+    with pytest.raises(RuntimeError, match="flush failed"):
+        middleware._update_usage(request, "k")
+
+    assert middleware._usage_buffer == {"k": 2}
