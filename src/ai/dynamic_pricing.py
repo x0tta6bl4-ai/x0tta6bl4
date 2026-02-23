@@ -14,7 +14,18 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from src.database import MeshNode, MeshInstance, MarketplaceListing, get_db
 from src.api.maas_telemetry import _get_telemetry
-from src.api.maas_governance import _gov_engine
+
+try:
+    from src.api.maas_governance import _gov_engine
+except Exception:  # pragma: no cover - compatibility fallback
+    class _FallbackGovEngine:
+        def __init__(self) -> None:
+            self.proposals = {}
+
+        def create_proposal(self, **_kwargs: Any) -> None:
+            logger.warning("Governance engine unavailable; proposal skipped")
+
+    _gov_engine = _FallbackGovEngine()
 
 logger = logging.getLogger(__name__)
 

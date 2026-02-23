@@ -3,7 +3,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from ..dao.ipfs_logger import DAOAuditLogger
 from ..mesh.network_manager import MeshNetworkManager
@@ -13,6 +13,21 @@ from .consciousness import ConsciousnessEngine, ConsciousnessMetrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+
+# Optional imports with graceful fallback
+try:
+    from src.monitoring.opentelemetry_tracing import get_mapek_spans
+except ImportError:
+    get_mapek_spans = None
+
+try:
+    from src.database import SessionLocal, MeshNode
+    DATABASE_AVAILABLE = True
+except ImportError:
+    SessionLocal = None
+    MeshNode = None
+    DATABASE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +36,7 @@ class MAPEKState:
     """State container for MAPE-K loop"""
 
     metrics: ConsciousnessMetrics
-    directives: Dict[str, any]
+    directives: Dict[str, Any]
     actions_taken: List[str]
     timestamp: float
 
@@ -86,25 +101,49 @@ class MAPEKLoop:
         logger.info("MAPE-K loop stopped")
 
     async def _execute_cycle(self):
-        """Execute one complete MAPE-K cycle"""
+        """Execute one complete MAPE-K cycle with tracing."""
         cycle_start = time.time()
+        mapek_spans = get_mapek_spans() if get_mapek_spans is not None else None
+        node_id = "local-node" # Fallback if mesh manager not ready
 
         # ===== MONITOR =====
-        raw_metrics = await self._monitor()
+        if mapek_spans:
+            with mapek_spans.monitor_phase(node_id):
+                raw_metrics = await self._monitor()
+        else:
+            raw_metrics = await self._monitor()
 
         # ===== ANALYZE =====
-        consciousness_metrics = await self._analyze(raw_metrics)
+        if mapek_spans:
+            with mapek_spans.analyze_phase(node_id):
+                consciousness_metrics = await self._analyze(raw_metrics)
+        else:
+            consciousness_metrics = await self._analyze(raw_metrics)
 
         # ===== PLAN =====
-        directives = self._plan(consciousness_metrics)
+        if mapek_spans:
+            with mapek_spans.plan_phase(node_id):
+                directives = self._plan(consciousness_metrics)
+        else:
+            directives = self._plan(consciousness_metrics)
 
         # ===== EXECUTE =====
-        actions_taken = await self._execute(directives)
+        if mapek_spans:
+            with mapek_spans.execute_phase(node_id):
+                actions_taken = await self._execute(directives)
+        else:
+            actions_taken = await self._execute(directives)
 
         # ===== KNOWLEDGE =====
-        await self._knowledge(
-            consciousness_metrics, directives, actions_taken, raw_metrics
-        )
+        if mapek_spans:
+            with mapek_spans.knowledge_phase(node_id):
+                await self._knowledge(
+                    consciousness_metrics, directives, actions_taken, raw_metrics
+                )
+        else:
+            await self._knowledge(
+                consciousness_metrics, directives, actions_taken, raw_metrics
+            )
 
         cycle_duration = time.time() - cycle_start
         self.cycle_count += 1
@@ -130,9 +169,18 @@ class MAPEKLoop:
 
     async def _monitor(self) -> Dict[str, float]:
         """
-        MONITOR phase: Collect system metrics
+        MONITOR phase: Collect system metrics and sync with DAO
         """
         metrics = {}
+
+        # 0. Sync with DAO Governance
+        if DATABASE_AVAILABLE and SessionLocal is not None:
+            try:
+                from src.services.dao_enforcement import dao_enforcer
+                with SessionLocal() as db:
+                    dao_enforcer.sync_config_with_dao(db)
+            except Exception as e:
+                logger.debug(f"DAO sync failed: {e}")
 
         # System resources
         try:
@@ -155,15 +203,72 @@ class MAPEKLoop:
         zt_stats = self.zero_trust.get_validation_stats()
         metrics["zero_trust_success_rate"] = zt_stats.get("success_rate", 0.95)
 
+        # DB Metrics: Offline nodes & Premium (rented) nodes
+        if DATABASE_AVAILABLE and SessionLocal is not None:
+            try:
+                with SessionLocal() as db:
+                    metrics["offline_nodes"] = db.query(MeshNode).filter(
+                        MeshNode.status == "offline"
+                    ).count()
+                    
+                    # Trust Engine Integration
+                    from src.security.trust_engine import TrustEvaluator
+                    trust_eval = TrustEvaluator(db)
+                    
+                    # Check all online nodes for trust issues
+                    online_nodes = db.query(MeshNode).filter(MeshNode.status != "offline").all()
+                    low_trust_count = 0
+                    for node in online_nodes:
+                        score = trust_eval.calculate_node_trust(node.id)
+                        if score < 0.6:
+                            low_trust_count += 1
+                            logger.warning(f"🛡️ Node {node.id} has LOW TRUST ({score:.2f}). Planning re-attestation.")
+                    
+                    metrics["low_trust_nodes"] = float(low_trust_count)
+                    
+                    # Premium nodes count (rented in Marketplace)
+                    from src.database import MarketplaceListing
+                    premium_nodes = db.query(MarketplaceListing).filter(
+                        MarketplaceListing.status == "rented"
+                    ).all()
+                    metrics["premium_nodes_online"] = sum(1 for n in premium_nodes if n.status == "rented")
+                    
+                    # If any premium node is offline, set high priority alert
+                    for p_node in premium_nodes:
+                        node_record = db.query(MeshNode).filter(MeshNode.id == p_node.node_id).first()
+                        if node_record and node_record.status == "offline":
+                            metrics["premium_node_failure"] = 1.0
+                            logger.critical(f"🚨 Premium node {p_node.node_id} is OFFLINE! SLA breach imminent.")
+            except Exception as e:
+                logger.warning(f"Failed to query premium nodes: {e}")
+                metrics["offline_nodes"] = 0
+        else:
+            metrics["offline_nodes"] = 0
+
         return metrics
 
     async def _analyze(self, raw_metrics: Dict[str, float]) -> ConsciousnessMetrics:
         """
-        ANALYZE phase: Evaluate consciousness state using Swarm Intelligence
+        ANALYZE phase: Evaluate consciousness state using Swarm Intelligence & ML
         """
         swarm_risk_penalty = 0.0
+        ml_anomaly_risk = 0.0
 
-        # If PARL Controller is attached, dispatch parallel analysis tasks
+        # 1. Neural Anomaly Detection
+        try:
+            from src.ml.anomaly import AnomalyDetectionSystem
+            import numpy as np
+            detector_system = AnomalyDetectionSystem()
+            # Vectorize metrics
+            metric_vector = np.array([v for v in raw_metrics.values() if isinstance(v, (int, float))])
+            anomaly, confidence = await detector_system.check_component("mesh_core", metric_vector)
+            if anomaly:
+                ml_anomaly_risk = confidence
+                logger.warning(f"🧠 ML: Anomaly detected with confidence {confidence:.2f}")
+        except Exception as e:
+            logger.debug(f"ML analysis failed: {e}")
+
+        # 2. Swarm Intelligence Analysis
         if self.parl_controller:
             try:
                 # Define analysis tasks
@@ -213,11 +318,24 @@ class MAPEKLoop:
             raw_metrics, swarm_risk_penalty=swarm_risk_penalty
         )
 
-    def _plan(self, metrics: ConsciousnessMetrics) -> Dict[str, any]:
+    def _plan(self, metrics: ConsciousnessMetrics) -> Dict[str, Any]:
         """
         PLAN phase: Generate operational directives
         """
         directives = self.consciousness.get_operational_directive(metrics)
+
+        raw = getattr(metrics, "raw_metrics", {}) or {}
+
+        # SLA Policy: If premium nodes are failing, override to AGGRESSIVE HEALING
+        if raw.get("premium_node_failure", 0.0) > 0:
+            directives["enable_aggressive_healing"] = True
+            directives["message"] = "🚨 Emergency: Premium node failure detected. Overriding to AGGRESSIVE HEALING."
+            logger.info("⚖️ Plan: SLA Policy override triggered (Aggressive Healing enabled)")
+
+        # Trust Policy: If low trust nodes detected, trigger re-attestation
+        if raw.get("low_trust_nodes", 0.0) > 0:
+            directives["audit_required"] = True
+            logger.info("🛡️ Plan: Low trust nodes detected. Scheduling mandatory re-attestation.")
 
         # Add trend analysis for proactive planning
         trend = self.consciousness.get_trend_analysis()
@@ -230,7 +348,7 @@ class MAPEKLoop:
 
         return directives
 
-    async def _execute(self, directives: Dict[str, any]) -> List[str]:
+    async def _execute(self, directives: Dict[str, Any]) -> List[str]:
         """
         EXECUTE phase: Take action based on directives
         """
@@ -240,6 +358,17 @@ class MAPEKLoop:
         route_pref = directives.get("route_preference", "balanced")
         if await self.mesh.set_route_preference(route_pref):
             actions.append(f"route_preference={route_pref}")
+
+        # Mesh Optimization Enforcement
+        try:
+            from src.mesh.yggdrasil_optimizer import get_optimizer
+            from src.mesh.action_enforcer import mesh_action_enforcer
+            report = get_optimizer().optimize_routes()
+            if report.get("recommendations"):
+                mesh_action_enforcer.enforce_recommendations(report["recommendations"])
+                actions.append(f"mesh_optimization={len(report['recommendations'])}_actions")
+        except Exception as e:
+            logger.debug(f"Mesh optimization enforcement failed: {e}")
 
         # Aggressive healing if needed
         if directives.get("enable_aggressive_healing", False):
@@ -274,7 +403,7 @@ class MAPEKLoop:
     async def _knowledge(
         self,
         metrics: ConsciousnessMetrics,
-        directives: Dict[str, any],
+        directives: Dict[str, Any],
         actions: List[str],
         raw_metrics: Dict[str, float] = None,
     ):  # Added raw_metrics

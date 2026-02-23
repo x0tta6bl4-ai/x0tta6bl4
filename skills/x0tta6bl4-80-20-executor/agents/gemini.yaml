@@ -1,0 +1,39 @@
+interface:
+  display_name: "x0tta6bl4 Gemini Executor"
+  short_description: "Runs x0tta6bl4 80/20 cycle via Gemini CLI."
+  default_prompt: "Run the 80/20 automation cycle for x0tta6bl4 focusing on MaaS regression and security scan."
+  model: "gemini-2.5-pro"
+  provider: "google"
+
+cycle:
+  mode: "focused"
+  parallel: true
+  timeout_seconds: 2100
+
+agents:
+  - agent_id: "gemini-architect"
+    role: "architect"
+    skill_path: "skills/x0tta6bl4-mesh-orchestrator/SKILL.md"
+    role_file: "ai/roles/architect.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/api/endpoints/ tests/unit/api/test_maas_telemetry.py tests/unit/api/test_maas_services_billing_unit.py tests/unit/core/ tests/unit/services/"
+    critical: true
+
+  - agent_id: "gemini-maas"
+    role: "maas-dev"
+    skill_path: "skills/maas-dev/SKILL.md"
+    role_file: "ai/roles/maas.md"
+    command: "python3 -m pytest --no-cov -q tests/unit/api/endpoints/test_batman_unit.py tests/unit/api/endpoints/test_nodes_unit.py tests/unit/api/endpoints/test_combined_unit.py"
+    critical: true
+
+  - agent_id: "gemini-security"
+    role: "security"
+    skill_path: "skills/security-audit/SKILL.md"
+    command: "python3 skills/security-audit/scripts/check_crypto.py"
+    critical: false
+
+  - agent_id: "gemini-quality"
+    role: "quality"
+    skill_path: "skills/test-coverage-boost/SKILL.md"
+    role_file: "ai/roles/ops.md"
+    command: "python3 skills/test-coverage-boost/scripts/coverage_gaps.py"
+    critical: false

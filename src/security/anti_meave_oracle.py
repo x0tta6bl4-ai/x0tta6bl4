@@ -383,7 +383,8 @@ class AntiMeaveOracle:
             List of threat alerts
         """
         threats = []
-        
+        agents_to_suspend: List[str] = []
+
         async with self._lock:
             for agent_id, profile in self._agents.items():
                 threat_score = self._calculate_threat_score(profile)
@@ -400,8 +401,12 @@ class AntiMeaveOracle:
                     
                     # Auto-suspend if enabled
                     if self.auto_suspend:
-                        await self.suspend_agent(agent_id)
-        
+                        agents_to_suspend.append(agent_id)
+
+        # Suspend outside the lock to avoid re-entrant lock deadlock.
+        for agent_id in agents_to_suspend:
+            await self.suspend_agent(agent_id)
+
         return threats
     
     def _calculate_threat_score(self, profile: AgentProfile) -> float:
@@ -422,7 +427,7 @@ class AntiMeaveOracle:
             score += 0.3
         
         # Factor 2: Nodes affected
-        node_ratio = len(profile.nodes_affected) / self.network_size
+        node_ratio = len(profile.nodes_affected) / max(self.network_size, 1)
         if node_ratio > 0.1:  # Affecting > 10% of network
             score += 0.4
         elif node_ratio > 0.05:  # Affecting > 5%

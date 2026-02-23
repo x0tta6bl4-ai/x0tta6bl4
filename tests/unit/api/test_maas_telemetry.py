@@ -188,6 +188,9 @@ class TestTelemetryHelpers:
             mod._set_telemetry(node_id, data)
             result = mod._get_telemetry(node_id)
             assert result == data
+            history = mod._get_telemetry_history(node_id, limit=10)
+            assert len(history) == 1
+            assert history[0] == data
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
@@ -222,6 +225,7 @@ class TestTelemetryHelpers:
             call_args = mock_redis.setex.call_args[0]
             assert call_args[0] == "maas:telemetry:test-node"
             assert call_args[1] == 300  # 5-minute TTL
+            mock_redis.pipeline.assert_called_once()
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
@@ -260,3 +264,192 @@ class TestTelemetryHelpers:
         finally:
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
+
+    def test_get_history_redis_parses_json_entries(self):
+        import src.api.maas_telemetry as mod
+        from unittest.mock import MagicMock
+        mock_redis = MagicMock()
+        mock_redis.lrange.return_value = [
+            json.dumps({"cpu": 0.7, "last_seen": "2026-02-21T10:00:00"}),
+            "invalid-json",
+            json.dumps({"cpu": 0.5, "last_seen": "2026-02-21T09:55:00"}),
+        ]
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        mod.REDIS_AVAILABLE = True
+        mod.r_client = mock_redis
+        try:
+            result = mod._get_telemetry_history("history-node", limit=10)
+            assert len(result) == 2
+            assert result[0]["cpu"] == 0.7
+            assert result[1]["cpu"] == 0.5
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+
+    def test_get_history_memory_fallback_honors_limit(self):
+        import src.api.maas_telemetry as mod
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_local_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+        mod.REDIS_AVAILABLE = False
+        mod.r_client = {}
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=200)
+        try:
+            node_id = "history-memory-node"
+            mod._set_telemetry(node_id, {"cpu": 0.1})
+            mod._set_telemetry(node_id, {"cpu": 0.2})
+            mod._set_telemetry(node_id, {"cpu": 0.3})
+            result = mod._get_telemetry_history(node_id, limit=2)
+            assert len(result) == 2
+            assert result[0]["cpu"] == 0.3
+            assert result[1]["cpu"] == 0.2
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_local_fallback
+
+    def test_redis_failure_falls_back_to_local_cache(self):
+
+        import src.api.maas_telemetry as mod
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        mock_redis.setex.side_effect = RuntimeError("redis unavailable")
+        mock_redis.get.side_effect = RuntimeError("redis unavailable")
+        mock_redis.lrange.side_effect = RuntimeError("redis unavailable")
+
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_local_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+
+        mod.REDIS_AVAILABLE = True
+        mod.r_client = mock_redis
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=200)
+        try:
+            node_id = "redis-fallback-node"
+            payload = {"cpu": 0.4, "latency_ms": 11.0}
+            mod._set_telemetry(node_id, payload)
+
+            latest = mod._get_telemetry(node_id)
+            history = mod._get_telemetry_history(node_id, limit=5)
+            assert latest == payload
+            assert len(history) == 1
+            assert history[0] == payload
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_local_fallback
+
+
+class TestLRUCache:
+    """Unit tests for the LRUCache class used as telemetry fallback."""
+
+    def _make(self, max_size=5):
+        import src.api.maas_telemetry as mod
+        return mod.LRUCache(max_size=max_size)
+
+    def test_set_and_get_basic(self):
+        c = self._make()
+        c.set("k1", {"v": 1})
+        assert c.get("k1") == {"v": 1}
+
+    def test_get_missing_returns_none(self):
+        c = self._make()
+        assert c.get("nonexistent") is None
+
+    def test_update_existing_key(self):
+        c = self._make()
+        c.set("k", "first")
+        c.set("k", "second")
+        assert c.get("k") == "second"
+        assert len(c) == 1
+
+    def test_lru_eviction_removes_oldest(self):
+        c = self._make(max_size=3)
+        c.set("a", 1)
+        c.set("b", 2)
+        c.set("c", 3)
+        c.get("a")  # access "a" — now b is LRU
+        c.set("d", 4)  # evicts "b"
+        assert c.get("b") is None
+        assert c.get("a") == 1
+        assert c.get("c") == 3
+        assert c.get("d") == 4
+
+    def test_delete_existing_key(self):
+        c = self._make()
+        c.set("x", 99)
+        assert c.delete("x") is True
+        assert c.get("x") is None
+
+    def test_delete_missing_key_returns_false(self):
+        c = self._make()
+        assert c.delete("no_such_key") is False
+
+    def test_keys_returns_all_keys(self):
+        c = self._make()
+        c.set("k1", 1)
+        c.set("k2", 2)
+        keys = c.keys()
+        assert set(keys) == {"k1", "k2"}
+
+    def test_len_empty(self):
+        c = self._make()
+        assert len(c) == 0
+
+    def test_len_after_sets(self):
+        c = self._make()
+        c.set("a", 1)
+        c.set("b", 2)
+        assert len(c) == 2
+
+    def test_get_stats_initial(self):
+        c = self._make()
+        stats = c.get_stats()
+        assert stats["size"] == 0
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
+        assert stats["hit_rate"] == 0.0
+        assert stats["evictions"] == 0
+
+    def test_get_stats_tracks_hits_misses_evictions(self):
+        c = self._make(max_size=2)
+        c.set("a", 1)
+        c.set("b", 2)
+        c.get("a")    # hit
+        c.get("z")    # miss
+        c.set("c", 3) # evicts "b"
+        stats = c.get_stats()
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
+        assert stats["evictions"] == 1
+        assert stats["hit_rate"] == pytest.approx(0.5)
+
+    def test_get_fallback_cache_stats_function(self):
+        import src.api.maas_telemetry as mod
+        stats = mod.get_fallback_cache_stats()
+        assert "size" in stats
+        assert "max_size" in stats
+        assert "hit_rate" in stats
+
+    def test_store_local_fallback_corrupted_history_reset(self):
+        """When history entry is not a list it is reset to a fresh list."""
+        import src.api.maas_telemetry as mod
+        original = mod._LOCAL_TELEMETRY_FALLBACK
+        cache = mod.LRUCache(max_size=200)
+        history_key = "maas:telemetry:corrupt-node:history"
+        cache.set(history_key, {"bad": "data"})  # non-list — corrupted
+        mod._LOCAL_TELEMETRY_FALLBACK = cache
+        try:
+            mod._store_local_fallback(
+                "maas:telemetry:corrupt-node",
+                history_key,
+                {"cpu": 0.9},
+            )
+            history = cache.get(history_key)
+            assert isinstance(history, list)
+            assert len(history) == 1
+            assert history[0]["cpu"] == 0.9
+        finally:
+            mod._LOCAL_TELEMETRY_FALLBACK = original

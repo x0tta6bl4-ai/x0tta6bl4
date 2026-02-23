@@ -22,6 +22,7 @@ from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
 from src.database import User, Session as UserSession, get_db
 from src.api.maas_security import oidc_validator, ApiKeyManager
 from src.services.maas_auth_service import MaaSAuthService
+from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
@@ -155,11 +156,10 @@ async def rotate_api_key(
 ):
     """Rotate API key for current authenticated user."""
     new_key, rotated_at = auth_service.rotate_api_key(db, current_user)
-    logger.info(
-        "AUDIT API_KEY_ROTATED user_id=%s ip=%s ts=%s",
-        current_user.id,
-        request.client.host if request.client else "unknown",
-        datetime.utcnow().isoformat(),
+    record_audit_log(
+        db, request, "API_KEY_ROTATED", 
+        user_id=current_user.id, 
+        status_code=200
     )
     return {"api_key": new_key, "created_at": rotated_at}
 
@@ -267,15 +267,12 @@ async def make_admin(
     prev_role = user.role
     user.role = "admin"
     db.commit()
-    logger.info(
-        "AUDIT ADMIN_PROMOTION target_email=%s target_id=%s prev_role=%s "
-        "promoted_by=%s ip=%s ts=%s",
-        email,
-        user.id,
-        prev_role,
-        _admin.id,
-        request.client.host if request.client else "unknown",
-        datetime.utcnow().isoformat(),
+    
+    record_audit_log(
+        db, request, "ADMIN_PROMOTION",
+        user_id=_admin.id,
+        payload={"target_email": email, "target_id": user.id, "prev_role": prev_role},
+        status_code=200
     )
     return {"message": f"User {email} is now an ADMIN"}
 
@@ -314,11 +311,11 @@ async def bootstrap_admin(
     user = auth_service.register(db, req)
     user.role = "admin"
     db.commit()
-    logger.info(
-        "AUDIT BOOTSTRAP_ADMIN_CREATED email=%s user_id=%s ip=%s ts=%s",
-        email,
-        user.id,
-        request.client.host if request.client else "unknown",
-        datetime.utcnow().isoformat(),
+    
+    record_audit_log(
+        db, request, "BOOTSTRAP_ADMIN_CREATED",
+        user_id=user.id,
+        payload={"email": email},
+        status_code=200
     )
     return {"message": f"Bootstrap admin {email} created", "api_key": user.api_key}

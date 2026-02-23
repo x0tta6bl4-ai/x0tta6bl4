@@ -1,0 +1,27 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: x0tta6bl4-default-strict
+  namespace: x0tta6bl4
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: x0tta6bl4-api-allow-maas
+  namespace: x0tta6bl4
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4-api
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/x0tta6bl4/sa/x0tta6bl4-api
+              - cluster.local/ns/x0tta6bl4/sa/x0tta6bl4-worker
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]

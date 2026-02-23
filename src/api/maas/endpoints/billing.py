@@ -12,9 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from ..auth import UserContext, get_current_user
 from ..billing_helpers import (
     generate_invoice,
-    get_idempotency_store,
     verify_webhook_with_timestamp,
-    with_idempotency,
 )
 from ..models import BillingWebhookRequest
 from ..services import BillingService, UsageMeteringService
@@ -44,6 +42,44 @@ def get_usage_service() -> UsageMeteringService:
         _usage_service = UsageMeteringService()
     return _usage_service
 
+
+@router.post(
+    "/pay",
+    summary="Create payment session",
+    description="Create a Stripe Checkout session or crypto payment intent.",
+)
+async def create_payment(
+    plan: str = Query(..., pattern="^(pro|enterprise)$"),
+    method: str = Query("stripe", pattern="^(stripe|crypto)$"),
+    user: UserContext = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Create a payment session.
+    
+    Args:
+        plan: Subscription plan (pro or enterprise)
+        method: Payment method - 'stripe' for card payments, 'crypto' for blockchain
+        user: Authenticated user context
+        
+    Returns:
+        Payment session details including URL for checkout
+    """
+    billing = get_billing_service()
+    
+    if method == "crypto":
+        # Create crypto payment intent
+        session = await billing.create_crypto_payment_session(user.user_id, plan)
+    else:
+        # Default: Create Stripe Checkout session
+        session = await billing.create_payment_session(user.user_id, plan)
+    
+    return {
+        "payment_url": session["payment_url"],
+        "session_id": session["session_id"],
+        "status": session["status"],
+        "method": method,
+        "plan": plan,
+    }
 
 @router.post(
     "/webhook",
@@ -90,17 +126,12 @@ async def billing_webhook(
 
     event_type = data.get("type", "unknown")
 
-    # Process with idempotency
-    async def process():
-        return await billing.process_webhook(
-            event_type=event_type,
-            event_data=data.get("data", {}),
-            event_id=x_event_id,
-        )
-
-    result = await with_idempotency(x_event_id, process)
-
-    return result
+    return await billing.process_webhook(
+        event_type=event_type,
+        event_data=data.get("data", {}),
+        event_id=x_event_id,
+        include_idempotency_metadata=True,
+    )
 
 
 @router.get(

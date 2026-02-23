@@ -66,6 +66,8 @@ class TestConstants:
     def test_billing_webhook_events(self):
         assert "plan.upgraded" in maas_constants.BILLING_WEBHOOK_EVENTS
         assert "subscription.deleted" in maas_constants.BILLING_WEBHOOK_EVENTS
+        assert "invoice.paid" in maas_constants.BILLING_WEBHOOK_EVENTS
+        assert "customer.subscription.updated" in maas_constants.BILLING_WEBHOOK_EVENTS
 
 
 class TestModels:

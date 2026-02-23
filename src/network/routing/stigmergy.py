@@ -98,25 +98,30 @@ class StigmergyRouter:
         # logger.debug(f"Pheromone update: {dest_id} via {next_hop} = {route.score:.2f}")
 
     def get_best_route(self, dest_id: str) -> Optional[str]:
+        """Get the next hop with the highest pheromone score."""
+        paths = self.get_redundant_paths(dest_id, limit=1)
+        return paths[0] if paths else None
+
+    def get_redundant_paths(self, dest_id: str, limit: int = 3) -> List[str]:
         """
-        Get the next hop with the highest pheromone score.
-        Returns: next_hop_peer_id or None
+        Returns top-N next hops for a destination.
+        Enables 'Make-Make-Never-Break' multi-path logic.
         """
         if dest_id not in self._pheromones:
-            return None # Unknown destination
+            return []
         
         routes = self._pheromones[dest_id]
         if not routes:
-            return None
+            return []
             
-        # Greedy selection (exploitation). 
-        # TODO v2: Add epsilon-greedy for exploration (try weak routes sometimes)
-        best_hop = max(routes.values(), key=lambda r: r.score)
+        # Sort by score descending and filter dead routes
+        sorted_routes = sorted(
+            [r for r in routes.values() if r.score >= PHEROMONE_MIN],
+            key=lambda r: r.score,
+            reverse=True
+        )
         
-        if best_hop.score < PHEROMONE_MIN:
-            return None # Path is dead (cold trail)
-            
-        return best_hop.peer_id
+        return [r.peer_id for r in sorted_routes[:limit]]
 
     async def _evaporation_loop(self):
         """
