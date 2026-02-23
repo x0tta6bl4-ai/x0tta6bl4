@@ -291,11 +291,11 @@ class TestHeartbeatAutoRelease:
         assert r.status_code == 200, r.text
         mesh_id = r.json()["mesh_id"]
 
-        # Insert node directly into DB (skip enrollment token flow)
+        # Insert an approved node directly into DB for heartbeat + escrow flows.
         db = TestingSessionLocal()
         node_id = f"nd-{uuid.uuid4().hex[:6]}"
         db_node = MeshNode(
-            id=node_id, mesh_id=mesh_id, device_class="edge", status="pending"
+            id=node_id, mesh_id=mesh_id, device_class="edge", status="approved"
         )
         db.add(db_node)
         db.commit()
@@ -365,17 +365,34 @@ class TestHeartbeatAutoRelease:
 # ─────────────────────────────────────────────
 
 class TestAccessCheck:
+    @staticmethod
+    def _ensure_operator(api_key: str):
+        db = TestingSessionLocal()
+        user = db.query(User).filter(User.api_key == api_key).first()
+        user.role = "operator"
+        db.commit()
+        db.close()
+
+    @staticmethod
+    def _headers(api_key: str) -> dict:
+        return {"X-API-Key": api_key}
+
     def _make_mesh_with_nodes(self, client, seller_token) -> tuple:
         """Returns (mesh_id, node_a_id, node_b_id)."""
-        r = client.post(
-            "/api/v1/maas/deploy",
-            json={"name": "acl-mesh", "nodes": 1, "billing_plan": "starter"},
-            headers={"X-API-Key": seller_token},
-        )
-        assert r.status_code == 200
-        mesh_id = r.json()["mesh_id"]
-
         db = TestingSessionLocal()
+        user = db.query(User).filter(User.api_key == seller_token).first()
+        assert user is not None
+
+        mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
+        db.add(MeshInstance(
+            id=mesh_id,
+            name="acl-mesh",
+            owner_id=user.id,
+            plan="starter",
+            status="active",
+            join_token=f"join-{uuid.uuid4().hex[:8]}",
+        ))
+
         na = f"na-{uuid.uuid4().hex[:6]}"
         nb = f"nb-{uuid.uuid4().hex[:6]}"
         db.add(MeshNode(id=na, mesh_id=mesh_id, device_class="edge",
@@ -388,10 +405,12 @@ class TestAccessCheck:
 
     def test_deny_by_default_no_policies(self, client, seller_token):
         mesh_id, na, nb = self._make_mesh_with_nodes(client, seller_token)
+        self._ensure_operator(seller_token)
 
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/check-access",
             json={"source_node_id": na, "target_node_id": nb},
+            headers=self._headers(seller_token),
         )
         assert r.status_code == 200
         assert r.json()["verdict"] == "deny"
@@ -399,6 +418,7 @@ class TestAccessCheck:
     def test_allow_when_policy_matches(self, client, seller_token):
         from src.database import ACLPolicy
         mesh_id, na, nb = self._make_mesh_with_nodes(client, seller_token)
+        self._ensure_operator(seller_token)
 
         # Insert allow policy directly into DB (clean, no auth dependency)
         pol_id = f"pol-{uuid.uuid4().hex[:6]}"
@@ -413,6 +433,7 @@ class TestAccessCheck:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/check-access",
             json={"source_node_id": na, "target_node_id": nb},
+            headers=self._headers(seller_token),
         )
         assert r.status_code == 200
         data = r.json()
@@ -422,6 +443,7 @@ class TestAccessCheck:
     def test_deny_explicitly_by_policy(self, client, seller_token):
         from src.database import ACLPolicy
         mesh_id, na, nb = self._make_mesh_with_nodes(client, seller_token)
+        self._ensure_operator(seller_token)
 
         pol_id = f"pol-{uuid.uuid4().hex[:6]}"
         db = TestingSessionLocal()
@@ -435,14 +457,17 @@ class TestAccessCheck:
         r = client.post(
             f"/api/v1/maas/{mesh_id}/nodes/check-access",
             json={"source_node_id": na, "target_node_id": nb},
+            headers=self._headers(seller_token),
         )
         assert r.status_code == 200
         assert r.json()["verdict"] == "deny"
         assert r.json()["policy_id"] == pol_id
 
     def test_check_access_unknown_node(self, client, seller_token):
+        self._ensure_operator(seller_token)
         r = client.post(
             "/api/v1/maas/mesh-x/nodes/check-access",
             json={"source_node_id": "unknown-1", "target_node_id": "unknown-2"},
+            headers=self._headers(seller_token),
         )
         assert r.status_code == 404

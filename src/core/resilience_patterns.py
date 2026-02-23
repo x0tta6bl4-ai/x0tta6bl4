@@ -44,6 +44,9 @@ class CircuitBreaker(ResiliencePattern):
                 self.state = CircuitState.CLOSED
                 self.failure_count = 0
                 logger.info("Circuit Breaker CLOSED")
+            elif self.state == CircuitState.CLOSED and self.failure_count > 0:
+                # Successful calls in CLOSED state clear prior transient failures.
+                self.failure_count = 0
             return result
         except Exception as e:
             self.failure_count += 1

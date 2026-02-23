@@ -1,0 +1,23 @@
+{
+  "profiles": {
+    "x0tta6bl4-current": {
+      "max_p95_failover_ms": 60.0,
+      "max_p95_packet_loss_pct": 0.80
+    },
+    "x0tta6bl4-make-make-target": {
+      "max_p95_failover_ms": 35.0,
+      "max_p95_packet_loss_pct": 0.60
+    }
+  },
+  "relative": {
+    "min_target_improvement_vs_current_pct": 25.0,
+    "max_current_to_rajant_p95_failover_ratio": 4.0
+  },
+  "ranking": {
+    "expected_order_prefix": [
+      "rajant-like",
+      "x0tta6bl4-make-make-target",
+      "x0tta6bl4-current"
+    ]
+  }
+}

@@ -233,3 +233,158 @@ class TestDashboardNodeDetail:
             headers={"X-API-Key": other_token},
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Offline node health + admin audit path
+# ---------------------------------------------------------------------------
+
+class TestDashboardEdgeCases:
+    @pytest.fixture(scope="class")
+    def offline_data(self, client):
+        """Create a mesh with an offline node (last_seen > 30 min ago)."""
+        email = f"offline-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": email, "password": "password123"},
+        )
+        token = r.json()["access_token"]
+
+        db = TestingSessionLocal()
+        user = db.query(User).filter(User.api_key == token).first()
+        user_id = user.id
+
+        mesh_id = f"mesh-off-{uuid.uuid4().hex[:6]}"
+        db.add(MeshInstance(
+            id=mesh_id,
+            name="Offline Test Mesh",
+            owner_id=user_id,
+            status="active",
+            pqc_enabled=False,
+        ))
+        # Node that was last seen > 30 min ago → "offline"
+        db.add(MeshNode(
+            id=f"nd-off-{uuid.uuid4().hex[:6]}",
+            mesh_id=mesh_id,
+            status="approved",
+            device_class="edge",
+            hardware_id=None,
+            enclave_enabled=False,
+            last_seen=datetime.utcnow() - timedelta(minutes=45),
+        ))
+        db.commit()
+        db.close()
+
+        return {"token": token, "mesh_id": mesh_id}
+
+    def test_offline_node_health_in_summary(self, client, offline_data):
+        """Node last_seen 45 min ago → health 'offline' counted in summary."""
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": offline_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        health = r.json()["stats"]["node_health"]
+        assert health.get("offline", 0) >= 1
+
+    def test_offline_node_health_in_node_detail(self, client, offline_data):
+        """Node detail endpoint also shows 'offline' for the stale node."""
+        r = client.get(
+            f"/api/v1/maas/dashboard/nodes/{offline_data['mesh_id']}",
+            headers={"X-API-Key": offline_data["token"]},
+        )
+        assert r.status_code == 200, r.text
+        health_values = {n["health"] for n in r.json()["nodes"]}
+        assert "offline" in health_values
+
+    def test_admin_sees_all_audit_logs(self, client):
+        """Admin role bypasses user_id filter for audit logs (line 98-99)."""
+        # Create and promote an admin
+        email = f"adm-dash-{uuid.uuid4().hex[:8]}@test.com"
+        r = client.post(
+            "/api/v1/maas/auth/register",
+            json={"email": email, "password": "password123"},
+        )
+        admin_token = r.json()["access_token"]
+
+        db = TestingSessionLocal()
+        u = db.query(User).filter(User.api_key == admin_token).first()
+        u.role = "admin"
+        db.commit()
+        db.close()
+
+        r = client.get(
+            "/api/v1/maas/dashboard/summary",
+            headers={"X-API-Key": admin_token},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # Admin gets recent_audit without user_id filter — list present
+        assert "recent_audit" in data
+        assert isinstance(data["recent_audit"], list)
+
+# ---------------------------------------------------------------------------
+# Unit-style tests for _node_attestation_type and _node_health
+# ---------------------------------------------------------------------------
+
+class TestDashboardUtilityFunctions:
+    """Direct tests for _node_attestation_type and _node_health helpers."""
+
+    def test_attestation_hardware_rooted_when_hardware_id_and_enclave(self):
+        """hardware_id set AND enclave_enabled=True → HARDWARE_ROOTED."""
+        from src.api.maas_dashboard import _node_attestation_type
+        from src.database import MeshNode
+        node = MeshNode(hardware_id="tpm-abc123", enclave_enabled=True)
+        assert _node_attestation_type(node) == "HARDWARE_ROOTED"
+
+    def test_attestation_software_only_when_no_hardware_id(self):
+        """hardware_id is None → SOFTWARE_ONLY."""
+        from src.api.maas_dashboard import _node_attestation_type
+        from src.database import MeshNode
+        node = MeshNode(hardware_id=None, enclave_enabled=True)
+        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+
+    def test_attestation_software_only_when_enclave_disabled(self):
+        """hardware_id set but enclave_enabled=False → SOFTWARE_ONLY."""
+        from src.api.maas_dashboard import _node_attestation_type
+        from src.database import MeshNode
+        node = MeshNode(hardware_id="tpm-xyz", enclave_enabled=False)
+        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+
+    def test_attestation_software_only_when_neither_set(self):
+        """Both hardware_id=None and enclave_enabled=None → SOFTWARE_ONLY."""
+        from src.api.maas_dashboard import _node_attestation_type
+        from src.database import MeshNode
+        node = MeshNode(hardware_id=None, enclave_enabled=None)
+        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+
+    def test_node_health_returns_unknown_when_no_last_seen(self):
+        """Node with no last_seen → 'unknown'."""
+        from src.api.maas_dashboard import _node_health
+        from src.database import MeshNode
+        node = MeshNode(last_seen=None)
+        assert _node_health(node) == "unknown"
+
+    def test_node_health_healthy_when_recently_seen(self):
+        """Node seen within 5 min → 'healthy'."""
+        from datetime import datetime, timedelta
+        from src.api.maas_dashboard import _node_health
+        from src.database import MeshNode
+        node = MeshNode(last_seen=datetime.utcnow() - timedelta(minutes=1))
+        assert _node_health(node) == "healthy"
+
+    def test_node_health_stale_when_seen_10_minutes_ago(self):
+        """Node seen 10 min ago (> 5 min stale threshold, ≤ 30 min) → 'stale'."""
+        from datetime import datetime, timedelta
+        from src.api.maas_dashboard import _node_health
+        from src.database import MeshNode
+        node = MeshNode(last_seen=datetime.utcnow() - timedelta(minutes=10))
+        assert _node_health(node) == "stale"
+
+    def test_node_health_offline_when_seen_over_30_minutes_ago(self):
+        """Node seen > 30 min ago → 'offline'."""
+        from datetime import datetime, timedelta
+        from src.api.maas_dashboard import _node_health
+        from src.database import MeshNode
+        node = MeshNode(last_seen=datetime.utcnow() - timedelta(minutes=60))
+        assert _node_health(node) == "offline"
