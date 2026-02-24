@@ -156,6 +156,9 @@ class HNSWVectorStore:
 
     def add_documents_batch(self, docs: List[Document]) -> None:
         """Batch add documents for efficiency"""
+        # Ensure the HNSW index is initialised before iterating docs.
+        self._ensure_hnsw()
+
         embeddings = []
         labels = []
 
@@ -335,6 +338,9 @@ class RAGAnalyzer:
             "last_batch_size": 0,
             "retrieval_times": [],
         }
+
+        # Eagerly initialize the vector store so callers can access it immediately.
+        self._ensure_vector_store()
 
     def _ensure_vector_store(self):
         if self.vector_store is not None:
