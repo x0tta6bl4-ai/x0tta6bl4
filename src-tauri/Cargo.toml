@@ -1,0 +1,18 @@
+[package]
+name = "quantum-shield"
+version = "1.0.0"
+description = "x0tta6bl4 Quantum Shield VPN Client"
+authors = ["x0tta6bl4 Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5" }
+
+[dependencies]
+tauri = { version = "1.5", features = ["shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+default = [ "custom-protocol" ]
+custom-protocol = [ "tauri/custom-protocol" ]

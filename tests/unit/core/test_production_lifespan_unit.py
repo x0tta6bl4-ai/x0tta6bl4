@@ -54,6 +54,27 @@ class _CancelledTask:
         return _raise_cancelled().__await__()
 
 
+def _patch_settings(
+    monkeypatch,
+    *,
+    production: bool,
+    testing: bool = False,
+    security_flags: dict | None = None,
+):
+    flags = security_flags or {
+        "mtls_enabled": True,
+        "rate_limit_enabled": True,
+        "request_validation_enabled": True,
+    }
+    dummy_settings = SimpleNamespace(
+        is_testing=lambda: testing,
+        is_production=lambda: production,
+        security_profile=lambda: flags,
+        node_id="node-test",
+    )
+    monkeypatch.setattr(mod, "settings", dummy_settings)
+
+
 @pytest.mark.asyncio
 async def test_startup_initializes_all_components(monkeypatch):
     engine = mod.OptimizationEngine()
@@ -103,6 +124,63 @@ async def test_startup_swallows_component_exceptions(monkeypatch):
     # Should not raise, by design ("Zombie mode is better than Dead mode")
     await engine.startup()
 
+    assert engine.network_manager is None
+    assert engine.loop_task is None
+
+
+def test_validate_enterprise_guardrails_rejects_insecure_prod_flags(monkeypatch):
+    _patch_settings(
+        monkeypatch,
+        production=True,
+        security_flags={
+            "mtls_enabled": False,
+            "rate_limit_enabled": True,
+            "request_validation_enabled": True,
+        },
+    )
+    monkeypatch.setenv("MAAS_LIGHT_MODE", "false")
+    monkeypatch.delenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", raising=False)
+    monkeypatch.delenv("DB_ENFORCE_SCHEMA", raising=False)
+
+    with pytest.raises(RuntimeError, match="Production guardrails violated"):
+        mod._validate_enterprise_guardrails(testing_mode=False)
+
+
+@pytest.mark.asyncio
+async def test_startup_raises_in_production_when_fail_open_not_enabled(monkeypatch):
+    engine = mod.OptimizationEngine()
+    _patch_settings(monkeypatch, production=True)
+    monkeypatch.setenv("MAAS_LIGHT_MODE", "false")
+    monkeypatch.delenv("X0TTA6BL4_FAIL_OPEN_STARTUP", raising=False)
+    monkeypatch.delenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", raising=False)
+    monkeypatch.delenv("DB_ENFORCE_SCHEMA", raising=False)
+    monkeypatch.setattr(mod, "ensure_schema_compatible", lambda auto_migrate: None)
+
+    def _raise():
+        raise RuntimeError("mesh init failed")
+
+    monkeypatch.setattr(mod, "MeshNetworkManager", _raise)
+
+    with pytest.raises(RuntimeError, match="mesh init failed"):
+        await engine.startup()
+
+
+@pytest.mark.asyncio
+async def test_startup_allows_fail_open_when_explicitly_enabled(monkeypatch):
+    engine = mod.OptimizationEngine()
+    _patch_settings(monkeypatch, production=True)
+    monkeypatch.setenv("MAAS_LIGHT_MODE", "false")
+    monkeypatch.setenv("X0TTA6BL4_FAIL_OPEN_STARTUP", "true")
+    monkeypatch.delenv("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", raising=False)
+    monkeypatch.delenv("DB_ENFORCE_SCHEMA", raising=False)
+    monkeypatch.setattr(mod, "ensure_schema_compatible", lambda auto_migrate: None)
+
+    def _raise():
+        raise RuntimeError("mesh init failed")
+
+    monkeypatch.setattr(mod, "MeshNetworkManager", _raise)
+
+    await engine.startup()
     assert engine.network_manager is None
     assert engine.loop_task is None
 

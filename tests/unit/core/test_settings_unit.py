@@ -207,7 +207,7 @@ class TestEnvironmentHelpers:
         monkeypatch.setenv("ENVIRONMENT", environment)
 
         # If production, provide required secrets
-        if environment == "production":
+        if environment.lower() == "production":
             monkeypatch.setenv("FLASK_SECRET_KEY", "prod-flask-key")
             monkeypatch.setenv("JWT_SECRET_KEY", "prod-jwt-key")
             monkeypatch.setenv("CSRF_SECRET_KEY", "prod-csrf-key")
@@ -338,6 +338,36 @@ class TestDatabaseUrlValidation:
         s = Settings(_env_file=None)
         assert s.database_url == "postgresql://user:secure_pass@host/db"
 
+    def test_hardcoded_password_blocked_when_environment_from_env_file(
+        self, monkeypatch, tmp_path
+    ):
+        """Production checks must work when environment is loaded from _env_file."""
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        monkeypatch.delenv("CSRF_SECRET_KEY", raising=False)
+        monkeypatch.delenv("OPERATOR_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        env_file = tmp_path / "prod.env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "ENVIRONMENT=production",
+                    "FLASK_SECRET_KEY=k1",
+                    "JWT_SECRET_KEY=k2",
+                    "CSRF_SECRET_KEY=k3",
+                    "OPERATOR_PRIVATE_KEY=0xkey",
+                    "DATABASE_URL=postgresql://user:x0tta6bl4_password@host/db",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValidationError, match="Hardcoded database password"):
+            Settings(_env_file=env_file)
+
 
 # ────────────────────────────────────────────
 # Secret validation in production
@@ -399,6 +429,32 @@ class TestSecretValidation:
         assert s.jwt_secret_key is None
         assert s.csrf_secret_key is None
 
+    def test_missing_secrets_blocked_when_environment_from_env_file(
+        self, monkeypatch, tmp_path
+    ):
+        """Production checks must work when environment is loaded from _env_file."""
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        monkeypatch.delenv("CSRF_SECRET_KEY", raising=False)
+        monkeypatch.delenv("OPERATOR_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        env_file = tmp_path / "prod_missing_secrets.env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "ENVIRONMENT=production",
+                    "OPERATOR_PRIVATE_KEY=0xkey",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValidationError, match="Secret key must be set in production"):
+            Settings(_env_file=env_file)
+
 
 # ────────────────────────────────────────────
 # Private key validation
@@ -413,7 +469,7 @@ class TestPrivateKeyValidation:
         monkeypatch.setenv("CSRF_SECRET_KEY", "k3")
         monkeypatch.delenv("OPERATOR_PRIVATE_KEY", raising=False)
 
-        with pytest.raises(ValidationError, match="OPERATOR_PRIVATE_KEY must be set"):
+        with pytest.raises(ValidationError, match="OPERATOR_PRIVATE_KEY"):
             Settings(_env_file=None)
 
     def test_private_key_present_in_production(self, monkeypatch):
@@ -435,6 +491,34 @@ class TestPrivateKeyValidation:
 
         s = Settings(_env_file=None)
         assert s.operator_private_key is None
+
+    def test_missing_private_key_blocked_when_environment_from_env_file(
+        self, monkeypatch, tmp_path
+    ):
+        """Production checks must work when environment is loaded from _env_file."""
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        monkeypatch.delenv("CSRF_SECRET_KEY", raising=False)
+        monkeypatch.delenv("OPERATOR_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        env_file = tmp_path / "prod_missing_key.env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "ENVIRONMENT=production",
+                    "FLASK_SECRET_KEY=k1",
+                    "JWT_SECRET_KEY=k2",
+                    "CSRF_SECRET_KEY=k3",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValidationError, match="OPERATOR_PRIVATE_KEY"):
+            Settings(_env_file=env_file)
 
 
 # ────────────────────────────────────────────
