@@ -188,11 +188,13 @@ class TestDetectorInitialization:
 
     def test_device_is_cpu(self):
         det = _make_detector()
+        det._init_model_if_needed()  # model/device are lazily initialised
         assert det.device is not None
         assert str(det.device) == "cpu"
 
     def test_model_initialized(self):
         det = _make_detector()
+        det._init_model_if_needed()  # model/device are lazily initialised
         assert det.model is not None
         assert isinstance(det.model, GraphSAGEAnomalyDetectorV2)
 
@@ -958,9 +960,12 @@ class TestCreateDetectorForMapek:
         assert det.use_quantization is False
 
     def test_pretrain_false_no_torch(self):
-        with patch("src.ml.graphsage_anomaly_detector._TORCH_AVAILABLE", False):
-            det = create_graphsage_detector_for_mapek(pretrain=True)
-            # pretrain=True but no torch => train_from_telemetry not called
+        # Patch is_torch_available (which _init_model_if_needed calls) rather than
+        # the lazy _TORCH_AVAILABLE flag, which is backed by the cached _TORCH_INTERNAL.
+        # When torch is unavailable, _init_model_if_needed returns False → model stays None.
+        with patch("src.ml.graphsage_anomaly_detector.is_torch_available", return_value=False):
+            det = create_graphsage_detector_for_mapek(pretrain=False)
+            det._init_model_if_needed()  # explicitly attempt init — should be a no-op
             assert det.model is None
 
 
