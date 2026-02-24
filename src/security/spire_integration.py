@@ -9,7 +9,6 @@ import logging
 import os
 import socket
 import time
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -18,8 +17,12 @@ SPIRE_AGENT_AVAILABLE = False
 
 try:
     import grpc
-    from pyspiffe.workload import WorkloadApiClient
-
+    try:
+        # Legacy package name used in earlier revisions.
+        from pyspiffe.workload import WorkloadApiClient  # type: ignore
+    except ImportError:
+        # Current PyPI package exports WorkloadApiClient here.
+        from spiffe.workloadapi.workload_api_client import WorkloadApiClient  # type: ignore
     SPIRE_AGENT_AVAILABLE = True
 except ImportError:
     logger.debug("pyspiffe not available - SPIRE integration disabled")
@@ -87,10 +90,13 @@ class SPIREClient:
         try:
             svid = self.client.fetch_x509_svid()
             if svid:
+                cert_bytes = self._extract_certificate_bytes(svid)
+                key_bytes = self._extract_private_key_bytes(svid)
+                bundle_bytes = self._extract_trust_bundle_bytes(svid) or self.fetch_x509_bundle()
                 return {
-                    "certificate": svid.certificate,
-                    "key": svid.private_key,
-                    "bundle": svid.trust_bundle,
+                    "certificate": cert_bytes,
+                    "key": key_bytes,
+                    "bundle": bundle_bytes or b"",
                 }
         except Exception as e:
             logger.error(f"Failed to fetch X.509 context from SPIRE: {e}")
@@ -103,11 +109,87 @@ class SPIREClient:
             return None
 
         try:
-            bundle = self.client.fetch_x509_bundle()
-            return bundle
+            if hasattr(self.client, "fetch_x509_bundle"):
+                bundle = self.client.fetch_x509_bundle()
+            elif hasattr(self.client, "fetch_x509_bundles"):
+                bundle = self.client.fetch_x509_bundles()
+            else:
+                return None
+            return self._extract_bundle_bytes(bundle)
         except Exception as e:
             logger.error(f"Failed to fetch X.509 bundle from SPIRE: {e}")
 
+        return None
+
+    @staticmethod
+    def _extract_certificate_bytes(svid: Any) -> bytes:
+        """Normalize SVID cert representation to bytes."""
+        # pyspiffe-style object
+        if hasattr(svid, "certificate") and isinstance(svid.certificate, (bytes, bytearray)):
+            return bytes(svid.certificate)
+
+        # spiffe package object with cert_chain (cryptography cert objects)
+        cert_chain = getattr(svid, "cert_chain", None)
+        if cert_chain:
+            from cryptography.hazmat.primitives import serialization
+
+            return b"".join(
+                cert.public_bytes(serialization.Encoding.PEM) for cert in cert_chain
+            )
+
+        return b""
+
+    @staticmethod
+    def _extract_private_key_bytes(svid: Any) -> bytes:
+        """Normalize SVID private key representation to bytes."""
+        # pyspiffe-style object
+        if hasattr(svid, "private_key") and isinstance(svid.private_key, (bytes, bytearray)):
+            return bytes(svid.private_key)
+
+        # spiffe package object with cryptography private key
+        private_key = getattr(svid, "private_key", None)
+        if private_key is not None:
+            from cryptography.hazmat.primitives import serialization
+
+            return private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+
+        return b""
+
+    @staticmethod
+    def _extract_bundle_bytes(bundle: Any) -> Optional[bytes]:
+        """Normalize bundle representation to bytes."""
+        if bundle is None:
+            return None
+        if isinstance(bundle, (bytes, bytearray)):
+            return bytes(bundle)
+
+        # spiffe X509BundleSet / X509Bundle objects
+        authorities = []
+        bundles = getattr(bundle, "bundles", None)
+        if bundles:
+            for bundle_item in bundles:
+                authorities.extend(list(getattr(bundle_item, "x509_authorities", []) or []))
+        else:
+            authorities.extend(list(getattr(bundle, "x509_authorities", []) or []))
+
+        if authorities:
+            from cryptography.hazmat.primitives import serialization
+
+            return b"".join(
+                cert.public_bytes(serialization.Encoding.PEM) for cert in authorities
+            )
+        return None
+
+    @staticmethod
+    def _extract_trust_bundle_bytes(svid: Any) -> Optional[bytes]:
+        """Extract inline trust bundle when provided directly by client object."""
+        trust_bundle = getattr(svid, "trust_bundle", None)
+        if isinstance(trust_bundle, (bytes, bytearray)):
+            return bytes(trust_bundle)
         return None
 
 

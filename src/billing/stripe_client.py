@@ -247,6 +247,16 @@ class StripeClient:
                     "Stripe library not installed. Run: pip install stripe"
                 )
         return self._stripe
+
+    @stripe.setter
+    def stripe(self, value) -> None:
+        """Allow tests and callers to inject a mocked stripe adapter."""
+        self._stripe = value
+
+    @stripe.deleter
+    def stripe(self) -> None:
+        """Support patch cleanup by resetting injected stripe adapter."""
+        self._stripe = None
     
     # -----------------------------------------------------------------------
     # Customer Methods
@@ -274,11 +284,15 @@ class StripeClient:
             name=name,
             metadata=metadata or {},
         )
-        
+
+        customer_name = getattr(customer, "name", None)
+        if not isinstance(customer_name, str):
+            customer_name = name
+
         return StripeCustomer(
             customer_id=customer.id,
             email=customer.email,
-            name=customer.name,
+            name=customer_name,
             created=datetime.fromtimestamp(customer.created),
             metadata=customer.metadata,
         )

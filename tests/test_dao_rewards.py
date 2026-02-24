@@ -1,9 +1,12 @@
 import asyncio
 
+import pytest
+
 from src.dao.token import MeshToken
 from src.network.batman.node_manager import NodeManager
 
 
+@pytest.mark.asyncio
 async def test_dao_rewards():
     print("🧪 Testing DAO Rewards System...")
 

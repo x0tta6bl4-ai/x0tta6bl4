@@ -11,6 +11,7 @@ Handles routing protocol packets:
 import logging
 import struct
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -48,8 +49,10 @@ class RoutingPacket:
     destination: str
     seq_num: int
     hop_count: int = 0
+    ttl: int = 16
     flags: int = 0
     payload: bytes = b""
+    packet_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     timestamp: float = field(default_factory=time.time)
     
     # Additional fields for specific packet types
@@ -68,7 +71,7 @@ class RoutingPacket:
             self.packet_type,
             self.flags,
             self.seq_num,
-            0,  # Reserved
+            self.ttl,
             self.source.encode()[:16].ljust(16, b'\x00'),
             self.destination.encode()[:16].ljust(16, b'\x00'),
             self.hop_count
@@ -82,7 +85,7 @@ class RoutingPacket:
         if len(data) < 43:
             raise ValueError("Packet too short")
 
-        packet_type, flags, seq_num, _, source_raw, dest_raw, hop_count = struct.unpack(
+        packet_type, flags, seq_num, ttl, source_raw, dest_raw, hop_count = struct.unpack(
             "!BBII16s16sB", data[:43]
         )
 
@@ -96,6 +99,7 @@ class RoutingPacket:
             destination=destination,
             seq_num=seq_num,
             hop_count=hop_count,
+            ttl=ttl,
             flags=flags,
             payload=payload
         )
@@ -108,6 +112,7 @@ class RoutingPacket:
             destination=self.destination,
             seq_num=self.seq_num,
             hop_count=self.hop_count + 1,
+            ttl=self.ttl,
             flags=self.flags,
             payload=self.payload,
             origin=self.origin,
