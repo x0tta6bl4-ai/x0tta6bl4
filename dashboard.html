@@ -97,7 +97,36 @@
 
             <!-- TAB: BILLING -->
             <div id="tab-billing" class="tab-content" style="display:none;">
-                <div class="section-title"><h2>Биллинг и Инвойсы</h2></div>
+                <div class="section-title"><h2>Биллинг и подписки</h2></div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card" style="border-top: 4px solid var(--accent);">
+                        <h3>Starter</h3>
+                        <div class="value">$0</div>
+                        <p style="color: var(--text-gray); font-size: 14px; margin-top: 10px;">5 узлов, базовая защита</p>
+                        <button class="btn-pay" style="width: 100%; margin-top: 20px; background: transparent; border: 1px solid var(--border); color: white;" disabled>Текущий план</button>
+                    </div>
+                    <div class="stat-card" style="border-top: 4px solid var(--success); transform: scale(1.05); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                        <div style="position: absolute; top: -12px; right: 20px; background: var(--success); color: black; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: bold;">POPULAR</div>
+                        <h3>Professional</h3>
+                        <div class="value">$49<span style="font-size: 14px; color: var(--text-gray);">/мес</span></div>
+                        <p style="color: var(--text-gray); font-size: 14px; margin-top: 10px;">50 узлов, PQC-Identity, Priority Support</p>
+                        
+                        <div style="margin-top: 15px;">
+                            <input type="text" id="promo-code" placeholder="Промокод" style="background: #000; border: 1px solid #333; color: #fff; padding: 8px; width: 100%; border-radius: 5px; font-size: 12px;">
+                        </div>
+                        
+                        <button class="btn-pay" style="width: 100%; margin-top: 10px; background: var(--success);" onclick="upgradePlan('pro')">Upgrade Now</button>
+                    </div>
+                    <div class="stat-card" style="border-top: 4px solid #a855f7;">
+                        <h3>Enterprise</h3>
+                        <div class="value">Custom</div>
+                        <p style="color: var(--text-gray); font-size: 14px; margin-top: 10px;">Unlimited, Dedicated Infrastructure, SLA</p>
+                        <button class="btn-pay" style="width: 100%; margin-top: 20px; background: #a855f7;" onclick="window.location.href='mailto:sales@x0t.io'">Contact Sales</button>
+                    </div>
+                </div>
+
+                <div class="section-title" style="margin-top: 40px;"><h3>Неоплаченные инвойсы</h3></div>
                 <table class="data-table" id="invoice-table">
                     <thead><tr><th>ID</th><th>Amount</th><th>Date</th><th>Action</th></tr></thead>
                     <tbody></tbody>
@@ -199,6 +228,10 @@
                     </tr>
                 `).join('');
 
+                if (data.timeseries) {
+                    updateSummaryCharts(data.timeseries);
+                }
+
                 if (data.meshes.length > 0) {
                     drawTopology(data.meshes[0].id);
                 }
@@ -227,6 +260,48 @@
                 console.error("Marketplace error:", e);
                 list.innerHTML = '<p style="color: var(--text-gray); padding: 20px;">Marketplace unavailable</p>';
             }
+        }
+
+        let summaryHealthChart = null;
+        let summaryTrafficChart = null;
+
+        function updateSummaryCharts(tsData) {
+            const labels = tsData.map(d => new Date(d.timestamp).getHours() + ':00');
+            const healthData = tsData.map(d => d.health);
+            const trafficData = tsData.map(d => d.traffic_mbps);
+
+            const render = (chartObj, canvasId, label, data, color) => {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (chartObj) chartObj.destroy();
+                return new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label,
+                            data,
+                            borderColor: color,
+                            backgroundColor: color + '22',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#aaa' } } },
+                        scales: {
+                            y: { grid: { color: '#222' }, ticks: { color: '#666' } },
+                            x: { display: true, grid: { display: false }, ticks: { color: '#666' } }
+                        }
+                    }
+                });
+            };
+
+            summaryHealthChart = render(summaryHealthChart, 'healthChartSummary', 'Mesh Health %', healthData, '#4ade80');
+            summaryTrafficChart = render(summaryTrafficChart, 'trafficChartSummary', 'Traffic Mbps', trafficData, '#00f2ff');
         }
 
         async function loadPendingNodes() {
@@ -357,6 +432,63 @@
                 requestAnimationFrame(animate);
             }
             animate();
+        }
+
+        async function deployMesh() {
+            const name = prompt("Введите название сети:", `Mesh-${Math.floor(Math.random()*1000)}`);
+            if (!name) return;
+            
+            try {
+                const response = await fetch('/api/v1/maas/deploy', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey 
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        nodes: 5,
+                        billing_plan: 'starter',
+                        pqc_enabled: true
+                    })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    alert(`Ошибка деплоя: ${err.detail || 'Неизвестная ошибка'}`);
+                    return;
+                }
+                
+                alert('Сеть успешно развернута!');
+                fetchDashboard();
+            } catch (e) {
+                console.error("Deploy error:", e);
+                alert("Ошибка при отправке запроса на деплой");
+            }
+        }
+
+        async function upgradePlan(plan) {
+            const promo = document.getElementById('promo-code')?.value || '';
+            try {
+                const response = await fetch(`/api/v1/maas/billing/subscriptions/checkout?plan=${plan}&promo=${promo}`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': apiKey }
+                });
+                
+                if (!response.ok) {
+                    const err = await response.text();
+                    alert(`Error: ${err}`);
+                    return;
+                }
+                
+                const data = await response.json();
+                if (data.url) {
+                    window.location.href = data.url;
+                }
+            } catch (e) {
+                console.error("Upgrade error:", e);
+                alert("Failed to initiate checkout");
+            }
         }
 
         async function startCheckout(id) {

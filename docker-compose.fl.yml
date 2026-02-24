@@ -1,7 +1,30 @@
-version: '3.8'
+# Federated Learning Docker Compose Configuration
+# Uses YAML anchors to reduce duplication across regional services
+
+networks:
+  eu-west-net:
+    driver: bridge
+  asia-east-net:
+    driver: bridge
+  us-east-net:
+    driver: bridge
+  backbone-net:
+    driver: bridge
+
+# Common configuration anchors (YAML anchors)
+x-fl-client-base: &fl-client-base
+  build:
+    context: .
+    dockerfile: Dockerfile.fl-server
+  depends_on:
+    fl-server:
+      condition: service_healthy
+  environment:
+    - SERVER_ADDRESS=fl-server:8080
+  command: ["python", "-c", "import time; print('Client ready'); time.sleep(3600)"]
 
 services:
-  # Flower Server (Coordinator)
+  # Flower Server (Coordinator) in Backbone
   fl-server:
     build:
       context: .
@@ -12,26 +35,42 @@ services:
     environment:
       - PYTHONPATH=/app
     networks:
-      - mesh-net
+      - backbone-net
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "8080"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Sample FL Client 1
-  fl-client-1:
-    build:
-      context: .
-      dockerfile: Dockerfile.fl-server # Reuse server dockerfile
-    container_name: fl-client-1
-    depends_on:
-      fl-server:
-        condition: service_healthy
-    command: ["python", "-c", "import time; print('FL Client 1 ready'); time.sleep(3600)"]
+  # Europe Client
+  fl-client-eu:
+    <<: *fl-client-base
+    container_name: fl-client-eu
+    environment:
+      - REGION=EU
+      - SERVER_ADDRESS=fl-server:8080
     networks:
-      - mesh-net
+      - eu-west-net
+      - backbone-net
 
-networks:
-  mesh-net:
-    driver: bridge
+  # Asia Client
+  fl-client-asia:
+    <<: *fl-client-base
+    container_name: fl-client-asia
+    environment:
+      - REGION=ASIA
+      - SERVER_ADDRESS=fl-server:8080
+    networks:
+      - asia-east-net
+      - backbone-net
+
+  # US Client
+  fl-client-us:
+    <<: *fl-client-base
+    container_name: fl-client-us
+    environment:
+      - REGION=US
+      - SERVER_ADDRESS=fl-server:8080
+    networks:
+      - us-east-net
+      - backbone-net

@@ -89,9 +89,12 @@ class TestRaftProductionIntegration:
 
         assert success is True
 
-        # Verify snapshot file exists
-        snapshot_file = Path(temp_storage) / "snapshot_10.json"
-        assert snapshot_file.exists()
+        # Verify snapshot file exists in production snapshot directory.
+        # Default create_snapshot() uses compressed JSON.
+        snapshot_dir = Path(temp_storage) / "snapshots"
+        snapshot_file = snapshot_dir / "snapshot_0000000010.json.gz"
+        fallback_file = snapshot_dir / "snapshot_0000000010.json"
+        assert snapshot_file.exists() or fallback_file.exists()
 
 
 @pytest.mark.skipif(

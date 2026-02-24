@@ -66,7 +66,7 @@ async def test_pqc_spiffe_bridge(mock_spire):
     
     assert svid_bundle["spiffe_id"] == "spiffe://x0tta6bl4.mesh/node/test-node"
     assert "pqc_public_keys" in svid_bundle
-    assert svid_bundle["attestation"] == "spire-verified"
+    assert svid_bundle["attestation"] == "spire-zkp-verified"
     
     is_valid = bridge.verify_pqc_svid(svid_bundle)
     assert is_valid

@@ -57,7 +57,6 @@ def test_agent_voter_against():
         model_version=3,
         start_time=time.time(),
         end_time=time.time() + 3600,
-        model_weights=[],
     )
 
     vote = agent.decide_vote(proposal)

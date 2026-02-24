@@ -105,7 +105,7 @@ class MockZeroTrust:
 async def fl_coordinator_20():
     """Create FL Coordinator configured for 20 nodes."""
     config = CoordinatorConfig(
-        min_participants=5,
+        min_participants=7,
         target_participants=15,
         max_participants=20,
         round_duration=60.0,
@@ -212,7 +212,7 @@ async def test_training_round_20_nodes(fl_coordinator_20, mesh_nodes_20):
     # Check coordinator stats
     stats = integration.get_coordinator_stats()
     assert stats["total_nodes"] == 20
-    assert stats["eligible_nodes"] >= 5
+    assert stats["eligible_nodes"] >= fl_coordinator_20.config.min_participants
 
     await integration.stop()
 
@@ -238,7 +238,7 @@ async def test_multiple_rounds_20_nodes(fl_coordinator_20, mesh_nodes_20):
     results = await integration.run_multiple_rounds(num_rounds=5)
 
     assert len(results) == 5
-    assert all(r["participants"] >= 5 for r in results)
+    assert all(r["participants"] >= fl_coordinator_20.config.min_participants for r in results)
     assert all(r["updates_received"] > 0 for r in results)
 
     # Check that rounds accumulated

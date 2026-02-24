@@ -64,13 +64,17 @@ class PQSecureAgent(SpecializedAgent):
 
     async def send_pqc_message(self, recipient_id: str, message_type: str, payload: Dict[str, Any]):
         """
-        Sends a PQC-signed message to another agent.
+        Sends a PQC-signed and ZKP-attested message to another agent.
         """
+        # Generate NIZKP for this specific message
+        zkp_proof = self.pqc_bridge.zkp_attestor.generate_identity_proof(message=message_type)
+        
         manifest = {
             "sender_id": self.agent_id,
             "recipient_id": recipient_id,
             "message_type": message_type,
             "payload": payload,
+            "zkp_attestation": zkp_proof,
             "timestamp": time.time()
         }
         
@@ -86,18 +90,30 @@ class PQSecureAgent(SpecializedAgent):
         )
         
         await self.send_message(msg)
-        logger.debug(f"PQC Signed message sent: {message_type}")
+        logger.debug(f"PQC+ZKP Signed message sent: {message_type}")
 
     def verify_message(self, message: AgentMessage, remote_pubkey_hex: str) -> bool:
         """
-        Verifies a PQC-signed message from another agent.
+        Verifies PQC signature AND ZKP attestation.
         """
         if "manifest" not in message.payload or "proof" not in message.payload:
-            logger.warning(f"Received non-PQC message from {message.sender_id}")
             return False
             
-        # Verify the signature
-        return self.pqc_bridge.pqc_identity.verify_remote_node(message.payload, remote_pubkey_hex)
+        # 1. Verify PQC Signature
+        pqc_valid = self.pqc_bridge.pqc_identity.verify_remote_node(message.payload, remote_pubkey_hex)
+        if not pqc_valid:
+            return False
+            
+        # 2. Verify ZKP Attestation
+        manifest = message.payload["manifest"]
+        if "zkp_attestation" in manifest:
+            from src.security.zkp_attestor import NIZKPAttestor
+            return NIZKPAttestor.verify_identity_proof(
+                manifest["zkp_attestation"], 
+                message=manifest["message_type"]
+            )
+        
+        return True
 
 # Factory function for PQSecureAgent
 def create_pq_agent(

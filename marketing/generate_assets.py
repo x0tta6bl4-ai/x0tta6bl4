@@ -1,0 +1,45 @@
+"""
+Marketing Assets Generator for x0tta6bl4
+=========================================
+
+Generates SVG previews of the Quantum Shield app for Product Hunt.
+"""
+
+def generate_connected_svg():
+    svg = """
+    <svg width="400" height="700" viewBox="0 0 400 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="400" height="700" rx="40" fill="#050505"/>
+        <rect x="20" y="20" width="360" height="660" rx="30" stroke="#1F1F1F" stroke-width="2"/>
+        
+        <!-- Header -->
+        <rect x="40" y="60" width="40" height="40" rx="10" fill="#10B981"/>
+        <text x="95" y="88" fill="white" font-family="Arial" font-size="20" font-weight="bold">Quantum Shield</text>
+        
+        <!-- Connection Circle -->
+        <circle cx="200" cy="300" r="90" stroke="#10B981" stroke-width="4" stroke-dasharray="10 5"/>
+        <circle cx="200" cy="300" r="70" fill="#10B981" fill-opacity="0.1"/>
+        <text x="200" y="310" text-anchor="middle" fill="#10B981" font-family="Arial" font-size="14" font-weight="bold">CONNECTED</text>
+        
+        <!-- Stats -->
+        <rect x="40" y="450" width="150" height="70" rx="15" fill="#1F1F1F"/>
+        <text x="55" y="475" fill="#71717A" font-family="Arial" font-size="10">PROTECTION</text>
+        <text x="55" y="500" fill="#10B981" font-family="Arial" font-size="14" font-weight="bold">PQC + ZKP</text>
+        
+        <rect x="210" y="450" width="150" height="70" rx="15" fill="#1F1F1F"/>
+        <text x="225" y="475" fill="#71717A" font-family="Arial" font-size="10">PROTOCOL</text>
+        <text x="225" y="500" fill="#60A5FA" font-family="Arial" font-size="14" font-weight="bold">GHOST v2</text>
+        
+        <!-- Location -->
+        <rect x="40" y="540" width="320" height="80" rx="20" fill="#1F1F1F" fill-opacity="0.5"/>
+        <text x="60" y="575" fill="white" font-family="Arial" font-size="16" font-weight="bold">United States</text>
+        <text x="60" y="595" fill="#71717A" font-family="Arial" font-size="10">LATENCY: 45ms</text>
+        
+        <text x="200" y="670" text-anchor="middle" fill="#3F3F46" font-family="Arial" font-size="8">POWERED BY X0TTA6BL4 MESH</text>
+    </svg>
+    """
+    with open("marketing/app_connected.svg", "w") as f:
+        f.write(svg)
+
+if __name__ == "__main__":
+    generate_connected_svg()
+    print("✅ Marketing asset generated: marketing/app_connected.svg")
