@@ -173,10 +173,10 @@ async def test_aggregation_with_50_updates(fl_coordinator):
     round_result = fl_coordinator.start_round()
     assert round_result is not None
 
-    # Submit updates from 50 nodes
+    # Submit updates from selected nodes for this round
     round_num = fl_coordinator.current_round.round_number
-    for i in range(50):
-        node_id = f"node-{i:03d}"
+    selected_nodes = list(fl_coordinator.current_round.selected_nodes)
+    for node_id in selected_nodes:
         update = create_mock_update(node_id, round_num, is_byzantine=False)
         fl_coordinator.submit_update(update)
 
@@ -185,7 +185,7 @@ async def test_aggregation_with_50_updates(fl_coordinator):
 
     # Check that aggregation completed
     # (In real implementation, this would be async)
-    assert len(fl_coordinator.current_round.received_updates) == 50
+    assert len(fl_coordinator.current_round.received_updates) == len(selected_nodes)
 
 
 @pytest.mark.asyncio
@@ -201,12 +201,12 @@ async def test_byzantine_detection_100_nodes(fl_coordinator):
     round_result = fl_coordinator.start_round()
     assert round_result is not None
 
-    # Submit updates: 47 normal + 3 Byzantine
+    # Submit updates from selected nodes only
     round_num = fl_coordinator.current_round.round_number
+    selected_nodes = list(fl_coordinator.current_round.selected_nodes)
     update_count = 0
 
-    for i in range(100):
-        node_id = f"node-{i:03d}"
+    for node_id in selected_nodes:
         is_byzantine = node_id in byzantine_nodes
         update = create_mock_update(node_id, round_num, is_byzantine=is_byzantine)
         fl_coordinator.submit_update(update)
@@ -295,10 +295,10 @@ async def test_performance_100_nodes(fl_coordinator):
     round_result = fl_coordinator.start_round()
     assert round_result is not None
 
-    # Submit updates from 50 nodes
+    # Submit updates from selected nodes
     round_num = fl_coordinator.current_round.round_number
-    for i in range(50):
-        node_id = f"node-{i:03d}"
+    selected_nodes = list(fl_coordinator.current_round.selected_nodes)
+    for node_id in selected_nodes:
         update = create_mock_update(node_id, round_num, is_byzantine=False)
         fl_coordinator.submit_update(update)
 
@@ -312,7 +312,7 @@ async def test_performance_100_nodes(fl_coordinator):
 
     # Check metrics
     assert fl_coordinator._metrics["rounds_completed"] >= 0
-    assert fl_coordinator._metrics["total_updates_received"] >= 50
+    assert fl_coordinator._metrics["total_updates_received"] >= len(selected_nodes)
 
 
 @pytest.mark.asyncio

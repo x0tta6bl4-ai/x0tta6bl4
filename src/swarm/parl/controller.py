@@ -21,10 +21,28 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+
+def _get_ppo_default() -> bool:
+    """Get default skip_policy_update based on PyTorch availability."""
+    return not TORCH_AVAILABLE
+
 from src.monitoring.opentelemetry_tracing import get_swarm_spans
 
-logger = logging.getLogger(__name__)
+# PyTorch imports with graceful fallback for environments without GPU/ML support
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.distributions import Categorical
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None  # type: ignore
+    nn = None  # type: ignore
+    optim = None  # type: ignore
+    Categorical = None  # type: ignore
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class PARLConfig:
@@ -40,9 +58,108 @@ class PARLConfig:
     update_interval: int = 100
     experience_buffer_size: int = 100000
     # Policy update configuration
-    # When True, policy updates are skipped (PPO not implemented yet)
-    # Experience buffer will naturally evict oldest entries when full
-    skip_policy_update: bool = True
+    # PPO updates are disabled by default for safety. Enable only when PyTorch is available.
+    # The controller will auto-enable PPO if PyTorch is detected and this is set to None.
+    skip_policy_update: Optional[bool] = None  # Auto-detect based on PyTorch availability
+    ppo_epochs: int = 10
+    entropy_beta: float = 0.01
+    
+    def __post_init__(self):
+        """Auto-configure skip_policy_update based on PyTorch availability."""
+        if self.skip_policy_update is None:
+            self.skip_policy_update = not TORCH_AVAILABLE
+            if self.skip_policy_update:
+                logger.info(
+                    "PPO policy updates disabled (PyTorch not available). "
+                    "Install PyTorch to enable PPO: pip install torch"
+                )
+
+
+class PPOPolicyStub:
+    """
+    Stub class for PPOPolicy when PyTorch is not available.
+    Provides no-op implementations of all methods.
+    """
+    def __init__(self, state_dim: int, action_dim: int):
+        self._dummy = True
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        logger.warning("PyTorch not available. PPOPolicy will be non-functional.")
+    
+    def forward(self, state):
+        return None, None
+    
+    def get_action(self, state):
+        return 0, 0.0
+    
+    def evaluate(self, state, action):
+        return None, None, None
+    
+    def parameters(self):
+        """Return empty iterator for compatibility with optimizer."""
+        return iter([])
+    
+    def zero_grad(self):
+        """No-op for compatibility."""
+        pass
+
+
+class PPOPolicy(nn.Module if TORCH_AVAILABLE else object):  # type: ignore[misc]
+    """
+    Actor-Critic neural network for PPO policy.
+    Requires PyTorch. Falls back to PPOPolicyStub if torch is unavailable.
+    """
+    def __init__(self, state_dim: int, action_dim: int):
+        if not TORCH_AVAILABLE:
+            # This should not happen - use PPOPolicyStub directly instead
+            raise RuntimeError("PPOPolicy requires PyTorch. Use PPOPolicyStub for non-PyTorch environments.")
+        super().__init__()
+        self._dummy = False
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, action_dim),
+            nn.Softmax(dim=-1)
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, state):
+        return self.actor(state), self.critic(state)
+
+    def get_action(self, state):
+        probs = self.actor(state)
+        m = Categorical(probs)
+        action = m.sample()
+        return action.item(), m.log_prob(action).item()
+
+    def evaluate(self, state, action):
+        probs = self.actor(state)
+        m = Categorical(probs)
+        log_probs = m.log_prob(action)
+        entropy = m.entropy()
+        values = self.critic(state)
+        return log_probs, values, entropy
+
+
+def create_ppo_policy(state_dim: int, action_dim: int):
+    """
+    Factory function to create appropriate PPO policy based on PyTorch availability.
+    
+    Returns:
+        PPOPolicy if PyTorch is available, PPOPolicyStub otherwise.
+    """
+    if TORCH_AVAILABLE:
+        return PPOPolicy(state_dim, action_dim)
+    else:
+        return PPOPolicyStub(state_dim, action_dim)
 
 
 @dataclass
@@ -279,9 +396,107 @@ class PARLController:
         # Locks
         self._task_lock = asyncio.Lock()
 
+        # PPO components (only if PyTorch is available)
+        self.state_dim = max_workers + 2 # loads + type + priority
+        self.action_dim = max_workers
+        
+        # PPO is automatically disabled if PyTorch is not available
+        # (skip_policy_update is set in __post_init__)
+        self.policy = create_ppo_policy(self.state_dim, self.action_dim)
+        if TORCH_AVAILABLE and not self.config.skip_policy_update:
+            self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.learning_rate)
+            logger.info("PPO policy optimization enabled with PyTorch")
+        else:
+            self.optimizer = None  # type: ignore
+            if self.config.skip_policy_update:
+                logger.info("PPO policy optimization disabled (skip_policy_update=True)")
+
         logger.info(
             f"PARLController created: {max_workers} workers, {max_parallel_steps} max steps"
         )
+
+    def _prepare_state(self, state_dict: Dict[str, Any]):
+        """Converts experience state to torch tensor."""
+        if not TORCH_AVAILABLE:
+            return None
+        loads = state_dict.get("worker_loads", [0]*self.config.max_workers)
+        # Pad or truncate loads to match max_workers
+        if len(loads) < self.config.max_workers:
+            loads = loads + [0] * (self.config.max_workers - len(loads))
+        else:
+            loads = loads[:self.config.max_workers]
+            
+        task_type_map = {"monitoring": 1, "analysis": 2, "optimization": 3, "route_optimization": 4}
+        t_type = task_type_map.get(state_dict.get("task_type"), 0)
+        priority = state_dict.get("priority", 5)
+        
+        state_vec = loads + [float(t_type), float(priority)]
+        return torch.FloatTensor(state_vec)
+
+    async def _update_policy(self) -> None:
+        """
+        Implements actual PPO policy update.
+        """
+        self.metrics.policy_update_count += 1
+        buffer_size = len(self.experience_buffer)
+        
+        if self.config.skip_policy_update:
+            return
+        
+        if not TORCH_AVAILABLE:
+            logger.debug("Skipping policy update: PyTorch not available")
+            return
+        
+        if buffer_size < self.config.batch_size:
+            return
+
+        logger.info(f"Updating PPO policy with {buffer_size} experiences...")
+        
+        # 1. Prepare data
+        states = torch.stack([self._prepare_state(e.state) for e in self.experience_buffer])
+        actions = torch.LongTensor([e.action for e in self.experience_buffer])
+        rewards = torch.FloatTensor([e.reward for e in self.experience_buffer])
+        old_log_probs = torch.FloatTensor([e.log_prob for e in self.experience_buffer])
+        
+        # 2. Compute returns and advantages
+        # Simplified: Use discounted rewards as returns
+        returns = []
+        discounted_reward = 0
+        for reward in reversed(rewards):
+            discounted_reward = reward + (self.config.gamma * discounted_reward)
+            returns.insert(0, discounted_reward)
+        returns = torch.FloatTensor(returns)
+        
+        # Normalize returns
+        returns = (returns - returns.mean()) / (returns.std() + 1e-5)
+
+        # 3. PPO Update Loop
+        for _ in range(self.config.ppo_epochs):
+            log_probs, state_values, dist_entropy = self.policy.evaluate(states, actions)
+            state_values = state_values.squeeze()
+            
+            # Compute advantages
+            advantages = returns - state_values.detach()
+            
+            # PPO Ratio
+            ratios = torch.exp(log_probs - old_log_probs.detach())
+            
+            # Surrogate Loss
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1 - self.config.clip_epsilon, 1 + self.config.clip_epsilon) * advantages
+            
+            # Total Loss = Actor Loss + Critic Loss - Entropy Bonus
+            loss = -torch.min(surr1, surr2).mean() + \
+                   0.5 * nn.MSELoss()(state_values, returns) - \
+                   self.config.entropy_beta * dist_entropy.mean()
+            
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        # Clear buffer after update
+        self.experience_buffer.clear()
+        logger.info("PPO policy updated successfully.")
 
     async def initialize(self) -> None:
         """Initialize PARL controller and worker pool."""
@@ -477,44 +692,6 @@ class PARLController:
 
             # Update metrics
             self.metrics.failed_tasks += 1
-
-    async def _update_policy(self) -> None:
-        """
-        PPO policy update placeholder.
-        
-        When skip_policy_update=True (default), this method logs a warning
-        and returns without clearing the buffer. The experience buffer will
-        naturally evict oldest entries when it reaches max size (FIFO).
-        
-        When skip_policy_update=False, this method should be implemented with:
-        1. Sample mini-batches from the experience buffer
-        2. Compute advantages using GAE (Generalized Advantage Estimation)
-        3. Update policy network using PPO clipped objective
-        4. Update value function to estimate expected returns
-        """
-        self.metrics.policy_update_count += 1
-        buffer_size = len(self.experience_buffer)
-        
-        if self.config.skip_policy_update:
-            # Skip update - buffer will naturally evict old entries when full
-            logger.debug(
-                f"Policy update skipped (skip_policy_update=True). "
-                f"Buffer size: {buffer_size}/{self.config.experience_buffer_size}"
-            )
-            return
-        
-        # When skip_policy_update=False, implement actual PPO update
-        # TODO: Implement actual PPO update for production use
-        swarm_spans = get_swarm_spans()
-        
-        logger.info(
-            f"Policy update triggered with {buffer_size} experiences "
-            f"(PPO not yet implemented - buffer preserved)"
-        )
-        
-        if swarm_spans:
-            with swarm_spans.policy_update(buffer_size):
-                pass  # Placeholder for actual PPO implementation
 
     async def _collect_metrics(self) -> None:
         """Background metrics collection."""

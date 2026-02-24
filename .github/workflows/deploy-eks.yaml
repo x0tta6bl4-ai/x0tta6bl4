@@ -36,6 +36,28 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate production runtime env contract (strict)
+        if: inputs.environment == 'production'
+        env:
+          ENVIRONMENT: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          CSRF_SECRET_KEY: ${{ secrets.CSRF_SECRET_KEY }}
+          OPERATOR_PRIVATE_KEY: ${{ secrets.OPERATOR_PRIVATE_KEY }}
+          VPN_SERVER: ${{ secrets.VPN_SERVER }}
+          VPN_PORT: ${{ secrets.VPN_PORT }}
+          VPN_SESSION_TOKEN: ${{ secrets.VPN_SESSION_TOKEN }}
+          MTLS_ENABLED: "true"
+          RATE_LIMIT_ENABLED: "true"
+          REQUEST_VALIDATION_ENABLED: "true"
+          DB_ENFORCE_SCHEMA: "true"
+          MAAS_LIGHT_MODE: "false"
+          X0TTA6BL4_FAIL_OPEN_STARTUP: "false"
+          X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY: "false"
+        run: |
+          python3 scripts/validate_production_env_contract.py --source process-env --strict-secrets
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

@@ -1,0 +1,68 @@
+---
+- name: Bulk Flash x0tta6bl4 Mesh Nodes (Pilot 1000)
+  hosts: mesh_nodes
+  become: yes
+  vars:
+    version: "3.3.0"
+    pqc_enabled: true
+    spire_server: "spire-server.x0tta6bl4.mesh"
+
+  tasks:
+    - name: Ensure system dependencies are installed
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - wireguard
+          - bridge-utils
+        state: present
+        update_cache: yes
+
+    - name: Create x0tta6bl4 work directory
+      file:
+        path: /opt/x0tta6bl4
+        state: directory
+        mode: '0755'
+
+    - name: Deploy x0tta6bl4 version contract
+      copy:
+        content: |
+          __version__ = "{{ version }}"
+        dest: /opt/x0tta6bl4/version.py
+
+    - name: Configure PQC environment
+      template:
+        content: |
+          PQC_ENABLED={{ pqc_enabled | bool | lower }}
+          ML_DSA_ALGO=ML-DSA-65
+          ML_KEM_ALGO=ML-KEM-768
+        dest: /opt/x0tta6bl4/.pqc.env
+
+    - name: Pull mesh-node docker image
+      docker_image:
+        name: "x0tta6bl4/mesh-node:{{ version }}"
+        source: pull
+
+    - name: Setup SPIRE Agent
+      template:
+        src: spire-agent.conf.j2
+        dest: /etc/spire/agent.conf
+      notify: restart spire-agent
+
+    - name: Start Mesh Node container
+      docker_container:
+        name: x0tta6bl4-node
+        image: "x0tta6bl4/mesh-node:{{ version }}"
+        state: started
+        restart_policy: always
+        network_mode: host
+        volumes:
+          - /opt/x0tta6bl4:/app/config
+          - /run/spire/sockets:/run/spire/sockets
+        env_file: /opt/x0tta6bl4/.pqc.env
+
+  handlers:
+    - name: restart spire-agent
+      service:
+        name: spire-agent
+        state: restarted

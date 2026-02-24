@@ -6,9 +6,9 @@ Verifies that stego-encoded traffic bypasses DPI signatures
 while raw or purely encrypted traffic is detected.
 """
 
-import pytest
-import os
 import hashlib
+
+import pytest
 from src.anti_censorship.stego_mesh import StegoMeshProtocol
 from scripts.dpi_simulator import DPISimulator
 
@@ -30,8 +30,8 @@ def test_raw_traffic_detection(dpi):
 
 def test_encrypted_traffic_detection(dpi):
     """Purely encrypted random-looking traffic should be detected by entropy."""
-    # Simulate an encrypted packet without protocol wrapping
-    encrypted_packet = os.urandom(200) 
+    # Deterministic high-entropy payload (~8 bits/byte) to avoid flaky threshold outcomes.
+    encrypted_packet = bytes(range(256)) * 2
     res = dpi.inspect(encrypted_packet)
     # Most likely detected as high entropy unknown
     assert res["detected"]

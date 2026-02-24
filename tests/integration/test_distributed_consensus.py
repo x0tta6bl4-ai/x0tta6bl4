@@ -24,6 +24,25 @@ import tempfile
 import shutil
 import pytest
 
+# Skip in environments where multiprocessing semaphores are unavailable
+# (e.g. restricted /dev/shm in some CI sandboxes).
+def _multiprocessing_semaphore_available() -> bool:
+    try:
+        queue = mp.Queue()
+        queue.put_nowait("probe")
+        queue.get_nowait()
+        queue.close()
+        queue.join_thread()
+        return True
+    except (PermissionError, OSError):
+        return False
+
+
+if not _multiprocessing_semaphore_available():
+    pytestmark = pytest.mark.skip(
+        reason="multiprocessing semaphores are unavailable in this environment"
+    )
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

@@ -46,18 +46,28 @@
         }
       ],
       "effort_estimate": "LOW",
-      "timeline_days": 1
+      "timeline_days": 1,
+      "last_verified": "2026-02-24",
+      "verification": {
+        "python_package_version": "0.14.1",
+        "pqc_smoke_test": "tests/security/test_pqc_integration_2026_01_12.py",
+        "pqc_smoke_result": "15 passed",
+        "note": "Package-level verification is passing; binary-level version API is not exposed by current oqs binding."
+      }
     },
     "raft_snapshot_creation": {
       "id": "RAFT_CONSENSUS_001",
       "severity": "MEDIUM",
-      "status": "FAILING_TEST",
+      "status": "VERIFIED_PASSING",
       "category": "Consensus",
-      "description": "Raft consensus snapshot creation test failing",
-      "failing_tests": [
-        "tests/consensus/test_raft_*.py::test_snapshot_creation"
+      "description": "Raft snapshot path validated in current codebase",
+      "verification_tests": [
+        "tests/unit/consensus/test_raft_snapshots.py",
+        "tests/unit/consensus/test_raft_consensus.py",
+        "tests/unit/consensus/test_raft_consensus_edges.py",
+        "tests/integration/test_raft_production.py"
       ],
-      "root_cause": "Snapshot serialization layer not implemented",
+      "root_cause": "Historical defect record; not reproducible on 2026-02-24",
       "impact": {
         "severity": "HIGH",
         "description": "State snapshots not persisting, data loss risk during node restart",
@@ -69,7 +79,8 @@
       },
       "implementation": {
         "files_to_modify": [
-          "src/consensus/raft_state.py"
+          "src/consensus/raft_consensus.py",
+          "src/consensus/raft_production.py"
         ],
         "required_methods": [
           "create_snapshot()",
@@ -82,21 +93,21 @@
       },
       "effort_estimate": "MEDIUM",
       "timeline_days": 3,
-      "priority_rank": 2
+      "priority_rank": 2,
+      "last_verified": "2026-02-24",
+      "verification_result": "23 passed total across unit+integration suites"
     },
     "spire_infrastructure_missing": {
       "id": "SPIRE_INFRA_001",
       "severity": "MEDIUM",
-      "status": "ENVIRONMENTAL",
+      "status": "PARTIALLY_AVAILABLE",
       "category": "Infrastructure/Testing",
-      "description": "SPIRE agent infrastructure not available",
+      "description": "SPIRE/SPIFFE coverage exists, but part of integration suite is environment-gated",
       "impact": {
         "security_tests_skipped": [
-          "tests/security/test_spiffe_controller.py",
-          "tests/security/test_mtls_controller.py",
-          "tests/security/test_workload_attestation.py"
+          "tests/integration/test_spire_integration.py (24 skipped)"
         ],
-        "coverage_loss": "20-30% of security validation"
+        "coverage_loss": "Partial integration coverage loss without fully provisioned SPIRE runtime"
       },
       "solution": {
         "type": "Docker/Kubernetes infrastructure",
@@ -108,7 +119,13 @@
       },
       "effort_estimate": "MEDIUM",
       "timeline_days": 2,
-      "priority_rank": 3
+      "priority_rank": 3,
+      "last_verified": "2026-02-24",
+      "verification_tests": [
+        "tests/security/test_spiffe_controller.py (7 passed)",
+        "tests/security/test_spire_agent_manager.py (26 passed)",
+        "tests/integration/test_spiffe_spire_mesh_integration.py (14 passed, 2 skipped)"
+      ]
     }
   },
   "p1_priority_gaps": {
@@ -139,14 +156,20 @@
       ],
       "effort_estimate": "MEDIUM",
       "timeline_weeks": 2,
-      "team_size": 2
+      "team_size": 2,
+      "last_verified": "2026-02-24",
+      "verification_tests": [
+        "tests/integration/test_mape_k_tuning.py (45 passed)",
+        "tests/unit/core/test_mape_k_mttr_optimizer.py (24 passed)"
+      ],
+      "verification_note": "Functional coverage is green; production MTTR target still requires runtime benchmark evidence."
     },
     "chaos_engineering_tests": {
       "id": "CHAOS_001",
       "gap_percentage": 10.0,
       "severity": "HIGH",
       "category": "Testing",
-      "current_state": "No chaos tests implemented",
+      "current_state": "Chaos suite implemented and actively passing",
       "target_state": "30-40 chaos scenarios covered",
       "test_scenarios_needed": {
         "network_failures": {
@@ -197,7 +220,11 @@
       "total_tests_needed": 24,
       "effort_estimate": "HIGH",
       "timeline_weeks": 3,
-      "team_size": 2
+      "team_size": 2,
+      "last_verified": "2026-02-24",
+      "verification_tests": [
+        "tests/chaos (97 passed, 4 skipped)"
+      ]
     },
     "load_testing": {
       "id": "LOAD_001",

@@ -1,0 +1,43 @@
+# Helm values for x0tta6bl4 10k Node Pilot Deployment (Sprint 10)
+# Target: 10,000 nodes, 99.7% Uptime, MTTR < 2.5s
+
+maas:
+  replicas: 10000
+  image:
+    repository: x0tta6bl4/mesh-node
+    tag: "3.3.0"
+    pullPolicy: IfNotPresent
+
+  # Post-Quantum Cryptography Enforcement
+  pqc:
+    enabled: true
+    kem: "ML-KEM-1024" # Upgraded security level for 10k pilot
+    signature: "ML-DSA-65"
+
+  # Machine Learning (Consciousness Engine)
+  gnn:
+    enabled: true
+    model: "graphsage-v2-int8" # INT8 quantization for performance at scale
+    federated_learning:
+      enabled: true
+      coordinator: "fl-server.x0tta6bl4.mesh:8080"
+      strategy: "HWFedAvg"
+
+  # Self-Healing & Observability
+  mapek:
+    enabled: true
+    monitor_interval: 1.5 # Optimized by BioEvo
+    anomaly_threshold: 0.85 # Optimized by BioEvo
+  
+  # Anti-Censorship
+  stego_mesh:
+    enabled: true
+    version: "v2"
+    evasion_strategy: "geneva-auto" # Dynamic genetic strategies
+
+# Chaos Engineering Simulation
+chaos:
+  enabled: true
+  scenarios:
+    - partition50
+    - pqc-failure

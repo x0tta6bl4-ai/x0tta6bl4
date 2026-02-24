@@ -267,3 +267,20 @@ models/
 
 # Browser test artifacts
 playwright-report/
+
+# Trash directories (Linux GUI trash)
+.Trash-*/
+
+# Docker disk images
+docker-ext4/
+
+# Local swarm artifacts
+LOCAL_SWARM_RECEIVE.txt
+
+# Personal archives (Cyrillic named)
+СЕМЕЙНЫЙ_АРХИВ_ИТОГ/
+
+# VPN junk from previous sessions
+final_vpn.py
+x0t_ghost_vpn.py
+x0t_real_vpn.py

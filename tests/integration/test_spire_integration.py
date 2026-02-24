@@ -61,7 +61,11 @@ class TestSPIREClient:
 
     def test_client_unavailable_without_agent(self):
         """Test client is unavailable when agent is not running"""
-        config = SPIREConfig(enabled=True)
+        # Use a guaranteed-invalid socket path so this assertion is stable
+        # regardless of whether a local SPIRE agent is running.
+        config = SPIREConfig(
+            enabled=True, agent_address="unix:///tmp/spire-agent/public/does-not-exist.sock"
+        )
         client = SPIREClient(config)
         # Without mock setup, client should fail to connect
         assert not client.is_available()
