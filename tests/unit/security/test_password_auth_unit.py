@@ -22,9 +22,10 @@ def test_verify_password_bcrypt_success_and_failure():
 
 
 def test_verify_password_legacy_plaintext_fallback():
+    # Plaintext fallback was removed for security; plaintext stored_hash is rejected.
     ok, should_rehash = verify_password("legacy_password_123", "legacy_password_123")
-    assert ok is True
-    assert should_rehash is True
+    assert ok is False
+    assert should_rehash is False
 
 
 def test_verify_password_invalid_hash_format():
