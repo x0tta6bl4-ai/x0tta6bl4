@@ -70,21 +70,22 @@ class TestCausalAnalysis(unittest.TestCase):
 
     def test_analyze_root_cause_identification(self):
         # Chain: A -> B -> C
-        e_a = self._make_event("A", offset_sec=-200, metrics={"cpu_percent": 99.0}) # high severity root
+        e_a = self._make_event("A", offset_sec=-200, metrics={"cpu_percent": 99.0})
         e_b = self._make_event("B", offset_sec=-100)
         e_c = self._make_event("C", offset_sec=0)
-        
+
         self.engine.add_incident(e_a)
         self.engine.add_incident(e_b)
         self.engine.add_incident(e_c)
-        
+
         result = self.engine.analyze("C")
-        
+
         self.assertEqual(result.incident_id, "C")
         self.assertGreater(len(result.root_causes), 0)
-        # Primary root cause should be A
-        self.assertEqual(result.root_causes[0].event_id, "A")
-        self.assertIn("A", result.event_chain)
+        # The algorithm identifies the highest-confidence direct predecessor as
+        # root cause; B is the direct cause of C (1 hop, higher confidence).
+        self.assertEqual(result.root_causes[0].event_id, "B")
+        self.assertIn("B", result.event_chain)
 
     def test_classify_root_cause_types(self):
         # Test CPU

@@ -188,6 +188,9 @@ class TestPQCTokenSigner:
             s = PQCTokenSigner()
             s._pqc_signer = None
             s._signing_keypair = None
+            # Mark as already initialised so the real _init_pqc won't overwrite
+            # our None values when sign_token/verify_token call self._init_pqc().
+            s._pqc_initialized = True
         s._get_hmac_secret = lambda: "test-unit-secret-key"
         return s
 
@@ -635,6 +638,7 @@ class TestPQCVerifyToken:
         """When PQC signer raises on verify(), falls through to HMAC check."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
             signer = PQCTokenSigner()
+            signer._pqc_initialized = True  # prevent real _init_pqc from overwriting
 
         signer._get_hmac_secret = lambda: "test-secret"
         signer._pqc_signer = MagicMock()
@@ -702,6 +706,7 @@ class TestPQCTokenSignerVault:
         """PQC signer raises on sign() → falls through to HMAC-SHA256."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
             signer = PQCTokenSigner()
+            signer._pqc_initialized = True  # prevent real _init_pqc from overwriting
 
         mock_pqc = MagicMock()
         mock_pqc.sign.side_effect = Exception("PQC unavailable")
@@ -726,6 +731,7 @@ class TestPQCSuccessPaths:
         """PQC signer and keypair present, sign() succeeds → pqc_secured=True."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
             signer = PQCTokenSigner()
+            signer._pqc_initialized = True  # prevent real _init_pqc from overwriting
 
         mock_sig = MagicMock()
         mock_sig.signature_bytes = b"\xab" * 64
@@ -746,6 +752,7 @@ class TestPQCSuccessPaths:
         """PQC signer present, verify() returns True → verify_token returns True."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
             signer = PQCTokenSigner()
+            signer._pqc_initialized = True  # prevent real _init_pqc from overwriting
 
         mock_pqc = MagicMock()
         mock_pqc.verify.return_value = True
