@@ -25,36 +25,20 @@ class TestHealth:
         assert health["status"] == "ok"
 
     def test_get_health_version_from_env(self):
-        """Test that version can be set via environment variable"""
-        # Note: _VERSION is set at module import time, so we need to reload the module
-        with patch.dict(os.environ, {"X0TTA6BL4_VERSION": "2.0.0"}):
-            import importlib
-
-            import src.core.health
-
-            importlib.reload(src.core.health)
+        """Test that version can be overridden by patching the module-level constant."""
+        with patch("src.core.health._VERSION", "2.0.0"):
             from src.core.health import get_health
 
             health = get_health()
             assert health["version"] == "2.0.0"
 
     def test_get_health_default_version(self):
-        """Test that default version is used when env var not set"""
-        # Note: _VERSION is set at module import time, so we need to reload the module
-        with patch.dict(os.environ, {}, clear=True):
-            # Remove X0TTA6BL4_VERSION if it exists
-            if "X0TTA6BL4_VERSION" in os.environ:
-                del os.environ["X0TTA6BL4_VERSION"]
+        """Test that the default version matches the canonical version."""
+        from src.version import __version__
+        from src.core.health import get_health
 
-            import importlib
-
-            import src.core.health
-
-            importlib.reload(src.core.health)
-            from src.core.health import get_health
-
-            health = get_health()
-            assert health["version"] == "3.2.1"
+        health = get_health()
+        assert health["version"] == __version__
 
     def test_check_cli_success(self):
         """Test CLI health check with ok status"""

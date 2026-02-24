@@ -237,7 +237,7 @@ mocked_modules = {
     "prometheus_api_client": mock.MagicMock(),
     "sentence_transformers": mock.MagicMock(),
     "sentence_transformers.SentenceTransformer": mock.MagicMock(),
-    "hnswlib": mock.MagicMock(),
+    # hnswlib is a real installed package — do not mock it so HNSW tests work correctly.
     "shap": mock.MagicMock(),
     "numba": mock.MagicMock(),
     "flwr": mock.MagicMock(),
