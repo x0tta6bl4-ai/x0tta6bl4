@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   spire-server:
     image: ghcr.io/spiffe/spire-server:1.9.0
@@ -14,34 +12,23 @@ services:
       - -config=/etc/spire/server.conf
     networks:
       - spire-net
-    healthcheck:
-      test: ["CMD", "spire-server", "healthcheck"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
 
   spire-agent:
     image: ghcr.io/spiffe/spire-agent:1.9.0
     container_name: spire-agent
     hostname: spire-agent
+    pid: host
     depends_on:
-      spire-server:
-        condition: service_healthy
+      - spire-server
     volumes:
       - ./scripts/spire/agent-config.conf:/etc/spire/agent.conf:ro
       - /tmp/spire-agent/public:/spire-agent-socket-dir
-      - /var/run/docker.sock:/var/run/docker.sock
+      - spire-agent-data:/spire/data/agent
     command:
       - -config=/etc/spire/agent.conf
+      - -joinToken=${SPIRE_JOIN_TOKEN:-}
     networks:
       - spire-net
-    healthcheck:
-      test: ["CMD", "spire-agent", "healthcheck"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
 
   # Test service with SPIRE agent
   x0tta6bl4-test:
@@ -50,8 +37,7 @@ services:
       dockerfile: Dockerfile
     container_name: x0tta6bl4-test
     depends_on:
-      spire-agent:
-        condition: service_healthy
+      - spire-agent
     environment:
       SPIRE_AGENT_ADDRESS: unix:///spire-agent-socket-dir/api.sock
     volumes:
@@ -69,6 +55,7 @@ services:
 
 volumes:
   spire-data:
+  spire-agent-data:
 
 networks:
   spire-net:
