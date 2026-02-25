@@ -58,6 +58,8 @@
         "scripts/sync_vps.sh",
         "scripts/verify_deployment_artifacts.sh",
         "scripts/build_client.sh",
+        "scripts/spire/",
+        "docker-compose.spire.yml",
         "src/services/maas_auth_service.py"
       ]
     },
@@ -157,7 +159,9 @@
         "script.js",
         "src-tauri/",
         "__init__.py",
-        "PROJECT_COMPLETION_REPORT.json"
+        "PROJECT_COMPLETION_REPORT.json",
+        "dashboard.html",
+        "defects_inventory.json"
       ]
     },
     "lead-coordinator": {
