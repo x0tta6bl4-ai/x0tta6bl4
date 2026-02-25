@@ -154,6 +154,7 @@ markers = [
     "pqc: post-quantum cryptography tests",
     "mesh: mesh network tests",
     "api: api tests",
+    "performance: wall-clock timing assertions; scale thresholds via CI_LATENCY_FACTOR env var",
 ]
 filterwarnings = [
     "error",

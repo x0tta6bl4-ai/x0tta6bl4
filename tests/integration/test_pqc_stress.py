@@ -9,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from tests.conftest import latency_threshold
 
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
@@ -23,6 +24,7 @@ class TestPQCStress:
     """Stress tests for PQC operations"""
 
     @pytest.mark.slow
+    @pytest.mark.performance
     def test_pqc_high_volume_key_generation(self):
         """Test generating 1000 PQC key pairs (target: <10 seconds)"""
         pqc = PQMeshSecurityLibOQS(node_id="stress-keygen")
@@ -33,7 +35,7 @@ class TestPQCStress:
             assert pk is not None
 
         elapsed = time.time() - start
-        assert elapsed < 10, f"Key generation took {elapsed}s (target <10s)"
+        assert elapsed < latency_threshold(10), f"Key generation took {elapsed}s (target <10s)"
 
     @pytest.mark.slow
     def test_pqc_signature_generation_throughput(self):
