@@ -378,11 +378,55 @@ class SwarmConsensusManager:
         if len(proposals) > 100:
             raise ValueError("Proposals list cannot exceed 100 items")
         
+        # Validate each proposal
+        for i, proposal in enumerate(proposals):
+            self._validate_single_proposal(proposal, i)
+        
         # Validate timeout
         if timeout <= 0:
             raise ValueError(f"Timeout must be positive, got {timeout}")
         if timeout > 300:
             raise ValueError("Timeout cannot exceed 300 seconds")
+    
+    def _validate_single_proposal(self, proposal: Any, index: int) -> None:
+        """
+        Validate a single proposal value.
+        
+        Args:
+            proposal: The proposal value to validate
+            index: Index in proposals list (for error messages)
+            
+        Raises:
+            ValueError: If proposal is invalid
+        """
+        import json
+        
+        # Check type - allow basic JSON-serializable types
+        if not isinstance(proposal, (str, int, float, bool, dict, list, type(None))):
+            raise ValueError(
+                f"Proposal {index} has invalid type: {type(proposal).__name__}. "
+                f"Must be JSON-serializable (str, int, float, bool, dict, list, or None)"
+            )
+        
+        # Check string length
+        if isinstance(proposal, str):
+            if len(proposal) > 10000:
+                raise ValueError(f"Proposal {index} exceeds maximum length of 10000 characters")
+            # Check for potentially dangerous content
+            if '\x00' in proposal:
+                raise ValueError(f"Proposal {index} contains null bytes")
+        
+        # Check dict keys
+        if isinstance(proposal, dict):
+            for key in proposal.keys():
+                if not isinstance(key, str):
+                    raise ValueError(f"Proposal {index} has non-string dict key: {type(key).__name__}")
+        
+        # Verify JSON serializability
+        try:
+            json.dumps(proposal)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Proposal {index} is not JSON-serializable: {e}")
     
     async def decide(
         self,
