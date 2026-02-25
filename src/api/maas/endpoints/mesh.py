@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from src.database import MeshInstance as DBMeshInstance, get_db
 
 from ..auth import UserContext, get_current_user, require_mesh_access
 from ..models import (
@@ -119,6 +121,7 @@ def _build_mesh_status_response(instance: Any) -> MeshStatusResponse:
 async def deploy_mesh(
     request: MeshDeployRequest,
     user: UserContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> MeshDeployResponse:
     """
     Deploy a new mesh network.
@@ -138,6 +141,37 @@ async def deploy_mesh(
             traffic_profile=request.traffic_profile,
             join_token_ttl_sec=request.join_token_ttl_sec,
         )
+
+        # Persist to real DB so dashboard can see it
+        try:
+            db_mesh = DBMeshInstance(
+                id=instance.mesh_id,
+                name=instance.name,
+                owner_id=instance.owner_id,
+                plan=instance.plan,
+                region=getattr(instance, "region", None) or "global",
+                nodes=getattr(instance, "target_nodes", None) or request.nodes,
+                pqc_profile=getattr(instance, "pqc_profile", None) or "edge",
+                status=instance.status,
+                join_token=instance.join_token,
+                join_token_expires_at=instance.join_token_expires_at,
+                pqc_enabled=getattr(instance, "pqc_enabled", request.pqc_enabled),
+                obfuscation=getattr(instance, "obfuscation", request.obfuscation),
+                traffic_profile=getattr(instance, "traffic_profile", request.traffic_profile),
+            )
+            db.add(db_mesh)
+            db.commit()
+        except Exception as db_err:
+            db.rollback()
+            logger.error(f"Failed to persist mesh {instance.mesh_id} to DB: {db_err}")
+            # Rollback in-memory creation to maintain consistency
+            from ..registry import _mesh_registry, _registry_lock
+            async with _registry_lock:
+                _mesh_registry.pop(instance.mesh_id, None)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Mesh creation failed - database persistence error. Please contact support.",
+            )
 
         expires_at = getattr(instance, "join_token_expires_at", None)
         if expires_at and hasattr(expires_at, "isoformat"):
@@ -172,6 +206,8 @@ async def deploy_mesh(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to deploy mesh: {e}")
         raise HTTPException(
