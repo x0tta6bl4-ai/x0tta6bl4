@@ -8,7 +8,7 @@ All secrets must be provided via .env file or environment.
 import os
 from typing import Dict, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,11 +34,7 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        """Prevent hardcoded passwords in production."""
-        if "x0tta6bl4_password" in v and os.getenv("ENVIRONMENT") == "production":
-            raise ValueError(
-                "❌ Hardcoded database password detected! Use DATABASE_URL env var."
-            )
+        """Normalize database URL value."""
         return v
 
     # ─────────────────────────────────────────
@@ -59,9 +55,10 @@ class Settings(BaseSettings):
     )
     @classmethod
     def validate_secrets(cls, v: Optional[str]) -> Optional[str]:
-        """Warn if secrets are not set in production."""
-        if os.getenv("ENVIRONMENT") == "production" and not v:
-            raise ValueError(f"❌ Secret key must be set in production")
+        """Normalize secret values. Production validation is in model_validator."""
+        # Just normalize the value - production requirements are enforced
+        # in validate_production_requirements model_validator which has access
+        # to self.environment and can provide accurate error messages.
         return v
 
     # ─────────────────────────────────────────
@@ -95,10 +92,44 @@ class Settings(BaseSettings):
     @field_validator("operator_private_key", mode="before")
     @classmethod
     def validate_private_key(cls, v: Optional[str]) -> Optional[str]:
-        """Warn if private key is not set."""
-        if not v and os.getenv("ENVIRONMENT") == "production":
-            raise ValueError("❌ OPERATOR_PRIVATE_KEY must be set in production")
+        """Normalize private key value."""
         return v
+
+    @model_validator(mode="after")
+    def validate_production_requirements(self):
+        """
+        Enforce production requirements based on resolved settings values.
+
+        This must rely on `self.environment` rather than raw process env vars,
+        because Settings values can come from `.env` files and explicit kwargs.
+        """
+        if not self.is_production():
+            return self
+
+        missing: list[str] = []
+        if not self.flask_secret_key:
+            missing.append("FLASK_SECRET_KEY")
+        if not self.jwt_secret_key:
+            missing.append("JWT_SECRET_KEY")
+        if not self.csrf_secret_key:
+            missing.append("CSRF_SECRET_KEY")
+        if not self.operator_private_key:
+            missing.append("OPERATOR_PRIVATE_KEY")
+
+        violations: list[str] = []
+        if missing:
+            violations.append(
+                f"Secret key must be set in production: {', '.join(missing)}"
+            )
+        if "x0tta6bl4_password" in self.database_url:
+            violations.append(
+                "Hardcoded database password detected! Use DATABASE_URL env var."
+            )
+
+        if violations:
+            raise ValueError(" | ".join(violations))
+
+        return self
 
     # ─────────────────────────────────────────
     # Node Configuration
@@ -186,7 +217,12 @@ class Settings(BaseSettings):
         value = os.getenv(name)
         if value is None:
             return default
-        return value.strip().lower() in {"1", "true", "yes", "on"}
+        lower_value = value.strip().lower()
+        if lower_value in {"1", "true", "yes", "on"}:
+            return True
+        if lower_value in {"0", "false", "no", "off"}:
+            return False
+        return default
 
     def security_profile(self) -> Dict[str, bool]:
         """

@@ -49,15 +49,17 @@ def upgrade() -> None:
         )
 
     if not _table_exists(inspector, "playbook_acks"):
-        op.create_table(
-            "playbook_acks",
-            sa.Column("id", sa.String(), primary_key=True),
-            sa.Column("playbook_id", sa.String(), sa.ForeignKey("signed_playbooks.id"),
-                      nullable=False, index=True),
-            sa.Column("node_id", sa.String(), nullable=False, index=True),
-            sa.Column("status", sa.String(), nullable=False, server_default="completed"),
-            sa.Column("acknowledged_at", sa.DateTime(), nullable=True),
-        )
+        # Only create if signed_playbooks exists (has FK dependency)
+        if _table_exists(inspector, "signed_playbooks"):
+            op.create_table(
+                "playbook_acks",
+                sa.Column("id", sa.String(), primary_key=True),
+                sa.Column("playbook_id", sa.String(), sa.ForeignKey("signed_playbooks.id"),
+                          nullable=False, index=True),
+                sa.Column("node_id", sa.String(), nullable=False, index=True),
+                sa.Column("status", sa.String(), nullable=False, server_default="completed"),
+                sa.Column("acknowledged_at", sa.DateTime(), nullable=True),
+            )
 
 
 def downgrade() -> None:

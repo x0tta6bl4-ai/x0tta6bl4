@@ -1,0 +1,41 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "..",
+    "distDir": ".."
+  },
+  "package": {
+    "productName": "QuantumShield",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": true
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "net.x0tta6bl4.quantumshield",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ]
+    },
+    "security": {
+      "csp": null
+    },
+    "window": [
+      {
+        "title": "x0tta6bl4 | Quantum Shield",
+        "width": 400,
+        "height": 700,
+        "resizable": false,
+        "fullscreen": false
+      }
+    ]
+  }
+}

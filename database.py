@@ -125,7 +125,8 @@ def init_database():
                 vpn_config TEXT,
                 payment_amount REAL,
                 payment_currency TEXT,
-                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                zkp_public_key TEXT
             )
         """)
         
@@ -204,11 +205,18 @@ def create_user(
             plan == "trial"
         ))
         
-        # Log activity
+        logger.info(f"User {user_id} created with plan {plan}")
+        
+        # Log activity for audit trail
         log_activity(user_id, "user_created")
         
-        logger.info(f"User {user_id} created with plan {plan}")
-        return get_user(user_id)
+        # Must be inside the same context to ensure atomicity and visibility
+        cursor.execute(
+            "SELECT * FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 
 def update_user(
@@ -216,7 +224,8 @@ def update_user(
     plan: Optional[str] = None,
     expires_at: Optional[datetime] = None,
     vpn_uuid: Optional[str] = None,
-    vpn_config: Optional[str] = None
+    vpn_config: Optional[str] = None,
+    zkp_public_key: Optional[str] = None
 ) -> bool:
     """Update user data"""
     with get_db_connection() as conn:
@@ -240,6 +249,10 @@ def update_user(
         if vpn_config is not None:
             updates.append("vpn_config = ?")
             params.append(vpn_config)
+        
+        if zkp_public_key is not None:
+            updates.append("zkp_public_key = ?")
+            params.append(zkp_public_key)
         
         if not updates:
             return False
@@ -303,6 +316,7 @@ def record_payment(
             VALUES (?, ?, ?, ?, ?)
         """, (user_id, amount, currency, provider, status))
         
+        # Log activity for audit trail
         log_activity(user_id, f"payment_{status}")
 
 

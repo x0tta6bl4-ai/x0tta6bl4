@@ -36,6 +36,51 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _env_true(name: str, default: bool = False) -> bool:
+    """Parse boolean env var consistently."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_enterprise_guardrails(testing_mode: bool) -> bool:
+    """
+    Validate production guardrails.
+
+    Returns:
+        True when running in production mode, else False.
+
+    Raises:
+        RuntimeError: if production guardrails are violated.
+    """
+    production_mode = settings.is_production() or _env_true("X0TTA6BL4_PRODUCTION", False)
+    if testing_mode or not production_mode:
+        return production_mode
+
+    violations: list[str] = []
+    security_flags = settings.security_profile()
+
+    if _env_true("MAAS_LIGHT_MODE", False):
+        violations.append("MAAS_LIGHT_MODE must be false in production")
+    if not security_flags["mtls_enabled"]:
+        violations.append("MTLS_ENABLED must be true in production")
+    if not security_flags["rate_limit_enabled"]:
+        violations.append("RATE_LIMIT_ENABLED must be true in production")
+    if not security_flags["request_validation_enabled"]:
+        violations.append("REQUEST_VALIDATION_ENABLED must be true in production")
+    if _env_true("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", False):
+        violations.append("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY must be false in production")
+    if not _env_true("DB_ENFORCE_SCHEMA", True):
+        violations.append("DB_ENFORCE_SCHEMA must be true in production")
+
+    if violations:
+        details = "\n".join(f"- {item}" for item in violations)
+        raise RuntimeError(f"Production guardrails violated:\n{details}")
+
+    return production_mode
+
+
 class OptimizationEngine:
     """
     Manages the lifecycle of intelligent background components:
@@ -55,12 +100,14 @@ class OptimizationEngine:
     async def startup(self):
         logger.info("🚀 Initializing Production Intelligence Engine...")
 
+        production_mode = False
         try:
             testing_mode = (
                 settings.is_testing()
                 or os.getenv("TESTING", "false").lower() == "true"
                 or bool(os.getenv("PYTEST_CURRENT_TEST"))
             )
+            production_mode = _validate_enterprise_guardrails(testing_mode)
             enforce_schema = os.getenv("DB_ENFORCE_SCHEMA", "true").lower() == "true"
             auto_default = "true" if settings.is_production() else "false"
             auto_migrate = (
@@ -130,8 +177,15 @@ class OptimizationEngine:
 
         except Exception as e:
             logger.error(f"❌ Failed to start Intelligence Engine: {e}", exc_info=True)
-            # We don't raise here to allow the API to start even if intelligence fails
-            # (Zombie mode is better than Dead mode)
+            fail_open_default = not production_mode
+            fail_open = _env_true("X0TTA6BL4_FAIL_OPEN_STARTUP", fail_open_default)
+            if fail_open:
+                logger.warning(
+                    "⚠️ Startup fail-open enabled (X0TTA6BL4_FAIL_OPEN_STARTUP=true). "
+                    "Continuing in degraded mode."
+                )
+                return
+            raise
 
     async def shutdown(self):
         logger.info("🔻 Shutting down Intelligence Engine...")

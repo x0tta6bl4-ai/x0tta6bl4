@@ -86,10 +86,20 @@ class MeshToken:
         self.last_epoch_time = time.time()
         self.epoch_number = 0
         self.referrals: Dict[str, str] = {}  # referee -> referrer
+        
+        # Dynamic Economy State
+        self.current_relay_reward = self.PRICE_PER_RELAY
+        self.current_burn_rate = 0.01 # 1% base
 
         # Callbacks for external integrations
         self._on_transfer: List[Callable] = []
         self._on_stake_change: List[Callable] = []
+
+    def update_economic_parameters(self, relay_reward: float, burn_rate: float):
+        """Updates economic parameters (usually via DAO or AI engine)."""
+        self.current_relay_reward = relay_reward
+        self.current_burn_rate = burn_rate
+        logger.info(f"💰 Economy updated: Relay={relay_reward:.6f}, Burn={burn_rate:.1%}")
 
     # ─────────────────────────────────────────────────────────────
     # Core Token Operations
@@ -314,10 +324,10 @@ class MeshToken:
     ) -> bool:
         """
         Pay for resource usage.
-        Payer pays provider directly, small fee burned.
+        Payer pays provider directly, dynamic fee burned.
         """
         price = self.get_resource_price(resource_type, amount)
-        fee = price * 0.01  # 1% fee burned
+        fee = price * self.current_burn_rate  # Dynamic fee burned
         total = price + fee
 
         if self.balance_of(payer_node) < total:

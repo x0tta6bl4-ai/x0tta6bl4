@@ -100,14 +100,17 @@ class TestNetworkChaos:
         assert scenario.scenario_type == ChaosScenarioType.PACKET_LOSS
 
         # Statistically test packet loss
+        samples_per_node = 100
+        total_samples = len(scenario.target_nodes) * samples_per_node
         drops = sum(
             1
             for node in scenario.target_nodes
+            for _ in range(samples_per_node)
             if orchestrator.should_drop_network_packet(node)
-            for _ in range(100)
-        ) / len(scenario.target_nodes)
+        )
+        drop_percent = (drops / total_samples) * 100
 
-        assert 5 <= drops <= 15  # Expect around 10% with variance
+        assert 5 <= drop_percent <= 15  # Expect around 10% with variance
 
     def test_packet_loss_50_percent(self, chaos_orchestrator):
         """Test 50% packet loss"""
@@ -119,14 +122,17 @@ class TestNetworkChaos:
         assert scenario.scenario_type == ChaosScenarioType.PACKET_LOSS
 
         # Statistically test packet loss
+        samples_per_node = 100
+        total_samples = len(scenario.target_nodes) * samples_per_node
         drops = sum(
             1
             for node in scenario.target_nodes
+            for _ in range(samples_per_node)
             if orchestrator.should_drop_network_packet(node)
-            for _ in range(100)
-        ) / len(scenario.target_nodes)
+        )
+        drop_percent = (drops / total_samples) * 100
 
-        assert 45 <= drops <= 55  # Expect around 50% with variance
+        assert 45 <= drop_percent <= 55  # Expect around 50% with variance
 
     def test_message_reordering_detection(self, chaos_orchestrator):
         """Test message reordering handling"""

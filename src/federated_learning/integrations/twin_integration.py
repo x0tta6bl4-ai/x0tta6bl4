@@ -47,6 +47,8 @@ class TrainingConfig:
     state_dim: int = 49  # 8 neighbors * 6 features + 1 global
     action_dim: int = 8
     hidden_sizes: List[int] = field(default_factory=lambda: [64, 64])
+    ppo_epochs_per_update: int = 1
+    ppo_batch_size: int = 256
 
     # Training
     episodes_per_round: int = 10
@@ -380,7 +382,11 @@ class FederatedTrainingOrchestrator:
         self.agents: Dict[str, PPOAgent] = {}
         self.envs: Dict[str, TwinBackedRoutingEnv] = {}
 
-        ppo_config = PPOConfig(hidden_sizes=self.config.hidden_sizes)
+        ppo_config = PPOConfig(
+            hidden_sizes=self.config.hidden_sizes,
+            epochs_per_update=self.config.ppo_epochs_per_update,
+            batch_size=self.config.ppo_batch_size,
+        )
 
         for node_id in self.twin.nodes:
             # Create agent
