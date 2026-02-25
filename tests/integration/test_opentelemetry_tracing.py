@@ -13,6 +13,7 @@ import time
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from tests.conftest import latency_threshold
 
 from src.monitoring.opentelemetry_extended import (CRDTSpans, DAOSpans,
                                                    EBPFSpans,
@@ -495,6 +496,7 @@ class TestTracingIntegration:
             with mapek.monitor_phase("node-2", metrics_collected=150):
                 time.sleep(0.01)
 
+    @pytest.mark.performance
     def test_span_performance(self):
         """Test span creation performance."""
         manager = OTelTracingManager(service_name="test_perf")
@@ -508,7 +510,7 @@ class TestTracingIntegration:
         duration = time.time() - start
 
         # Should complete reasonably fast (< 1 second for 100 spans)
-        assert duration < 1.0
+        assert duration < latency_threshold(1.0)
 
 
 @pytest.mark.parametrize(

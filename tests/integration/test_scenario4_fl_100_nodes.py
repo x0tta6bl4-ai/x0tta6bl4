@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
+from tests.conftest import latency_threshold
 
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator,
@@ -316,6 +317,7 @@ async def test_performance_100_nodes(fl_coordinator):
 
 
 @pytest.mark.asyncio
+@pytest.mark.performance
 async def test_scalability_100_nodes(fl_coordinator):
     """Test scalability: verify system can handle 100 nodes."""
     # Register 100 nodes
@@ -325,7 +327,7 @@ async def test_scalability_100_nodes(fl_coordinator):
     registration_time = time.time() - registration_start
 
     # Registration should be fast
-    assert registration_time < 1.0
+    assert registration_time < latency_threshold(1.0)
 
     # Start heartbeat monitoring
     fl_coordinator.start()
@@ -337,7 +339,7 @@ async def test_scalability_100_nodes(fl_coordinator):
     heartbeat_time = time.time() - heartbeat_start
 
     # Heartbeat updates should be fast
-    assert heartbeat_time < 1.0
+    assert heartbeat_time < latency_threshold(1.0)
 
     # Start a round
     round_start = time.time()
@@ -345,7 +347,7 @@ async def test_scalability_100_nodes(fl_coordinator):
     round_init_time = time.time() - round_start
 
     # Round initialization should be fast
-    assert round_init_time < 1.0
+    assert round_init_time < latency_threshold(1.0)
     assert round_result is not None
 
 

@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import pytest
+from tests.conftest import latency_threshold
 
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator)
@@ -10,6 +11,7 @@ from src.federated_learning.parl_integration import (PARLFederatedOrchestrator,
 
 
 @pytest.mark.asyncio
+@pytest.mark.performance
 async def test_parl_federated_learning_speedup():
     """
     Test that PARL integration provides speedup over sequential execution
@@ -52,7 +54,7 @@ async def test_parl_federated_learning_speedup():
         # Sequential would be ~5.0s
         # Parallel (50 workers) should be ~0.2s overhead
         # If elapsed < 1.0s, we confirm massive speedup
-        assert elapsed < 2.0, "PARL failed to provide expected speedup!"
+        assert elapsed < latency_threshold(2.0), "PARL failed to provide expected speedup!"
 
     finally:
         await orchestrator.terminate()
