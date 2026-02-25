@@ -40,9 +40,8 @@ class SPIREConfig:
     ):
         self.agent_address = agent_address
         self.trust_domain = trust_domain
-        # Effective enablement respects runtime capability, but still allows
-        # explicit client injection/mocking when WorkloadApiClient is patched.
-        self.enabled = bool(enabled and (SPIRE_AGENT_AVAILABLE or WorkloadApiClient))
+        # Effective enablement must follow runtime SPIRE availability.
+        self.enabled = bool(enabled and SPIRE_AGENT_AVAILABLE)
 
 
 class SPIREClient:
