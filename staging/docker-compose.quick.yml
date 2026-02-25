@@ -104,6 +104,46 @@ services:
       timeout: 5s
       retries: 5
 
+  # Event Store API (PostgreSQL-backed)
+  event-store:
+    build:
+      context: ..
+      dockerfile: Dockerfile.staging
+    container_name: x0tta6bl4-event-store
+    ports:
+      - "${EVENT_STORE_PORT:-8001}:8001"
+    environment:
+      - NODE_ID=event-store-staging
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://x0tta6bl4:${DB_PASSWORD:-x0tta6bl4_password}@db:5432/x0tta6bl4
+      - EVENT_STORE_BACKEND=postgres
+      - EVENT_STORE_TABLE=event_store
+      - PYTHONUNBUFFERED=1
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=8001
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - x0tta6bl4_staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    command: ["python", "-m", "src.event_sourcing.api"]
+
 volumes:
   x0tta6bl4_prometheus_data:
   x0tta6bl4_grafana_data:
