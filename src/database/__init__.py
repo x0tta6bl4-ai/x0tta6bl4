@@ -363,6 +363,55 @@ def get_required_schema_gaps() -> List[str]:
     return missing
 
 
+def validate_required_secrets() -> None:
+    """
+    Validate that critical environment secrets are set.
+    Raises RuntimeError if any required secret is missing or empty.
+    """
+    import os
+    
+    # Critical secrets that MUST be set in production
+    REQUIRED_SECRETS = [
+        "FLASK_SECRET_KEY",
+        "JWT_SECRET_KEY",
+        "CSRF_SECRET_KEY",
+    ]
+    
+    # Optional secrets (can be empty but should be documented)
+    OPTIONAL_SECRETS = [
+        "OPERATOR_PRIVATE_KEY",
+        "VPN_SERVER",
+        "VPN_PORT",
+        "VPN_SESSION_TOKEN",
+        "GENEVA_MASTER_KEY",
+    ]
+    
+    missing_critical = []
+    empty_optional = []
+    
+    for secret in REQUIRED_SECRETS:
+        value = os.getenv(secret, "").strip()
+        if not value:
+            missing_critical.append(secret)
+    
+    for secret in OPTIONAL_SECRETS:
+        value = os.getenv(secret, "").strip()
+        if not value:
+            empty_optional.append(secret)
+    
+    if missing_critical:
+        raise RuntimeError(
+            f"CRITICAL: Missing required secrets: {', '.join(missing_critical)}. "
+            f"Set via environment variables, Kubernetes secrets, or secret manager before deployment."
+        )
+    
+    if empty_optional:
+        logger.warning(
+            f"WARNING: Optional secrets not set: {', '.join(empty_optional)}. "
+            f"Some features may be disabled."
+        )
+
+
 def run_alembic_upgrade(target: str = "head") -> None:
     """
     Run Alembic migrations for the configured DATABASE_URL.
@@ -388,7 +437,11 @@ def run_alembic_upgrade(target: str = "head") -> None:
 def ensure_schema_compatible(auto_migrate: bool = False) -> None:
     """
     Fail fast on known schema drift. Optionally try auto-migration first.
+    Also validates required secrets are set.
     """
+    # Validate secrets first - fail fast before any DB operations
+    validate_required_secrets()
+    
     missing = get_required_schema_gaps()
     if not missing:
         return
