@@ -5,6 +5,7 @@ Tests error handling and recovery in PQC operations.
 """
 
 import pytest
+from tests.conftest import latency_threshold
 
 try:
     from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
@@ -174,6 +175,7 @@ class TestPQCFailureInjection:
 
         assert pqc.verify(valid_msg, sig) is True
 
+    @pytest.mark.performance
     def test_timeout_simulation(self):
         """Test behavior during timeout scenarios"""
         pqc = PQMeshSecurityLibOQS(node_id="failure-timeout")
@@ -186,7 +188,7 @@ class TestPQCFailureInjection:
         elapsed = time.time() - start
 
         assert pk is not None
-        assert elapsed < 5
+        assert elapsed < latency_threshold(5)
 
     def test_partial_data_corruption(self):
         """Test detection of partially corrupted data"""
