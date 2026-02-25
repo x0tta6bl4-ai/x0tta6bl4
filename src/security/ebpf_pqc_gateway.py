@@ -21,19 +21,23 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+# Prevent oqs from trying to auto-install liboqs in CI environments.
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
 try:
     from liboqs import KeyEncapsulation, Signature
 
     PQC_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError, AttributeError):
     try:
-        import oqs
         from oqs import KeyEncapsulation, Signature
 
         PQC_AVAILABLE = True
-    except ImportError:
+    except (ImportError, RuntimeError, AttributeError, SystemExit) as e:
         PQC_AVAILABLE = False
-        logging.warning("liboqs not available - PQC features disabled")
+        KeyEncapsulation = None  # type: ignore[assignment]
+        Signature = None  # type: ignore[assignment]
+        logging.warning(f"liboqs not available - PQC features disabled: {e}")
 
 logger = logging.getLogger(__name__)
 
