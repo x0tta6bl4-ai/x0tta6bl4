@@ -109,7 +109,12 @@ class SPIREClient:
             return None
 
         try:
-            bundle = self.client.fetch_x509_bundle()
+            if hasattr(self.client, "fetch_x509_bundle"):
+                bundle = self.client.fetch_x509_bundle()
+            elif hasattr(self.client, "fetch_x509_bundles"):
+                bundle = self.client.fetch_x509_bundles()
+            else:
+                return None
             return self._extract_bundle_bytes(bundle)
         except Exception as e:
             logger.error(f"Failed to fetch X.509 bundle from SPIRE: {e}")
