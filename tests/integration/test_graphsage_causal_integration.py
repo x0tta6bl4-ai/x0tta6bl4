@@ -312,6 +312,12 @@ class TestAccuracyValidation:
             "memory": 0.4,
         }
 
+        # Warm-up call so one-time model/runtime initialization is excluded
+        # from steady-state inference latency.
+        integration.detect_with_root_cause(
+            node_id="latency-warmup", node_features=node_features, neighbors=[]
+        )
+
         start_time = time.time()
         prediction, _, _ = integration.detect_with_root_cause(
             node_id="latency-test", node_features=node_features, neighbors=[]

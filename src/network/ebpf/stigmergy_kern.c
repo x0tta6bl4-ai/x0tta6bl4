@@ -2,6 +2,7 @@
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
 
 // --- Maps ---
@@ -29,6 +30,9 @@ static void reinforce(__u32 peer_ip, __u32 amount) {
     }
 }
 
+// x0tta6bl4 protocol success bit mask (MSB of the first byte of UDP payload)
+#define X0T_SUCCESS_BIT 0x80
+
 // --- Main XDP Program ---
 
 SEC("xdp_stigmergy")
@@ -50,7 +54,8 @@ int xdp_prog(struct xdp_md *ctx) {
         return XDP_PASS;
 
     // 3. Stigmergy Logic: Detect "Success" signals
-    // For TCP, an ACK is a sign that the path works.
+    
+    // CASE A: TCP (ACK detection)
     if (ip->protocol == IPPROTO_TCP) {
         struct tcphdr *tcp = (void *)ip + (ip->ihl * 4);
         if ((void *)(tcp + 1) > data_end)
@@ -61,8 +66,20 @@ int xdp_prog(struct xdp_md *ctx) {
             reinforce(ip->saddr, 10); // +10 score for ACK
         }
     }
-    
-    // TODO: UDP implementation (needs app-level headers or custom protocol)
+    // CASE B: UDP (App-level success bit)
+    else if (ip->protocol == IPPROTO_UDP) {
+        struct udphdr *udp = (void *)ip + (ip->ihl * 4);
+        if ((void *)(udp + 1) > data_end)
+            return XDP_PASS;
+
+        // Check first byte of UDP payload for success bit
+        __u8 *payload = (void *)udp + sizeof(*udp);
+        if ((void *)(payload + 1) <= data_end) {
+            if (*payload & X0T_SUCCESS_BIT) {
+                reinforce(ip->saddr, 5); // +5 score for UDP success marker
+            }
+        }
+    }
 
     return XDP_PASS;
 }
