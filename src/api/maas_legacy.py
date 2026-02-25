@@ -48,7 +48,7 @@ from sqlalchemy.orm import Session
 
 from src.api.maas_auth_models import (ApiKeyResponse, TokenResponse,
                                       UserLoginRequest, UserRegisterRequest)
-from src.database import BillingWebhookEvent, User, get_db
+from src.database import BillingWebhookEvent, User, get_db, MeshInstance as DBMeshInstance
 from src.api.maas_security import api_key_manager, oidc_validator, token_signer
 from src.api.maas_auth import require_role, get_current_user_from_maas, require_permission
 from src.services.maas_auth_service import MaaSAuthService
@@ -1275,6 +1275,37 @@ async def deploy_mesh(
 
     _audit(instance.mesh_id, current_user.email, "MESH_DEPLOYED",
            f"Mesh '{req.name}' deployed: {req.nodes} nodes, plan={req.billing_plan}, PQC={req.pqc_enabled}")
+
+    # Persist to database
+    try:
+        db_mesh = DBMeshInstance(
+            id=instance.mesh_id,
+            name=instance.name,
+            owner_id=current_user.id,
+            plan=billing_service.normalize_plan(req.billing_plan),
+            region=getattr(instance, "region", None) or "global",
+            nodes=getattr(instance, "target_nodes", None) or req.nodes,
+            pqc_profile=getattr(instance, "pqc_profile", None) or "edge",
+            pqc_enabled=getattr(instance, "pqc_enabled", req.pqc_enabled),
+            obfuscation=getattr(instance, "obfuscation", req.obfuscation),
+            traffic_profile=getattr(instance, "traffic_profile", req.traffic_profile),
+            status=instance.status,
+            join_token=instance.join_token,
+            join_token_expires_at=instance.join_token_expires_at,
+            created_at=instance.created_at,
+        )
+        db.add(db_mesh)
+        db.commit()
+    except Exception as db_err:
+        db.rollback()
+        logger.error(f"Failed to persist mesh {instance.mesh_id} to DB: {db_err}")
+        # Rollback in-memory creation to maintain consistency
+        async with _registry_lock:
+            _mesh_registry.pop(instance.mesh_id, None)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Mesh creation failed - database persistence error. Please contact support.",
+        )
 
     # PQC identity
     pqc_data = None

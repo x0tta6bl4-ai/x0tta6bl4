@@ -287,6 +287,16 @@ class TestDeployMeshEndpoint:
 
         result = await deploy_mesh(req, user, db)
 
+        db.add.assert_called_once()
+        db.commit.assert_called_once()
+        persisted = db.add.call_args.args[0]
+
+        assert persisted.id == result.mesh_id
+        assert persisted.owner_id == user.id
+        assert persisted.plan == "pro"
+        assert persisted.nodes == req.nodes
+        assert persisted.pqc_profile == "edge"
+
         assert result.mesh_id.startswith("mesh-")
         assert result.status == "active"
         assert "token" in result.join_config
@@ -307,6 +317,29 @@ class TestDeployMeshEndpoint:
         with pytest.raises(HTTPException) as exc_info:
             await deploy_mesh(req, user, db)
         assert exc_info.value.status_code == 402
+
+    @pytest.mark.asyncio
+    async def test_deploy_db_failure_rolls_back_registry(self):
+        from fastapi import HTTPException
+        from src.api.maas import MeshDeployRequest, _mesh_registry, deploy_mesh
+
+        req = MeshDeployRequest(
+            name="test-mesh-db-fail",
+            nodes=2,
+            billing_plan="pro",
+        )
+        user = _mock_user(plan="pro")
+        db = MagicMock()
+        db.commit.side_effect = RuntimeError("forced db failure")
+
+        before_mesh_ids = set(_mesh_registry.keys())
+        with pytest.raises(HTTPException) as exc_info:
+            await deploy_mesh(req, user, db)
+
+        assert exc_info.value.status_code == 500
+        assert "database persistence error" in str(exc_info.value.detail).lower()
+        db.rollback.assert_called_once()
+        assert set(_mesh_registry.keys()) == before_mesh_ids
 
 
 # ---------------------------------------------------------------------------
@@ -880,4 +913,3 @@ class TestUnifiedNodeList:
         data = list_all_nodes(instance.mesh_id, node_status="approved", current_user=user)
         nodes = data["nodes"]
         assert all(n["status"] == "approved" for n in nodes)
-
