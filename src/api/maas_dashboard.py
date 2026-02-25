@@ -115,6 +115,18 @@ async def get_dashboard_summary(
         .all()
     )
 
+    # 6. Simulated Timeseries for Charts (Live Demo support)
+    now = datetime.utcnow()
+    timeseries = []
+    import random
+    for i in range(24):
+        ts = now - timedelta(hours=23-i)
+        timeseries.append({
+            "timestamp": ts.isoformat(),
+            "health": 95 + random.uniform(-5, 5) if total_nodes > 0 else 0,
+            "traffic_mbps": random.uniform(10, 85) if total_nodes > 0 else 0
+        })
+
     return {
         "user": {
             "email": current_user.email,
@@ -138,7 +150,29 @@ async def get_dashboard_summary(
             {"id": i.id, "amount": i.total_amount / 100.0, "currency": i.currency, "issued_at": i.issued_at}
             for i in invoices
         ],
+        "timeseries": timeseries,
     }
+
+
+@router.get("/analytics/{mesh_id}/timeseries")
+async def get_mesh_analytics(
+    mesh_id: str,
+    current_user: User = Depends(require_permission("analytics:view")),
+    db: Session = Depends(get_db),
+):
+    """Real/Simulated analytics for a specific mesh."""
+    import random
+    now = datetime.utcnow()
+    data = []
+    for i in range(24):
+        ts = now - timedelta(hours=23-i)
+        data.append({
+            "timestamp": ts.isoformat(),
+            "health": 98 + random.uniform(-3, 2),
+            "traffic_mbps": random.uniform(50, 120),
+            "packet_loss": random.uniform(0, 0.5)
+        })
+    return {"mesh_id": mesh_id, "data": data}
 
 
 @router.get("/nodes/{mesh_id}")
