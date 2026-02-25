@@ -9,12 +9,14 @@
 FROM python:3.12-slim AS builder
 
 ARG LIBOQS_VERSION=0.12.0
+# TARGETARCH is injected by Docker Buildx (amd64 | arm64)
+ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git libssl-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Build liboqs (shared lib)
+# Build liboqs (shared lib) — cmake is arch-neutral
 WORKDIR /tmp
 RUN git clone --depth 1 --branch "${LIBOQS_VERSION}" \
     https://github.com/open-quantum-safe/liboqs.git && \
@@ -29,9 +31,15 @@ RUN git clone --depth 1 --branch "${LIBOQS_VERSION}" \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install torch CPU-only first (saves ~3GB vs CUDA)
-RUN pip install --no-cache-dir \
-    torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu
+# Install torch:
+#   amd64 → CPU-only wheel from PyTorch index (smaller, no CUDA)
+#   arm64 → default PyPI wheel (no cpu-only index for arm64)
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+        pip install --no-cache-dir torch==2.9.0; \
+    else \
+        pip install --no-cache-dir torch==2.9.0 \
+            --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 
 # Copy only dependency metadata for layer caching
 WORKDIR /build
