@@ -7,6 +7,7 @@ and generating augmented insights for better decision making.
 
 import asyncio
 import json
+import logging
 import os
 import time
 from collections import defaultdict
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Monitoring metrics
 try:

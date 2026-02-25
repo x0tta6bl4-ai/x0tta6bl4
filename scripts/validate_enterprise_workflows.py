@@ -10,11 +10,24 @@ from pathlib import Path
 
 RELEASE_WORKFLOW = Path(".github/workflows/release.yml")
 CI_WORKFLOW = Path(".github/workflows/ci.yml")
+CD_WORKFLOW = Path(".github/workflows/cd.yml")
+DEPLOY_EKS_WORKFLOW = Path(".github/workflows/deploy-eks.yaml")
+VAULT_DEPLOYMENT_WORKFLOW = Path(".github/workflows/vault-deployment.yml")
 
 
 def _find_step_block(workflow_text: str, step_name: str) -> str | None:
     pattern = re.compile(
         rf"(?ms)^\s*-\s+name:\s*{re.escape(step_name)}\s*\n(?P<body>.*?)(?=^\s*-\s+name:|\Z)"
+    )
+    match = pattern.search(workflow_text)
+    if not match:
+        return None
+    return match.group("body")
+
+
+def _find_job_block(workflow_text: str, job_name: str) -> str | None:
+    pattern = re.compile(
+        rf"(?ms)^\s{{2}}{re.escape(job_name)}:\s*\n(?P<body>.*?)(?=^\s{{2}}[A-Za-z0-9_-]+:\s*\n|\Z)"
     )
     match = pattern.search(workflow_text)
     if not match:
@@ -82,12 +95,93 @@ def validate_ci_workflow_text(workflow_text: str) -> list[str]:
     required_commands = (
         "python scripts/validate_runtime_contracts.py",
         "python scripts/validate_version_contract.py",
+        "python scripts/validate_production_env_contract.py",
         "python scripts/validate_enterprise_workflows.py",
     )
 
     for command in required_commands:
         if command not in workflow_text:
             errors.append(f"ci.yml: missing required command `{command}`")
+    return errors
+
+
+def validate_cd_workflow_text(workflow_text: str) -> list[str]:
+    errors: list[str] = []
+    job_block = _find_job_block(workflow_text, "deploy-production")
+    if job_block is None:
+        return ["cd.yml: missing required job `deploy-production`"]
+
+    required_tokens = (
+        "Validate production runtime env contract (strict)",
+        "python3 scripts/validate_production_env_contract.py --source process-env --strict-secrets",
+        "${{ secrets.DATABASE_URL }}",
+        "${{ secrets.FLASK_SECRET_KEY }}",
+        "${{ secrets.JWT_SECRET_KEY }}",
+        "${{ secrets.CSRF_SECRET_KEY }}",
+        "${{ secrets.OPERATOR_PRIVATE_KEY }}",
+    )
+
+    for token in required_tokens:
+        if token not in job_block:
+            errors.append(f"cd.yml: missing required production contract token `{token}`")
+    return errors
+
+
+def validate_deploy_eks_workflow_text(workflow_text: str) -> list[str]:
+    errors: list[str] = []
+    job_block = _find_job_block(workflow_text, "terraform")
+    if job_block is None:
+        return ["deploy-eks.yaml: missing required job `terraform`"]
+
+    step_block = _find_step_block(job_block, "Validate production runtime env contract (strict)")
+    if step_block is None:
+        return [
+            "deploy-eks.yaml: missing required production contract step "
+            "`Validate production runtime env contract (strict)`"
+        ]
+
+    required_step_tokens = (
+        "python3 scripts/validate_production_env_contract.py --source process-env --strict-secrets",
+        "${{ secrets.DATABASE_URL }}",
+        "${{ secrets.FLASK_SECRET_KEY }}",
+        "${{ secrets.JWT_SECRET_KEY }}",
+        "${{ secrets.CSRF_SECRET_KEY }}",
+        "${{ secrets.OPERATOR_PRIVATE_KEY }}",
+    )
+
+    if not re.search(r"^\s*if:\s*inputs\.environment\s*==\s*'production'\s*$", step_block, re.MULTILINE):
+        errors.append(
+            "deploy-eks.yaml: production contract step must be guarded by "
+            "`if: inputs.environment == 'production'`"
+        )
+
+    for token in required_step_tokens:
+        if token not in step_block:
+            errors.append(
+                f"deploy-eks.yaml: missing required production contract token `{token}` in strict step"
+            )
+    return errors
+
+
+def validate_vault_deployment_workflow_text(workflow_text: str) -> list[str]:
+    errors: list[str] = []
+    job_block = _find_job_block(workflow_text, "deploy-production")
+    if job_block is None:
+        return ["vault-deployment.yml: missing required job `deploy-production`"]
+
+    required_tokens = (
+        "name: Validate production runtime env contract (strict)",
+        "python3 scripts/validate_production_env_contract.py --source process-env --strict-secrets",
+        "${{ secrets.DATABASE_URL }}",
+        "${{ secrets.FLASK_SECRET_KEY }}",
+        "${{ secrets.JWT_SECRET_KEY }}",
+        "${{ secrets.CSRF_SECRET_KEY }}",
+        "${{ secrets.OPERATOR_PRIVATE_KEY }}",
+    )
+
+    for token in required_tokens:
+        if token not in job_block:
+            errors.append(f"vault-deployment.yml: missing required production contract token `{token}`")
     return errors
 
 
@@ -111,6 +205,24 @@ def main() -> int:
         errors.append(f"missing workflow file: {CI_WORKFLOW}")
     else:
         errors.extend(validate_ci_workflow_text(ci_text))
+
+    cd_text = _read_text(CD_WORKFLOW)
+    if cd_text is None:
+        errors.append(f"missing workflow file: {CD_WORKFLOW}")
+    else:
+        errors.extend(validate_cd_workflow_text(cd_text))
+
+    deploy_eks_text = _read_text(DEPLOY_EKS_WORKFLOW)
+    if deploy_eks_text is None:
+        errors.append(f"missing workflow file: {DEPLOY_EKS_WORKFLOW}")
+    else:
+        errors.extend(validate_deploy_eks_workflow_text(deploy_eks_text))
+
+    vault_deployment_text = _read_text(VAULT_DEPLOYMENT_WORKFLOW)
+    if vault_deployment_text is None:
+        errors.append(f"missing workflow file: {VAULT_DEPLOYMENT_WORKFLOW}")
+    else:
+        errors.extend(validate_vault_deployment_workflow_text(vault_deployment_text))
 
     if errors:
         print("Enterprise workflow policy violations:")

@@ -3,6 +3,7 @@
 import importlib
 import logging
 import os
+import sys
 from pathlib import Path
 
 print("DEBUG: Importing FastAPI...")
@@ -36,7 +37,7 @@ if os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true":
     logger.info("🚀 Starting in LIGHT MODE (Intelligence Engine disabled)")
     app = FastAPI(
         title="x0tta6bl4 MaaS",
-        version="3.2.1-light",
+        version=f"{__version__}-light",
         description="Lightweight MaaS Control Plane",
     )
 else:
@@ -196,8 +197,18 @@ _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_billing", "billing")
 
+testing_mode = (
+    settings.is_testing()
+    or os.getenv("TESTING", "false").lower() == "true"
+    or bool(os.getenv("PYTEST_CURRENT_TEST"))
+    or "pytest" in sys.modules
+)
 include_modular_node_policy_telemetry = (
-    os.getenv("MAAS_ENABLE_MODULAR_NODE_POLICY_TELEMETRY", "false").lower() == "true"
+    os.getenv(
+        "MAAS_ENABLE_MODULAR_NODE_POLICY_TELEMETRY",
+        "true" if testing_mode else "false",
+    ).lower()
+    == "true"
 )
 if include_modular_node_policy_telemetry:
     _include_maas_router("src.api.maas_nodes", "nodes")
@@ -218,11 +229,6 @@ _include_maas_router("src.event_sourcing.api", "event-sourcing")
 
 # Add mTLS middleware (security profile + env override)
 security_flags = settings.security_profile()
-testing_mode = (
-    settings.is_testing()
-    or os.getenv("TESTING", "false").lower() == "true"
-    or bool(os.getenv("PYTEST_CURRENT_TEST"))
-)
 mtls_enabled = security_flags["mtls_enabled"] and not testing_mode
 if mtls_enabled:
     app.add_middleware(
@@ -475,7 +481,7 @@ async def prometheus_metrics():
 @app.get("/health")
 async def health():
     """Simple health check endpoint - returns 200 if alive"""
-    return {"status": "ok", "version": "3.2.1"}
+    return {"status": "ok", **get_health_info()}
 
 # --- Static UI Routes ---
 from fastapi.responses import Response

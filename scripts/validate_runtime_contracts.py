@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
+import asyncio
 from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Iterable, Tuple
@@ -31,6 +32,7 @@ def main() -> int:
     os.environ.setdefault("DB_ENFORCE_SCHEMA", "false")
 
     from src.core.app import app
+    from src.core.app import health as health_endpoint
 
     route_index: DefaultDict[Tuple[str, str], list[int]] = defaultdict(list)
     for idx, route in enumerate(app.routes):
@@ -66,6 +68,18 @@ def main() -> int:
     import src.api.maas as maas
     from src.version import __version__ as canonical_version
 
+    light_mode = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
+    if light_mode:
+        expected_app_version = f"{canonical_version}-light"
+    else:
+        expected_app_version = canonical_version
+    if app.version != expected_app_version:
+        print(
+            "App version mismatch: "
+            f"app.version={app.version!r} != expected={expected_app_version!r}"
+        )
+        return 1
+
     if src.__version__ != canonical_version:
         print(
             "Version mismatch: "
@@ -78,6 +92,26 @@ def main() -> int:
             "Version mismatch: "
             f"src.api.maas.__version__={maas.__version__} "
             f"!= src.version.__version__={canonical_version}"
+        )
+        return 1
+
+    health_payload = asyncio.run(health_endpoint())
+    required_health_keys = {"status", "version", "full_version", "channel", "timestamp"}
+    missing_health_keys = sorted(k for k in required_health_keys if k not in health_payload)
+    if missing_health_keys:
+        print(
+            "Health contract mismatch: missing keys: "
+            + ", ".join(missing_health_keys)
+        )
+        return 1
+    if health_payload.get("status") != "ok":
+        print(f"Health contract mismatch: status={health_payload.get('status')!r} != 'ok'")
+        return 1
+    if health_payload.get("version") != canonical_version:
+        print(
+            "Health contract mismatch: "
+            f"health.version={health_payload.get('version')!r} "
+            f"!= canonical={canonical_version!r}"
         )
         return 1
 

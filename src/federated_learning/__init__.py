@@ -44,6 +44,23 @@ from .lora_fl_integration import (
     run_federated_lora_training,
 )
 
+# Mesh-FL Integration Layer
+from .mesh_fl_integration import (
+    MeshFLConfig,
+    MeshFLIntegration,
+    TrainingRound as MeshTrainingRound,
+    create_mesh_fl_integration,
+    integrate_with_fl_coordinator,
+)
+from .topology_aware_aggregator import (
+    AggregationResult as TopologyAggregationResult,
+    BatmanAdvMetricsProvider,
+    ModelUpdate as TopologyModelUpdate,
+    NodeConnectivity,
+    TopologyAwareAggregator,
+    create_topology_aware_aggregator,
+)
+
 __all__ = [
     # Protocol
     "ModelUpdate",
@@ -102,4 +119,16 @@ __all__ = [
     "aggregate_lora_weights",
     "create_lora_update",
     "run_federated_lora_training",
+    # Mesh-FL Integration Layer
+    "MeshFLConfig",
+    "MeshFLIntegration",
+    "MeshTrainingRound",
+    "create_mesh_fl_integration",
+    "integrate_with_fl_coordinator",
+    "TopologyAwareAggregator",
+    "NodeConnectivity",
+    "BatmanAdvMetricsProvider",
+    "TopologyAggregationResult",
+    "TopologyModelUpdate",
+    "create_topology_aware_aggregator",
 ]

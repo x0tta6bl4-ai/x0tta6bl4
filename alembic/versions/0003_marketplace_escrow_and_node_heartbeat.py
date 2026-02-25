@@ -43,18 +43,20 @@ def upgrade() -> None:
             if not _column_exists(inspector, "mesh_nodes", "last_seen"):
                 batch_op.add_column(sa.Column("last_seen", sa.DateTime(), nullable=True))
 
-    # marketplace_escrows: create table
+    # marketplace_escrows: create table (only if marketplace_listings exists)
     if not _table_exists(inspector, "marketplace_escrows"):
-        op.create_table(
-            "marketplace_escrows",
-            sa.Column("id", sa.String(), primary_key=True),
-            sa.Column("listing_id", sa.String(), sa.ForeignKey("marketplace_listings.id"), nullable=False, index=True),
-            sa.Column("renter_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
-            sa.Column("amount_cents", sa.Integer(), nullable=False),
-            sa.Column("status", sa.String(), nullable=False, server_default="held"),
-            sa.Column("created_at", sa.DateTime(), nullable=True),
-            sa.Column("released_at", sa.DateTime(), nullable=True),
-        )
+        # Only create if marketplace_listings exists (has FK dependency)
+        if _table_exists(inspector, "marketplace_listings"):
+            op.create_table(
+                "marketplace_escrows",
+                sa.Column("id", sa.String(), primary_key=True),
+                sa.Column("listing_id", sa.String(), sa.ForeignKey("marketplace_listings.id"), nullable=False, index=True),
+                sa.Column("renter_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
+                sa.Column("amount_cents", sa.Integer(), nullable=False),
+                sa.Column("status", sa.String(), nullable=False, server_default="held"),
+                sa.Column("created_at", sa.DateTime(), nullable=True),
+                sa.Column("released_at", sa.DateTime(), nullable=True),
+            )
 
 
 def downgrade() -> None:
