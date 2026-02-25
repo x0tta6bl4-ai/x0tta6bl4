@@ -350,6 +350,40 @@ class SwarmConsensusManager:
     
     # ==================== Decision Making ====================
     
+    def _validate_decision_input(
+        self,
+        topic: str,
+        proposals: List[Any],
+        timeout: float,
+    ) -> None:
+        """
+        Validate input parameters for decision making.
+        
+        Raises:
+            ValueError: If any input is invalid
+        """
+        # Validate topic
+        if not topic:
+            raise ValueError("Topic cannot be empty")
+        if not isinstance(topic, str):
+            raise ValueError(f"Topic must be a string, got {type(topic).__name__}")
+        if len(topic) > 1000:
+            raise ValueError("Topic exceeds maximum length of 1000 characters")
+        
+        # Validate proposals
+        if not proposals:
+            raise ValueError("Proposals list cannot be empty")
+        if not isinstance(proposals, list):
+            raise ValueError(f"Proposals must be a list, got {type(proposals).__name__}")
+        if len(proposals) > 100:
+            raise ValueError("Proposals list cannot exceed 100 items")
+        
+        # Validate timeout
+        if timeout <= 0:
+            raise ValueError(f"Timeout must be positive, got {timeout}")
+        if timeout > 300:
+            raise ValueError("Timeout cannot exceed 300 seconds")
+    
     async def decide(
         self,
         topic: str,
@@ -368,7 +402,13 @@ class SwarmConsensusManager:
             
         Returns:
             SwarmDecision with the result
+            
+        Raises:
+            ValueError: If input parameters are invalid
         """
+        # Input validation
+        self._validate_decision_input(topic, proposals, timeout)
+        
         start_time = datetime.utcnow()
         decision_id = str(uuid.uuid4())[:8]
         mode = mode or self.default_mode

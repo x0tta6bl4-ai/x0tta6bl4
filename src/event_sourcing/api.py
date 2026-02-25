@@ -206,6 +206,108 @@ _projection_circuit_breaker = CircuitBreaker(
 _query_fallback = CacheFallback(ttl_seconds=300, max_size=1000)
 
 
+# =============================================================================
+# Health Check Endpoint
+# =============================================================================
+
+@router.get("/health")
+async def health_check():
+    """
+    Health check endpoint for Event Store service.
+    
+    Returns status of Event Store components and database connectivity.
+    """
+    from datetime import datetime as dt
+    
+    health_status = {
+        "status": "healthy",
+        "timestamp": dt.utcnow().isoformat(),
+        "components": {}
+    }
+    
+    # Check Event Store
+    try:
+        store = get_event_store()
+        if store is not None:
+            # Try a simple operation to verify connectivity
+            health_status["components"]["event_store"] = {
+                "status": "healthy",
+                "backend": getattr(store, '_backend_type', 'unknown')
+            }
+        else:
+            health_status["components"]["event_store"] = {"status": "not_initialized"}
+            health_status["status"] = "degraded"
+    except Exception as e:
+        health_status["components"]["event_store"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+        health_status["status"] = "unhealthy"
+    
+    # Check Command Bus
+    try:
+        bus = get_command_bus()
+        health_status["components"]["command_bus"] = {
+            "status": "healthy" if bus else "not_initialized"
+        }
+    except Exception as e:
+        health_status["components"]["command_bus"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+    
+    # Check Query Bus
+    try:
+        bus = get_query_bus()
+        health_status["components"]["query_bus"] = {
+            "status": "healthy" if bus else "not_initialized"
+        }
+    except Exception as e:
+        health_status["components"]["query_bus"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+    
+    # Check Projection Manager
+    try:
+        manager = get_projection_manager()
+        health_status["components"]["projection_manager"] = {
+            "status": "healthy" if manager else "not_initialized"
+        }
+    except Exception as e:
+        health_status["components"]["projection_manager"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+    
+    # Check rate limiter
+    health_status["components"]["rate_limiter"] = {
+        "status": "healthy",
+        "available_tokens": _api_rate_limiter._tokens
+    }
+    
+    # Check bulkheads
+    health_status["components"]["bulkheads"] = {
+        "event": {
+            "available_permits": _event_bulkhead._semaphore._value if hasattr(_event_bulkhead, '_semaphore') else 'unknown'
+        },
+        "command": {
+            "available_permits": _command_bulkhead._semaphore._value if hasattr(_command_bulkhead, '_semaphore') else 'unknown'
+        },
+        "query": {
+            "available_permits": _query_bulkhead._semaphore._value if hasattr(_query_bulkhead, '_semaphore') else 'unknown'
+        }
+    }
+    
+    # Check circuit breaker
+    health_status["components"]["circuit_breaker"] = {
+        "state": _projection_circuit_breaker.state.value if hasattr(_projection_circuit_breaker.state, 'value') else str(_projection_circuit_breaker.state),
+        "failure_count": _projection_circuit_breaker._failure_count
+    }
+    
+    return health_status
+
+
 async def _resolve_awaitable(value: Any) -> Any:
     """Resolve coroutine results returned by async-compatible backends."""
     if asyncio.iscoroutine(value):

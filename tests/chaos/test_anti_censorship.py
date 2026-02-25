@@ -20,6 +20,13 @@ except ImportError:
     HTTPX_AVAILABLE = False
     httpx = None
 
+RUN_NETWORK_CHAOS_TESTS = os.getenv("RUN_NETWORK_CHAOS_TESTS", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
 
 @pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not available")
 class TestNetworkPartition:
@@ -66,6 +73,10 @@ class TestNetworkPartition:
 
 
 @pytest.mark.skipif(not HTTPX_AVAILABLE, reason="httpx not available")
+@pytest.mark.skipif(
+    not RUN_NETWORK_CHAOS_TESTS,
+    reason="Set RUN_NETWORK_CHAOS_TESTS=true to run live DDoS chaos tests",
+)
 class TestDDoSResistance:
     """Tests for DDoS resistance"""
 
@@ -74,6 +85,18 @@ class TestDDoSResistance:
         k: v for k, v in os.environ.items()
         if k.lower() not in ("http_proxy", "https_proxy", "all_proxy", "no_proxy")
     }
+
+    async def _ensure_api_available(self, base_url: str) -> None:
+        """Skip load tests when target API is not reachable in this environment."""
+        try:
+            async with httpx.AsyncClient(timeout=1.0, trust_env=False) as probe_client:
+                probe = await probe_client.get(f"{base_url}/health")
+                if probe.status_code != 200:
+                    pytest.skip(
+                        f"API health endpoint returned {probe.status_code} at {base_url}/health"
+                    )
+        except Exception:
+            pytest.skip(f"API server not reachable at {base_url}")
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {}, clear=True)
@@ -84,7 +107,8 @@ class TestDDoSResistance:
         if not HTTPX_AVAILABLE:
             pytest.skip("httpx not available")
 
-        client = httpx.AsyncClient(timeout=5.0)
+        await self._ensure_api_available(base_url)
+        client = httpx.AsyncClient(timeout=5.0, trust_env=False)
 
         # Send multiple requests rapidly
         requests_count = 50
@@ -122,7 +146,8 @@ class TestDDoSResistance:
         if not HTTPX_AVAILABLE:
             pytest.skip("httpx not available")
 
-        client = httpx.AsyncClient(timeout=5.0)
+        await self._ensure_api_available(base_url)
+        client = httpx.AsyncClient(timeout=5.0, trust_env=False)
 
         # Send requests very rapidly
         requests_count = 100
@@ -151,7 +176,8 @@ class TestDDoSResistance:
         if not HTTPX_AVAILABLE:
             pytest.skip("httpx not available")
 
-        client = httpx.AsyncClient(timeout=10.0)
+        await self._ensure_api_available(base_url)
+        client = httpx.AsyncClient(timeout=10.0, trust_env=False)
 
         # Send large payload
         large_payload = {"data": "x" * 10000}  # 10KB payload

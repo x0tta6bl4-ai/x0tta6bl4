@@ -95,6 +95,7 @@ async def create_subscription_session(
         checkout_session = stripe.checkout.Session.create(
             customer=current_user.stripe_customer_id,
             payment_method_types=['card'],
+            allow_promotion_codes=True,
             line_items=[{
                 'price': STRIPE_PLANS[plan],
                 'quantity': 1,
@@ -222,6 +223,7 @@ async def create_checkout_session(
         checkout_session = stripe.checkout.Session.create(
             customer_email=current_user.email,
             payment_method_types=['card'],
+            allow_promotion_codes=True,
             line_items=[
                 {
                     'price_data': {
