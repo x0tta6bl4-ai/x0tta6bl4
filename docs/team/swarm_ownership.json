@@ -116,6 +116,7 @@
         "swarm_state.json",
         "SASE_PQC_OFFER.md",
         "WHITE_PAPER.md",
+        ".env.production",
         "local_ygg.conf",
         "check_actual_schema.py",
         "debug_healing.py",

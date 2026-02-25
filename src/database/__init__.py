@@ -283,6 +283,16 @@ class PlaybookAck(Base):
     acknowledged_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GlobalConfig(Base):
+    """Store global configuration parameters, such as DAO-governed settings."""
+    __tablename__ = "global_config"
+
+    key = Column(String, primary_key=True, index=True)
+    value_json = Column(String, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String, ForeignKey("users.id"), nullable=True)
+
+
 class GovernanceProposal(Base):
     """DAO governance proposals with DB-backed persistence."""
     __tablename__ = "governance_proposals"

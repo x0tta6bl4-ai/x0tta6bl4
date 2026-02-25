@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.database import GovernanceProposal, GovernanceVote, User, get_db
+from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_role
 from src.utils.audit import record_audit_log
 
@@ -60,7 +60,7 @@ class ProposalCreate(BaseModel):
 class VoteRequest(BaseModel):
     vote: str = Field(..., pattern="^(yes|no|abstain)$")
 
-def _execute_action(action: Dict[str, Any]) -> Dict[str, Any]:
+def _execute_action(action: Dict[str, Any], db: Session) -> Dict[str, Any]:
     action_type = action.get("type", action.get("action_type", "unknown"))
     params = action.get("params", {})
     if action_type == "update_config":
@@ -68,6 +68,13 @@ def _execute_action(action: Dict[str, Any]) -> Dict[str, Any]:
         value = params.get("value")
         if key == "global_price_multiplier":
             logger.info("⚖️ DAO: Applying global price multiplier: %s", value)
+            if hasattr(db, "query"):
+                config = db.query(GlobalConfig).filter(GlobalConfig.key == "global_price_multiplier").first()
+                if config:
+                    config.value_json = json.dumps(value)
+                else:
+                    db.add(GlobalConfig(key="global_price_multiplier", value_json=json.dumps(value)))
+                db.commit()
             return {"action": action_type, "success": True, "detail": f"Multiplier {value} applied"}
         return {"action": action_type, "success": False, "detail": f"Unsupported config key: {key}"}
     if action_type == "rotate_keys":
@@ -179,7 +186,7 @@ async def execute_maas_proposal(
         raise HTTPException(status_code=400, detail="Proposal must be passed to execute")
 
     actions = json.loads(p.actions_json) if p.actions_json else []
-    results = [_execute_action(a) for a in actions]
+    results = [_execute_action(a, db) for a in actions]
     finality_hash = _compute_finality_hash(p, results)
     
     # PQC-sign the finality hash to ensure non-repudiation
