@@ -240,10 +240,22 @@ class PedersenCommitment:
 
     C = g^m * h^r mod p
     где m - сообщение, r - random blinding factor
+    
+    SECURITY: H is derived deterministically from a fixed seed to ensure
+    consistency across sessions while maintaining the security requirement
+    that log_G(H) is unknown (computationally infeasible to compute).
     """
 
     # Второй генератор для Pedersen (должен быть выбран так, что log_g(h) неизвестен)
-    H = pow(G, secrets.randbelow(Q - 1) + 1, P)
+    # Используем детерминистический вывод из seed для консистентности между сессиями
+    # H = SHA-256("x0tta6bl4_pedersen_h_v1") mod P
+    _H_SEED = hashlib.sha256(b"x0tta6bl4_pedersen_h_generator_v1_secure").digest()
+    H = int.from_bytes(_H_SEED, 'big') % P
+    
+    # Убеждаемся что H != G и H != 1
+    while H == G or H == 1:
+        _H_SEED = hashlib.sha256(_H_SEED).digest()
+        H = int.from_bytes(_H_SEED, 'big') % P
 
     @classmethod
     def commit(cls, value: int) -> Tuple[int, int]:

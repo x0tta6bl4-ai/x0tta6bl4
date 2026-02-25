@@ -228,6 +228,10 @@
                     </tr>
                 `).join('');
 
+                if (data.timeseries) {
+                    updateSummaryCharts(data.timeseries);
+                }
+
                 if (data.meshes.length > 0) {
                     drawTopology(data.meshes[0].id);
                 }
@@ -256,6 +260,48 @@
                 console.error("Marketplace error:", e);
                 list.innerHTML = '<p style="color: var(--text-gray); padding: 20px;">Marketplace unavailable</p>';
             }
+        }
+
+        let summaryHealthChart = null;
+        let summaryTrafficChart = null;
+
+        function updateSummaryCharts(tsData) {
+            const labels = tsData.map(d => new Date(d.timestamp).getHours() + ':00');
+            const healthData = tsData.map(d => d.health);
+            const trafficData = tsData.map(d => d.traffic_mbps);
+
+            const render = (chartObj, canvasId, label, data, color) => {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (chartObj) chartObj.destroy();
+                return new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label,
+                            data,
+                            borderColor: color,
+                            backgroundColor: color + '22',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#aaa' } } },
+                        scales: {
+                            y: { grid: { color: '#222' }, ticks: { color: '#666' } },
+                            x: { display: true, grid: { display: false }, ticks: { color: '#666' } }
+                        }
+                    }
+                });
+            };
+
+            summaryHealthChart = render(summaryHealthChart, 'healthChartSummary', 'Mesh Health %', healthData, '#4ade80');
+            summaryTrafficChart = render(summaryTrafficChart, 'trafficChartSummary', 'Traffic Mbps', trafficData, '#00f2ff');
         }
 
         async function loadPendingNodes() {
@@ -386,6 +432,39 @@
                 requestAnimationFrame(animate);
             }
             animate();
+        }
+
+        async function deployMesh() {
+            const name = prompt("Введите название сети:", `Mesh-${Math.floor(Math.random()*1000)}`);
+            if (!name) return;
+            
+            try {
+                const response = await fetch('/api/v1/maas/deploy', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey 
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        nodes: 5,
+                        billing_plan: 'starter',
+                        pqc_enabled: true
+                    })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    alert(`Ошибка деплоя: ${err.detail || 'Неизвестная ошибка'}`);
+                    return;
+                }
+                
+                alert('Сеть успешно развернута!');
+                fetchDashboard();
+            } catch (e) {
+                console.error("Deploy error:", e);
+                alert("Ошибка при отправке запроса на деплой");
+            }
         }
 
         async function upgradePlan(plan) {
