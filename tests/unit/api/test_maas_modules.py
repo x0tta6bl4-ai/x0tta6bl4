@@ -127,6 +127,26 @@ class TestPlaybooks:
         assert result.algorithm == "HMAC-SHA256"
 
     @pytest.mark.asyncio
+    async def test_create_playbook_rejects_missing_signature(self):
+        """Playbook creation must fail (500) if signer returns no signature."""
+        from fastapi import HTTPException
+        from src.api.maas_playbooks import create_playbook, PlaybookCreateRequest, PlaybookAction
+
+        req = PlaybookCreateRequest(
+            name="missing-signature",
+            target_nodes=["node-z"],
+            actions=[PlaybookAction(action="restart", params={})],
+            expires_in_sec=3600,
+        )
+        with patch("src.api.maas_playbooks.token_signer") as mock_signer:
+            mock_signer.sign_token.return_value = {}
+            with pytest.raises(HTTPException) as exc_info:
+                await create_playbook("mesh-fallback", req, current_user=_admin_user())
+
+        assert exc_info.value.status_code == 500
+        assert "signature" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
     async def test_create_playbook_enqueues_for_each_node(self):
         from src.api.maas_playbooks import (
             create_playbook, poll_playbooks,

@@ -169,14 +169,22 @@ async def create_playbook(
     }
     payload_json = json.dumps(payload_data, sort_keys=True)
     signed_data = token_signer.sign_token(payload_json, mesh_id)
+    # Validate signature is present - required for security
+    if not signed_data or "signature" not in signed_data:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate playbook signature",
+        )
+    signature_val = str(signed_data.get("signature", ""))
+    algorithm_val = str(signed_data.get("algorithm", "HMAC-SHA256"))
 
     _playbook_store[playbook_id] = {
         "playbook_id": playbook_id,
         "mesh_id": mesh_id,
         "name": req.name,
         "payload": payload_json,
-        "signature": signed_data["signature"],
-        "algorithm": signed_data["algorithm"],
+        "signature": signature_val,
+        "algorithm": algorithm_val,
         "target_nodes": list(req.target_nodes),
         "created_at": payload_data["created_at"],
         "expires_at": expires_at_dt.isoformat(),
@@ -190,8 +198,8 @@ async def create_playbook(
                 mesh_id=mesh_id,
                 name=req.name,
                 payload=payload_json,
-                signature=signed_data["signature"],
-                algorithm=signed_data["algorithm"],
+                signature=signature_val,
+                algorithm=algorithm_val,
                 expires_at=expires_at_dt,
             )
         )
@@ -209,8 +217,8 @@ async def create_playbook(
         playbook_id=playbook_id,
         name=req.name,
         payload=payload_json,
-        signature=signed_data["signature"],
-        algorithm=signed_data["algorithm"],
+        signature=signature_val,
+        algorithm=algorithm_val,
         expires_at=expires_at_dt.isoformat(),
     )
 
