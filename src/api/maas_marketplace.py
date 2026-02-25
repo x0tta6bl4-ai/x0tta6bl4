@@ -6,6 +6,7 @@ Peer-to-peer infrastructure sharing with escrow payment protection.
 Funds are held in escrow until the rented node passes a health heartbeat.
 """
 
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import get_current_user_from_maas, require_permission
-from src.database import MarketplaceEscrow, MarketplaceListing, User, get_db
+from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,18 @@ router = APIRouter(prefix="/api/v1/maas/marketplace", tags=["MaaS Marketplace"])
 
 _listings: Dict[str, Dict[str, Any]] = {}
 _listings_lock = Lock()
+
+
+def _get_global_price_multiplier(db: Any) -> float:
+    if not _db_session_available(db):
+        return 1.0
+    try:
+        config = db.query(GlobalConfig).filter(GlobalConfig.key == "global_price_multiplier").first()
+        if config and config.value_json:
+            return float(json.loads(config.value_json))
+    except Exception as e:
+        logger.warning(f"Error fetching global price multiplier: {e}")
+    return 1.0
 
 
 class ListingCreate(BaseModel):
@@ -57,7 +70,7 @@ def _to_dollars(cents: int) -> float:
     return round(cents / 100.0, 2)
 
 
-def _as_listing_response(data: Any) -> Dict[str, Any]:
+def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     def _val(obj, key, default=None):
         if isinstance(obj, dict): return obj.get(key, default)
         return getattr(obj, key, default)
@@ -73,6 +86,8 @@ def _as_listing_response(data: Any) -> Dict[str, Any]:
     raw_price = _val(data, "price_per_hour", 0.0)
     if isinstance(raw_price, int): price_per_hour = _to_dollars(raw_price)
     else: price_per_hour = float(raw_price or 0.0)
+
+    price_per_hour = round(price_per_hour * multiplier, 2)
 
     return {
         "listing_id": listing_id,
@@ -184,7 +199,8 @@ async def create_listing(
             logger.warning("Failed to write listing audit log: %s", exc)
 
     _save_listing_to_cache(listing)
-    return _as_listing_response(listing)
+    multiplier = _get_global_price_multiplier(db)
+    return _as_listing_response(listing, multiplier=multiplier)
 
 
 @router.get("/search", response_model=List[ListingResponse])
@@ -209,6 +225,7 @@ async def search_listings(
         source = []
 
     result: List[Dict[str, Any]] = []
+    multiplier = _get_global_price_multiplier(db)
     for listing in source:
         def _v(obj, key, default=None):
             if isinstance(obj, dict): return obj.get(key, default)
@@ -218,11 +235,11 @@ async def search_listings(
             continue
         if region and _v(listing, "region") != region:
             continue
-        if max_price is not None and float(_v(listing, "price_per_hour", 0.0)) > float(max_price):
+        if max_price is not None and float(_v(listing, "price_per_hour", 0.0)) * multiplier > float(max_price):
             continue
         if min_bandwidth is not None and int(_v(listing, "bandwidth_mbps") or 0) < int(min_bandwidth or 0):
             continue
-        result.append(_as_listing_response(listing))
+        result.append(_as_listing_response(listing, multiplier=multiplier))
 
     return result
 
@@ -267,7 +284,8 @@ async def rent_node(
     row.mesh_id = mesh_id
 
     escrow_id = f"esc-{uuid.uuid4().hex[:8]}"
-    amount_cents = _to_cents(float(listing["price_per_hour"])) * hours
+    multiplier = _get_global_price_multiplier(db)
+    amount_cents = _to_cents(float(listing["price_per_hour"]) * multiplier) * hours
     db.add(
         MarketplaceEscrow(
             id=escrow_id,
