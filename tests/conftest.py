@@ -459,3 +459,21 @@ def fresh_mock_dependencies():
     }
     with mock.patch.dict("sys.modules", fresh_mocks):
         yield fresh_mocks
+
+
+# ============================================================================
+# TD-006: CI latency factor — scale timing thresholds on slow CI runners
+# ============================================================================
+
+def latency_threshold(base: float) -> float:
+    """Return base * CI_LATENCY_FACTOR (default 1.0).
+
+    Set CI_LATENCY_FACTOR=3 in CI environments to prevent flaky timing failures
+    on slow shared runners without relaxing thresholds in fast local runs.
+
+    Usage in tests::
+
+        assert elapsed < latency_threshold(0.1)   # 100ms locally, 300ms on CI
+    """
+    factor = float(os.environ.get("CI_LATENCY_FACTOR", "1.0"))
+    return base * factor
