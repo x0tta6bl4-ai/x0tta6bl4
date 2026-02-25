@@ -263,11 +263,31 @@ def _get_vpn_session_token() -> str:
     return token
 
 
+def _derive_user_uuid(user_id: int) -> str:
+    """
+    Derive a deterministic UUID from user_id.
+    
+    This ensures the same user always gets the same UUID for their VPN config,
+    enabling session persistence and proper user tracking.
+    
+    Uses UUID v5 (SHA-1 based) with a namespace UUID.
+    """
+    # Use a fixed namespace UUID for x0tta6bl4 VPN
+    NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # UUID namespace DNS
+    return str(uuid.uuid5(NAMESPACE, f"x0tta6bl4-vpn-user-{user_id}"))
+
+
 @router.get("/config/secure")
-async def get_secure_config(authorization: str = Header(...)):
+async def get_secure_config(
+    request: Request,
+    authorization: str = Header(...),
+    user_id: int = Query(..., description="User ID for UUID derivation"),
+):
     """
     Returns full Xray config for the client.
     Requires valid Bearer token from VPN_SESSION_TOKEN env var.
+    
+    Security: UUID is derived deterministically from user_id for session consistency.
     """
     expected_token = _get_vpn_session_token()
     
@@ -293,7 +313,10 @@ async def get_secure_config(authorization: str = Header(...)):
             "VPN_REALITY_PUBLIC_KEY not set, using development test key (NOT for production!)"
         )
         reality_public_key = "DEV_TEST_KEY_DO_NOT_USE_IN_PRODUCTION"
-        
+    
+    # Derive deterministic UUID from user_id
+    user_uuid = _derive_user_uuid(user_id)
+    
     # Generate a real VLESS+Reality config JSON
     return {
         "xray_json": {
@@ -304,7 +327,7 @@ async def get_secure_config(authorization: str = Header(...)):
                     "vnext": [{
                         "address": _get_vpn_server(),
                         "port": 39830,
-                        "users": [{"id": str(uuid.uuid4()), "encryption": "none", "flow": "xtls-rprx-vision"}]
+                        "users": [{"id": user_uuid, "encryption": "none", "flow": "xtls-rprx-vision"}]
                     }]
                 },
                 "streamSettings": {
@@ -334,9 +357,39 @@ async def get_vpn_config(
     port: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
 ) -> VPNConfigResponse:
-    """Generate VPN configuration (legacy-compatible with optional scoped auth)."""
+    """
+    Generate VPN configuration.
+    
+    Security: In production, requires authentication and user_id must match
+    the authenticated user's ID (or user must have vpn:admin permission).
+    """
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    user = await _enforce_permission_if_authenticated(request, db, "vpn:config")
+    
+    # SECURITY: In production, require authentication
+    if environment == "production" and user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required in production environment"
+        )
+    
+    # SECURITY: Authenticated users can only access their own config
+    # unless they have admin permissions
+    if user is not None:
+        user_has_admin = any(
+            scope.get("permission") == "vpn:admin" 
+            for scope in getattr(user, "scopes", [])
+        )
+        if not user_has_admin and user.id != user_id:
+            logger.warning(
+                f"User {user.id} attempted to access config for user {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot access other user's VPN configuration"
+            )
+    
     try:
-        await _enforce_permission_if_authenticated(request, db, "vpn:config")
         return _build_vpn_config(user_id, email, username, server, port)
     except HTTPException:
         raise
