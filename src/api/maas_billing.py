@@ -295,13 +295,35 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         plan, user.id
                     )
                     return {"status": "error", "reason": "invalid_plan"}
+                
+                # Update user plan
                 user.plan = plan
                 user.stripe_subscription_id = subscription_id
+                
+                # Create a record for the initial payment in Invoice table
+                # Stripe amounts are in cents
+                amount_total = session.get('amount_total', 4900) 
+                currency = session.get('currency', 'usd').upper()
+                
+                new_invoice = Invoice(
+                    id=f"inv_{uuid.uuid4().hex[:8]}",
+                    user_id=user.id,
+                    mesh_id="subscription", # Virtual mesh ID for sub billing
+                    total_amount=amount_total,
+                    currency=currency,
+                    status="paid",
+                    stripe_session_id=session.get('id'),
+                    period_start=datetime.utcnow(),
+                    period_end=datetime.utcnow() + timedelta(days=30),
+                    issued_at=datetime.utcnow()
+                )
+                db.add(new_invoice)
                 db.commit()
+                
                 record_audit_log(
                     db, request, "SUBSCRIPTION_ACTIVATED",
                     user_id=user.id,
-                    payload={"plan": plan, "subscription_id": subscription_id},
+                    payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
                     status_code=200
                 )
         else:
