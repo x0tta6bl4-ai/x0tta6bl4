@@ -487,6 +487,16 @@ class TestHeartbeat:
         db = TestingSessionLocal()
         # Need an owner user in DB for the escrow (use admin — created in node_data fixture)
         op = db.query(User).filter(User.role == "admin").first()
+        if op is None:
+            op = User(
+                id=f"adm-{uuid.uuid4().hex[:8]}",
+                email=f"heartbeat-admin-{uuid.uuid4().hex[:8]}@test.local",
+                password_hash="test-hash",
+                api_key=f"hb-admin-{uuid.uuid4().hex}",
+                role="admin",
+            )
+            db.add(op)
+            db.flush()
         listing = MarketplaceListing(
             id=f"lst-{uuid.uuid4().hex[:8]}",
             owner_id=op.id,
