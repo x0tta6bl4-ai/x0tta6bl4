@@ -197,11 +197,11 @@ class MAPEKMonitor:
 
 class MAPEKAnalyzer:
     """
-    Analyzer phase with Causal Analysis and GraphSAGE support.
+    Analyzer phase with Causal Analysis, GraphSAGE and LLM support.
 
     Uses Causal Analysis Engine for root cause identification
     when incidents are detected. Integrates with GraphSAGE for
-    enhanced root cause analysis from anomaly predictions.
+    enhanced root cause analysis and Kimi K2.5 for intelligent log analysis.
     """
 
     def __init__(self):
@@ -209,6 +209,8 @@ class MAPEKAnalyzer:
         self.use_causal_analysis = False
         self.graphsage_detector = None
         self.use_graphsage = False
+        self.llm_integration = None
+        self.use_llm = False
 
     def enable_causal_analysis(self, analyzer=None):
         """
@@ -246,6 +248,55 @@ class MAPEKAnalyzer:
 
         self.use_graphsage = True
         logger.info("GraphSAGE enabled for Analyzer phase")
+
+    def enable_llm(self, integration=None):
+        """
+        Enable LLM integration (Kimi K2.5) for intelligent log analysis.
+
+        Args:
+            integration: Optional KimiK25Integration instance
+        """
+        try:
+            from src.swarm.intelligence import KimiK25Integration
+            if integration is None:
+                self.llm_integration = KimiK25Integration(enabled=True)
+            else:
+                self.llm_integration = integration
+            self.use_llm = True
+            logger.info("🤖 Kimi K2.5 LLM enabled for Analyzer phase")
+        except ImportError:
+            logger.warning("KimiK25Integration not available, LLM analysis disabled")
+
+    async def analyze_with_llm(self, metrics: Dict, logs: Optional[str] = None) -> str:
+        """
+        Perform intelligent root cause analysis using LLM.
+        """
+        if not self.use_llm or not self.llm_integration:
+            return "LLM analysis not available"
+
+        from src.swarm.intelligence import DecisionContext, DecisionType
+        
+        context = DecisionContext(
+            topic="Root Cause Analysis",
+            decision_type=DecisionType.HEALING,
+            description="Analyze system metrics and logs to identify root cause of instability.",
+            data={
+                "metrics": metrics,
+                "logs": logs
+            }
+        )
+        
+        options = [
+            "Network Link Failure (Physical/ISP level)",
+            "Proxy Configuration Error (Software level)",
+            "Censorship Interference (GFW/DPI detected)",
+            "Byzantine Attack (Security level)",
+            "Resource Exhaustion (CPU/Memory)",
+            "Transport Layer Mismatch (TLS/VLESS Reality issue)"
+        ]
+        
+        idx, reasoning = await self.llm_integration.enhance_decision(context, options)
+        return f"AI-Analysis ({options[idx]}): {reasoning}"
 
     def analyze(
         self, metrics: Dict, node_id: str = "unknown", event_id: Optional[str] = None
@@ -394,6 +445,14 @@ class MAPEKPlanner:
             "High Memory": "Clear cache",
             "Network Loss": "Switch route",
         }
+        self.ai_strategies = {
+            "Network Link Failure": "Switch route",
+            "Proxy Configuration Error": "Restart service",
+            "Censorship Interference": "Switch route",
+            "Byzantine Attack": "Quarantine node",
+            "Resource Exhaustion": "Clear cache",
+            "Transport Layer Mismatch": "Restart service"
+        }
 
     def plan(self, issue: str) -> str:
         """
@@ -402,6 +461,13 @@ class MAPEKPlanner:
         Uses most successful historical action for this issue type.
         Falls back to default strategy if no history available.
         """
+        # Handle AI Analysis format: "AI-Analysis (Category): reasoning"
+        if "AI-Analysis" in issue:
+            for category, strategy in self.ai_strategies.items():
+                if category in issue:
+                    logger.info(f"🤖 AI-Planner: Selected strategy '{strategy}' for category '{category}'")
+                    return strategy
+
         # Try to get recommended action from knowledge base
         if self.knowledge:
             recommended = self.knowledge.get_recommended_action(issue)
