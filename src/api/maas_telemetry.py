@@ -21,10 +21,14 @@ from sqlalchemy.orm import Session
 
 from src.database import MeshNode, MeshInstance, get_db
 from src.api.maas_auth import get_current_user_from_maas
+from src.network.reputation_scoring import ReputationScoringSystem
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Telemetry"])
+
+# Global Reputation System for MaaS
+reputation_system = ReputationScoringSystem()
 
 # Redis Setup
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -148,6 +152,8 @@ class NodeHeartbeatRequest(BaseModel):
     neighbors_count: int
     routing_table_size: int
     uptime: float
+    latency_ms: float = 0.0
+    error_reports: Optional[List[Dict[str, Any]]] = None
     pheromones: Optional[Dict[str, Dict[str, float]]] = None
 
 
@@ -257,19 +263,38 @@ async def heartbeat(
     
     # Fast DB update
     node.status = "healthy"
+    node.last_seen = datetime.utcnow()
     db.commit()
     
+    # Update Reputation based on heartbeat data
+    has_errors = bool(req.error_reports)
+    error_type = req.error_reports[0].get("type") if has_errors else None
+    
+    await reputation_system.record_proxy_result(
+        proxy_id=req.node_id,
+        success=not has_errors,
+        latency_ms=req.latency_ms,
+        error_type=error_type
+    )
+    
     # Store high-frequency data in Redis
+    trust_score = 0.5
+    proxy_trust = reputation_system.get_proxy_trust(req.node_id)
+    if proxy_trust:
+        trust_score = proxy_trust.trust_score
+
     telemetry_data = {
         "cpu": req.cpu_usage,
         "mem": req.memory_usage,
         "neighbors": req.neighbors_count,
         "uptime": req.uptime,
-        "last_seen": datetime.utcnow().isoformat()
+        "latency": req.latency_ms,
+        "last_seen": node.last_seen.isoformat(),
+        "reputation": trust_score
     }
     _set_telemetry(req.node_id, telemetry_data)
     
-    return {"status": "ack", "mesh_id": node.mesh_id}
+    return {"status": "ack", "mesh_id": node.mesh_id, "trust_score": trust_score}
 
 @router.get("/{mesh_id}/topology")
 async def get_topology(
