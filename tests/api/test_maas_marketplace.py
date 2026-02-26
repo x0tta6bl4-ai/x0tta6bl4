@@ -117,6 +117,8 @@ class TestCreateListing:
         assert data["region"] == "us-east"
         assert data["price_per_hour"] == 1.0
         assert data["bandwidth_mbps"] == 200
+        assert "trust_score" in data
+        assert 0.0 <= data["trust_score"] <= 1.0
 
     def test_create_saves_to_db(self, client, market_data):
         node_id = _unique_node()
@@ -666,6 +668,7 @@ class TestMarketplaceUtilityFunctions:
         assert result["currency"] == "USD"
         assert result["bandwidth_mbps"] == 100
         assert result["status"] == "available"
+        assert result["trust_score"] == 0.5
         assert "created_at" in result
 
     def test_as_listing_response_preserves_status(self):
