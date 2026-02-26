@@ -175,7 +175,8 @@ async def test_routing_stats():
         assert stats["node_id"] == "stats-test"
         assert stats["running"] == True
         assert "routing" in stats
-        assert stats["routing"]["packets_sent"] == 0
+        # sequence_number tracks packets emitted (starts at 0 before any are sent)
+        assert stats["routing"]["packet_handler"]["sequence_number"] == 0
 
     finally:
         await node.stop()

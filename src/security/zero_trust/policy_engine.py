@@ -659,10 +659,19 @@ _policy_engine: Optional[PolicyEngine] = None
 
 
 def get_policy_engine() -> PolicyEngine:
-    """Get global PolicyEngine instance."""
+    """Get global PolicyEngine instance, seeded with a default trust-domain allow rule."""
     global _policy_engine
     if _policy_engine is None:
         _policy_engine = PolicyEngine()
+        # Seed a default allow rule for all workloads in the x0tta6bl4.mesh trust domain.
+        # This is the baseline policy; administrators can add more restrictive rules on top.
+        _policy_engine.add_rule(PolicyRule(
+            rule_id="default-trust-domain-allow",
+            name="Allow x0tta6bl4.mesh workloads (default)",
+            action=PolicyAction.ALLOW,
+            spiffe_id_pattern="spiffe://x0tta6bl4.mesh/*",
+            priority=10,
+        ))
     return _policy_engine
 
 
