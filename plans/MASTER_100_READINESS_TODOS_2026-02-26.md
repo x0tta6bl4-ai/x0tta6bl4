@@ -133,6 +133,8 @@
 - [x] Сделан heartbeat test fix для самодостаточности (`test_heartbeat_auto_releases_escrow`).
 - [x] `quick` smoke: PASS (`fail: 0`).
 - [x] `full` smoke: PASS (`fail: 0`, 14/14 шагов).
+- [x] `quick` smoke усилен reliability/security шагами (`connection_retry`, `redis_sentinel`, `vpn_security_unit`) и повторно PASS (`fail: 0`, 9/9 шагов).
+- [x] Устранен flaky timeout в Geneva security тесте через lazy imports в `scripts/run_geneva_poc.py`.
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.
