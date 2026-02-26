@@ -5,12 +5,14 @@ CompleteMeshNode - Полная интеграция Discovery + Routing + Trans
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from src.network.discovery import MeshDiscovery, PeerInfo
 from src.network.routing import MeshRouter, RouteEntry
 from src.network.transport.udp_shaped import ShapedUDPTransport
+from src.network.integrity import verify_integrity
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ class MeshConfig:
 
     node_id: str
     port: int = 5000
+    agent_version: str = "v3.4.0-alpha"
+    strict_integrity: bool = False
 
     # Transport
     obfuscation: str = "none"
@@ -79,6 +83,17 @@ class CompleteMeshNode:
     async def start(self):
         """Запустить node."""
         logger.info(f"Starting CompleteMeshNode: {self.node_id}")
+
+        # 0. Supply Chain Integrity Check
+        if os.getenv("X0T_SKIP_INTEGRITY") != "1":
+            verified = await verify_integrity(self.node_id, self.config.agent_version)
+            if not verified:
+                msg = f"🚨 FATAL: Integrity check failed for node {self.node_id}"
+                logger.error(msg)
+                if self.config.strict_integrity:
+                    raise RuntimeError(msg)
+                else:
+                    logger.warning("Continuing in non-strict mode despite integrity failure.")
 
         # 1. Transport
         self._transport = ShapedUDPTransport(
