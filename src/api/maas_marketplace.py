@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
+from src.api.maas_telemetry import reputation_system
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,18 @@ def _get_global_price_multiplier(db: Any) -> float:
     except Exception as e:
         logger.warning(f"Error fetching global price multiplier: {e}")
     return 1.0
+
+
+def _get_node_reputation_multiplier(node_id: str) -> float:
+    """Calculate price multiplier based on node trust score (0.5 to 1.2x)."""
+    proxy_trust = reputation_system.get_proxy_trust(node_id)
+    if not proxy_trust:
+        return 1.0
+    
+    # 0.0 trust -> 0.5x price penalty
+    # 1.0 trust -> 1.2x price premium
+    trust = proxy_trust.trust_score
+    return 0.5 + (trust * 0.7)
 
 
 class ListingCreate(BaseModel):
@@ -82,6 +95,10 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     listing_id = _val(data, "listing_id") or _val(data, "id")
     if not listing_id: raise ValueError("listing_id is required")
 
+    node_id = _val(data, "node_id")
+    rep_multiplier = _get_node_reputation_multiplier(node_id)
+    total_multiplier = multiplier * rep_multiplier
+
     created_at = _val(data, "created_at")
     if isinstance(created_at, datetime): created_at_iso = created_at.isoformat()
     elif isinstance(created_at, str): created_at_iso = created_at
@@ -92,19 +109,25 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     if isinstance(raw_price, int): price_per_hour = _to_dollars(raw_price)
     else: price_per_hour = float(raw_price or 0.0)
 
-    price_per_hour = round(price_per_hour * multiplier, 2)
+    price_per_hour = round(price_per_hour * total_multiplier, 2)
     price_token = _val(data, "price_token_per_hour")
+    if price_token:
+        price_token = round(float(price_token) * rep_multiplier, 4)
+
+    proxy_trust = reputation_system.get_proxy_trust(node_id)
+    trust_score = proxy_trust.trust_score if proxy_trust else 0.5
 
     return {
         "listing_id": listing_id,
         "owner_id": _val(data, "owner_id"),
-        "node_id": _val(data, "node_id"),
+        "node_id": node_id,
         "region": _val(data, "region"),
         "price_per_hour": price_per_hour if currency == "USD" else None,
         "price_token_per_hour": price_token if currency == "X0T" else None,
         "currency": currency,
         "bandwidth_mbps": int(_val(data, "bandwidth_mbps") or 0),
         "status": _val(data, "status", "available"),
+        "trust_score": round(trust_score, 2),
         "created_at": created_at_iso,
     }
 
@@ -325,12 +348,13 @@ async def rent_node(
 
     escrow_id = f"esc-{uuid.uuid4().hex[:8]}"
     multiplier = _get_global_price_multiplier(db)
+    rep_multiplier = _get_node_reputation_multiplier(listing.get("node_id"))
     
     amount_cents = None
     amount_token = None
     
     if listing.get("currency") == "X0T":
-        amount_token = float(listing.get("price_token_per_hour", 0.0)) * hours
+        amount_token = float(listing.get("price_token_per_hour", 0.0)) * rep_multiplier * hours
         
         # Verify user has sufficient X0T balance before creating escrow
         try:
@@ -370,7 +394,7 @@ async def rent_node(
         except Exception as e:
             logger.warning(f"Token system integration error: {e}")
     else:
-        amount_cents = _to_cents(float(listing["price_per_hour"]) * multiplier) * hours
+        amount_cents = _to_cents(float(listing["price_per_hour"]) * multiplier * rep_multiplier) * hours
 
     db.add(
         MarketplaceEscrow(
