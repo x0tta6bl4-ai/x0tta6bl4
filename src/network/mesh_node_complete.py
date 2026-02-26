@@ -111,8 +111,9 @@ class CompleteMeshNode:
 
         # 2. Router
         self._router = MeshRouter(self.node_id)
-        self._router.set_send_callback(self._router_send)
-        self._router.set_receive_callback(self._router_receive)
+        # The router is synchronous; wrap async callbacks so it can call them.
+        self._router.set_send_callback(self._make_sync_send_cb())
+        self._router.set_receive_callback(self._make_sync_receive_cb())
         self._router.start()
 
         # 3. Discovery
@@ -166,7 +167,39 @@ class CompleteMeshNode:
         if not self._router:
             return False
 
-        return await self._router.send(destination, payload)
+        # For direct neighbors, seed a direct route and send a DATA packet.
+        if destination in self._peer_addresses and not self._router.has_route(destination):
+            from src.network.routing.route_table import RouteEntry
+            self._router.route_table.add_route(RouteEntry(
+                destination=destination,
+                next_hop=destination,
+                hop_count=1,
+                seq_num=0,
+            ))
+
+        from src.network.routing.packet_handler import PacketType, RoutingPacket
+
+        async def _send_data_packet(nh: str) -> bool:
+            data_pkt = RoutingPacket(
+                packet_type=PacketType.DATA,
+                source=self.node_id,
+                destination=destination,
+                seq_num=self._router.packet_handler.next_seq_num(),
+                hop_count=0,
+                payload=payload,
+            )
+            return await self._router_send(data_pkt.to_bytes(), nh)
+
+        success, next_hop = self._router.send_data(destination, payload)
+        if success and next_hop:
+            return await _send_data_packet(next_hop)
+
+        # Route discovery was initiated; wait briefly and retry.
+        await asyncio.sleep(0.4)
+        success, next_hop = self._router.send_data(destination, payload)
+        if success and next_hop:
+            return await _send_data_packet(next_hop)
+        return False
 
     async def broadcast(self, payload: bytes) -> int:
         """Отправить сообщение всем известным peers."""
@@ -206,7 +239,7 @@ class CompleteMeshNode:
     def get_routes(self) -> Dict[str, RouteEntry]:
         """Таблица маршрутизации."""
         if self._router:
-            return self._router.get_routes()
+            return dict(self._router.route_table._routes)
         return {}
 
     def get_stats(self) -> dict:
@@ -220,26 +253,72 @@ class CompleteMeshNode:
         }
 
         if self._router:
-            stats["routing"] = self._router.get_stats()
+            stats["routing"] = self._router.get_all_stats()
 
         if self._transport:
             stats["transport"] = self._transport.get_stats()
 
         return stats
 
+    # === Sync wrappers for router callbacks ===
+
+    def _make_sync_send_cb(self):
+        """Sync send callback for the (sync) router; schedules async UDP delivery."""
+        def _cb(packet, next_hop: str) -> None:
+            packet_bytes = packet.to_bytes() if hasattr(packet, "to_bytes") else bytes(packet)
+            address = self._peer_addresses.get(next_hop)
+            if not address or not self._transport:
+                return
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(self._transport.send_to(packet_bytes, address))
+            except Exception:
+                pass
+        return _cb
+
+    def _make_sync_receive_cb(self):
+        """Sync receive callback for the router; schedules async app delivery."""
+        def _cb(source: str, payload: bytes) -> None:
+            if not self._message_handler:
+                return
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(self._message_handler(source, payload))
+            except Exception:
+                pass
+        return _cb
+
     # === Internal Handlers ===
 
     async def _handle_transport_packet(self, data: bytes, address: tuple):
         """Обработка пакета от transport."""
-        # Определяем от какого соседа пришёл пакет
         from_neighbor = None
         for peer_id, peer_addr in self._peer_addresses.items():
-            if peer_addr[0] == address[0]:  # По IP
+            if peer_addr[0] == address[0]:
                 from_neighbor = peer_id
                 break
 
-        if from_neighbor and self._router:
-            await self._router.handle_packet(data, from_neighbor)
+        if not from_neighbor or not self._router:
+            return
+
+        try:
+            from src.network.routing.packet_handler import PacketType, RoutingPacket
+            packet = RoutingPacket.from_bytes(data)
+            if packet.packet_type == PacketType.DATA:
+                if packet.destination == self.node_id:
+                    # Final destination — deliver to application layer.
+                    await self._router_receive(packet.source, packet.payload)
+                else:
+                    # Intermediate node — forward to next hop.
+                    next_hop = self._router.get_next_hop(packet.destination)
+                    if next_hop:
+                        await self._router_send(packet.to_bytes(), next_hop)
+            else:
+                response = self._router.handle_packet(packet, from_neighbor)
+                if response:
+                    await self._router_send(response.to_bytes(), from_neighbor)
+        except Exception as exc:
+            logger.debug(f"Packet parse error from {address}: {exc}")
 
     async def _router_send(self, packet_bytes: bytes, next_hop: str) -> bool:
         """Callback для отправки пакета от router."""
