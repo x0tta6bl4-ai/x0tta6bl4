@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
-from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer, String,
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
                         Text, create_engine, inspect as sqlalchemy_inspect)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -123,6 +123,8 @@ class MarketplaceListing(Base):
     node_id = Column(String, unique=True)
     region = Column(String, index=True)
     price_per_hour = Column(Integer)  # In cents
+    price_token_per_hour = Column(Float, nullable=True)  # In X0T
+    currency = Column(String, default="USD")  # USD or X0T
     bandwidth_mbps = Column(Integer)
     status = Column(String, default="available")  # available, escrow, rented
     renter_id = Column(String, ForeignKey("users.id"), nullable=True)
@@ -138,7 +140,9 @@ class MarketplaceEscrow(Base):
     id = Column(String, primary_key=True)
     listing_id = Column(String, ForeignKey("marketplace_listings.id"), index=True)
     renter_id = Column(String, ForeignKey("users.id"), nullable=False)
-    amount_cents = Column(Integer, nullable=False)  # 1-hour deposit
+    amount_cents = Column(Integer, nullable=True)  # 1-hour deposit in USD cents
+    amount_token = Column(Float, nullable=True)  # 1-hour deposit in X0T
+    currency = Column(String, default="USD")  # USD or X0T
     status = Column(String, default="held")  # held, released, refunded
     created_at = Column(DateTime, default=datetime.utcnow)
     released_at = Column(DateTime, nullable=True)
@@ -368,7 +372,6 @@ def validate_required_secrets() -> None:
     Validate that critical environment secrets are set.
     Raises RuntimeError if any required secret is missing or empty.
     """
-    import os
     
     # Critical secrets that MUST be set in production
     REQUIRED_SECRETS = [
@@ -390,12 +393,12 @@ def validate_required_secrets() -> None:
     empty_optional = []
     
     for secret in REQUIRED_SECRETS:
-        value = os.getenv(secret, "").strip()
+        value = os.getenv(secret, "")
         if not value:
             missing_critical.append(secret)
     
     for secret in OPTIONAL_SECRETS:
-        value = os.getenv(secret, "").strip()
+        value = os.getenv(secret, "")
         if not value:
             empty_optional.append(secret)
     

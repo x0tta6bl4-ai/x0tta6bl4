@@ -34,7 +34,7 @@ def _multiprocessing_semaphore_available() -> bool:
         queue.close()
         queue.join_thread()
         return True
-    except (PermissionError, OSError):
+    except (PermissionError, OSError, RuntimeError, ValueError):
         return False
 
 
