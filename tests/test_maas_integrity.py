@@ -26,8 +26,6 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
-
 client = TestClient(app)
 
 
@@ -37,6 +35,19 @@ def _cleanup_db_file():
     engine.dispose()
     if os.path.exists(_DB_PATH):
         os.remove(_DB_PATH)
+
+
+@pytest.fixture(autouse=True)
+def _set_db_override():
+    """Ensure get_db override is active for every test in this module.
+
+    Other test modules call app.dependency_overrides.pop(get_db) in their
+    teardowns, which removes the module-level override set at import time.
+    This fixture re-applies it before each test and removes it after.
+    """
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
 
 # Fixtures
 @pytest.fixture
