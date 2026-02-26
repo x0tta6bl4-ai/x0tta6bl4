@@ -9,14 +9,16 @@ that bypasses the DPI simulator with > 95% success rate.
 import logging
 import os
 import random
-from src.anti_censorship.geneva_genetic import GenevaGeneticOptimizer
-from src.anti_censorship.stego_mesh import StegoMeshProtocol
-from scripts.dpi_simulator import DPISimulator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("geneva-poc")
 
 def run_geneva_training():
+    # Lazy imports keep module import fast for tests and CLI probes.
+    from src.anti_censorship.geneva_genetic import GenevaGeneticOptimizer
+    from src.anti_censorship.stego_mesh import StegoMeshProtocol
+    from scripts.dpi_simulator import DPISimulator
+
     logger.info("=== Starting Geneva DPI Evasion PoC (Stego-mesh v2) ===")
     
     # 1. Setup Environment
