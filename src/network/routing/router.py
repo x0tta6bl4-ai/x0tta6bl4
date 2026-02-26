@@ -12,7 +12,7 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .packet_handler import PacketHandler, RoutingPacket
+from .packet_handler import PacketHandler, PacketType, RoutingPacket
 from .recovery import RouteRecovery
 from .route_table import RouteEntry, RouteTable
 from .topology import LinkQuality, NodeInfo, TopologyManager
@@ -102,20 +102,24 @@ class MeshRouter:
         
         def on_route_reply(packet: RoutingPacket, from_neighbor: str):
             """Process RREP and update route table."""
+            # origin is not serialized; recover it from payload (encoded by create_rrep).
+            origin = packet.origin
+            if not origin and packet.payload:
+                origin = packet.payload[:16].rstrip(b'\x00').decode(errors='ignore')
             # Create route entry from RREP
             route = RouteEntry(
-                destination=packet.origin,
+                destination=origin,
                 next_hop=from_neighbor,
                 hop_count=packet.hop_count,
                 seq_num=packet.seq_num,
-                path=[from_neighbor, packet.origin],
+                path=[from_neighbor, origin],
                 metric=packet.metric
             )
-            
+
             self.route_table.add_route(route)
-            
+
             # Notify recovery if active
-            self.recovery.handle_route_discovered(packet.origin, route)
+            self.recovery.handle_route_discovered(origin, route)
             
             # Forward RREP if not for us
             if packet.destination != self.local_node_id:
@@ -194,13 +198,21 @@ class MeshRouter:
         link_quality: Optional[LinkQuality] = None,
         hop_count: int = 1
     ) -> NodeInfo:
-        """Add a direct neighbor node."""
-        return self.topology.add_node(
+        """Add a direct neighbor node and seed a 1-hop route entry."""
+        result = self.topology.add_node(
             node_id=node_id,
             is_neighbor=True,
             hop_count=hop_count,
             link_quality=link_quality
         )
+        # Seed a direct route so RREQ/RREP forwarding can use it.
+        self.route_table.add_route(RouteEntry(
+            destination=node_id,
+            next_hop=node_id,
+            hop_count=1,
+            seq_num=0,
+        ))
+        return result
     
     def remove_neighbor(self, node_id: str) -> bool:
         """Remove a neighbor node."""
@@ -232,9 +244,19 @@ class MeshRouter:
     ) -> Optional[RoutingPacket]:
         """
         Handle an incoming routing packet.
-        
+
         Returns a packet to send in response, or None.
         """
+        if packet.packet_type == PacketType.DATA:
+            if hasattr(self, '_receive_data') and self._receive_data:
+                try:
+                    import asyncio
+                    result = self._receive_data(packet.source, packet.payload)
+                    if asyncio.iscoroutine(result):
+                        asyncio.get_event_loop().create_task(result)
+                except Exception:
+                    pass
+            return None
         return self.packet_handler.process_packet(packet, from_neighbor)
     
     def send_data(
