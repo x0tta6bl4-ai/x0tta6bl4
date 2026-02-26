@@ -60,7 +60,7 @@ class ProposalCreate(BaseModel):
 class VoteRequest(BaseModel):
     vote: str = Field(..., pattern="^(yes|no|abstain)$")
 
-def _execute_action(action: Dict[str, Any], db: Session) -> Dict[str, Any]:
+def _execute_action(action: Dict[str, Any], db: Optional[Session] = None) -> Dict[str, Any]:
     action_type = action.get("type", action.get("action_type", "unknown"))
     params = action.get("params", {})
     if action_type == "update_config":

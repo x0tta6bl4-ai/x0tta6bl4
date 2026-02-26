@@ -518,6 +518,61 @@ class TestCancelListing:
         assert r.status_code == 404
 
 
+class TestX0TTokenMarketplace:
+    def test_create_listing_x0t(self, client, market_data):
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "eu-central",
+                  "price_token_per_hour": 10.5, "currency": "X0T", "bandwidth_mbps": 100},
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["currency"] == "X0T"
+        assert data["price_token_per_hour"] == 10.5
+        assert data["price_per_hour"] is None
+
+    def test_search_filter_by_currency(self, client, market_data):
+        # Create one USD and one X0T listing
+        node_usd = _unique_node()
+        node_x0t = _unique_node()
+        client.post("/api/v1/maas/marketplace/list",
+                    json={"node_id": node_usd, "region": "global", "price_per_hour": 1.0, "currency": "USD", "bandwidth_mbps": 100},
+                    headers={"X-API-Key": market_data["seller_token"]})
+        client.post("/api/v1/maas/marketplace/list",
+                    json={"node_id": node_x0t, "region": "global", "price_token_per_hour": 50.0, "currency": "X0T", "bandwidth_mbps": 100},
+                    headers={"X-API-Key": market_data["seller_token"]})
+
+        # Search for X0T only
+        r = client.get("/api/v1/maas/marketplace/search?currency=X0T")
+        results = r.json()
+        assert all(x["currency"] == "X0T" for x in results)
+        assert any(x["node_id"] == node_x0t for x in results)
+        assert not any(x["node_id"] == node_usd for x in results)
+
+    def test_rent_success_x0t(self, client, market_data):
+        node_id = _unique_node()
+        r_list = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "us-west",
+                  "price_token_per_hour": 5.0, "currency": "X0T", "bandwidth_mbps": 100},
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        listing_id = r_list.json()["listing_id"]
+
+        r_rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-token-1&hours=2",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r_rent.status_code == 200, r_rent.text
+        data = r_rent.json()
+        assert data["status"] == "escrow"
+        assert data["currency"] == "X0T"
+        assert data["amount_held_token"] == 10.0  # 5.0 * 2 hours
+        assert data["amount_held_cents"] is None
+
+
 # ---------------------------------------------------------------------------
 # Edge cases: 404 and 400 for release/refund on nonexistent/wrong-state listings
 # ---------------------------------------------------------------------------
@@ -597,6 +652,7 @@ class TestMarketplaceUtilityFunctions:
             "node_id": "node-xyz",
             "region": "us-east",
             "price_per_hour": 0.75,
+            "currency": "USD",
             "bandwidth_mbps": 100,
             "status": "available",
             "created_at": datetime.datetime.utcnow().isoformat(),
@@ -607,6 +663,7 @@ class TestMarketplaceUtilityFunctions:
         assert result["node_id"] == "node-xyz"
         assert result["region"] == "us-east"
         assert result["price_per_hour"] == 0.75
+        assert result["currency"] == "USD"
         assert result["bandwidth_mbps"] == 100
         assert result["status"] == "available"
         assert "created_at" in result
