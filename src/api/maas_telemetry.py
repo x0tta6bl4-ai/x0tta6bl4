@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -251,9 +251,53 @@ def get_fallback_cache_stats() -> Dict[str, Any]:
     """Get statistics for the telemetry fallback cache."""
     return _LOCAL_TELEMETRY_FALLBACK.get_stats()
 
+
+class NodeUptimeTracker:
+    """Tracks long-term node uptime in Redis or memory."""
+
+    def __init__(self, window_hours: int = 24):
+        self.window_seconds = window_hours * 3600
+
+    def record_heartbeat(self, node_id: str):
+        key = f"maas:uptime:{node_id}"
+        now = time.time()
+        if REDIS_AVAILABLE:
+            try:
+                # Store timestamps of heartbeats in a sorted set
+                r_client.zadd(key, {str(now): now})
+                # Evict old heartbeats
+                r_client.zremrangebyscore(key, 0, now - self.window_seconds)
+                # Keep TTL
+                r_client.expire(key, self.window_seconds)
+            except Exception as e:
+                logger.warning(f"⚠️ Uptime tracking failed for {node_id}: {e}")
+
+    def get_uptime_percent(self, node_id: str) -> float:
+        """
+        Calculate uptime % based on received heartbeats vs expected (1/min).
+        Returns 0.0 to 1.0.
+        """
+        key = f"maas:uptime:{node_id}"
+        if REDIS_AVAILABLE:
+            try:
+                now = time.time()
+                count = r_client.zcount(key, now - self.window_seconds, now)
+                # Expect 60 heartbeats per hour -> 1440 per 24h
+                expected = self.window_seconds / 60
+                return min(count / expected, 1.0)
+            except Exception:
+                return 0.0
+        return 0.0
+
+
+# Singleton Tracker
+uptime_tracker = NodeUptimeTracker()
+
+
 @router.post("/heartbeat")
 async def heartbeat(
     req: NodeHeartbeatRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
@@ -264,7 +308,17 @@ async def heartbeat(
     # Fast DB update
     node.status = "healthy"
     node.last_seen = datetime.utcnow()
+
+    # Capture IP address for eBPF filtering and geographic analytics
+    client_ip = request.client.host if request.client else None
+    if client_ip:
+        node.ip_address = client_ip
+        
     db.commit()
+
+    # Track long-term uptime for settlement
+    uptime_tracker.record_heartbeat(req.node_id)
+
     
     # Update Reputation based on heartbeat data
     has_errors = bool(req.error_reports)
