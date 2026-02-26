@@ -42,8 +42,10 @@ def _get_global_price_multiplier(db: Any) -> float:
     return 1.0
 
 
-def _get_node_reputation_multiplier(node_id: str) -> float:
+def _get_node_reputation_multiplier(node_id: Optional[str]) -> float:
     """Calculate price multiplier based on node trust score (0.5 to 1.2x)."""
+    if not node_id:
+        return 1.0
     proxy_trust = reputation_system.get_proxy_trust(node_id)
     if not proxy_trust:
         return 1.0
@@ -72,6 +74,7 @@ class ListingResponse(BaseModel):
     currency: str
     bandwidth_mbps: int
     status: str
+    trust_score: float
     created_at: str
 
 
@@ -96,7 +99,9 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     if not listing_id: raise ValueError("listing_id is required")
 
     node_id = _val(data, "node_id")
-    rep_multiplier = _get_node_reputation_multiplier(node_id)
+    proxy_trust = reputation_system.get_proxy_trust(node_id) if node_id else None
+    trust_score = proxy_trust.trust_score if proxy_trust else 0.5
+    rep_multiplier = 0.5 + (trust_score * 0.7) if proxy_trust else 1.0
     total_multiplier = multiplier * rep_multiplier
 
     created_at = _val(data, "created_at")
@@ -113,9 +118,6 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     price_token = _val(data, "price_token_per_hour")
     if price_token:
         price_token = round(float(price_token) * rep_multiplier, 4)
-
-    proxy_trust = reputation_system.get_proxy_trust(node_id)
-    trust_score = proxy_trust.trust_score if proxy_trust else 0.5
 
     return {
         "listing_id": listing_id,
@@ -290,14 +292,15 @@ async def search_listings(
             continue
         if region and _v(listing, "region") != region:
             continue
-        
+        rep_multiplier = _get_node_reputation_multiplier(_v(listing, "node_id"))
+
         # Price filtering depends on currency
         if max_price is not None:
             if currency == "USD":
-                if float(_v(listing, "price_per_hour") or 0.0) * multiplier > float(max_price):
+                if float(_v(listing, "price_per_hour") or 0.0) * multiplier * rep_multiplier > float(max_price):
                     continue
             else: # X0T
-                if float(_v(listing, "price_token_per_hour") or 0.0) > float(max_price):
+                if float(_v(listing, "price_token_per_hour") or 0.0) * rep_multiplier > float(max_price):
                     continue
 
         if min_bandwidth is not None and int(_v(listing, "bandwidth_mbps") or 0) < int(min_bandwidth or 0):
