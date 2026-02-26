@@ -34,7 +34,9 @@ def _multiprocessing_semaphore_available() -> bool:
         queue.close()
         queue.join_thread()
         return True
-    except (PermissionError, OSError, RuntimeError, ValueError):
+    except (PermissionError, OSError, RuntimeError, ValueError, Exception):
+        # Exception covers queue.Empty (_queue.Empty) raised when put_nowait
+        # silently fails in restricted sandbox environments (no /dev/shm semaphores).
         return False
 
 
