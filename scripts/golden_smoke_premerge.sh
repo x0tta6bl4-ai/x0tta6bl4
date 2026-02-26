@@ -61,6 +61,9 @@ run_step \
 if [[ "${PROFILE}" == "quick" ]]; then
   TESTS=(
     "tests/unit/api/test_maas_modules.py -k Marketplace"
+    "tests/core/test_connection_retry.py"
+    "tests/core/test_redis_sentinel.py"
+    "tests/unit/api/test_vpn_security_unit.py"
     "tests/api/test_maas_telemetry.py"
     "tests/api/test_maas_nodes.py -k heartbeat"
     "tests/api/test_vpn_api.py"
@@ -68,6 +71,11 @@ if [[ "${PROFILE}" == "quick" ]]; then
 else
   TESTS=(
     "tests/unit/api/test_maas_modules.py -k Marketplace"
+    "tests/core/test_connection_retry.py"
+    "tests/core/test_graceful_shutdown.py"
+    "tests/core/test_redis_sentinel.py"
+    "tests/unit/api/test_maas_security_unit.py"
+    "tests/unit/api/test_vpn_security_unit.py"
     "tests/api/test_maas_mesh_endpoints.py"
     "tests/api/test_maas_playbooks.py"
     "tests/api/test_maas_marketplace.py"
