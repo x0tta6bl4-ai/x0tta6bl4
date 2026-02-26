@@ -1,4 +1,6 @@
 
+import os
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,12 +11,12 @@ from src.core.app import app
 from src.database import Base, User, AuditLog, get_db, Invoice
 from src.api.maas_auth import ApiKeyManager
 
-# Setup Test DB
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_maas.db"
+# Setup Test DB — unique file per process to avoid SQLite locking in concurrent runs
+_DB_PATH = f"./test_maas_integrity_{uuid.uuid4().hex}.db"
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{_DB_PATH}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 def override_get_db():
@@ -27,6 +29,14 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_db_file():
+    yield
+    engine.dispose()
+    if os.path.exists(_DB_PATH):
+        os.remove(_DB_PATH)
 
 # Fixtures
 @pytest.fixture
