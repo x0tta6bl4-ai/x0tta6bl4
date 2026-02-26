@@ -380,7 +380,9 @@ async def get_vpn_config(
             scope.get("permission") == "vpn:admin" 
             for scope in getattr(user, "scopes", [])
         )
-        if not user_has_admin and user.id != user_id:
+        # Handle string user IDs from MaaS
+        str_user_id = str(user_id)
+        if not user_has_admin and str(user.id) != str_user_id:
             logger.warning(
                 f"User {user.id} attempted to access config for user {user_id}"
             )
