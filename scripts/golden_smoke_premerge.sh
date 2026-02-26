@@ -74,6 +74,7 @@ else
     "tests/api/test_maas_escrow.py"
     "tests/api/test_maas_governance.py"
     "tests/api/test_maas_governance_edge.py"
+    "tests/api/test_maas_auth.py"
     "tests/api/test_maas_analytics.py"
     "tests/api/test_maas_telemetry.py"
     "tests/api/test_maas_nodes.py -k heartbeat"
