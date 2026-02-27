@@ -78,6 +78,10 @@ def compile_ebpf_programs():
             pytest.skip("eBPF compilation skipped")
 
 
+@pytest.mark.skipif(
+    not EBPF_PROGRAMS_DIR.exists(),
+    reason="eBPF programs directory not found — requires kernel build env",
+)
 class TestEBPFCompilation:
     """Test eBPF program compilation."""
 
