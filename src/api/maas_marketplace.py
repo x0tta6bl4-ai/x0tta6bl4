@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
 from src.api.maas_telemetry import reputation_system
+from src.dao.token_bridge import TokenBridge, BridgeConfig
+from src.dao.token import MeshToken
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,21 @@ router = APIRouter(prefix="/api/v1/maas/marketplace", tags=["MaaS Marketplace"])
 
 _listings: Dict[str, Dict[str, Any]] = {}
 _listings_lock = Lock()
+
+# Token Bridge Singleton Simulation
+_token_bridge: Optional[TokenBridge] = None
+
+def _get_token_bridge() -> TokenBridge:
+    global _token_bridge
+    if _token_bridge is None:
+        from src.core.settings import settings
+        config = BridgeConfig(
+            rpc_url=settings.rpc_url or "",
+            contract_address=settings.contract_address or "",
+            private_key=settings.operator_private_key or ""
+        )
+        _token_bridge = TokenBridge(MeshToken(), config)
+    return _token_bridge
 
 
 def _get_global_price_multiplier(db: Any) -> float:
@@ -54,6 +71,26 @@ def _get_node_reputation_multiplier(node_id: Optional[str]) -> float:
     # 1.0 trust -> 1.2x price premium
     trust = proxy_trust.trust_score
     return 0.5 + (trust * 0.7)
+
+
+def _get_mesh_congestion_multiplier(mesh_id: str, db: Session) -> float:
+    """Increase price if the target mesh is already crowded (congestion factor)."""
+    if not _db_session_available(db):
+        return 1.0
+    
+    from src.database import MeshNode
+    active_nodes = db.query(MeshNode).filter(
+        MeshNode.mesh_id == mesh_id,
+        MeshNode.status == "healthy"
+    ).count()
+    
+    # Base: 1.0
+    # > 5 nodes: +10% per node
+    if active_nodes > 5:
+        multiplier = 1.0 + (active_nodes - 5) * 0.10
+        return min(multiplier, 3.0) # Cap at 3x
+    
+    return 1.0
 
 
 class ListingCreate(BaseModel):
@@ -322,6 +359,12 @@ async def rent_node(
     Initiate a node rental with multi-hour deposit.
     Funds are released to the owner after the first healthy heartbeat.
     """
+    # Allow direct coroutine calls in unit tests where FastAPI doesn't resolve Query defaults.
+    if not isinstance(hours, int):
+        hours = getattr(hours, "default", 1)
+    if not isinstance(hours, int):
+        hours = 1
+        
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
@@ -352,16 +395,17 @@ async def rent_node(
     escrow_id = f"esc-{uuid.uuid4().hex[:8]}"
     multiplier = _get_global_price_multiplier(db)
     rep_multiplier = _get_node_reputation_multiplier(listing.get("node_id"))
+    congestion_multiplier = _get_mesh_congestion_multiplier(mesh_id, db)
+    total_multiplier = multiplier * rep_multiplier * congestion_multiplier
     
     amount_cents = None
     amount_token = None
     
     if listing.get("currency") == "X0T":
-        amount_token = float(listing.get("price_token_per_hour", 0.0)) * rep_multiplier * hours
+        amount_token = float(listing.get("price_token_per_hour", 0.0)) * total_multiplier * hours
         
         # Verify user has sufficient X0T balance before creating escrow
         try:
-            from src.dao.token import MeshToken
             token_sys = MeshToken()
             user_balance = token_sys.balance_of(current_user.id)
 
@@ -374,19 +418,25 @@ async def rent_node(
                     detail=f"Insufficient X0T balance. Required: {amount_token}, Available: {user_balance}"
                 )
 
-            # Lock tokens for escrow (non-blocking reservation)
-            # In production, this should call a persistent token backend.
+            # 3. Lock tokens in Decentralized Escrow (Token Bridge)
+            bridge = _get_token_bridge()
+            # Note: Using run_until_complete simulation or similar if needed, 
+            # but here we are in an async function.
+            tx_hash = await bridge.lock_escrow_on_chain(escrow_id, current_user.id, amount_token)
+            
             if has_ledger_state:
                 logger.info(
-                    "Verified %s X0T balance for user %s, escrow %s",
+                    "Verified %s X0T balance for user %s, escrow %s (TX: %s)",
                     amount_token,
                     current_user.id,
                     escrow_id,
+                    tx_hash
                 )
             else:
                 logger.info(
-                    "Skipping strict X0T balance check (stateless token ledger), escrow %s",
+                    "Skipping strict X0T balance check (stateless token ledger), escrow %s (TX: %s)",
                     escrow_id,
+                    tx_hash
                 )
             
         except HTTPException:
@@ -397,7 +447,7 @@ async def rent_node(
         except Exception as e:
             logger.warning(f"Token system integration error: {e}")
     else:
-        amount_cents = _to_cents(float(listing["price_per_hour"]) * multiplier * rep_multiplier) * hours
+        amount_cents = _to_cents(float(listing["price_per_hour"]) * total_multiplier) * hours
 
     db.add(
         MarketplaceEscrow(
@@ -484,6 +534,11 @@ async def release_escrow(
             MarketplaceEscrow.status == "held",
         ).first()
         if escrow:
+            # 1. Release on-chain if X0T
+            if escrow.currency == "X0T":
+                bridge = _get_token_bridge()
+                await bridge.release_escrow_on_chain(escrow.id)
+            
             escrow.status = "released"
             escrow.released_at = datetime.fromisoformat(released_at)
         row.status = "rented"
@@ -532,6 +587,11 @@ async def refund_escrow(
             MarketplaceEscrow.status == "held",
         ).first()
         if escrow:
+            # 1. Refund on-chain if X0T
+            if escrow.currency == "X0T":
+                bridge = _get_token_bridge()
+                await bridge.refund_escrow_on_chain(escrow.id)
+                
             escrow.status = "refunded"
         row.status = "available"
         row.renter_id = None
