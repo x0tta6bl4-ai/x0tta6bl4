@@ -77,11 +77,11 @@ class DomainReputation:
     def record_event(self, event: ReputationEvent):
         """Record a new reputation event."""
         self.events.append(event)
-        self.last_access = event.timestamp
 
-        # Apply decay based on time since last event
+        # Apply decay based on time since last event (must use old last_access)
         time_diff_days = (event.timestamp - self.last_access) / 86400
         self.score *= self.decay_factor**time_diff_days
+        self.last_access = event.timestamp
 
         if event.success:
             self.success_streak += 1

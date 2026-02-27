@@ -394,9 +394,9 @@ class TestIntegration:
 
             proxies.append(proxy)
 
-        # Test selection
+        # Test selection (need 100+ events for detect_patterns())
         domain = "test.com"
-        for _ in range(50):
+        for _ in range(150):
             proxy, token = await load_balancer.acquire_proxy(proxies, domain)
             assert proxy is not None
 
@@ -412,7 +412,7 @@ class TestIntegration:
 
         # Check patterns detected
         patterns = algorithm.detect_patterns()
-        assert patterns["status"] == "success"
+        assert "domain_preferences" in patterns
 
 
 if __name__ == "__main__":
