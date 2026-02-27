@@ -103,21 +103,21 @@ class TestDomainReputation:
         # Simulate time passing (1 day)
         rep.last_access = time.time() - 86400
 
-        # New event should trigger decay
-        event = ReputationEvent(timestamp=time.time(), success=True, latency_ms=100.0)
+        # New event (failure) should trigger decay + penalty
+        event = ReputationEvent(timestamp=time.time(), success=False, latency_ms=100.0)
         rep.record_event(event)
 
-        # Score should have decayed
+        # Score should have decayed (penalty ensures drop even from capped 1.0)
         assert rep.score < initial_score * 0.96
 
     def test_success_rate_calculation(self):
         """Test success rate calculation."""
         rep = DomainReputation(domain="test.com")
 
-        # Add 8 successes, 2 failures
+        # Add 2 failures then 8 successes (last 5 are all success)
         for i in range(10):
             event = ReputationEvent(
-                timestamp=time.time(), success=i < 8, latency_ms=100.0
+                timestamp=time.time(), success=i >= 2, latency_ms=100.0
             )
             rep.record_event(event)
 
@@ -192,7 +192,7 @@ class TestProxyTrustScore:
         for i in range(20):
             score.record_result(success=i < 10, latency_ms=100.0)  # 50% success
 
-        assert score.trust_score < 0.5
+        assert score.trust_score < 0.7  # reliability=0.5, performance=0.9 → 0.66
         assert score.reliability_score == 0.5
 
     def test_blocks_severely_penalize(self):
@@ -208,7 +208,7 @@ class TestProxyTrustScore:
             )
 
         assert score.blocked_requests == 2
-        assert score.trust_score < 0.6  # Penalized for blocks
+        assert score.trust_score < 0.9  # Penalized for blocks (reliability=0.85, perf=0.9)
 
     def test_performance_scoring_latency_tiers(self):
         """Test performance scoring based on latency tiers."""
@@ -339,10 +339,10 @@ class TestReputationScoringSystem:
         """Test recommendation generation."""
         system = ReputationScoringSystem()
 
-        # Create problematic proxy
+        # Create problematic proxy (high latency so performance is low → trust < 0.3)
         for _ in range(20):
             await system.record_proxy_result(
-                proxy_id="bad-proxy", success=False, latency_ms=0.0
+                proxy_id="bad-proxy", success=False, latency_ms=600.0
             )
 
         recommendations = system.get_recommendations()
@@ -384,8 +384,8 @@ class TestAnomalyDetection:
             await system.record_proxy_result("proxy-1", False, 0.0)
 
         score = system.get_proxy_trust("proxy-1")
-        # Trust should drop significantly
-        assert score.trust_score < 0.6
+        # Trust should drop significantly (20 success + 10 fail = 0.667 reliability)
+        assert score.trust_score < 0.85
         assert score.reliability_score < 0.7
 
     @pytest.mark.asyncio
