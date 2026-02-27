@@ -81,6 +81,9 @@ try:
 except ImportError:
     STEGO_MESH_AVAILABLE = False
 
+# Geo-Fencing Integration
+from src.network.geofencing import GeoFencer
+
 logger = logging.getLogger(__name__)
 
 # Batman-adv Optimizations
@@ -143,6 +146,7 @@ class NodeManager:
         obfuscation_transport: Optional["ObfuscationTransport"] = None,
         traffic_profile: str = "none",
         enable_optimizations: bool = True,
+        restricted_countries: Optional[List[str]] = None,
     ):
         self.mesh_id = mesh_id
         self.local_node_id = local_node_id
@@ -152,6 +156,10 @@ class NodeManager:
         self.obfuscation_transport = obfuscation_transport
         self.stego_mimic = os.getenv("STEGO_MIMIC_PROTOCOL", "http")
         self.stego_protocol = None
+        self.active_protocol = "standard" # "standard" or "stego"
+        
+        # Geo-Fencing
+        self.geofencer = GeoFencer(set(restricted_countries) if restricted_countries else None)
         
         if STEGO_MESH_AVAILABLE:
             # Use mesh_id as basis for master key if not provided
@@ -470,7 +478,12 @@ class NodeManager:
             logger.warning(f"Node {node_id} already registered")
             return False
 
-        # Attestation
+        # 1. Geo-Fencing Check
+        if not self.geofencer.validate_node(ip_address):
+            logger.error(f"🛑 Geo-Fence BLOCK: Node {node_id} from {self.geofencer.get_country(ip_address)} is in a restricted region.")
+            return False
+
+        # 2. Attestation
         if not self._attest_node(node_id, spiffe_id, join_token, cert_pem):
             logger.error(f"Node attestation failed: {node_id}")
             return False
@@ -621,6 +634,26 @@ class NodeManager:
     def get_online_nodes(self) -> List[str]:
         """Get list of online nodes"""
         return [nid for nid, n in self.nodes.items() if n["status"] == "online"]
+
+    def switch_protocol(self, protocol: str, mimic: Optional[str] = None) -> bool:
+        """
+        Dynamically switch the transport protocol.
+        
+        Args:
+            protocol: "standard" or "stego"
+            mimic: if stego, specify mimic ("http", "icmp", "dns")
+        """
+        if protocol == "stego":
+            self.active_protocol = "stego"
+            if mimic:
+                self.stego_mimic = mimic
+            logger.info(f"🔄 Protocol switched to STEGO (mimic: {self.stego_mimic})")
+            return True
+        elif protocol == "standard":
+            self.active_protocol = "standard"
+            logger.info("🔄 Protocol switched to STANDARD obfuscation")
+            return True
+        return False
 
 
 class HealthMonitor:

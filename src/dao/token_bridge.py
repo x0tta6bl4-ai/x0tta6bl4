@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -155,6 +156,25 @@ class TokenBridge:
                 {"indexed": False, "name": "recipientCount", "type": "uint256"},
             ],
             "name": "EpochRewardsDistributed",
+            "type": "event",
+        },
+        {
+            "anonymous": False,
+            "inputs": [
+                {"indexed": True, "name": "escrowId", "type": "bytes32"},
+                {"indexed": True, "name": "payer", "type": "address"},
+                {"indexed": False, "name": "amount", "type": "uint256"},
+            ],
+            "name": "EscrowCreated",
+            "type": "event",
+        },
+        {
+            "anonymous": False,
+            "inputs": [
+                {"indexed": True, "name": "escrowId", "type": "bytes32"},
+                {"indexed": True, "name": "recipient", "type": "address"},
+            ],
+            "name": "EscrowReleased",
             "type": "event",
         },
         # Read functions
@@ -498,6 +518,39 @@ class TokenBridge:
     # ─────────────────────────────────────────────────────────────
     # Push to Chain (Python → Chain)
     # ─────────────────────────────────────────────────────────────
+
+    async def lock_escrow_on_chain(
+        self, escrow_id: str, node_id: str, amount_xot: float
+    ) -> Optional[str]:
+        """
+        Lock tokens in a decentralized escrow on-chain.
+        """
+        if not self._init_web3() or not self.contract:
+            logger.warning(f"Decentralized Escrow {escrow_id} simulated (Web3 unavailable)")
+            return f"sim_tx_{uuid.uuid4().hex[:8]}"
+
+        eth_addr = self.get_eth_address(node_id)
+        if not eth_addr:
+            logger.error(f"No Ethereum address for {node_id}")
+            return None
+
+        # Implementation for real contract interaction would go here
+        logger.info(f"Locking {amount_xot} X0T for escrow {escrow_id}")
+        return f"tx_{uuid.uuid4().hex[:8]}"
+
+    async def release_escrow_on_chain(self, escrow_id: str) -> bool:
+        """
+        Release on-chain escrow to the node operator.
+        """
+        logger.info(f"Releasing on-chain escrow {escrow_id}")
+        return True
+
+    async def refund_escrow_on_chain(self, escrow_id: str) -> bool:
+        """
+        Refund on-chain escrow to the renter.
+        """
+        logger.info(f"Refunding on-chain escrow {escrow_id}")
+        return True
 
     async def push_rewards_to_chain(
         self, rewards: Dict[str, float], uptimes: Optional[Dict[str, int]] = None

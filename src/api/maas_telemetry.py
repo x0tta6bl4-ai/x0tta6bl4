@@ -360,13 +360,37 @@ async def get_topology(
     nodes = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id).all()
     
     result_nodes = []
+    links = []
+    seen_links = set()
+    
     for n in nodes:
         telemetry = _get_telemetry(n.id)
         result_nodes.append({
             "id": n.id,
             "class": n.device_class,
             "status": "healthy" if telemetry else "offline",
-            "telemetry": telemetry
+            "telemetry": telemetry,
+            "pqc_enabled": True # All MaaS nodes have PQC by default
         })
         
-    return {"nodes": result_nodes, "links": []}
+        # Extract links from pheromones
+        if telemetry and "pheromones" in telemetry:
+            for neighbor_id, paths in telemetry["pheromones"].items():
+                # Link ID: sorted pair to avoid duplicates
+                link_key = tuple(sorted([n.id, neighbor_id]))
+                if link_key not in seen_links:
+                    # Get best score/latency if available
+                    score = 0.0
+                    if paths:
+                        score = max(p.get("score", 0.0) for p in paths.values())
+                    
+                    links.append({
+                        "source": n.id,
+                        "target": neighbor_id,
+                        "quality": score,
+                        "secure": True, # PQC Tunnel
+                        "type": "pqc-mesh"
+                    })
+                    seen_links.add(link_key)
+        
+    return {"nodes": result_nodes, "links": links}

@@ -108,6 +108,7 @@ class MeshNode(Base):
     mesh_id = Column(String, index=True)
     device_class = Column(String)
     status = Column(String, default="healthy")
+    ip_address = Column(String, index=True, nullable=True)
     acl_profile = Column(String, default="default")
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)

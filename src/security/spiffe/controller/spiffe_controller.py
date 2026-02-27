@@ -23,6 +23,7 @@ from ..certificate_validator import CertificateValidator
 from ..mtls.tls_context import MTLSContext, TLSRole, build_mtls_context
 from ..server.client import SPIREServerClient, SPIREServerEntry
 from ..workload import X509SVID, WorkloadAPIClient
+from src.security.pqc_ca import PQCCertificateAuthority, PQCIdentityManager
 
 try:
     from ..optimizations import (MultiRegionConfig, SPIREOptimizations,
@@ -61,6 +62,7 @@ class SPIFFEController:
         agent_config: Optional[Path] = None,
         server_address: str = "127.0.0.1:8081",
         enable_optimizations: bool = True,
+        node_id: str = "default-node",
     ):
         """
         Initialize SPIFFE controller.
@@ -70,9 +72,15 @@ class SPIFFEController:
             agent_config: Path to SPIRE Agent config (auto-detected if None)
             server_address: SPIRE Server address
             enable_optimizations: Enable Paradox Zone optimizations (token caching, multi-region failover)
+            node_id: Node identifier for PQC identity
         """
         self.trust_domain = trust_domain
         self.server_address = server_address
+        self.node_id = node_id
+
+        # Post-Quantum Identity Management
+        self.pqc_ca = PQCCertificateAuthority() # In prod, this points to MaaS API
+        self.pqc_manager = PQCIdentityManager(node_id)
 
         self.agent = (
             SPIREAgentManager(config_path=agent_config)
@@ -225,6 +233,10 @@ class SPIFFEController:
                 )
                 self.current_identity = new_identity
                 logger.info(f"SVID renewed: {old_id} -> {new_identity.spiffe_id}")
+            
+            # Also rotate PQC identity
+            self.pqc_manager.rotate_identity(self.pqc_ca)
+            
         except Exception as e:
             logger.error(f"Failed to renew identity: {e}")
 
