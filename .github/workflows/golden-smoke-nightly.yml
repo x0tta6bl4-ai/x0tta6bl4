@@ -177,6 +177,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [golden-smoke-full-core, golden-smoke-full-heavy]
     if: always()
+    env:
+      CORE_WARN_SECONDS: "3600"
+      CORE_HARD_SECONDS: "5400"
+      HEAVY_WARN_SECONDS: "4500"
+      HEAVY_HARD_SECONDS: "7200"
 
     steps:
       - name: Validate nightly lanes
@@ -204,14 +209,37 @@ jobs:
           heavy_start="${{ needs.golden-smoke-full-heavy.outputs.start_iso }}"
           heavy_end="${{ needs.golden-smoke-full-heavy.outputs.end_iso }}"
 
+          lane_status() {
+            duration="$1"
+            warn_s="$2"
+            hard_s="$3"
+            if ! [[ "$duration" =~ ^[0-9]+$ ]]; then
+              echo "N/A"
+              return 0
+            fi
+            if [ "$duration" -ge "$hard_s" ]; then
+              echo "FAIL"
+              return 0
+            fi
+            if [ "$duration" -ge "$warn_s" ]; then
+              echo "WARN"
+              return 0
+            fi
+            echo "PASS"
+          }
+
+          core_guard="$(lane_status "$core_duration" "$CORE_WARN_SECONDS" "$CORE_HARD_SECONDS")"
+          heavy_guard="$(lane_status "$heavy_duration" "$HEAVY_WARN_SECONDS" "$HEAVY_HARD_SECONDS")"
+
           {
             echo "# Golden Smoke Nightly Duration Summary"
             echo
-            echo "| Lane | Outcome | Duration (s) | Start (UTC) | End (UTC) |"
-            echo "|---|---|---:|---|---|"
-            echo "| full-core | ${core_outcome:-n/a} | ${core_duration:-n/a} | ${core_start:-n/a} | ${core_end:-n/a} |"
-            echo "| full-heavy | ${heavy_outcome:-n/a} | ${heavy_duration:-n/a} | ${heavy_start:-n/a} | ${heavy_end:-n/a} |"
+            echo "| Lane | Outcome | Duration (s) | Guardrail | Thresholds (warn/hard) | Start (UTC) | End (UTC) |"
+            echo "|---|---|---:|---|---|---|---|"
+            echo "| full-core | ${core_outcome:-n/a} | ${core_duration:-n/a} | ${core_guard} | ${CORE_WARN_SECONDS}/${CORE_HARD_SECONDS} | ${core_start:-n/a} | ${core_end:-n/a} |"
+            echo "| full-heavy | ${heavy_outcome:-n/a} | ${heavy_duration:-n/a} | ${heavy_guard} | ${HEAVY_WARN_SECONDS}/${HEAVY_HARD_SECONDS} | ${heavy_start:-n/a} | ${heavy_end:-n/a} |"
             echo
+            echo "Guardrail status legend: PASS, WARN, FAIL, N/A."
             echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } > artifacts/golden-smoke-nightly-summary.md
 
@@ -226,15 +254,25 @@ jobs:
                 "name": "full-core",
                 "outcome": "${core_outcome:-n/a}",
                 "duration_seconds": "${core_duration:-n/a}",
+                "guardrail_status": "${core_guard}",
                 "start_iso": "${core_start:-n/a}",
-                "end_iso": "${core_end:-n/a}"
+                "end_iso": "${core_end:-n/a}",
+                "thresholds": {
+                  "warn_seconds": "${CORE_WARN_SECONDS}",
+                  "hard_seconds": "${CORE_HARD_SECONDS}"
+                }
               },
               {
                 "name": "full-heavy",
                 "outcome": "${heavy_outcome:-n/a}",
                 "duration_seconds": "${heavy_duration:-n/a}",
+                "guardrail_status": "${heavy_guard}",
                 "start_iso": "${heavy_start:-n/a}",
-                "end_iso": "${heavy_end:-n/a}"
+                "end_iso": "${heavy_end:-n/a}",
+                "thresholds": {
+                  "warn_seconds": "${HEAVY_WARN_SECONDS}",
+                  "hard_seconds": "${HEAVY_HARD_SECONDS}"
+                }
               }
             ]
           }
@@ -244,34 +282,49 @@ jobs:
 
       - name: Enforce duration guardrails
         if: always()
-        env:
-          CORE_WARN_SECONDS: "3600"
-          CORE_HARD_SECONDS: "5400"
-          HEAVY_WARN_SECONDS: "4500"
-          HEAVY_HARD_SECONDS: "7200"
         run: |
           core_duration="${{ needs.golden-smoke-full-core.outputs.duration_seconds }}"
           heavy_duration="${{ needs.golden-smoke-full-heavy.outputs.duration_seconds }}"
           guard_failed=0
+
+          lane_status() {
+            duration="$1"
+            warn_s="$2"
+            hard_s="$3"
+            if ! [[ "$duration" =~ ^[0-9]+$ ]]; then
+              echo "N/A"
+              return 0
+            fi
+            if [ "$duration" -ge "$hard_s" ]; then
+              echo "FAIL"
+              return 0
+            fi
+            if [ "$duration" -ge "$warn_s" ]; then
+              echo "WARN"
+              return 0
+            fi
+            echo "PASS"
+          }
 
           check_lane() {
             lane="$1"
             duration="$2"
             warn_s="$3"
             hard_s="$4"
+            status="$(lane_status "$duration" "$warn_s" "$hard_s")"
 
-            if ! [[ "$duration" =~ ^[0-9]+$ ]]; then
+            if [ "$status" = "N/A" ]; then
               echo "::warning::${lane} duration is unavailable (${duration}); skipping guardrail check"
               return 0
             fi
 
-            if [ "$duration" -ge "$hard_s" ]; then
+            if [ "$status" = "FAIL" ]; then
               echo "::error::${lane} duration ${duration}s exceeded hard threshold ${hard_s}s"
               guard_failed=1
               return 0
             fi
 
-            if [ "$duration" -ge "$warn_s" ]; then
+            if [ "$status" = "WARN" ]; then
               echo "::warning::${lane} duration ${duration}s exceeded warning threshold ${warn_s}s"
               return 0
             fi
