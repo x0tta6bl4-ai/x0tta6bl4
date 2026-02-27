@@ -13,6 +13,11 @@ jobs:
   golden-smoke-full-core:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      start_iso: ${{ steps.timing_start.outputs.start_iso }}
+      end_iso: ${{ steps.timing_end.outputs.end_iso }}
+      duration_seconds: ${{ steps.timing_end.outputs.duration_seconds }}
+      smoke_outcome: ${{ steps.smoke_run.outcome }}
 
     steps:
       - name: Checkout
@@ -38,16 +43,62 @@ jobs:
             pip install pytest pytest-asyncio pytest-cov pytest-xdist sqlalchemy alembic fastapi pydantic redis
           fi
 
+      - name: Start lane timer
+        id: timing_start
+        run: |
+          start_ts="$(date +%s)"
+          start_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "LANE_START_TS=$start_ts" >> "$GITHUB_ENV"
+          echo "start_iso=$start_iso" >> "$GITHUB_OUTPUT"
+
       - name: Run golden smoke (full-core)
+        id: smoke_run
         env:
           PYTEST_TIMEOUT_SECONDS: "2400"
           ALEMBIC_TIMEOUT_SECONDS: "900"
         run: |
           bash scripts/golden_smoke_premerge.sh full-core
 
+      - name: Finalize lane timer
+        id: timing_end
+        if: always()
+        run: |
+          end_ts="$(date +%s)"
+          end_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          start_ts="${LANE_START_TS:-$end_ts}"
+          duration_seconds="$((end_ts - start_ts))"
+          echo "end_iso=$end_iso" >> "$GITHUB_OUTPUT"
+          echo "duration_seconds=$duration_seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Build lane metrics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          cat > artifacts/golden-smoke-full-core-metrics.json <<EOF
+          {
+            "lane": "full-core",
+            "outcome": "${{ steps.smoke_run.outcome }}",
+            "start_iso": "${{ steps.timing_start.outputs.start_iso }}",
+            "end_iso": "${{ steps.timing_end.outputs.end_iso }}",
+            "duration_seconds": "${{ steps.timing_end.outputs.duration_seconds }}"
+          }
+          EOF
+
+      - name: Upload lane metrics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-smoke-full-core-metrics
+          path: artifacts/golden-smoke-full-core-metrics.json
+
   golden-smoke-full-heavy:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    outputs:
+      start_iso: ${{ steps.timing_start.outputs.start_iso }}
+      end_iso: ${{ steps.timing_end.outputs.end_iso }}
+      duration_seconds: ${{ steps.timing_end.outputs.duration_seconds }}
+      smoke_outcome: ${{ steps.smoke_run.outcome }}
 
     steps:
       - name: Checkout
@@ -73,12 +124,53 @@ jobs:
             pip install pytest pytest-asyncio pytest-cov pytest-xdist sqlalchemy alembic fastapi pydantic redis
           fi
 
+      - name: Start lane timer
+        id: timing_start
+        run: |
+          start_ts="$(date +%s)"
+          start_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "LANE_START_TS=$start_ts" >> "$GITHUB_ENV"
+          echo "start_iso=$start_iso" >> "$GITHUB_OUTPUT"
+
       - name: Run golden smoke (full-heavy)
+        id: smoke_run
         env:
           PYTEST_TIMEOUT_SECONDS: "3600"
           ALEMBIC_TIMEOUT_SECONDS: "900"
         run: |
           bash scripts/golden_smoke_premerge.sh full-heavy
+
+      - name: Finalize lane timer
+        id: timing_end
+        if: always()
+        run: |
+          end_ts="$(date +%s)"
+          end_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          start_ts="${LANE_START_TS:-$end_ts}"
+          duration_seconds="$((end_ts - start_ts))"
+          echo "end_iso=$end_iso" >> "$GITHUB_OUTPUT"
+          echo "duration_seconds=$duration_seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Build lane metrics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          cat > artifacts/golden-smoke-full-heavy-metrics.json <<EOF
+          {
+            "lane": "full-heavy",
+            "outcome": "${{ steps.smoke_run.outcome }}",
+            "start_iso": "${{ steps.timing_start.outputs.start_iso }}",
+            "end_iso": "${{ steps.timing_end.outputs.end_iso }}",
+            "duration_seconds": "${{ steps.timing_end.outputs.duration_seconds }}"
+          }
+          EOF
+
+      - name: Upload lane metrics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-smoke-full-heavy-metrics
+          path: artifacts/golden-smoke-full-heavy-metrics.json
 
   golden-smoke-nightly-gate:
     name: Nightly Gate Result
@@ -97,3 +189,64 @@ jobs:
             exit 1
           fi
           echo "Nightly golden smoke passed"
+
+      - name: Build nightly duration summary
+        if: always()
+        run: |
+          mkdir -p artifacts
+
+          core_outcome="${{ needs.golden-smoke-full-core.outputs.smoke_outcome }}"
+          core_duration="${{ needs.golden-smoke-full-core.outputs.duration_seconds }}"
+          core_start="${{ needs.golden-smoke-full-core.outputs.start_iso }}"
+          core_end="${{ needs.golden-smoke-full-core.outputs.end_iso }}"
+          heavy_outcome="${{ needs.golden-smoke-full-heavy.outputs.smoke_outcome }}"
+          heavy_duration="${{ needs.golden-smoke-full-heavy.outputs.duration_seconds }}"
+          heavy_start="${{ needs.golden-smoke-full-heavy.outputs.start_iso }}"
+          heavy_end="${{ needs.golden-smoke-full-heavy.outputs.end_iso }}"
+
+          {
+            echo "# Golden Smoke Nightly Duration Summary"
+            echo
+            echo "| Lane | Outcome | Duration (s) | Start (UTC) | End (UTC) |"
+            echo "|---|---|---:|---|---|"
+            echo "| full-core | ${core_outcome:-n/a} | ${core_duration:-n/a} | ${core_start:-n/a} | ${core_end:-n/a} |"
+            echo "| full-heavy | ${heavy_outcome:-n/a} | ${heavy_duration:-n/a} | ${heavy_start:-n/a} | ${heavy_end:-n/a} |"
+            echo
+            echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > artifacts/golden-smoke-nightly-summary.md
+
+          cat > artifacts/golden-smoke-nightly-summary.json <<EOF
+          {
+            "run_id": "${{ github.run_id }}",
+            "run_attempt": "${{ github.run_attempt }}",
+            "repository": "${{ github.repository }}",
+            "workflow": "${{ github.workflow }}",
+            "lanes": [
+              {
+                "name": "full-core",
+                "outcome": "${core_outcome:-n/a}",
+                "duration_seconds": "${core_duration:-n/a}",
+                "start_iso": "${core_start:-n/a}",
+                "end_iso": "${core_end:-n/a}"
+              },
+              {
+                "name": "full-heavy",
+                "outcome": "${heavy_outcome:-n/a}",
+                "duration_seconds": "${heavy_duration:-n/a}",
+                "start_iso": "${heavy_start:-n/a}",
+                "end_iso": "${heavy_end:-n/a}"
+              }
+            ]
+          }
+          EOF
+
+          cat artifacts/golden-smoke-nightly-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload nightly summary artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-smoke-nightly-summary
+          path: |
+            artifacts/golden-smoke-nightly-summary.md
+            artifacts/golden-smoke-nightly-summary.json
