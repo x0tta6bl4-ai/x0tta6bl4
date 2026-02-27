@@ -9,6 +9,14 @@ on:
       - "alembic/**"
       - "scripts/golden_smoke_premerge.sh"
       - ".github/workflows/golden-smoke-premerge.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "alembic/**"
+      - "scripts/golden_smoke_premerge.sh"
+      - ".github/workflows/golden-smoke-premerge.yml"
   workflow_dispatch:
 
 concurrency:
