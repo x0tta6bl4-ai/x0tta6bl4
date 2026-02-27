@@ -135,6 +135,7 @@
         "deduplicate_photos_fast_v2.py",
         "scripts/sync_version.py",
         "scripts/check_competitive_self_healing_gate.py",
+        "scripts/check_requirements_lock_sync.py",
         "scripts/demo/",
         "scripts/ab_test_gnn.py",
         "scripts/dpi_simulator.py",
