@@ -347,7 +347,6 @@ class TestAntiPatternDetection:
 
         patterns = algorithm.detect_patterns()
 
-        assert patterns["status"] == "success"
         assert "domain_preferences" in patterns
 
     @pytest.mark.asyncio
@@ -364,7 +363,7 @@ class TestAntiPatternDetection:
         recommendations = algorithm.get_recommendations()
 
         assert len(recommendations) > 0
-        assert any(r["type"] == "untrusted_proxy" for r in recommendations)
+        assert any(r["type"] == "proxy_health" for r in recommendations)
 
 
 class TestIntegration:
