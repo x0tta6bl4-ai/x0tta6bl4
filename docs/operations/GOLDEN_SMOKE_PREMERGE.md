@@ -8,6 +8,7 @@
 
 - bootstrap миграций на чистой БД;
 - соответствие ORM-схемы и фактической DB-схемы;
+- синхронизацию `requirements.txt` и `requirements.lock`;
 - минимальный быстрый набор API/интеграционных тестов (`quick`);
 - расширенный набор регрессионных тестов (`full`).
 
@@ -21,7 +22,7 @@
 ### Состав профилей (кратко)
 
 - `quick`:
-  - миграции + schema parity;
+  - миграции + schema parity + dependency lock sync;
   - marketplace-модульный smoke;
   - reliability/security smoke (`connection_retry`, `redis_sentinel`, `resilience_advanced`, `vpn_security_unit`);
   - API smoke (`maas_telemetry`, `maas_nodes heartbeat`, `vpn_api`).
@@ -53,6 +54,7 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 - `fail: 0` в итоговом summary;
 - `Alembic bootstrap to head` = PASS;
 - `Schema parity check` = PASS;
+- `Requirements lock sync check` = PASS;
 - все тестовые шаги профиля = PASS.
 
 Любой `FAIL` в summary считается merge blocker.
@@ -69,6 +71,6 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 
 ## Текущий статус (на 2026-02-26)
 
-- `quick`: PASS (`pass: 10`, `fail: 0`)
-- `full`: PASS (`pass: 20`, `fail: 0`) на последнем полном прогоне;
+- `quick`: PASS (`pass: 11`, `fail: 0`) после добавления `Requirements lock sync check`.
+- `full`: PASS (`pass: 20`, `fail: 0`) на последнем полном прогоне (до добавления lock-sync шага);
   новый шаг `tests/test_resilience_advanced.py` валидирован отдельным целевым прогоном (`76 passed`).
