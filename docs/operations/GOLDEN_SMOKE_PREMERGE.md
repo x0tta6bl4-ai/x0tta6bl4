@@ -75,6 +75,16 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
   - сначала воспроизвести этот конкретный файл локально;
   - потом возвращаться к полному smoke.
 
+## Nightly Тайминги
+
+В nightly workflow (`.github/workflows/golden-smoke-nightly.yml`) публикуются артефакты:
+
+- `golden-smoke-full-core-metrics` (`golden-smoke-full-core-metrics.json`);
+- `golden-smoke-full-heavy-metrics` (`golden-smoke-full-heavy-metrics.json`);
+- `golden-smoke-nightly-summary` (`golden-smoke-nightly-summary.md/.json`).
+
+В `summary` фиксируются `outcome`, `duration_seconds`, `start/end UTC` по каждому lane.
+
 ## Текущий статус (на 2026-02-27)
 
 - `quick`: PASS (`pass: 11`, `fail: 0`) после добавления `Requirements lock sync check`.
