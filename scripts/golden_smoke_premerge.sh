@@ -58,6 +58,11 @@ run_step \
   env DATABASE_URL="${DB_URL}" \
   python3 -c "from sqlalchemy import inspect; from src.database import Base, engine; actual=set(inspect(engine).get_table_names()); expected=set(Base.metadata.tables.keys()); missing=sorted(expected-actual); print('missing_tables=', missing); raise SystemExit(1 if missing else 0)"
 
+run_step \
+  "Requirements lock sync check" \
+  timeout "60s" \
+  python3 scripts/check_requirements_lock_sync.py requirements.txt requirements.lock
+
 if [[ "${PROFILE}" == "quick" ]]; then
   TESTS=(
     "tests/unit/api/test_maas_modules.py -k Marketplace"
