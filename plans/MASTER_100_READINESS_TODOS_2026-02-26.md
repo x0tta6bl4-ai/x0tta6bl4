@@ -143,6 +143,7 @@
 - [x] Nightly workflow разделён на parallel lanes (`full-core`, `full-heavy`) с агрегирующим gate job, чтобы сократить wall-clock и сохранить blocking-семантику.
 - [x] Локально подтверждён профиль `full-core`: PASS (`fail: 0`, 18/18 шагов); `full-heavy` набор валиден (`116 tests collected`) и отдан в nightly lane.
 - [x] В nightly добавлены артефакты таймингов по lane и итоговый summary (`duration_seconds`, `start/end UTC`) для отслеживания деградаций по времени.
+- [x] В nightly включены duration guardrails (warn/hard thresholds) для `full-core` и `full-heavy`; критичная деградация по времени теперь блокирует nightly gate.
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.
