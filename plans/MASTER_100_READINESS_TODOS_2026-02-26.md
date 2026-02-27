@@ -136,6 +136,7 @@
 - [x] `quick` smoke усилен reliability/security шагами (`connection_retry`, `redis_sentinel`, `vpn_security_unit`, `resilience_advanced`) и повторно PASS (`fail: 0`, 10/10 шагов).
 - [x] Устранен flaky timeout в Geneva security тесте через lazy imports в `scripts/run_geneva_poc.py`.
 - [x] Добавлен nightly CI workflow для `full` smoke (`.github/workflows/golden-smoke-nightly.yml`).
+- [x] `quick` smoke workflow запускается и на `pull_request`, и на `push` в `main/develop`.
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.
