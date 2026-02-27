@@ -137,6 +137,7 @@
 - [x] Устранен flaky timeout в Geneva security тесте через lazy imports в `scripts/run_geneva_poc.py`.
 - [x] Добавлен nightly CI workflow для `full` smoke (`.github/workflows/golden-smoke-nightly.yml`).
 - [x] `quick` smoke workflow запускается и на `pull_request`, и на `push` в `main/develop`.
+- [x] Зачищен dependency baseline для security gate: из `requirements*` убраны `diskcache` и `llama_cpp_python` (источник транзитивного CVE), `nltk` обновлён до `3.9.3`, локальный LLM вынесен в optional extra `local-llm`.
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.
