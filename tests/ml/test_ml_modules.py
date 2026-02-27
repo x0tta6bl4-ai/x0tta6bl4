@@ -28,7 +28,7 @@ class TestRAG:
         rag = RAGAnalyzer()
         assert rag is not None
         stats = rag.get_stats()
-        assert "documents_count" in stats
+        assert "documents_indexed" in stats
 
     @pytest.mark.asyncio
     async def test_document_indexing(self):
@@ -53,8 +53,8 @@ class TestRAG:
         rag = RAGAnalyzer()
 
         docs = [
-            Document(id="1", content="High latency issue resolution"),
-            Document(id="2", content="Memory optimization techniques"),
+            Document(id="1", content="High latency issue resolution", metadata={}),
+            Document(id="2", content="Memory optimization techniques", metadata={}),
         ]
 
         await rag.index_knowledge(docs)
@@ -78,7 +78,7 @@ class TestLoRA:
     async def test_lora_layer(self):
         """Test LoRA layer"""
         config = LoRAConfig(rank=4)
-        from src.ml.lora import LoRALayer
+        from src.ml.lora import LoRALayer  # public alias for _LoRALayer
 
         layer = LoRALayer(input_dim=32, output_dim=16, config=config)
 

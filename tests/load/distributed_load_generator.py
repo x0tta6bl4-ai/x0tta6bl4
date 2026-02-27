@@ -361,6 +361,8 @@ class VirtualMeshNode:
         """Inject failure into this node"""
         if failure_pattern.failure_type == "node_crash":
             self.is_failed = True
+        elif failure_pattern.failure_type == "network_partition":
+            self.is_failed = True  # treat partition as temporary failure
         elif failure_pattern.failure_type == "byzantine":
             self.is_byzantine = True
 
