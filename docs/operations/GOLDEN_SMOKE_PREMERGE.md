@@ -69,5 +69,6 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 
 ## Текущий статус (на 2026-02-26)
 
-- `quick`: PASS (`pass: 9`, `fail: 0`)
-- `full`: PASS (`pass: 20`, `fail: 0`)
+- `quick`: PASS (`pass: 10`, `fail: 0`)
+- `full`: PASS (`pass: 20`, `fail: 0`) на последнем полном прогоне;
+  новый шаг `tests/test_resilience_advanced.py` валидирован отдельным целевым прогоном (`76 passed`).
