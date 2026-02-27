@@ -112,6 +112,7 @@
         "VERSION",
         "pyproject.toml",
         "requirements.txt",
+        "requirements.lock",
         "swarm.py",
         "swarm_state.json",
         "SASE_PQC_OFFER.md",
