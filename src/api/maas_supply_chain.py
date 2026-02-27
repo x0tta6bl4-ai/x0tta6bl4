@@ -329,6 +329,18 @@ async def verify_binary(
             )
         )
 
+    # 5. Update Kernel-level eBPF filter
+    try:
+        from src.network.ebpf.map_manager import EBPFMapManager
+        node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
+        if node and node.ip_address:
+            if checksums_match:
+                EBPFMapManager.update_attestation(node.ip_address, is_attested=True)
+            else:
+                EBPFMapManager.update_attestation(node.ip_address, is_attested=False)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to update eBPF supply chain filter: {e}")
+
     if not checksums_match:
         node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
         if node:
