@@ -23,7 +23,7 @@
 - `quick`:
   - миграции + schema parity;
   - marketplace-модульный smoke;
-  - reliability/security smoke (`connection_retry`, `redis_sentinel`, `vpn_security_unit`);
+  - reliability/security smoke (`connection_retry`, `redis_sentinel`, `resilience_advanced`, `vpn_security_unit`);
   - API smoke (`maas_telemetry`, `maas_nodes heartbeat`, `vpn_api`).
 - `full`:
   - всё из `quick`;
