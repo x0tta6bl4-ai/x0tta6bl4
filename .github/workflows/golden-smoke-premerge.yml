@@ -8,6 +8,9 @@ on:
       - "tests/**"
       - "alembic/**"
       - "scripts/golden_smoke_premerge.sh"
+      - "scripts/check_requirements_lock_sync.py"
+      - "requirements.txt"
+      - "requirements.lock"
       - ".github/workflows/golden-smoke-premerge.yml"
   push:
     branches: [main, develop]
@@ -16,6 +19,9 @@ on:
       - "tests/**"
       - "alembic/**"
       - "scripts/golden_smoke_premerge.sh"
+      - "scripts/check_requirements_lock_sync.py"
+      - "requirements.txt"
+      - "requirements.lock"
       - ".github/workflows/golden-smoke-premerge.yml"
   workflow_dispatch:
 
