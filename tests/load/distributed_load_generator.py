@@ -200,12 +200,12 @@ class TrafficPattern:
 
     @staticmethod
     def high_churn() -> "TrafficPattern":
-        """High identity churn"""
+        """High identity churn (rotate every 5s vs steady-state 600s)"""
         return TrafficPattern(
             "high_churn",
             beacon_rate=1.0,
             pqc_ops_rate=100,
-            identity_rotation_interval=60,
+            identity_rotation_interval=5,
         )
 
 
