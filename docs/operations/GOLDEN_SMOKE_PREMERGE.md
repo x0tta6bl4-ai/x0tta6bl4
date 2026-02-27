@@ -85,6 +85,11 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 
 В `summary` фиксируются `outcome`, `duration_seconds`, `start/end UTC` по каждому lane.
 
+Также в `Nightly Gate Result` включены guardrails по длительности:
+
+- `full-core`: warning `>= 3600s`, hard-fail `>= 5400s`;
+- `full-heavy`: warning `>= 4500s`, hard-fail `>= 7200s`.
+
 ## Текущий статус (на 2026-02-27)
 
 - `quick`: PASS (`pass: 11`, `fail: 0`) после добавления `Requirements lock sync check`.
