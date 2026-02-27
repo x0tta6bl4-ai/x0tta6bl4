@@ -18,6 +18,18 @@
 - `quick`: обязательный pre-merge прогон (быстрый gate).
 - `full`: расширенный прогон перед релизом/ночной валидацией.
 
+### Состав профилей (кратко)
+
+- `quick`:
+  - миграции + schema parity;
+  - marketplace-модульный smoke;
+  - reliability/security smoke (`connection_retry`, `redis_sentinel`, `vpn_security_unit`);
+  - API smoke (`maas_telemetry`, `maas_nodes heartbeat`, `vpn_api`).
+- `full`:
+  - всё из `quick`;
+  - расширенные reliability/security наборы (`graceful_shutdown`, `maas_security_unit`);
+  - API/regression наборы (`mesh_endpoints`, `playbooks`, `marketplace`, `escrow`, `governance`, `governance_edge`, `maas_auth`, `analytics`, `mesh_fl_integration`).
+
 ## Запуск
 
 ```bash
@@ -57,6 +69,5 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 
 ## Текущий статус (на 2026-02-26)
 
-- `quick`: PASS (`fail: 0`)
-- `full`: PASS (`fail: 0`)
-
+- `quick`: PASS (`pass: 9`, `fail: 0`)
+- `full`: PASS (`pass: 20`, `fail: 0`)
