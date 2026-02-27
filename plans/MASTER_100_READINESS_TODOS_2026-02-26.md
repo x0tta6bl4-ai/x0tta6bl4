@@ -138,6 +138,7 @@
 - [x] Добавлен nightly CI workflow для `full` smoke (`.github/workflows/golden-smoke-nightly.yml`).
 - [x] `quick` smoke workflow запускается и на `pull_request`, и на `push` в `main/develop`.
 - [x] Зачищен dependency baseline для security gate: из `requirements*` убраны `diskcache` и `llama_cpp_python` (источник транзитивного CVE), `nltk` обновлён до `3.9.3`, локальный LLM вынесен в optional extra `local-llm`.
+- [x] В `quick/full` gate добавлена проверка синхронизации `requirements.txt` ↔ `requirements.lock`; устранено фактическое рассогласование по `click`, `quick` снова PASS (`fail: 0`, 11/11 шагов).
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.
