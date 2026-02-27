@@ -133,7 +133,7 @@
 - [x] Сделан heartbeat test fix для самодостаточности (`test_heartbeat_auto_releases_escrow`).
 - [x] `quick` smoke: PASS (`fail: 0`).
 - [x] `full` smoke: PASS (`fail: 0`, 20/20 шагов после расширения reliability/security + auth).
-- [x] `quick` smoke усилен reliability/security шагами (`connection_retry`, `redis_sentinel`, `vpn_security_unit`) и повторно PASS (`fail: 0`, 9/9 шагов).
+- [x] `quick` smoke усилен reliability/security шагами (`connection_retry`, `redis_sentinel`, `vpn_security_unit`, `resilience_advanced`) и повторно PASS (`fail: 0`, 10/10 шагов).
 - [x] Устранен flaky timeout в Geneva security тесте через lazy imports в `scripts/run_geneva_poc.py`.
 - [x] Добавлен nightly CI workflow для `full` smoke (`.github/workflows/golden-smoke-nightly.yml`).
 - [ ] Regression reopen rate: < 2%.
