@@ -242,6 +242,51 @@ jobs:
 
           cat artifacts/golden-smoke-nightly-summary.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Enforce duration guardrails
+        if: always()
+        env:
+          CORE_WARN_SECONDS: "3600"
+          CORE_HARD_SECONDS: "5400"
+          HEAVY_WARN_SECONDS: "4500"
+          HEAVY_HARD_SECONDS: "7200"
+        run: |
+          core_duration="${{ needs.golden-smoke-full-core.outputs.duration_seconds }}"
+          heavy_duration="${{ needs.golden-smoke-full-heavy.outputs.duration_seconds }}"
+          guard_failed=0
+
+          check_lane() {
+            lane="$1"
+            duration="$2"
+            warn_s="$3"
+            hard_s="$4"
+
+            if ! [[ "$duration" =~ ^[0-9]+$ ]]; then
+              echo "::warning::${lane} duration is unavailable (${duration}); skipping guardrail check"
+              return 0
+            fi
+
+            if [ "$duration" -ge "$hard_s" ]; then
+              echo "::error::${lane} duration ${duration}s exceeded hard threshold ${hard_s}s"
+              guard_failed=1
+              return 0
+            fi
+
+            if [ "$duration" -ge "$warn_s" ]; then
+              echo "::warning::${lane} duration ${duration}s exceeded warning threshold ${warn_s}s"
+              return 0
+            fi
+
+            echo "${lane} duration ${duration}s is within guardrails (warn=${warn_s}s, hard=${hard_s}s)"
+          }
+
+          check_lane "full-core" "$core_duration" "$CORE_WARN_SECONDS" "$CORE_HARD_SECONDS"
+          check_lane "full-heavy" "$heavy_duration" "$HEAVY_WARN_SECONDS" "$HEAVY_HARD_SECONDS"
+
+          if [ "$guard_failed" -ne 0 ]; then
+            echo "Duration guardrails failed"
+            exit 1
+          fi
+
       - name: Upload nightly summary artifacts
         uses: actions/upload-artifact@v4
         if: always()
