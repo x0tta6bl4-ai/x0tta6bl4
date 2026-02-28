@@ -156,6 +156,8 @@
         "scripts/run_geneva_poc.py",
         "scripts/simulate_token_economy.py",
         "scripts/validate_production_env_contract.py",
+        "scripts/vpn_heal.sh",
+        "scripts/vpn_status.sh",
         ".gitignore",
         "database.py",
         "run_backend.py",
