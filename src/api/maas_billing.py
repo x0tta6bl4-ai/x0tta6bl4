@@ -108,7 +108,7 @@ async def create_subscription_session(
                 "plan": plan
             }
         )
-        
+
         record_audit_log(
             db, request, "SUBSCRIPTION_SESSION_CREATED",
             user_id=current_user.id,
