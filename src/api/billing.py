@@ -52,6 +52,10 @@ def _resolve_mesh_provisioner():
     return provisioner
 
 
+# Module-level reference — allows tests to patch `src.api.billing.mesh_provisioner`
+mesh_provisioner = _resolve_mesh_provisioner()
+
+
 class CheckoutSessionRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
     plan: str = Field(default="pro", min_length=1, max_length=32)
@@ -113,9 +117,9 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
         "metadata[plan]": payload.plan,
     }
 
-    async def call_stripe_api():
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
+    async def _call_stripe():
+        async with httpx.AsyncClient(timeout=20.0) as http_client:
+            resp = await http_client.post(
                 "https://api.stripe.com/v1/checkout/sessions",
                 data=data,
                 auth=(secret_key, ""),
@@ -126,11 +130,11 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
             except Exception:
                 err = {"error": {"message": resp.text}}
             raise HTTPException(status_code=502, detail=err)
-        return resp.json()
+        session = resp.json()
+        return {"id": session.get("id"), "url": session.get("url")}
 
     try:
-        session = await stripe_circuit.call(call_stripe_api)
-        return {"id": session.get("id"), "url": session.get("url")}
+        return await stripe_circuit.call(_call_stripe)
     except Exception as exc:
         if _is_circuit_breaker_open_error(exc):
             logger.error("Stripe API circuit breaker is open")
@@ -138,7 +142,10 @@ async def create_checkout_session(request: Request, payload: CheckoutSessionRequ
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Payment service temporarily unavailable. Please try again later.",
             )
-        raise
+        if isinstance(exc, HTTPException):
+            raise
+        logger.error(f"Stripe API call failed: {exc}")
+        raise HTTPException(status_code=502, detail="Payment service error")
 
 
 def _verify_stripe_signature(
@@ -436,9 +443,9 @@ async def stripe_webhook(
 
             # Mesh provisioning (Phase 3)
             try:
-                mesh_provisioner = _resolve_mesh_provisioner()
-                if mesh_provisioner is not None:
-                    instance = await mesh_provisioner.create(
+                _provisioner = mesh_provisioner  # use module-level ref (patchable)
+                if _provisioner is not None:
+                    instance = await _provisioner.create(
                         name=f"auto-mesh-{db_user.id[:8]}",
                         nodes=5,
                         owner_id=db_user.id,
