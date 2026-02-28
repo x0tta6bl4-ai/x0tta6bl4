@@ -227,6 +227,13 @@ try:
 except Exception:
     pass
 
+# Save the real oqs module before any mocking so tests that need it can restore it.
+try:
+    import oqs as _REAL_OQS_MODULE  # noqa: F401
+except ImportError:
+    _REAL_OQS_MODULE = None  # type: ignore[assignment]
+
+
 # Mock optional dependencies to prevent import errors during testing
 # NOTE: torch and torch_geometric are NOT mocked — they are installed
 # and mocking them corrupts submodule state across tests.
@@ -251,6 +258,15 @@ def mock_dependencies():
     """Automatically mock optional dependencies for all tests."""
     with mock.patch.dict("sys.modules", mocked_modules):
         yield
+
+
+@pytest.fixture
+def real_oqs(monkeypatch):
+    """Restore the real oqs module for tests that need actual PQC operations."""
+    if _REAL_OQS_MODULE is None:
+        pytest.skip("oqs not installed")
+    monkeypatch.setitem(sys.modules, "oqs", _REAL_OQS_MODULE)
+    yield _REAL_OQS_MODULE
 
 
 @pytest.fixture
