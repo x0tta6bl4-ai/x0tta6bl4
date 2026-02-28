@@ -64,7 +64,7 @@
       ]
     },
     "claude-maas-reviewer": {
-      "description": "Claude Code — MaaS RBAC, security review, test coverage",
+      "description": "Claude Code \u2014 MaaS RBAC, security review, test coverage",
       "allow": [
         "src/api/maas_auth.py",
         "src/api/maas_analytics.py",
@@ -167,7 +167,9 @@
         "__init__.py",
         "PROJECT_COMPLETION_REPORT.json",
         "dashboard.html",
-        "defects_inventory.json"
+        "defects_inventory.json",
+        "config.yml",
+        ".gitlab-ci.yml.ebpf"
       ]
     },
     "lead-coordinator": {

@@ -111,8 +111,8 @@ class PasswordHasher:
         if re.search(r"(.)\1{2,}", password):
             return False, "Password cannot contain repeated characters (e.g., 'aaa')"
 
-        if re.search(r"(012|123|234|345|456|567|678|789|890)", password):
-            return False, "Password cannot contain sequential numbers"
+        if re.search(r"(0123|1234|2345|3456|4567|5678|6789|7890)", password):
+            return False, "Password cannot contain sequential numbers (4+ digits)"
 
         return True, "Password meets security requirements"
 
