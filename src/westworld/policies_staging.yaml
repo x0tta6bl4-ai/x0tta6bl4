@@ -1,0 +1,67 @@
+charter:
+  name: staging-charter
+  version: "1.0.0"
+  metadata:
+    environment: staging
+    status: active
+    requires_approval: false
+
+whitelisted_metrics:
+  network:
+    - latency_p50
+    - latency_p95
+    - packet_loss_percent
+    - throughput_mbps
+    - connections_active
+    - error_rate
+  infrastructure:
+    - cpu_usage_percent
+    - memory_usage_percent
+    - disk_usage_percent
+    - uptime_seconds
+  service:
+    - request_count
+    - success_rate
+    - response_time_ms
+
+forbidden_metrics:
+  - user_location
+  - user_identity
+  - browsing_history
+  - device_hardware_id
+  - user_communication_metadata
+  - system_logs_with_user_data
+
+access_control:
+  read_access:
+    - role: dao_member
+      requires_approval: false
+      approval_ttl_hours: 24
+    - role: node_operator
+      requires_approval: false
+      approval_ttl_hours: 8
+    - role: audit_committee_member
+      requires_approval: true
+      approval_ttl_hours: 48
+
+violation_policy:
+  levels:
+    - name: HIGH
+      threshold: 3
+      action: ESCALATE_TO_DAO
+    - name: CRITICAL
+      threshold: 5
+      action: IMMEDIATE_SHUTDOWN
+
+emergency_override:
+  enabled: true
+  auto_renewal_hours: 4
+  requires_dao_vote: false
+  max_duration_hours: 4
+
+whistleblower_policy:
+  enabled: true
+  anonymous_reporting: true
+  protected_channels:
+    - dao_governance
+    - encrypted_report
