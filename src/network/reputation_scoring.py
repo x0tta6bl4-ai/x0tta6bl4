@@ -79,7 +79,8 @@ class DomainReputation:
         self.events.append(event)
 
         # Apply decay based on time since last event (must use old last_access)
-        time_diff_days = (event.timestamp - self.last_access) / 86400
+        # Clamp to [0, 3650] days to prevent OverflowError on out-of-order or synthetic timestamps
+        time_diff_days = max(0.0, min(3650.0, (event.timestamp - self.last_access) / 86400))
         self.score *= self.decay_factor**time_diff_days
         self.last_access = event.timestamp
 

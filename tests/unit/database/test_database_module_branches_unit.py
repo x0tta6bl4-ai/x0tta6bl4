@@ -33,7 +33,9 @@ def test_postgresql_url_branch_uses_plain_create_engine(monkeypatch):
     assert ns["DATABASE_URL"].startswith("postgresql://")
     assert calls
     assert calls[0][0].startswith("postgresql://")
-    assert calls[0][1] == {}
+    # Codex added connection pool kwargs for production-grade postgresql connections
+    assert "pool_size" in calls[0][1]
+    assert "pool_pre_ping" in calls[0][1]
 
 
 def test_unsupported_database_url_raises_value_error(monkeypatch):
