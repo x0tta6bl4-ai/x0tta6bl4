@@ -209,13 +209,22 @@ class ScalableFLOrchestrator:
 
     def __init__(
         self,
-        orchestrator_id: str,
+        orchestrator_id: str = "",
         num_coordinators: int = 4,
         max_nodes_per_coordinator: int = 500,
+        max_clients: int = 0,
+        aggregator_count: int = 0,
     ):
-        self.orchestrator_id = orchestrator_id
-        self.num_coordinators = num_coordinators
-        self.max_nodes_per_coordinator = max_nodes_per_coordinator
+        import uuid as _uuid
+        self.orchestrator_id = orchestrator_id or str(_uuid.uuid4())
+        # max_clients / aggregator_count are test-facing aliases
+        self.max_clients = max_clients if max_clients > 0 else max_nodes_per_coordinator
+        self.aggregator_count = aggregator_count if aggregator_count > 0 else num_coordinators
+        self.num_coordinators = self.aggregator_count
+        self.max_nodes_per_coordinator = self.max_clients
+
+        # Client tracking (flat dict for register_client API)
+        self.clients: Dict[str, Any] = {}
 
         # Node management
         self.registry = ScalableNodeRegistry()
@@ -229,6 +238,7 @@ class ScalableFLOrchestrator:
         self.completed_tasks: List[BulkAggregationTask] = []
 
         # Metrics
+        self.round_number = 0
         self.metrics = {
             "total_rounds": 0,
             "total_nodes_trained": 0,
@@ -244,6 +254,23 @@ class ScalableFLOrchestrator:
                 coordinator_id=coordinator_id,
                 max_capacity=self.max_nodes_per_coordinator,
             )
+
+    async def register_client(self, client_id: str) -> bool:
+        """Register a FL client. Returns False if max_clients limit is reached."""
+        if self.max_clients > 0 and len(self.clients) >= self.max_clients:
+            return False
+        self.clients[client_id] = {"id": client_id, "active": True}
+        return True
+
+    def get_statistics(self) -> dict:
+        """Return orchestrator statistics."""
+        return {
+            "total_clients": len(self.clients),
+            "active_clients": sum(1 for c in self.clients.values() if c.get("active")),
+            "rounds_completed": self.round_number,
+            "total_rounds": self.metrics["total_rounds"],
+            "orchestrator_id": self.orchestrator_id,
+        }
 
     async def register_node(self, node_id: str, capacity: int = 1000) -> str:
         """

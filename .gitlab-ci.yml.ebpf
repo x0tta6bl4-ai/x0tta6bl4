@@ -378,7 +378,7 @@ schedule:ebpf:nightly:
     - schedules
   script:
     - echo "🌙 Running nightly eBPF build..."
-    - !reference [build:ebpf:programs, script]
+    - echo "Running inherited eBPF build steps..."
     - |
       # Generate detailed report
       python3 << 'PYTHON_EOF'

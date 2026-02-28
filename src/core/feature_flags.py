@@ -50,6 +50,14 @@ class FeatureFlags:
     # DAO Governance
     DAO_ENABLED = os.getenv("X0TTA6BL4_DAO", "true").lower() == "true"
 
+    def is_enabled(self, flag_name: str) -> bool:
+        """Check if a feature flag is enabled by name."""
+        return bool(getattr(self.__class__, flag_name.upper(), False))
+
+    def get(self, flag_name: str, default: bool = False) -> bool:
+        """Get a feature flag value by name."""
+        return bool(getattr(self.__class__, flag_name.upper(), default))
+
     @classmethod
     def get_all_flags(cls) -> Dict[str, bool]:
         """Get all feature flags as dict."""
