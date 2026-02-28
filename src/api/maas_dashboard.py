@@ -138,6 +138,7 @@ async def get_dashboard_summary(
             "total_nodes": total_nodes,
             "active_rentals": len(active_rentals),
             "my_listings": len(my_listings),
+            "pending_payment": len(invoices) > 0,
             "security": security_stats,
             "node_health": health_stats,
         },

@@ -510,26 +510,23 @@ class SwarmConsensusManager:
     ) -> Any:
         """Simple majority voting."""
         import random
-        from collections import Counter
-        
-        # Collect weighted votes
-        weighted_votes: Dict[Any, float] = {}
-        
+
+        # Use index-based voting to handle unhashable proposals (e.g., dicts)
+        vote_weights: Dict[int, float] = {i: 0.0 for i in range(len(proposals))}
+
         # Each agent votes for their preferred proposal
         for agent_id, agent in self.agents.items():
             # In real implementation, agents would actually vote
             # For now, simulate random voting
-            chosen = random.choice(proposals)
-            if chosen not in weighted_votes:
-                weighted_votes[chosen] = 0.0
-            weighted_votes[chosen] += agent.weight
-        
+            idx = random.randrange(len(proposals))
+            vote_weights[idx] += agent.weight
+
         # Find winner by total weight
-        if not weighted_votes:
+        if not vote_weights:
             return proposals[0]
-        
-        winner = max(weighted_votes.keys(), key=lambda x: weighted_votes[x])
-        return winner
+
+        winner_idx = max(vote_weights.keys(), key=lambda x: vote_weights[x])
+        return proposals[winner_idx]
     
     async def _raft_decide(
         self,

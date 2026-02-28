@@ -362,7 +362,7 @@ class TestPQCModuleAPI:
             HybridSignatureScheme,
         )
         
-        assert __version__ == "2.0.0"
+        assert __version__ == "2.1.0"
         assert callable(is_liboqs_available)
         assert callable(get_supported_kem_algorithms)
         assert callable(get_supported_sig_algorithms)
