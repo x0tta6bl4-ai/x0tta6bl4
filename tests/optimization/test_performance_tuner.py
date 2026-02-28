@@ -280,6 +280,8 @@ class TestIntegration:
             db_query()
             time.sleep(0.001)
 
+        # Reset any timing-induced alerts from the profiled runs (VM latency variance)
+        tuner.bottleneck_detector.clear_alerts()
         tuner.bottleneck_detector.record_current("db_query", 15.0)
 
         analysis = tuner.analyze_performance()
