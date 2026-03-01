@@ -734,6 +734,66 @@ class TestMarketplaceIdempotency:
 
 
 # ---------------------------------------------------------------------------
+# Contract Safety (state consistency under DB/cache mismatch)
+# ---------------------------------------------------------------------------
+
+class TestMarketplaceContractSafety:
+    def _create_rented_listing(self, client, seller_token, buyer_token):
+        node_id = _unique_node()
+        create = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={
+                "node_id": node_id,
+                "region": "us-east",
+                "price_per_hour": 1.0,
+                "bandwidth_mbps": 100,
+            },
+            headers={"X-API-Key": seller_token},
+        )
+        listing_id = create.json()["listing_id"]
+        rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-contract",
+            headers={"X-API-Key": buyer_token},
+        )
+        assert rent.status_code == 200, rent.text
+        return listing_id
+
+    def test_release_requires_held_escrow_row(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        db.query(MarketplaceEscrow).filter(MarketplaceEscrow.listing_id == listing_id).delete()
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/release",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 409
+        assert "Escrow state mismatch" in r.json()["detail"]
+
+    def test_refund_requires_held_escrow_row(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        db.query(MarketplaceEscrow).filter(MarketplaceEscrow.listing_id == listing_id).delete()
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 409
+        assert "Escrow state mismatch" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
 # Cancel Listing
 # ---------------------------------------------------------------------------
 
