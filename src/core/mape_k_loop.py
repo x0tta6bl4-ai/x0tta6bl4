@@ -2,8 +2,17 @@
 import asyncio
 import logging
 import time
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, List
+
+# TD-008: MAPE-K duplication resolution
+warnings.warn(
+    "src.core.mape_k_loop is deprecated and will be removed. "
+    "Please use src.self_healing.mape_k.SelfHealingManager instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 from ..dao.ipfs_logger import DAOAuditLogger
 from ..mesh.network_manager import MeshNetworkManager
