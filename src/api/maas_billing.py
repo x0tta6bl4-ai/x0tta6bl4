@@ -8,7 +8,7 @@ SQLAlchemy-backed enterprise billing logic with Stripe integration.
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import stripe
@@ -282,50 +282,106 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         mode = session.get('mode')
         metadata = session.get('metadata', {})
         user_id = metadata.get('user_id')
-        
+        session_id = session.get('id')
+        payment_status = session.get('payment_status')
+        if not session_id:
+            logger.error("Missing checkout session id in webhook payload")
+            return {"status": "error", "reason": "missing_session_id"}
+        if payment_status and payment_status not in {"paid", "no_payment_required"}:
+            logger.info(
+                "Ignoring checkout session %s with payment_status=%s",
+                session_id,
+                payment_status,
+            )
+            return {"status": "success", "skipped": "payment_not_completed"}
+
+        existing_paid = db.query(Invoice).filter(
+            Invoice.stripe_session_id == session_id,
+            Invoice.status == "paid",
+        ).first()
+        if existing_paid:
+            logger.info("Skipping already processed checkout session %s", session_id)
+            return {"status": "success", "idempotent": True}
+
+        user = None
+        if user_id:
+            user = db.query(User).filter(User.id == user_id).first()
+        customer_id = session.get('customer')
+        if not user and customer_id:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if not user:
+            logger.error("User not found for completed session %s", session_id)
+            return {"status": "error", "reason": "user_not_found"}
+
         if mode == 'subscription':
             plan = metadata.get('plan')
             subscription_id = session.get('subscription')
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                # Validate plan from metadata to prevent tampering
-                if plan not in STRIPE_PLANS:
-                    logger.error(
-                        "Invalid plan '%s' in Stripe webhook metadata for user %s",
-                        plan, user.id
-                    )
-                    return {"status": "error", "reason": "invalid_plan"}
-                
-                # Update user plan
-                user.plan = plan
-                user.stripe_subscription_id = subscription_id
-                
-                # Create a record for the initial payment in Invoice table
-                # Stripe amounts are in cents
-                amount_total = session.get('amount_total', 4900) 
-                currency = session.get('currency', 'usd').upper()
-                
+            # Validate plan from metadata to prevent tampering
+            if plan not in STRIPE_PLANS:
+                logger.error(
+                    "Invalid plan '%s' in Stripe webhook metadata for user %s",
+                    plan,
+                    user.id,
+                )
+                return {"status": "error", "reason": "invalid_plan"}
+
+            user.plan = plan
+            user.stripe_subscription_id = subscription_id
+
+            # Stripe amounts are in cents
+            try:
+                amount_total = int(session.get('amount_total', 4900))
+            except (TypeError, ValueError):
+                amount_total = 4900
+            if amount_total < 0:
+                amount_total = 0
+            currency = session.get('currency', 'usd').upper()
+
+            existing_invoice = db.query(Invoice).filter(
+                Invoice.stripe_session_id == session_id
+            ).first()
+            if existing_invoice:
+                existing_invoice.status = "paid"
+                existing_invoice.user_id = user.id
+                new_invoice = existing_invoice
+            else:
                 new_invoice = Invoice(
                     id=f"inv_{uuid.uuid4().hex[:8]}",
                     user_id=user.id,
-                    mesh_id="subscription", # Virtual mesh ID for sub billing
+                    mesh_id="subscription",
                     total_amount=amount_total,
                     currency=currency,
                     status="paid",
-                    stripe_session_id=session.get('id'),
+                    stripe_session_id=session_id,
                     period_start=datetime.utcnow(),
                     period_end=datetime.utcnow() + timedelta(days=30),
-                    issued_at=datetime.utcnow()
+                    issued_at=datetime.utcnow(),
                 )
                 db.add(new_invoice)
-                db.commit()
-                
-                record_audit_log(
-                    db, request, "SUBSCRIPTION_ACTIVATED",
-                    user_id=user.id,
-                    payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
-                    status_code=200
-                )
+
+            db.commit()
+
+            # Optional fiat->X0T bridge: only when explicitly requested in metadata.
+            bridge_flag = str(metadata.get("bridge_x0t", "")).strip().lower() in {"1", "true", "yes"}
+            if bridge_flag and amount_total > 0:
+                try:
+                    from src.api.maas_marketplace import _get_token_bridge
+                    bridge = _get_token_bridge()
+                    bridge.mesh_token.mint(
+                        user.id,
+                        float(amount_total),
+                        f"stripe_payment_{session_id}",
+                    )
+                    logger.info("Minted %s X0T for user %s via Stripe bridge", amount_total, user.id)
+                except Exception as exc:
+                    logger.error("Failed to bridge Stripe payment to X0T: %s", exc)
+
+            record_audit_log(
+                db, request, "SUBSCRIPTION_ACTIVATED",
+                user_id=user.id,
+                payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
+                status_code=200
+            )
         else:
             # payment mode or mode not set — handle invoice_id if present
             invoice_id = metadata.get('invoice_id')
