@@ -309,6 +309,26 @@ def _save_listing_to_cache(listing: Dict[str, Any]) -> None:
         _listings[listing["listing_id"]] = dict(listing)
 
 
+def _load_listing_for_update(db: Session, listing_id: str) -> Optional[MarketplaceListing]:
+    """Best-effort row lock to reduce race windows on state transitions."""
+    query = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id)
+    try:
+        return query.with_for_update().first()
+    except Exception:
+        return query.first()
+
+
+def _load_held_escrow_for_update(db: Session, listing_id: str) -> Optional[MarketplaceEscrow]:
+    query = db.query(MarketplaceEscrow).filter(
+        MarketplaceEscrow.listing_id == listing_id,
+        MarketplaceEscrow.status == "held",
+    )
+    try:
+        return query.with_for_update().first()
+    except Exception:
+        return query.first()
+
+
 @router.post("/list", response_model=ListingResponse)
 async def create_listing(
     req: ListingCreate,
@@ -509,7 +529,7 @@ async def rent_node(
             _idempotency_set(cache_key, result)
         return result
 
-    row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+    row = _load_listing_for_update(db, listing_id)
     if not row:
         raise HTTPException(status_code=404, detail="Listing not found")
     if _ids_equal(row.owner_id, renter_id):
@@ -665,7 +685,7 @@ async def release_escrow(
     released_at = datetime.utcnow().isoformat()
 
     if _db_session_available(db):
-        row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+        row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status != "escrow":
@@ -673,18 +693,16 @@ async def release_escrow(
         if current_user.role != "admin" and not _ids_equal(row.renter_id, requester_id):
             raise HTTPException(status_code=403, detail="Permission denied")
 
-        escrow = db.query(MarketplaceEscrow).filter(
-            MarketplaceEscrow.listing_id == listing_id,
-            MarketplaceEscrow.status == "held",
-        ).first()
-        if escrow:
-            # 1. Release on-chain if X0T
-            if escrow.currency == "X0T":
-                bridge = _get_token_bridge()
-                await bridge.release_escrow_on_chain(escrow.id)
-            
-            escrow.status = "released"
-            escrow.released_at = datetime.fromisoformat(released_at)
+        escrow = _load_held_escrow_for_update(db, listing_id)
+        if not escrow:
+            raise HTTPException(status_code=409, detail="Escrow state mismatch")
+        # 1. Release on-chain if X0T
+        if escrow.currency == "X0T":
+            bridge = _get_token_bridge()
+            await bridge.release_escrow_on_chain(escrow.id)
+
+        escrow.status = "released"
+        escrow.released_at = datetime.fromisoformat(released_at)
         row.status = "rented"
         db.commit()
 
@@ -733,7 +751,7 @@ async def refund_escrow(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     if _db_session_available(db):
-        row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+        row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status != "escrow":
@@ -741,17 +759,15 @@ async def refund_escrow(
         if current_user.role != "admin" and not _ids_equal(row.renter_id, requester_id):
             raise HTTPException(status_code=403, detail="Permission denied")
 
-        escrow = db.query(MarketplaceEscrow).filter(
-            MarketplaceEscrow.listing_id == listing_id,
-            MarketplaceEscrow.status == "held",
-        ).first()
-        if escrow:
-            # 1. Refund on-chain if X0T
-            if escrow.currency == "X0T":
-                bridge = _get_token_bridge()
-                await bridge.refund_escrow_on_chain(escrow.id)
-                
-            escrow.status = "refunded"
+        escrow = _load_held_escrow_for_update(db, listing_id)
+        if not escrow:
+            raise HTTPException(status_code=409, detail="Escrow state mismatch")
+        # 1. Refund on-chain if X0T
+        if escrow.currency == "X0T":
+            bridge = _get_token_bridge()
+            await bridge.refund_escrow_on_chain(escrow.id)
+
+        escrow.status = "refunded"
         row.status = "available"
         row.renter_id = None
         row.mesh_id = None
@@ -794,7 +810,7 @@ async def cancel_listing(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     if _db_session_available(db):
-        row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+        row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status in {"escrow", "rented"}:

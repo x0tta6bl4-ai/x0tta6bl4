@@ -71,14 +71,15 @@ class BridgeTransaction:
 class BridgeConfig:
     """Configuration for token bridge."""
 
-    rpc_url: str = ""
+    rpc_urls: List[str] = field(default_factory=list) # P0 Q2: Multiple RPC support
+    rpc_url: str = "" # Keep for backward compatibility
     contract_address: str = ""
     private_key: str = ""
-    chain_id: int = 84532  # Base Sepolia
+    chain_id: int = 8453  # Base Mainnet (default)
     poll_interval: int = 12  # seconds (1 block on Base)
     confirmations: int = 2
-    gas_limit: int = 200000
-    max_gas_price_gwei: float = 50.0
+    gas_limit: int = 300000
+    max_gas_price_gwei: float = 100.0
 
 
 class TokenBridge:
@@ -277,40 +278,48 @@ class TokenBridge:
         self._initialized = False
 
     def _init_web3(self):
-        """Initialize Web3 connection (lazy loading)."""
-        if self._initialized:
+        """Initialize Web3 with failover support across multiple RPC providers."""
+        if self._initialized and self.web3 and self.web3.is_connected():
             return True
 
-        try:
-            from eth_account import Account
-            from web3 import Web3
+        from eth_account import Account
+        from web3 import Web3
 
-            self.web3 = Web3(Web3.HTTPProvider(self.config.rpc_url))
+        # Combine single rpc_url and list of rpc_urls
+        all_urls = self.config.rpc_urls.copy()
+        if self.config.rpc_url and self.config.rpc_url not in all_urls:
+            all_urls.insert(0, self.config.rpc_url)
 
-            if not self.web3.is_connected():
-                logger.error(f"Cannot connect to {self.config.rpc_url}")
-                return False
-
-            if self.config.private_key:
-                self.account = Account.from_key(self.config.private_key)
-                logger.info(f"Bridge account: {self.account.address}")
-
-            if self.config.contract_address:
-                self.contract = self.web3.eth.contract(
-                    address=Web3.to_checksum_address(self.config.contract_address),
-                    abi=self.CONTRACT_ABI,
-                )
-                logger.info(f"Contract loaded: {self.config.contract_address}")
-
-            self._initialized = True
-            return True
-
-        except ImportError:
-            logger.warning("web3 not installed. Run: pip install web3")
+        if not all_urls:
+            logger.error("No RPC URLs configured for TokenBridge")
             return False
-        except Exception as e:
-            logger.error(f"Web3 initialization failed: {e}")
-            return False
+
+        for url in all_urls:
+            try:
+                logger.info(f"Connecting to RPC: {url}")
+                instance = Web3(Web3.HTTPProvider(url))
+                if instance.is_connected():
+                    self.web3 = instance
+                    
+                    if self.config.private_key:
+                        self.account = Account.from_key(self.config.private_key)
+                        logger.info(f"Bridge account: {self.account.address}")
+
+                    if self.config.contract_address:
+                        self.contract = self.web3.eth.contract(
+                            address=Web3.to_checksum_address(self.config.contract_address),
+                            abi=self.CONTRACT_ABI,
+                        )
+                        logger.info(f"Contract loaded: {self.config.contract_address}")
+
+                    self._initialized = True
+                    logger.info(f"✅ TokenBridge connected to {url}")
+                    return True
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to connect to {url}: {e}")
+
+        logger.error("❌ All RPC providers failed")
+        return False
 
     # ─────────────────────────────────────────────────────────────
     # Address Mapping (node_id ↔ eth_address)
@@ -604,6 +613,18 @@ class TokenBridge:
             return None
 
         try:
+            # P0 Q2: Dynamic Gas Estimation (EIP-1559) for Mainnet
+            latest_block = self.web3.eth.get_block("latest")
+            base_fee = latest_block.get("baseFeePerGas", self.web3.to_wei(1, "gwei"))
+            
+            # Use maxPriorityFeePerGas from provider or default to 1 gwei
+            try:
+                priority_fee = self.web3.eth.max_priority_fee
+            except Exception:
+                priority_fee = self.web3.to_wei(1, "gwei")
+                
+            max_fee = (base_fee * 2) + priority_fee
+
             # Build transaction
             tx = self.contract.functions.distributeEpochRewards(
                 recipients, uptime_values
@@ -612,9 +633,8 @@ class TokenBridge:
                     "from": self.account.address,
                     "nonce": self.web3.eth.get_transaction_count(self.account.address),
                     "gas": self.config.gas_limit,
-                    "gasPrice": self.web3.to_wei(
-                        self.config.max_gas_price_gwei, "gwei"
-                    ),
+                    "maxFeePerGas": max_fee,
+                    "maxPriorityFeePerGas": priority_fee,
                     "chainId": self.config.chain_id,
                 }
             )

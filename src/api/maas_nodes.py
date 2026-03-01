@@ -854,30 +854,39 @@ async def approve_node(
     mesh_id: str,
     node_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_APPROVE))
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_APPROVE)),
+    attestation_data: Optional[Dict[str, Any]] = None
 ):
     """Approve a pending node to join the mesh.
     
-    Requires NODE_APPROVE permission. The node's status is changed to 'approved'
-    and it receives a signed join token for mesh participation.
-    
-    Args:
-        mesh_id: The mesh identifier
-        node_id: The node identifier to approve
-        db: Database session
-        current_user: Authenticated user (requires operator role)
-    
-    Returns:
-        Dictionary with status and signed join_token
-    
-    Raises:
-        HTTPException: 404 if mesh or node not found
-        HTTPException: 403 if user lacks NODE_APPROVE permission
+    Supports TEE (Hardware) attestation verification.
     """
     operator = _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_APPROVE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # P1 Q2: Hardware Attestation Enforcement
+    if node.enclave_enabled:
+        if not attestation_data:
+            raise HTTPException(status_code=400, detail="Hardware attestation required for this node")
+        
+        from src.security.tee_attestation import TEEValidator, TEEAttestation
+        tee_validator = TEEValidator(dev_mode=True)
+        
+        att = TEEAttestation(
+            provider=attestation_data.get("provider", "mock"),
+            report_data=attestation_data.get("report_data", "").encode(),
+            quote=attestation_data.get("quote", "").encode() if attestation_data.get("quote") else None
+        )
+        
+        if not tee_validator.verify_report(att):
+            logger.error(f"❌ TEE Attestation failed for node {node_id}")
+            raise HTTPException(status_code=403, detail="Invalid hardware attestation report")
+        
+        logger.info(f"✅ TEE Attestation verified for node {node_id}")
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
@@ -888,6 +897,20 @@ async def approve_node(
         raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
     if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
         raise HTTPException(status_code=409, detail="Mesh enrollment token expired")
+
+    node_status = (node.status or "").lower()
+    if node_status == "approved":
+        signed = token_signer.sign_token(instance.join_token, mesh_id)
+        return {
+            "status": "approved",
+            "join_token": signed,
+            "already_approved": True,
+        }
+    if node_status not in {"pending", "pending_approval"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Node cannot be approved from status '{node.status}'",
+        )
 
     node.status = "approved"
     db.commit()
