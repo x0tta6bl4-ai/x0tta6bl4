@@ -22,6 +22,11 @@ cd "${ROOT_DIR}"
 
 PYTEST_TIMEOUT_SECONDS="${PYTEST_TIMEOUT_SECONDS:-1800}"
 ALEMBIC_TIMEOUT_SECONDS="${ALEMBIC_TIMEOUT_SECONDS:-300}"
+DB_BOOTSTRAP_REQUIRE_POSTGRES="${DB_BOOTSTRAP_REQUIRE_POSTGRES:-false}"
+DB_BOOTSTRAP_VALIDATE_DOWNGRADE="${DB_BOOTSTRAP_VALIDATE_DOWNGRADE:-true}"
+DB_BOOTSTRAP_DOWNGRADE_STEPS="${DB_BOOTSTRAP_DOWNGRADE_STEPS:-3}"
+API_REPRO_ROUNDS="${API_REPRO_ROUNDS:-2}"
+API_REPRO_TIMEOUT_SECONDS="${API_REPRO_TIMEOUT_SECONDS:-2400}"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -40,42 +45,67 @@ run_step() {
   fi
 }
 
-DB_PATH="/tmp/maas_golden_smoke_${PROFILE}_$$.db"
-DB_URL="sqlite:///${DB_PATH}"
-cleanup() {
-  rm -f "${DB_PATH}" "${DB_PATH}-journal"
-}
-trap cleanup EXIT
-
 echo "Running golden smoke profile: ${PROFILE}"
 echo "Workspace: ${ROOT_DIR}"
-echo "Temp DB: ${DB_PATH}"
+
+DB_BOOTSTRAP_ARGS=(--timeout-seconds "${ALEMBIC_TIMEOUT_SECONDS}")
+if [[ "${DB_BOOTSTRAP_REQUIRE_POSTGRES}" == "true" ]]; then
+  DB_BOOTSTRAP_ARGS+=(--require-postgres)
+fi
+if [[ "${DB_BOOTSTRAP_VALIDATE_DOWNGRADE}" == "true" ]]; then
+  DB_BOOTSTRAP_ARGS+=(--validate-downgrade --downgrade-steps "${DB_BOOTSTRAP_DOWNGRADE_STEPS}")
+fi
 
 run_step \
-  "Alembic bootstrap to head (clean SQLite DB)" \
+  "DB bootstrap chain (clean SQLite + optional PostgreSQL)" \
   timeout "${ALEMBIC_TIMEOUT_SECONDS}s" \
-  env DATABASE_URL="${DB_URL}" \
-  alembic -c alembic.ini upgrade head
-
-run_step \
-  "Schema parity check (all ORM tables exist in DB)" \
-  timeout "${ALEMBIC_TIMEOUT_SECONDS}s" \
-  env DATABASE_URL="${DB_URL}" \
-  python3 -c "from sqlalchemy import inspect; from src.database import Base, engine; actual=set(inspect(engine).get_table_names()); expected=set(Base.metadata.tables.keys()); missing=sorted(expected-actual); print('missing_tables=', missing); raise SystemExit(1 if missing else 0)"
+  env POSTGRES_BOOTSTRAP_DATABASE_URL="${POSTGRES_BOOTSTRAP_DATABASE_URL:-}" \
+  python3 scripts/check_db_bootstrap_chain.py "${DB_BOOTSTRAP_ARGS[@]}"
 
 run_step \
   "Requirements lock sync check" \
   timeout "60s" \
   python3 scripts/check_requirements_lock_sync.py requirements.txt requirements.lock
 
+run_step \
+  "API model compatibility check (backward/forward)" \
+  timeout "120s" \
+  python3 scripts/check_api_model_compat.py
+
+run_step \
+  "Env security defaults audit (secrets + production-safe flags)" \
+  timeout "120s" \
+  python3 scripts/check_env_security_defaults.py
+
+run_step \
+  "Migration policy audit (idempotent style + nullable transitions)" \
+  timeout "120s" \
+  python3 scripts/check_migration_policy.py --depth 3
+
+run_step \
+  "Pipeline stage contract (lint -> type -> unit -> integration + smoke)" \
+  timeout "120s" \
+  python3 scripts/check_pipeline_stage_contract.py
+
+run_step \
+  "API reproducibility check (critical suites x${API_REPRO_ROUNDS})" \
+  timeout "${API_REPRO_TIMEOUT_SECONDS}s" \
+  env API_REPRO_ROUNDS="${API_REPRO_ROUNDS}" PYTEST_TIMEOUT_SECONDS="${PYTEST_TIMEOUT_SECONDS}" \
+  bash scripts/check_api_reproducibility.sh
+
 QUICK_TESTS=(
+  "tests/unit/agents/test_maas_health_bot_unit.py"
+  "tests/unit/api/test_maas_agent_mesh_unit.py"
   "tests/unit/api/test_maas_modules.py -k Marketplace"
   "tests/core/test_connection_retry.py"
   "tests/core/test_redis_sentinel.py"
   "tests/test_resilience_advanced.py"
+  "tests/api/test_billing_api.py -k circuit_breaker_open"
   "tests/unit/api/test_vpn_security_unit.py"
-  "tests/api/test_maas_telemetry.py"
-  "tests/api/test_maas_nodes.py -k heartbeat"
+  "tests/api/test_maas_billing.py -k find_mesh_id_for_node"
+  "tests/api/test_maas_billing.py -k build_mapek"
+  "tests/api/test_maas_marketplace.py -k global_multiplier"
+  "tests/unit/api/test_maas_unit.py -k heartbeat_emits_mapek_event_stream"
   "tests/api/test_vpn_api.py"
 )
 
@@ -85,14 +115,17 @@ FULL_CORE_TESTS=(
   "tests/core/test_graceful_shutdown.py"
   "tests/core/test_redis_sentinel.py"
   "tests/test_resilience_advanced.py"
+  "tests/api/test_billing_api.py -k circuit_breaker_open"
   "tests/unit/api/test_maas_security_unit.py"
   "tests/unit/api/test_vpn_security_unit.py"
   "tests/api/test_maas_mesh_endpoints.py"
   "tests/api/test_maas_playbooks.py"
   "tests/api/test_maas_auth.py"
   "tests/api/test_maas_analytics.py"
-  "tests/api/test_maas_telemetry.py"
-  "tests/api/test_maas_nodes.py -k heartbeat"
+  "tests/api/test_maas_billing.py -k find_mesh_id_for_node"
+  "tests/api/test_maas_billing.py -k build_mapek"
+  "tests/api/test_maas_marketplace.py -k global_multiplier"
+  "tests/unit/api/test_maas_unit.py -k heartbeat_emits_mapek_event_stream"
   "tests/api/test_vpn_api.py"
   "tests/test_mesh_fl_integration.py"
 )
@@ -120,10 +153,11 @@ case "${PROFILE}" in
 esac
 
 for spec in "${TESTS[@]}"; do
-  run_step \
-    "pytest ${spec}" \
-    timeout "${PYTEST_TIMEOUT_SECONDS}s" \
-    bash -lc "cd '${ROOT_DIR}' && pytest -q ${spec} --no-cov"
+  echo "==> pytest ${spec}"
+  timeout "${PYTEST_TIMEOUT_SECONDS}s" \
+    bash -lc "cd '${ROOT_DIR}' && pytest -q ${spec} --no-cov" || { echo "    [FAIL] pytest ${spec}"; FAIL_COUNT=$((FAIL_COUNT+1)); continue; }
+  echo "    [PASS] pytest ${spec}"
+  PASS_COUNT=$((PASS_COUNT+1))
 done
 
 echo
@@ -131,6 +165,10 @@ echo "==== Golden Smoke Summary ===="
 echo "profile: ${PROFILE}"
 echo "pass:    ${PASS_COUNT}"
 echo "fail:    ${FAIL_COUNT}"
+
+if [ "${FAIL_COUNT}" -gt 0 ]; then
+  exit 1
+fi
 
 if [[ "${FAIL_COUNT}" -gt 0 ]]; then
   echo "Golden smoke failed."

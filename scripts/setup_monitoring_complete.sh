@@ -8,7 +8,7 @@ set -euo pipefail
 
 NAMESPACE="x0tta6bl4-staging"
 MONITORING_NAMESPACE="monitoring"
-TELEGRAM_BOT_TOKEN="7671485111:AAGFIIdWnXzKmNBjW_i5sVUKeqohA39KJEM"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -233,6 +233,11 @@ verify_setup() {
 
 # Main
 main() {
+    if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+        error "TELEGRAM_BOT_TOKEN не задан. Экспортируйте токен перед запуском."
+        exit 1
+    fi
+
     log "╔══════════════════════════════════════════════════════════════╗"
     log "║     Complete Monitoring Setup                                 ║"
     log "╚══════════════════════════════════════════════════════════════╝"
@@ -258,4 +263,3 @@ main() {
 }
 
 main
-

@@ -1,0 +1,26 @@
+[
+    {
+        "topology_id": "topo_stable_001",
+        "description": "Полносвязная mesh-сеть, высокая избыточность.",
+        "nodes_count": 10,
+        "edges": [[0,1], [1,2], [2,3], [3,0], [0,2], [1,3]],
+        "metrics": {"avg_latency_ms": 45, "packet_loss": 0.01},
+        "label": "healthy"
+    },
+    {
+        "topology_id": "topo_bottleneck_001",
+        "description": "Узкое место через один центральный узел (Hub).",
+        "nodes_count": 5,
+        "edges": [[0,1], [0,2], [0,3], [0,4]],
+        "metrics": {"avg_latency_ms": 120, "packet_loss": 0.05},
+        "label": "warning"
+    },
+    {
+        "topology_id": "topo_split_001",
+        "description": "Сетевое разделение (Network Partition). Две группы узлов не связаны.",
+        "nodes_count": 6,
+        "edges": [[0,1], [1,2], [3,4], [4,5]],
+        "metrics": {"avg_latency_ms": -1, "packet_loss": 1.0},
+        "label": "critical"
+    }
+]

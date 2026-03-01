@@ -28,6 +28,7 @@ Example:
 """
 
 import logging
+import hmac
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -38,8 +39,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from src.database import ACLPolicy, MarketplaceEscrow, MarketplaceListing, MeshInstance, MeshNode, User, get_db
-from src.api.maas_auth import require_role
+from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
+                          MeshInstance, MeshNode, User, get_db)
+from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
+from src.api.maas_auth import require_role, require_mesh_access
 from src.api.maas_security import token_signer
 from src.utils.audit import record_audit_log
 
@@ -49,82 +52,8 @@ router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Nodes"])
 
 
 # =============================================================================
-# RBAC Permission Model
+# Mesh Operator Security Context
 # =============================================================================
-
-class MeshPermission(str, Enum):
-    """Granular permissions for mesh and node operations.
-    
-    Permissions follow the pattern 'resource:action' for clarity.
-    
-    Attributes:
-        MESH_READ: View mesh information and list nodes
-        MESH_WRITE: Modify mesh configuration
-        MESH_DELETE: Delete mesh instance
-        NODE_READ: View node details and telemetry
-        NODE_WRITE: Modify node configuration
-        NODE_APPROVE: Approve pending nodes
-        NODE_REVOKE: Revoke node access
-        NODE_DELETE: Permanently delete nodes
-        NODE_HEAL: Trigger node healing operations
-        ACL_READ: View ACL policies
-        ACL_WRITE: Modify ACL policies
-        TELEMETRY_READ: Read node telemetry data
-        TELEMETRY_EXPORT: Export telemetry to external systems
-    """
-    MESH_READ = "mesh:read"
-    MESH_WRITE = "mesh:write"
-    MESH_DELETE = "mesh:delete"
-    NODE_READ = "node:read"
-    NODE_WRITE = "node:write"
-    NODE_APPROVE = "node:approve"
-    NODE_REVOKE = "node:revoke"
-    NODE_DELETE = "node:delete"
-    NODE_HEAL = "node:heal"
-    ACL_READ = "acl:read"
-    ACL_WRITE = "acl:write"
-    TELEMETRY_READ = "telemetry:read"
-    TELEMETRY_EXPORT = "telemetry:export"
-
-
-# Default permission sets for roles
-ROLE_PERMISSIONS: Dict[str, Set[MeshPermission]] = {
-    "admin": {
-        # Admins have all permissions
-        MeshPermission.MESH_READ,
-        MeshPermission.MESH_WRITE,
-        MeshPermission.MESH_DELETE,
-        MeshPermission.NODE_READ,
-        MeshPermission.NODE_WRITE,
-        MeshPermission.NODE_APPROVE,
-        MeshPermission.NODE_REVOKE,
-        MeshPermission.NODE_DELETE,
-        MeshPermission.NODE_HEAL,
-        MeshPermission.ACL_READ,
-        MeshPermission.ACL_WRITE,
-        MeshPermission.TELEMETRY_READ,
-        MeshPermission.TELEMETRY_EXPORT,
-    },
-    "operator": {
-        # Operators can manage nodes but not delete mesh
-        MeshPermission.MESH_READ,
-        MeshPermission.NODE_READ,
-        MeshPermission.NODE_WRITE,
-        MeshPermission.NODE_APPROVE,
-        MeshPermission.NODE_REVOKE,
-        MeshPermission.NODE_HEAL,
-        MeshPermission.ACL_READ,
-        MeshPermission.TELEMETRY_READ,
-    },
-    "viewer": {
-        # Viewers can only read
-        MeshPermission.MESH_READ,
-        MeshPermission.NODE_READ,
-        MeshPermission.ACL_READ,
-        MeshPermission.TELEMETRY_READ,
-    },
-}
-
 
 class MeshOperator:
     """Represents a mesh operator with granular permissions.
@@ -204,9 +133,22 @@ class MeshOperator:
         # Mesh owner gets additional permissions
         if self.is_owner:
             base_permissions.update([
+                MeshPermission.MESH_READ,
+                MeshPermission.MESH_VIEW,
                 MeshPermission.MESH_WRITE,
+                MeshPermission.NODE_READ,
+                MeshPermission.NODE_VIEW,
+                MeshPermission.NODE_WRITE,
+                MeshPermission.NODE_APPROVE,
+                MeshPermission.NODE_REVOKE,
                 MeshPermission.NODE_DELETE,
+                MeshPermission.NODE_HEAL,
+                MeshPermission.ACL_READ,
+                MeshPermission.ACL_VIEW,
                 MeshPermission.ACL_WRITE,
+                MeshPermission.ACL_UPDATE,
+                MeshPermission.TELEMETRY_READ,
+                MeshPermission.TELEMETRY_VIEW,
                 MeshPermission.TELEMETRY_EXPORT,
             ])
         
@@ -231,7 +173,7 @@ class MeshOperator:
                 "using role-based permissions. Run database migration to enable custom permissions."
             )
         
-        return base_permissions
+        return _expand_permission_aliases(base_permissions)
     
     def has_permission(self, permission: MeshPermission) -> bool:
         """Check if operator has a specific permission.
@@ -298,6 +240,21 @@ def _get_mesh_operator(
         MeshOperator instance with resolved permissions
     """
     return MeshOperator(current_user, mesh_id, db)
+
+
+def _expand_permission_aliases(permissions: Set[MeshPermission]) -> Set[MeshPermission]:
+    expanded = set(permissions)
+    alias_groups = (
+        {MeshPermission.MESH_READ, MeshPermission.MESH_VIEW},
+        {MeshPermission.NODE_READ, MeshPermission.NODE_VIEW},
+        {MeshPermission.ACL_READ, MeshPermission.ACL_VIEW},
+        {MeshPermission.ACL_WRITE, MeshPermission.ACL_UPDATE},
+        {MeshPermission.TELEMETRY_READ, MeshPermission.TELEMETRY_VIEW},
+    )
+    for group in alias_groups:
+        if expanded.intersection(group):
+            expanded.update(group)
+    return expanded
 
 
 def _check_permission(
@@ -466,7 +423,12 @@ async def register_node(
     if not instance:
         raise HTTPException(status_code=404, detail="Mesh not found")
     
-    if req.enrollment_token != instance.join_token:
+    if not instance.join_token:
+        raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
+    if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Enrollment token expired")
+
+    if not hmac.compare_digest(req.enrollment_token, instance.join_token):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     node_id = req.node_id or f"node-{uuid.uuid4().hex[:6]}"
@@ -853,7 +815,7 @@ def list_all_nodes(
 async def revoke_node(
     mesh_id: str,
     node_id: str,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_REVOKE)),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """Revoke a node's access to the mesh.
@@ -892,8 +854,8 @@ async def approve_node(
     mesh_id: str,
     node_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("operator"))
-) -> Dict[str, Any]:
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_APPROVE))
+):
     """Approve a pending node to join the mesh.
     
     Requires NODE_APPROVE permission. The node's status is changed to 'approved'
@@ -918,11 +880,18 @@ async def approve_node(
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    
+
+    instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Mesh not found")
+    if not instance.join_token:
+        raise HTTPException(status_code=503, detail="Mesh enrollment token is not configured")
+    if instance.join_token_expires_at and instance.join_token_expires_at <= datetime.utcnow():
+        raise HTTPException(status_code=409, detail="Mesh enrollment token expired")
+
     node.status = "approved"
     db.commit()
-    
-    instance = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+
     signed = token_signer.sign_token(instance.join_token, mesh_id)
     
     logger.info(f"✅ Node {node_id} approved by user {current_user.id}")
@@ -936,7 +905,7 @@ async def approve_node(
 async def delete_node(
     mesh_id: str,
     node_id: str,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_DELETE)),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """Permanently delete a node from the mesh.
@@ -975,7 +944,7 @@ async def delete_node(
 async def heal_node(
     mesh_id: str,
     node_id: str,
-    current_user: User = Depends(require_role("operator")),
+    current_user: User = Depends(require_mesh_access(MeshPermission.NODE_HEAL)),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Trigger healing for a specific node.

@@ -164,12 +164,23 @@ elif [ ! -f "$KYBER_SK_PATH" ]; then
                 keypair = pqc_backend.generate_kem_keypair(); \
                 open('$KYBER_PK_PATH', 'wb').write(keypair.public_key); \
                 open('$KYBER_SK_PATH', 'wb').write(keypair.private_key)"
-    log_warn "TODO: Реализовать сохранение приватных PQC ключей в Vault вместо локального хранения."
-    log_info "PQC ключи Kyber сгенерированы и сохранены локально."
+
+    # P3 Security: Store keys in Vault instead of relying only on local FS
+    log_info "Сохранение приватных PQC ключей в Vault..."
+    if [ "$VAULT_DEV_MODE" = "true" ]; then
+        bash scripts/mock-vault-dev.sh kv put "secret/x0tta6bl4/nodes/$HOSTNAME/pqc" \
+            public_key="$(base64 -w 0 $KYBER_PK_PATH)" \
+            private_key="$(base64 -w 0 $KYBER_SK_PATH)" > /dev/null || log_warn "Не удалось сохранить PQC ключ в Mock Vault."
+    else
+        VAULT_TOKEN="$VAULT_TOKEN" vault kv put "secret/x0tta6bl4/nodes/$HOSTNAME/pqc" \
+            public_key="$(base64 -w 0 $KYBER_PK_PATH)" \
+            private_key="$(base64 -w 0 $KYBER_SK_PATH)" > /dev/null 2>&1 || log_warn "Не удалось сохранить PQC ключ в Vault."
+    fi
+
+    log_info "PQC ключи Kyber сгенерированы и сохранены."
 else
     log_info "PQC ключи Kyber уже существуют. Пропускаем генерацию."
 fi
-
 
 # --- 4. Mesh topology автоконфигурация ---
 log_info "Автоконфигурация Mesh topology..."

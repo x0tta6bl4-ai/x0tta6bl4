@@ -1,0 +1,71 @@
+{{- if .Values.agents.enabled }}
+{{- range $agent := .Values.agents.list }}
+{{- if (default true $agent.enabled) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "maas-agent-mesh.fullname" $ }}-{{ $agent.name | trunc 20 | trimSuffix "-" }}
+  labels:
+    {{- include "maas-agent-mesh.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    maas.agent/name: {{ $agent.name | quote }}
+spec:
+  replicas: {{ default 1 $agent.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "maas-agent-mesh.name" $ }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      maas.agent/name: {{ $agent.name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "maas-agent-mesh.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: agent
+        maas.agent/name: {{ $agent.name | quote }}
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      containers:
+        - name: {{ $agent.name | quote }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- with $agent.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $agent.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: MAAS_AGENT_NAME
+              value: {{ $agent.name | quote }}
+            - name: MAAS_AGENT_TOOLS
+              value: {{ join "," (default (list) $agent.tools) | quote }}
+          {{- with $agent.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $.Values.service.targetPort }}
+              protocol: TCP
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

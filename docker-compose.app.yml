@@ -1,0 +1,17 @@
+services:
+  x0tta6bl4-app:
+    build:
+      context: .
+      dockerfile: x0tta6bl4-app/Dockerfile
+    container_name: x0tta6bl4-app
+    restart: always
+    network_mode: host # Direct access to server network
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - .:/mnt/projects:ro
+    environment:
+      - NODE_ENV=production
+      - PROJECT_ROOT=/mnt/projects

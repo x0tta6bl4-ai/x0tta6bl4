@@ -74,5 +74,24 @@ async def run_demo():
     else:
         logger.error("❌ Self-healing failed.")
 
+    # 7. Advanced Step: Script-based recovery
+    logger.info("\n🛠️ Step 5: Advanced - AI suggesting a custom fix script...")
+    AI_SCRIPT_RESPONSE = """
+AI-Analysis (Proxy Configuration Error): The local proxy port 10808 is blocked. 
+Try checking for process and clearing it:
+```bash
+echo "Stopping stale xray process..."
+ps aux | grep xray | grep -v grep | awk '{print $2}' | xargs -r kill -9
+echo "Xray processes cleared."
+```
+"""
+    logger.info(f"📋 AI Response with Script: {AI_SCRIPT_RESPONSE}")
+    success_script = executor.execute(AI_SCRIPT_RESPONSE, context={"node_id": metrics["node_id"]})
+    
+    if success_script:
+        logger.info("✅ AI-driven script execution successful!")
+    else:
+        logger.error("❌ AI-driven script execution failed.")
+
 if __name__ == "__main__":
     asyncio.run(run_demo())

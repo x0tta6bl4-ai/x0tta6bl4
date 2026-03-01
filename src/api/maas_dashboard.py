@@ -127,12 +127,29 @@ async def get_dashboard_summary(
             "traffic_mbps": random.uniform(10, 85) if total_nodes > 0 else 0
         })
 
+    # 7. Resilience Status (P2 Observability)
+    from src.database import db_circuit_breaker
+    from src.core.cache import get_cache
+    from src.resilience.advanced_patterns import CircuitState
+    
+    cache_obj = get_cache()
+    resilience_status = {
+        "db_circuit_breaker": {
+            "state": db_circuit_breaker.state.value,
+            "is_open": db_circuit_breaker.state == CircuitState.OPEN
+        },
+        "cache": {
+            "backend": "memory" if getattr(cache_obj, "_using_fallback", False) else "redis"
+        }
+    }
+
     return {
         "user": {
             "email": current_user.email,
             "plan": current_user.plan,
             "role": current_user.role,
         },
+        "resilience": resilience_status,
         "stats": {
             "total_meshes": len(meshes),
             "total_nodes": total_nodes,

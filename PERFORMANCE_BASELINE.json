@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-03-01T09:51:49.190883",
+  "environment": "development-light",
+  "results": [
+    {
+      "path": "/health",
+      "total_requests": 16,
+      "errors": 0,
+      "avg_ms": 629.9528628587723,
+      "p95_ms": 0,
+      "rps": 1.6
+    },
+    {
+      "path": "/api/v1/maas/marketplace/search",
+      "total_requests": 12,
+      "errors": 0,
+      "avg_ms": 839.634637037913,
+      "p95_ms": 0,
+      "rps": 1.2
+    },
+    {
+      "path": "/status",
+      "total_requests": 16,
+      "errors": 0,
+      "avg_ms": 656.3265025615692,
+      "p95_ms": 0,
+      "rps": 1.6
+    }
+  ]
+}
