@@ -263,10 +263,10 @@ gantt
 ### Week 15: Security Hardening
 
 **Задачи:**
-- [ ] Интеграция с `AntiMeaveOracle`
-- [ ] Capability-based access control
-- [ ] Audit logging
-- [ ] Rate limiting
+- [x] Интеграция с `AntiMeaveOracle`
+- [x] Capability-based access control
+- [x] Audit logging
+- [x] Rate limiting
 
 **Deliverables:**
 - Security audit report
@@ -281,10 +281,10 @@ gantt
 ### Week 16: Documentation
 
 **Задачи:**
-- [ ] API documentation
-- [ ] Architecture documentation
-- [ ] User guide
-- [ ] Deployment guide
+- [x] API documentation
+- [x] Architecture documentation
+- [x] User guide
+- [x] Deployment guide
 
 **Deliverables:**
 - `docs/api/swarm.md`
