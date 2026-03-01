@@ -85,6 +85,11 @@ jobs:
           echo "GATES_STATUS=$gate_status" >> "$GITHUB_OUTPUT"
           exit "$gate_status"
 
+      - name: Run PARL Load Test
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          python3 tests/load/test_parl.py 2>&1 | tee parl_load_output.txt
+
       - name: Check competitive self-healing gate
         id: competitive_gate
         continue-on-error: true
