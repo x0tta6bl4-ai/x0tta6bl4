@@ -16,7 +16,23 @@ class MaaSOrchestrator:
     async def provision_rented_node(db: Session, listing_id: str, renter_id: str, mesh_id: str):
         """
         Generates a signed playbook to move a rented node into the renter's mesh.
+        Checks for unpaid invoices before provisioning.
         """
+        from src.database import Invoice
+        from datetime import datetime, timedelta
+        
+        # Financial Guardrail: Block provisioning if there are unpaid invoices older than 3 days
+        three_days_ago = datetime.utcnow() - timedelta(days=3)
+        unpaid_invoices = db.query(Invoice).filter(
+            Invoice.user_id == renter_id,
+            Invoice.status == "issued",
+            Invoice.issued_at < three_days_ago
+        ).count()
+        
+        if unpaid_invoices > 0:
+            logger.warning(f"🚫 Provisioning blocked for user {renter_id}: {unpaid_invoices} unpaid invoices")
+            return False
+
         listing = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
         mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
         

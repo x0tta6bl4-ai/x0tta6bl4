@@ -37,6 +37,14 @@ class TestPQCAvailability:
 class TestMLKEM768:
     """ML-KEM-768 Key Exchange Tests"""
 
+    @pytest.fixture(autouse=True)
+    def _skip_if_oqs_mocked(self):
+        """Skip tests that require real oqs when it is mocked by conftest."""
+        import oqs as _oqs
+        from unittest.mock import MagicMock
+        if isinstance(_oqs, MagicMock):
+            pytest.skip("oqs module is mocked; ML-KEM-768 tests require real oqs")
+
     def test_kem_initialization(self):
         """Test ML-KEM-768 initialization"""
         kem = get_pqc_key_exchange()
@@ -92,6 +100,14 @@ class TestMLKEM768:
 
 class TestMLDSA65:
     """ML-DSA-65 Digital Signature Tests"""
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_oqs_mocked(self):
+        """Skip tests that require real oqs when it is mocked by conftest."""
+        import oqs as _oqs
+        from unittest.mock import MagicMock
+        if isinstance(_oqs, MagicMock):
+            pytest.skip("oqs module is mocked; ML-DSA-65 tests require real oqs")
 
     def test_dsa_initialization(self):
         """Test ML-DSA-65 initialization"""

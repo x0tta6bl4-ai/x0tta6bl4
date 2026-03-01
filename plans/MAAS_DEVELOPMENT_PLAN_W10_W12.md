@@ -2,7 +2,9 @@
 
 **Дата:** 2026-02-23
 **Версия:** 3.4.0
-**Статус:** Production Ready, продолжение развития
+**Статус:** Subsystem Production-Capable, общий релиз gated через `plans/MASTER_100_READINESS_TODOS_2026-02-26.md`
+
+> Этот план отражает готовность MaaS-направления, а не финальное release-решение по всей платформе.
 
 ---
 
@@ -11,7 +13,7 @@
 | Компонент | Готовность | Статус |
 |-----------|------------|--------|
 | MaaS Core | 95% | ✅ Production |
-| Commercial | 85% | ✅ Ready for $10K MRR |
+| Commercial | 85% | ✅ Pilot-ready ($10K MRR target, gated by release readiness) |
 | Event Store | 95% | ✅ PostgreSQL migration завершена |
 | Swarm Consensus | 100% | ✅ P0 issues resolved |
 | Mesh-FL Integration | 90% | ✅ Topology-aware aggregation готов |

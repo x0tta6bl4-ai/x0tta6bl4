@@ -7,7 +7,8 @@
 Единый pre-merge gate для критичных MaaS/VPN путей, который проверяет:
 
 - bootstrap миграций на чистой БД;
-- соответствие ORM-схемы и фактической DB-схемы;
+- соответствие ORM-схемы и фактической DB-схемы (таблицы/колонки/index/unique);
+- migration policy audit (idempotent style + nullable transition safety);
 - синхронизацию `requirements.txt` и `requirements.lock`;
 - минимальный быстрый набор API/интеграционных тестов (`quick`);
 - расширенный набор регрессионных тестов (`full`).
@@ -24,10 +25,13 @@
 ### Состав профилей (кратко)
 
 - `quick`:
-  - миграции + schema parity + dependency lock sync;
+  - миграции + schema parity + migration policy + dependency lock sync;
+  - проверка CI stage-контракта (`lint -> type -> unit -> integration + smoke`);
+  - reproducibility-loop для критичных API-сценариев (`maas_nodes heartbeat`, `maas_telemetry`, `api_error_contract`) в 2 раунда;
   - marketplace-модульный smoke;
+  - circuit-breaker regression smoke для внешнего billing провайдера (`test_billing_api.py -k circuit_breaker_open`);
   - reliability/security smoke (`connection_retry`, `redis_sentinel`, `resilience_advanced`, `vpn_security_unit`);
-  - API smoke (`maas_telemetry`, `maas_nodes heartbeat`, `vpn_api`).
+  - API smoke (`maas_billing mapping+MAPE-K`, `maas_marketplace global_multiplier`, `vpn_api`).
 - `full`:
   - всё из `quick` + `full-core` + `full-heavy`;
   - расширенные reliability/security наборы (`graceful_shutdown`, `maas_security_unit`);
@@ -51,6 +55,9 @@ scripts/golden_smoke_premerge.sh full-heavy
 
 ```bash
 PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_premerge.sh full
+
+# Усиленный migration roundtrip depth (старые snapshot-состояния)
+DB_BOOTSTRAP_VALIDATE_DOWNGRADE=true DB_BOOTSTRAP_DOWNGRADE_STEPS=3 scripts/golden_smoke_premerge.sh quick
 ```
 
 ## Критерии прохождения
@@ -60,6 +67,8 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 - `fail: 0` в итоговом summary;
 - `Alembic bootstrap to head` = PASS;
 - `Schema parity check` = PASS;
+- `Migration policy audit` = PASS;
+- `Pipeline stage contract` = PASS;
 - `Requirements lock sync check` = PASS;
 - все тестовые шаги профиля = PASS.
 
@@ -90,9 +99,15 @@ PYTEST_TIMEOUT_SECONDS=2400 ALEMBIC_TIMEOUT_SECONDS=600 scripts/golden_smoke_pre
 - `full-core`: warning `>= 3600s`, hard-fail `>= 5400s`;
 - `full-heavy`: warning `>= 4500s`, hard-fail `>= 7200s`.
 
-## Текущий статус (на 2026-02-27)
+## Текущий статус (на 2026-02-28)
 
 - `quick`: PASS (`pass: 11`, `fail: 0`) после добавления `Requirements lock sync check`.
+- `quick`: PASS (`pass: 16`, `fail: 0`) после добавления migration policy audit и roundtrip depth checks.
+- `quick`: PASS (`pass: 19`, `fail: 0`) после добавления billing mapping + MAPE-K regression checks.
+- `quick`: PASS (`pass: 20`, `fail: 0`) после добавления marketplace pricing/filter global-multiplier regression checks.
+- `quick`: PASS (`pass: 18`, `fail: 0`) после добавления автоматического reproducibility-loop (критичные API x2 rounds) и пересборки профиля.
+- `quick`: PASS (`pass: 19`, `fail: 0`) после добавления pipeline stage contract check.
+- `quick`: PASS (`pass: 20`, `fail: 0`) после включения billing circuit-breaker regression step.
 - `full`: PASS (`pass: 22`, `fail: 0`) после добавления `Requirements lock sync check`.
 - `full-core`: PASS (`pass: 18`, `fail: 0`) на локальном прогоне после split.
 - `full-heavy`: валидирован набор lane (`116 tests collected` в `--collect-only`), выполняется в nightly CI.

@@ -238,7 +238,7 @@ class TokenBridge:
 
     def __init__(self, mesh_token: "MeshToken", config: BridgeConfig):
         """
-        Initialize token bridge.
+        Initialize token bridge with resilience patterns.
 
         Args:
             mesh_token: Local MeshToken instance
@@ -254,6 +254,16 @@ class TokenBridge:
         self._last_block = 0
         self._tx_history: List[BridgeTransaction] = []
         self._address_mapping: Dict[str, str] = {}  # node_id → eth_address
+
+        # Resilience: Circuit Breaker for RPC calls
+        from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig
+        self.rpc_breaker = CircuitBreaker(
+            config=CircuitBreakerConfig(
+                failure_threshold=5,
+                recovery_timeout_seconds=60
+            ),
+            name="blockchain_rpc_breaker"
+        )
 
         # Event handlers
         self._event_handlers: Dict[str, List[Callable]] = {
@@ -702,6 +712,17 @@ class TokenBridge:
     # State Sync
     # ─────────────────────────────────────────────────────────────
 
+    def _execute_rpc(self, func: Callable, *args, **kwargs) -> Any:
+        """Execute RPC call wrapped in Circuit Breaker."""
+        try:
+            return self.rpc_breaker.call(func, *args, **kwargs)
+        except Exception as e:
+            if "Circuit breaker is OPEN" in str(e):
+                logger.warning(f"Blockchain RPC Breaker is OPEN. Skipping external call.")
+                raise ConnectionError("Blockchain RPC currently unavailable (Circuit Breaker OPEN)")
+            # Other exceptions are handled and recorded by Circuit Breaker inside .call()
+            raise
+
     async def sync_balance(self, node_id: str) -> Optional[float]:
         """
         Sync balance from chain to local MeshToken.
@@ -720,7 +741,8 @@ class TokenBridge:
             return None
 
         try:
-            balance_wei = self.contract.functions.balanceOf(eth_addr).call()
+            # Wrap contract call in Circuit Breaker
+            balance_wei = self._execute_rpc(self.contract.functions.balanceOf(eth_addr).call)
             balance = float(balance_wei) / 1e18
 
             # Update local balance

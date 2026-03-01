@@ -408,17 +408,40 @@ class PARLMAPEKExecutor:
         }
 
     async def _generate_plan(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate recovery plan."""
+        """Generate recovery plan using LLM or fallback logic."""
         await asyncio.sleep(0.1)  # Simulated planning
+        
+        anomaly = task["payload"]["analysis"]
+        target_node = anomaly.get("result", {}).get("anomaly_id", "unknown_target")
+        
+        actions = []
+        strategy = "auto_recovery"
+        try:
+            from src.agents.kimi_healing_agent import kimi_agent
+            # Try to get actions from LLM
+            llm_actions = kimi_agent.analyze_and_heal(anomaly, target_node)
+            if llm_actions:
+                # Convert PlaybookAction objects to dicts for serialization
+                actions = [{"type": a.action, "target": target_node, "params": a.params} for a in llm_actions]
+                strategy = "llm_healing"
+        except ImportError:
+            logger.warning("KimiHealingAgent not available, using fallback planning")
+        except Exception as exc:
+            logger.warning("KimiHealingAgent failed, using fallback planning: %s", exc)
+            
+        if not actions:
+            actions = [
+                {"type": "restart_service", "target": target_node},
+                {"type": "rebalance_load", "target": "cluster"},
+            ]
+            strategy = "auto_recovery"
+            
         return {
             "task_id": task["task_id"],
             "result": {
                 "plan_id": task["task_id"],
-                "strategy": "auto_recovery",
-                "actions": [
-                    {"type": "restart_service", "target": "node_001"},
-                    {"type": "rebalance_load", "target": "cluster"},
-                ],
+                "strategy": strategy,
+                "actions": actions,
                 "estimated_recovery_time": 30.0,
             },
         }

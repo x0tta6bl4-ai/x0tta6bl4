@@ -34,8 +34,41 @@ struct pqc_session {
     __u64 peer_id_hash;     // Hash of authenticated peer SPIFFE ID
     __u8 verified;          // 1 if PQC handshake completed in userspace
     __u64 timestamp;        // Last activity timestamp (seconds)
-    __u32 packet_counter;   // Anti-replay: expected minimum packet number
+    __u64 last_seq;         // Highest authenticated sequence number (v3.1)
+    __u64 window_bitmap;    // Sliding window for 64 out-of-order packets (v3.1)
 };
+
+// --- Anti-Replay Sliding Window (v3.1) ---
+// Implements WireGuard-style replay protection for unreliable UDP transport.
+// Allows packets within a 64-slot window to arrive out-of-order.
+static __always_inline int check_anti_replay(struct pqc_session *s, __u64 seq) {
+    if (seq > s->last_seq) {
+        // New packet is ahead of the window
+        __u64 diff = seq - s->last_seq;
+        if (diff < 64) {
+            s->window_bitmap <<= diff;
+        } else {
+            s->window_bitmap = 0;
+        }
+        s->window_bitmap |= 1ULL; // Set bit 0 for the current packet
+        s->last_seq = seq;
+        return 1;
+    }
+
+    // Packet is within or behind the window
+    __u64 diff = s->last_seq - seq;
+    if (diff >= 64) {
+        return 0; // Too old, discarded
+    }
+
+    if (s->window_bitmap & (1ULL << diff)) {
+        return 0; // Replay detected: bit already set
+    }
+
+    // Mark as received
+    s->window_bitmap |= (1ULL << diff);
+    return 1;
+}
 
 // CVE-2026-XDP-002 FIX: Configurable session limit via map
 // Userspace can update this value at runtime
@@ -284,9 +317,9 @@ int xdp_pqc_verify_prog(struct xdp_md *ctx) {
         return XDP_DROP;
     }
 
-    // Anti-replay: check packet sequence number
+    // Anti-replay: sliding window check (v3.1)
     __u32 pkt_seq = bpf_ntohl(pqc_hdr->packet_seq);
-    if (pkt_seq < session->packet_counter) {
+    if (!check_anti_replay(session, pkt_seq)) {
         inc_stat(STATS_REPLAY_DETECTED);
         return XDP_DROP;
     }
@@ -299,8 +332,7 @@ int xdp_pqc_verify_prog(struct xdp_md *ctx) {
 
     // Update session state
     session->timestamp = now;
-    if (pkt_seq >= session->packet_counter)
-        session->packet_counter = pkt_seq + 1;
+    // (packet_counter update removed, handled by check_anti_replay)
 
     inc_stat(STATS_VERIFIED_PACKETS);
     inc_stat(STATS_PASSED_TO_USER);

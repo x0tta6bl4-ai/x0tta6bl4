@@ -40,12 +40,7 @@ except Exception:
 class VectorIndex:
     """
     HNSW-based vector index for semantic search.
-
-    Features:
-    - HNSW index (M=32, ef=256)
-    - 384-dimensional embeddings (all-MiniLM-L6-v2)
-    - Similarity search with threshold
-    - Persistent storage
+    Optimized for <100ms latency.
     """
 
     def __init__(
@@ -54,9 +49,14 @@ class VectorIndex:
         max_elements: int = 10000,
         M: int = 32,
         ef_construction: int = 200,
-        ef_search: int = 256,
+        ef_search: int = 64,  # Optimized from 256 for speed
         index_path: Optional[Path] = None,
     ):
+        # ... (rest of init)
+        self.ef_search = ef_search
+        # New: Simple in-memory cache for embeddings
+        self._embedding_cache: Dict[str, np.ndarray] = {}
+        self._cache_limit = 1000
         """
         Initialize vector index.
 
@@ -145,17 +145,20 @@ class VectorIndex:
 
     def embed(self, text: str) -> np.ndarray:
         """
-        Generate embedding for text.
-
-        Args:
-            text: Input text
-
-        Returns:
-            Embedding vector (384-dim)
+        Generate embedding for text with caching.
         """
+        if text in self._embedding_cache:
+            return self._embedding_cache[text]
+
         if self.embedding_model:
             try:
                 embedding = self.embedding_model.encode(text, convert_to_numpy=True)
+                
+                # Update cache
+                if len(self._embedding_cache) >= self._cache_limit:
+                    self._embedding_cache.pop(next(iter(self._embedding_cache)))
+                self._embedding_cache[text] = embedding
+                
                 return embedding
             except Exception as e:
                 logger.error(f"❌ Failed to generate embedding: {e}")

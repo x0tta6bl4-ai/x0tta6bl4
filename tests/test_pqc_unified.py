@@ -375,9 +375,10 @@ class TestPQCModuleAPI:
         assert PQCAlgorithm.ML_DSA_65.value == "ML-DSA-65"
 
 
+@pytest.mark.usefixtures("real_oqs")
 class TestPQCIntegration:
     """Integration tests for PQC operations."""
-    
+
     @pytest.mark.skipif(
         not pytest.importorskip("oqs", reason="liboqs not installed"),
         reason="Requires liboqs"
