@@ -42,6 +42,12 @@ _Дата: 2026-03-01_
   - Добавлен state-contract в approve-path: разрешено только из `pending/pending_approval`; для `approved` — идемпотентный ответ, для остальных статусов (`revoked` и т.д.) — `409`.
   - Исправлена модель прав mesh owner (добавлены node/acl/telemetry management scopes).
   - Добавлено расширение alias-permissions (`view<->read`, `update<->write`) для корректной проверки RBAC.
+- `src/api/maas_billing.py`
+  - Добавлен idempotency guard в `stripe_webhook` для `checkout.session.completed` по `stripe_session_id` (replay-safe без повторных side-effects).
+  - Добавлена валидация `payment_status` + безопасная обработка отсутствующего `session_id`.
+  - Исправлена импортная ошибка `timedelta` в subscription invoice path.
+  - Убрано fail-open minting поведение: fiat→X0T bridge теперь выполняется только при явном metadata-флаге `bridge_x0t`.
+  - Добавлен fallback lookup пользователя по `stripe_customer_id`, если `metadata.user_id` отсутствует.
 
 ### Кодовая стабильность
 - `src/agents/kimi_healing_agent.py`
@@ -55,6 +61,10 @@ _Дата: 2026-03-01_
   - Убраны хардкоды путей, добавлена строгая валидация `MESH_SHARED_KEY`.
   - Усилен SOCKS5 parsing (readexactly + timeouts), добавлена защита от private/loopback target по умолчанию.
   - Параметры перенесены в env (`*_PORT`, `*_TIMEOUT`, `EXIT_ALLOW_PRIVATE_TARGETS` и др.) для предсказуемого прод-конфига.
+- `src/network/tun_socks_bridge.py`
+  - Восстановлен стабильный контракт класса (`get_stats`, полноценный `main/CLI`, корректный lifecycle start/stop).
+  - Восстановлена корректная SOCKS5 handshake/connect проверка (валидация ответов proxy).
+  - Сохранена поддержка опциональной обфускации без деградации базового пути.
 
 ### Документы и позиционирование
 - `STATUS_REALITY.md`
@@ -87,6 +97,10 @@ _Дата: 2026-03-01_
   - Добавлены проверки alias expansion и owner node-management permissions.
   - Добавлен safety-тест на `approve_node`: при истёкшем token статус node не коммитится в `approved`.
   - Добавлен safety-тест: `approve_node` отклоняет `revoked` node статусом `409`.
+- `tests/unit/api/test_maas_billing_webhook_unit.py`
+  - Добавлены unit-регрессии:
+    - replay `checkout.session.completed` не создаёт дубликаты invoice и корректно отдаёт idempotent ответ;
+    - fiat→X0T minting работает только при явном `bridge_x0t=true`.
 
 ## 3) Проверка результатов
 
@@ -113,6 +127,12 @@ _Дата: 2026-03-01_
 
 7. `pytest --no-cov -q tests/api/test_maas_marketplace.py::TestMarketplaceContractSafety::test_release_requires_held_escrow_row tests/api/test_maas_marketplace.py::TestMarketplaceContractSafety::test_refund_requires_held_escrow_row tests/api/test_maas_nodes.py::TestApproveNodeSafety::test_approve_node_rejects_revoked_status`
    - Результат: `3 passed`
+
+8. `pytest --no-cov -q tests/unit/network/test_tun_socks_bridge_unit.py tests/unit/api/test_maas_billing_webhook_unit.py`
+   - Результат: `7 passed`
+
+9. `pytest --no-cov -q tests/api/test_maas_billing.py`
+   - Результат: blocked на этапе collection из-за несвязанного импорта в `src/core/app.py` -> `ImportError: cannot import name 'AgentCapabilities' from src.swarm.agent`.
 
 ## 4) Итог
 
