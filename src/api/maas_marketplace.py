@@ -8,12 +8,16 @@ Funds are held in escrow until the rented node passes a health heartbeat.
 
 import json
 import logging
+import os
+import re
+import time
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -24,15 +28,56 @@ from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
 from src.utils.audit import record_audit_log
 
+from src.resilience.advanced_patterns import ResilientExecutor, get_resilient_executor
+
 logger = logging.getLogger(__name__)
+
+# Global resilient executor for marketplace operations (P2 Reliability)
+marketplace_executor = get_resilient_executor()
 
 router = APIRouter(prefix="/api/v1/maas/marketplace", tags=["MaaS Marketplace"])
 
 _listings: Dict[str, Dict[str, Any]] = {}
 _listings_lock = Lock()
 
+_IDEMPOTENCY_TTL_SECONDS = max(60, int(os.getenv("MAAS_MARKETPLACE_IDEMPOTENCY_TTL_SECONDS", "3600")))
+_IDEMPOTENCY_MAX_ENTRIES = max(100, int(os.getenv("MAAS_MARKETPLACE_IDEMPOTENCY_MAX_ENTRIES", "5000")))
+_IDEMPOTENCY_MAX_KEY_LEN = max(16, int(os.getenv("MAAS_MARKETPLACE_IDEMPOTENCY_MAX_KEY_LEN", "128")))
+_IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
+_idempotency_cache: "OrderedDict[str, tuple[float, Dict[str, Any]]]" = OrderedDict()
+_idempotency_lock = Lock()
+
 # Token Bridge Singleton Simulation
 _token_bridge: Optional[TokenBridge] = None
+
+
+def _normalize_identity(value: Any) -> str:
+    """Normalize user identity across legacy str/int representations."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _ids_equal(left: Any, right: Any) -> bool:
+    """Compare identifiers while tolerating int<->str legacy mismatches."""
+    left_norm = _normalize_identity(left)
+    right_norm = _normalize_identity(right)
+    if not left_norm or not right_norm:
+        return False
+    if left_norm == right_norm:
+        return True
+    try:
+        return int(left_norm) == int(right_norm)
+    except (TypeError, ValueError):
+        return False
+
+
+def _current_user_id(current_user: User) -> str:
+    user_id = _normalize_identity(getattr(current_user, "id", None))
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid authenticated user id")
+    return user_id
+
 
 def _get_token_bridge() -> TokenBridge:
     global _token_bridge
@@ -45,6 +90,57 @@ def _get_token_bridge() -> TokenBridge:
         )
         _token_bridge = TokenBridge(MeshToken(), config)
     return _token_bridge
+
+
+def _idempotency_compose_key(action: str, scope: str, user_id: Any, idempotency_key: str) -> str:
+    normalized_user_id = _normalize_identity(user_id) or "anonymous"
+    return f"{action}:{scope}:{normalized_user_id}:{idempotency_key.strip()}"
+
+
+def _normalize_idempotency_key(idempotency_key: Any) -> Optional[str]:
+    # Allow direct coroutine calls in unit tests where FastAPI doesn't resolve Header defaults.
+    if isinstance(idempotency_key, str):
+        normalized = idempotency_key.strip()
+        if not normalized:
+            return None
+        if len(normalized) > _IDEMPOTENCY_MAX_KEY_LEN:
+            raise HTTPException(status_code=400, detail="Idempotency-Key is too long")
+        if not _IDEMPOTENCY_KEY_PATTERN.match(normalized):
+            raise HTTPException(status_code=400, detail="Idempotency-Key contains invalid characters")
+        return normalized
+    default_value = getattr(idempotency_key, "default", None)
+    if isinstance(default_value, str):
+        normalized = default_value.strip()
+        if not normalized:
+            return None
+        if len(normalized) > _IDEMPOTENCY_MAX_KEY_LEN:
+            raise HTTPException(status_code=400, detail="Idempotency-Key is too long")
+        if not _IDEMPOTENCY_KEY_PATTERN.match(normalized):
+            raise HTTPException(status_code=400, detail="Idempotency-Key contains invalid characters")
+        return normalized
+    return None
+
+
+def _idempotency_get(cache_key: str) -> Optional[Dict[str, Any]]:
+    now = time.time()
+    with _idempotency_lock:
+        cached = _idempotency_cache.get(cache_key)
+        if not cached:
+            return None
+        cached_at, payload = cached
+        if (now - cached_at) > _IDEMPOTENCY_TTL_SECONDS:
+            _idempotency_cache.pop(cache_key, None)
+            return None
+        _idempotency_cache.move_to_end(cache_key)
+        return dict(payload)
+
+
+def _idempotency_set(cache_key: str, payload: Dict[str, Any]) -> None:
+    with _idempotency_lock:
+        _idempotency_cache[cache_key] = (time.time(), dict(payload))
+        _idempotency_cache.move_to_end(cache_key)
+        while len(_idempotency_cache) > _IDEMPOTENCY_MAX_ENTRIES:
+            _idempotency_cache.popitem(last=False)
 
 
 def _get_global_price_multiplier(db: Any) -> float:
@@ -152,9 +248,10 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
     else: price_per_hour = float(raw_price or 0.0)
 
     price_per_hour = round(price_per_hour * total_multiplier, 2)
-    price_token = _val(data, "price_token_per_hour")
-    if price_token:
-        price_token = round(float(price_token) * rep_multiplier, 4)
+    raw_price_token = _val(data, "price_token_per_hour")
+    price_token = None
+    if raw_price_token is not None:
+        price_token = round(float(raw_price_token) * total_multiplier, 4)
 
     return {
         "listing_id": listing_id,
@@ -174,7 +271,7 @@ def _as_listing_response(data: Any, multiplier: float = 1.0) -> Dict[str, Any]:
 def _row_to_listing(row: MarketplaceListing) -> Dict[str, Any]:
     return {
         "listing_id": row.id,
-        "owner_id": row.owner_id,
+        "owner_id": _normalize_identity(row.owner_id),
         "node_id": row.node_id,
         "region": row.region,
         "price_per_hour": _to_dollars(row.price_per_hour) if row.price_per_hour is not None else 0.0,
@@ -182,7 +279,7 @@ def _row_to_listing(row: MarketplaceListing) -> Dict[str, Any]:
         "currency": row.currency or "USD",
         "bandwidth_mbps": row.bandwidth_mbps,
         "status": row.status,
-        "renter_id": row.renter_id,
+        "renter_id": _normalize_identity(row.renter_id) or None,
         "mesh_id": row.mesh_id,
         "created_at": row.created_at.isoformat() if row.created_at else datetime.utcnow().isoformat(),
     }
@@ -217,8 +314,19 @@ async def create_listing(
     req: ListingCreate,
     current_user: User = Depends(require_permission("marketplace:list")),
     db: Session = Depends(get_db),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     db_ready = _db_session_available(db)
+    owner_id = _current_user_id(current_user)
+    cache_key = None
+    normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    if normalized_idem_key:
+        cache_key = _idempotency_compose_key(
+            "create_listing", req.node_id, owner_id, normalized_idem_key
+        )
+        cached = _idempotency_get(cache_key)
+        if cached:
+            return cached
 
     with _listings_lock:
         in_memory_exists = any(item.get("node_id") == req.node_id for item in _listings.values())
@@ -238,7 +346,7 @@ async def create_listing(
     listing_id = f"lst-{uuid.uuid4().hex[:8]}"
     listing = {
         "listing_id": listing_id,
-        "owner_id": current_user.id,
+        "owner_id": owner_id,
         "node_id": req.node_id,
         "region": req.region,
         "price_per_hour": float(req.price_per_hour or 0.0),
@@ -254,7 +362,7 @@ async def create_listing(
     if db_ready:
         row = MarketplaceListing(
             id=listing_id,
-            owner_id=current_user.id,
+            owner_id=owner_id,
             node_id=req.node_id,
             region=req.region,
             price_per_hour=_to_cents(req.price_per_hour) if req.price_per_hour else 0,
@@ -272,7 +380,7 @@ async def create_listing(
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_LISTING_CREATED",
-                user_id=current_user.id,
+                user_id=owner_id,
                 payload={"listing_id": listing_id, "node_id": req.node_id},
                 status_code=201,
             )
@@ -281,7 +389,10 @@ async def create_listing(
 
     _save_listing_to_cache(listing)
     multiplier = _get_global_price_multiplier(db)
-    return _as_listing_response(listing, multiplier=multiplier)
+    result = _as_listing_response(listing, multiplier=multiplier)
+    if cache_key:
+        _idempotency_set(cache_key, result)
+    return result
 
 
 @router.get("/search", response_model=List[ListingResponse])
@@ -337,7 +448,7 @@ async def search_listings(
                 if float(_v(listing, "price_per_hour") or 0.0) * multiplier * rep_multiplier > float(max_price):
                     continue
             else: # X0T
-                if float(_v(listing, "price_token_per_hour") or 0.0) * rep_multiplier > float(max_price):
+                if float(_v(listing, "price_token_per_hour") or 0.0) * multiplier * rep_multiplier > float(max_price):
                     continue
 
         if min_bandwidth is not None and int(_v(listing, "bandwidth_mbps") or 0) < int(min_bandwidth or 0):
@@ -354,6 +465,7 @@ async def rent_node(
     hours: int = Query(default=1, ge=1, le=720),  # Up to 30 days
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """
     Initiate a node rental with multi-hour deposit.
@@ -364,32 +476,49 @@ async def rent_node(
         hours = getattr(hours, "default", 1)
     if not isinstance(hours, int):
         hours = 1
+
+    renter_id = _current_user_id(current_user)
+    cache_key = None
+    normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    if normalized_idem_key:
+        scope = f"{listing_id}:{mesh_id}:{hours}"
+        cache_key = _idempotency_compose_key("rent_node", scope, renter_id, normalized_idem_key)
+        cached = _idempotency_get(cache_key)
+        if cached:
+            return cached
         
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
-    if listing.get("owner_id") == current_user.id:
+    if _ids_equal(listing.get("owner_id"), renter_id):
         raise HTTPException(status_code=400, detail="Cannot rent your own node")
     if listing.get("status") != "available":
         raise HTTPException(status_code=400, detail="Listing not available")
 
     if not _db_session_available(db):
         listing["status"] = "rented"
-        listing["renter_id"] = current_user.id
+        listing["renter_id"] = renter_id
         listing["mesh_id"] = mesh_id
         _save_listing_to_cache(listing)
-        return {
+        result = {
             "status": "success",
             "listing_id": listing_id,
             "mesh_id": mesh_id,
         }
+        if cache_key:
+            _idempotency_set(cache_key, result)
+        return result
 
     row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Listing not found")
+    if _ids_equal(row.owner_id, renter_id):
+        raise HTTPException(status_code=400, detail="Cannot rent your own node")
+    if row.status != "available":
+        raise HTTPException(status_code=400, detail="Listing not available")
 
     row.status = "escrow"
-    row.renter_id = current_user.id
+    row.renter_id = renter_id
     row.mesh_id = mesh_id
 
     escrow_id = f"esc-{uuid.uuid4().hex[:8]}"
@@ -407,7 +536,7 @@ async def rent_node(
         # Verify user has sufficient X0T balance before creating escrow
         try:
             token_sys = MeshToken()
-            user_balance = token_sys.balance_of(current_user.id)
+            user_balance = token_sys.balance_of(renter_id)
 
             # MeshToken is currently in-memory; a fresh instance may have no ledger data.
             # Enforce balance checks only when ledger state is actually present.
@@ -422,13 +551,13 @@ async def rent_node(
             bridge = _get_token_bridge()
             # Note: Using run_until_complete simulation or similar if needed, 
             # but here we are in an async function.
-            tx_hash = await bridge.lock_escrow_on_chain(escrow_id, current_user.id, amount_token)
+            tx_hash = await bridge.lock_escrow_on_chain(escrow_id, renter_id, amount_token)
             
             if has_ledger_state:
                 logger.info(
                     "Verified %s X0T balance for user %s, escrow %s (TX: %s)",
                     amount_token,
-                    current_user.id,
+                    renter_id,
                     escrow_id,
                     tx_hash
                 )
@@ -453,7 +582,7 @@ async def rent_node(
         MarketplaceEscrow(
             id=escrow_id,
             listing_id=listing_id,
-            renter_id=current_user.id,
+            renter_id=renter_id,
             amount_cents=amount_cents,
             amount_token=amount_token,
             currency=listing.get("currency", "USD"),
@@ -464,7 +593,7 @@ async def rent_node(
     db.commit()
 
     listing["status"] = "escrow"
-    listing["renter_id"] = current_user.id
+    listing["renter_id"] = renter_id
     listing["mesh_id"] = mesh_id
     _save_listing_to_cache(listing)
 
@@ -472,14 +601,14 @@ async def rent_node(
     try:
         from src.services.maas_orchestrator import maas_orchestrator
         import asyncio
-        asyncio.create_task(maas_orchestrator.provision_rented_node(db, listing_id, current_user.id, mesh_id))
+        asyncio.create_task(maas_orchestrator.provision_rented_node(db, listing_id, renter_id, mesh_id))
     except Exception as orch_err:
         logger.error(f"Failed to trigger orchestration: {orch_err}")
 
     try:
         record_audit_log(
             db, None, "MARKETPLACE_RENT_INITIATED",
-            user_id=current_user.id,
+            user_id=renter_id,
             payload={
                 "listing_id": listing_id,
                 "escrow_id": escrow_id,
@@ -493,7 +622,7 @@ async def rent_node(
     except Exception as exc:
         logger.warning("Failed to write rent audit log: %s", exc)
 
-    return {
+    result = {
         "status": "escrow",
         "listing_id": listing_id,
         "escrow_id": escrow_id,
@@ -503,6 +632,9 @@ async def rent_node(
         "currency": listing.get("currency"),
         "message": f"Payment for {hours}h held in escrow. Node must send a healthy heartbeat to release funds.",
     }
+    if cache_key:
+        _idempotency_set(cache_key, result)
+    return result
 
 
 @router.post("/escrow/{listing_id}/release")
@@ -510,14 +642,24 @@ async def release_escrow(
     listing_id: str,
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """Manually release escrow. Usually triggered by heartbeat."""
+    requester_id = _current_user_id(current_user)
+    cache_key = None
+    normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    if normalized_idem_key:
+        cache_key = _idempotency_compose_key("release_escrow", listing_id, requester_id, normalized_idem_key)
+        cached = _idempotency_get(cache_key)
+        if cached:
+            return cached
+
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") != "escrow":
         raise HTTPException(status_code=400, detail="No active escrow")
-    if listing.get("renter_id") != current_user.id and current_user.role != "admin":
+    if not _ids_equal(listing.get("renter_id"), requester_id) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     released_at = datetime.utcnow().isoformat()
@@ -528,6 +670,8 @@ async def release_escrow(
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status != "escrow":
             raise HTTPException(status_code=400, detail="No active escrow")
+        if current_user.role != "admin" and not _ids_equal(row.renter_id, requester_id):
+            raise HTTPException(status_code=403, detail="Permission denied")
 
         escrow = db.query(MarketplaceEscrow).filter(
             MarketplaceEscrow.listing_id == listing_id,
@@ -547,7 +691,7 @@ async def release_escrow(
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_ESCROW_RELEASED",
-                user_id=current_user.id,
+                user_id=requester_id,
                 payload={"listing_id": listing_id, "escrow_id": escrow.id if escrow else None, "manual": True},
                 status_code=200,
             )
@@ -557,7 +701,10 @@ async def release_escrow(
     listing["status"] = "rented"
     _save_listing_to_cache(listing)
 
-    return {"status": "released", "listing_id": listing_id, "released_at": released_at}
+    result = {"status": "released", "listing_id": listing_id, "released_at": released_at}
+    if cache_key:
+        _idempotency_set(cache_key, result)
+    return result
 
 
 @router.post("/escrow/{listing_id}/refund")
@@ -565,14 +712,24 @@ async def refund_escrow(
     listing_id: str,
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """Refund escrow if node health fails or rental cancelled before heartbeat."""
+    requester_id = _current_user_id(current_user)
+    cache_key = None
+    normalized_idem_key = _normalize_idempotency_key(idempotency_key)
+    if normalized_idem_key:
+        cache_key = _idempotency_compose_key("refund_escrow", listing_id, requester_id, normalized_idem_key)
+        cached = _idempotency_get(cache_key)
+        if cached:
+            return cached
+
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") != "escrow":
         raise HTTPException(status_code=400, detail="No active escrow")
-    if listing.get("renter_id") != current_user.id and current_user.role != "admin":
+    if not _ids_equal(listing.get("renter_id"), requester_id) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     if _db_session_available(db):
@@ -581,6 +738,8 @@ async def refund_escrow(
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status != "escrow":
             raise HTTPException(status_code=400, detail="No active escrow")
+        if current_user.role != "admin" and not _ids_equal(row.renter_id, requester_id):
+            raise HTTPException(status_code=403, detail="Permission denied")
 
         escrow = db.query(MarketplaceEscrow).filter(
             MarketplaceEscrow.listing_id == listing_id,
@@ -601,7 +760,7 @@ async def refund_escrow(
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_ESCROW_REFUNDED",
-                user_id=current_user.id,
+                user_id=requester_id,
                 payload={"listing_id": listing_id, "escrow_id": escrow.id if escrow else None},
                 status_code=200,
             )
@@ -613,7 +772,10 @@ async def refund_escrow(
     listing["mesh_id"] = None
     _save_listing_to_cache(listing)
 
-    return {"status": "refunded", "listing_id": listing_id}
+    result = {"status": "refunded", "listing_id": listing_id}
+    if cache_key:
+        _idempotency_set(cache_key, result)
+    return result
 
 
 @router.delete("/list/{listing_id}")
@@ -622,23 +784,30 @@ async def cancel_listing(
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
 ):
+    requester_id = _current_user_id(current_user)
     listing = _get_listing_from_cache_or_db(listing_id, db)
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
-    if listing.get("status") == "escrow":
-        raise HTTPException(status_code=400, detail="Active escrow in progress")
-    if listing.get("owner_id") != current_user.id and current_user.role != "admin":
+    if listing.get("status") in {"escrow", "rented"}:
+        raise HTTPException(status_code=400, detail="Listing has active rental state")
+    if not _ids_equal(listing.get("owner_id"), requester_id) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
     if _db_session_available(db):
         row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
-        if row:
-            db.delete(row)
-            db.commit()
+        if not row:
+            raise HTTPException(status_code=404, detail="Listing not found")
+        if row.status in {"escrow", "rented"}:
+            raise HTTPException(status_code=400, detail="Listing has active rental state")
+        if current_user.role != "admin" and not _ids_equal(row.owner_id, requester_id):
+            raise HTTPException(status_code=403, detail="Permission denied")
+
+        db.delete(row)
+        db.commit()
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_LISTING_CANCELLED",
-                user_id=current_user.id,
+                user_id=requester_id,
                 payload={"listing_id": listing_id},
                 status_code=200,
             )

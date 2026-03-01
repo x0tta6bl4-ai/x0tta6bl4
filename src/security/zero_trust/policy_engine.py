@@ -54,6 +54,7 @@ class PolicyRule:
     spiffe_id_pattern: Optional[str] = (
         None  # Pattern matching (e.g., "spiffe://domain/workload/*")
     )
+    mesh_id: Optional[str] = None  # Specific mesh isolation requirement
     allowed_resources: Optional[List[str]] = None
     time_window: Optional[Dict[str, str]] = None  # {"start": "09:00", "end": "17:00"}
     rate_limit: Optional[Dict[str, int]] = None  # {"requests_per_minute": 100}
@@ -247,6 +248,12 @@ class PolicyEngine:
         workload_type: Optional[str],
     ) -> bool:
         """Check if a rule matches the request."""
+        # Check Mesh ID isolation if required
+        if rule.mesh_id:
+            # Expected format: spiffe://<mesh_id>.x0tta6bl4.mesh/...
+            if not peer_spiffe_id.startswith(f"spiffe://{rule.mesh_id}."):
+                return False
+
         # Check SPIFFE ID pattern
         if rule.spiffe_id_pattern:
             if not self._match_pattern(peer_spiffe_id, rule.spiffe_id_pattern):

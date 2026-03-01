@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI  # Added import
 from fastapi.testclient import TestClient
 
-from src.api.vpn import router as vpn_router  # Added import
+from src.api.vpn import VPNConfigResponse, router as vpn_router  # Added import
 from src.database import User, get_db  # Added import
 
 # Removed global client = TestClient(app) as it's being refactored into fixtures
@@ -67,6 +67,25 @@ class TestVPNConfig:
         data = response.json()
         assert data["username"] == "testuser"
 
+    def test_get_vpn_config_allows_same_user_for_str_int_ids(self, client):
+        """String current_user.id and int query user_id are treated as same user."""
+        auth_user = Mock()
+        auth_user.id = "12345"
+        auth_user.scopes = []
+        fake_config = VPNConfigResponse(
+            user_id=12345,
+            username="same-user",
+            vless_link="vless://same-user",
+            config_text="cfg",
+        )
+
+        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+            with patch("src.api.vpn._build_vpn_config", return_value=fake_config):
+                response = client.get("/vpn/config?user_id=12345&username=same-user")
+
+        assert response.status_code == 200
+        assert response.json()["user_id"] == 12345
+
     def test_post_vpn_config_success(self, client):  # Added client arg
         """Test POST endpoint for VPN config creation."""
         config_request = {
@@ -80,6 +99,44 @@ class TestVPNConfig:
         data = response.json()
         assert data["user_id"] == 12345
         assert "vless_link" in data
+
+    def test_post_vpn_config_for_other_user_forbidden_when_authenticated(self, client):
+        """Authenticated non-admin user cannot create another user's config."""
+        auth_user = Mock()
+        auth_user.id = "777"
+        auth_user.scopes = []
+
+        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+            response = client.post("/vpn/config", json={"user_id": 12345})
+
+        assert response.status_code == 403
+        assert "Cannot access other user's VPN configuration" in response.json()["detail"]
+
+    def test_post_vpn_config_allows_same_user_for_str_int_ids(self, client):
+        """String user.id and int user_id should be treated as same identity."""
+        auth_user = Mock()
+        auth_user.id = "12345"
+        auth_user.scopes = []
+        fake_config = VPNConfigResponse(
+            user_id=12345,
+            username=None,
+            vless_link="vless://same-user",
+            config_text="cfg",
+        )
+
+        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=auth_user)):
+            with patch("src.api.vpn._build_vpn_config", return_value=fake_config):
+                response = client.post("/vpn/config", json={"user_id": 12345})
+
+        assert response.status_code == 200
+        assert response.json()["user_id"] == 12345
+
+    def test_post_vpn_config_requires_auth_in_production(self, client, monkeypatch):
+        """Production mode must reject anonymous POST /config access."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        with patch("src.api.vpn._enforce_permission_if_authenticated", new=AsyncMock(return_value=None)):
+            response = client.post("/vpn/config", json={"user_id": 12345})
+        assert response.status_code == 401
 
     def test_get_vpn_config_missing_user_id(self, client):  # Added client arg
         """Test that missing user_id returns validation error."""

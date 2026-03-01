@@ -6,7 +6,7 @@ Tests for VPN server/port configuration with production safety checks.
 """
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -93,7 +93,8 @@ class TestVPNConfigGeneration:
             }
             yield mock
 
-    def test_build_vpn_config_with_env_vars(self, mock_xui):
+    @pytest.mark.asyncio
+    async def test_build_vpn_config_with_env_vars(self, mock_xui):
         """Test config generation uses environment variables."""
         from src.api.vpn import _build_vpn_config
 
@@ -102,19 +103,24 @@ class TestVPNConfigGeneration:
             "VPN_PORT": "443",
             "ENVIRONMENT": "production",
         }):
-            response = _build_vpn_config(
-                user_id=1,
-                email="test@example.com",
-                username="testuser",
-                server=None,
-                port=None,
-            )
+            with patch(
+                "src.api.vpn._check_vpn_connectivity",
+                new=AsyncMock(return_value="online"),
+            ):
+                response = await _build_vpn_config(
+                    user_id=1,
+                    email="test@example.com",
+                    username="testuser",
+                    server=None,
+                    port=None,
+                )
 
             assert response.user_id == 1
             assert response.username == "testuser"
             assert "vless://" in response.vless_link
 
-    def test_build_vpn_config_custom_server_port(self, mock_xui):
+    @pytest.mark.asyncio
+    async def test_build_vpn_config_custom_server_port(self, mock_xui):
         """Test config generation with custom server/port override."""
         from src.api.vpn import _build_vpn_config
 
@@ -123,17 +129,22 @@ class TestVPNConfigGeneration:
             "VPN_PORT": "443",
             "ENVIRONMENT": "production",
         }):
-            response = _build_vpn_config(
-                user_id=1,
-                email="test@example.com",
-                username="testuser",
-                server="custom.vpn.com",
-                port=8443,
-            )
+            with patch(
+                "src.api.vpn._check_vpn_connectivity",
+                new=AsyncMock(return_value="online"),
+            ):
+                response = await _build_vpn_config(
+                    user_id=1,
+                    email="test@example.com",
+                    username="testuser",
+                    server="custom.vpn.com",
+                    port=8443,
+                )
 
             assert response.user_id == 1
 
-    def test_build_vpn_config_fallback_on_xui_failure(self):
+    @pytest.mark.asyncio
+    async def test_build_vpn_config_fallback_on_xui_failure(self):
         """Test config generation falls back gracefully on XUI failure."""
         from src.api.vpn import _build_vpn_config
 
@@ -145,13 +156,17 @@ class TestVPNConfigGeneration:
                 "VPN_PORT": "443",
                 "ENVIRONMENT": "production",
             }):
-                response = _build_vpn_config(
-                    user_id=1,
-                    email="test@example.com",
-                    username="testuser",
-                    server=None,
-                    port=None,
-                )
+                with patch(
+                    "src.api.vpn._check_vpn_connectivity",
+                    new=AsyncMock(return_value="online"),
+                ):
+                    response = await _build_vpn_config(
+                        user_id=1,
+                        email="test@example.com",
+                        username="testuser",
+                        server=None,
+                        port=None,
+                    )
 
                 assert response.user_id == 1
                 # Should have used fallback config

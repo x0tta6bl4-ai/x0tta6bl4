@@ -8,8 +8,10 @@ export X0TTA6BL4_PRODUCTION="true"
 export PORT=8010
 
 # Secret placeholders (should be set in shell or .env)
-export STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-"sk_test_placeholder"}
-export VAULT_TOKEN="root"
+: "${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY must be set for production run}"
+: "${VAULT_TOKEN:?VAULT_TOKEN must be set for production run}"
+export STRIPE_SECRET_KEY
+export VAULT_TOKEN
 
 # 2. Preparation
 mkdir -p logs

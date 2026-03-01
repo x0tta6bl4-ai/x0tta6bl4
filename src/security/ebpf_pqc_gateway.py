@@ -55,7 +55,8 @@ class PQCSession:
     dsa_secret_key: Optional[bytes] = None
     aes_key: Optional[bytes] = None
     mac_key: Optional[bytes] = None  # 16-byte SipHash key for eBPF fast-path
-    packet_counter: int = 0
+    last_seq: int = 0  # Highest authenticated sequence number (v3.1)
+    window_bitmap: int = 0  # Sliding window for 64 packets (v3.1)
     created_at: float = None
     last_used: float = 0.0
     verified: bool = False
@@ -200,7 +201,7 @@ class EBPFPQCGateway:
             aesgcm = AESGCM(session.aes_key)
             nonce = os.urandom(12)  # 96-bit nonce per NIST recommendation
             ciphertext = aesgcm.encrypt(nonce, payload, None)
-            session.packet_counter += 1  # track per-session nonce count
+            session.last_seq += 1  # increment sequence number (v3.1)
             return nonce + ciphertext
         except Exception as e:
             logger.error(f"AES-256-GCM encryption failed: {e}")
@@ -278,7 +279,8 @@ class EBPFPQCGateway:
         new_secret = secrets.token_bytes(32)
         session.aes_key = self._derive_aes_key(new_secret)
         session.mac_key = self._derive_mac_key(new_secret)
-        session.packet_counter = 0
+        session.last_seq = 0
+        session.window_bitmap = 0
         session.last_used = _time.time()
 
         logger.info(f"Rotated keys for session {session_id}")
@@ -332,7 +334,8 @@ class EBPFPQCGateway:
                     "peer_id_hash": peer_id_hash_val,
                     "verified": 1,
                     "timestamp": int(session.last_used or session.created_at),
-                    "packet_counter": session.packet_counter,
+                    "last_seq": session.last_seq,
+                    "window_bitmap": session.window_bitmap,
                 }
 
         logger.debug(f"EBPFPQCGateway.get_ebpf_map_data() returning: {ebpf_data}")

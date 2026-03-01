@@ -12,9 +12,10 @@ from typing import List
 
 from dotenv import load_dotenv
 from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
-                        Text, create_engine, inspect as sqlalchemy_inspect)
+                        Text, create_engine, inspect as sqlalchemy_inspect, event, exc as sa_exc)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,16 @@ load_dotenv(override=False)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./x0tta6bl4.db")
+
+# Setup DB Circuit Breaker
+db_circuit_breaker = CircuitBreaker(
+    config=CircuitBreakerConfig(
+        failure_threshold=int(os.getenv("DB_CB_FAILURE_THRESHOLD", "5")),
+        recovery_timeout_seconds=int(os.getenv("DB_CB_RECOVERY_TIMEOUT", "30")),
+        success_threshold=int(os.getenv("DB_CB_SUCCESS_THRESHOLD", "2"))
+    ),
+    name="database_circuit_breaker"
+)
 
 # Create engine
 if "sqlite" in DATABASE_URL:
@@ -36,6 +47,50 @@ elif "postgresql" in DATABASE_URL:
     )
 else:
     raise ValueError(f"Unsupported database type: {DATABASE_URL}")
+# Bind Circuit Breaker to Engine Events
+@event.listens_for(engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    # Update metrics with current state
+    from src.monitoring.metrics import MetricsRegistry
+    from src.resilience.advanced_patterns import CircuitState
+
+    state_map = {CircuitState.CLOSED: 0, CircuitState.OPEN: 1, CircuitState.HALF_OPEN: 2}
+    MetricsRegistry.db_circuit_breaker_state.set(state_map.get(db_circuit_breaker.state, 0))
+
+    with db_circuit_breaker.lock:
+        if db_circuit_breaker.state == CircuitState.OPEN:
+            # P2 Reliability: Auto-Healing logic
+            # If CB is open for more than 5 minutes, try disposing the engine pool
+            import time
+            open_duration = time.time() - db_circuit_breaker.last_failure_time
+            if open_duration > 300: # 5 minutes
+                logger.warning("🕒 Database Circuit Breaker has been OPEN for >5m. Triggering Auto-Healing: disposing engine pool.")
+                engine.dispose()
+
+            if db_circuit_breaker._should_attempt_recovery():
+                db_circuit_breaker.state = CircuitState.HALF_OPEN
+            else:
+                raise sa_exc.OperationalError(
+                    statement, parameters, 
+                    Exception("Database Circuit Breaker is OPEN. Failing fast to prevent cascade failure.")
+                )
+
+@event.listens_for(engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    db_circuit_breaker._on_success()
+
+@event.listens_for(engine, "handle_error")
+def handle_error(exception_context):
+    # Only react to connection, operational, or timeout errors (ignore logic/data errors)
+    if isinstance(exception_context.original_exception, (
+        sa_exc.OperationalError, 
+        sa_exc.TimeoutError, 
+        sa_exc.InternalError,
+        ConnectionError,
+        TimeoutError
+    )):
+        db_circuit_breaker._on_failure()
+        logger.error(f"DB Error caught by Circuit Breaker: {exception_context.original_exception}. CB State: {db_circuit_breaker.state.value}")
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -144,8 +199,10 @@ class MarketplaceEscrow(Base):
     amount_cents = Column(Integer, nullable=True)  # 1-hour deposit in USD cents
     amount_token = Column(Float, nullable=True)  # 1-hour deposit in X0T
     currency = Column(String, default="USD")  # USD or X0T
-    status = Column(String, default="held")  # held, released, refunded
+    status = Column(String, default="held")  # held, released, refunded, expired
+    auto_renew = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
     released_at = Column(DateTime, nullable=True)
 
     listing = relationship("MarketplaceListing", back_populates="escrows")
@@ -340,6 +397,8 @@ class AuditLog(Base):
     payload = Column(Text, nullable=True)  # Request body (filtered)
     status_code = Column(Integer, nullable=True)
     ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    correlation_id = Column(String, index=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

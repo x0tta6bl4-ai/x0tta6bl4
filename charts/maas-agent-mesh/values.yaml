@@ -1,0 +1,46 @@
+image:
+  repository: x0tta6bl4/agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+agents:
+  enabled: true
+  list:
+    - name: health-bot
+      enabled: true
+      replicaCount: 1
+      tools:
+        - ebpf
+        - prometheus
+        - xray
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - python3 scripts/run_maas_health_bot.py --auto-heal --interval-seconds 30
+      env: []
+    - name: dao-bot
+      enabled: true
+      replicaCount: 1
+      tools:
+        - governance
+        - reputation
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - python3 -c "import time; print('dao-bot placeholder started'); time.sleep(3600)"
+      env: []
+
+resources: {}
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -19,41 +19,37 @@ try:
     import flwr as fl
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
+    from torch_geometric.nn import SAGEConv
 
     FLOWER_AVAILABLE = True
 except ImportError:
     FLOWER_AVAILABLE = False
-    logger.warning("Flower (flwr) not available, Federated Learning disabled")
-
-try:
-    from opacus import PrivacyEngine
-
-    OPACUS_AVAILABLE = True
-except ImportError:
-    OPACUS_AVAILABLE = False
-    logger.warning("Opacus not available, Differential Privacy disabled")
-
+    logger.warning("Flower or torch_geometric not available, Federated Learning disabled")
 
 class FederatedGraphSAGE(nn.Module):
     """
     GraphSAGE модель для federated обучения.
-
-    Упрощённая версия GraphSAGE для обучения на распределённых данных.
+    Использует полноценные графовые свёртки для анализа топологии меш-сети.
     """
 
-    def __init__(self, in_features: int = 10, hidden_dim: int = 64):
+    def __init__(self, in_features: int = 10, hidden_dim: int = 64, out_features: int = 5):
         super().__init__()
-        self.conv1 = nn.Linear(in_features, hidden_dim)
-        self.conv2 = nn.Linear(hidden_dim, hidden_dim)
-        self.conv3 = nn.Linear(hidden_dim, 5)  # 5 классов сбоев
+        self.conv1 = SAGEConv(in_features, hidden_dim)
+        self.conv2 = SAGEConv(hidden_dim, hidden_dim)
+        self.conv3 = nn.Linear(hidden_dim, out_features)  # 5 классов сбоев
         self.dropout = nn.Dropout(0.2)
 
-    def forward(self, x, edge_index=None):
-        # Упрощённая версия GraphSAGE (без графовых свёрток для совместимости)
-        x = torch.relu(self.conv1(x))
+    def forward(self, x, edge_index):
+        # Используем реальные графовые свёртки
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
         x = self.dropout(x)
-        x = torch.relu(self.conv2(x))
+        
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
         x = self.dropout(x)
+        
         return self.conv3(x)
 
 

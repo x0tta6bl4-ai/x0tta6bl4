@@ -7,11 +7,16 @@ set -e
 # Configuration
 GRAFANA_URL="http://localhost:3000"
 GRAFANA_USER="${GRAFANA_ADMIN_USER:-admin}"
-GRAFANA_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}"
+GRAFANA_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-}"
 PROMETHEUS_URL="http://localhost:9090"
 
 echo "🚀 Starting Grafana provisioning..."
 echo ""
+
+if [ -z "$GRAFANA_PASSWORD" ]; then
+  echo "❌ GRAFANA_ADMIN_PASSWORD must be set"
+  exit 1
+fi
 
 # Wait for Grafana to be ready
 echo "⏳ Waiting for Grafana to be ready..."

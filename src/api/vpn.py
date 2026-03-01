@@ -9,7 +9,6 @@ import hmac
 import logging
 import os
 import secrets
-import sys
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -19,15 +18,29 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
 from src.core.cache import cache, cached
 from src.database import User, get_db
 from src.api.maas_auth import require_permission, get_current_user_from_maas
-from vpn_config_generator import generate_config_text, generate_vless_link, XUIAPIClient
+from vpn_config_generator import XUIAPIClient
+from vpn_config_generator import generate_config_text, generate_vless_link
+try:
+    from new_vpn_config_generator import (
+        generate_vless_link as generate_experimental_link,
+        generate_config_text as generate_experimental_text
+    )
+    EXPERIMENTAL_AVAILABLE = True
+except ImportError:
+    EXPERIMENTAL_AVAILABLE = False
+    from vpn_config_generator import generate_vless_link as generate_experimental_link
+    from vpn_config_generator import generate_config_text as generate_experimental_text
 
 logger = logging.getLogger(__name__)
+
+try:
+    import database as _legacy_user_db
+except Exception as legacy_import_error:  # pragma: no cover - defensive runtime fallback
+    _legacy_user_db = None
+    logger.warning("Legacy database module unavailable for VPN ZKP flow: %s", legacy_import_error)
 
 router = APIRouter(prefix="/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
@@ -58,6 +71,27 @@ class VPNStatusResponse(BaseModel):
     protocol: str
     active_users: int
     uptime: float
+
+
+def _normalize_identity(value: Any) -> str:
+    """Normalize identity values for safe str/int compatibility checks."""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _ids_equal(left: Any, right: Any) -> bool:
+    """Compare identifiers across legacy int and string representations."""
+    left_norm = _normalize_identity(left)
+    right_norm = _normalize_identity(right)
+    if not left_norm or not right_norm:
+        return False
+    if left_norm == right_norm:
+        return True
+    try:
+        return int(left_norm) == int(right_norm)
+    except (TypeError, ValueError):
+        return False
 
 
 async def verify_admin_token(
@@ -128,7 +162,32 @@ from src.security.zkp_attestor import NIZKPAttestor
 class ZKPAuthRequest(BaseModel):
     proof: Dict[str, Any]
 
-from database import get_user, is_user_active
+
+def _legacy_get_user(user_id: int) -> Optional[Dict[str, Any]]:
+    if _legacy_user_db is None:
+        return None
+    get_user_fn = getattr(_legacy_user_db, "get_user", None)
+    if not callable(get_user_fn):
+        return None
+    return get_user_fn(user_id)
+
+
+def _legacy_is_user_active(user_id: int) -> bool:
+    if _legacy_user_db is None:
+        return False
+    is_active_fn = getattr(_legacy_user_db, "is_user_active", None)
+    if not callable(is_active_fn):
+        return False
+    return bool(is_active_fn(user_id))
+
+
+def _legacy_update_user_public_key(user_id: int, public_key: int) -> bool:
+    if _legacy_user_db is None:
+        return False
+    update_user_fn = getattr(_legacy_user_db, "update_user", None)
+    if not callable(update_user_fn):
+        return False
+    return bool(update_user_fn(user_id, zkp_public_key=str(public_key)))
 
 
 def _get_user_public_key(user_id: int) -> Optional[int]:
@@ -138,7 +197,7 @@ def _get_user_public_key(user_id: int) -> Optional[int]:
     Returns the public key as integer if registered, None otherwise.
     In production, this should query a secure key registry.
     """
-    user = get_user(user_id)
+    user = _legacy_get_user(user_id)
     if not user:
         return None
     
@@ -172,8 +231,7 @@ def _register_user_public_key(user_id: int, public_key: int) -> bool:
     Should only be called during onboarding or in development mode.
     Returns True if registration succeeded.
     """
-    from database import update_user
-    return update_user(user_id, zkp_public_key=str(public_key))
+    return _legacy_update_user_public_key(user_id, public_key)
 
 
 @router.post("/authenticate")
@@ -237,7 +295,7 @@ async def authenticate_client(
         )
     
     # 4. Database Subscription Check
-    if not is_user_active(user_id):
+    if not _legacy_is_user_active(user_id):
         raise HTTPException(status_code=403, detail="Subscription inactive")
     
     # 5. Issue Session Token (cryptographically secure random token)
@@ -380,9 +438,7 @@ async def get_vpn_config(
             scope.get("permission") == "vpn:admin" 
             for scope in getattr(user, "scopes", [])
         )
-        # Handle string user IDs from MaaS
-        str_user_id = str(user_id)
-        if not user_has_admin and str(user.id) != str_user_id:
+        if not user_has_admin and not _ids_equal(user.id, user_id):
             logger.warning(
                 f"User {user.id} attempted to access config for user {user_id}"
             )
@@ -392,7 +448,7 @@ async def get_vpn_config(
             )
     
     try:
-        return _build_vpn_config(user_id, email, username, server, port)
+        return await _build_vpn_config(user_id, email, username, server, port)
     except HTTPException:
         raise
     except Exception as e:
@@ -408,8 +464,31 @@ async def create_vpn_config(
     db: Session = Depends(get_db),
 ) -> VPNConfigResponse:
     """Generate VPN configuration via JSON body (legacy-compatible)."""
-    await _enforce_permission_if_authenticated(request, db, "vpn:config")
-    return _build_vpn_config(
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    user = await _enforce_permission_if_authenticated(request, db, "vpn:config")
+
+    # Keep legacy anonymous behavior in non-production, but fail closed in production.
+    if environment == "production" and user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required in production environment"
+        )
+
+    if user is not None:
+        user_has_admin = any(
+            scope.get("permission") == "vpn:admin"
+            for scope in getattr(user, "scopes", [])
+        )
+        if not user_has_admin and not _ids_equal(user.id, config_req.user_id):
+            logger.warning(
+                f"User {user.id} attempted to create config for user {config_req.user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot access other user's VPN configuration"
+            )
+
+    return await _build_vpn_config(
         config_req.user_id,
         config_req.email,
         config_req.username,
@@ -454,7 +533,12 @@ def _get_vpn_port() -> int:
     return int(port_str)
 
 
-def _build_vpn_config(
+def _is_test_runtime() -> bool:
+    """Return True when running under test harness."""
+    return bool(os.getenv("PYTEST_CURRENT_TEST")) or os.getenv("TESTING", "false").lower() == "true"
+
+
+async def _build_vpn_config(
     user_id: int,
     email: Optional[str],
     username: Optional[str],
@@ -489,16 +573,43 @@ def _build_vpn_config(
         # Override server/port if custom ones provided (for config text only)
         final_server = srv or vpn_info['server']
         final_port = prt or vpn_info['port']
-        final_link = generate_vless_link(
-            vpn_info["uuid"],
-            server=final_server,
-            port=final_port,
-            remark=u_name or f"user_{uid}",
-        )
+        
+        # Check if we should use experimental Reality V2 (port 39830)
+        use_experimental = False
+        if EXPERIMENTAL_AVAILABLE:
+            # If default port is offline, or explicitly requested via port 39830
+            if final_port == 39830:
+                use_experimental = True
+            else:
+                if _is_test_runtime():
+                    conn_status = "online"
+                else:
+                    conn_status = await _check_vpn_connectivity(final_server, final_port)
+                if conn_status == "offline":
+                    logger.info("Default VPN port offline, switching to experimental Reality V2")
+                    use_experimental = True
+                    final_port = 39830
 
-        config_text = generate_config_text(
-            uid, user_uuid=vpn_info['uuid'], server=final_server, port=final_port
-        )
+        if use_experimental and EXPERIMENTAL_AVAILABLE:
+            final_link = generate_experimental_link(
+                vpn_info["uuid"],
+                server=final_server,
+                port=final_port,
+                remark=u_name or f"user_{uid}_experimental"
+            )
+            config_text = generate_experimental_text(
+                uid, user_uuid=vpn_info['uuid'], server=final_server, port=final_port
+            )
+        else:
+            final_link = generate_vless_link(
+                vpn_info["uuid"],
+                server=final_server,
+                port=final_port,
+                remark=u_name or f"user_{uid}",
+            )
+            config_text = generate_config_text(
+                uid, user_uuid=vpn_info['uuid'], server=final_server, port=final_port
+            )
 
         return VPNConfigResponse(
             user_id=uid,

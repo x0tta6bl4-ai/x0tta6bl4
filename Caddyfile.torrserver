@@ -1,0 +1,12 @@
+:80 {
+    # Jackett-compatible endpoint for Lampa when parser_torrent_type=jackett
+    @jackett path /api/v2.0/indexers/*/results
+    handle @jackett {
+        reverse_proxy lampa-bridge:8090
+    }
+
+    # Default TorrServer traffic (parser_torrent_type=torrserver and player paths)
+    handle {
+        reverse_proxy torrserver:8090
+    }
+}

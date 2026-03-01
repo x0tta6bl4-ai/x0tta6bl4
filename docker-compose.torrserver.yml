@@ -14,10 +14,11 @@ services:
   caddy:
     image: caddy:alpine
     container_name: caddy
+    restart: always
     ports:
-      - "8090:443"
+      - "8090:80"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.torrserver:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

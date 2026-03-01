@@ -27,6 +27,10 @@ class PacketType(IntEnum):
     RERR = 3   # Route Error
     HELLO = 4  # Neighbor Hello
     DATA = 5   # Data packet (for forwarding)
+    
+    # PQC Handshake (Custom)
+    HANDSHAKE_INIT = 10
+    HANDSHAKE_RESPONSE = 11
 
 
 @dataclass

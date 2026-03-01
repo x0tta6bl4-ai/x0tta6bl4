@@ -8,9 +8,17 @@ on:
       - "tests/**"
       - "alembic/**"
       - "scripts/golden_smoke_premerge.sh"
+      - "scripts/check_db_bootstrap_chain.py"
+      - "scripts/check_orm_schema_parity.py"
+      - "scripts/check_migration_policy.py"
+      - "scripts/check_api_model_compat.py"
+      - "scripts/check_env_security_defaults.py"
       - "scripts/check_requirements_lock_sync.py"
+      - "scripts/check_api_reproducibility.sh"
+      - "scripts/check_pipeline_stage_contract.py"
       - "requirements.txt"
       - "requirements.lock"
+      - "docs/api/api_model_contract_snapshot.json"
       - ".github/workflows/golden-smoke-premerge.yml"
   push:
     branches: [main, develop]
@@ -19,9 +27,17 @@ on:
       - "tests/**"
       - "alembic/**"
       - "scripts/golden_smoke_premerge.sh"
+      - "scripts/check_db_bootstrap_chain.py"
+      - "scripts/check_orm_schema_parity.py"
+      - "scripts/check_migration_policy.py"
+      - "scripts/check_api_model_compat.py"
+      - "scripts/check_env_security_defaults.py"
       - "scripts/check_requirements_lock_sync.py"
+      - "scripts/check_api_reproducibility.sh"
+      - "scripts/check_pipeline_stage_contract.py"
       - "requirements.txt"
       - "requirements.lock"
+      - "docs/api/api_model_contract_snapshot.json"
       - ".github/workflows/golden-smoke-premerge.yml"
   workflow_dispatch:
 
@@ -33,6 +49,20 @@ jobs:
   golden-smoke-quick:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: x0tta6bl4
+          POSTGRES_PASSWORD: x0tta6bl4
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U x0tta6bl4 -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
 
     steps:
       - name: Checkout
@@ -62,5 +92,9 @@ jobs:
         env:
           PYTEST_TIMEOUT_SECONDS: "2400"
           ALEMBIC_TIMEOUT_SECONDS: "600"
+          DB_BOOTSTRAP_REQUIRE_POSTGRES: "true"
+          DB_BOOTSTRAP_VALIDATE_DOWNGRADE: "true"
+          DB_BOOTSTRAP_DOWNGRADE_STEPS: "3"
+          POSTGRES_BOOTSTRAP_DATABASE_URL: "postgresql://x0tta6bl4:x0tta6bl4@localhost:5432/postgres"
         run: |
           bash scripts/golden_smoke_premerge.sh quick

@@ -234,29 +234,31 @@ class OTLPSpanExporter(SpanExporter):
                 }]
             }
             
-            # Send via HTTP (simplified - in production use grpc or proper HTTP client)
-            import urllib.request
+            # Send via HTTP using unified httpx client
+            import httpx
             
             url = f"{self.endpoint}/v1/traces"
-            data = json.dumps(request_data).encode("utf-8")
             
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    **self.headers,
-                },
-            )
-            
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                if response.status == 200:
-                    return ExportResult(success=True, spans_exported=len(spans))
-                else:
-                    return ExportResult(
-                        success=False,
-                        error=f"OTLP export failed with status {response.status}",
+            try:
+                with httpx.Client(timeout=float(self.timeout)) as client:
+                    response = client.post(
+                        url,
+                        json=request_data,
+                        headers={
+                            "Content-Type": "application/json",
+                            **self.headers,
+                        }
                     )
+                    
+                    if response.status_code == 200:
+                        return ExportResult(success=True, spans_exported=len(spans))
+                    else:
+                        return ExportResult(
+                            success=False,
+                            error=f"OTLP export failed with status {response.status_code}",
+                        )
+            except httpx.RequestError as exc:
+                return ExportResult(success=False, error=f"HTTP Request failed: {exc}")
         
         except Exception as e:
             logger.error(f"OTLP export failed: {e}")
