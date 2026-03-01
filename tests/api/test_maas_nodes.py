@@ -17,7 +17,7 @@ check-access tests create nodes directly in DB.
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -902,6 +902,58 @@ class TestApproveNodeSafety:
 
         node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
         assert node.status == "pending"
+        db.close()
+
+    @pytest.mark.asyncio
+    async def test_approve_node_rejects_revoked_status(self):
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.api.maas_nodes import approve_node
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"approve-admin2-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"approve-admin2-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        db.add(admin)
+
+        mesh_id = f"mesh-revoked-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-revoked-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Revoked Token Mesh",
+                owner_id=admin.id,
+                join_token="valid-token",
+                join_token_expires_at=datetime.utcnow() + timedelta(days=365),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status="revoked",
+            )
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            await approve_node(mesh_id=mesh_id, node_id=node_id, db=db, current_user=admin)
+        assert exc.value.status_code == 409
+        assert "cannot be approved" in str(exc.value.detail).lower()
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "revoked"
         db.close()
 
 
