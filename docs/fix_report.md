@@ -93,6 +93,9 @@ _Дата: 2026-03-01_
 4. `python3 -m py_compile` для всех затронутых модулей
    - Результат: без ошибок.
 
+5. `pytest --no-cov -q tests/api/test_maas_auth.py tests/api/test_maas_playbooks.py tests/api/test_maas_policies.py tests/api/test_maas_billing.py tests/api/test_maas_marketplace.py tests/api/test_vpn_api.py tests/api/test_maas_nodes.py`
+   - Результат: `420 passed`
+
 ## 4) Итог
 
 После блока правок post-Gemini устранены критичные security-contract несоответствия в `maas_security`, `maas_playbooks`, `maas_auth`, `maas_marketplace`, `maas_nodes` и `vpn`, синхронизированы claims в документах и добавлены регрессионные тесты для предотвращения повторного появления этих классов ошибок.
