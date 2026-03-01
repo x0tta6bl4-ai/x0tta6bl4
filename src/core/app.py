@@ -200,6 +200,8 @@ if not is_light_mode:
     _include_maas_router("src.api.users", "users")
     _include_maas_router("src.api.swarm", "swarm")
     _include_maas_router("src.api.ledger_endpoints", "ledger")
+    _include_maas_router("src.api.swarm_endpoints", "swarm-orchestration")
+    _include_maas_router("src.api.vision_endpoints", "vision-analytics")
 
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 _include_maas_router("src.edge.api", "edge-computing")

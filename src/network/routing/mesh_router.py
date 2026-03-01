@@ -110,7 +110,7 @@ class MeshRouter:
     ROUTE_TIMEOUT = 60.0  # секунды
     RREQ_TIMEOUT = 5.0  # таймаут ожидания RREP
 
-    def __init__(self, node_id: str, shared_secret: Optional[bytes] = None):
+    def __init__(self, node_id: str, shared_secret: Optional[bytes] = None, parl_enabled: bool = False):
         self.node_id = node_id
         self.seq_num = 0
         self._shared_secret = shared_secret  # HMAC key for packet authentication
@@ -124,6 +124,17 @@ class MeshRouter:
         # Seen packet IDs (for deduplication)
         self._seen_packets: Set[str] = set()
         self._seen_cleanup_task: Optional[asyncio.Task] = None
+        
+        # PARL Integration (Phase 2, Week 8)
+        self.parl_enabled = parl_enabled
+        self._parl_optimizer = None
+        self._parl_task: Optional[asyncio.Task] = None
+        if self.parl_enabled:
+            try:
+                from src.network.parl_mesh_integration import PARLMeshOptimizer
+                self._parl_optimizer = PARLMeshOptimizer()
+            except ImportError:
+                logger.warning("PARL integration requested but module not found.")
 
         # Callbacks
         self._send_callback: Optional[Callable] = (
@@ -151,6 +162,9 @@ class MeshRouter:
     async def start(self):
         """Запустить router."""
         self._seen_cleanup_task = asyncio.create_task(self._cleanup_seen_packets())
+        if self.parl_enabled and self._parl_optimizer:
+            self._parl_task = asyncio.create_task(self._periodic_parl_optimization())
+            logger.info("PARL Background Optimization started")
         logger.info(f"MeshRouter started for {self.node_id}")
 
     async def stop(self):
@@ -161,7 +175,26 @@ class MeshRouter:
                 await self._seen_cleanup_task
             except asyncio.CancelledError:
                 pass
+        if self._parl_task:
+            self._parl_task.cancel()
+            try:
+                await self._parl_task
+            except asyncio.CancelledError:
+                pass
         logger.info(f"MeshRouter stopped for {self.node_id}")
+
+    async def _periodic_parl_optimization(self):
+        """Периодическая оптимизация маршрутов через PARL."""
+        while True:
+            await asyncio.sleep(60.0) # Оптимизация каждую минуту
+            try:
+                if self._routes:
+                    optimized = await self._parl_optimizer.optimize_routes_parallel(self._routes)
+                    if optimized:
+                        self._routes = optimized
+                        logger.debug("Routing table updated via PARL")
+            except Exception as e:
+                logger.error(f"PARL optimization failed: {e}")
 
     async def _cleanup_seen_packets(self):
         """Периодически очищать кэш обработанных packet_id."""
