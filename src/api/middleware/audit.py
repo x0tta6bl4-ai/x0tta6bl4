@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional, Tuple, Generator
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db
+from src.core.tracing_middleware import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         db, generator = self._resolve_db(request)
         try:
             user_id = self._resolve_user_id(db, request)
+            user_agent = request.headers.get("User-Agent")
+            correlation_id = get_correlation_id()
 
             # Create Audit Log entry
             audit_entry = AuditLog(
@@ -157,7 +160,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
                 payload=payload,
                 status_code=response.status_code,
-                ip_address=request.client.host if request.client else None
+                ip_address=request.client.host if request.client else None,
+                user_agent=user_agent,
+                correlation_id=correlation_id
             )
             db.add(audit_entry)
             db.commit()

@@ -702,6 +702,42 @@ class TestPQCTokenSignerVault:
 
         assert secret == "env-fallback-secret"
 
+    def test_get_hmac_secret_vault_failure_raises_in_production_without_env_secret(self):
+        """Production mode must fail closed when both Vault and env fallback are unavailable."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", side_effect=Exception("vault down")):
+            with patch.dict(
+                os.environ,
+                {"ENVIRONMENT": "production", "X0TTA6BL4_PRODUCTION": "true"},
+                clear=False,
+            ):
+                with patch.dict(os.environ, {"MAAS_TOKEN_SECRET": ""}, clear=False):
+                    with pytest.raises(
+                        RuntimeError,
+                        match="MAAS_TOKEN_SECRET must be configured",
+                    ):
+                        signer._get_hmac_secret()
+
+    def test_get_hmac_secret_vault_failure_non_prod_uses_stable_ephemeral_secret(self):
+        """Non-production mode may use an in-memory fallback, stable within signer instance."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", side_effect=Exception("vault down")):
+            with patch.dict(
+                os.environ,
+                {"ENVIRONMENT": "development", "X0TTA6BL4_PRODUCTION": "false"},
+                clear=False,
+            ):
+                with patch.dict(os.environ, {"MAAS_TOKEN_SECRET": ""}, clear=False):
+                    first = signer._get_hmac_secret()
+                    second = signer._get_hmac_secret()
+
+        assert isinstance(first, str) and len(first) >= 32
+        assert first == second
+
     def test_sign_token_pqc_exception_falls_through_to_hmac(self):
         """PQC signer raises on sign() → falls through to HMAC-SHA256."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):

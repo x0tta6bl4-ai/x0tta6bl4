@@ -101,7 +101,7 @@ def train_model(epochs=100, lr=0.01):
     print(f"   Learning rate: {lr}")
 
     # Модель
-    model = GraphSAGEAnomalyDetectorV2(input_dim=8, hidden_dim=64, output_dim=2)
+    model = GraphSAGEAnomalyDetectorV2(input_dim=8, hidden_dim=64)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 

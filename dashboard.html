@@ -6,6 +6,33 @@
     <title>Dashboard | x0tta6bl4 MaaS</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .glitch-active {
+            animation: glitch 0.3s infinite;
+            filter: hue-rotate(90deg) brightness(1.2);
+            pointer-events: none; /* Make it hard to ignore but usable */
+        }
+        .glitch-active::after {
+            content: "SYSTEM BREACH / DB OFFLINE";
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #ff4444;
+            color: black;
+            padding: 5px 15px;
+            font-weight: bold;
+            z-index: 10000;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body class="dashboard-theme">
     <div class="dashboard-container">
@@ -18,6 +45,7 @@
                 <div class="nav-item" data-tab="marketplace" onclick="showTab('marketplace')">🛒 Marketplace</div>
                 <div class="nav-item" data-tab="nodes" onclick="showTab('nodes')">🖥 Nodes</div>
                 <div class="nav-item" data-tab="billing" onclick="showTab('billing')">💳 Billing</div>
+                <div class="nav-item" data-tab="keys" onclick="showTab('keys')">🔑 API Keys</div>
                 <div class="nav-item" data-tab="audit" onclick="showTab('audit')">📋 Audit Logs</div>
                 <div style="margin-top: 40px; cursor: pointer; color: #ff4444; padding: 12px 15px; border-radius: 8px;" onclick="logout()" onmouseover="this.style.background='rgba(255,68,68,0.1)'" onmouseout="this.style.background='transparent'">← Выход</div>
             </nav>
@@ -46,8 +74,12 @@
                         <div id="stat-hw-nodes" class="value">0</div>
                     </div>
                     <div class="stat-card">
-                        <h3>Security Level</h3>
-                        <div class="value" style="color: #4ade80;">Enterprise</div>
+                        <h3>DB Circuit Breaker</h3>
+                        <div id="db-cb-state" class="value" style="font-size: 24px; color: #4ade80;">CLOSED</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Cache Backend</h3>
+                        <div id="cache-backend" class="value" style="font-size: 24px;">REDIS</div>
                     </div>
                 </div>
 
@@ -87,7 +119,41 @@
 
             <!-- TAB: NODES -->
             <div id="tab-nodes" class="tab-content" style="display:none;">
-                <div class="section-title"><h2>Управление узлами</h2></div>
+                <div class="section-title">
+                    <h2>Управление узлами</h2>
+                    <button class="btn-pay" onclick="showProvisioningWizard()">+ Add Node</button>
+                </div>
+                
+                <!-- Provisioning Wizard Modal -->
+                <div id="wizard-modal" class="modal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-blur: 5px;">
+                    <div class="stat-card" style="width: 500px; background: #111; border: 1px solid #333; padding: 30px;">
+                        <h2 style="margin-bottom: 20px;">Deploy New Node</h2>
+                        <div id="wizard-form">
+                            <label style="display:block; font-size: 12px; color: #aaa; margin-bottom: 5px;">Device Name</label>
+                            <input type="text" id="wiz-name" placeholder="e.g. My-Edge-Node" style="width:100%; background:#000; border:1px solid #333; color:white; padding:10px; border-radius:8px; margin-bottom:15px;">
+                            
+                            <label style="display:block; font-size: 12px; color: #aaa; margin-bottom: 5px;">Device Class</label>
+                            <select id="wiz-class" style="width:100%; background:#000; border:1px solid #333; color:white; padding:10px; border-radius:8px; margin-bottom:20px;">
+                                <option value="generic">Generic Linux</option>
+                                <option value="server">Server (High Bandwidth)</option>
+                                <option value="edge">Edge Device (Low Power)</option>
+                            </select>
+                            
+                            <button class="btn-pay" style="width:100%;" onclick="generateSetup()">Generate Setup Script</button>
+                            <button class="btn-pay" style="width:100%; margin-top:10px; background: #333; color: white;" onclick="closeWizard()">Cancel</button>
+                        </div>
+                        
+                        <div id="wizard-result" style="display:none;">
+                            <p style="color: #4ade80; font-weight: bold;">Setup generated successfully! 🎉</p>
+                            <p style="font-size: 12px; color: #aaa; margin: 15px 0 5px 0;">Run this on your target device:</p>
+                            <div style="background: #000; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 11px; border: 1px solid #222; word-break: break-all; color: #00f2ff;" id="wiz-cmd">
+                                curl -sSL ... | bash
+                            </div>
+                            <button class="btn-pay" style="width:100%; margin-top:20px;" onclick="closeWizard()">Done</button>
+                        </div>
+                    </div>
+                </div>
+
                 <h3>Ожидают одобрения (Pending)</h3>
                 <table class="data-table" id="pending-nodes-table">
                     <thead><tr><th>Node ID</th><th>Class</th><th>Attestation</th><th>Action</th></tr></thead>
@@ -133,6 +199,17 @@
                 </table>
             </div>
 
+            <!-- TAB: API KEYS -->
+            <div id="tab-keys" class="tab-content" style="display:none;">
+                <div class="section-title"><h2>Управление API ключами</h2></div>
+                <p style="color: var(--text-gray); margin-bottom: 20px;">Эти ключи позволяют получать доступ к API x0tta6bl4 программно. Храните их в секрете.</p>
+                <table class="data-table" id="keys-table">
+                    <thead><tr><th>Название</th><th>Ключ</th><th>Дата создания</th><th>Действие</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button class="btn-pay" style="margin-top: 20px;" onclick="alert('Multiple keys support is coming in Enterprise version')">+ Создать новый ключ</button>
+            </div>
+
             <!-- TAB: AUDIT -->
             <div id="tab-audit" class="tab-content" style="display:none;">
                 <div class="section-title"><h2>Audit Log</h2></div>
@@ -169,6 +246,25 @@
             if (tabName === 'nodes') loadPendingNodes();
             if (tabName === 'billing') fetchDashboard();
             if (tabName === 'audit') fetchDashboard();
+            if (tabName === 'keys') loadApiKeys();
+        }
+
+        async function loadApiKeys() {
+            try {
+                const response = await fetch('/api/v1/maas/auth/keys', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                const keys = await response.json();
+                const tbody = document.querySelector('#keys-table tbody');
+                tbody.innerHTML = keys.map(k => `
+                    <tr>
+                        <td>${k.name}</td>
+                        <td><code>${k.key_masked}</code></td>
+                        <td>${new Date(k.created_at).toLocaleDateString()}</td>
+                        <td><button class="btn-pay" style="padding: 5px 10px; font-size: 10px; background: #333;" onclick="alert('Key deletion is disabled for primary key')">Отозвать</button></td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error("Load keys error:", e); }
         }
 
         async function fetchDashboard() {
@@ -195,6 +291,24 @@
                 // Stats
                 document.getElementById('stat-meshes').textContent = data.stats.total_meshes;
                 document.getElementById('stat-hw-nodes').textContent = data.stats.security.HARDWARE_ROOTED;
+
+                // Resilience (P2)
+                const resi = data.resilience;
+                if (resi) {
+                    const cbEl = document.getElementById('db-cb-state');
+                    cbEl.textContent = resi.db_circuit_breaker.state.toUpperCase();
+                    cbEl.style.color = resi.db_circuit_breaker.is_open ? '#ff4444' : '#4ade80';
+                    
+                    if (resi.db_circuit_breaker.is_open) {
+                        document.body.classList.add('glitch-active');
+                    } else {
+                        document.body.classList.remove('glitch-active');
+                    }
+                    
+                    const cacheEl = document.getElementById('cache-backend');
+                    cacheEl.textContent = resi.cache.backend.toUpperCase();
+                    cacheEl.style.color = resi.cache.backend === 'redis' ? '#4ade80' : '#fbbf24';
+                }
 
                 // Meshes
                 const meshBody = document.querySelector('#mesh-table tbody');
@@ -382,56 +496,121 @@
             } catch (e) { console.error("Analytics load error:", e); }
         }
 
-        function drawTopology(meshId) {
-            const canvas = document.getElementById('topoCanvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
+        let topoSimulation = null;
+        async function drawTopology(meshId) {
             const container = document.getElementById('topology-container');
-            canvas.width = container.clientWidth; 
-            canvas.height = container.clientHeight;
-
-            let nodes = Array.from({length: 12}, (_, i) => ({
-                id: i, 
-                x: Math.random()*canvas.width, 
-                y: Math.random()*canvas.height, 
-                vx: (Math.random()-0.5) * 0.8, 
-                vy: (Math.random()-0.5) * 0.8
-            }));
-
-            function animate() {
-                ctx.clearRect(0,0,canvas.width, canvas.height);
-                
-                // Links
-                ctx.strokeStyle = 'rgba(0, 242, 255, 0.1)';
-                ctx.lineWidth = 1;
-                nodes.forEach((n, i) => {
-                    nodes.slice(i+1).forEach(n2 => {
-                        const dist = Math.hypot(n.x-n2.x, n.y-n2.y);
-                        if (dist < 180) {
-                            ctx.beginPath(); 
-                            ctx.moveTo(n.x, n.y); 
-                            ctx.lineTo(n2.x, n2.y); 
-                            ctx.stroke();
-                        }
-                    });
-                    
-                    // Update pos
-                    n.x += n.vx; n.y += n.vy;
-                    if (n.x<0 || n.x>canvas.width) n.vx *= -1;
-                    if (n.y<0 || n.y>canvas.height) n.vy *= -1;
-                    
-                    // Draw node
-                    ctx.fillStyle = '#00f2ff';
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = '#00f2ff';
-                    ctx.beginPath(); 
-                    ctx.arc(n.x, n.y, 3, 0, Math.PI*2); 
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            // Clear previous simulation/canvas
+            container.innerHTML = '<svg id="topo-svg" style="width:100%; height:100%;"></svg>';
+            
+            try {
+                const response = await fetch(`/api/v1/maas/${meshId}/topology`, {
+                    headers: { 'X-API-Key': apiKey }
                 });
-                requestAnimationFrame(animate);
+                if (!response.ok) return;
+                const data = await response.json();
+                
+                const svg = d3.select("#topo-svg");
+                const g = svg.append("g");
+
+                // Zoom support
+                svg.call(d3.zoom().on("zoom", (event) => {
+                    g.attr("transform", event.transform);
+                }));
+
+                const simulation = d3.forceSimulation(data.nodes)
+                    .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
+                    .force("charge", d3.forceManyBody().strength(-200))
+                    .force("center", d3.forceCenter(width / 2, height / 2));
+
+                const link = g.append("g")
+                    .attr("stroke", "#333")
+                    .attr("stroke-opacity", 0.6)
+                    .selectAll("line")
+                    .data(data.links)
+                    .join("line")
+                    .attr("stroke", d => d.secure ? "#4ade80" : "#ff4444")
+                    .attr("stroke-width", d => Math.sqrt(d.quality * 5) || 1);
+
+                // Add "pulses" for active links
+                const pulse = g.append("g")
+                    .selectAll("circle")
+                    .data(data.links)
+                    .join("circle")
+                    .attr("r", 2)
+                    .attr("fill", "#4ade80")
+                    .style("opacity", 0);
+
+                function animatePulses() {
+                    pulse.style("opacity", 1)
+                        .transition()
+                        .duration(2000)
+                        .attrTween("cx", d => t => d.source.x + (d.target.x - d.source.x) * t)
+                        .attrTween("cy", d => t => d.source.y + (d.target.y - d.source.y) * t)
+                        .on("end", animatePulses);
+                }
+                animatePulses();
+
+                const node = g.append("g")
+                    .selectAll("g")
+                    .data(data.nodes)
+                    .join("g")
+                    .call(d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended));
+
+                node.append("circle")
+                    .attr("r", 8)
+                    .attr("fill", d => d.status === "healthy" ? "#4ade80" : "#ff4444")
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 2)
+                    .style("filter", "drop-shadow(0 0 5px #4ade80)");
+
+                node.append("text")
+                    .text(d => d.id.split('-').pop()) // Short ID
+                    .attr("x", 12)
+                    .attr("y", 4)
+                    .style("fill", "#aaa")
+                    .style("font-size", "10px")
+                    .style("font-family", "monospace");
+
+                simulation.on("tick", () => {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node.attr("transform", d => `translate(${d.x},${d.y})`);
+                    
+                    pulse
+                        .attr("cx", d => d.source.x)
+                        .attr("cy", d => d.source.y);
+                });
+
+                function dragstarted(event) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    event.subject.fx = event.subject.x;
+                    event.subject.fy = event.subject.y;
+                }
+                function dragged(event) {
+                    event.subject.fx = event.x;
+                    event.subject.fy = event.y;
+                }
+                function dragended(event) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    event.subject.fx = null;
+                    event.subject.fy = null;
+                }
+
+                topoSimulation = simulation;
+
+            } catch (e) {
+                console.error("Topology error:", e);
             }
-            animate();
         }
 
         async function deployMesh() {
@@ -547,6 +726,61 @@
             } catch (err) {
                 console.error(err);
                 alert(`Failed to approve node ${nodeId}`);
+            }
+        }
+
+        // --- Provisioning Wizard ---
+        function showProvisioningWizard() {
+            document.getElementById('wizard-modal').style.display = 'flex';
+            document.getElementById('wizard-form').style.display = 'block';
+            document.getElementById('wizard-result').style.display = 'none';
+        }
+
+        function closeWizard() {
+            document.getElementById('wizard-modal').style.display = 'none';
+        }
+
+        async function generateSetup() {
+            const name = document.getElementById('wiz-name').value;
+            const devClass = document.getElementById('wiz-class').value;
+            
+            if (!name) return alert('Enter device name');
+
+            const btn = event.target;
+            btn.innerText = 'Generating...';
+            btn.disabled = true;
+
+            try {
+                const summaryResp = await fetch('/api/v1/maas/dashboard/summary', { headers: { 'X-API-Key': apiKey } });
+                const summary = await summaryResp.json();
+                if (!summary.meshes.length) throw new Error("No meshes found");
+                const meshId = summary.meshes[0].id;
+
+                const response = await fetch('/api/v1/maas/provisioning/generate-setup', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey 
+                    },
+                    body: JSON.stringify({
+                        mesh_id: meshId,
+                        device_name: name,
+                        device_class: devClass
+                    })
+                });
+
+                if (!response.ok) throw new Error('Provisioning failed');
+                const data = await response.json();
+
+                document.getElementById('wiz-cmd').textContent = data.install_command;
+                document.getElementById('wizard-form').style.display = 'none';
+                document.getElementById('wizard-result').style.display = 'block';
+
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.innerText = 'Generate Setup Script';
+                btn.disabled = false;
             }
         }
 

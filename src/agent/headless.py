@@ -160,9 +160,20 @@ class HeadlessAgent:
         if action_type == "exec":
             cmd = params.get("command")
             if cmd:
-                import subprocess
-                subprocess.run(cmd, shell=True, capture_output=True)
-        
+                import shlex
+                import asyncio
+                args = shlex.split(cmd)
+                try:
+                    # P2: Async execution to prevent blocking event loop
+                    process = await asyncio.create_subprocess_exec(
+                        *args,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    logger.debug(f"Async exec completed with code {process.returncode}")
+                except Exception as e:
+                    logger.error(f"Failed to start async process: {e}")        
         elif action_type == "ban_peer":
             peer_id = params.get("peer_id")
             if peer_id:

@@ -850,6 +850,61 @@ class TestCheckAccess:
         assert data["reason"] == "source or target node is not approved"
 
 
+class TestApproveNodeSafety:
+    """Direct safety checks for approve_node flow in src.api.maas_nodes."""
+
+    @pytest.mark.asyncio
+    async def test_approve_node_expired_mesh_token_does_not_commit_status(self):
+        from fastapi import HTTPException
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.api.maas_nodes import approve_node
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        admin = User(
+            id=f"adm-{uuid.uuid4().hex[:8]}",
+            email=f"approve-admin-{uuid.uuid4().hex[:8]}@test.local",
+            password_hash="test-hash",
+            api_key=f"approve-admin-{uuid.uuid4().hex}",
+            role="admin",
+        )
+        db.add(admin)
+
+        mesh_id = f"mesh-expired-{uuid.uuid4().hex[:8]}"
+        node_id = f"node-expired-{uuid.uuid4().hex[:8]}"
+        db.add(
+            MeshInstance(
+                id=mesh_id,
+                name="Expired Token Mesh",
+                owner_id=admin.id,
+                join_token="expired-token",
+                join_token_expires_at=datetime.utcnow(),
+                status="active",
+            )
+        )
+        db.add(
+            MeshNode(
+                id=node_id,
+                mesh_id=mesh_id,
+                device_class="edge",
+                status="pending",
+            )
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            await approve_node(mesh_id=mesh_id, node_id=node_id, db=db, current_user=admin)
+        assert exc.value.status_code == 409
+
+        node = db.query(MeshNode).filter(MeshNode.id == node_id).first()
+        assert node.status == "pending"
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Unit-style tests for node utility functions (no TestClient needed)
 # ---------------------------------------------------------------------------
@@ -1239,6 +1294,50 @@ class TestMeshOperatorMethods:
         assert op.has_permission(MeshPermission.MESH_READ) is False
         assert op.has_any_permission({MeshPermission.MESH_READ}) is False
         assert op.has_all_permissions(set()) is True  # empty subset is always True
+
+    def test_expand_permission_aliases_maps_view_to_read(self):
+        from src.api.maas_nodes import MeshPermission, _expand_permission_aliases
+        expanded = _expand_permission_aliases({MeshPermission.TELEMETRY_VIEW, MeshPermission.ACL_UPDATE})
+        assert MeshPermission.TELEMETRY_READ in expanded
+        assert MeshPermission.TELEMETRY_VIEW in expanded
+        assert MeshPermission.ACL_WRITE in expanded
+        assert MeshPermission.ACL_UPDATE in expanded
+
+    def test_owner_role_includes_node_management_permissions(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.database import Base, User, MeshInstance
+        from src.api.maas_nodes import MeshOperator, MeshPermission
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        owner = User(
+            id="owner-1",
+            email="owner@example.com",
+            password_hash="$2b$12$fakehash" + "x" * 53,
+            api_key="owner-key",
+            role="user",
+        )
+        db.add(owner)
+        db.add(
+            MeshInstance(
+                id="mesh-owner-perms",
+                name="Owner Mesh",
+                owner_id=owner.id,
+                status="active",
+            )
+        )
+        db.commit()
+        db.refresh(owner)
+
+        operator = MeshOperator(owner, "mesh-owner-perms", db)
+        assert operator.has_permission(MeshPermission.NODE_APPROVE) is True
+        assert operator.has_permission(MeshPermission.NODE_REVOKE) is True
+        assert operator.has_permission(MeshPermission.NODE_HEAL) is True
+        db.close()
 
 
 # ---------------------------------------------------------------------------

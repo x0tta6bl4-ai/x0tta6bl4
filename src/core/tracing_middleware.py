@@ -93,6 +93,13 @@ class TracingMiddleware(BaseHTTPMiddleware):
             correlation_id = str(uuid.uuid4())
         correlation_id_var.set(correlation_id)
 
+        # Extract API key for context/spans
+        api_key = request.headers.get("X-API-Key", "anonymous")
+        if api_key == "anonymous" and "Authorization" in request.headers:
+            auth_val = request.headers.get("Authorization", "")
+            if auth_val.startswith("Bearer "):
+                api_key = f"bearer_{auth_val[7:15]}"
+
         # If OpenTelemetry not available, just add correlation ID
         if not OTEL_AVAILABLE or not self.tracer:
             start_time = time.time()
@@ -101,10 +108,11 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
             response.headers["X-Correlation-ID"] = correlation_id
             response.headers["X-Request-Duration"] = f"{duration:.3f}s"
+            response.headers["X-API-Key-ID"] = api_key  # Add for visibility
 
             logger.debug(
                 f"{request.method} {path} - {response.status_code} "
-                f"({duration:.3f}s) [correlation_id={correlation_id}]"
+                f"({duration:.3f}s) [correlation_id={correlation_id}, api_key={api_key}]"
             )
             return response
 
@@ -123,6 +131,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
             span.set_attribute("http.path", path)
             span.set_attribute("http.host", request.url.hostname or "unknown")
             span.set_attribute("http.scheme", request.url.scheme)
+            span.set_attribute("http.api_key", api_key)  # Added api_key attribute
             span.set_attribute("correlation_id", correlation_id)
 
             # Client info

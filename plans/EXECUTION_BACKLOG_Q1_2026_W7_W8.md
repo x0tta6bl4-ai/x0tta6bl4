@@ -166,14 +166,16 @@ Each factor is 1-5 (max score = 20).
 
 ## Stream 5 (P1): Roadmap Source-of-Truth Cleanup
 
+**Status:** ✅ Completed (2026-02-27)
+
 ### Problem
 - Planning docs contain conflicting statuses (done vs not started).
 - Causes duplicate/redundant work and wrong priority calls.
 
 ### Tasks
-- Pick one canonical planning entrypoint (proposed: `plans/` + `docs/roadmap.md`).
-- Mark archived docs as historical and non-authoritative.
-- Publish one live status table with:
+- [x] Pick one canonical planning entrypoint (`plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md` + `docs/roadmap.md` redirect).
+- [x] Mark archived docs as historical and non-authoritative (source precedence policy in canonical roadmap docs).
+- [x] Publish one live status table with:
   - owner,
   - status,
   - next milestone,
@@ -183,9 +185,9 @@ Each factor is 1-5 (max score = 20).
 - Architect (primary), GTM (external narrative sync).
 
 ### Definition of Done
-- One canonical roadmap file linked from root-level docs.
-- Historical/archival plans clearly labeled.
-- No contradictory status for top 10 initiatives.
+- [x] One canonical roadmap file linked from root-level docs.
+- [x] Historical/archival plans clearly labeled.
+- [x] No contradictory status for top 10 initiatives.
 
 ### Dependencies
 - None.

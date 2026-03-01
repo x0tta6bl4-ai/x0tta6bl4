@@ -41,10 +41,10 @@
 - [x] Mobile SDK Core — C-API headers & Python Bridge
 - [x] Public Node Program — Enrollment flow & Governance rewards
 
-## Project Status: v3.4.0-PRODUCTION-READY
+## Project Status: v3.4.0 Feature Scope Complete (Release-Hardening)
 - Tech: 95% (Scalable, Secured, Distributed)
 - Commercial: 85% (Invoicing, Marketplace, Plans ready)
-- **Goal Achieved: Ready for $10K MRR target.**
+- **Goal Achieved: Scope for $10K MRR pilots is complete; production go-live is gated by `plans/MASTER_100_READINESS_TODOS_2026-02-26.md`.**
 
 ## Commercial Readiness
 - [x] Plan catalog endpoint (`starter/pro/enterprise`)

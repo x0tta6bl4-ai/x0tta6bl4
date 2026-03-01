@@ -30,21 +30,27 @@ class MetricsRegistry:
     request_count = Counter(
         "x0tta6bl4_requests_total",
         "Всего HTTP запросов",
-        ["method", "endpoint", "status"],
+        ["method", "endpoint", "status", "api_key"],
         registry=_metrics_registry,
     )
 
     request_duration = Histogram(
         "x0tta6bl4_request_duration_seconds",
         "Задержка HTTP запроса в секундах",
-        ["method", "endpoint"],
+        ["method", "endpoint", "api_key"],
         buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
         registry=_metrics_registry,
     )
 
     db_connections_active = Gauge(
         "x0tta6bl4_db_connections_active",
-        "Количество активных подключений к БД",
+        "Количество активных соединений с БД",
+        registry=_metrics_registry,
+    )
+
+    db_circuit_breaker_state = Gauge(
+        "x0tta6bl4_db_circuit_breaker_state",
+        "Состояние предохранителя БД (0=CLOSED, 1=OPEN, 2=HALF_OPEN)",
         registry=_metrics_registry,
     )
 
@@ -731,6 +737,19 @@ class MetricsMiddleware:
 
         import time
 
+        # Extract API key from headers
+        api_key = "anonymous"
+        for header_name, header_value in scope.get("headers", []):
+            if header_name == b"x-api-key":
+                api_key = header_value.decode("utf-8")[:32]  # Truncate for safety
+                break
+            elif header_name == b"authorization":
+                auth_val = header_value.decode("utf-8")
+                if auth_val.startswith("Bearer "):
+                    # Use a hash or first part of token as api_key to avoid Cardinality Explosion
+                    api_key = f"bearer_{auth_val[7:15]}"
+                    break
+
         start_time = time.time()
         status = 500
 
@@ -746,13 +765,19 @@ class MetricsMiddleware:
         except Exception:
             duration = time.time() - start_time
             metrics = _get_singleton_metrics()
-            metrics.request_count.labels(method=method, endpoint=path, status=status).inc()
-            metrics.request_duration.labels(method=method, endpoint=path).observe(
-                duration
-            )
+            metrics.request_count.labels(
+                method=method, endpoint=path, status=500, api_key=api_key
+            ).inc()
+            metrics.request_duration.labels(
+                method=method, endpoint=path, api_key=api_key
+            ).observe(duration)
             raise
 
         duration = time.time() - start_time
         metrics = _get_singleton_metrics()
-        metrics.request_count.labels(method=method, endpoint=path, status=status).inc()
-        metrics.request_duration.labels(method=method, endpoint=path).observe(duration)
+        metrics.request_count.labels(
+            method=method, endpoint=path, status=status, api_key=api_key
+        ).inc()
+        metrics.request_duration.labels(
+            method=method, endpoint=path, api_key=api_key
+        ).observe(duration)
