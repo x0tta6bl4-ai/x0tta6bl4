@@ -54,7 +54,7 @@ DEFAULT_PROFILES: Dict[str, AgentProfile] = {
         skill_path="skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
         role_file="ai/roles/architect.md",
         command=(
-            "python3 -m pytest -q "
+            "python3 -m pytest -q --no-cov "
             "tests/unit/core/test_app_endpoints.py "
             "tests/unit/core/test_demo_api_unit.py"
         ),
@@ -76,7 +76,7 @@ DEFAULT_PROFILES: Dict[str, AgentProfile] = {
         skill_path="skills/deploy-mesh-node/SKILL.md",
         role_file=None,
         command=(
-            "python3 -m pytest -q "
+            "python3 -m pytest -q --no-cov "
             "tests/unit/network/routing/test_mesh_router_unit.py "
             "tests/unit/network/test_mesh_routing_unit.py "
             "tests/network/test_mesh_router.py"

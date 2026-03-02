@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import runpy
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy
@@ -23,10 +23,17 @@ def test_postgresql_url_branch_uses_plain_create_engine(monkeypatch):
 
     def _fake_create_engine(url, **kwargs):
         calls.append((url, kwargs))
-        return object()
+        return MagicMock()
+
+    def _noop_listens_for(target, identifier, *args, **kwargs):
+        """No-op decorator — avoids SQLAlchemy inspection of MagicMock engine."""
+        def decorator(fn):
+            return fn
+        return decorator
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/x0tta6bl4")
     monkeypatch.setattr(sqlalchemy, "create_engine", _fake_create_engine)
+    monkeypatch.setattr(sqlalchemy.event, "listens_for", _noop_listens_for)
 
     ns = _run_database_module()
 
