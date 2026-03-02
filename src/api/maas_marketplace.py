@@ -51,6 +51,18 @@ _idempotency_lock = Lock()
 _token_bridge: Optional[TokenBridge] = None
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _allow_insecure_escrow_fallback() -> bool:
+    # Escape hatch for local debugging only. Keep secure-by-default in production.
+    return _env_flag("MAAS_MARKETPLACE_ALLOW_INSECURE_ESCROW_FALLBACK", False)
+
+
 def _normalize_identity(value: Any) -> str:
     """Normalize user identity across legacy str/int representations."""
     if value is None:
@@ -572,6 +584,8 @@ async def rent_node(
             # Note: Using run_until_complete simulation or similar if needed, 
             # but here we are in an async function.
             tx_hash = await bridge.lock_escrow_on_chain(escrow_id, renter_id, amount_token)
+            if not tx_hash:
+                raise RuntimeError("lock_escrow_on_chain returned empty transaction hash")
             
             if has_ledger_state:
                 logger.info(
@@ -591,10 +605,17 @@ async def rent_node(
         except HTTPException:
             raise
         except ImportError:
-            # Token system not available - allow for development/testing
-            logger.warning("Token system not available, skipping balance check")
+            if _allow_insecure_escrow_fallback():
+                logger.warning("Token system unavailable, using insecure escrow fallback")
+            else:
+                logger.error("Token system unavailable; refusing X0T rent for escrow %s", escrow_id)
+                raise HTTPException(status_code=502, detail="Token bridge unavailable")
         except Exception as e:
-            logger.warning(f"Token system integration error: {e}")
+            if _allow_insecure_escrow_fallback():
+                logger.warning("Token integration error, using insecure fallback: %s", e)
+            else:
+                logger.error("Token bridge lock failed for escrow %s: %s", escrow_id, e)
+                raise HTTPException(status_code=502, detail="Failed to lock X0T escrow")
     else:
         amount_cents = _to_cents(float(listing["price_per_hour"]) * total_multiplier) * hours
 
@@ -698,8 +719,14 @@ async def release_escrow(
             raise HTTPException(status_code=409, detail="Escrow state mismatch")
         # 1. Release on-chain if X0T
         if escrow.currency == "X0T":
-            bridge = _get_token_bridge()
-            await bridge.release_escrow_on_chain(escrow.id)
+            try:
+                bridge = _get_token_bridge()
+                released = await bridge.release_escrow_on_chain(escrow.id)
+            except Exception as exc:
+                logger.error("Escrow release bridge error for %s: %s", escrow.id, exc)
+                raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
+            if not released:
+                raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
 
         escrow.status = "released"
         escrow.released_at = datetime.fromisoformat(released_at)
@@ -764,8 +791,14 @@ async def refund_escrow(
             raise HTTPException(status_code=409, detail="Escrow state mismatch")
         # 1. Refund on-chain if X0T
         if escrow.currency == "X0T":
-            bridge = _get_token_bridge()
-            await bridge.refund_escrow_on_chain(escrow.id)
+            try:
+                bridge = _get_token_bridge()
+                refunded = await bridge.refund_escrow_on_chain(escrow.id)
+            except Exception as exc:
+                logger.error("Escrow refund bridge error for %s: %s", escrow.id, exc)
+                raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
+            if not refunded:
+                raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
 
         escrow.status = "refunded"
         row.status = "available"

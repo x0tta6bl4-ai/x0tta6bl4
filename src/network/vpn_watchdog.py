@@ -41,7 +41,7 @@ logging.basicConfig(
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
-VPN_PORT = int(os.getenv("VPN_PORT", "39829"))
+VPN_PORT = int(os.getenv("VPN_PORT", "443"))
 SOCKS_HOST = os.getenv("VPN_SOCKS_HOST", "127.0.0.1")
 SOCKS_PORT = int(os.getenv("VPN_SOCKS_PORT", "10808"))
 METRICS_PORT = int(os.getenv("VPN_WATCHDOG_METRICS_PORT", "9091"))
