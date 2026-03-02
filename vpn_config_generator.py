@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # VPN Server Configuration
 VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
-VPN_PORT = int(os.getenv("VPN_PORT", "39829"))
+VPN_PORT = int(os.getenv("VPN_PORT", "443"))
 
 # Rotating Reality Configuration - Load from environment or use defaults with rotation support
 REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww")
@@ -72,11 +72,12 @@ ROTATING_SPIDERX_OPTIONS = [
     "/watch?v=dQw4w9WgXcQ"
 ]
 
-# Default Reality parameters (randomized for each config)
-REALITY_SNI = os.getenv("REALITY_SNI", random.choice(ROTATING_SNI_OPTIONS))
+# Default Reality parameters (stable by default, optional rotation via env)
+ENABLE_OBFUSCATION_ROTATION = os.getenv("VPN_ROTATE_OBFUSCATION", "false").lower() == "true"
+REALITY_SNI = os.getenv("REALITY_SNI", "google.com")
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "6b")
-REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", random.choice(ROTATING_FINGERPRINT_OPTIONS))
-REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", random.choice(ROTATING_SPIDERX_OPTIONS))
+REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "chrome")
+REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
 
 # ✅ SECURITY FIX: Removed DEFAULT_UUID - always require user_uuid
 # If REALITY_PRIVATE_KEY is not set, raise error
@@ -138,10 +139,18 @@ def generate_vless_link(
     if user_uuid is None:
         raise ValueError("user_uuid is required! Cannot generate config without unique UUID. This is a security requirement.")
     
-    # Use random parameters if not provided
-    sni = sni or random.choice(ROTATING_SNI_OPTIONS)
-    fingerprint = fingerprint or random.choice(ROTATING_FINGERPRINT_OPTIONS)
-    spiderx = spiderx or random.choice(ROTATING_SPIDERX_OPTIONS)
+    # Use stable defaults for better mobile reliability.
+    # Optional rotation can be enabled via VPN_ROTATE_OBFUSCATION=true.
+    if sni is None:
+        sni = random.choice(ROTATING_SNI_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SNI
+    if fingerprint is None:
+        fingerprint = (
+            random.choice(ROTATING_FINGERPRINT_OPTIONS)
+            if ENABLE_OBFUSCATION_ROTATION
+            else REALITY_FINGERPRINT
+        )
+    if spiderx is None:
+        spiderx = random.choice(ROTATING_SPIDERX_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SPIDERX
     
     # Encode SpiderX path
     spiderx_encoded = urllib.parse.quote(spiderx, safe='')
@@ -417,4 +426,3 @@ class XUIAPIClient:
         except Exception as e:
             logger.error(f"Failed to delete user {email} from x-ui: {e}")
             return False
-
