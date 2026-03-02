@@ -71,6 +71,13 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 PROVIDER_TOKEN = os.getenv("TELEGRAM_PAYMENT_TOKEN", "")  # От @BotFather
 TRIAL_DAYS = 7
 MONTHLY_PRICE = 1000  # $10 в центах (или 700₽ через YooMoney)
+VPN_SERVER_DISPLAY = os.getenv("VPN_SERVER", "89.125.1.107")
+VPN_PORT_DISPLAY = os.getenv("VPN_PORT", "443")
+VPN_ENDPOINT_DISPLAY = f"{VPN_SERVER_DISPLAY}:{VPN_PORT_DISPLAY}"
+VPN_LANDING_URL = os.getenv(
+    "VPN_LANDING_URL",
+    f"https://{VPN_SERVER_DISPLAY}:8080/landing.html",
+)
 
 if not BOT_TOKEN:
     logger.error("TELEGRAM_BOT_TOKEN not set!")
@@ -152,7 +159,7 @@ async def cmd_start(message: types.Message):
             await message.answer(
                 f"✅ У тебя уже есть активная подписка!\n"
                 f"Осталось дней: {days_left}\n"
-                f"Сервер: 89.125.1.107:39829\n\n"
+                f"Сервер: {VPN_ENDPOINT_DISPLAY}\n\n"
                 f"Используй /config чтобы получить конфиг"
             )
             return
@@ -247,7 +254,7 @@ async def cmd_trial(message: types.Message):
     await message.answer(
         f"🎉 **Trial активирован!**\n\n"
         f"Доступен до: {expires_at.strftime('%d.%m.%Y')}\n"
-        f"Сервер: `89.125.1.107:39829`\n\n"
+        f"Сервер: `{VPN_ENDPOINT_DISPLAY}`\n\n"
         f"Используй /config чтобы получить конфиг для подключения.",
         parse_mode="Markdown"
     )
@@ -280,7 +287,7 @@ async def cmd_subscribe(message: types.Message):
         currency="USD",
         prices=prices,
         start_parameter="x0tta6bl4-pro",
-        photo_url="https://89.125.1.107:8080/landing.html",  # TODO: реальная картинка
+        photo_url=VPN_LANDING_URL,
         need_name=False,
         need_phone_number=False,
         need_email=False,
@@ -407,7 +414,7 @@ async def process_successful_payment(message: types.Message):
     await message.answer(
         f"✅ **Платеж успешен!**\n\n"
         f"Подписка активна до: {expires_at.strftime('%d.%m.%Y')}\n"
-        f"Сервер: `89.125.1.107:39829`\n\n"
+        f"Сервер: `{VPN_ENDPOINT_DISPLAY}`\n\n"
         f"Используй /config чтобы получить конфиг.",
         parse_mode="Markdown"
     )
@@ -757,7 +764,7 @@ async def callback_activate_trial(callback_query: CallbackQuery):
     text = (
         f"🎉 **Trial активирован!**\n\n"
         f"Доступен до: {expires_at.strftime('%d.%m.%Y')}\n"
-        f"Сервер: `89.125.1.107:39829`\n\n"
+        f"Сервер: `{VPN_ENDPOINT_DISPLAY}`\n\n"
         f"Используй кнопку ниже чтобы получить конфиг!"
     )
     
@@ -1035,4 +1042,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
