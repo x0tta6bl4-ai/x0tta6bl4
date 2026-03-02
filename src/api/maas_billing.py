@@ -281,39 +281,39 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         session = data_object
         mode = session.get('mode')
         metadata = session.get('metadata', {})
-        user_id = metadata.get('user_id')
         session_id = session.get('id')
         payment_status = session.get('payment_status')
-        if not session_id:
-            logger.error("Missing checkout session id in webhook payload")
-            return {"status": "error", "reason": "missing_session_id"}
         if payment_status and payment_status not in {"paid", "no_payment_required"}:
             logger.info(
                 "Ignoring checkout session %s with payment_status=%s",
-                session_id,
+                session_id or "<missing>",
                 payment_status,
             )
             return {"status": "success", "skipped": "payment_not_completed"}
-
-        existing_paid = db.query(Invoice).filter(
-            Invoice.stripe_session_id == session_id,
-            Invoice.status == "paid",
-        ).first()
-        if existing_paid:
-            logger.info("Skipping already processed checkout session %s", session_id)
-            return {"status": "success", "idempotent": True}
-
-        user = None
-        if user_id:
-            user = db.query(User).filter(User.id == user_id).first()
-        customer_id = session.get('customer')
-        if not user and customer_id:
-            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
-        if not user:
-            logger.error("User not found for completed session %s", session_id)
-            return {"status": "error", "reason": "user_not_found"}
+        if session_id:
+            existing_paid = db.query(Invoice).filter(
+                Invoice.stripe_session_id == session_id,
+                Invoice.status == "paid",
+            ).first()
+            if existing_paid:
+                logger.info("Skipping already processed checkout session %s", session_id)
+                return {"status": "success", "idempotent": True}
+        elif mode == 'subscription':
+            logger.error("Missing checkout session id in webhook payload for subscription")
+            return {"status": "error", "reason": "missing_session_id"}
 
         if mode == 'subscription':
+            user_id = metadata.get('user_id')
+            user = None
+            if user_id:
+                user = db.query(User).filter(User.id == user_id).first()
+            customer_id = session.get('customer')
+            if not user and customer_id:
+                user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if not user:
+                logger.error("User not found for completed session %s", session_id or "<missing>")
+                return {"status": "error", "reason": "user_not_found"}
+
             plan = metadata.get('plan')
             subscription_id = session.get('subscription')
             # Validate plan from metadata to prevent tampering
@@ -388,14 +388,19 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             if invoice_id:
                 inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
                 if inv:
-                    inv.status = "paid"
-                    db.commit()
-                    record_audit_log(
-                        db, request, "INVOICE_PAID",
-                        user_id=inv.user_id,
-                        payload={"invoice_id": invoice_id},
-                        status_code=200
-                    )
+                    if inv.status != "paid":
+                        inv.status = "paid"
+                        if session_id:
+                            inv.stripe_session_id = session_id
+                        db.commit()
+                        record_audit_log(
+                            db, request, "INVOICE_PAID",
+                            user_id=inv.user_id,
+                            payload={"invoice_id": invoice_id},
+                            status_code=200
+                        )
+                    else:
+                        logger.info("Invoice %s already marked paid", invoice_id)
                 else:
                     logger.error("Invoice %s not found for webhook", invoice_id)
 
