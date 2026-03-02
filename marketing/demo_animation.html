@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x0tta6bl4 - Self-Healing PQC Mesh Demo</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #terminal {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            width: 800px;
+            height: 500px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow-y: auto;
+            position: relative;
+        }
+        .header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .red { background-color: #ff5f56; }
+        .yellow { background-color: #ffbd2e; }
+        .green { background-color: #27c93f; }
+        
+        .line {
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+            opacity: 0;
+        }
+        
+        .cyan { color: #58a6ff; }
+        .success { color: #3fb950; }
+        .alert { color: #f85149; font-weight: bold; }
+        .warning { color: #d29922; }
+        .prompt::before { content: "$ "; color: #3fb950; margin-right: 8px; }
+        
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        #start-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px 20px;
+            background-color: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        #start-btn:hover { background-color: #2ea043; }
+    </style>
+</head>
+<body>
+
+<div id="terminal">
+    <div class="header">
+        <div class="circle red"></div>
+        <div class="circle yellow"></div>
+        <div class="circle green"></div>
+    </div>
+    <button id="start-btn" onclick="startDemo()">Start Demo</button>
+    <div id="output"></div>
+</div>
+
+<script>
+    const script = [
+        { text: "make run-demo", class: "prompt", delay: 500 },
+        { text: "======================================================", class: "cyan", delay: 400 },
+        { text: "    x0tta6bl4: Autonomous Mesh Intelligence Demo      ", class: "cyan", delay: 100 },
+        { text: "======================================================", class: "cyan", delay: 100 },
+        { text: "", class: "", delay: 800 },
+        { text: "🚀 [1/4] Инициализация виртуальной Mesh-топологии (5 узлов)...", class: "", delay: 1500 },
+        { text: "✅ Топология построена. Консенсус достигнут.", class: "success", delay: 500 },
+        { text: "   📍 Маршрут: Node A -> Node B -> Node C -> Exit", class: "", delay: 800 },
+        { text: "", class: "", delay: 1000 },
+        { text: "🛡️ [2/4] Установка Post-Quantum (Kyber) сессий...", class: "", delay: 1500 },
+        { text: "✅ ML-KEM-768 Handshake успешный. Трафик защищен.", class: "success", delay: 1000 },
+        { text: "", class: "", delay: 1500 },
+        { text: "🔥 [ALERT] Внимание! Обнаружена аномалия трафика на Node B!", class: "alert", delay: 1500 },
+        { text: "   Атака: DDoS / Packet Drop Spike (loss > 80%)", class: "warning", delay: 1000 },
+        { text: "", class: "", delay: 1500 },
+        { text: "🧠 [3/4] Активация MAPE-K (Monitor-Analyze-Plan-Execute)...", class: "", delay: 800 },
+        { text: "   ⏳ Analyze: GraphSAGE детектирует компрометацию узла B.", class: "", delay: 1200 },
+        { text: "   ⏳ Plan: LLM Agent предлагает изоляцию узла B и маршрутизацию через узел D.", class: "", delay: 1500 },
+        { text: "   ⚡ Execute: Обновление правил eBPF/XDP на соседних узлах...", class: "", delay: 1200 },
+        { text: "", class: "", delay: 1000 },
+        { text: "✨ [4/4] Самоисцеление завершено! (MTTR: 1.4s)", class: "success", delay: 800 },
+        { text: "✅ Трафик успешно перенаправлен.", class: "success", delay: 400 },
+        { text: "   📍 Новый маршрут: Node A -> Node D -> Node C -> Exit", class: "", delay: 1000 },
+        { text: "", class: "", delay: 500 },
+        { text: "Демонстрация успешно завершена.", class: "success", delay: 0 },
+    ];
+
+    async function startDemo() {
+        document.getElementById('start-btn').style.display = 'none';
+        const output = document.getElementById('output');
+        
+        for (const line of script) {
+            await new Promise(r => setTimeout(r, line.delay));
+            const el = document.createElement('div');
+            el.className = `line ${line.class}`;
+            el.textContent = line.text;
+            el.style.animation = 'fadeIn 0.1s forwards';
+            output.appendChild(el);
+            document.getElementById('terminal').scrollTop = document.getElementById('terminal').scrollHeight;
+        }
+    }
+</script>
+</body>
+</html>
