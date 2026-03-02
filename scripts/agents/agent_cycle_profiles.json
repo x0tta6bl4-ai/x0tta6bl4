@@ -6,7 +6,7 @@
       "skill_name": "x0tta6bl4-mesh-orchestrator",
       "skill_path": "skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
       "role_file": "ai/roles/architect.md",
-      "command": "python3 -m pytest -q tests/unit/core/test_app_endpoints.py tests/unit/core/test_demo_api_unit.py",
+      "command": "python3 -m pytest -q --no-cov tests/unit/core/test_app_endpoints.py tests/unit/core/test_demo_api_unit.py",
       "critical": true
     },
     {
@@ -24,7 +24,7 @@
       "skill_name": "deploy-mesh-node",
       "skill_path": "skills/deploy-mesh-node/SKILL.md",
       "role_file": null,
-      "command": "python3 -m pytest -q tests/unit/network/routing/test_mesh_router_unit.py tests/unit/network/test_mesh_routing_unit.py tests/network/test_mesh_router.py",
+      "command": "python3 -m pytest -q --no-cov tests/unit/network/routing/test_mesh_router_unit.py tests/unit/network/test_mesh_routing_unit.py tests/network/test_mesh_router.py",
       "critical": true
     },
     {
