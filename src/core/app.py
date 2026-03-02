@@ -68,8 +68,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins or ["http://localhost:3000", "http://localhost:8000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Security: explicit allowlists required when allow_credentials=True.
+    # Wildcard allow_methods/allow_headers + credentials enables CSRF via
+    # cross-origin authenticated requests with arbitrary headers.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
 )
 
 # 2. mTLS middleware
@@ -190,6 +193,7 @@ _include_maas_router("src.api.maas_marketplace", "marketplace")
 _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_billing", "billing")
+_include_maas_router("src.api.billing", "billing-api")
 _include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
 
 if not is_light_mode:
@@ -212,6 +216,25 @@ _include_maas_router("src.event_sourcing.api", "event-sourcing")
 @app.get("/health")
 async def health():
     return {"status": "ok", **get_health_info()}
+
+
+# --- Mesh / Yggdrasil Status Endpoints ---
+@app.get("/mesh/status")
+async def mesh_status():
+    from src.network import yggdrasil_client as yc
+    return yc.get_yggdrasil_status()
+
+
+@app.get("/mesh/peers")
+async def mesh_peers():
+    from src.network import yggdrasil_client as yc
+    return yc.get_yggdrasil_peers()
+
+
+@app.get("/mesh/routes")
+async def mesh_routes():
+    from src.network import yggdrasil_client as yc
+    return yc.get_yggdrasil_routes()
 
 from src.core.cache import cached
 

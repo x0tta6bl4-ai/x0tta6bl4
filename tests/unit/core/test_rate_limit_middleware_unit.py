@@ -204,7 +204,8 @@ class TestInMemoryRateLimiter:
         config = RateLimitConfig(requests_per_second=10, burst_size=5)
         limiter = InMemoryRateLimiter(config)
         await limiter.is_allowed("1.2.3.4")
-        assert "1.2.3.4" in limiter._buckets
+        # Bucket key includes rate: "{ip}:{requests_per_second}"
+        assert any("1.2.3.4" in k for k in limiter._buckets)
 
     @pytest.mark.asyncio
     async def test_is_allowed_blocks_after_burst_exceeded(self):
