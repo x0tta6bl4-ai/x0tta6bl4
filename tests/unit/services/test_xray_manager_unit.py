@@ -58,13 +58,14 @@ class TestGenerateVlessLink:
         assert link.startswith("vless://uuid-2@xray.example:443")
         assert "security=reality" in link
         assert "encryption=none" in link
-        assert "type=ws" in link
+        assert "type=tcp" in link
+        assert "flow=xtls-rprx-vision" in link
         assert "sni=google.com" in link
         assert "fp=chrome" in link
-        assert "path=%2Fvless" in link
+        assert "spx=%2F" in link
         assert "pbk=test-pbk-value" in link
         assert "sid=ab" in link
-        assert link.endswith("#user@test.com")
+        assert link.endswith("#user%40test.com")
 
     def test_falls_back_to_localhost_when_no_env(self, monkeypatch):
         """Without PUBLIC_DOMAIN, XRAY_HOST, or an explicit server arg the

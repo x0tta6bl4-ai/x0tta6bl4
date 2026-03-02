@@ -14,7 +14,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,22 @@ class CapabilityScope(Enum):
     LOCAL = "local"  # Single node
     REGIONAL = "regional"  # Up to 100 nodes
     NETWORK = "network"  # All nodes
+
+
+@dataclass
+class AgentCapabilities:
+    """
+    Legacy capability shape kept for backward compatibility.
+
+    Modern code should pass `List[AgentCapability]` directly.
+    """
+
+    can_read_metrics: bool = False
+    can_write_config: bool = False
+    can_execute_remediation: bool = False
+    can_manage_agents: bool = False
+    can_suggest_prices: bool = False
+    max_parallel_tasks: int = 1
 
 
 @dataclass
@@ -115,12 +131,15 @@ class Agent:
         self,
         agent_id: str,
         swarm_id: str,
-        capabilities: List[AgentCapability],
+        capabilities: Any,
         parl_controller: Optional[Any] = None,
     ):
         self.agent_id = agent_id
         self.swarm_id = swarm_id
-        self.capabilities = {cap.name: cap for cap in capabilities}
+        # Legacy alias: some callers pass "role" as second constructor argument.
+        self.role = swarm_id
+        normalized_capabilities = self._normalize_capabilities(capabilities)
+        self.capabilities = {cap.name: cap for cap in normalized_capabilities}
         self.parl_controller = parl_controller
 
         self.state = AgentState.INITIALIZING
@@ -151,6 +170,57 @@ class Agent:
 
         logger.debug(f"Agent created: {agent_id}")
 
+    @staticmethod
+    def _normalize_capabilities(capabilities: Any) -> List[AgentCapability]:
+        if capabilities is None:
+            return [AgentCapability(name="task_execution")]
+        if isinstance(capabilities, AgentCapability):
+            return [capabilities]
+        if isinstance(capabilities, AgentCapabilities):
+            caps: List[AgentCapability] = [AgentCapability(name="task_execution")]
+            if capabilities.can_read_metrics:
+                caps.extend(
+                    [
+                        AgentCapability(name="monitoring", scope=CapabilityScope.REGIONAL),
+                        AgentCapability(name="metrics_collection", scope=CapabilityScope.LOCAL),
+                        AgentCapability(name="analysis", scope=CapabilityScope.REGIONAL),
+                    ]
+                )
+            if capabilities.can_write_config:
+                caps.extend(
+                    [
+                        AgentCapability(name="optimization", scope=CapabilityScope.NETWORK),
+                        AgentCapability(name="route_optimization", scope=CapabilityScope.NETWORK),
+                    ]
+                )
+            if capabilities.can_execute_remediation:
+                caps.append(AgentCapability(name="remediation", scope=CapabilityScope.REGIONAL))
+            if capabilities.can_manage_agents:
+                caps.extend(
+                    [
+                        AgentCapability(name="task_distribution", scope=CapabilityScope.NETWORK),
+                        AgentCapability(name="result_aggregation", scope=CapabilityScope.NETWORK),
+                    ]
+                )
+            if capabilities.can_suggest_prices:
+                caps.append(AgentCapability(name="pricing", scope=CapabilityScope.NETWORK))
+            return caps
+        if isinstance(capabilities, list):
+            filtered = [item for item in capabilities if isinstance(item, AgentCapability)]
+            return filtered or [AgentCapability(name="task_execution")]
+        return [AgentCapability(name="task_execution")]
+
+    def _infer_task_type(self) -> str:
+        role_map = {
+            "monitor": "monitoring",
+            "monitoring": "monitoring",
+            "analysis": "analysis",
+            "optimizer": "optimization",
+            "optimization": "optimization",
+            "pricing_optimizer": "optimization",
+        }
+        return role_map.get(self.role, "task_execution")
+
     async def initialize(self) -> None:
         """Initialize the agent."""
         self._running = True
@@ -161,18 +231,31 @@ class Agent:
 
         logger.debug(f"Agent initialized: {self.agent_id}")
 
-    async def execute_task(self, task: Dict[str, Any]) -> TaskResult:
+    async def execute_task(
+        self, task: Any, payload: Optional[Dict[str, Any]] = None
+    ) -> TaskResult:
         """
         Execute a task.
 
         Args:
-            task: Task specification with 'task_type' and 'payload'
+            task: Task dictionary or task_id (legacy mode).
+            payload: Optional payload for legacy execute_task(task_id, payload) mode.
 
         Returns:
             TaskResult with execution results
         """
+        if isinstance(task, dict) and payload is None:
+            task_data = task
+        else:
+            legacy_payload = payload or {}
+            task_data = {
+                "task_id": str(task),
+                "task_type": legacy_payload.get("task_type", self._infer_task_type()),
+                "payload": legacy_payload,
+            }
+
         start_time = time.time()
-        task_id = task.get("task_id", str(uuid4()))
+        task_id = task_data.get("task_id", str(uuid4()))
 
         self.state = AgentState.ACTIVE
         self.current_task = task_id
@@ -180,12 +263,12 @@ class Agent:
 
         try:
             # Check capability
-            task_type = task.get("task_type", "")
+            task_type = task_data.get("task_type", "")
             if not self.has_capability(task_type):
                 raise PermissionError(f"Agent lacks capability: {task_type}")
 
             # Execute task
-            result = await self._execute_task_internal(task)
+            result = await self._execute_task_internal(task_data)
 
             # Update metrics
             execution_time = (time.time() - start_time) * 1000
