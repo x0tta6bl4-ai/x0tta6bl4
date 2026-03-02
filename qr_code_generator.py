@@ -86,7 +86,7 @@ def generate_qr_code_for_vless(vless_link: str) -> Optional[BytesIO]:
 
 # Example usage
 if __name__ == "__main__":
-    test_link = "vless://f56fb669-32ec-4142-b2fe-8b65c4321102@89.125.1.107:39829?type=tcp&encryption=none&security=reality&pbk=xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww&fp=chrome&sni=google.com&sid=6b&spx=%2Fwatch%3Fv%3DdQw4w9WgXcQ&flow=xtls-rprx-vision#x0tta6bl4_VPN"
+    test_link = "vless://f56fb669-32ec-4142-b2fe-8b65c4321102@89.125.1.107:443?type=tcp&encryption=none&security=reality&pbk=xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww&fp=chrome&sni=google.com&sid=6b&spx=%2F&flow=xtls-rprx-vision#x0tta6bl4_VPN"
     
     qr_image = generate_qr_code_for_vless(test_link)
     if qr_image:
@@ -95,4 +95,3 @@ if __name__ == "__main__":
         print("QR code saved to test_qr.png")
     else:
         print("QR code generation not available. Install: pip install qrcode[pil]")
-
