@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import urllib.parse
 
 import httpx
 
@@ -38,15 +39,24 @@ class XrayManager:
         sni = os.getenv("REALITY_SNI", "google.com")
         fp = os.getenv("REALITY_FINGERPRINT", "chrome")
         pbk = os.getenv("REALITY_PUBLIC_KEY", "")
-        sid = os.getenv("REALITY_SHORT_ID", "")
+        sid = os.getenv("REALITY_SHORT_ID", "6b")
+        spiderx = urllib.parse.quote(os.getenv("REALITY_SPIDERX", "/"), safe="")
 
         if not pbk:
             raise ValueError("REALITY_PUBLIC_KEY environment variable must be set")
 
         link = (
             f"vless://{user_uuid}@{host}:{port}"
-            f"?security=reality&encryption=none&pbk={pbk}&headerType=none&fp={fp}&type=ws&sni={sni}&sid={sid}&path=%2Fvless"
-            f"#{email}"
+            f"?type=tcp"
+            f"&encryption=none"
+            f"&security=reality"
+            f"&pbk={pbk}"
+            f"&fp={fp}"
+            f"&sni={sni}"
+            f"&sid={sid}"
+            f"&spx={spiderx}"
+            f"&flow=xtls-rprx-vision"
+            f"#{urllib.parse.quote(email)}"
         )
         return link
 

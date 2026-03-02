@@ -63,7 +63,7 @@ class TestVPNServerConfiguration:
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
             os.environ.pop("VPN_PORT", None)
             port = _get_vpn_port()
-            assert port == 39829  # Default fallback
+            assert port == 443  # Default fallback
 
     def test_get_vpn_port_production_required(self):
         """Test production requires VPN_PORT to be set."""

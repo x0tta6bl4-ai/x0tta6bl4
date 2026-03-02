@@ -529,7 +529,7 @@ def _get_vpn_port() -> int:
         logger.warning(
             "VPN_PORT not set, using default fallback (development only)"
         )
-        return 39829
+        return 443
     return int(port_str)
 
 
