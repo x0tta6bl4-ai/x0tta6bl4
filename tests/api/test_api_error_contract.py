@@ -49,11 +49,17 @@ def test_http_403_error_contract_for_protected_agent_endpoint(monkeypatch):
     trace_id = "contract-trace-403"
     monkeypatch.setenv("MAAS_AGENT_BOT_TOKEN", "expected-token")
 
-    response = client.post(
-        "/api/v1/maas/agents/health/run",
-        headers={"X-Trace-ID": trace_id},
-        json={"auto_heal": True, "dry_run": False},
-    )
+    # Override auth so the request reaches the 403 bot-token check (not 401).
+    from src.api.maas_auth import get_current_user_from_maas
+    app.dependency_overrides[get_current_user_from_maas] = lambda: {"id": "u1", "role": "user"}
+    try:
+        response = client.post(
+            "/api/v1/maas/agents/health/run",
+            headers={"X-Trace-ID": trace_id},
+            json={"auto_heal": True, "dry_run": False},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user_from_maas, None)
 
     assert response.status_code == 403
     data = response.json()
