@@ -11,6 +11,8 @@ Prometheus метрики для x0tta6bl4
 - DAO Governance
 """
 
+import hashlib
+import re
 from typing import Any, Dict
 
 import prometheus_client
@@ -723,6 +725,72 @@ class MetricsMiddleware:
     def __init__(self, app):
         self.app = app
 
+    @staticmethod
+    def _extract_api_key_label(headers: list[tuple[bytes, bytes]]) -> str:
+        """
+        Build low-cardinality, non-sensitive credential label value.
+
+        Never expose raw API keys or bearer tokens in Prometheus labels.
+        """
+        for header_name, header_value in headers:
+            if header_name == b"x-api-key":
+                api_key = header_value.decode("utf-8", errors="ignore").strip()
+                if not api_key:
+                    return "anonymous"
+                digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
+                return f"api_key_{digest}"
+            if header_name == b"authorization":
+                auth_val = header_value.decode("utf-8", errors="ignore")
+                if auth_val.startswith("Bearer "):
+                    token = auth_val[7:].strip()
+                    if token:
+                        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+                        return f"bearer_{digest}"
+        return "anonymous"
+
+    @staticmethod
+    def _normalize_endpoint(path: str) -> str:
+        """
+        Normalize dynamic path segments to cap metrics label cardinality.
+        """
+        if not path:
+            return "unknown"
+        if path == "/":
+            return path
+
+        uuid_re = re.compile(
+            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+            r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        )
+        long_hex_re = re.compile(r"^[0-9a-fA-F]{16,}$")
+        base64ish_re = re.compile(r"^[A-Za-z0-9_-]{24,}$")
+
+        parts = path.split("/")
+        normalized_parts = []
+        for part in parts:
+            if not part:
+                normalized_parts.append(part)
+                continue
+
+            lower = part.lower()
+            if re.fullmatch(r"v\d+", lower):
+                normalized_parts.append(part)
+            elif part.isdigit():
+                normalized_parts.append(":int")
+            elif uuid_re.fullmatch(part):
+                normalized_parts.append(":uuid")
+            elif long_hex_re.fullmatch(part):
+                normalized_parts.append(":hex")
+            elif base64ish_re.fullmatch(part):
+                normalized_parts.append(":token")
+            elif any(c.isdigit() for c in part) and len(part) >= 6:
+                normalized_parts.append(":id")
+            else:
+                normalized_parts.append(part)
+
+        normalized = "/".join(normalized_parts)
+        return normalized or "unknown"
+
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -730,6 +798,7 @@ class MetricsMiddleware:
 
         method = scope.get("method", "unknown")
         path = scope.get("path", "unknown")
+        endpoint = self._normalize_endpoint(path)
 
         if path == "/metrics":
             await self.app(scope, receive, send)
@@ -737,18 +806,7 @@ class MetricsMiddleware:
 
         import time
 
-        # Extract API key from headers
-        api_key = "anonymous"
-        for header_name, header_value in scope.get("headers", []):
-            if header_name == b"x-api-key":
-                api_key = header_value.decode("utf-8")[:32]  # Truncate for safety
-                break
-            elif header_name == b"authorization":
-                auth_val = header_value.decode("utf-8")
-                if auth_val.startswith("Bearer "):
-                    # Use a hash or first part of token as api_key to avoid Cardinality Explosion
-                    api_key = f"bearer_{auth_val[7:15]}"
-                    break
+        api_key = self._extract_api_key_label(scope.get("headers", []))
 
         start_time = time.time()
         status = 500
@@ -766,18 +824,18 @@ class MetricsMiddleware:
             duration = time.time() - start_time
             metrics = _get_singleton_metrics()
             metrics.request_count.labels(
-                method=method, endpoint=path, status=500, api_key=api_key
+                method=method, endpoint=endpoint, status=500, api_key=api_key
             ).inc()
             metrics.request_duration.labels(
-                method=method, endpoint=path, api_key=api_key
+                method=method, endpoint=endpoint, api_key=api_key
             ).observe(duration)
             raise
 
         duration = time.time() - start_time
         metrics = _get_singleton_metrics()
         metrics.request_count.labels(
-            method=method, endpoint=path, status=status, api_key=api_key
+            method=method, endpoint=endpoint, status=status, api_key=api_key
         ).inc()
         metrics.request_duration.labels(
-            method=method, endpoint=path, api_key=api_key
+            method=method, endpoint=endpoint, api_key=api_key
         ).observe(duration)
