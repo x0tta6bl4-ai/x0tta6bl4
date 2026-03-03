@@ -12,8 +12,13 @@ def _build_client() -> TestClient:
     return TestClient(app)
 
 
-def test_login_rejects_wrong_password_for_existing_user():
+def _reset_auth_state() -> None:
     auth_module._user_store.clear()
+    auth_module._LOGIN_ATTEMPTS.clear()
+
+
+def test_login_rejects_wrong_password_for_existing_user():
+    _reset_auth_state()
     client = _build_client()
 
     email = "secure-auth@example.com"
@@ -38,7 +43,7 @@ def test_login_rejects_wrong_password_for_existing_user():
 
 
 def test_register_stores_password_hash_not_plaintext():
-    auth_module._user_store.clear()
+    _reset_auth_state()
     client = _build_client()
 
     raw_password = "PlaintextShouldNeverBeStored123!"
@@ -61,7 +66,7 @@ def test_register_stores_password_hash_not_plaintext():
 
 
 def test_register_rejects_case_insensitive_duplicate_email():
-    auth_module._user_store.clear()
+    _reset_auth_state()
     client = _build_client()
 
     first = client.post(
@@ -84,7 +89,7 @@ def test_register_rejects_case_insensitive_duplicate_email():
 
 
 def test_login_matches_email_case_insensitively():
-    auth_module._user_store.clear()
+    _reset_auth_state()
     client = _build_client()
 
     register = client.post(
@@ -105,3 +110,62 @@ def test_login_matches_email_case_insensitively():
     )
     assert login.status_code == 200, login.text
     assert "session_token" in login.json()
+
+
+def test_login_rate_limits_repeated_failures(monkeypatch):
+    _reset_auth_state()
+    client = _build_client()
+    monkeypatch.setattr(auth_module, "_LOGIN_MAX_ATTEMPTS", 2)
+
+    first = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "unknown@example.com", "password": "wrong-password"},
+    )
+    second = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "unknown@example.com", "password": "wrong-password"},
+    )
+    throttled = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "unknown@example.com", "password": "wrong-password"},
+    )
+
+    assert first.status_code == 401
+    assert second.status_code == 401
+    assert throttled.status_code == 429
+    assert throttled.headers.get("Retry-After")
+
+
+def test_successful_login_clears_failed_attempt_counter(monkeypatch):
+    _reset_auth_state()
+    client = _build_client()
+    monkeypatch.setattr(auth_module, "_LOGIN_MAX_ATTEMPTS", 2)
+
+    register = client.post(
+        "/api/v1/maas/auth/register",
+        json={"email": "clear-counter@example.com", "password": "CorrectPassword123!"},
+    )
+    assert register.status_code == 201, register.text
+
+    fail_one = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "clear-counter@example.com", "password": "WrongPassword123!"},
+    )
+    success = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "clear-counter@example.com", "password": "CorrectPassword123!"},
+    )
+    fail_two = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "clear-counter@example.com", "password": "WrongPassword123!"},
+    )
+    fail_three = client.post(
+        "/api/v1/maas/auth/login",
+        json={"email": "clear-counter@example.com", "password": "WrongPassword123!"},
+    )
+
+    assert fail_one.status_code == 401
+    assert success.status_code == 200
+    assert fail_two.status_code == 401
+    # Must still allow one more failed attempt after successful login reset.
+    assert fail_three.status_code == 401
