@@ -2,6 +2,7 @@
 
 import os
 import re
+import hashlib
 
 import httpx
 import pytest
@@ -61,3 +62,19 @@ async def test_metrics_endpoint_includes_health_request_series(client):
         r'[^}]*\}\s+[0-9.]+'
     )
     assert re.search(pattern, body), "Missing /health request time-series in metrics"
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint_redacts_raw_api_key_from_labels(client):
+    raw_key = "very-secret-client-key-123"
+    expected_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:12]
+
+    health_resp = await client.get("/health", headers={"X-API-Key": raw_key})
+    assert health_resp.status_code == 200
+
+    metrics_resp = await client.get("/metrics")
+    assert metrics_resp.status_code == 200
+    body = metrics_resp.text
+
+    assert raw_key not in body
+    assert f'api_key="api_key_{expected_hash}"' in body
