@@ -58,3 +58,50 @@ def test_register_stores_password_hash_not_plaintext():
     assert password_hash
     assert password_hash != raw_password
     assert password_hash.startswith("pbkdf2_sha256$")
+
+
+def test_register_rejects_case_insensitive_duplicate_email():
+    auth_module._user_store.clear()
+    client = _build_client()
+
+    first = client.post(
+        "/api/v1/maas/auth/register",
+        json={
+            "email": "User@Example.Com",
+            "password": "StrongPassword123!",
+        },
+    )
+    assert first.status_code == 201, first.text
+
+    duplicate = client.post(
+        "/api/v1/maas/auth/register",
+        json={
+            "email": "user@example.com",
+            "password": "AnotherStrongPassword123!",
+        },
+    )
+    assert duplicate.status_code == 409
+
+
+def test_login_matches_email_case_insensitively():
+    auth_module._user_store.clear()
+    client = _build_client()
+
+    register = client.post(
+        "/api/v1/maas/auth/register",
+        json={
+            "email": "CaseInsensitive@Test.com",
+            "password": "StrongPassword123!",
+        },
+    )
+    assert register.status_code == 201, register.text
+
+    login = client.post(
+        "/api/v1/maas/auth/login",
+        json={
+            "email": "caseinsensitive@test.COM",
+            "password": "StrongPassword123!",
+        },
+    )
+    assert login.status_code == 200, login.text
+    assert "session_token" in login.json()

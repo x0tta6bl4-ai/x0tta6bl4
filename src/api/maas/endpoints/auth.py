@@ -39,6 +39,10 @@ _PASSWORD_HASH_SCHEME = "pbkdf2_sha256"
 _PASSWORD_HASH_ITERATIONS = 60_000
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 def _hash_password(password: str, *, salt_hex: Optional[str] = None) -> str:
     """Hash password with PBKDF2-HMAC-SHA256 for in-memory auth store."""
     salt_hex = salt_hex or secrets.token_hex(16)
@@ -91,9 +95,11 @@ async def register(
     """
     import secrets
 
+    normalized_email = _normalize_email(request.email)
+
     # Check if email already exists
     for user_id, user_data in _user_store.items():
-        if user_data.get("email") == request.email:
+        if user_data.get("email") == normalized_email:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already registered",
@@ -104,7 +110,7 @@ async def register(
 
     # Create user
     _user_store[user_id] = {
-        "email": request.email,
+        "email": normalized_email,
         "name": request.name,
         "plan": "free",
         "password_hash": _hash_password(request.password),
@@ -117,7 +123,7 @@ async def register(
 
     return RegisterResponse(
         user_id=user_id,
-        email=request.email,
+        email=normalized_email,
         api_key=api_key,
         message="Registration successful",
     )
@@ -137,12 +143,14 @@ async def login(
 
     Returns a session token for subsequent requests.
     """
+    normalized_email = _normalize_email(request.email)
+
     # Find user by email
     user_id = None
     user_data = None
 
     for uid, data in _user_store.items():
-        if data.get("email") == request.email:
+        if data.get("email") == normalized_email:
             user_id = uid
             user_data = data
             break
