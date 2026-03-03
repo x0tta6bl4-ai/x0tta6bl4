@@ -127,10 +127,16 @@ def _sbom_to_response_dict(row: SBOMEntry) -> Dict[str, Any]:
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
-    from src.core.app import pqc_sign
-    signed = pqc_sign(f"{row.version}:{row.checksum_sha256}".encode())
-    if signed:
-        payload["pqc_signature"] = signed.hex()
+    # PQC attestation is best-effort in environments where legacy app shims
+    # don't expose pqc_sign(). Never fail SBOM read/write because of this.
+    try:
+        from src.core.app import pqc_sign
+
+        signed = pqc_sign(f"{row.version}:{row.checksum_sha256}".encode())
+        if signed:
+            payload["pqc_signature"] = signed.hex()
+    except Exception as exc:
+        logger.warning("PQC signature unavailable for SBOM %s: %s", row.id, exc)
     return payload
 
 
