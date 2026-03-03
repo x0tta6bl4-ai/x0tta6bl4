@@ -1,12 +1,44 @@
+import json
+import logging
 from typing import Optional
 
 from fastapi import Request
 from sqlalchemy.orm import Session
+
+from src.core.logging_config import RequestIdContextVar
 from src.database import AuditLog
-import json
-import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_trace_id(request: Optional[Request]) -> Optional[str]:
+    """Resolve trace/request id for audit events, including background tasks."""
+    if request is not None:
+        state_trace = getattr(request.state, "trace_id", None)
+        if isinstance(state_trace, str) and state_trace.strip():
+            return state_trace.strip()
+
+        for header_name in ("X-Trace-ID", "X-Request-ID", "X-Correlation-ID"):
+            header_value = request.headers.get(header_name)
+            if header_value and header_value.strip():
+                return header_value.strip()
+
+    context_trace = RequestIdContextVar.get()
+    if context_trace and context_trace.strip():
+        return context_trace.strip()
+
+    try:
+        # Lazy import avoids hard runtime dependency during module import.
+        from src.core.tracing_middleware import get_correlation_id
+
+        correlation_id = get_correlation_id()
+        if correlation_id and correlation_id.strip():
+            return correlation_id.strip()
+    except Exception:
+        pass
+
+    return None
+
 
 def record_audit_log(
     db: Session,
@@ -29,6 +61,8 @@ def record_audit_log(
         status_code: HTTP status code
     """
     try:
+        trace_id = _resolve_trace_id(request)
+
         # 1. DB Log
         log_entry = AuditLog(
             user_id=user_id,
@@ -43,13 +77,22 @@ def record_audit_log(
         # Use flush() instead of commit() to preserve caller's transaction
         # The caller is responsible for committing the transaction
         db.flush()
-        
+
         # 2. Mirror to logger
+        extra_fields = {}
+        if trace_id:
+            extra_fields = {"request_id": trace_id, "trace_id": trace_id}
+
         logger.info(
-            "AUDIT %s user_id=%s method=%s path=%s ip=%s status=%s",
-            action, user_id, request.method if request else None, 
-            request.url.path if request else None, 
-            log_entry.ip_address, status_code
+            "AUDIT %s user_id=%s method=%s path=%s ip=%s status=%s trace_id=%s",
+            action,
+            user_id,
+            request.method if request else None,
+            request.url.path if request else None,
+            log_entry.ip_address,
+            status_code,
+            trace_id,
+            extra=extra_fields,
         )
     except Exception as e:
         logger.error(f"Failed to record audit log: {e}")

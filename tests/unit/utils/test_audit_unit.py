@@ -10,6 +10,7 @@ import pytest
 from fastapi import FastAPI
 from starlette.requests import Request
 
+from src.core.logging_config import RequestIdContextVar
 from src.utils.audit import record_audit_log, _audit
 
 
@@ -167,6 +168,58 @@ class TestRecordAuditLog:
         entry = mock_db.added_entries[0]
         assert entry.ip_address == "unknown"
         assert entry.method == "GET"
+
+    def test_audit_log_sets_trace_extra_from_request_state(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class, caplog
+    ):
+        """Trace id from request.state is mirrored into structured logging extras."""
+        request = _make_request(app, "/api/v1/test", "POST", "10.0.0.2")
+        request.state.trace_id = "trace-state-123"
+
+        with caplog.at_level(logging.INFO):
+            record_audit_log(
+                db=mock_db,
+                request=request,
+                action="TRACE_STATE_TEST",
+                user_id="user-trace",
+                status_code=200,
+            )
+
+        matching = [
+            rec
+            for rec in caplog.records
+            if "AUDIT TRACE_STATE_TEST" in rec.getMessage()
+        ]
+        assert matching
+        assert getattr(matching[-1], "request_id", None) == "trace-state-123"
+        assert getattr(matching[-1], "trace_id", None) == "trace-state-123"
+
+    def test_audit_log_background_uses_request_context_trace_id(
+        self, mock_db: _MockDB, mock_audit_log_class, caplog
+    ):
+        """Background audit events should keep request trace context when available."""
+        RequestIdContextVar.clear()
+        RequestIdContextVar.set("ctx-trace-789")
+        try:
+            with caplog.at_level(logging.INFO):
+                record_audit_log(
+                    db=mock_db,
+                    request=None,
+                    action="BACKGROUND_TRACE_TEST",
+                    user_id="user-bg",
+                    status_code=202,
+                )
+        finally:
+            RequestIdContextVar.clear()
+
+        matching = [
+            rec
+            for rec in caplog.records
+            if "AUDIT BACKGROUND_TRACE_TEST" in rec.getMessage()
+        ]
+        assert matching
+        assert getattr(matching[-1], "request_id", None) == "ctx-trace-789"
+        assert getattr(matching[-1], "trace_id", None) == "ctx-trace-789"
 
     def test_audit_log_without_payload(
         self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class

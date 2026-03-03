@@ -11,6 +11,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.core.logging_config import RequestIdContextVar
+
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +21,15 @@ def resolve_trace_id(request: Request) -> str:
     """Resolve trace id from headers/state, falling back to generated UUID."""
     header_trace = request.headers.get("X-Trace-ID") or request.headers.get("X-Request-ID")
     if header_trace and header_trace.strip():
-        return header_trace.strip()
+        trace_id = header_trace.strip()
+        request.state.trace_id = trace_id
+        return trace_id
 
     state_trace = getattr(request.state, "trace_id", None)
     if isinstance(state_trace, str) and state_trace.strip():
-        return state_trace.strip()
+        trace_id = state_trace.strip()
+        request.state.trace_id = trace_id
+        return trace_id
 
     generated = uuid.uuid4().hex
     request.state.trace_id = generated
@@ -54,9 +60,13 @@ def register_api_error_handlers(app: FastAPI) -> None:
     @app.middleware("http")
     async def _trace_id_response_middleware(request: Request, call_next):
         trace_id = resolve_trace_id(request)
-        response = await call_next(request)
-        response.headers.setdefault("X-Trace-ID", trace_id)
-        return response
+        RequestIdContextVar.set(trace_id)
+        try:
+            response = await call_next(request)
+            response.headers.setdefault("X-Trace-ID", trace_id)
+            return response
+        finally:
+            RequestIdContextVar.clear()
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
