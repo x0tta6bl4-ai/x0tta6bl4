@@ -122,3 +122,44 @@ def test_log_audit_caches_bearer_session_identity():
     assert len(db.added) == 2
     assert db.added[0].user_id == "session-user-1"
     assert db.added[1].user_id == "session-user-1"
+
+
+def test_filter_sensitive_data_redacts_nested_keys_and_inline_secrets():
+    app = FastAPI()
+    middleware = AuditMiddleware(app=app)
+    payload = {
+        "password": "secret",
+        "nested": {
+            "api_key": "x0t-key",
+            "safe": "ok",
+            "note": "Authorization: Bearer inline-token",
+        },
+        "items": [{"refresh_token": "r1"}, {"value": "token=abc123"}],
+    }
+
+    filtered = middleware._filter_sensitive_data(payload, list(mod._SENSITIVE_KEYS))
+
+    assert filtered["password"] == "********"
+    assert filtered["nested"]["api_key"] == "********"
+    assert filtered["nested"]["safe"] == "ok"
+    assert "inline-token" not in filtered["nested"]["note"]
+    assert filtered["items"][0]["refresh_token"] == "********"
+    assert "abc123" not in filtered["items"][1]["value"]
+
+
+def test_dispatch_non_json_payload_masks_inline_secrets():
+    app = FastAPI()
+    middleware = AuditMiddleware(app=app)
+    raw = (
+        "Authorization: Bearer top-secret-token\n"
+        "password=my-pass\n"
+        f"{'X' * 1200}"
+    )
+
+    sanitized = middleware._sanitize_text_payload(raw)
+
+    assert "top-secret-token" not in sanitized
+    assert "my-pass" not in sanitized
+    assert "Bearer ********" in sanitized
+    assert "password=********" in sanitized
+    assert len(sanitized) <= 1000

@@ -284,6 +284,35 @@ class TestRecordAuditLog:
         assert parsed == complex_payload
         assert parsed["unicode"] == "привет мир"
 
+    def test_audit_log_redacts_sensitive_payload_fields(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class
+    ):
+        """Sensitive payload fields must be redacted before storing in DB."""
+        request = _make_request(app)
+        payload = {
+            "password": "super-secret",
+            "nested": {"api_key": "key-123", "safe": "ok"},
+            "authorization": "Bearer top-secret-token",
+            "details": "Authorization: Bearer inline-token token=abc123",
+        }
+
+        record_audit_log(
+            db=mock_db,
+            request=request,
+            action="SENSITIVE_PAYLOAD",
+            payload=payload,
+        )
+
+        entry = mock_db.added_entries[0]
+        parsed = json.loads(entry.payload)
+        assert parsed["password"] == "********"
+        assert parsed["nested"]["api_key"] == "********"
+        assert parsed["authorization"] == "********"
+        assert parsed["nested"]["safe"] == "ok"
+        assert "top-secret-token" not in entry.payload
+        assert "inline-token" not in parsed["details"]
+        assert "abc123" not in parsed["details"]
+
 
 class TestAuditShorthand:
     """Tests for _audit shorthand function."""
