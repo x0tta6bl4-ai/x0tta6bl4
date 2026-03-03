@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check
 
 .DEFAULT_GOAL := help
 
@@ -523,3 +523,28 @@ ai-status:
 	@./ai.sh status
 
 all: install test lint
+
+# ============================================================================
+# PLATFORM CLEANUP GATES (single-purpose PR era)
+# ============================================================================
+
+cleanup-baseline:
+	@echo "📋 Cleanup baseline"
+	@echo ""
+	@echo "Branch: $$(git rev-parse --abbrev-ref HEAD)"
+	@echo "Commit: $$(git rev-parse --short HEAD)"
+	@echo ""
+	@git status --short
+	@echo ""
+	@docker compose -f staging/docker-compose.quick.yml ps
+
+cleanup-gate:
+	@./scripts/ops/cleanup_gate.sh
+
+cleanup-rc-check:
+	@echo "🧪 RC verification sequence"
+	@echo "1) make up"
+	@echo "2) make cleanup-gate"
+	@echo "3) docs/runbooks/MAAS_PLATFORM_CLEANUP_RUNBOOK.md"
+	@make up
+	@make cleanup-gate
