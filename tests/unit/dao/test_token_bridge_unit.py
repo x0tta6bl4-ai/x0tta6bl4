@@ -133,7 +133,11 @@ class TestTokenBridgeInit:
 
 class TestInitWeb3:
     def test_already_initialized(self, bridge):
+        # _init_web3 early-returns True only when _initialized AND web3.is_connected()
         bridge._initialized = True
+        mock_w3 = MagicMock()
+        mock_w3.is_connected.return_value = True
+        bridge.web3 = mock_w3
         assert bridge._init_web3() is True
 
     @patch("src.dao.token_bridge.Web3", None)
@@ -244,32 +248,38 @@ class TestInitWeb3:
         assert bridge.contract is None
 
     def test_web3_exception(self, bridge):
-        import builtins
-        original_import = builtins.__import__
+        """When Web3 HTTPProvider raises RuntimeError, _init_web3 returns False."""
+        mock_web3_cls = MagicMock()
+        mock_web3_cls.HTTPProvider.side_effect = RuntimeError("connection failed")
 
-        def mock_import(name, *args, **kwargs):
-            if name == "web3":
-                raise RuntimeError("connection failed")
-            if name == "eth_account":
-                raise RuntimeError("connection failed")
-            return original_import(name, *args, **kwargs)
-
-        with patch("builtins.__import__", side_effect=mock_import):
+        with patch("src.dao.token_bridge.Web3", mock_web3_cls):
             result = bridge._init_web3()
 
         assert result is False
 
     def test_import_error_path(self, bridge):
+        """When web3/eth_account raise ImportError during _init_web3, return False."""
+        import sys
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
             if name in ("web3", "eth_account"):
-                raise ImportError("no web3")
+                raise ImportError("no module named web3")
             return original_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=mock_import):
-            result = bridge._init_web3()
+        # Remove cached modules so the in-function import actually executes
+        web3_bak = sys.modules.pop("web3", None)
+        eth_bak = sys.modules.pop("eth_account", None)
+        try:
+            with patch("builtins.__import__", side_effect=mock_import):
+                result = bridge._init_web3()
+        finally:
+            if web3_bak is not None:
+                sys.modules["web3"] = web3_bak
+            if eth_bak is not None:
+                sys.modules["eth_account"] = eth_bak
 
         assert result is False
 
