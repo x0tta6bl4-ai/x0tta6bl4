@@ -1,0 +1,16 @@
+# Minimal MeshCluster — 3 nodes, PQC enabled, no bridge
+apiVersion: x0tta6bl4.io/v1alpha1
+kind: MeshCluster
+metadata:
+  name: minimal-mesh
+  namespace: default
+spec:
+  replicas: 3
+  trustDomain: x0tta6bl4.mesh
+  pqc:
+    enabled: true
+    ebpf:
+      packetCounter: true
+  fallback:
+    circuit:
+      enabled: true

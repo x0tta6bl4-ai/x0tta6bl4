@@ -1,0 +1,71 @@
+# Production MeshCluster — HA, PQC, eBPF packet counter, circuit breaker, Base Sepolia bridge
+apiVersion: x0tta6bl4.io/v1alpha1
+kind: MeshCluster
+metadata:
+  name: prod-mesh
+  namespace: x0tta-system
+  annotations:
+    mesh.x0tta6bl4.io/sla: "99.9"
+    mesh.x0tta6bl4.io/pqc-version: "3.3.2"
+spec:
+  replicas: 5
+  trustDomain: x0tta6bl4.mesh
+
+  pqc:
+    enabled: true
+    kemAlgorithm: ML-KEM-768
+    dsaAlgorithm: ML-DSA-65
+    keyRotationInterval: 1800  # 30min rotation for high security
+    hybridMode: true
+    ebpf:
+      enabled: true
+      packetCounter: true
+      antiReplay: true
+      windowSize: 128          # larger window for high-traffic nodes
+      xdpMode: native          # native XDP for production NIC drivers
+
+  fallback:
+    enabled: true
+    retryAttempts: 3
+    retryDelay: 0.5
+    circuit:
+      enabled: true
+      failureThreshold: 3      # stricter in production
+      resetTimeout: 60
+      halfOpenMaxCalls: 2
+      successThreshold: 3
+    cache:
+      enabled: true
+      ttlSeconds: 600
+      maxEntries: 5000
+      evictionPolicy: adaptive
+
+  spiffe:
+    enabled: true
+    renewBeforeExpiry: 600
+
+  dao:
+    enabled: true
+    governance:
+      votingPeriod: 14400      # 4h for production governance
+      quorumThreshold: 0.67    # 2/3 majority
+      proposalExpiry: 172800
+    bridge:
+      enabled: true
+      chainId: 84532
+      contractAddress: "0x0000000000000000000000000000000000000000"  # replace with deployed address
+      gasLimit: 200000
+      maxGasPriceGwei: 30.0
+      confirmations: 5         # more confirmations for production
+
+  mesh:
+    maxNodes: 500
+    heartbeatInterval: 15
+    routeOptimization: true
+    gossipFanout: 5
+
+  mapek:
+    enabled: true
+    monitorInterval: 10
+    analysisWindow: 600
+    adaptationEnabled: true

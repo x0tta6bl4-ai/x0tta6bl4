@@ -1,0 +1,51 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "x0tta-mesh-operator.fullname" . }}-manager
+  labels:
+    {{- include "x0tta-mesh-operator.labels" . | nindent 4 }}
+rules:
+  # MeshCluster CRD management
+  - apiGroups: [x0tta6bl4.io]
+    resources: [meshclusters]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [x0tta6bl4.io]
+    resources: [meshclusters/status]
+    verbs: [get, update, patch]
+  - apiGroups: [x0tta6bl4.io]
+    resources: [meshclusters/finalizers]
+    verbs: [update]
+
+  # Core Kubernetes resources managed by operator
+  - apiGroups: [""]
+    resources: [pods, services, configmaps, secrets, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Events for status reporting
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+
+  # Leader election (Lease objects)
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # CRD introspection (for validation)
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+
+  # PodDisruptionBudget for HA mesh nodes
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # HPA for auto-scaling mesh replicas
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch, create, update, patch, delete]
