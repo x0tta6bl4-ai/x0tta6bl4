@@ -182,6 +182,14 @@ from unittest.mock import MagicMock, patch
 
 
 class TestZeroTrustValidator:
+    @pytest.fixture(autouse=True)
+    def reset_policy_engine(self):
+        """Patch get_policy_engine to return a fresh DENY-by-default engine for unit tests."""
+        from src.security.zero_trust.policy_engine import PolicyEngine
+        fresh = PolicyEngine()  # No seeded allow rules — pure zero-trust DENY default
+        with patch("src.security.zero_trust.policy_engine.get_policy_engine", return_value=fresh):
+            yield
+
     @patch("src.security.zero_trust.validator.WorkloadAPIClient")
     def test_init_default_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator

@@ -198,7 +198,7 @@ class EdgeComputingBenchmark:
         for i in range(iterations):
             start = time.perf_counter()
             try:
-                distributor.distribute_task(
+                await distributor.distribute_task(
                     task_id=str(uuid4()),
                     task_type="inference",
                     payload={"prompt": f"test {i}"},
@@ -240,12 +240,15 @@ class EdgeComputingBenchmark:
         # Submit tasks first
         task_ids = []
         for i in range(50):
-            result = distributor.distribute_task(
-                task_id=str(uuid4()),
-                task_type="test",
-                payload={"data": i}
-            )
-            task_ids.append(result.get("task_id"))
+            try:
+                result = await distributor.distribute_task(
+                    task_id=str(uuid4()),
+                    task_type="test",
+                    payload={"data": i}
+                )
+                task_ids.append(result.get("task_id"))
+            except RuntimeError:
+                task_ids.append(str(uuid4()))
 
         # Benchmark status retrieval
         for task_id in task_ids * 2:  # 100 iterations

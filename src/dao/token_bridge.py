@@ -75,11 +75,11 @@ class BridgeConfig:
     rpc_url: str = "" # Keep for backward compatibility
     contract_address: str = ""
     private_key: str = ""
-    chain_id: int = 8453  # Base Mainnet (default)
+    chain_id: int = 84532  # Base Sepolia (testnet default)
     poll_interval: int = 12  # seconds (1 block on Base)
     confirmations: int = 2
-    gas_limit: int = 300000
-    max_gas_price_gwei: float = 100.0
+    gas_limit: int = 200000
+    max_gas_price_gwei: float = 50.0
 
 
 class TokenBridge:
@@ -282,8 +282,12 @@ class TokenBridge:
         if self._initialized and self.web3 and self.web3.is_connected():
             return True
 
-        from eth_account import Account
-        from web3 import Web3
+        try:
+            from eth_account import Account
+            from web3 import Web3
+        except (ImportError, Exception) as e:
+            logger.error(f"web3/eth_account not available: {e}")
+            return False
 
         # Combine single rpc_url and list of rpc_urls
         all_urls = self.config.rpc_urls.copy()

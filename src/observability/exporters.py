@@ -234,31 +234,26 @@ class OTLPSpanExporter(SpanExporter):
                 }]
             }
             
-            # Send via HTTP using unified httpx client
-            import httpx
-            
+            # Send via stdlib urllib (avoids env proxy issues like ALL_PROXY=socks://)
+            import json as _json
+            import urllib.request
+
             url = f"{self.endpoint}/v1/traces"
-            
+            payload = _json.dumps(request_data).encode()
+            req_headers = {"Content-Type": "application/json", **self.headers}
+
             try:
-                with httpx.Client(timeout=float(self.timeout)) as client:
-                    response = client.post(
-                        url,
-                        json=request_data,
-                        headers={
-                            "Content-Type": "application/json",
-                            **self.headers,
-                        }
-                    )
-                    
-                    if response.status_code == 200:
+                req = urllib.request.Request(url, data=payload, headers=req_headers, method="POST")
+                with urllib.request.urlopen(req, timeout=float(self.timeout)) as response:
+                    if response.status == 200:
                         return ExportResult(success=True, spans_exported=len(spans))
                     else:
                         return ExportResult(
                             success=False,
-                            error=f"OTLP export failed with status {response.status_code}",
+                            error=f"OTLP export failed with status {response.status}",
                         )
-            except httpx.RequestError as exc:
-                return ExportResult(success=False, error=f"HTTP Request failed: {exc}")
+            except Exception as exc:
+                return ExportResult(success=False, error=str(exc))
         
         except Exception as e:
             logger.error(f"OTLP export failed: {e}")
