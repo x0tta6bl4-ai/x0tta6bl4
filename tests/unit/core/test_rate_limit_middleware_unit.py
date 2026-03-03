@@ -491,6 +491,71 @@ class TestRateLimitMiddlewareDispatch:
         assert "X-RateLimit-Remaining" in response.headers
 
     @pytest.mark.asyncio
+    async def test_path_override_applied_for_prefix_match(self):
+        app = MagicMock()
+        expensive_override = RateLimitConfig(
+            requests_per_second=0.2, burst_size=1, block_duration=180
+        )
+        config = RateLimitConfig(
+            requests_per_second=100,
+            burst_size=50,
+            path_overrides={
+                "/api/v1/maas/marketplace/escrow": expensive_override,
+            },
+        )
+        mw = RateLimitMiddleware(app, config=config)
+        request = _make_request(
+            path="/api/v1/maas/marketplace/escrow/lst-123/refund",
+            client_ip="10.0.0.9",
+        )
+        inner_response = MagicMock()
+        inner_response.headers = {}
+        call_next = AsyncMock(return_value=inner_response)
+
+        with patch.object(
+            mw.limiter, "is_allowed", new=AsyncMock(return_value=(True, None))
+        ) as mock_is_allowed:
+            response = await mw.dispatch(request, call_next)
+
+        assert response is inner_response
+        assert response.headers["X-RateLimit-Limit"] == "0.2"
+        assert mock_is_allowed.await_count == 1
+        _client_id, used_config = mock_is_allowed.await_args.args
+        assert used_config is expensive_override
+        await mw.limiter.stop()
+
+    @pytest.mark.asyncio
+    async def test_path_override_not_used_for_non_matching_path(self):
+        app = MagicMock()
+        expensive_override = RateLimitConfig(
+            requests_per_second=0.2, burst_size=1, block_duration=180
+        )
+        config = RateLimitConfig(
+            requests_per_second=100,
+            burst_size=50,
+            path_overrides={
+                "/api/v1/maas/marketplace/escrow": expensive_override,
+            },
+        )
+        mw = RateLimitMiddleware(app, config=config)
+        request = _make_request(path="/api/v1/maas/analytics/mesh-1/summary")
+        inner_response = MagicMock()
+        inner_response.headers = {}
+        call_next = AsyncMock(return_value=inner_response)
+
+        with patch.object(
+            mw.limiter, "is_allowed", new=AsyncMock(return_value=(True, None))
+        ) as mock_is_allowed:
+            response = await mw.dispatch(request, call_next)
+
+        assert response is inner_response
+        assert response.headers["X-RateLimit-Limit"] == "100"
+        assert mock_is_allowed.await_count == 1
+        _client_id, used_config = mock_is_allowed.await_args.args
+        assert used_config is config
+        await mw.limiter.stop()
+
+    @pytest.mark.asyncio
     async def test_blocked_request_returns_429(self):
         """When rate limit exceeded, returns 429 with Retry-After."""
         app = MagicMock()
