@@ -1273,3 +1273,118 @@ class TestEpochRewardScheduler:
 
         # Should not raise
         await scheduler._distribute_epoch()
+
+
+# ─── TokenBridge.mint_from_bridge_event ──────────────────────────
+
+
+class TestMintFromBridgeEvent:
+    """Tests for operator-triggered mint after Base Sepolia deposit confirmation."""
+
+    @pytest.mark.asyncio
+    async def test_mint_known_address_success(self, bridge, mock_mesh_token):
+        bridge.register_address("node1", "0xabc123")
+        with patch.object(bridge, "_init_web3", return_value=False):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xdeadbeef01",
+                recipient_address="0xabc123",
+                amount_wei=int(5e18),
+                block_number=1000,
+            )
+
+        assert result is not None
+        assert result.status == "confirmed"
+        assert result.amount == 5.0
+        assert result.event_type == "BridgeDeposit"
+        assert result.direction == BridgeDirection.FROM_CHAIN
+        mock_mesh_token.mint.assert_called_once_with("node1", 5.0, "bridge_deposit_sepolia")
+
+    @pytest.mark.asyncio
+    async def test_mint_unknown_address_unresolved(self, bridge, mock_mesh_token):
+        with patch.object(bridge, "_init_web3", return_value=False):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xunknown01",
+                recipient_address="0xdeadbeef00",
+                amount_wei=int(1e18),
+                block_number=500,
+            )
+
+        assert result is not None
+        assert result.status == "unresolved"
+        mock_mesh_token.mint.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_idempotency_skip_duplicate(self, bridge, mock_mesh_token):
+        bridge.register_address("node2", "0xbbb222")
+        with patch.object(bridge, "_init_web3", return_value=False):
+            r1 = await bridge.mint_from_bridge_event(
+                tx_hash="0xduplicatehash",
+                recipient_address="0xbbb222",
+                amount_wei=int(2e18),
+                block_number=200,
+            )
+            r2 = await bridge.mint_from_bridge_event(
+                tx_hash="0xduplicatehash",
+                recipient_address="0xbbb222",
+                amount_wei=int(2e18),
+                block_number=200,
+            )
+
+        # Second call returns cached record without re-minting
+        assert r2 is r1
+        assert mock_mesh_token.mint.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_insufficient_confirmations_returns_none(self, bridge):
+        mock_web3 = MagicMock()
+        mock_web3.eth.block_number = 1001  # only 1 conf, need 2
+        bridge.web3 = mock_web3
+
+        with patch.object(bridge, "_init_web3", return_value=True):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xnewblock",
+                recipient_address="0xaaa111",
+                amount_wei=int(1e18),
+                block_number=1000,
+                confirmations=2,
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_sufficient_confirmations_proceeds(self, bridge, mock_mesh_token):
+        bridge.register_address("node3", "0xccc333")
+        mock_web3 = MagicMock()
+        mock_web3.eth.block_number = 1005  # 5 confs >= 2
+        bridge.web3 = mock_web3
+
+        with patch.object(bridge, "_init_web3", return_value=True):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xfiveconfs",
+                recipient_address="0xccc333",
+                amount_wei=int(3e18),
+                block_number=1000,
+                confirmations=2,
+            )
+
+        assert result is not None
+        assert result.status == "confirmed"
+        assert result.amount == 3.0
+
+    @pytest.mark.asyncio
+    async def test_record_added_to_tx_history(self, bridge, mock_mesh_token):
+        bridge.register_address("node4", "0xddd444")
+        initial_len = len(bridge.get_tx_history())
+
+        with patch.object(bridge, "_init_web3", return_value=False):
+            await bridge.mint_from_bridge_event(
+                tx_hash="0xhistorycheck",
+                recipient_address="0xddd444",
+                amount_wei=int(1e17),
+                block_number=999,
+            )
+
+        assert len(bridge.get_tx_history()) == initial_len + 1
+        tx = bridge.get_tx_history()[-1]
+        assert tx.tx_hash == "0xhistorycheck"
+        assert tx.block_number == 999
