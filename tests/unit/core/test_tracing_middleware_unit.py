@@ -1,6 +1,7 @@
 """Unit tests for tracing middleware."""
 
 import builtins
+import hashlib
 import importlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -12,6 +13,7 @@ import src.core.tracing_middleware as tracing_middleware
 from src.core.tracing_middleware import (DatabaseTracingMiddleware,
                                          ExternalAPITracingMiddleware,
                                          TracingMiddleware,
+                                         _masked_credential_id,
                                          correlation_id_var,
                                          get_correlation_id)
 
@@ -113,6 +115,19 @@ def test_get_correlation_id_defaults_none():
     assert value is None or isinstance(value, str)
 
 
+def test_masked_credential_id_hashes_api_key_and_bearer_token():
+    api_req = SimpleNamespace(headers={"X-API-Key": "super-secret-api-key"})
+    bearer_req = SimpleNamespace(headers={"Authorization": "Bearer top-secret-token"})
+    anon_req = SimpleNamespace(headers={})
+
+    expected_api = hashlib.sha256(b"super-secret-api-key").hexdigest()[:12]
+    expected_bearer = hashlib.sha256(b"top-secret-token").hexdigest()[:12]
+
+    assert _masked_credential_id(api_req) == f"api_key_{expected_api}"
+    assert _masked_credential_id(bearer_req) == f"bearer_{expected_bearer}"
+    assert _masked_credential_id(anon_req) == "anonymous"
+
+
 @pytest.mark.asyncio
 async def test_tracing_middleware_adds_headers(monkeypatch):
     monkeypatch.setattr(tracing_middleware, "OTEL_AVAILABLE", False)
@@ -130,6 +145,7 @@ async def test_tracing_middleware_adds_headers(monkeypatch):
     assert res.status_code == 200
     assert "X-Correlation-ID" in res.headers
     assert "X-Request-Duration" in res.headers
+    assert "X-API-Key-ID" not in res.headers
 
 
 @pytest.mark.asyncio
@@ -198,7 +214,34 @@ async def test_tracing_middleware_otel_success_sets_span_and_headers(monkeypatch
     assert response.headers["X-Correlation-ID"]
     assert response.headers["X-Request-Duration"].endswith("s")
     assert response.headers["X-Trace-ID"] == "00-abc-xyz-01"
+    assert span.attributes["http.credential_id"] == "anonymous"
+    assert span.attributes["http.auth_present"] is False
     assert propagator.extracted == {"User-Agent": "pytest-agent"}
+
+
+@pytest.mark.asyncio
+async def test_tracing_middleware_otel_masks_credential_id(monkeypatch):
+    tracer, _ = _install_fake_otel(monkeypatch)
+    middleware = TracingMiddleware(app=SimpleNamespace(), service_name="unit-test")
+    token = "very-sensitive-token"
+    request = SimpleNamespace(
+        url=_ReqURL("/secure"),
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+        client=SimpleNamespace(host="10.0.0.9"),
+        query_params={},
+    )
+
+    async def call_next(_request):
+        return Response(status_code=200)
+
+    response = await middleware.dispatch(request, call_next)
+    span = tracer.spans[-1]
+    expected = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+
+    assert response.status_code == 200
+    assert span.attributes["http.credential_id"] == f"bearer_{expected}"
+    assert span.attributes["http.auth_present"] is True
 
 
 @pytest.mark.asyncio
