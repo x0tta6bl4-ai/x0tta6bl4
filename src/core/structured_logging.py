@@ -11,6 +11,7 @@ Provides JSON-formatted logging with:
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -38,6 +39,29 @@ SENSITIVE_FIELDS: Set[str] = {
 # Mask value
 MASK = "***MASKED***"
 _UNSET = object()
+_INLINE_SECRET_PATTERNS = [
+    (
+        re.compile(r"(?i)\b(authorization)\s*[:=]\s*(bearer|basic)\s+([^\s,;]+)"),
+        r"\1: \2 " + MASK,
+    ),
+    (
+        re.compile(
+            r"(?i)\b("
+            r"token|password|secret|api[_-]?key|private[_-]?key|"
+            r"access[_-]?token|refresh[_-]?token"
+            r')\b["\']?\s*[:=]\s*["\']?([^\s,"\';}]+)'
+        ),
+        r"\1=" + MASK,
+    ),
+]
+
+
+def _sanitize_inline_secret_text(text: str) -> str:
+    """Mask inline secret-like fragments in free-text log messages."""
+    sanitized = text
+    for pattern, replacement in _INLINE_SECRET_PATTERNS:
+        sanitized = pattern.sub(replacement, sanitized)
+    return sanitized
 
 
 def mask_sensitive(data: Any, depth: int = 0) -> Any:
@@ -66,12 +90,7 @@ def mask_sensitive(data: Any, depth: int = 0) -> Any:
     elif isinstance(data, list):
         return [mask_sensitive(item, depth + 1) for item in data]
     elif isinstance(data, str):
-        # Check if string looks like a secret (long random string)
-        if len(data) > 32 and all(c.isalnum() or c in "-_" for c in data):
-            # Could be a token/key, but we don't mask by pattern
-            # Only mask by field name
-            pass
-        return data
+        return _sanitize_inline_secret_text(data)
     else:
         return data
 
@@ -113,7 +132,7 @@ class StructuredFormatter(logging.Formatter):
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": _sanitize_inline_secret_text(record.getMessage()),
         }
         
         # Add module info
@@ -165,7 +184,11 @@ class StructuredFormatter(logging.Formatter):
         if record.exc_info:
             log_entry["exception"] = {
                 "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
-                "message": str(record.exc_info[1]) if record.exc_info[1] else None,
+                "message": (
+                    _sanitize_inline_secret_text(str(record.exc_info[1]))
+                    if record.exc_info[1]
+                    else None
+                ),
                 "stacktrace": self.formatException(record.exc_info),
             }
         
