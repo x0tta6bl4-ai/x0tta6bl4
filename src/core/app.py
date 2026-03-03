@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 # Internal imports
 from src.core.api_error_handlers import register_api_error_handlers
+from src.core.cors_config import resolve_cors_allowed_origins
 from src.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
                                         shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
@@ -61,12 +62,11 @@ else:
 # --- Middlewares (Order matters: CORS -> RateLimit -> Tracing -> Others) ---
 
 # 1. CORS (P1 Security)
-allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-allowed_origins = [o.strip() for o in allowed_origins if o.strip()]
+allowed_origins = resolve_cors_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or ["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     # Security: explicit allowlists required when allow_credentials=True.
     # Wildcard allow_methods/allow_headers + credentials enables CSRF via
