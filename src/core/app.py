@@ -101,8 +101,32 @@ if security_flags["rate_limit_enabled"] and not testing_mode:
         burst_size=int(os.getenv("RATE_LIMIT_BURST", "50")),
         block_duration=int(os.getenv("RATE_LIMIT_BLOCK_DURATION", "60")),
         path_overrides={
+            # Expensive marketplace payment/state-transition flows
             "/api/v1/maas/marketplace/rent": RateLimitConfig(
                 requests_per_second=0.5, burst_size=1, block_duration=120
+            ),
+            "/api/v1/maas/marketplace/escrow": RateLimitConfig(
+                requests_per_second=0.2, burst_size=1, block_duration=180
+            ),
+            # Billing and webhook endpoints are high-value abuse targets
+            "/api/v1/maas/billing/subscriptions/checkout": RateLimitConfig(
+                requests_per_second=0.2, burst_size=2, block_duration=180
+            ),
+            "/api/v1/maas/billing/webhook/stripe": RateLimitConfig(
+                requests_per_second=1.0, burst_size=5, block_duration=60
+            ),
+            "/api/v1/billing/checkout-session": RateLimitConfig(
+                requests_per_second=0.5, burst_size=2, block_duration=120
+            ),
+            "/api/v1/billing/webhook": RateLimitConfig(
+                requests_per_second=1.0, burst_size=5, block_duration=60
+            ),
+            # Vision endpoints are CPU-heavy and should be throttled aggressively
+            "/api/v1/vision/analyze/topology": RateLimitConfig(
+                requests_per_second=0.1, burst_size=1, block_duration=120
+            ),
+            "/api/v1/vision/debug": RateLimitConfig(
+                requests_per_second=0.1, burst_size=1, block_duration=120
             ),
             "/api/v1/maas/vpn/config": RateLimitConfig(
                 requests_per_second=0.2, burst_size=1, block_duration=300
@@ -216,6 +240,18 @@ _include_maas_router("src.event_sourcing.api", "event-sourcing")
 @app.get("/health")
 async def health():
     return {"status": "ok", **get_health_info()}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus-compatible metrics for scraping."""
+    from src.monitoring.metrics import get_metrics
+
+    metrics_payload = get_metrics()
+    return Response(
+        content=metrics_payload.body,
+        media_type=metrics_payload.media_type,
+    )
 
 
 # --- Mesh / Yggdrasil Status Endpoints ---
