@@ -4,6 +4,7 @@ import importlib
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import List as TypingList
 from typing import Optional
@@ -22,7 +23,7 @@ from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
 from src.core.request_validation import (RequestValidationMiddleware,
                                          ValidationConfig)
-from src.core.logging_config import setup_logging
+from src.core.logging_config import RequestIdContextVar, setup_logging
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
 from src.core.tracing_middleware import TracingMiddleware
@@ -178,6 +179,28 @@ except ImportError:
     pass
 
 # 8. Security Headers (P1 Security)
+@app.middleware("http")
+async def propagate_request_id(request, call_next):
+    """Ensure request/correlation ID exists even when tracing middleware is disabled."""
+    request_id = (
+        request.headers.get("X-Request-ID")
+        or request.headers.get("X-Correlation-ID")
+        or str(uuid.uuid4())
+    )
+    RequestIdContextVar.set(request_id)
+    existing_trace_id = getattr(request.state, "trace_id", None)
+    request.state.trace_id = existing_trace_id or request_id
+
+    try:
+        response = await call_next(request)
+    finally:
+        RequestIdContextVar.clear()
+
+    response.headers.setdefault("X-Request-ID", request_id)
+    response.headers.setdefault("X-Correlation-ID", request_id)
+    return response
+
+
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
