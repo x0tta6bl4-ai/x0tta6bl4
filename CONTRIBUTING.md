@@ -290,6 +290,14 @@ sudo pytest tests/ebpf/ -v
 - **Coverage**: New code requires >80% coverage
 - **All tests must pass**: PRs with failing tests will not be merged
 - **Mutation testing**: Critical modules should pass mutation tests
+- **Staging-impacting changes must pass cleanup gate**:
+  ```bash
+  make cleanup-gate
+  ```
+- **Agent orchestration changes must pass dry run**:
+  ```bash
+  make agent-cycle-dry
+  ```
 
 ### Writing Tests
 
@@ -354,9 +362,24 @@ class TestConsciousnessEngine:
    pre-commit run --all-files
    ```
 
+### Single-Purpose PR Rule (Required)
+
+`One PR = one purpose`.
+
+Every pull request must include:
+1. **Scope**: what is intentionally changed.
+2. **Out of scope**: what is explicitly not changed.
+3. **Risk note**: expected blast radius (`low/medium/high`).
+4. **Rollback note**: exact revert path.
+5. **Verification commands** with pass/fail outcome.
+
+If a branch contains unrelated work, split it into separate PRs.
+Do not bundle new feature work with staging stabilization in one PR.
+
 ### PR Checklist
 
 ```markdown
+- [ ] Single purpose confirmed (scope/out-of-scope filled)
 - [ ] Code follows the project's style guidelines
 - [ ] Tests pass locally
 - [ ] New tests added for new functionality
@@ -368,22 +391,29 @@ class TestConsciousnessEngine:
 ### PR Template
 
 ```markdown
-## Description
-Brief description of changes
+## Summary
+Brief description of changes and why
 
-## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
+## Single Purpose (Required)
+- [ ] PR covers exactly one purpose
+- Scope:
+- Out of scope:
+- Linked issue/ticket:
 
-## Testing
-Describe testing performed
+## Risk And Rollback (Required)
+- Risk: low / medium / high
+- Impact:
+- Rollback steps:
+
+## Verification (Required)
+make cleanup-gate
+make test
+make agent-cycle-dry
 
 ## Checklist
-- [ ] Tests pass
+- [ ] Tests pass / N/A justified
 - [ ] Documentation updated
-- [ ] CHANGELOG updated
+- [ ] Security impact reviewed
 ```
 
 ### Review Process
