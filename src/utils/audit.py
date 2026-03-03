@@ -1,5 +1,7 @@
 import json
 import logging
+import re
+from typing import Any
 from typing import Optional
 
 from fastapi import Request
@@ -9,6 +11,75 @@ from src.core.logging_config import RequestIdContextVar
 from src.database import AuditLog
 
 logger = logging.getLogger(__name__)
+
+_REDACTED_VALUE = "********"
+_SENSITIVE_KEYS = {
+    "password",
+    "passwd",
+    "token",
+    "secret",
+    "api_key",
+    "private_key",
+    "pqc_key",
+    "authorization",
+    "access_token",
+    "refresh_token",
+    "session_token",
+    "credential",
+    "passphrase",
+}
+
+_INLINE_SECRET_PATTERNS = [
+    (
+        re.compile(r"(?i)\b(authorization)\s*[:=]\s*(bearer|basic)\s+([^\s,;]+)"),
+        r"\1: \2 ********",
+    ),
+    (
+        re.compile(r"(?i)\b(token|password|secret|api[_-]?key|private[_-]?key)\s*[:=]\s*([^\s,;]+)"),
+        r"\1=********",
+    ),
+]
+
+
+def _is_sensitive_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(fragment in lowered for fragment in _SENSITIVE_KEYS)
+
+
+def _sanitize_text(text: str) -> str:
+    sanitized = text
+    for pattern, replacement in _INLINE_SECRET_PATTERNS:
+        sanitized = pattern.sub(replacement, sanitized)
+    return sanitized
+
+
+def _sanitize_payload_value(value: Any, *, parent_key: Optional[str] = None) -> Any:
+    if parent_key and _is_sensitive_key(parent_key):
+        return _REDACTED_VALUE
+
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_payload_value(child, parent_key=str(key))
+            for key, child in value.items()
+        }
+
+    if isinstance(value, list):
+        return [_sanitize_payload_value(item, parent_key=parent_key) for item in value]
+
+    if isinstance(value, tuple):
+        return [_sanitize_payload_value(item, parent_key=parent_key) for item in value]
+
+    if isinstance(value, str):
+        return _sanitize_text(value)
+
+    return value
+
+
+def _serialize_sanitized_payload(payload: Any) -> Optional[str]:
+    if payload is None:
+        return None
+    sanitized_payload = _sanitize_payload_value(payload)
+    return json.dumps(sanitized_payload, default=str, ensure_ascii=False)
 
 
 def _resolve_trace_id(request: Optional[Request]) -> Optional[str]:
@@ -69,7 +140,7 @@ def record_audit_log(
             action=action,
             method=request.method if request else "INTERNAL",
             path=request.url.path if request else "INTERNAL",
-            payload=json.dumps(payload) if payload else None,
+            payload=_serialize_sanitized_payload(payload) if payload else None,
             status_code=status_code,
             ip_address=request.client.host if request and request.client else "unknown"
         )
