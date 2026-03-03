@@ -4,7 +4,10 @@ MaaS Auth Endpoints - Authentication endpoints.
 Provides REST API endpoints for user registration, login, and API key management.
 """
 
+import hashlib
+import hmac
 import logging
+import secrets
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -32,6 +35,43 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # In-memory user store (replace with database in production)
 _user_store: Dict[str, Dict[str, Any]] = {}
+_PASSWORD_HASH_SCHEME = "pbkdf2_sha256"
+_PASSWORD_HASH_ITERATIONS = 60_000
+
+
+def _hash_password(password: str, *, salt_hex: Optional[str] = None) -> str:
+    """Hash password with PBKDF2-HMAC-SHA256 for in-memory auth store."""
+    salt_hex = salt_hex or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        bytes.fromhex(salt_hex),
+        _PASSWORD_HASH_ITERATIONS,
+    )
+    return (
+        f"{_PASSWORD_HASH_SCHEME}$"
+        f"{_PASSWORD_HASH_ITERATIONS}$"
+        f"{salt_hex}$"
+        f"{digest.hex()}"
+    )
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    """Verify plaintext password against PBKDF2 hash."""
+    try:
+        scheme, iterations_raw, salt_hex, expected_hex = password_hash.split("$", 3)
+        if scheme != _PASSWORD_HASH_SCHEME:
+            return False
+        iterations = int(iterations_raw)
+        digest = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt_hex),
+            iterations,
+        )
+        return hmac.compare_digest(digest.hex(), expected_hex)
+    except Exception:
+        return False
 
 
 @router.post(
@@ -67,6 +107,7 @@ async def register(
         "email": request.email,
         "name": request.name,
         "plan": "free",
+        "password_hash": _hash_password(request.password),
         "created_at": __import__("datetime").datetime.utcnow().isoformat(),
     }
 
@@ -112,8 +153,12 @@ async def login(
             detail="Invalid credentials",
         )
 
-    # In production, verify password hash
-    # For now, accept any password for demo
+    password_hash = str(user_data.get("password_hash", ""))
+    if not _verify_password(request.password, password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
 
     # Create session
     auth = get_auth_service()
