@@ -129,7 +129,7 @@ class OTelTracingManager:
             self.tracer = trace.get_tracer(__name__)
 
             # Setup metrics (optional)
-            if enable_metrics and PROMETHEUS_EXPORTER_AVAILABLE and PrometheusMetricReader is not None:
+            if enable_metrics and PrometheusMetricReader is not None:
                 prometheus_reader = PrometheusMetricReader()
                 meter_provider = MeterProvider(metric_readers=[prometheus_reader])
                 metrics.set_meter_provider(meter_provider)
