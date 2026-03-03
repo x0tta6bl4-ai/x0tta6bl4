@@ -15,6 +15,7 @@ import logging.handlers
 import os
 import re
 import sys
+from contextvars import ContextVar
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, Optional
@@ -72,6 +73,24 @@ class StructuredJsonFormatter(logging.Formatter):
 
         if hasattr(record, "request_id"):
             log_entry["request_id"] = record.request_id
+        else:
+            context_request_id = RequestIdContextVar.get()
+            if context_request_id:
+                log_entry["request_id"] = context_request_id
+
+        if "request_id" not in log_entry:
+            try:
+                # Lazy import avoids hard dependency/cycle at module import time.
+                from src.core.tracing_middleware import get_correlation_id
+
+                correlation_id = get_correlation_id()
+                if correlation_id:
+                    log_entry["request_id"] = correlation_id
+            except Exception:
+                pass
+
+        if "request_id" in log_entry and "trace_id" not in log_entry:
+            log_entry["trace_id"] = log_entry["request_id"]
 
         if hasattr(record, "user_id"):
             log_entry["user_id"] = record.user_id
@@ -233,22 +252,22 @@ def get_logger(name: str) -> logging.Logger:
 class RequestIdContextVar:
     """Store request ID in logging context"""
 
-    _context = {}
+    _context: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 
     @classmethod
     def set(cls, request_id: str):
         """Set request ID for current context"""
-        cls._context[id(cls)] = request_id
+        cls._context.set(request_id)
 
     @classmethod
     def get(cls) -> Optional[str]:
         """Get request ID from current context"""
-        return cls._context.get(id(cls))
+        return cls._context.get()
 
     @classmethod
     def clear(cls):
         """Clear request ID from context"""
-        cls._context.pop(id(cls), None)
+        cls._context.set(None)
 
 
 class LoggingMiddleware:
