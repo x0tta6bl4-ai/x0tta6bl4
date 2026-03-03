@@ -67,10 +67,10 @@ class EBPFLoader:
         self.loaded_programs: Dict[str, EBPFProgram] = {}
         self.program_stats: Dict[str, Dict[str, Any]] = {}
 
-        if not BCC_AVAILABLE:
-            logger.warning(
-                "⚠️ BCC not available - eBPF programs will use stub implementation"
-            )
+        # DEV MODE: BCC_STUB_MODE env allows stub without failing
+        import os
+        if not BCC_AVAILABLE and os.getenv("BCC_STUB_MODE", "false").lower() != "true":
+            raise RuntimeError("BCC not available - eBPF programs cannot be loaded. Set BCC_STUB_MODE=true for dev.")
 
     def load_program(
         self, program_path: str, cflags: Optional[List[str]] = None
@@ -83,19 +83,19 @@ class EBPFLoader:
             cflags: Optional C compiler flags
 
         Returns:
-            EBPFProgram object
+            EBPFProgram object (stub with loaded=False when BCC unavailable)
 
         Raises:
-            RuntimeError: If BCC not available or loading fails
+            RuntimeError: If loading fails with BCC available
         """
         if not BCC_AVAILABLE:
-            logger.warning(f"⚠️ BCC not available - using stub for {program_path}")
-            return EBPFProgram(
-                name=Path(program_path).stem,
-                bpf=None,
-                program_path=program_path,
-                loaded=False,
+            program_name = Path(program_path).stem
+            program = EBPFProgram(
+                name=program_name, bpf=None, program_path=program_path, loaded=False
             )
+            self.loaded_programs[program_name] = program
+            logger.warning(f"⚠️ BCC not available - returning stub EBPFProgram for {program_name}")
+            return program
 
         try:
             # Read eBPF program source
@@ -452,65 +452,50 @@ class EBPFLoader:
             self.unload_program(program)
 
 
-# Stub implementation for when BCC is not available
+class StubEBPFMap:
+    """In-memory dict-like stub for a BPF map (used when BCC is unavailable)."""
+
+    def __init__(self):
+        self._data: Dict[Any, Any] = {}
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+    def items(self):
+        return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+
 class StubEBPFProgram:
-    """Stub eBPF program for when BCC is not available."""
+    """Stub eBPF program for use when BCC is unavailable."""
 
     def __init__(self, name: str):
         self.name = name
-        self.maps = {}
+        self._maps: Dict[str, StubEBPFMap] = {}
 
-    def __getitem__(self, key):
-        """Stub map access."""
-        return StubEBPFMap(key, self.name)
-
-
-class StubEBPFMap:
-    """Stub eBPF map for when BCC is not available."""
-
-    def __init__(self, name: str, program_name: str):
-        self.name = name
-        self.program_name = program_name
-        self.data = {}
-
-    def items(self):
-        """Stub items iterator."""
-        return self.data.items()
-
-    def keys(self):
-        """Stub keys iterator."""
-        return self.data.keys()
-
-    def values(self):
-        """Stub values iterator."""
-        return self.data.values()
-
-    def get(self, key, default=None):
-        """Stub get."""
-        return self.data.get(key, default)
-
-    def __getitem__(self, key):
-        """Stub getitem."""
-        return self.data.get(key)
-
-    def __setitem__(self, key, value):
-        """Stub setitem."""
-        self.data[key] = value
+    def __getitem__(self, key: str) -> StubEBPFMap:
+        if key not in self._maps:
+            self._maps[key] = StubEBPFMap()
+        return self._maps[key]
 
 
 def create_stub_program(program_path: str) -> EBPFProgram:
-    """
-    Create stub eBPF program for when BCC is not available.
-
-    Args:
-        program_path: Path to eBPF C source file
-
-    Returns:
-        EBPFProgram object with stub implementation
-    """
+    """Create a stub EBPFProgram (loaded=False) for use when BCC is unavailable."""
     program_name = Path(program_path).stem
-    stub_program = StubEBPFProgram(program_name)
-
     return EBPFProgram(
-        name=program_name, bpf=stub_program, program_path=program_path, loaded=False
+        name=program_name,
+        bpf=StubEBPFProgram(program_name),
+        program_path=program_path,
+        loaded=False,
     )
