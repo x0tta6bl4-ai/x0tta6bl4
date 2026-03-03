@@ -126,7 +126,7 @@ async def test_metrics_middleware_http_request():
     await middleware(scope, mock_receive, mock_send)
 
     # Verify metrics were recorded
-    metric = http_requests_total.labels(method="GET", endpoint="/test", status=200)
+    metric = http_requests_total.labels(method="GET", endpoint="/test", status=200, api_key="anonymous")
     assert metric._value._value >= 1
 
 
@@ -192,7 +192,7 @@ async def test_metrics_middleware_handles_exception():
         await middleware(scope, mock_receive, mock_send)
 
     # Verify metric was recorded with status=500 (default)
-    metric = http_requests_total.labels(method="POST", endpoint="/error", status=500)
+    metric = http_requests_total.labels(method="POST", endpoint="/error", status=500, api_key="anonymous")
     assert metric._value._value >= 1
 
 

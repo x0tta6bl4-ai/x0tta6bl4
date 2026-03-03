@@ -52,6 +52,7 @@ def _program(name: str, bpf=None, loaded=True):
 
 
 def test_load_program_stub_when_bcc_missing(monkeypatch):
+    monkeypatch.setenv("BCC_STUB_MODE", "true")
     monkeypatch.setattr(mod, "BCC_AVAILABLE", False)
 
     loader = mod.EBPFLoader()
