@@ -98,12 +98,11 @@ class PQCSpiffeBridge:
             return False
         
         if verify_x509:
-            # P3: Implementation of X.509 signature verification
-            # In a production mesh, the PQC keys are attested by an X.509 certificate (SVID).
-            x509_svid = bundle.get("x509_svid")
-            if not x509_svid:
-                logger.error("X.509 verification requested but x509_svid missing in bundle")
-                return False
+            # P3: X.509 signature verification not yet implemented (planned for v4.0)
+            raise NotImplementedError(
+                "X.509 signature verification is not yet implemented. "
+                "Use verify_pqc_svid() for PQC-only validation."
+            )
                 
             try:
                 from cryptography import x509

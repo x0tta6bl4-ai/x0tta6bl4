@@ -57,6 +57,7 @@ class PQCSession:
     mac_key: Optional[bytes] = None  # 16-byte SipHash key for eBPF fast-path
     last_seq: int = 0  # Highest authenticated sequence number (v3.1)
     window_bitmap: int = 0  # Sliding window for 64 packets (v3.1)
+    packet_counter: int = 0  # Total packets processed in this session
     created_at: float = None
     last_used: float = 0.0
     verified: bool = False
@@ -281,6 +282,7 @@ class EBPFPQCGateway:
         session.mac_key = self._derive_mac_key(new_secret)
         session.last_seq = 0
         session.window_bitmap = 0
+        session.packet_counter = 0
         session.last_used = _time.time()
 
         logger.info(f"Rotated keys for session {session_id}")
@@ -336,6 +338,7 @@ class EBPFPQCGateway:
                     "timestamp": int(session.last_used or session.created_at),
                     "last_seq": session.last_seq,
                     "window_bitmap": session.window_bitmap,
+                    "packet_counter": session.packet_counter,
                 }
 
         logger.debug(f"EBPFPQCGateway.get_ebpf_map_data() returning: {ebpf_data}")
