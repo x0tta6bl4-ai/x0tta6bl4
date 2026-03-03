@@ -818,6 +818,94 @@ class TokenBridge:
         """Get pending transactions."""
         return [tx for tx in self._tx_history if tx.status == "pending"]
 
+    # ─────────────────────────────────────────────────────────────
+    # Operator-triggered Mint (Base Sepolia bridge deposit)
+    # ─────────────────────────────────────────────────────────────
+
+    async def mint_from_bridge_event(
+        self,
+        tx_hash: str,
+        recipient_address: str,
+        amount_wei: int,
+        block_number: int,
+        confirmations: Optional[int] = None,
+    ) -> Optional[BridgeTransaction]:
+        """
+        Mint local MeshToken after a confirmed on-chain bridge deposit.
+
+        Called by the x0tta-mesh-operator after receiving a Deposit event
+        on the Base Sepolia bridge contract and waiting for the required
+        number of block confirmations (default: spec.dao.bridge.confirmations).
+
+        Args:
+            tx_hash: On-chain transaction hash of the deposit.
+            recipient_address: Ethereum address of the depositor.
+            amount_wei: Token amount in wei (will be converted to X0T).
+            block_number: Block number where the deposit was mined.
+            confirmations: Override for required confirmations; falls back to
+                           BridgeConfig.confirmations (default 2).
+
+        Returns:
+            BridgeTransaction record if mint succeeded, None on failure.
+        """
+        required = confirmations if confirmations is not None else self.config.confirmations
+
+        # Confirm enough blocks have passed (live check when Web3 is available)
+        if self._init_web3() and self.web3:
+            try:
+                current_block = self.web3.eth.block_number
+                actual_confs = current_block - block_number
+                if actual_confs < required:
+                    logger.warning(
+                        f"mint_from_bridge_event: only {actual_confs}/{required} "
+                        f"confirmations for tx {tx_hash}"
+                    )
+                    return None
+            except Exception as e:
+                logger.warning(f"Could not verify confirmations for {tx_hash}: {e}")
+
+        # Idempotency: skip if already processed
+        already = next(
+            (t for t in self._tx_history if t.tx_hash == tx_hash and t.status == "confirmed"),
+            None,
+        )
+        if already:
+            logger.info(f"mint_from_bridge_event: tx {tx_hash} already minted, skipping")
+            return already
+
+        # Resolve node_id from Ethereum address
+        node_id = self.get_node_id(recipient_address)
+        amount_xot = float(amount_wei) / 1e18
+
+        if node_id:
+            self.mesh_token.mint(node_id, amount_xot, "bridge_deposit_sepolia")
+            logger.info(
+                f"✅ Minted {amount_xot:.4f} X0T for {node_id} "
+                f"(tx={tx_hash}, block={block_number})"
+            )
+        else:
+            # Unregistered address — record for reconciliation but still create
+            # a pending BridgeTransaction so the operator can resolve later.
+            logger.warning(
+                f"mint_from_bridge_event: no node_id for {recipient_address}, "
+                f"recording as unresolved (tx={tx_hash})"
+            )
+
+        record = BridgeTransaction(
+            tx_id=f"mint_{tx_hash[:12]}",
+            direction=BridgeDirection.FROM_CHAIN,
+            from_address=recipient_address,
+            to_address=node_id or recipient_address,
+            amount=amount_xot,
+            event_type="BridgeDeposit",
+            timestamp=time.time(),
+            block_number=block_number,
+            tx_hash=tx_hash,
+            status="confirmed" if node_id else "unresolved",
+        )
+        self._tx_history.append(record)
+        return record
+
 
 # ─────────────────────────────────────────────────────────────────
 # Epoch Reward Scheduler
