@@ -8,6 +8,9 @@ import hashlib
 import hmac
 import logging
 import secrets
+import threading
+import time
+from collections import deque
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -37,10 +40,50 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _user_store: Dict[str, Dict[str, Any]] = {}
 _PASSWORD_HASH_SCHEME = "pbkdf2_sha256"
 _PASSWORD_HASH_ITERATIONS = 60_000
+_LOGIN_ATTEMPT_WINDOW_SECONDS = 300.0
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_ATTEMPTS: Dict[str, deque[float]] = {}
+_LOGIN_ATTEMPT_LOCK = threading.Lock()
 
 
 def _normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+def _prune_login_attempts(bucket: deque[float], now: float) -> None:
+    cutoff = now - _LOGIN_ATTEMPT_WINDOW_SECONDS
+    while bucket and bucket[0] <= cutoff:
+        bucket.popleft()
+
+
+def _check_login_throttle(normalized_email: str) -> None:
+    now = time.monotonic()
+    with _LOGIN_ATTEMPT_LOCK:
+        bucket = _LOGIN_ATTEMPTS.setdefault(normalized_email, deque())
+        _prune_login_attempts(bucket, now)
+        if len(bucket) >= _LOGIN_MAX_ATTEMPTS:
+            retry_after = max(
+                1,
+                int(bucket[0] + _LOGIN_ATTEMPT_WINDOW_SECONDS - now),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed login attempts. Please retry later.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+def _record_failed_login(normalized_email: str) -> None:
+    now = time.monotonic()
+    with _LOGIN_ATTEMPT_LOCK:
+        bucket = _LOGIN_ATTEMPTS.setdefault(normalized_email, deque())
+        _prune_login_attempts(bucket, now)
+        bucket.append(now)
+
+
+def _clear_failed_logins(normalized_email: str) -> None:
+    with _LOGIN_ATTEMPT_LOCK:
+        _LOGIN_ATTEMPTS.pop(normalized_email, None)
 
 
 def _hash_password(password: str, *, salt_hex: Optional[str] = None) -> str:
@@ -144,6 +187,7 @@ async def login(
     Returns a session token for subsequent requests.
     """
     normalized_email = _normalize_email(request.email)
+    _check_login_throttle(normalized_email)
 
     # Find user by email
     user_id = None
@@ -156,6 +200,7 @@ async def login(
             break
 
     if not user_id:
+        _record_failed_login(normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -163,10 +208,13 @@ async def login(
 
     password_hash = str(user_data.get("password_hash", ""))
     if not _verify_password(request.password, password_hash):
+        _record_failed_login(normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    _clear_failed_logins(normalized_email)
 
     # Create session
     auth = get_auth_service()
