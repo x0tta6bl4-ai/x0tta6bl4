@@ -5,6 +5,9 @@ Provides dependency injection for authentication, authorization, and user contex
 """
 
 import logging
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -15,6 +18,10 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from .services import AuthService
 
 logger = logging.getLogger(__name__)
+
+_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_EVENTS: Dict[str, deque[float]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -415,9 +422,41 @@ def check_rate_limit(
     Raises:
         HTTPException: If rate limit exceeded
     """
-    # This would integrate with the resilience module's rate limiter
-    # For now, it's a placeholder
-    pass
+    if requests_per_minute <= 0:
+        raise ValueError("requests_per_minute must be a positive integer")
+
+    now = time.monotonic()
+    cutoff = now - _RATE_LIMIT_WINDOW_SECONDS
+    user_key = user.user_id or "anonymous"
+    bucket_key = f"{user_key}:{endpoint}"
+
+    with _RATE_LIMIT_LOCK:
+        bucket = _RATE_LIMIT_EVENTS.get(bucket_key)
+        if bucket is None:
+            bucket = deque()
+            _RATE_LIMIT_EVENTS[bucket_key] = bucket
+
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+
+        if len(bucket) >= requests_per_minute:
+            retry_after = max(1, int(bucket[0] + _RATE_LIMIT_WINDOW_SECONDS - now))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"Rate limit exceeded for '{endpoint}'. "
+                    f"Limit: {requests_per_minute} requests per minute."
+                ),
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        bucket.append(now)
+
+
+def _clear_rate_limit_state() -> None:
+    """Clear in-memory rate limiter state (tests only)."""
+    with _RATE_LIMIT_LOCK:
+        _RATE_LIMIT_EVENTS.clear()
 
 
 # ---------------------------------------------------------------------------
