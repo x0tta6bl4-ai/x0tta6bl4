@@ -42,11 +42,20 @@ def _assert_security_headers(headers: httpx.Headers) -> None:
     assert headers.get("Server") == "x0tta6bl4-gateway"
 
 
+def _assert_request_id_headers(headers: httpx.Headers) -> None:
+    request_id = headers.get("X-Request-ID")
+    correlation_id = headers.get("X-Correlation-ID")
+    assert request_id
+    assert correlation_id
+    assert request_id == correlation_id
+
+
 @pytest.mark.asyncio
 async def test_security_headers_present_on_success_response(client):
     resp = await client.get("/health")
     assert resp.status_code == 200
     _assert_security_headers(resp.headers)
+    _assert_request_id_headers(resp.headers)
 
 
 @pytest.mark.asyncio
@@ -54,6 +63,7 @@ async def test_security_headers_present_on_error_response(client):
     resp = await client.get("/api/v1/non-existent")
     assert resp.status_code == 404
     _assert_security_headers(resp.headers)
+    _assert_request_id_headers(resp.headers)
 
 
 @pytest.mark.asyncio
@@ -61,3 +71,12 @@ async def test_metrics_endpoint_keeps_gateway_security_headers(client):
     resp = await client.get("/metrics")
     assert resp.status_code == 200
     _assert_security_headers(resp.headers)
+    _assert_request_id_headers(resp.headers)
+
+
+@pytest.mark.asyncio
+async def test_request_id_preserves_client_supplied_value(client):
+    resp = await client.get("/health", headers={"X-Request-ID": "req-fixed-123"})
+    assert resp.status_code == 200
+    assert resp.headers.get("X-Request-ID") == "req-fixed-123"
+    assert resp.headers.get("X-Correlation-ID") == "req-fixed-123"
