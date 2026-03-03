@@ -46,3 +46,19 @@ def test_validate_tls_version_rejects_tls12():
     is_valid, version = validator.validate_tls_version(request)
     assert is_valid is False
     assert "TLSv1.2" in version
+
+
+def test_extract_client_cert_requires_proxy_verification_header():
+    validator = MTLSValidator(
+        trust_proxy_headers=True,
+        require_proxy_verified_header=True,
+    )
+    request = _request_with_scope(
+        {
+            "headers": [
+                (b"x-ssl-client-cert", b"-----BEGIN CERTIFICATE-----abc-----END CERTIFICATE-----"),
+            ],
+        }
+    )
+    cert = validator.extract_client_cert_from_request(request)
+    assert cert is None
