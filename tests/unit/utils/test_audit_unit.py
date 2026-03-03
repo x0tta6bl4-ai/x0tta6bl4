@@ -313,6 +313,35 @@ class TestRecordAuditLog:
         assert "inline-token" not in parsed["details"]
         assert "abc123" not in parsed["details"]
 
+    def test_audit_log_redacts_case_insensitive_keys_in_lists_and_tuples(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class
+    ):
+        """Redaction must work for mixed-case key names and tuple/list payloads."""
+        request = _make_request(app)
+        payload = {
+            "dbPassword": "p@ss",
+            "nested_list": [{"Private_Key": "pk-123"}],
+            "tuple_payload": (
+                {"accessToken": "jwt-abc"},
+                "api_key=inline-123",
+            ),
+        }
+
+        record_audit_log(
+            db=mock_db,
+            request=request,
+            action="SENSITIVE_MIXED_CASE_PAYLOAD",
+            payload=payload,
+        )
+
+        entry = mock_db.added_entries[0]
+        parsed = json.loads(entry.payload)
+        assert parsed["dbPassword"] == "********"
+        assert parsed["nested_list"][0]["Private_Key"] == "********"
+        assert parsed["tuple_payload"][0]["accessToken"] == "********"
+        assert "inline-123" not in parsed["tuple_payload"][1]
+        assert parsed["tuple_payload"][1] == "api_key=********"
+
 
 class TestAuditShorthand:
     """Tests for _audit shorthand function."""
