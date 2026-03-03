@@ -167,6 +167,12 @@ if os.getenv("GRACEFUL_SHUTDOWN_ENABLED", "true").lower() == "true":
 
 # 7. Metering & Audit
 try:
+    from src.monitoring.metrics import MetricsMiddleware
+    app.add_middleware(MetricsMiddleware)
+except ImportError:
+    pass
+
+try:
     from src.api.middleware.metering import MeteringMiddleware
     app.add_middleware(MeteringMiddleware)
 except ImportError:
