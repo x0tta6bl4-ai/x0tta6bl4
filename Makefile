@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -42,6 +42,7 @@ help:
 	@echo "  make utrecht-observation-tail - Show latest pilot observation entries"
 	@echo "  make utrecht-kpi-summary   - Generate KPI summary from observation log"
 	@echo "  make utrecht-funding-draft - Generate follow-up DAO funding draft from KPI summary"
+	@echo "  make iso-p2-readiness-check - Validate ISO 27001 P2 documentation package"
 	@echo "  make mesh-operator-preflight - Verify kubectl context/cluster before install"
 	@echo "  make mesh-operator-lint    - Lint x0tta mesh operator chart with Utrecht values"
 	@echo "  make mesh-operator-plan    - Render operator manifests (dry-run plan)"
@@ -188,6 +189,10 @@ utrecht-kpi-summary:
 utrecht-funding-draft:
 	@echo "🗳️ Building Utrecht follow-up DAO funding draft..."
 	python3 scripts/ops/build_utrecht_pilot_governance_artifacts.py --write-summary --write-funding-draft
+
+iso-p2-readiness-check:
+	@echo "🛡️ Running ISO 27001 P2 readiness document checks..."
+	python3 scripts/ops/check_iso27001_p2_readiness.py
 
 mesh-operator-preflight:
 	@echo "🔎 Running mesh operator preflight checks..."
