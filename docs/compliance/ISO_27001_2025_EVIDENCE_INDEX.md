@@ -28,6 +28,10 @@ Purpose: Traceable list of evidence artifacts for readiness and pre-audit.
 | E-012 | Logging and monitoring | Structured logging and masking | `src/core/logging_config.py`, `src/core/structured_logging.py` | Attach config snapshot + log sample (sanitized) |
 | E-013 | Environment hardening | Default/fail-closed env checks | `scripts/check_env_security_defaults.py` | Run script and capture output |
 | E-014 | Operational monitoring | Monitoring setup and runbooks | `docs/operations/CONFIGURATION_GUIDE.md`, `scripts/production_monitor.py` | Attach dashboard snapshots + alert config |
+| E-015 | Policy governance | Unified policy ownership index | `docs/compliance/ISO_27001_2025_POLICY_INDEX.md` | Attach approved index and review record |
+| E-016 | Risk governance | Risk acceptance criteria and sign-off template | `docs/compliance/ISO_27001_2025_RISK_ACCEPTANCE_CRITERIA.md` | Attach signed acceptance records |
+| E-017 | Internal assurance | Internal audit schedule and corrective action register | `docs/compliance/ISO_27001_2025_INTERNAL_AUDIT_PROGRAM.md` | Attach audit run output and CA closure evidence |
+| E-018 | Document governance | Document control and retention policy | `docs/compliance/ISO_27001_2025_DOCUMENT_CONTROL_POLICY.md` | Attach policy approval and periodic review record |
 
 ## Recommended Collection Commands
 
@@ -46,6 +50,9 @@ python scripts/check_db_bootstrap_chain.py --validate-downgrade --downgrade-step
 
 # 5) Golden smoke quick gate
 bash scripts/golden_smoke_premerge.sh quick
+
+# 6) Compliance package completeness
+python3 scripts/ops/check_iso27001_p2_readiness.py
 ```
 
 ## Evidence Packaging Template
@@ -66,7 +73,7 @@ tar -czf "${OUT}.tar.gz" -C "$(dirname "${OUT}")" "$(basename "${OUT}")"
 
 ## Open Evidence Gaps
 
-1. Internal audit report and corrective action closure records.
-2. Management review minutes and sign-offs.
+1. Signed management review minutes and explicit approvals.
+2. Completed internal audit execution report (program currently planned).
 3. Periodic access recertification report.
 4. DR drill logs proving target RTO/RPO in current environment.
