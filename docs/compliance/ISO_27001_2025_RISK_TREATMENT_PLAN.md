@@ -14,8 +14,8 @@ Status: Active risk treatment register for readiness.
 
 | Risk ID | Risk statement | Severity | Related controls | Treatment action | Owner | Target date | Verification artifact |
 |---|---|---|---|---|---|---|---|
-| R-001 | ISMS governance artifacts are fragmented and not approved as a single policy set | High | A.5.1, A.5.2 | Publish unified IS policy index with approvers and review cadence | Security Lead | 2026-03-21 | Approved policy index in `docs/compliance/` |
-| R-002 | No formalized risk acceptance criteria and management sign-off workflow | High | Clause 6, Clause 9 | Define risk acceptance thresholds and sign-off process | Product + Security | 2026-03-28 | Signed risk criteria appendix + review record |
+| R-001 | ISMS governance artifacts are fragmented and not approved as a single policy set | High | A.5.1, A.5.2 | Publish unified IS policy index with approvers and review cadence (draft done, approval pending) | Security Lead | 2026-03-21 | `docs/compliance/ISO_27001_2025_POLICY_INDEX.md` + approval record |
+| R-002 | No formalized risk acceptance criteria and management sign-off workflow | High | Clause 6, Clause 9 | Define risk acceptance thresholds and sign-off process (draft done, sign-off pending) | Product + Security | 2026-03-28 | `docs/compliance/ISO_27001_2025_RISK_ACCEPTANCE_CRITERIA.md` + signed acceptance record |
 | R-003 | Incident/DR procedures exist but drill evidence is incomplete for audit trail | High | A.5.24, A.5.26, A.5.30, A.8.13 | Run one incident drill + one DR drill and store outcomes | Platform Ops | 2026-03-31 | Drill reports with measured RTO/RPO |
 | R-004 | Log hardening is present, but proof of no-sensitive-data leakage is incomplete | Medium | A.8.15, A.8.16 | Add repeatable log scrubbing validation and retain results | Platform | 2026-03-24 | Validation output + retained report |
 | R-005 | Access recertification process is not documented as a periodic control | Medium | A.5.15, A.5.18 | Define quarterly access review for critical roles and APIs | Security + API Owners | 2026-04-04 | Access review report template + first run |
