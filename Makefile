@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -40,6 +40,8 @@ help:
 	@echo "  make utrecht-manifest-apply - Apply Utrecht pilot manifest"
 	@echo "  make utrecht-observation   - Run reliability drill and append pilot observation log"
 	@echo "  make utrecht-observation-tail - Show latest pilot observation entries"
+	@echo "  make utrecht-kpi-summary   - Generate KPI summary from observation log"
+	@echo "  make utrecht-funding-draft - Generate follow-up DAO funding draft from KPI summary"
 	@echo "  make mesh-operator-preflight - Verify kubectl context/cluster before install"
 	@echo "  make mesh-operator-lint    - Lint x0tta mesh operator chart with Utrecht values"
 	@echo "  make mesh-operator-plan    - Render operator manifests (dry-run plan)"
@@ -178,6 +180,14 @@ utrecht-observation:
 utrecht-observation-tail:
 	@echo "🗒️ Latest Utrecht pilot observations:"
 	@tail -n 20 docs/governance/proposals/UTRECHT_PILOT_OBSERVATION_LOG.md 2>/dev/null || echo "No observation log yet."
+
+utrecht-kpi-summary:
+	@echo "📊 Building Utrecht KPI summary from observations..."
+	python3 scripts/ops/build_utrecht_pilot_governance_artifacts.py --write-summary
+
+utrecht-funding-draft:
+	@echo "🗳️ Building Utrecht follow-up DAO funding draft..."
+	python3 scripts/ops/build_utrecht_pilot_governance_artifacts.py --write-summary --write-funding-draft
 
 mesh-operator-preflight:
 	@echo "🔎 Running mesh operator preflight checks..."

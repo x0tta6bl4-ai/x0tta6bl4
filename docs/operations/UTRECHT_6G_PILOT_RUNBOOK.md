@@ -68,6 +68,12 @@ Artifacts are stored in:
 - `docs/governance/proposals/UTRECHT_PILOT_OBSERVATION_LOG.md`
 - `docs/governance/proposals/utrecht-observations/*.log`
 
+Generate governance artifacts from accumulated observations:
+```bash
+make utrecht-kpi-summary
+make utrecht-funding-draft
+```
+
 ## Rollback
 1. Stop pilot resources:
 ```bash
