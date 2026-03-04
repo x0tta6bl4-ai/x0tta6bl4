@@ -41,6 +41,8 @@ class TestRecoveryActionType:
             "SCALE_DOWN",
             "FAILOVER",
             "QUARANTINE_NODE",
+            "EXECUTE_SCRIPT",
+            "SWITCH_PROTOCOL",
             "NO_ACTION",
         }
         assert set(RecoveryActionType.__members__.keys()) == expected

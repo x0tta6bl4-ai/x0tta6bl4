@@ -322,10 +322,7 @@ class RedisCache:
         Returns:
             dict with status, mode, and connection details
         """
-        if not self._initialized:
-            await self._initialize()
-
-        if not self._backend:
+        if not self._initialized or not self._backend:
             return {
                 "status": "unhealthy",
                 "error": "Redis not initialized",
