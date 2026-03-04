@@ -6,6 +6,8 @@ Deploy and validate `x0tta-mesh-operator` for the Utrecht pilot profile.
 ## Files
 - `charts/x0tta-mesh-operator/`
 - `deploy/helm/values-x0tta-mesh-operator-utrecht.yaml`
+- `scripts/ops/mesh_operator_health.py`
+- `scripts/ops/kubectl_safe.sh`
 - `Makefile` targets: `mesh-operator-*`
 
 ## Preflight
@@ -21,6 +23,10 @@ helm version --short
 ```bash
 make mesh-operator-lint
 ```
+4. Run automated preflight:
+```bash
+make mesh-operator-preflight
+```
 
 Note: `mesh-operator-*` targets use `scripts/ops/helm_safe.sh`.
 If local Helm is blocked (for example snap confinement), it auto-falls back to dockerized Helm.
@@ -28,6 +34,7 @@ Override image if needed:
 ```bash
 HELM_IMAGE=alpine/helm:3.15.4 make mesh-operator-lint
 ```
+For `kubectl`, targets use `scripts/ops/kubectl_safe.sh` (same fallback pattern).
 
 ## Plan
 Render manifests before apply:
@@ -46,7 +53,21 @@ Upgrade:
 make mesh-operator-upgrade
 ```
 
+Optional overrides:
+```bash
+make mesh-operator-install \
+  MESH_OPERATOR_RELEASE=x0tta-mesh \
+  MESH_OPERATOR_NAMESPACE=x0tta-mesh-system \
+  MESH_OPERATOR_VALUES=deploy/helm/values-x0tta-mesh-operator-utrecht.yaml
+```
+
 ## Validate
+Run smoke checks:
+```bash
+make mesh-operator-smoke
+```
+
+Manual verification:
 1. Operator pod is ready:
 ```bash
 kubectl get pods -n x0tta-mesh-system
