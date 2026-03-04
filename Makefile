@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -38,6 +38,8 @@ help:
 	@echo "  make utrecht-deploy        - Provision Utrecht pilot mesh"
 	@echo "  make utrecht-manifest-diff - Show K8s diff for Utrecht manifest"
 	@echo "  make utrecht-manifest-apply - Apply Utrecht pilot manifest"
+	@echo "  make utrecht-observation   - Run reliability drill and append pilot observation log"
+	@echo "  make utrecht-observation-tail - Show latest pilot observation entries"
 	@echo "  make mesh-operator-preflight - Verify kubectl context/cluster before install"
 	@echo "  make mesh-operator-lint    - Lint x0tta mesh operator chart with Utrecht values"
 	@echo "  make mesh-operator-plan    - Render operator manifests (dry-run plan)"
@@ -168,6 +170,14 @@ utrecht-manifest-diff:
 utrecht-manifest-apply:
 	@echo "📦 Applying Utrecht deployment manifest..."
 	kubectl apply -f utrecht-deploy-manifest.yaml
+
+utrecht-observation:
+	@echo "📈 Recording Utrecht pilot observation..."
+	bash scripts/ops/record_utrecht_pilot_observation.sh
+
+utrecht-observation-tail:
+	@echo "🗒️ Latest Utrecht pilot observations:"
+	@tail -n 20 docs/governance/proposals/UTRECHT_PILOT_OBSERVATION_LOG.md 2>/dev/null || echo "No observation log yet."
 
 mesh-operator-preflight:
 	@echo "🔎 Running mesh operator preflight checks..."
