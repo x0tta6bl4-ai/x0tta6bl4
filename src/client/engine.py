@@ -124,7 +124,7 @@ def _run_command_safely(cmd_args: list, timeout: int = 30) -> bool:
     except FileNotFoundError:
         logger.error(f"Command not found: {cmd_args[0]}")
         return False
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError) as e:
         logger.error(f"Command error: {e}")
         return False
 
