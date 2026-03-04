@@ -167,6 +167,7 @@
         "scripts/mesh_exit_node.py",
         "scripts/mesh_server.py",
         "scripts/apply_vpn_mobile_fix.sh",
+        "scripts/setup_k8s_staging.sh",
         "scripts/ops/",
         "scripts/agents/agent_cycle_profiles.json",
         "scripts/agents/run_agent_cycle.py",
