@@ -1,18 +1,19 @@
+"""Add expires_at column to users table.
 
-"""add_escrow_auto_renew_fields
-
-Revision ID: b49070d1c83b
-Revises: 30552aa07b45
-Create Date: 2026-03-01 10:35:00
-
+Revision ID: c8adf0b52d1e
+Revises: b49070d1c83b
+Create Date: 2026-03-04 17:59:00
 """
+
 from typing import Sequence, Union
+
 from alembic import op
 import sqlalchemy as sa
 
+
 # revision identifiers, used by Alembic.
-revision: str = 'b49070d1c83b'
-down_revision: Union[str, None] = '30552aa07b45'
+revision: str = "c8adf0b52d1e"
+down_revision: Union[str, Sequence[str], None] = "b49070d1c83b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -30,24 +31,20 @@ def _column_exists(inspector: sa.Inspector, table_name: str, column_name: str) -
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    table_name = "marketplace_escrows"
+    table_name = "users"
 
     if not _table_exists(inspector, table_name):
         return
 
-    if not _column_exists(inspector, table_name, "auto_renew"):
-        with op.batch_alter_table(table_name, schema=None) as batch_op:
-            batch_op.add_column(sa.Column("auto_renew", sa.Boolean(), nullable=True))
-
-    inspector = sa.inspect(bind)
     if not _column_exists(inspector, table_name, "expires_at"):
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.add_column(sa.Column("expires_at", sa.DateTime(), nullable=True))
 
+
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    table_name = "marketplace_escrows"
+    table_name = "users"
 
     if not _table_exists(inspector, table_name):
         return
@@ -55,8 +52,3 @@ def downgrade() -> None:
     if _column_exists(inspector, table_name, "expires_at"):
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.drop_column("expires_at")
-
-    inspector = sa.inspect(bind)
-    if _column_exists(inspector, table_name, "auto_renew"):
-        with op.batch_alter_table(table_name, schema=None) as batch_op:
-            batch_op.drop_column("auto_renew")

@@ -28,6 +28,11 @@ docs/
 - [Монетизация](business/monetization.md)
 - [Презентация](business/pitch.md)
 
+### Для комплаенса
+- [ISO/IEC 27001 readiness pack](compliance/README.md)
+- [Readiness report](compliance/ISO_IEC_27001_2025_READINESS.md)
+- [Statement of Applicability](compliance/ISO_27001_2025_SOA.md)
+
 ## Контрибьютинг
 
 См. [CONTRIBUTING.md](../CONTRIBUTING.md) для информации о том, как внести вклад в документацию.
