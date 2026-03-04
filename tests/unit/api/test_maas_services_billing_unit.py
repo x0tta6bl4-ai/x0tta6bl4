@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import time
 
+import pytest
+
 from src.api.maas.services import AuthService, BillingService
 
 
@@ -313,3 +315,39 @@ def test_auth_service_shared_sessions_work_across_instances():
     assert auth_b.validate_session(token) is not None
     assert auth_b.end_session(token) is True
     assert auth_a.validate_session(token) is None
+
+
+def test_create_payment_session_normalizes_environment_flag(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", " Production ")
+    billing = BillingService(webhook_secret="test")
+
+    result = asyncio.run(billing.create_payment_session(user_id="u-prod", plan="pro"))
+
+    assert result["session_id"].startswith("sess_prod_")
+    assert result["status"] == "requires_payment"
+
+
+def test_verify_crypto_payment_accepts_whitespace_stub_flag(monkeypatch):
+    monkeypatch.delenv("ETHERSCAN_API_KEY", raising=False)
+    monkeypatch.delenv("ALCHEMY_API_KEY", raising=False)
+    monkeypatch.setenv("STUB_CRYPTO_ENABLED", " TrUe ")
+    monkeypatch.setenv("PRODUCTION", "false")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.delenv("NODE_ENV", raising=False)
+    monkeypatch.setenv("CRYPTO_DEPOSIT_ADDRESS", "0x" + "1" * 40)
+
+    billing = BillingService(webhook_secret="test")
+    tx_hash = "0x" + "a" * 64
+
+    assert asyncio.run(billing.verify_crypto_payment(tx_hash=tx_hash, expected_amount=19.0)) is True
+
+
+def test_stub_crypto_verification_blocks_production_true_with_whitespace(monkeypatch):
+    monkeypatch.setenv("PRODUCTION", " TrUe ")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("NODE_ENV", "development")
+
+    billing = BillingService(webhook_secret="test")
+
+    with pytest.raises(RuntimeError, match="BLOCKED in production"):
+        billing._stub_verify_crypto_payment("0x" + "b" * 64, expected_amount=9.0)

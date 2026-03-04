@@ -43,6 +43,33 @@ logger = logging.getLogger(__name__)
 _SHARED_STATE_STORE_LOCK = Lock()
 _SHARED_STATE_STORE: Optional["_SharedStateStore"] = None
 
+_ENV_TRUE_VALUES = {"1", "true", "yes", "on"}
+_ENV_FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """
+    Parse boolean env value safely.
+
+    Prevents bugs where non-empty strings like "false" are treated as truthy.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = str(raw).strip().lower()
+    if normalized in _ENV_TRUE_VALUES:
+        return True
+    if normalized in _ENV_FALSE_VALUES:
+        return False
+    return default
+
+
+def _env_value(name: str, default: str = "") -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return str(value).strip()
+
 
 class _SharedStateStore:
     """Redis-backed JSON key/value store with graceful fallback."""
@@ -105,8 +132,7 @@ class _SharedStateStore:
 
 
 def _build_shared_state_store() -> _SharedStateStore:
-    enabled_flag = os.getenv("MAAS_SHARED_STATE_REDIS_ENABLED", "false").strip().lower()
-    if enabled_flag not in {"1", "true", "yes", "on"}:
+    if not _env_flag("MAAS_SHARED_STATE_REDIS_ENABLED", False):
         return _SharedStateStore()
 
     redis_url = (
@@ -365,7 +391,7 @@ class BillingService:
             from src.billing.stripe_client import StripeClient
             client = StripeClient()
             # If PRODUCTION is not explicitly false, we assume real gateway
-            is_prod = os.getenv("ENVIRONMENT") == "production"
+            is_prod = _env_value("ENVIRONMENT", "development").lower() == "production"
             
             # Using our StripeClient to simulate session ID generation
             session_id = f"sess_{'prod' if is_prod else 'test'}_{secrets.token_hex(16)}"
@@ -481,7 +507,7 @@ class BillingService:
         
         if not api_key:
             # Check if stub mode is explicitly enabled for development
-            stub_enabled = os.getenv("STUB_CRYPTO_ENABLED", "false").lower() == "true"
+            stub_enabled = _env_flag("STUB_CRYPTO_ENABLED", False)
             
             if not stub_enabled:
                 logger.error(
@@ -620,9 +646,9 @@ class BillingService:
         """
         # Check multiple production indicators
         is_production = (
-            os.getenv("PRODUCTION", "false").lower() == "true" or
-            os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod", "live") or
-            os.getenv("NODE_ENV", "development").lower() == "production"
+            _env_flag("PRODUCTION", False)
+            or _env_value("ENVIRONMENT", "development").lower() in ("production", "prod", "live")
+            or _env_value("NODE_ENV", "development").lower() == "production"
         )
         
         if is_production:
@@ -1233,31 +1259,28 @@ class UsageMeteringService:
 
     def is_within_limits(self, mesh_id: str, plan: str) -> bool:
         """
-        Check if a mesh is within its plan's request limits.
-        
-        Args:
-            mesh_id: Mesh to check
-            plan: User's subscription plan (starter, pro, enterprise)
-            
-        Returns:
-            True if within limits, False if quota exceeded.
+        Check if a mesh is within its plan's request and bandwidth limits.
         """
-        from .constants import PLAN_REQUEST_LIMITS
+        from .constants import PLAN_REQUEST_LIMITS, PLAN_BANDWIDTH_LIMITS, PLAN_ALIASES
         
         normalized_plan = PLAN_ALIASES.get(plan, plan)
-        limit = PLAN_REQUEST_LIMITS.get(normalized_plan, 1000) # Default strict limit
+        req_limit = PLAN_REQUEST_LIMITS.get(normalized_plan, 1000)
+        bw_limit = PLAN_BANDWIDTH_LIMITS.get(normalized_plan, 10 * 1024 * 1024)
         
         usage = self._get_mesh_usage(mesh_id)
         current_requests = usage.get("requests", 0)
+        current_bw = usage.get("bandwidth_bytes", 0)
         
-        if current_requests >= limit:
-            logger.warning(
-                f"🚫 Quota exceeded for mesh {mesh_id} ({normalized_plan} plan). "
-                f"Limit: {limit}, Current: {current_requests}"
-            )
+        if current_requests >= req_limit:
+            logger.warning(f"🚫 Request quota exceeded for mesh {mesh_id} ({normalized_plan})")
+            return False
+            
+        if current_bw >= bw_limit:
+            logger.warning(f"🚫 Bandwidth quota exceeded for mesh {mesh_id} ({normalized_plan})")
             return False
             
         return True
+
 
     def record_bandwidth(
         self,
