@@ -32,7 +32,8 @@ def _make_cycle(monkeypatch, *, observe=None, ebpf=None):
         enable_ebpf_explainer=False,
     )
 
-    cycle.monitor = SimpleNamespace(check=lambda metrics: False)
+    _no_anomaly = {"anomaly_detected": False, "scaling_recommended": False, "issue": "Healthy"}
+    cycle.monitor = SimpleNamespace(check=lambda metrics: _no_anomaly)
     cycle.analyzer = SimpleNamespace(analyze=lambda metrics: "Healthy")
     cycle.planner = SimpleNamespace(plan=lambda issue: "No action needed")
     cycle.executor = SimpleNamespace(execute=lambda strategy, context=None: True)
@@ -58,22 +59,24 @@ def _make_cycle(monkeypatch, *, observe=None, ebpf=None):
     return cycle
 
 
-def test_run_cycle_no_anomaly_returns_early(monkeypatch):
+@pytest.mark.asyncio
+async def test_run_cycle_no_anomaly_returns_early(monkeypatch):
     cycle = _make_cycle(monkeypatch)
 
     metrics = {"node_id": "n1", "cpu_percent": 10}
-    out = cycle.run_cycle(metrics)
+    out = await cycle.run_cycle(metrics)
 
     assert out["anomaly_detected"] is False
     assert out["cycle_id"].startswith("cycle_")
     assert cycle.knowledge.record_calls == []
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "issue,strategy",
     [("High CPU", "Restart service"), ("Network Loss", "Switch route")],
 )
-def test_run_cycle_full_path_with_observe_and_ebpf(monkeypatch, issue, strategy):
+async def test_run_cycle_full_path_with_observe_and_ebpf(monkeypatch, issue, strategy):
     class _Event:
         anomaly_score = 0.99
         confidence = 0.95
@@ -105,7 +108,8 @@ def test_run_cycle_full_path_with_observe_and_ebpf(monkeypatch, issue, strategy)
     cycle = _make_cycle(monkeypatch, observe=obs, ebpf=ebpf)
     import src.self_healing.mape_k_integrated as mod
 
-    cycle.monitor = SimpleNamespace(check=lambda metrics: True)
+    _anomaly = {"anomaly_detected": True, "scaling_recommended": False, "issue": issue}
+    cycle.monitor = SimpleNamespace(check=lambda metrics: _anomaly)
     cycle.analyzer = SimpleNamespace(analyze=lambda metrics: issue)
     cycle.planner = SimpleNamespace(plan=lambda i: strategy)
 
@@ -132,7 +136,7 @@ def test_run_cycle_full_path_with_observe_and_ebpf(monkeypatch, issue, strategy)
         "network_events": [{"program_id": "p1"}],
     }
 
-    out = cycle.run_cycle(metrics)
+    out = await cycle.run_cycle(metrics)
 
     assert out["anomaly_detected"] is True
     assert out["analyzer_results"]["root_cause"] == issue

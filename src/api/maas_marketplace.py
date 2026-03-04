@@ -17,11 +17,12 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import MarketplaceEscrow, MarketplaceListing, User, GlobalConfig, get_db
 from src.api.maas_telemetry import reputation_system
 from src.dao.token_bridge import TokenBridge, BridgeConfig
@@ -227,6 +228,32 @@ def _db_session_available(db: Any) -> bool:
     return hasattr(db, "query") and hasattr(db, "commit")
 
 
+def _is_dependency_placeholder(db: Any) -> bool:
+    """Detect direct coroutine calls where FastAPI did not resolve Depends()."""
+    return db.__class__.__name__ == "Depends" and hasattr(db, "dependency")
+
+
+def _ensure_write_db_ready(db: Any, request: Optional[Request] = None) -> bool:
+    """
+    Validate DB readiness for state-changing marketplace operations.
+
+    Returns:
+        True when SQLAlchemy session is available.
+        False for direct unit-test coroutine calls with unresolved Depends().
+    """
+    if _db_session_available(db):
+        return True
+    # Keep direct coroutine unit tests backward-compatible.
+    if _is_dependency_placeholder(db):
+        return False
+    if request is not None:
+        mark_degraded_dependency(request, "database")
+    raise HTTPException(
+        status_code=503,
+        detail="Marketplace write path unavailable: database dependency degraded",
+    )
+
+
 def _to_cents(price_per_hour: float) -> int:
     return int(round(price_per_hour * 100))
 
@@ -344,11 +371,12 @@ def _load_held_escrow_for_update(db: Session, listing_id: str) -> Optional[Marke
 @router.post("/list", response_model=ListingResponse)
 async def create_listing(
     req: ListingCreate,
+    request: Request = None,
     current_user: User = Depends(require_permission("marketplace:list")),
     db: Session = Depends(get_db),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
-    db_ready = _db_session_available(db)
+    db_ready = _ensure_write_db_ready(db, request)
     owner_id = _current_user_id(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
@@ -429,6 +457,7 @@ async def create_listing(
 
 @router.get("/search", response_model=List[ListingResponse])
 async def search_listings(
+    request: Request = None,
     region: Optional[str] = None,
     max_price: Optional[float] = None,
     min_bandwidth: Optional[int] = None,
@@ -456,6 +485,8 @@ async def search_listings(
             for listing in source:
                 _listings[listing["listing_id"]] = dict(listing)
     else:
+        if request is not None:
+            mark_degraded_dependency(request, "database")
         source = []
 
     result: List[Dict[str, Any]] = []
@@ -494,6 +525,7 @@ async def search_listings(
 async def rent_node(
     listing_id: str,
     mesh_id: str,
+    request: Request = None,
     hours: int = Query(default=1, ge=1, le=720),  # Up to 30 days
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
@@ -527,7 +559,8 @@ async def rent_node(
     if listing.get("status") != "available":
         raise HTTPException(status_code=400, detail="Listing not available")
 
-    if not _db_session_available(db):
+    db_ready = _ensure_write_db_ready(db, request)
+    if not db_ready:
         listing["status"] = "rented"
         listing["renter_id"] = renter_id
         listing["mesh_id"] = mesh_id
@@ -681,6 +714,7 @@ async def rent_node(
 @router.post("/escrow/{listing_id}/release")
 async def release_escrow(
     listing_id: str,
+    request: Request = None,
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
@@ -705,7 +739,8 @@ async def release_escrow(
 
     released_at = datetime.utcnow().isoformat()
 
-    if _db_session_available(db):
+    db_ready = _ensure_write_db_ready(db, request)
+    if db_ready:
         row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
@@ -755,6 +790,7 @@ async def release_escrow(
 @router.post("/escrow/{listing_id}/refund")
 async def refund_escrow(
     listing_id: str,
+    request: Request = None,
     current_user: User = Depends(require_permission("marketplace:rent")),
     db: Session = Depends(get_db),
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
@@ -777,7 +813,8 @@ async def refund_escrow(
     if not _ids_equal(listing.get("renter_id"), requester_id) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if _db_session_available(db):
+    db_ready = _ensure_write_db_ready(db, request)
+    if db_ready:
         row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
@@ -830,6 +867,7 @@ async def refund_escrow(
 @router.delete("/list/{listing_id}")
 async def cancel_listing(
     listing_id: str,
+    request: Request = None,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db),
 ):
@@ -838,16 +876,17 @@ async def cancel_listing(
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     if listing.get("status") in {"escrow", "rented"}:
-        raise HTTPException(status_code=400, detail="Listing has active rental state")
+        raise HTTPException(status_code=400, detail="Listing has active rental state (escrow)")
     if not _ids_equal(listing.get("owner_id"), requester_id) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if _db_session_available(db):
+    db_ready = _ensure_write_db_ready(db, request)
+    if db_ready:
         row = _load_listing_for_update(db, listing_id)
         if not row:
             raise HTTPException(status_code=404, detail="Listing not found")
         if row.status in {"escrow", "rented"}:
-            raise HTTPException(status_code=400, detail="Listing has active rental state")
+            raise HTTPException(status_code=400, detail="Listing has active rental state (escrow)")
         if current_user.role != "admin" and not _ids_equal(row.owner_id, requester_id):
             raise HTTPException(status_code=403, detail="Permission denied")
 

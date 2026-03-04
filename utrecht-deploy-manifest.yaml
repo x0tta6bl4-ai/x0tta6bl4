@@ -1,0 +1,121 @@
+---
+# Source: maas-agent-mesh/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: utrecht-6g-demo-maas-agent-mesh
+  labels:
+    app.kubernetes.io/name: maas-agent-mesh
+    app.kubernetes.io/instance: utrecht-6g-demo
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: maas-agent-mesh-0.1.0
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: maas-agent-mesh
+    app.kubernetes.io/instance: utrecht-6g-demo
+---
+# Source: maas-agent-mesh/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: utrecht-6g-demo-maas-agent-mesh-health-bot
+  labels:
+    app.kubernetes.io/name: maas-agent-mesh
+    app.kubernetes.io/instance: utrecht-6g-demo
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: maas-agent-mesh-0.1.0
+    app.kubernetes.io/component: agent
+    maas.agent/name: "health-bot"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: maas-agent-mesh
+      app.kubernetes.io/instance: utrecht-6g-demo
+      maas.agent/name: "health-bot"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: maas-agent-mesh
+        app.kubernetes.io/instance: utrecht-6g-demo
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: maas-agent-mesh-0.1.0
+        app.kubernetes.io/component: agent
+        maas.agent/name: "health-bot"
+    spec:
+      containers:
+        - name: "health-bot"
+          image: "x0tta6bl4/agent:latest"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - python3 scripts/run_maas_health_bot.py --auto-heal --interval-seconds 30
+          env:
+            - name: MAAS_AGENT_NAME
+              value: "health-bot"
+            - name: MAAS_AGENT_TOOLS
+              value: "ebpf,prometheus,xray"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            {}
+---
+# Source: maas-agent-mesh/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: utrecht-6g-demo-maas-agent-mesh-dao-bot
+  labels:
+    app.kubernetes.io/name: maas-agent-mesh
+    app.kubernetes.io/instance: utrecht-6g-demo
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: maas-agent-mesh-0.1.0
+    app.kubernetes.io/component: agent
+    maas.agent/name: "dao-bot"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: maas-agent-mesh
+      app.kubernetes.io/instance: utrecht-6g-demo
+      maas.agent/name: "dao-bot"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: maas-agent-mesh
+        app.kubernetes.io/instance: utrecht-6g-demo
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: maas-agent-mesh-0.1.0
+        app.kubernetes.io/component: agent
+        maas.agent/name: "dao-bot"
+    spec:
+      containers:
+        - name: "dao-bot"
+          image: "x0tta6bl4/agent:latest"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - python3 -c "import time; print('dao-bot placeholder started'); time.sleep(3600)"
+          env:
+            - name: MAAS_AGENT_NAME
+              value: "dao-bot"
+            - name: MAAS_AGENT_TOOLS
+              value: "governance,reputation"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            {}

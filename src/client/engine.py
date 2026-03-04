@@ -95,7 +95,7 @@ def _run_command_safely(cmd_args: list, timeout: int = 30) -> bool:
     """
     Run a command safely using subprocess with argument list.
     
-    This prevents shell injection attacks by avoiding shell=True.
+    This prevents shell-injection attacks by avoiding shell command parsing.
     
     Args:
         cmd_args: List of command arguments (e.g., ["ip", "addr", "add", ...])
