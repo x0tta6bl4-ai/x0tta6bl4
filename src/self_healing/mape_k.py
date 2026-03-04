@@ -75,7 +75,11 @@ class MAPEKMonitor:
         if self.threshold_manager:
             cpu_threshold = self.threshold_manager.get_threshold("cpu_threshold", 90.0)
             memory_threshold = self.threshold_manager.get_threshold("memory_threshold", 85.0)
-            packet_loss_threshold = self.threshold_manager.get_threshold("packet_loss_threshold", 5.0)
+            packet_loss_threshold = self.threshold_manager.get_threshold("network_loss_threshold", 5.0)
+        elif self.knowledge:
+            cpu_threshold = self.knowledge.get_adjusted_threshold("cpu_percent", self.default_thresholds["cpu_percent"])
+            memory_threshold = self.knowledge.get_adjusted_threshold("memory_percent", self.default_thresholds["memory_percent"])
+            packet_loss_threshold = self.knowledge.get_adjusted_threshold("packet_loss_percent", self.default_thresholds["packet_loss_percent"])
         else:
             cpu_threshold = self.default_thresholds["cpu_percent"]
             memory_threshold = self.default_thresholds["memory_percent"]
@@ -94,24 +98,46 @@ class MAPEKMonitor:
             anomaly_detected = True
             issue = "High Packet Loss"
 
-        # 2. GraphSAGE Enhanced Check + Forecasting
+        # 2. Custom registered detectors
+        for detector in self.anomaly_detectors:
+            try:
+                if detector(metrics):
+                    anomaly_detected = True
+                    if issue == "Healthy":
+                        issue = "Custom Anomaly"
+            except Exception as e:
+                logger.warning(f"Custom detector error: {e}")
+
+        # 3. GraphSAGE Enhanced Check
         scaling_recommended = False
         if self.use_graphsage and self.graphsage_detector:
-            # Anomaly check
             try:
-                # Basic prediction
-                if hasattr(self.graphsage_detector, "predict_enhanced"):
-                    pred = self.graphsage_detector.predict_enhanced(node_id, metrics, [])
-                    if pred["is_anomaly"]:
+                node_features = {
+                    "rssi": metrics.get("rssi", -80.0),
+                    "snr": metrics.get("snr", 10.0),
+                    "loss_rate": metrics.get("packet_loss_percent", 0.0) / 100.0,
+                    "link_age_seconds": metrics.get("link_age_seconds", 0.0),
+                    "latency_ms": metrics.get("latency_ms", 0.0),
+                    "throughput_mbps": metrics.get("throughput_mbps", 0.0),
+                    "cpu": metrics.get("cpu_percent", 0.0) / 100.0,
+                    "memory": metrics.get("memory_percent", 0.0) / 100.0,
+                }
+                if hasattr(self.graphsage_detector, "predict_with_causal"):
+                    prediction, _causal = self.graphsage_detector.predict_with_causal(
+                        node_id=node_id, node_features=node_features, neighbors=[]
+                    )
+                    if prediction.is_anomaly:
                         anomaly_detected = True
-                
-                # Predictive Forecasting
-                if hasattr(self.graphsage_detector, "predict_load_forecast"):
-                    current_load = metrics.get("cpu_percent", 0.0) / 100.0
-                    forecast = self.graphsage_detector.predict_load_forecast(node_id, current_load)
-                    if forecast["scaling_recommended"]:
-                        logger.info(f"🔮 Proactive scaling recommended for node {node_id} (forecast: {forecast['forecast_load']:.1%})")
-                        scaling_recommended = True
+                        if issue == "Healthy":
+                            issue = "GraphSAGE Anomaly"
+                elif hasattr(self.graphsage_detector, "predict"):
+                    prediction = self.graphsage_detector.predict(
+                        node_id=node_id, node_features=node_features, neighbors=[]
+                    )
+                    if prediction.is_anomaly:
+                        anomaly_detected = True
+                        if issue == "Healthy":
+                            issue = "GraphSAGE Anomaly"
             except Exception as e:
                 logger.warning(f"GraphSAGE check failed: {e}")
 
@@ -926,7 +952,11 @@ class SelfHealingManager:
 
         # MONITOR phase
         monitor_start = time.time()
-        anomaly_detected = self.monitor.check(metrics)
+        _check_result = self.monitor.check(metrics)
+        if isinstance(_check_result, dict):
+            anomaly_detected = _check_result.get("anomaly_detected", False)
+        else:
+            anomaly_detected = bool(_check_result)
         monitor_duration = time.time() - monitor_start
 
         try:

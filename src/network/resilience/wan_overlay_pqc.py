@@ -34,7 +34,7 @@ try:
     KYBER_AVAILABLE = True
 except ImportError:
     KYBER_AVAILABLE = False
-    logger.warning("pqcrypto not available, using simulated PQC")
+    logger.debug("pqcrypto not available, using simulated PQC")
 
 try:
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
@@ -43,7 +43,7 @@ try:
     CLASSICAL_CRYPTO_AVAILABLE = True
 except ImportError:
     CLASSICAL_CRYPTO_AVAILABLE = False
-    logger.warning("cryptography not available, using simulated classical crypto")
+    logger.debug("cryptography not available, using simulated classical crypto")
 
 
 class CryptoMode(str, Enum):

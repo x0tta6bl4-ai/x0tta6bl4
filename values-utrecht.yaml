@@ -1,0 +1,32 @@
+# Utrecht 6G-demo Config
+replicas: 50
+
+# Security: NIST FIPS 204 (Post-Quantum)
+pqc:
+  algorithm: "dilithium3"
+  enabled: true
+  fail_closed: true
+
+# Network: 6G DPI Obfuscation
+network:
+  obfuscation: "vless-reality"
+  sni: "www.microsoft.com"
+  port: 443
+
+# Intelligence: GraphSAGE V3 Anomaly Detection
+graphsage:
+  enabled: true
+  update_baseline: true
+  mode: "adaptive"
+
+# Self-Healing: 4-stage MAPE-K
+mapeK:
+  circuit_breaker: true
+  healing_stages: 4
+  mttr_target: 5
+
+# Business: Enterprise Pilot
+billing:
+  plan: "enterprise"
+  region: "eu-west-utrecht"
+  mrr_ramp: true
