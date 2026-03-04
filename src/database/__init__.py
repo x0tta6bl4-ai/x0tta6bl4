@@ -61,8 +61,15 @@ def before_cursor_execute(conn, cursor, statement, parameters, context, executem
         if db_circuit_breaker.state == CircuitState.OPEN:
             # P2 Reliability: Auto-Healing logic
             # If CB is open for more than 5 minutes, try disposing the engine pool
-            import time
-            open_duration = time.time() - db_circuit_breaker.last_failure_time
+            from datetime import datetime
+            _lft = db_circuit_breaker.last_failure_time
+            if _lft is None:
+                open_duration = 0
+            elif isinstance(_lft, datetime):
+                open_duration = (datetime.utcnow() - _lft).total_seconds()
+            else:
+                import time
+                open_duration = time.time() - _lft
             if open_duration > 300: # 5 minutes
                 logger.warning("🕒 Database Circuit Breaker has been OPEN for >5m. Triggering Auto-Healing: disposing engine pool.")
                 engine.dispose()
@@ -120,6 +127,7 @@ class User(Base):
     vpn_uuid = Column(String, unique=True, index=True, nullable=True)
     requests_count = Column(Integer, default=0)
     requests_limit = Column(Integer, default=10000)
+    expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

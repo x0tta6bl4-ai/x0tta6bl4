@@ -9,6 +9,7 @@ Provides 4.5x speedup vs sequential execution.
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
@@ -35,14 +36,22 @@ class SwarmStatus(Enum):
 class SwarmConfig:
     name: str
     max_agents: int = 100
+    min_agents: int = 1
+    max_parallel_steps: int = 1500
+    target_latency_ms: float = 100.0
     enable_parl: bool = True
+    enable_vision: bool = False
+    ttl_seconds: Optional[int] = None
 
 
 @dataclass
 class Task:
-    task_id: str
-    agent_type: str
-    payload: Dict[str, Any]
+    task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    agent_type: str = "base"
+    task_type: str = "generic"
+    payload: Dict[str, Any] = field(default_factory=dict)
+    priority: int = 5
+    timeout_seconds: int = 300
     status: str = "pending"
     created_at: float = field(default_factory=time.time)
     completed_at: Optional[float] = None

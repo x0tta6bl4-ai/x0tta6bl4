@@ -23,6 +23,7 @@ from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
 from src.core.request_validation import (RequestValidationMiddleware,
                                          ValidationConfig)
+from src.core.reliability_policy import set_degraded_dependencies_header
 from src.core.logging_config import RequestIdContextVar, setup_logging
 from src.core.settings import settings
 from src.core.status_collector import get_current_status
@@ -210,6 +211,7 @@ async def propagate_request_id(request, call_next):
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
+    set_degraded_dependencies_header(response, request)
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; frame-ancestors 'none'; base-uri 'self';"
@@ -268,7 +270,44 @@ _include_maas_router("src.event_sourcing.api", "event-sourcing")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", **get_health_info()}
+    return {
+        "status": "ok",
+        **get_health_info(),
+        "shutdown": shutdown_manager.get_status(),
+    }
+
+
+@app.get("/health/live")
+async def health_live():
+    """Kubernetes liveness probe - is the app running?"""
+    from datetime import datetime
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """Kubernetes readiness probe - is the app ready to serve traffic?"""
+    from datetime import datetime
+    return {"status": "ready", "timestamp": datetime.utcnow().isoformat() + "Z"}
+
+
+@app.get("/health/detailed")
+async def health_detailed():
+    """Detailed health status including all component checks."""
+    from src.core.health_check import get_health_status
+    result = await get_health_status()
+    checks = [
+        {"name": c.name, "status": c.status.value, "message": c.message}
+        for c in result.checks
+    ]
+    payload = {
+        "status": result.status.value,
+        "version": result.version,
+        "checks": checks,
+    }
+    from fastapi.responses import JSONResponse
+    status_code = 503 if result.status.value == "unhealthy" else 200
+    return JSONResponse(content=payload, status_code=status_code)
 
 
 @app.get("/metrics")
