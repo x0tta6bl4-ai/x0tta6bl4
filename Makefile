@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply
 
 .DEFAULT_GOAL := help
 
@@ -29,6 +29,12 @@ help:
 	@echo "=== Monitoring ==="
 	@echo "  make monitoring-stack - Deploy Prometheus + Grafana"
 	@echo ""
+	@echo "=== Pilot Ops (Utrecht 6G) ==="
+	@echo "  make utrecht-plan          - Preview Utrecht mesh provisioning request"
+	@echo "  make utrecht-deploy        - Provision Utrecht pilot mesh"
+	@echo "  make utrecht-manifest-diff - Show K8s diff for Utrecht manifest"
+	@echo "  make utrecht-manifest-apply - Apply Utrecht pilot manifest"
+	@echo ""
 	@echo "=== Development ==="
 	@echo "  make install     - Install Python dependencies locally"
 	@echo "  make lint        - Run linters (flake8, black, mypy)"
@@ -42,6 +48,7 @@ help:
 	@echo ""
 	@echo "=== Database & Cache ==="
 	@echo "  make db-connect  - Connect to PostgreSQL"
+	@echo "  make db-connect-admin - Connect to PostgreSQL as admin"
 	@echo "  make redis-cli   - Connect to Redis CLI"
 	@echo "  make shell       - Open shell in API container"
 	@echo ""
@@ -124,9 +131,32 @@ test:
 	@docker exec x0tta6bl4-db psql -h localhost -U x0tta6bl4 -c "SELECT 1" 2>/dev/null && echo "  ✅ Connected" || echo "  ❌ Failed"
 	@echo ""
 	@echo "✓ Redis:"
-	@docker exec x0tta6bl4-redis redis-cli ping 2>/dev/null && echo "  ✅ Connected" || echo "  ❌ Failed"
+	@REDIS_PING=$$(docker exec x0tta6bl4-redis redis-cli ping 2>/dev/null || true); \
+	if [ "$$REDIS_PING" = "PONG" ]; then \
+		echo "  PONG"; \
+		echo "  ✅ Connected"; \
+	else \
+		if [ -n "$$REDIS_PING" ]; then echo "  $$REDIS_PING"; else echo "  Not responding"; fi; \
+		echo "  ❌ Redis degraded"; \
+	fi
 	@echo ""
 	@echo "✅ Health checks complete"
+
+utrecht-plan:
+	@echo "📋 Previewing Utrecht 6G provisioning request..."
+	python3 scripts/ops/utrecht_6g_deploy.py --dry-run --output json --values-file values-utrecht.yaml
+
+utrecht-deploy:
+	@echo "🚀 Deploying Utrecht 6G pilot mesh..."
+	python3 scripts/ops/utrecht_6g_deploy.py --values-file values-utrecht.yaml
+
+utrecht-manifest-diff:
+	@echo "🔎 Diffing Utrecht deployment manifest..."
+	kubectl diff -f utrecht-deploy-manifest.yaml || true
+
+utrecht-manifest-apply:
+	@echo "📦 Applying Utrecht deployment manifest..."
+	kubectl apply -f utrecht-deploy-manifest.yaml
 
 db-connect:
 	@echo "📊 Connecting to PostgreSQL..."
@@ -309,7 +339,7 @@ db-monitor:
 	@echo "📊 Database cluster monitoring..."
 	bash scripts/database/postgres_monitor.sh
 
-db-connect:
+db-connect-admin:
 	@echo "🔌 Connecting to database..."
 	psql -h localhost -p 5432 -U postgres -d x0tta6bl4
 
