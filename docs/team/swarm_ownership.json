@@ -167,8 +167,11 @@
         "scripts/mesh_exit_node.py",
         "scripts/mesh_server.py",
         "scripts/apply_vpn_mobile_fix.sh",
+        "scripts/ops/",
         "scripts/agents/agent_cycle_profiles.json",
         "scripts/agents/run_agent_cycle.py",
+        "Makefile",
+        "staging/",
         "requirements-staging.txt",
         ".gitignore",
         "database.py",
@@ -180,6 +183,8 @@
         "PROJECT_COMPLETION_REPORT.json",
         "dashboard.html",
         "defects_inventory.json",
+        "utrecht-deploy-manifest.yaml",
+        "values-utrecht.yaml",
         "config.yml",
         ".gitlab-ci.yml.ebpf"
       ]
