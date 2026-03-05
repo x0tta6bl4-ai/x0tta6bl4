@@ -1,20 +1,26 @@
-# Builder stage - installs all dependencies (heavy lifting)
-FROM python:3.14 as builder
+# Builder stage
+FROM python:3.12-slim as builder
 WORKDIR /tmp
 
-# Copy only requirements (leverage layer caching)
+# Install build dependencies for C extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements
 COPY requirements.txt .
 
-# Install all dependencies into /root/.local
+# Install all dependencies
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # ---
 
-# Runtime stage - minimal image with pre-compiled dependencies
-FROM python:3.14-slim
+# Runtime stage
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install runtime requirements (including libgomp1 for LLM)
+# Install runtime requirements
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libssl3 \
@@ -22,13 +28,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-built Python packages from builder
+# Copy pre-built Python packages
 COPY --from=builder /root/.local /root/.local
 
 # Copy source code
 COPY src ./src
 
-# Set Python path to use pre-built packages
+# Set Python path
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
