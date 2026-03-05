@@ -363,64 +363,6 @@
       "annotation_ast": "Name(id='int', ctx=Load())"
     }
   },
-  "src/api/maas/middleware.py:ErrorResponse": {
-    "details": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
-    },
-    "error": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "message": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "request_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "timestamp": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
-  "src/api/maas/middleware.py:ValidationErrorDetail": {
-    "field": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "message": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "value": {
-      "required": false,
-      "annotation_ast": "Subscript(value=Name(id='Optional', ctx=Load()), slice=Name(id='Any', ctx=Load()), ctx=Load())"
-    }
-  },
-  "src/api/maas/middleware.py:ValidationErrorResponse": {
-    "details": {
-      "required": true,
-      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='ValidationErrorDetail', ctx=Load()), ctx=Load())"
-    },
-    "error": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "message": {
-      "required": false,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "request_id": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    },
-    "timestamp": {
-      "required": true,
-      "annotation_ast": "Name(id='str', ctx=Load())"
-    }
-  },
   "src/api/maas/models.py:ApiKeyResponse": {
     "api_key": {
       "required": true,
