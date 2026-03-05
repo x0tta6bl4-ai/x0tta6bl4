@@ -42,8 +42,9 @@ class LocalLLM:
             logger.warning("⚠️ llama-cpp-python not installed. Local LLM will not work.")
             return
 
-        # Keep eager initialization for compatibility with existing callers/tests.
-        self._ensure_model_loaded()
+        # Eager initialization removed to speed up imports/tests in CI/CD.
+        # Model will be loaded on first generate() call.
+        pass
 
     def _ensure_model_loaded(self) -> bool:
         """Lazy load the model if not already loaded."""

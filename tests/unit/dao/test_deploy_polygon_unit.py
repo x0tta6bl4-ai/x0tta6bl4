@@ -301,13 +301,14 @@ class TestMain:
         assert payload["network"] == "https://polygon.example"
         assert payload["deployer"] == "0xDeployer"
         assert payload["chain_id"] == 137
-        assert payload["contracts"]["X0TToken"] == "0xToken"
-        assert payload["contracts"]["MeshGovernance"] == "0xGovernance"
-
+        assert payload["contracts"]["GovernanceToken"] == "0xToken"
+        assert payload["contracts"]["Timelock"] == "0xGovernance"
+        assert payload["contracts"]["Governor"] == "0xGovernance"
+        
         web3_instance = _FakeWeb3.last_instance
         assert web3_instance is not None
         assert web3_instance.middleware_onion.calls == [(middleware, 0)]
-        assert len(web3_instance.eth.sent) == 2
+        assert len(web3_instance.eth.sent) == 3
 
     def test_poa_middleware_injected_at_layer_zero(self, monkeypatch, tmp_path):
         """PoA middleware must be injected at layer 0."""
@@ -326,7 +327,7 @@ class TestMain:
         assert w3.middleware_onion.calls == [(sentinel, 0)]
 
     def test_governance_receives_token_address(self, monkeypatch, tmp_path):
-        """MeshGovernance constructor must receive the token contract address."""
+        """Governor constructor must receive the token contract address."""
         call_log = []
 
         class _TrackingContract(_FakeContract):
@@ -352,10 +353,12 @@ class TestMain:
 
         mod.main()
 
-        # First constructor call: X0TToken (no args)
+        # First constructor call: GovernanceToken (no args)
         assert call_log[0] == ()
-        # Second constructor call: MeshGovernance(token_address)
-        assert call_log[1] == ("0xToken",)
+        # Second constructor call: Timelock([], [], admin)
+        assert call_log[1] == ([], [], "0xDeployer")
+        # Third constructor call: Governor(token_address, timelock_address)
+        assert call_log[2] == ("0xToken", "0xGovernance")
 
     def test_gas_estimation_failure_uses_default(self, monkeypatch, tmp_path):
         """When estimate_gas raises, gas should default to 3_000_000."""
@@ -386,9 +389,10 @@ class TestMain:
 
         mod.main()
 
-        # Both txs should have default gas = 3_000_000
-        for tx in built_txs:
-            assert tx["gas"] == 3_000_000
+        # Txs should have default gas = 3_000_000, 4_000_000, 5_000_000
+        assert built_txs[0]["gas"] == 3_000_000
+        assert built_txs[1]["gas"] == 4_000_000
+        assert built_txs[2]["gas"] == 5_000_000
 
     def test_gas_estimation_success_adds_ten_percent(self, monkeypatch, tmp_path):
         """Successful gas estimate should be multiplied by 1.1."""
@@ -463,8 +467,8 @@ class TestMain:
         payload = json.loads(deployment_file.read_text())
         assert payload["timestamp"] == 1_700_000_000.0
 
-    def test_two_contracts_deployed_in_order(self, monkeypatch, tmp_path):
-        """load_contract must be called first for X0TToken then MeshGovernance."""
+    def test_three_contracts_deployed_in_order(self, monkeypatch, tmp_path):
+        """load_contract must be called for GovernanceToken, Timelock, then Governor."""
         names_loaded = []
 
         def _tracking_load(name):
@@ -480,4 +484,4 @@ class TestMain:
 
         mod.main()
 
-        assert names_loaded == ["X0TToken", "MeshGovernance"]
+        assert names_loaded == ["GovernanceToken", "X0TTA6BL4Timelock", "X0TTA6BL4Governor"]

@@ -16,7 +16,7 @@ import os
 import re
 import sys
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
@@ -34,12 +34,22 @@ def mask_sensitive_data(data: str) -> str:
     patterns = [
         # Authentication credentials
         (r'password["\']?\s*[:=]\s*["\']?[^"\'\s]+', "password=***"),
+        (r'passwd["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passwd=***"),
+        (r'passphrase["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passphrase=***"),
         (r'token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "token=***"),
+        (r'access[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "access_token=***"),
+        (r'refresh[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "refresh_token=***"),
+        (r'session[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "session_token=***"),
         (r'api[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "api_key=***"),
         (r'authorization["\']?\s*[:=]\s*["\']?[^"\'\s]+', "authorization=***"),
         (r'secret["\']?\s*[:=]\s*["\']?[^"\'\s]+', "secret=***"),
         (r'private[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "private_key=***"),
-        (r'passwd["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passwd=***"),
+        (r'pqc[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "pqc_key=***"),
+        (r'credential[s]?["\']?\s*[:=]\s*["\']?[^"\'\s]+', "credential=***"),
+        # Financial / PII
+        (r'cvv["\']?\s*[:=]\s*["\']?[^"\'\s]+', "cvv=***"),
+        (r'card[_-]?number["\']?\s*[:=]\s*["\']?[^"\'\s]+', "card_number=***"),
+        (r'ssn["\']?\s*[:=]\s*["\']?[^"\'\s]+', "ssn=***"),
         # IP address masking (preserve private ranges, mask public)
         (r"\b(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}\b", r"\1.***"),
         # Email masking
@@ -59,7 +69,7 @@ class StructuredJsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

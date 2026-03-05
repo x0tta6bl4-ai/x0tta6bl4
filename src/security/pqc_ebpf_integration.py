@@ -11,14 +11,15 @@ Uses eBPF for:
 
 import hashlib
 import logging
+import os
+import time
 from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Try to import eBPF components
 try:
-    from src.network.ebpf.hooks.xdp_hook import XDPAction, XDPHook
-    from src.network.ebpf.loader import EBPFLoader, EBPFProgramType
+    from src.network.ebpf.ebpf_loader import EBPFLoader
 
     EBPF_AVAILABLE = True
 except (ImportError, AttributeError) as e:
@@ -45,14 +46,23 @@ class PQCeBPFAccelerator:
         """
         self.enable_ebpf = enable_ebpf and EBPF_AVAILABLE
         self.ebpf_loader = None
-        self.xdp_hook = None
-        self.program_id = None
+        self.program = None  # EBPFProgram object
 
         if self.enable_ebpf:
             try:
                 self.ebpf_loader = EBPFLoader()
-                self.xdp_hook = XDPHook()
-                logger.info("✅ PQC eBPF Accelerator initialized")
+                # Load the PQC key store program
+                program_path = "src/network/ebpf/bpf_programs/pqc_key_store.bpf.c"
+                if os.path.exists(program_path):
+                    # Set stub mode if BCC is only partially available or for testing
+                    if os.getenv("BCC_STUB_MODE") == "true":
+                         logger.info("🧪 eBPF Stub Mode enabled")
+                    
+                    self.program = self.ebpf_loader.load_program(program_path)
+                    logger.info(f"✅ PQC eBPF Key Store program loaded from {program_path}")
+                else:
+                    logger.warning(f"⚠️ PQC eBPF program not found at {program_path}")
+                    self.enable_ebpf = False
             except Exception as e:
                 logger.warning(f"⚠️ Failed to initialize eBPF: {e}")
                 self.enable_ebpf = False
@@ -61,29 +71,7 @@ class PQCeBPFAccelerator:
 
     def is_available(self) -> bool:
         """Check if eBPF acceleration is available."""
-        return self.enable_ebpf and self.ebpf_loader is not None
-
-    def create_key_lookup_map(self, map_name: str = "pqc_key_cache") -> Optional[str]:
-        """
-        Create eBPF map for key lookup.
-
-        Args:
-            map_name: Name of the eBPF map
-
-        Returns:
-            Map ID or None if failed
-        """
-        if not self.is_available():
-            return None
-
-        try:
-            # In production, this would create an actual eBPF map
-            # For now, we just log that it would be created
-            logger.debug(f"📦 Would create eBPF map: {map_name}")
-            return map_name
-        except Exception as e:
-            logger.error(f"❌ Failed to create key lookup map: {e}")
-            return None
+        return self.enable_ebpf and self.program is not None
 
     def cache_session_key_ebpf(
         self, peer_id: str, public_key_hash: bytes, session_key: bytes
@@ -93,22 +81,40 @@ class PQCeBPFAccelerator:
 
         Args:
             peer_id: Peer identifier
-            public_key_hash: Hash of peer's public key
-            session_key: Session key to cache
+            public_key_hash: Hash of peer's public key (unused in map but kept for API parity)
+            session_key: Session key to cache (32 bytes)
 
         Returns:
             True if cached successfully
         """
-        if not self.is_available():
+        if not self.is_available() or not self.program.loaded:
             return False
 
         try:
-            # In production, this would write to eBPF map
-            # For now, we just log
-            logger.debug(
-                f"📦 Would cache session key in eBPF: "
-                f"peer={peer_id}, key_hash={public_key_hash.hex()[:16]}"
-            )
+            # Get the map from BCC BPF object
+            pqc_keys = self.program.bpf["pqc_keys"]
+            
+            # Prepare key: struct key_t
+            key = pqc_keys.Key()
+            peer_id_bytes = peer_id.encode('utf-8')
+            for i in range(min(len(peer_id_bytes), 64)):
+                key.id[i] = peer_id_bytes[i]
+            
+            # Prepare value structure
+            # BCC generates a Leaf class for the struct defined in C
+            value = pqc_keys.Leaf()
+            
+            # session_key is char[32] in C
+            for i in range(min(len(session_key), 32)):
+                value.session_key[i] = session_key[i]
+            
+            value.last_updated_ns = int(time.time() * 1e9)
+            value.flags = 1
+            
+            # Write to eBPF hash map
+            pqc_keys[key] = value
+            
+            logger.debug(f"📦 Cached session key in eBPF for peer={peer_id}")
             return True
         except Exception as e:
             logger.error(f"❌ Failed to cache in eBPF: {e}")
@@ -125,18 +131,27 @@ class PQCeBPFAccelerator:
             public_key_hash: Hash of peer's public key
 
         Returns:
-            Session key or None if not found
+            Session key (32 bytes) or None if not found
         """
-        if not self.is_available():
+        if not self.is_available() or not self.program.loaded:
             return None
 
         try:
-            # In production, this would read from eBPF map
-            # For now, we return None (cache miss)
-            logger.debug(
-                f"🔍 Would lookup session key from eBPF: "
-                f"peer={peer_id}, key_hash={public_key_hash.hex()[:16]}"
-            )
+            pqc_keys = self.program.bpf["pqc_keys"]
+            
+            # Prepare key: struct key_t
+            key = pqc_keys.Key()
+            peer_id_bytes = peer_id.encode('utf-8')
+            for i in range(min(len(peer_id_bytes), 64)):
+                key.id[i] = peer_id_bytes[i]
+            
+            # Lookup in map
+            value = pqc_keys.get(key)
+            if value:
+                logger.debug(f"🔍 Found session key in eBPF for peer={peer_id}")
+                # Convert from C array to bytes
+                return bytes(value.session_key)
+            
             return None
         except Exception as e:
             logger.error(f"❌ Failed to lookup from eBPF: {e}")

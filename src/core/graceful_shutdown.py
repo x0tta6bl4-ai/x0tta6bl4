@@ -26,10 +26,19 @@ class ShutdownState:
     """Tracks shutdown state and active requests."""
 
     is_shutting_down: bool = False
+    startup_completed_at: Optional[float] = None
     shutdown_started_at: Optional[float] = None
+    shutdown_completed_at: Optional[float] = None
+    shutdown_duration_seconds: Optional[float] = None
     active_requests: int = 0
     active_tasks: Set[asyncio.Task] = field(default_factory=set)
     cleanup_handlers: List[Callable] = field(default_factory=list)
+    cleanup_started_at: Optional[float] = None
+    cleanup_completed_at: Optional[float] = None
+    cleanup_success_count: int = 0
+    cleanup_failure_count: int = 0
+    cleanup_timeout_count: int = 0
+    last_cleanup_error: Optional[str] = None
 
 
 class GracefulShutdownManager:
@@ -172,6 +181,14 @@ class GracefulShutdownManager:
 
         self.state.is_shutting_down = True
         self.state.shutdown_started_at = time.time()
+        self.state.shutdown_completed_at = None
+        self.state.shutdown_duration_seconds = None
+        self.state.cleanup_started_at = None
+        self.state.cleanup_completed_at = None
+        self.state.cleanup_success_count = 0
+        self.state.cleanup_failure_count = 0
+        self.state.cleanup_timeout_count = 0
+        self.state.last_cleanup_error = None
         logger.info("Starting graceful shutdown...")
 
         # Step 1: Wait for active requests to drain
@@ -184,6 +201,8 @@ class GracefulShutdownManager:
         await self._run_cleanup_handlers()
 
         elapsed = time.time() - self.state.shutdown_started_at
+        self.state.shutdown_completed_at = time.time()
+        self.state.shutdown_duration_seconds = elapsed
         logger.info(f"Graceful shutdown completed in {elapsed:.2f}s")
 
         # Step 4: Force exit if configured
@@ -239,6 +258,7 @@ class GracefulShutdownManager:
             logger.info("No cleanup handlers registered")
             return
 
+        self.state.cleanup_started_at = time.time()
         logger.info(f"Running {len(self.state.cleanup_handlers)} cleanup handlers...")
 
         for handler in self.state.cleanup_handlers:
@@ -249,22 +269,37 @@ class GracefulShutdownManager:
                     await asyncio.wait_for(handler(), timeout=5.0)
                 else:
                     handler()
+                self.state.cleanup_success_count += 1
                 logger.debug(f"Cleanup completed: {name}")
             except asyncio.TimeoutError:
+                self.state.cleanup_timeout_count += 1
+                self.state.last_cleanup_error = f"{name}: timeout"
                 logger.error(f"Cleanup handler timed out: {name}")
             except Exception as e:
+                self.state.cleanup_failure_count += 1
+                self.state.last_cleanup_error = f"{name}: {e}"
                 logger.error(f"Cleanup handler failed: {name} - {e}")
 
+        self.state.cleanup_completed_at = time.time()
         logger.info("Cleanup handlers completed")
 
     def get_status(self) -> dict:
         """Get current shutdown status."""
         return {
             "is_shutting_down": self.state.is_shutting_down,
+            "startup_completed_at": self.state.startup_completed_at,
             "active_requests": self.state.active_requests,
             "active_tasks": len(self.state.active_tasks),
             "cleanup_handlers": len(self.state.cleanup_handlers),
+            "cleanup_started_at": self.state.cleanup_started_at,
+            "cleanup_completed_at": self.state.cleanup_completed_at,
+            "cleanup_success_count": self.state.cleanup_success_count,
+            "cleanup_failure_count": self.state.cleanup_failure_count,
+            "cleanup_timeout_count": self.state.cleanup_timeout_count,
+            "last_cleanup_error": self.state.last_cleanup_error,
             "shutdown_started_at": self.state.shutdown_started_at,
+            "shutdown_completed_at": self.state.shutdown_completed_at,
+            "shutdown_duration_seconds": self.state.shutdown_duration_seconds,
         }
 
 
@@ -351,6 +386,7 @@ def create_lifespan(
                 shutdown_manager.register_cleanup(handler)
 
         logger.info("Application startup complete")
+        shutdown_manager.state.startup_completed_at = time.time()
 
         yield
 

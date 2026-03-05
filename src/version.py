@@ -15,10 +15,10 @@ Version Policy (Option B):
 Usage:
     >>> from src.version import __version__, get_version_info
     >>> print(__version__)
-    '3.2.1'
+    '3.4.0'
     >>> info = get_version_info()
     >>> print(info['api_version'])
-    '3.2.1'
+    '3.4.0'
 """
 
 import os
@@ -33,7 +33,7 @@ from typing import Dict, Any, Optional
 
 # Major.Minor.Patch - Semantic Versioning
 # Update this for each release
-__version__ = "3.3.4"
+__version__ = "3.4.0"
 
 # Build metadata (optional, for CI/CD)
 __build__ = os.getenv("X0TTA6BL4_BUILD", "")

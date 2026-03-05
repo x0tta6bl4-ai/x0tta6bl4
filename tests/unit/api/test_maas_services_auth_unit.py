@@ -1,8 +1,19 @@
 """Unit tests for AuthService bounded in-memory state behavior."""
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 from src.api.maas.services import AuthService
+
+
+def _make_mock_db(user_id: str = "u1"):
+    """Return a mock SessionLocal() that returns a valid non-expired user."""
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.expires_at = None
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+    return mock_db
 
 
 def test_generate_api_key_evicts_oldest_when_limit_exceeded():
@@ -26,7 +37,8 @@ def test_validate_api_key_refreshes_lru_order():
     key_1 = auth.generate_api_key("u1", "starter")
     key_2 = auth.generate_api_key("u2", "pro")
 
-    validated = auth.validate_api_key(key_1)
+    with patch("src.database.SessionLocal", return_value=_make_mock_db("u1")):
+        validated = auth.validate_api_key(key_1)
     assert validated is not None
 
     key_3 = auth.generate_api_key("u3", "enterprise")

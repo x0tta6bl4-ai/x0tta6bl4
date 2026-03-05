@@ -1,10 +1,10 @@
-# x0tta-mesh-operator default values (v3.3.2)
+# x0tta-mesh-operator default values (v3.4.0)
 
 # Operator deployment
 operator:
   image:
     repository: x0tta6bl4/mesh-operator
-    tag: "3.3.2"
+    tag: "3.4.0"
     pullPolicy: IfNotPresent
   replicaCount: 1
   resources:
@@ -35,7 +35,7 @@ meshDefaults:
   trustDomain: x0tta6bl4.mesh
   image:
     repository: x0tta6bl4/mesh-node
-    tag: "3.3.2"
+    tag: "3.4.0"
     pullPolicy: IfNotPresent
 
   # Post-Quantum Cryptography
@@ -81,13 +81,25 @@ meshDefaults:
   dao:
     enabled: true
     governance:
-      votingPeriod: 7200       # seconds (2h)
+      votingPeriod: 7200         # seconds (2h)
       quorumThreshold: 0.51
       proposalExpiry: 86400
+      # On-chain governance (governance_script.py)
+      onChain:
+        enabled: true
+        chainId: 84532           # Base Sepolia
+        rpc: "https://sepolia.base.org"  # override with Alchemy/Infura for prod
+        governanceAddress: ""    # set to MeshGovernance address after deploy
+        tokenAddress: ""         # set to X0TToken address after deploy
+        eip1559:
+          maxPriorityFeeGwei: 1.5
+          maxFeeGwei: 10.0
+        audit:
+          ledgerPath: "/data/dao/audit.jsonl"  # mounted via PVC
     bridge:
-      enabled: false           # enable for Sepolia token operations
-      chainId: 84532           # Base Sepolia testnet
-      contractAddress: ""      # set to deployed BridgeContract address
+      enabled: false             # enable for Sepolia token operations
+      chainId: 84532             # Base Sepolia testnet
+      contractAddress: ""        # set to deployed BridgeContract address
       gasLimit: 200000
       maxGasPriceGwei: 50.0
       confirmations: 2

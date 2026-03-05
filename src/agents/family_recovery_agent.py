@@ -13,8 +13,7 @@ LOG_FILE = "/mnt/projects/FAMILY_RECOVERY_LIVE.log"
 def log(message):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with open(LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {message}
-")
+        f.write(f"[{timestamp}] {message}\n")
     print(message)
 
 def organize_directory(dir_path):
