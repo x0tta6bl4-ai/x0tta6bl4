@@ -1,13 +1,12 @@
 """Unit tests for src/vision/topology_analyzer.py - MeshTopologyAnalyzer."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from src.vision.topology_analyzer import (
     MeshTopologyAnalyzer,
     NodeMetrics,
     LinkMetrics,
-    TopologyMetrics,
 )
 
 

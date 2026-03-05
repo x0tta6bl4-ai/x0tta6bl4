@@ -7,7 +7,7 @@ Tests the integration between PQC Verification Daemon and MAPE-K self-healing lo
 import secrets
 import threading
 import time
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 

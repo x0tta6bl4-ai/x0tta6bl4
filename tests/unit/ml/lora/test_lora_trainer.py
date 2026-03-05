@@ -2,8 +2,7 @@
 Unit tests for LoRA Fine-tuning Trainer
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -142,4 +141,4 @@ class TestLoRATrainer:
         # This would require actual model loading, so we'll mock it
         with patch("src.ml.lora.trainer.TORCH_AVAILABLE", False):
             with pytest.raises(ImportError):
-                trainer = LoRATrainer()
+                LoRATrainer()

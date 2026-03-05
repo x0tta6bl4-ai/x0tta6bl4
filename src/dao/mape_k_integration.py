@@ -299,7 +299,7 @@ class MAEKGovernanceAdapter:
         try:
             # Prepare proposal
             description = action.to_proposal_description()
-            description_hash = Web3.keccak(text=description)
+            Web3.keccak(text=description)
 
             logger.info(f"Submitting governance proposal: {action.title}")
             logger.debug(f"  Targets: {action.targets}")

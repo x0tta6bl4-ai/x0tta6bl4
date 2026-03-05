@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from src.storage.ipfs_client import IPFSClient, MockIPFSClient
-from src.storage.knowledge_storage_v2 import IncidentEntry, KnowledgeStorageV2
+from src.storage.ipfs_client import MockIPFSClient
+from src.storage.knowledge_storage_v2 import KnowledgeStorageV2
 from src.storage.mapek_integration import MAPEKKnowledgeStorageAdapter
 from src.storage.vector_index import VectorIndex
 

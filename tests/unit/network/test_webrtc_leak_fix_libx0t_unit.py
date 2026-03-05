@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 
 import libx0t.network.webrtc_leak_fix as mod
 

@@ -6,7 +6,7 @@ Tests HTTP-based obfuscation/deobfuscation and domain fronting transport.
 import os
 import socket
 import ssl
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

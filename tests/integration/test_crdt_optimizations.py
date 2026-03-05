@@ -7,7 +7,6 @@ Tests optimized CRDT sync with:
 - Performance metrics
 """
 
-from typing import Any, Dict
 
 import pytest
 

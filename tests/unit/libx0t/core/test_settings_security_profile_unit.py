@@ -1,6 +1,3 @@
-import os
-import pytest
-from pydantic import ValidationError
 
 # Assuming libx0t is in the Python path for testing
 from libx0t.core.settings import Settings

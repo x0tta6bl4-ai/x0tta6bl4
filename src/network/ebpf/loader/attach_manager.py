@@ -136,7 +136,7 @@ class EBPFAttachManager:
                 if xdp_mode != "skb":
                     cmd.extend(["mode", xdp_mode])
                 
-                result = subprocess.run(
+                subprocess.run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
                 
@@ -204,7 +204,7 @@ class EBPFAttachManager:
                 "sec", ".text",
             ]
             
-            result = subprocess.run(
+            subprocess.run(
                 cmd, check=True, capture_output=True, text=True, timeout=10
             )
             
@@ -236,7 +236,7 @@ class EBPFAttachManager:
             True if detachment successful
         """
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["ip", "link", "set", "dev", interface, "xdp", "off"],
                 check=True,
                 capture_output=True,
@@ -261,7 +261,7 @@ class EBPFAttachManager:
             True if detachment successful
         """
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["tc", "filter", "del", "dev", interface, "ingress"],
                 check=True,
                 capture_output=True,

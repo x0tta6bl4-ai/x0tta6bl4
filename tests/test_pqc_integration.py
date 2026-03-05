@@ -5,7 +5,6 @@ Tests for PQC Zero-Trust Integration in x0tta6bl4
 Tests PQC gateway, XDP loader, and zero-trust healer components.
 """
 
-import asyncio
 import time
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
@@ -22,7 +21,7 @@ if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 
 from src.network.ebpf.pqc_xdp_loader import PQCXDPLoader
-from src.security.ebpf_pqc_gateway import EBPFPQCGateway, PQCSession
+from src.security.ebpf_pqc_gateway import EBPFPQCGateway
 from src.self_healing.pqc_zero_trust_healer import (PQCSessionAnomaly,
                                                     PQCZeroTrustHealer)
 
@@ -218,7 +217,7 @@ class TestPQCZeroTrustHealer:
         # FIX: prevent run_healing_loop from starting task in __init__
         with patch(
             "src.self_healing.pqc_zero_trust_healer.asyncio.create_task"
-        ) as mock_create_task:
+        ):
             self.healer = PQCZeroTrustHealer()
 
     @pytest.mark.asyncio
@@ -324,7 +323,7 @@ class TestPQCZeroTrustHealer:
         """Test expired session cleanup"""
         # Add some sessions to gateway
         session1 = self.healer.monitor.pqc_gateway.create_session("peer1")
-        session2 = self.healer.monitor.pqc_gateway.create_session("peer2")
+        self.healer.monitor.pqc_gateway.create_session("peer2")
 
         # Make session1 old
         session1.last_used = (datetime.now() - timedelta(hours=3)).timestamp()
@@ -391,7 +390,7 @@ class TestIntegration:
         # Patch creating task to prevent background loop during this test instance too
         with patch(
             "src.self_healing.pqc_zero_trust_healer.asyncio.create_task"
-        ) as mock_create_task:
+        ):
             healer = PQCZeroTrustHealer()
 
         # Run monitoring

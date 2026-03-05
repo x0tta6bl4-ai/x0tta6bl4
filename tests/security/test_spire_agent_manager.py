@@ -1,13 +1,9 @@
 import logging
 import os
-import shutil
 import signal
 import subprocess
-import tempfile
-import time
-from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock
 
 import pytest
 

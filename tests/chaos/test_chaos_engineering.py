@@ -7,12 +7,10 @@ Tests 30+ chaos scenarios across different failure modes.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.testing.chaos_engineering import (ChaosInjector, ChaosScenario,
-                                           ChaosType, create_chaos_scenario)
+from src.testing.chaos_engineering import (ChaosInjector, ChaosType, create_chaos_scenario)
 
 
 class TestNetworkChaos:
@@ -55,7 +53,6 @@ class TestNetworkChaos:
     @pytest.mark.asyncio
     async def test_cascading_network_failures(self, injector):
         """Test cascading network failures"""
-        affected_nodes = ["peer1", "peer2", "peer3"]
         start = time.time()
 
         await injector.inject_cascading_failure(

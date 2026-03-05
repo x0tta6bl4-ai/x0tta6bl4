@@ -1,9 +1,6 @@
 """Unit tests for eBPF Validator."""
 import os
-import struct
-import pytest
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -100,7 +97,7 @@ class TestValidateProgramFile:
 
     def test_too_many_instructions(self, tmp_path):
         v = self._make_validator()
-        f = tmp_path / "prog.o"
+        tmp_path / "prog.o"
         # File large enough to exceed MAX_INSTRUCTIONS * 8 bytes
         mock_path = MagicMock()
         mock_path.exists.return_value = True

@@ -249,7 +249,7 @@ class WebRTCLeakFix:
                     ["iptables", "-L", "OUTPUT", "-n"], capture_output=True, text=True
                 )
                 status["system_rules_active"] = "3478" in result.stdout
-            except:
+            except Exception:
                 pass
 
         return status

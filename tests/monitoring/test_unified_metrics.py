@@ -1,9 +1,7 @@
 import pytest
 
 from src.monitoring.unified_metrics import (HealthCheckAggregator,
-                                            UnifiedMetricsCollector,
-                                            get_health_aggregator,
-                                            get_metrics_collector)
+                                            UnifiedMetricsCollector)
 
 
 class TestUnifiedMetricsCollector:

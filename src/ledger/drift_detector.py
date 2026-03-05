@@ -297,7 +297,7 @@ class LedgerDriftDetector:
             content = self.continuity_file.read_text(encoding="utf-8")
 
             # Парсинг метрик из ledger
-            metrics = find_metrics(content)
+            find_metrics(content)
 
             # Поиск метрик с числовыми значениями для сравнения
             metric_patterns = {

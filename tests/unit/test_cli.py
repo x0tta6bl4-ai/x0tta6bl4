@@ -1,4 +1,3 @@
-import importlib
 
 from _pytest.capture import CaptureFixture
 

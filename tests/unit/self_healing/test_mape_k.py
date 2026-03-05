@@ -2,7 +2,6 @@
 Unit tests for MAPE-K Self-Healing Core
 """
 
-import pytest
 
 from src.self_healing.mape_k import SelfHealingManager
 

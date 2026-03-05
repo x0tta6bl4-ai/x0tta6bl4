@@ -334,7 +334,6 @@ class WebRTCLeakDetector:
         ]
         
         for config_path in firefox_config_paths:
-            prefs_file = f"{config_path}/**/prefs.js"
             try:
                 result = subprocess.run(
                     ["find", config_path, "-name", "prefs.js"],

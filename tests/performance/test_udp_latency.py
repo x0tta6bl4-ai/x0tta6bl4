@@ -7,13 +7,11 @@ import asyncio
 import statistics
 import sys
 import time
-from typing import Dict, List
+from typing import Dict
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
-from src.network.obfuscation.traffic_shaping import TrafficProfile
-from src.network.transport.udp_shaped import (PacketType, ShapedUDPTransport,
-                                              UDPPacket)
+from src.network.transport.udp_shaped import (ShapedUDPTransport)
 
 
 async def benchmark_packet_processing(iterations: int = 10000) -> Dict:
@@ -34,7 +32,7 @@ async def benchmark_packet_processing(iterations: int = 10000) -> Dict:
         prepare_times = []
         for _ in range(iterations):
             start = time.perf_counter()
-            packet = transport._prepare_packet(test_data)
+            transport._prepare_packet(test_data)
             elapsed = time.perf_counter() - start
             prepare_times.append(elapsed)
 

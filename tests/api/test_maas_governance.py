@@ -337,7 +337,8 @@ class TestExecution:
         fh1 = r.json()["finality_hash"]
 
         # Re-compute manually using the same function
-        import hashlib, json
+        import hashlib
+        import json
         db = TestingSessionLocal()
         prop = db.query(GovernanceProposal).filter(GovernanceProposal.id == pid).first()
         db.refresh(prop)
@@ -345,7 +346,7 @@ class TestExecution:
             [(v.voter_id, v.vote, v.tokens) for v in prop.votes],
             key=lambda x: x[0],
         )
-        actions = json.loads(prop.actions_json) if prop.actions_json else []
+        json.loads(prop.actions_json) if prop.actions_json else []
         # Replicate execution results
         results = [{"action": "update_config", "success": True,
                     "detail": "Multiplier 2.0 applied"}]

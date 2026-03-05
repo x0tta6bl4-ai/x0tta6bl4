@@ -2,7 +2,6 @@
 Unit tests for distributed KVStore
 """
 
-import pytest
 
 from src.storage.kv_store import KVStore
 

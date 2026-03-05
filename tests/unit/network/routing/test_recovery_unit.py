@@ -1,8 +1,7 @@
 """Unit tests for Route Recovery."""
 import os
 import time
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -10,7 +9,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 from src.network.routing.recovery import RecoveryAttempt, RouteRecovery
 from src.network.routing.route_table import RouteEntry, RouteTable
-from src.network.routing.topology import TopologyManager, NodeInfo
+from src.network.routing.topology import TopologyManager
 
 
 class TestRecoveryAttempt:

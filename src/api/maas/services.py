@@ -388,7 +388,7 @@ class BillingService:
         # In production, integrate with actual Stripe library
         try:
             from src.billing.stripe_client import StripeClient
-            client = StripeClient()
+            StripeClient()
             # If PRODUCTION is not explicitly false, we assume real gateway
             is_prod = _env_value("ENVIRONMENT", "development").lower() == "production"
             

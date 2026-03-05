@@ -9,12 +9,9 @@ Tests:
 - eBPF event and compilation metrics
 """
 
-import pytest
 
 from src.monitoring.prometheus_extended import (
-    dao_votes_cast_total, ebpf_events_processed_total,
-    get_extended_metrics_text, graphsage_anomalies_detected_total,
-    graphsage_inference_latency_ms, lora_training_loss,
+    get_extended_metrics_text, graphsage_inference_latency_ms, lora_training_loss,
     rag_retrieval_latency_ms, record_dao_vote, record_ebpf_event,
     record_graphsage_inference, record_lora_training_update,
     record_rag_retrieval)

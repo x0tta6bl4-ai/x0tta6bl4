@@ -1,5 +1,3 @@
-import pytest
-from unittest.mock import MagicMock
 from src.database import db_circuit_breaker
 from src.resilience.advanced_patterns import CircuitState
 
@@ -25,7 +23,6 @@ def test_db_circuit_breaker_state_transitions():
     # 3. Simulate recovery attempt (should fail immediately if timeout not reached)
     assert db_circuit_breaker._should_attempt_recovery() is False
     
-    import time
     from datetime import datetime, timedelta
     # 4. Fast forward time to simulate timeout expiration
     db_circuit_breaker.last_failure_time = datetime.utcnow() - timedelta(seconds=2)

@@ -5,8 +5,7 @@ Covers all public methods, helper methods, error paths, and edge cases.
 """
 
 import time
-from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 

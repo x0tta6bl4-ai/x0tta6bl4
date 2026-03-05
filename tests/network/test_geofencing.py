@@ -1,5 +1,4 @@
 """Smoke tests for GeoFencer."""
-import pytest
 from src.network.geofencing import GeoFencer
 
 

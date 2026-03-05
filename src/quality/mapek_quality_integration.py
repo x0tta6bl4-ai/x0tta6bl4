@@ -753,7 +753,7 @@ class Test{file_path.stem.capitalize()}:
                         func_lines = (
                             node.end_lineno - node.lineno
                             if hasattr(node, "end_lineno")
-                            else len([l for l in lines[node.lineno - 1 :] if l.strip()])
+                            else len([line for line in lines[node.lineno - 1 :] if line.strip()])
                         )
                         if func_lines > 50:
                             suggestions.append(

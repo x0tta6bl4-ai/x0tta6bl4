@@ -3,7 +3,6 @@ Integration tests for src/api/vpn.py
 Tests VPN management API endpoints.
 """
 
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

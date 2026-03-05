@@ -39,7 +39,7 @@ class TestMapReaderInitialization:
 
             reader = MapReader(telemetry_config, security)
 
-            assert reader.bpftool_available == True
+            assert reader.bpftool_available
 
     def test_initialization_bpftool_unavailable(self, telemetry_config):
         """Test initialization when bpftool is unavailable."""
@@ -50,7 +50,7 @@ class TestMapReaderInitialization:
 
             reader = MapReader(telemetry_config, security)
 
-            assert reader.bpftool_available == False
+            assert not reader.bpftool_available
 
     def test_initialization_cache_empty(self, telemetry_config):
         """Test that cache is empty on initialization."""
@@ -216,7 +216,7 @@ class TestMapReaderCaching:
     def test_cache_bypass(self, reader, mock_bpf_program):
         """Test bypassing cache."""
         # First read
-        data1 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)
+        reader.read_map(mock_bpf_program, "test_map", use_cache=True)
 
         # Second read with cache disabled
         data2 = reader.read_map(mock_bpf_program, "test_map", use_cache=False)
@@ -228,7 +228,7 @@ class TestMapReaderCaching:
         """Test cache expiration."""
 
         # First read
-        data1 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)
+        reader.read_map(mock_bpf_program, "test_map", use_cache=True)
 
         # Advance time beyond TTL
         mock_time.return_value = 1000.0 + reader.cache_ttl + 1.0
@@ -278,9 +278,9 @@ class TestMapReaderParallelReading:
 
         map_names = ["map1", "map2", "map3", "map4", "map5"]
 
-        start_time = time.time()
+        time.time()
         results = reader.read_multiple_maps(mock_bpf_program, map_names)
-        end_time = time.time()
+        time.time()
 
         # Should complete faster than sequential reading
         assert isinstance(results, dict)
@@ -330,7 +330,7 @@ class TestMapReaderMainMethod:
                 with patch.object(reader, "read_map_via_bpftool") as mock_bpftool:
                     mock_bpftool.return_value = {"data": []}
 
-                    data = reader.read_map(mock_bpf_program, "test_map")
+                    reader.read_map(mock_bpf_program, "test_map")
 
                     mock_bpftool.assert_called_once()
 
@@ -384,7 +384,7 @@ class TestMapReaderErrorHandling:
         mock_bpf_program.__getitem__ = Mock(side_effect=Exception("Test error"))
 
         with patch("telemetry_module.BCC_AVAILABLE", True):
-            data = reader.read_map(mock_bpf_program, "test_map")
+            reader.read_map(mock_bpf_program, "test_map")
 
             # Should log error
             assert any(
@@ -406,12 +406,12 @@ class TestMapReaderPerformance:
 
         # First read (cache miss)
         start1 = time.time()
-        data1 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)
+        reader.read_map(mock_bpf_program, "test_map", use_cache=True)
         time1 = time.time() - start1
 
         # Second read (cache hit)
         start2 = time.time()
-        data2 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)
+        reader.read_map(mock_bpf_program, "test_map", use_cache=True)
         time2 = time.time() - start2
 
         # Cache hit should be faster
@@ -426,7 +426,7 @@ class TestMapReaderPerformance:
         # Parallel read
         start_parallel = time.time()
         results_parallel = reader.read_multiple_maps(mock_bpf_program, map_names)
-        time_parallel = time.time() - start_parallel
+        time.time() - start_parallel
 
         # Should complete successfully
         assert isinstance(results_parallel, dict)
@@ -519,7 +519,7 @@ class TestMapReaderIntegration:
     def test_workflow_with_cache_clear(self, reader, mock_bpf_program):
         """Test workflow with cache clearing."""
         # Read map
-        data1 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)
+        reader.read_map(mock_bpf_program, "test_map", use_cache=True)
 
         # Clear cache
         reader.clear_cache()

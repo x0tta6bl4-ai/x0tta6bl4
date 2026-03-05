@@ -19,7 +19,7 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 from src.core.app import app
-from src.database import Base, get_db, User
+from src.database import Base, get_db
 
 _TEST_DB_PATH = f"./test_telemetry_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"

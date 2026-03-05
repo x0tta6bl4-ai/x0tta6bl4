@@ -39,7 +39,7 @@ class GTMAgent:
             total_revenue = self.db.query(func.sum(Payment.amount)).scalar() or 0
             active_licenses = (
                 self.db.query(func.count(License.token))
-                .filter(License.is_active == True)
+                .filter(License.is_active)
                 .scalar()
             )
 
@@ -56,7 +56,7 @@ class GTMAgent:
             expiring_soon = (
                 self.db.query(func.count(License.token))
                 .filter(
-                    License.is_active == True,
+                    License.is_active,
                     License.expires_at <= soon,
                     License.expires_at >= datetime.utcnow(),
                 )

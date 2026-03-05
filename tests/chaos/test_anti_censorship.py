@@ -7,8 +7,7 @@ Tests network resilience, DDoS resistance, and censorship bypass.
 import asyncio
 import os
 import time
-from typing import Any, Dict, List
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -157,7 +156,7 @@ class TestDDoSResistance:
             responses = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Some requests may be rate-limited (429)
-            rate_limited = sum(
+            sum(
                 1
                 for r in responses
                 if not isinstance(r, Exception) and r.status_code == 429
@@ -189,7 +188,7 @@ class TestDDoSResistance:
 
             # Should either accept or reject gracefully (not crash)
             assert response.status_code in [200, 400, 413, 422]
-        except Exception as e:
+        except Exception:
             # Timeout or connection error is acceptable for large payloads
             assert True
         finally:

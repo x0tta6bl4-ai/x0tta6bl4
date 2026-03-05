@@ -2,7 +2,6 @@
 Полная интеграция всех компонентов
 """
 
-import asyncio
 
 import pytest
 
@@ -39,7 +38,7 @@ async def test_integrated_anomaly_detection(integrated_cycle):
 
     result = await integrated_cycle.run_cycle(metrics)
 
-    assert result["anomaly_detected"] == True
+    assert result["anomaly_detected"]
     assert "analyzer_results" in result
     assert "planner_results" in result
     assert "executor_results" in result

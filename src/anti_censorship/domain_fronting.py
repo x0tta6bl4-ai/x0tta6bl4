@@ -130,7 +130,7 @@ class DomainFrontingAdapter(HTTPAdapter):
     def send(self, request, **kwargs):
         """Modify request for domain fronting."""
         # Store original host
-        original_host = urlparse(request.url).netloc
+        urlparse(request.url).netloc
         
         # Set Host header to target
         if self.target_host:

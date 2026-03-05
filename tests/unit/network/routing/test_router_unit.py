@@ -1,8 +1,7 @@
 """Unit tests for Mesh Router (simplified facade)."""
 import os
 import time
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

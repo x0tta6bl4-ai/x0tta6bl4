@@ -3,9 +3,8 @@ Unit tests for Swarm Phase 2: Learning and Experience Loop.
 Verifies that PARLController collects experience and updates policy.
 """
 
-import asyncio
 import unittest
-from src.swarm.parl.controller import PARLController, PARLConfig
+from src.swarm.parl.controller import PARLController
 
 class TestSwarmLearning(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

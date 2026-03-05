@@ -20,7 +20,6 @@ for mod_name, mock_obj in _mocked_modules.items():
     if mod_name not in sys.modules:
         sys.modules[mod_name] = mock_obj
 
-import asyncio
 
 import pytest
 

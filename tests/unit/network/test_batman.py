@@ -4,10 +4,9 @@ Unit tests for Batman-adv mesh components
 
 from datetime import datetime, timedelta
 
-import pytest
 
 from src.network.batman.node_manager import (AttestationStrategy,
-                                             HealthMonitor, NodeManager,
+                                             NodeManager,
                                              NodeMetrics)
 from src.network.batman.topology import (LinkQuality, MeshLink, MeshNode,
                                          MeshTopology, NodeState)

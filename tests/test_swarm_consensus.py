@@ -6,9 +6,6 @@ Comprehensive tests for Paxos, PBFT, and SwarmConsensusManager.
 
 import asyncio
 import pytest
-from datetime import datetime
-from typing import Dict, List
-import uuid
 
 # Import consensus modules
 from src.swarm.paxos import (
@@ -16,12 +13,10 @@ from src.swarm.paxos import (
     MultiPaxos,
     PaxosPhase,
     ProposalNumber,
-    PaxosMessage,
 )
 from src.swarm.pbft import (
     PBFTNode,
     PBFTPhase,
-    PBFTMessage,
     PBFTRequest,
 )
 from src.swarm.consensus_integration import (

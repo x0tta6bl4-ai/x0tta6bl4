@@ -6,7 +6,6 @@ MAPE-K V3.0 Integration
 """
 
 import logging
-import time
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)

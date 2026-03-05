@@ -1,9 +1,8 @@
 """Unit tests for eBPF Enhanced Metrics Exporter."""
 import os
 import json
-import time
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

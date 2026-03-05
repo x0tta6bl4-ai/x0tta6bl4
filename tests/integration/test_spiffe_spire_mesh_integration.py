@@ -13,11 +13,9 @@ Tests comprehensive integration of SPIFFE/SPIRE identity management with:
 Phase: Q1 2026 Production Readiness
 """
 
-import asyncio
 import json
 import shutil
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -241,7 +239,6 @@ class TestSPIFFEPQCHybridSecurity:
     def test_pqc_hybrid_handshake_with_spiffe(self, pqc_mesh_security):
         """Test hybrid PQC handshake in SPIFFE context."""
         # Simulate peer identities
-        peer_spiffe_id = "spiffe://x0tta6bl4.mesh/node/peer-1"
 
         # Generate peer keypair
         peer_pk = pqc_mesh_security.generate_kem_keypair()
@@ -526,7 +523,6 @@ class TestSPIFFEProductionReadiness:
     def test_trust_domain_federation(self):
         """Test trust domain federation readiness."""
         # Simulate federation with external trust domain
-        internal_domain = "x0tta6bl4.mesh"
         external_domain = "partner.mesh"
 
         federated_spiffe_id = f"spiffe://{external_domain}/node/partner-node"

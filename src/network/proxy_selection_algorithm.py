@@ -489,7 +489,6 @@ class ProxySelectionAlgorithm:
                 )
 
         # Check for geographic gaps
-        regions = set()
         for proxy_id, metrics in self.proxy_metrics.items():
             # This would need proxy object access in real implementation
             pass

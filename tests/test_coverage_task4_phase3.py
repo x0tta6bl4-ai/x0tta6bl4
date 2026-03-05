@@ -8,10 +8,8 @@ Phase 3 Strategy (1.5 hours):
 """
 
 from enum import Enum
-from typing import Any, Dict, Optional
-from unittest import mock
+from typing import Any, Dict
 
-import pytest
 
 # ============================================================================
 # FEATURE FLAG TESTS
@@ -246,7 +244,7 @@ class TestFeatureFlagPaths:
         # Debug info available
         debug = processor.debug_info()
         assert debug["cache_size"] == 2
-        assert debug["cache_enabled"] == True
+        assert debug["cache_enabled"]
 
     def test_debug_mode_disabled(self):
         """Test no debug info when debug mode disabled."""
@@ -412,7 +410,7 @@ class TestEnvironmentConfiguration:
 
         assert config.api_host == "localhost"
         assert config.api_port == 9000
-        assert config.debug == True
+        assert config.debug
         assert config.log_level == "DEBUG"
 
     def test_load_from_env_prod(self):
@@ -428,7 +426,7 @@ class TestEnvironmentConfiguration:
 
         assert config.api_host == "api.prod.com"
         assert config.api_port == 443
-        assert config.debug == False
+        assert not config.debug
         assert config.log_level == "WARNING"
 
     def test_load_from_env_partial(self):
@@ -441,7 +439,7 @@ class TestEnvironmentConfiguration:
 
         assert config.api_host == "custom.host"
         assert config.api_port == 8000  # default
-        assert config.debug == False  # default
+        assert not config.debug  # default
 
     def test_load_from_env_invalid_port(self):
         """Test loading config with invalid port."""
@@ -539,7 +537,7 @@ class TestConfigurationManager:
 
         assert mgr.config.api_host == "newhost.com"
         assert mgr.config.api_port == 9999
-        assert mgr.config.debug == True
+        assert mgr.config.debug
         assert len(mgr.history) == 3
 
     def test_reset_configuration(self):
@@ -551,7 +549,7 @@ class TestConfigurationManager:
         mgr.reset()
 
         assert mgr.config.api_host == "127.0.0.1"
-        assert mgr.config.debug == False
+        assert not mgr.config.debug
 
     def test_rollback_last_change(self):
         """Test rolling back last change."""
@@ -561,7 +559,7 @@ class TestConfigurationManager:
         mgr.rollback_last()
 
         # Last change (debug=True) rolled back
-        assert mgr.config.debug == False
+        assert not mgr.config.debug
         assert mgr.config.api_host == "newhost.com"
 
     def test_rollback_all_changes(self):

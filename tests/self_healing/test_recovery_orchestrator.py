@@ -13,15 +13,11 @@ Tests:
 
 import time
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.self_healing.recovery_actions import \
-    CircuitBreaker as RecoveryCircuitBreaker
-from src.self_healing.recovery_actions import (CircuitBreakerState,
-                                               RateLimiter,
-                                               RecoveryActionExecutor,
+from src.self_healing.recovery_actions import (RecoveryActionExecutor,
                                                RecoveryActionType,
                                                RecoveryResult)
 
@@ -449,7 +445,7 @@ class TestRetryLogic:
         ):
             # Need more retries for this test
             recovery_executor_no_protection.max_retries = 3
-            result = recovery_executor_no_protection.execute("Restart service", {})
+            recovery_executor_no_protection.execute("Restart service", {})
 
         # Note: depends on executor configuration
 

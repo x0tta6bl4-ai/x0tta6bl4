@@ -86,7 +86,7 @@ def main():
     duration_secs = 5
     total_packets = packets_per_sec * duration_secs * 20  # Scale up
 
-    start_balance = token.balance_of(node_id)
+    token.balance_of(node_id)
 
     # Visual progress bar
     sys.stdout.write("   Processing Packets: [")
@@ -112,7 +112,6 @@ def main():
     time.sleep(1)
 
     # Simulate 100% uptime for the epoch
-    uptimes = {node_id: 1.0}
 
     # Logic from our code: distribute_epoch_rewards
     # Assume this node is the only one for demo clarity -> gets full reward slice relative to pool cap

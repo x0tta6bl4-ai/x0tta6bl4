@@ -220,7 +220,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             # Get proposal ID from event or contract state
             proposal_count = self.contract.functions.proposalCount().call()
@@ -267,7 +267,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             logger.info(
                 f"✅ Vote cast: {support} on proposal {proposal_id} (tx: {tx_hash.hex()})"
@@ -370,7 +370,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             logger.info(f"✅ Proposal executed: {proposal_id} (tx: {tx_hash.hex()})")
             return tx_hash.hex()

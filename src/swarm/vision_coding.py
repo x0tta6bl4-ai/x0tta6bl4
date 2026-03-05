@@ -332,7 +332,8 @@ class AStarAlgorithm:
             raise ValueError(f"End node not found: {end_id}")
 
         if heuristic is None:
-            heuristic = lambda a, b: a.distance_to(b)
+            def heuristic(a, b):
+                return a.distance_to(b)
 
         start_node = graph.nodes[start_id]
         end_node = graph.nodes[end_id]

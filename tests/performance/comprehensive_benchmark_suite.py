@@ -21,7 +21,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -170,7 +170,7 @@ class MTTDBenchmark:
                 }
 
                 # Run monitor check
-                detected = monitor.check(failure_metrics)
+                monitor.check(failure_metrics)
 
                 detection_time = time.perf_counter() - start_time
 
@@ -319,7 +319,7 @@ class PQCHandshakeBenchmark:
                 )
 
                 # Decapsulate
-                shared_secret_client = backend.decapsulate_kem(
+                backend.decapsulate_kem(
                     private_key, ciphertext, "ML-KEM-768"
                 )
 
@@ -355,7 +355,7 @@ class PQCHandshakeBenchmark:
                 )
                 avg = statistics.mean(latencies_ms)
 
-                logger.info(f"✅ PQC Handshake Latency:")
+                logger.info("✅ PQC Handshake Latency:")
                 logger.info(f"   Average: {avg:.3f}ms")
                 logger.info(f"   p50: {p50:.3f}ms")
                 logger.info(

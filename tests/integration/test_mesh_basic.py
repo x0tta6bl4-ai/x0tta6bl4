@@ -10,7 +10,6 @@ Run with minimal compose stack:
 
 import subprocess
 import time
-from typing import Dict
 
 import pytest
 import requests

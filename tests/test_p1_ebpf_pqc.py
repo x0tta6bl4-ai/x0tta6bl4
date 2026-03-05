@@ -1,6 +1,5 @@
 import os
 import unittest
-from unittest.mock import MagicMock, patch
 import logging
 
 # Set stub mode for EBPF validation without root

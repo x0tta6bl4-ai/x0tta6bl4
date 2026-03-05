@@ -343,7 +343,7 @@ class TestStripeWebhookHandling:
 
     def test_webhook_marks_invoice_paid(self, client, billing_data):
         """Valid event with invoice_id in DB → invoice status set to 'paid'."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
         db = TestingSessionLocal()
         admin = db.query(User).filter(User.api_key == billing_data["admin_token"]).first()
         admin_id = admin.id
@@ -647,8 +647,6 @@ class TestBillingWebhookHMAC:
 
     def test_missing_timestamp_header_raises_401(self):
         """Secret set, but no timestamp header → 401."""
-        import hashlib
-        import hmac as hmac_mod
         from unittest.mock import patch
         from fastapi import HTTPException
         from src.api.maas_legacy import _verify_billing_webhook_hmac
@@ -1147,7 +1145,7 @@ class TestResolveBillingUser:
 
     def test_resolves_by_customer_id(self, db_session):
         from src.api.maas_legacy import _resolve_billing_user, BillingWebhookRequest
-        user = self._make_user(db_session, stripe_customer_id="cus_test_123")
+        self._make_user(db_session, stripe_customer_id="cus_test_123")
         req = BillingWebhookRequest(
             event_type="subscription.created",
             customer_id="cus_test_123",
@@ -1387,7 +1385,6 @@ class TestMeshInstance:
         return inst
 
     def test_scale_up_adds_nodes(self):
-        from src.api.maas_legacy import MeshInstance
         inst = self._make_instance(nodes=3)
         new_count = inst.scale("scale_up", 2)
         assert new_count == 5
@@ -1786,7 +1783,6 @@ class TestMeshProvisioner:
 
     def test_get_returns_none_for_missing_mesh(self):
         """MeshProvisioner.get() for non-existent mesh → None."""
-        import src.api.maas_legacy as leg
         from src.api.maas_legacy import MeshProvisioner
         prov = MeshProvisioner()
         result = prov.get("nonexistent-mesh-xyz")
