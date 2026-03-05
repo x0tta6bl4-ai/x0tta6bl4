@@ -183,15 +183,7 @@ jobs:
           npm_status=$?
           cd -
           # Fail if critical/high vulnerabilities found
-          python3 -c "
-import json, sys
-with open('reports/sast/npm-audit-contracts.json') as f:
-    d = json.load(f)
-meta = d.get('metadata', {}).get('vulnerabilities', {})
-critical_high = meta.get('critical', 0) + meta.get('high', 0)
-print(f'npm audit critical/high: {critical_high}')
-sys.exit(1 if critical_high > 0 else 0)
-"
+          python3 -c "import json,sys; d=json.load(open('reports/sast/npm-audit-contracts.json')); m=d.get('metadata',{}).get('vulnerabilities',{}); n=m.get('critical',0)+m.get('high',0); print(f'npm audit critical/high: {n}'); sys.exit(1 if n>0 else 0)" 
         else
           echo '[SKIP] src/dao/contracts/package-lock.json not found'
         fi
