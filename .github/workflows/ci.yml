@@ -81,7 +81,7 @@ jobs:
         # Core test dependencies (keep lightweight — no liboqs/BCC/torch)
         pip install pytest pytest-cov pytest-asyncio pytest-mock ruff mypy hvac \
                     httpx fastapi starlette pydantic sqlalchemy alembic \
-                    redis cryptography python-dotenv
+                    redis cryptography python-dotenv prometheus-client
 
     - name: Lint with ruff
       run: |
