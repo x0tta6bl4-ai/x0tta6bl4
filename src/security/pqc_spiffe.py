@@ -102,31 +102,8 @@ class PQCSpiffeBridge:
                 "X.509 signature verification is not yet implemented. "
                 "Use verify_pqc_svid() for PQC-only validation."
             )
-                
-            try:
-                from cryptography import x509
-                from cryptography.hazmat.backends import default_backend
-                
-                # Load certificate
-                cert = x509.load_pem_x509_certificate(
-                    x509_svid.encode() if isinstance(x509_svid, str) else x509_svid,
-                    default_backend()
-                )
-                
-                # Verify SPIFFE ID in SAN (Subject Alternative Name)
-                expected_spiffe_id = bundle.get("spiffe_id")
-                sans = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-                if expected_spiffe_id not in [str(name.value) for name in sans.value]:
-                    logger.error(f"X.509 SAN mismatch. Expected {expected_spiffe_id}")
-                    return False
-                
-                # Note: In a real scenario, we would also verify the cert signature
-                # against the SPIRE CA (Trust Bundle).
-                logger.info(f"✅ X.509 SVID verified for {expected_spiffe_id}")
-                
-            except Exception as e:
-                logger.error(f"X.509 verification failed: {e}")
-                return False
+        
+        return True
         
         return True
 

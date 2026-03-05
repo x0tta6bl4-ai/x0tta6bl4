@@ -257,7 +257,8 @@ class ShapedUDPTransport:
         raw = packet.to_bytes()
 
         if packet.requires_ack:
-            self._pending_acks[packet.sequence] = (packet, address)
+            # Store packet for retransmission if needed
+            self._pending_acks[packet.sequence] = (packet, self.peer_address)
 
         # Обфускация
         if self._transport:

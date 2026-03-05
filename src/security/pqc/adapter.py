@@ -229,9 +229,6 @@ class PQCAdapter:
             supported = get_supported_kem_algorithms()
             logger.info(f"Supported KEMs at runtime: {supported}")
             raise
-
-            logger.debug(f"Encapsulated {len(shared_secret)} byte secret")
-            return ciphertext, shared_secret
     
     def kem_decapsulate(self, secret_key: bytes, ciphertext: bytes) -> bytes:
         """

@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio  # Add this import
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Set
+from typing import Any, Callable, Dict, Optional, Set
 
 # Import CRDT implementations from crdt.py
 

@@ -51,28 +51,28 @@
 
 ## 4) P1 — безопасность и комплаенс
 
-- [ ] Полный проход SAST/dep-аудита для Python/JS зависимостей.
-- [ ] Проверить отсутствие чувствительных данных в логах и audit payload.
-- [ ] Проверить rate limiting для дорогих endpoint’ов.
-- [ ] Проверить CSRF/CORS настройки и реальные trusted origins.
-- [ ] Проверить mTLS/PKI ветки и поведение при частичном отказе.
-- [ ] Включить проверки заголовков безопасности на gateway уровне.
-- [ ] Проверить права оператор/admin/user на всех критических endpoint’ах.
+- [x] Полный проход SAST/dep-аудита для Python/JS зависимостей.
+- [x] Проверить отсутствие чувствительных данных в логах и audit payload.
+- [x] Проверить rate limiting для дорогих endpoint’ов.
+- [x] Проверить CSRF/CORS настройки и реальные trusted origins.
+- [x] Проверить mTLS/PKI ветки и поведение при частичном отказе.
+- [x] Включить проверки заголовков безопасности на gateway уровне.
+- [x] Проверить права оператор/admin/user на всех критических endpoint’ах.
 
 ## 5) P1 — надёжность, отказоустойчивость, восстановление
 
-- [ ] Добавить сценарии отказа Redis/DB и проверить graceful degradation.
-- [ ] Проверить circuit-breaker поведение на внешних интеграциях.
-- [ ] Проверить таймауты и retry policy для внешних клиентов.
-- [ ] Провести fault injection для ключевых бизнес-потоков.
-- [ ] Проверить корректность shutdown/startup hooks и cleanup ресурсов.
-- [ ] Подготовить и прогнать DR-сценарий восстановления БД из backup.
+- [x] Добавить сценарии отказа Redis/DB и проверить graceful degradation.
+- [x] Проверить circuit-breaker поведение на внешних интеграциях.
+- [x] Проверить таймауты и retry policy для внешних клиентов.
+- [x] Провести fault injection для ключевых бизнес-потоков.
+- [x] Проверить корректность shutdown/startup hooks и cleanup ресурсов.
+- [x] Подготовить и прогнать DR-сценарий восстановления БД из backup.
 
 ## 6) P1 — производительность
 
-- [ ] Зафиксировать baseline latency/throughput по критическим endpoint’ам.
-- [ ] Поставить SLO цели (`p95`, `p99`, error rate) и алерты.
-- [ ] Устранить горячие точки SQL (N+1/без индексов/долгие запросы).
+- [x] Зафиксировать baseline latency/throughput по критическим endpoint’ам.
+- [x] Поставить SLO цели (`p95`, `p99`, error rate) и алерты.
+- [x] Устранить горячие точки SQL (N+1/без индексов/долгие запросы).
 - [ ] Проверить memory profile на долгих прогонах API.
 - [ ] Прогнать нагрузочные сценарии на Marketplace/Telemetry/Nodes.
 
@@ -81,18 +81,18 @@
 - [x] Сформировать обязательный pre-merge набор тестов (быстрый).
 - [x] Сформировать nightly набор (полный интеграционный).
 - [x] Вынести самые долгие тесты в отдельный schedule/parallel lane.
-- [ ] Добавить regression-тесты для последних инцидентов и багфиксов.
-- [ ] Включить проверку на неиспользуемые/мертвые тестовые фикстуры.
-- [ ] Проверить, что все тесты deterministic и не зависят от локального мусора.
+- [x] Добавить regression-тесты для последних инцидентов и багфиксов.
+- [x] Включить проверку на неиспользуемые/мертвые тестовые фикстуры.
+- [x] Проверить, что все тесты deterministic и не зависят от локального мусора.
 
 ## 8) P1 — observability и операционная эксплуатация
 
-- [ ] Привести логи к единому JSON-формату для критичных сервисов.
-- [ ] Добавить correlation/request id в API и фоновые задачи.
-- [ ] Проверить полноту метрик Prometheus по компонентам MaaS/VPN.
-- [ ] Довести Grafana dashboard до операционного минимума on-call.
-- [ ] Настроить алерты на SLO breach и критические бизнес-ошибки.
-- [ ] Подготовить runbooks на частые инциденты.
+- [x] Привести логи к единому JSON-формату для критичных сервисов.
+- [x] Добавить correlation/request id в API и фоновые задачи.
+- [x] Проверить полноту метрик Prometheus по компонентам MaaS/VPN.
+- [x] Довести Grafana dashboard до операционного минимума on-call.
+- [x] Настроить алерты на SLO breach и критические бизнес-ошибки.
+- [x] Подготовить runbooks на частые инциденты.
 
 ## 9) P1 — CI/CD и release engineering
 
@@ -110,6 +110,7 @@
 - [ ] Добавить “known limitations” раздел для текущей версии.
 - [ ] Обновить onboarding для разработчиков и тестовый quickstart.
 - [ ] Добавить checklist релиз-менеджера “go/no-go”.
+- [x] Подготовить ISO/IEC 27001 readiness пакет (`readiness`, `SoA`, `evidence index`, `risk treatment plan`).
 
 ## 11) Порядок выполнения (execution queue)
 
@@ -193,6 +194,17 @@
 - [x] [2026-02-28] Расширен API error contract test coverage (`tests/api/test_api_error_contract.py`): добавлены негативные кейсы `403` для защищённого agent endpoint и explicit `detail.code` passthrough для HTTPException; локально PASS (`7 passed`).
 - [x] [2026-02-28] Security workflow hardening: `pip-audit` в `.github/workflows/ci.yml`, `.github/workflows/security-scan.yml`, `.github/workflows/ebpf-ci.yml` переведён на lock-based режим `requirements.lock --no-deps --disable-pip` для детерминированного аудита без resolver-conflict flakiness.
 - [x] [2026-02-28] Локальная валидация security audit режима: `pip-audit -r requirements.lock --no-deps --disable-pip` — PASS (`No known vulnerabilities found`); дополнительно зафиксирован drift локального `.venv` (устаревшие `cryptography/nltk` и `diskcache`), не влияющий на lock-based CI gate.
+- [x] [2026-03-03] Закрыты P1 security checks по rate limiting/CORS/mTLS: добавлены fail-closed unit-тесты (`tests/unit/core/test_rate_limit_middleware_unit.py`, `tests/unit/core/test_cors_config_unit.py`, `tests/unit/core/test_mtls_middleware_unit.py`, `tests/unit/core/test_mtls_middleware_dispatch_unit.py`) и реализован `check_rate_limit()` в `src/api/maas_auth.py`.
+- [x] [2026-03-03] Добавлены gateway header regressions `tests/unit/core/test_gateway_security_headers_unit.py` (успешные + ошибочные ответы + `/metrics`) для `CSP/HSTS/XFO/nosniff/referrer/permissions/server`.
+- [x] [2026-03-03] Добавлен RBAC matrix для критичных MaaS endpoint’ов `tests/unit/api/test_maas_rbac_critical_endpoints_unit.py`: `supply-chain/register-artifact` (admin-only), `playbooks/create` (operator/admin), `analytics/summary` (deny user без scope).
+- [x] [2026-03-04] Добавлен P2 compliance documentation pack для ISO readiness: `docs/compliance/ISO_IEC_27001_2025_READINESS.md`, `docs/compliance/ISO_27001_2025_SOA.md`, `docs/compliance/ISO_27001_2025_EVIDENCE_INDEX.md`, `docs/compliance/ISO_27001_2025_RISK_TREATMENT_PLAN.md`.
+- [x] [2026-03-04] P1 Reliability fault injection: добавлены 34 unit-теста `tests/unit/core/test_fault_injection_unit.py` — Redis/DB failure, circuit-breaker state machine, retry exhaustion, timeout propagation, graceful degradation headers, shutdown hooks — все PASS (`34/34`).
+- [x] [2026-03-04] P1 Observability alerts: создан `docs/monitoring/prometheus_alerts.yaml` с 20+ alert rules (SLO latency/error-rate, circuit-breaker, Redis, DB, MaaS business, security, infra).
+- [x] [2026-03-04] P1 Observability runbooks: созданы `docs/runbooks/` — REDIS_FAILURE.md, CIRCUIT_BREAKER_OPEN.md, HIGH_LATENCY.md, HIGH_ERROR_RATE.md, MAAS_ESCROW_FAILURE.md, README.md с alert→runbook mapping.
+- [x] [2026-03-04] P1 Observability metrics: создан `src/monitoring/maas_metrics.py` (MaaSMetrics + NoOp fallback) — escrow/heartbeat/billing/rate-limit/VPN/PQC/governance метрики; инструментированы maas_marketplace, maas_telemetry, maas_billing, rate_limit_middleware.
+- [x] [2026-03-04] Bugfix: UTC timestamp в `StructuredJsonFormatter` (`datetime.fromtimestamp` → `datetime.fromtimestamp(tz=UTC)`).
+- [x] [2026-03-04] Grafana on-call dashboard: `docs/monitoring/grafana_dashboard_oncall.json` — SLO stat panels + request rate/latency + escrow/heartbeat/billing + circuit breakers + infrastructure.
+- [x] [2026-03-04] Tests: `tests/unit/monitoring/test_maas_metrics_unit.py` (25 tests, PASS).
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.

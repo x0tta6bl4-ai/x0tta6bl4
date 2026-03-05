@@ -5,7 +5,11 @@ Integrates FL components into app.py startup and lifecycle.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.federated_learning.graphsage_integration import GraphSAGEFLCoordinator
+    from src.federated_learning.model_sync import ModelSynchronizer
 
 # Constants moved inside to speed up top-level import
 FL_AVAILABLE = True 
