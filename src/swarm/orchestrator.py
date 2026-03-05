@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from src.swarm.agent import Agent, AgentCapabilities, Task
+from src.swarm.agent import Agent, AgentCapabilities
 from src.swarm.agents.pricing_agent import DynamicPricingAgent
 
 # Optional imports - graceful degradation if not available

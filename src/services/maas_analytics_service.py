@@ -392,11 +392,11 @@ class MaaSAnalyticsService:
             MarketplaceListing.owner_id == owner_id,
         ).all()
 
-        available = sum(1 for l in listings if l.status == "available")
-        rented = sum(1 for l in listings if l.status == "rented")
-        in_escrow = sum(1 for l in listings if l.status == "escrow")
+        available = sum(1 for listing in listings if listing.status == "available")
+        rented = sum(1 for listing in listings if listing.status == "rented")
+        in_escrow = sum(1 for listing in listings if listing.status == "escrow")
         hourly_revenue_cents = sum(
-            l.price_per_hour for l in listings if l.status in ("rented", "escrow")
+            listing.price_per_hour for listing in listings if listing.status in ("rented", "escrow")
         )
 
         return {
