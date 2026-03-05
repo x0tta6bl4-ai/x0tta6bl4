@@ -8,6 +8,9 @@ Uses lazy loading to avoid heavy dependencies (torch, numpy, transformers) at im
 """
 
 import importlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Map of public attributes to their submodules
 _LAZY_MAPPING = {

@@ -316,6 +316,9 @@ def test_import_fallback_when_prometheus_missing(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", original_import)
     importlib.reload(cb_mod)
+    # Re-sync connection_retry so its CircuitBreakerOpen reference matches cb_mod
+    import src.core.connection_retry as cr_mod
+    importlib.reload(cr_mod)
 
 
 def test_create_circuit_breaker_returns_existing_instance():
