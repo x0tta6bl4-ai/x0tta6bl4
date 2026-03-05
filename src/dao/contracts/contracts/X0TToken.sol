@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title X0TToken - x0tta6bl4 Mesh Network Token
@@ -120,6 +121,8 @@ contract X0TToken is ERC20, ERC20Burnable, ERC20Permit, Ownable, ReentrancyGuard
         
         if (info.amount == 0) {
             isStaker[msg.sender] = false;
+            // Remove from stakers array using swap-and-pop
+            _removeStaker(msg.sender);
         }
         
         _transfer(address(this), msg.sender, amount);
@@ -128,12 +131,27 @@ contract X0TToken is ERC20, ERC20Burnable, ERC20Permit, Ownable, ReentrancyGuard
     }
     
     /**
-     * @notice Получить voting power пользователя
+     * @notice Remove staker from array (internal)
+     */
+    function _removeStaker(address staker) internal {
+        // Find index - O(n) but only done on full unstake
+        for (uint256 i = 0; i < stakers.length; i++) {
+            if (stakers[i] == staker) {
+                // Swap with last element and pop
+                stakers[i] = stakers[stakers.length - 1];
+                stakers.pop();
+                break;
+            }
+        }
+    }
+    
+    /**
+     * @notice Получить voting power пользователя (quadratic: sqrt of staked amount)
      * @param user Адрес пользователя
-     * @return Voting power (= staked amount)
+     * @return Voting power (= sqrt(staked amount))
      */
     function votingPower(address user) external view returns (uint256) {
-        return stakes[user].amount;
+        return Math.sqrt(stakes[user].amount);
     }
     
     // ==================== RELAY REWARDS ====================
