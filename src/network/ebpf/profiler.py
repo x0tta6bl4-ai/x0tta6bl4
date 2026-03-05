@@ -282,7 +282,7 @@ class EBPFProfiler:
                     try:
                         sock.sendto(test_data, ("127.0.0.1", 12345))
                         bytes_sent += len(test_data)
-                    except:
+                    except Exception:
                         pass
                     finally:
                         sock.close()

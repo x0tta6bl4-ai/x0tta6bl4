@@ -1,10 +1,8 @@
 """Unit tests for src/edge/edge_cache.py."""
 
-import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

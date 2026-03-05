@@ -364,7 +364,7 @@ class TestHybridPQEncryption:
         from cryptography.hazmat.primitives.asymmetric import x25519
         hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
         private_key = x25519.X25519PrivateKey.generate()
-        private_bytes = private_key.private_bytes(
+        private_key.private_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PrivateFormat.Raw,
             encryption_algorithm=serialization.NoEncryption(),

@@ -1,10 +1,8 @@
 import asyncio
 import logging
 import time
-from typing import List
 
 from src.agents.gtm_agent import GTMAgent
-from src.database import License, Payment, SessionLocal, User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LoadTest-GTM")

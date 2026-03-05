@@ -2,7 +2,6 @@
 Unit tests for Raft consensus scaffold
 """
 
-import pytest
 
 from src.consensus.raft import RaftNode
 

@@ -11,14 +11,11 @@ Tests for verifying the x0tta6bl4 deployment in Kubernetes staging environment:
 """
 
 import json
-import os
 import shutil
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
-import requests
 
 
 class TestK8sDeployment:
@@ -200,7 +197,7 @@ class TestK8sDeployment:
         pods = json.loads(stdout)["items"]
         for pod in pods:
             spec = pod["spec"]
-            assert spec["securityContext"]["runAsNonRoot"] == True
+            assert spec["securityContext"]["runAsNonRoot"]
             assert spec["securityContext"]["runAsUser"] == 1000
 
     def test_pod_resource_limits(self):

@@ -32,7 +32,6 @@ from collections import OrderedDict
 from typing import List, Tuple
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 _VERBOSE = os.getenv("MEMORY_PROFILE_VERBOSE", "0") == "1"
 
@@ -71,7 +70,6 @@ def test_memory_marketplace_idempotency_cache_no_leak():
     unboundedly when max_entries is enforced.
     """
     MAX_ENTRIES = 200
-    TTL = 3600
     cache: OrderedDict = OrderedDict()
 
     def _insert(key: str, result: dict):

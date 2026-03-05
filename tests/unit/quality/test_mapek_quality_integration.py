@@ -5,11 +5,10 @@ Tests for MAPE-K Quality Integration module.
 Tests the autonomous code quality monitoring and improvement functionality.
 """
 
-import asyncio
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 

@@ -313,21 +313,6 @@ class CiliumLikeIntegration:
         """Export flow event to external collector."""
         try:
 
-            flow_data = {
-                "timestamp": flow_event.timestamp,
-                "source_ip": flow_event.source_ip,
-                "destination_ip": flow_event.destination_ip,
-                "source_port": flow_event.source_port,
-                "destination_port": flow_event.destination_port,
-                "protocol": flow_event.protocol,
-                "direction": flow_event.direction.value,
-                "verdict": flow_event.verdict.value,
-                "bytes": flow_event.bytes,
-                "packets": flow_event.packets,
-                "duration_ms": flow_event.duration_ms,
-                "policy_match": flow_event.policy_match,
-                "labels": flow_event.labels,
-            }
 
             # In a real implementation, this would be async
             # For now, we'll use a simple sync call

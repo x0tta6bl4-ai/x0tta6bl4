@@ -9,9 +9,7 @@ Tests cover:
 - Edge cases and error handling
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -166,7 +164,7 @@ class TestSlotSynchronizer:
         # _calculate_slot is private but we can test the public state
         slot_duration_sec = slot_config.slot_duration_ms / 1000
         current_time = time.time()
-        expected_slot = int(current_time / slot_duration_sec)
+        int(current_time / slot_duration_sec)
 
         # The synchronizer's current_slot should be around expected value
         assert isinstance(synchronizer.current_slot, int)

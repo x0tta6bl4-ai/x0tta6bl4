@@ -8,10 +8,8 @@ Covers: PeerInfo, DiscoveryMessage, MessageType, MulticastDiscovery,
 import asyncio
 import json
 import socket
-import struct
-import time
 from collections import defaultdict
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

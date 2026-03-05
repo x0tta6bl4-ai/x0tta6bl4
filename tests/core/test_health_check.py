@@ -5,7 +5,7 @@ Tests for Health Check module.
 import asyncio
 import sys
 import types
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 

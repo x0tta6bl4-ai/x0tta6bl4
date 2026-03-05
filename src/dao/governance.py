@@ -385,7 +385,7 @@ class GovernanceEngine:
         """
         from math import sqrt
 
-        counts = proposal.vote_counts()
+        proposal.vote_counts()
         total = proposal.total_votes()
 
         if total == 0:

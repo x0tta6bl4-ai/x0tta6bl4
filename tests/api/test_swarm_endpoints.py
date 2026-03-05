@@ -1,4 +1,3 @@
-import hmac
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock

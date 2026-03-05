@@ -287,7 +287,7 @@ class TestCharterPolicyPerformance:
         import time
 
         start = time.time()
-        policy = CharterPolicyValidator.load_policy(str(dev_policy_path))
+        CharterPolicyValidator.load_policy(str(dev_policy_path))
         elapsed = (time.time() - start) * 1000  # Convert to ms
         assert elapsed < 2000, f"Policy loading took {elapsed}ms, expected <2000ms"
 

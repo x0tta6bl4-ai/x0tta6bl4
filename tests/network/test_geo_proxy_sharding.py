@@ -2,10 +2,7 @@
 Tests for Geo-Sharded Proxy Pool Manager.
 """
 
-import asyncio
 import time
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 

@@ -163,7 +163,7 @@ class GraphSAGEFLCoordinator:
 
         try:
             # Get current global model
-            global_model = self.get_global_model()
+            self.get_global_model()
 
             # Train locally
             # (In real implementation, would use local_data)

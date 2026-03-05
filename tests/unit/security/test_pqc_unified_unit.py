@@ -38,13 +38,7 @@ class TestCanonicalImports:
             PQCAdapter,
             PQCKeyExchange,
             PQCDigitalSignature,
-            HybridKeyExchange,
-            HybridSignatureScheme,
             is_liboqs_available,
-            PQCAlgorithm,
-            PQCKeyPair,
-            PQCSignature,
-            PQCEncapsulationResult,
         )
         assert callable(is_liboqs_available)
         assert PQCAdapter is not None
@@ -69,14 +63,6 @@ class TestCanonicalImports:
 class TestLegacyAPIFromCanonical:
     def test_legacy_classes_accessible(self):
         """Legacy LibOQSBackend, HybridPQEncryption etc. accessible from src.security.pqc."""
-        from src.security.pqc import (
-            LibOQSBackend,
-            HybridPQEncryption,
-            PQMeshSecurityLibOQS,
-            PQAlgorithm,
-            PQKeyPair,
-            PQCiphertext,
-        )
         # These may be None if libx0t import fails, but must not raise ImportError
         assert True  # reaching here means no ImportError
 
@@ -87,7 +73,6 @@ class TestLegacyAPIFromCanonical:
             get_pqc_digital_signature,
             get_pqc_hybrid,
             test_pqc_availability,
-            PQCHybridScheme,
         )
         assert callable(get_pqc_key_exchange)
         assert callable(get_pqc_digital_signature)

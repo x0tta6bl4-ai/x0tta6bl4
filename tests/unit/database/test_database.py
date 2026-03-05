@@ -4,7 +4,7 @@ Tests database models, session management, and database initialization.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -118,7 +118,7 @@ class TestGetDb:
         """Test get_db closes session on exit."""
         with patch("src.database.SessionLocal", return_value=mock_session):
             db_gen = get_db()
-            db = next(db_gen)
+            next(db_gen)
 
             # Trigger cleanup
             try:
@@ -331,7 +331,7 @@ class TestDatabaseIntegration:
         mock_session = Mock()
         mock_query = Mock()
         mock_filter = Mock()
-        mock_first = Mock()
+        Mock()
 
         mock_session.query.return_value = mock_query
         mock_query.filter.return_value = mock_filter
@@ -343,7 +343,7 @@ class TestDatabaseIntegration:
 
         session = SessionLocal()
 
-        user = session.query(User).filter(User.email == "test@example.com").first()
+        session.query(User).filter(User.email == "test@example.com").first()
 
         mock_session.query.assert_called_once_with(User)
         mock_query.filter.assert_called_once()

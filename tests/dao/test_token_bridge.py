@@ -1,6 +1,6 @@
 """Smoke tests for TokenBridge (off-chain ↔ on-chain bridge)."""
 import pytest
-from src.dao.token_bridge import TokenBridge, BridgeConfig, BridgeDirection, BridgeTransaction
+from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
 
 

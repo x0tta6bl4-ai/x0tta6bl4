@@ -257,7 +257,6 @@ class CRDTSyncOptimizer:
         start_time = datetime.now()
 
         local_deltas: Dict[str, List[CRDTDelta]] = {}
-        received_deltas: Dict[str, List[CRDTDelta]] = {}
 
         # Generate local deltas
         for key in self.sync_manager.crdts.keys():

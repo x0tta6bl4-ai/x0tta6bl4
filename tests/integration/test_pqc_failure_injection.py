@@ -24,7 +24,7 @@ class TestPQCFailureInjection:
         pqc = PQMeshSecurityLibOQS(node_id="failure-ciphertext")
 
         pk = pqc.generate_kem_keypair()
-        shared = pqc.kem_encapsulate(pk)
+        pqc.kem_encapsulate(pk)
 
         invalid_ciphertext = b"invalid_ct_data"
 
@@ -67,8 +67,8 @@ class TestPQCFailureInjection:
         pqc1 = PQMeshSecurityLibOQS(node_id="mismatch-node-1")
         pqc2 = PQMeshSecurityLibOQS(node_id="mismatch-node-2")
 
-        pk1 = pqc1.generate_kem_keypair()
-        pk2 = pqc2.generate_kem_keypair()
+        pqc1.generate_kem_keypair()
+        pqc2.generate_kem_keypair()
 
         message = b"Test message"
         sig1 = pqc1.sign(message)
@@ -154,7 +154,7 @@ class TestPQCFailureInjection:
         assert pk is not None
 
         try:
-            invalid_shared = pqc.kem_encapsulate(b"invalid")
+            pqc.kem_encapsulate(b"invalid")
         except Exception:
             pass
 
@@ -166,7 +166,7 @@ class TestPQCFailureInjection:
         pqc = PQMeshSecurityLibOQS(node_id="failure-concurrent")
 
         try:
-            invalid_ct = pqc.kem_encapsulate(b"invalid")
+            pqc.kem_encapsulate(b"invalid")
         except Exception:
             pass
 

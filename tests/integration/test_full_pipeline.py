@@ -8,7 +8,6 @@ E2E интеграционные тесты для полного pipeline x0tta
 - Metrics
 """
 
-import json
 import os
 import sys
 import time
@@ -280,7 +279,7 @@ class TestPerformanceIntegration:
             obfuscated = transport.obfuscate(data)
             shaped = shaper.shape_packet(obfuscated)
             unshaped = shaper.unshape_packet(shaped)
-            recovered = transport.deobfuscate(unshaped)
+            transport.deobfuscate(unshaped)
 
         elapsed = time.perf_counter() - start
 

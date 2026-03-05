@@ -149,7 +149,7 @@ class EBPFValidator:
                             warnings.append(
                                 f"License '{license_text}' may not be GPL-compatible"
                             )
-                    except:
+                    except Exception:
                         pass
                 else:
                     warnings.append("No license section found")

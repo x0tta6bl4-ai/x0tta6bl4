@@ -1,6 +1,5 @@
 import subprocess
 from datetime import datetime, timedelta
-from unittest.mock import Mock
 
 import pytest
 

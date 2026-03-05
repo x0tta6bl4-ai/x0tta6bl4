@@ -12,8 +12,6 @@ Covers:
 from __future__ import annotations
 
 import logging
-import sys
-import time
 from unittest.mock import MagicMock, patch
 
 
@@ -282,7 +280,6 @@ class TestStructuredJsonFormatterUTC:
 
     def test_sensitive_data_masked_in_output(self):
         """Passwords/tokens in log messages must be masked."""
-        import json
 
         from src.core.logging_config import StructuredJsonFormatter
 

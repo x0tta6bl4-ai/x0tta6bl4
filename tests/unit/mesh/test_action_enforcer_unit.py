@@ -1,6 +1,6 @@
 """Unit tests for MeshActionEnforcer (action_enforcer.py)."""
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +16,7 @@ class TestMeshActionEnforcer:
         return MeshActionEnforcer()
 
     def test_init_gets_optimizer(self, mock_optimizer):
-        enforcer = self._make_enforcer()
+        self._make_enforcer()
         mock_optimizer.assert_called_once()
 
     def test_enforce_empty_recommendations(self):

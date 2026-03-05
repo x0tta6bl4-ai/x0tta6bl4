@@ -1,7 +1,7 @@
 """Unit tests for MAPE-K Execution Phase."""
 import os
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -61,7 +61,7 @@ class TestExecutionPhaseExecute:
         mock_think = MagicMock()
         mock_think.get_thoughts.return_value = ["thought1"]
         ep = ExecutionPhase(think_aloud=mock_think)
-        result = await ep.execute({"recovery_plan": {"steps": [{"action": "test"}]}})
+        await ep.execute({"recovery_plan": {"steps": [{"action": "test"}]}})
         mock_think.log.assert_called()
 
     @pytest.mark.asyncio

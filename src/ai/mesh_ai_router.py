@@ -243,7 +243,7 @@ class MeshAIRouter:
         complexity = self.estimate_complexity(query)
         logger.info(f"Query complexity: {complexity:.2f}")
 
-        start_time = time.perf_counter()
+        time.perf_counter()
         attempts = 0
         max_attempts = len(self.nodes)
 

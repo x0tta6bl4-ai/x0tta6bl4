@@ -72,7 +72,7 @@ class TestMLKEM768:
     def test_keypair_expiration(self):
         """Test keypair expiration check"""
         kem = PQCKeyExchange()
-        keypair = kem.generate_keypair(validity_days=0)
+        kem.generate_keypair(validity_days=0)
         # Keypair with 0 days validity
 
     @pytest.mark.skipif(not PQCKeyExchange().enabled, reason="PQC not available")
@@ -216,7 +216,7 @@ class TestPQCHybrid:
         signature = hybrid.sign_certificate(cert_data)
 
         # Verify with signer's public key
-        keypair = hybrid.dsa.generate_keypair(key_id="verifier")
+        hybrid.dsa.generate_keypair(key_id="verifier")
 
         is_valid = hybrid.verify_certificate(
             cert_data,

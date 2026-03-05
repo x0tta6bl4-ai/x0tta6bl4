@@ -454,7 +454,7 @@ class CausalAnalysisVisualizer:
         Returns:
             Grafana dashboard JSON structure
         """
-        dashboard_data = self.generate_dashboard_data(incident_id)
+        self.generate_dashboard_data(incident_id)
 
         # Create Grafana dashboard structure
         grafana_dashboard = {

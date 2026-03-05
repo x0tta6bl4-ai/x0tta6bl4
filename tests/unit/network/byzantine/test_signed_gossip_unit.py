@@ -22,7 +22,7 @@ try:
                                                      SignedMessage)
 
     GOSSIP_AVAILABLE = True
-except ImportError as exc:
+except ImportError:
     GOSSIP_AVAILABLE = False
 
 pytestmark = pytest.mark.skipif(
@@ -304,7 +304,6 @@ class TestKeyRotation:
         assert gossip._current_epoch == 1
 
     def test_rotate_generates_new_keys(self, gossip, sig_mock):
-        old_pub = gossip.public_key
         gossip.rotate_keys()
         # generate_keypair was called again
         assert sig_mock.generate_keypair.call_count >= 2

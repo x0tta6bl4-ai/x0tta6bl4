@@ -4,7 +4,6 @@ End-to-End Tests for Critical Application Paths
 Tests complete workflows and user scenarios
 """
 
-import json
 import time
 from datetime import datetime
 from typing import Dict, Tuple
@@ -85,7 +84,7 @@ class E2ECriticalPathTests:
         print("\nStep 4: Checking metrics collection...")
         metrics_ok, metrics_msg = self.check_metrics_available()
         assert metrics_ok, f"Metrics should be available: {metrics_msg}"
-        print(f"  ✅ Prometheus metrics operational")
+        print("  ✅ Prometheus metrics operational")
 
         print("\n✅ System startup and initialization PASSED")
 
@@ -111,7 +110,7 @@ class E2ECriticalPathTests:
             )
             time.sleep(0.1)
 
-        print(f"  ✅ 20/20 health checks passed")
+        print("  ✅ 20/20 health checks passed")
 
         print("\nPhase 2: Analyzing health check consistency...")
         versions = set(h["version"] for h in health_checks)
@@ -125,7 +124,7 @@ class E2ECriticalPathTests:
             try:
                 healthy, _ = self.check_api_healthy()
                 return healthy
-            except:
+            except Exception:
                 return False
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -169,7 +168,7 @@ class E2ECriticalPathTests:
             ), f"Health should return 200, got {resp.status_code}"
             print(f"  ✅ Request completed in {elapsed:.3f}s (within timeout)")
         except requests.Timeout:
-            print(f"  ❌ Request timed out (API too slow)")
+            print("  ❌ Request timed out (API too slow)")
             raise
 
         print("\nPhase 3: Testing rapid request recovery...")
@@ -183,7 +182,7 @@ class E2ECriticalPathTests:
                     successful_requests += 1
                 else:
                     failed_requests += 1
-            except:
+            except Exception:
                 failed_requests += 1
             time.sleep(0.05)
 
@@ -284,14 +283,14 @@ class E2ECriticalPathTests:
 
         # Check component stats
         stats = info.get("component_stats", {})
-        print(f"\nComponent Status:")
+        print("\nComponent Status:")
         print(f"  Active: {stats.get('active', 0)}")
         print(f"  Total: {stats.get('total', 0)}")
         print(f"  Percentage: {stats.get('percentage', 0):.1f}%")
 
         # Check dependencies
         deps = info.get("dependencies", {})
-        print(f"\nDependency Status:")
+        print("\nDependency Status:")
 
         available_count = 0
         unavailable_count = 0

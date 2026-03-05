@@ -8,7 +8,7 @@ with unittest.mock.patch("slowapi.Limiter") as MockLimiter:
 
     import pytest
     import pytest_asyncio
-    from fastapi import APIRouter, FastAPI  # Import FastAPI and APIRouter
+    from fastapi import FastAPI  # Import FastAPI and APIRouter
     from httpx import ASGITransport, AsyncClient
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session, sessionmaker
@@ -18,9 +18,7 @@ with unittest.mock.patch("slowapi.Limiter") as MockLimiter:
         router as users_router  # Import users_router and users_db
     from src.api.users import users_db
     from src.database import Base
-    from src.database import \
-        Session as DB_Session  # Import User and DB_Session models
-    from src.database import User, get_db
+    from src.database import get_db
 
     # Create a minimal FastAPI app for testing purposes
     test_app = FastAPI()

@@ -9,7 +9,6 @@ Tests complete governance flow:
 """
 
 import time
-from typing import Dict, List
 
 import pytest
 
@@ -302,7 +301,7 @@ class TestDAOGovernanceEdgeCases:
         result = gov.cast_vote(proposal.id, "node-1", VoteType.YES, tokens=100.0)
 
         # Should return False (voting closed)
-        assert result == False
+        assert not result
 
 
 if __name__ == "__main__":

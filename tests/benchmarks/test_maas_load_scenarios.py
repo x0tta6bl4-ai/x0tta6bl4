@@ -205,7 +205,6 @@ def telemetry_module():
         patch("src.api.maas_telemetry._record_heartbeat_metric"),
         patch("src.api.maas_telemetry.mark_degraded_dependency"),
     ):
-        import importlib
         import src.api.maas_telemetry as tele
         yield tele
 

@@ -6,9 +6,8 @@ heartbeat monitoring, callbacks, metrics, and edge cases.
 """
 
 import time
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator, NodeInfo,
@@ -489,7 +488,7 @@ class TestAggregation:
         # Pre-set violations to 2 so next detection triggers ban
         coord.nodes["node-0"].byzantine_violations = 2
         coord.start_round()
-        selected = list(coord.current_round.selected_nodes)
+        list(coord.current_round.selected_nodes)
         # Ensure node-0 is in selected (force it)
         if "node-0" not in coord.current_round.selected_nodes:
             coord.current_round.selected_nodes.add("node-0")
@@ -731,7 +730,7 @@ class TestEndToEndRound:
             target_participants=5,
         )
         # Register nodes
-        node_ids = _register_nodes(coord, 5)
+        _register_nodes(coord, 5)
 
         # Initialize model
         coord.initialize_model(_make_weights([0.5, 0.5, 0.5]))

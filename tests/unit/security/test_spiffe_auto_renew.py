@@ -6,7 +6,7 @@ Tests automatic credential renewal for X.509 and JWT SVIDs.
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 

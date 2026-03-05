@@ -985,7 +985,6 @@ class TestNodeUtilityFunctions:
         from unittest.mock import patch
         import src.api.maas_nodes as nmod
         with patch.object(nmod, "_set_external_telemetry", None):
-            from src.api.maas_nodes import _export_analytics_telemetry
             result = nmod._export_analytics_telemetry("n1", {"k": "v"})
         assert result is False
 
@@ -1264,7 +1263,7 @@ class TestMeshOperatorMethods:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from src.database import Base, User
-        from src.api.maas_nodes import MeshOperator, MeshPermission
+        from src.api.maas_nodes import MeshOperator
 
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
         Base.metadata.create_all(bind=engine)

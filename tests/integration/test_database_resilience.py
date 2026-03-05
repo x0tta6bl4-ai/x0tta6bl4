@@ -4,11 +4,9 @@ Database Resilience Tests
 Tests database failure scenarios, recovery, and error handling
 """
 
-import json
 import shutil
 import subprocess
 import time
-from datetime import datetime
 from typing import Dict, Tuple
 
 import pytest
@@ -42,7 +40,7 @@ class DatabaseResilienceTests:
         try:
             resp = requests.get(self.HEALTH_ENDPOINT, timeout=3)
             return resp.status_code == 200, resp.status_code
-        except:
+        except Exception:
             return False, 0
 
     def measure_recovery_time(self, timeout: int = 60) -> float:

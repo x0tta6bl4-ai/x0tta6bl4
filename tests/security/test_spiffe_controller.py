@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -12,8 +12,6 @@ spiffe_controller_module.OPTIMIZATIONS_AVAILABLE = (
 
 from src.security.spiffe.agent.manager import AttestationStrategy
 from src.security.spiffe.controller.spiffe_controller import SPIFFEController
-from src.security.spiffe.mtls.tls_context import MTLSContext, TLSRole
-from src.security.spiffe.server.client import SPIREServerEntry
 from src.security.spiffe.workload import X509SVID
 
 

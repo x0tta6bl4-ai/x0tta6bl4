@@ -429,7 +429,7 @@ class TextSteganography(SteganographyCarrier):
         try:
             text = carrier_data.decode('utf-8')
             return len(text) // 8  # 8 zero-width chars per byte
-        except:
+        except Exception:
             return 0
     
     def embed(self, carrier_data: bytes, hidden_data: bytes) -> EmbeddingResult:

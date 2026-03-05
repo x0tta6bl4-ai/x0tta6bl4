@@ -6,7 +6,6 @@ Tests for caching, quantization, and concurrency improvements.
 
 import asyncio
 import time
-from datetime import datetime
 
 import numpy as np
 import pytest
@@ -14,7 +13,6 @@ import pytest
 from src.optimization.performance_core import (AsyncCache,
                                                ConcurrencyOptimizer,
                                                LoRAQuantizer, LRUCache,
-                                               PerformanceOptimizer,
                                                QuantizationConfig, RateLimiter,
                                                get_performance_optimizer)
 from src.optimization.performance_core import \

@@ -474,7 +474,7 @@ class WANOverlayPQC:
             return False
         
         # Encrypt data
-        encrypted = self._encrypt_packet(session, data)
+        self._encrypt_packet(session, data)
         
         # Update session
         session.tx_counter += 1
@@ -509,7 +509,7 @@ class WANOverlayPQC:
         
         # Parse header
         counter = int.from_bytes(packet[:8], 'big')
-        nonce = packet[8:20]
+        packet[8:20]
         ciphertext = packet[20:]
         
         # Replay protection

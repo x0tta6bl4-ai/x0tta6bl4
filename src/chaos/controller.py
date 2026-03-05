@@ -195,14 +195,14 @@ class ChaosController:
         """Симулировать потерю пакетов"""
         loss_percent = experiment.parameters.get("loss_percent", 10)
         target_nodes = experiment.target_nodes or []
-        duration = experiment.parameters.get("duration", 20)
+        experiment.parameters.get("duration", 20)
         logger.info(f"Simulating packet loss: {loss_percent}%")
         # Интеграция с network для реального packet loss
         try:
             from src.chaos.mesh_integration import MeshChaosIntegration
 
             if target_nodes:
-                mesh_chaos = MeshChaosIntegration()
+                MeshChaosIntegration()
                 # Note: packet loss simulation may need additional implementation in mesh_integration
                 # For now, we log it and use digital twin simulation
                 logger.info(
@@ -243,7 +243,7 @@ class ChaosController:
         try:
             from src.chaos.mesh_integration import MeshChaosIntegration
 
-            mesh_chaos = MeshChaosIntegration()
+            MeshChaosIntegration()
             # Restore normal state (if mesh_integration supports it)
             # Future: await mesh_chaos.restore_normal_state(experiment.target_nodes)
             logger.info("✅ Chaos experiment stopped, normal state should be restored")

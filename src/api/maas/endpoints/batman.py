@@ -409,9 +409,9 @@ async def get_batman_topology(
                 "quality": l.quality.name,
                 "throughput_mbps": l.throughput_mbps,
                 "latency_ms": l.latency_ms,
-                "packet_loss_percent": l.packet_loss_percent,
+                "packet_loss_percent": link.packet_loss_percent,
             }
-            for l in topology.links.values()
+            for link in topology.links.values()
         ]
         
         return BatmanTopologyResponse(

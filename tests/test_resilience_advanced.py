@@ -8,19 +8,14 @@ Comprehensive tests for:
 - Fallback patterns (Default, Cache, Chain, Circuit, Async)
 """
 
-import asyncio
 import pytest
-import threading
 import time
-from unittest.mock import Mock, AsyncMock, patch
-from collections import deque
 
 # Rate Limiter imports
 from src.resilience.rate_limiter import (
     RateLimiterType,
     RateLimitConfig,
     RateLimitExceeded,
-    RateLimitResult,
     TokenBucket,
     SlidingWindowCounter,
     LeakyBucket,
@@ -31,9 +26,6 @@ from src.resilience.rate_limiter import (
 
 # Bulkhead imports
 from src.resilience.bulkhead import (
-    BulkheadType,
-    BulkheadConfig,
-    BulkheadStats,
     BulkheadFullException,
     SemaphoreBulkhead,
     QueueBulkhead,
@@ -45,15 +37,9 @@ from src.resilience.bulkhead import (
 
 # Fallback imports
 from src.resilience.fallback import (
-    FallbackType,
-    FallbackResult,
-    FallbackConfig,
-    FallbackMetrics,
     DefaultValueFallback,
     CacheFallback,
     ChainFallback,
-    CircuitFallback,
-    AsyncFallback,
     FallbackChainBuilder,
     FallbackExecutor,
     with_fallback,
@@ -519,7 +505,7 @@ class TestQueueBulkhead:
         bh.enter()
         
         # This should fail
-        result = bh.enter(timeout_ms=100)
+        bh.enter(timeout_ms=100)
         # Note: actual behavior depends on timing
 
 

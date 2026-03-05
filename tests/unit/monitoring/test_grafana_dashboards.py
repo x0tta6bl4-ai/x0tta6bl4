@@ -196,7 +196,7 @@ class TestDashboardExport:
             output_dir = Path(tmpdir)
             success = export_dashboards_to_json(output_dir)
 
-            assert success == True
+            assert success
 
             # Check files were created
             expected_files = [
@@ -221,7 +221,7 @@ class TestDashboardExport:
     def test_export_dashboards_invalid_path(self):
         """Test export to invalid path"""
         output_dir = Path("/root/invalid_path_that_should_fail_xyz")
-        success = export_dashboards_to_json(output_dir)
+        export_dashboards_to_json(output_dir)
 
         # Should return False on permission error
 

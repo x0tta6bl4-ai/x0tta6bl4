@@ -768,8 +768,6 @@ def get_node_config(
     peers = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id, MeshNode.status == "approved").all()
     
     # Simple tag-based evaluation logic
-    allowed_peers = []
-    denied_peers = []
     
     # In this MVP version, we return all data and let the agent enforce.
     # In Enterprise version, we return pre-calculated allow/deny lists.
@@ -834,7 +832,7 @@ async def revoke_node(
         HTTPException: 404 if mesh or node not found
         HTTPException: 403 if user lacks NODE_REVOKE permission
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_REVOKE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -859,7 +857,7 @@ async def approve_node(
     
     Supports TEE (Hardware) attestation verification.
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_APPROVE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -948,7 +946,7 @@ async def delete_node(
         HTTPException: 404 if mesh or node not found
         HTTPException: 403 if user lacks NODE_DELETE permission
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_DELETE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -987,7 +985,7 @@ async def heal_node(
         HTTPException: 403 if user lacks NODE_HEAL permission
         HTTPException: 503 if healing service is unavailable
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_HEAL
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()

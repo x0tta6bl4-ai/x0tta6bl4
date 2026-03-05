@@ -13,13 +13,10 @@ import asyncio
 import random
 import time
 from collections import deque
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from src.self_healing.recovery_actions import \
-    CircuitBreaker as RecoveryCircuitBreaker
 from src.self_healing.recovery_actions import (RateLimiter,
                                                RecoveryActionExecutor)
 

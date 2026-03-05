@@ -6,21 +6,16 @@ Covers 50+ test scenarios for P1 #5.
 """
 
 import time
-from typing import List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
-import pytest
 
 from src.core.mape_k_dynamic_optimizer import (DynamicOptimizer,
-                                               DynamicParameters,
                                                PerformanceMetrics, SystemState)
 from src.core.mape_k_feedback_loops import (FeedbackLoopManager,
-                                            FeedbackLoopType, FeedbackSignal,
-                                            LoopAction)
+                                            FeedbackLoopType)
 from src.core.mape_k_self_learning import (MetricsBuffer,
                                            SelfLearningThresholdOptimizer,
-                                           ThresholdRecommendation,
                                            ThresholdStrategy)
 
 
@@ -513,9 +508,9 @@ class TestEdgeCases:
         buffer.add_point(np.nan)
 
         try:
-            stats = buffer.get_statistics(force_recalc=True)
+            buffer.get_statistics(force_recalc=True)
             assert True
-        except:
+        except Exception:
             assert False
 
     def test_optimization_with_zero_variance(self):

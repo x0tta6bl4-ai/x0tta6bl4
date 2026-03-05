@@ -2,15 +2,12 @@
 Тесты для мета-когнитивного MAPE-K цикла
 """
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from src.core.meta_cognitive_mape_k import (ExecutionLogEntry,
                                             MetaCognitiveMAPEK,
-                                            ReasoningAnalytics,
                                             ReasoningApproach,
                                             ReasoningMetrics, ReasoningPath,
                                             SolutionSpace)

@@ -4,8 +4,7 @@ from src.security.production_hardening import (InputValidator,
                                                ProductionHardeningManager,
                                                RateLimiter, RateLimitPolicy,
                                                RequestAuditor,
-                                               SecretVaultManager,
-                                               SecurityViolation)
+                                               SecretVaultManager)
 
 
 class TestSecretVaultManager:

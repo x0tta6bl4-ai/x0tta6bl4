@@ -22,7 +22,6 @@ _mocked_modules = {
 for mod_name, mock_obj in _mocked_modules.items():
     sys.modules.setdefault(mod_name, mock_obj)
 
-import pytest
 
 
 def pytest_configure(config):

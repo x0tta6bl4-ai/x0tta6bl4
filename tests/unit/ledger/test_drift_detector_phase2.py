@@ -10,9 +10,6 @@ Tests the complete Phase 2 functionality including:
 - Causal Analysis integration
 """
 
-import asyncio
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 

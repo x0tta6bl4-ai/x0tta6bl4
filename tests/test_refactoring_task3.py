@@ -8,7 +8,7 @@ This module verifies:
 """
 
 from dataclasses import dataclass
-from typing import Any, List
+from typing import List
 
 import pytest
 
@@ -268,7 +268,7 @@ class TestRaftNodeRefactored:
 
     def test_receive_append_entries_outdated_term(self):
         """Should reject AppendEntries with old term."""
-        from src.consensus.raft_refactored import LogEntry, RaftNodeRefactored
+        from src.consensus.raft_refactored import RaftNodeRefactored
 
         node = RaftNodeRefactored("node1", ["node2"])
         node.current_term = 5
@@ -373,8 +373,8 @@ class TestComplexityReduction:
 
         # Each validator has CC <= 2
         term_val = RaftTermValidator()
-        log_val = RaftLogValidator()
-        vote_handler = RaftVoteHandler()
+        RaftLogValidator()
+        RaftVoteHandler()
 
         # Each can be tested independently
         assert term_val.is_term_outdated(5, 3) is True
@@ -387,7 +387,7 @@ class TestComplexityReduction:
 
         # receive_append_entries should have CC <= 3
         # (4 early returns + 1 success path)
-        result = node.receive_append_entries(
+        node.receive_append_entries(
             term=0,
             leader_id="node2",
             prev_log_index=0,
@@ -398,7 +398,7 @@ class TestComplexityReduction:
 
         # receive_request_vote should have CC <= 3
         # (3 early returns + 1 success path)
-        result2 = node.receive_request_vote(
+        node.receive_request_vote(
             term=0, candidate_id="node2", last_log_index=0, last_log_term=0
         )
 
@@ -438,11 +438,10 @@ class TestIntegration:
     @pytest.mark.integration
     def test_raft_election_simplified(self):
         """Raft election should work with simplified RPC handlers."""
-        from src.consensus.raft_refactored import (RaftNodeRefactored,
-                                                   RaftStateEnum)
+        from src.consensus.raft_refactored import (RaftNodeRefactored)
 
         node1 = RaftNodeRefactored("node1", ["node2", "node3"])
-        node2 = RaftNodeRefactored("node2", ["node1", "node3"])
+        RaftNodeRefactored("node2", ["node1", "node3"])
 
         # node1 receives request vote from candidate
         node1.current_term = 0

@@ -6,7 +6,6 @@ from httpx import ASGITransport, AsyncClient
 # Mock the V3 components before they are imported by the endpoint module
 from src.self_healing.mape_k_v3_integration import MAPEKV3Integration
 from src.storage.immutable_audit_trail import ImmutableAuditTrail
-from src.testing.digital_twins import ChaosScenario
 
 
 @pytest.fixture

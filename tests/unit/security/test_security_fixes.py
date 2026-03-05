@@ -7,10 +7,9 @@ Tests for:
 - CVE-2026-PQC-002: HKDF Null Salt
 """
 import pytest
-import time
 import secrets
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 
 class TestSecureKeyStorage:
@@ -135,7 +134,6 @@ class TestHKDFSaltFix:
     
     def test_hybrid_key_derivation_uses_random_salt(self):
         """Verify that HKDF uses random salt for each derivation."""
-        from src.security.pqc.hybrid import HybridKeyExchange
         
         # Mock PQC availability
         with patch('src.security.pqc.hybrid.is_liboqs_available', return_value=False):
@@ -147,7 +145,6 @@ class TestHKDFSaltFix:
         """Verify that each derivation uses a unique salt."""
         # Test that secrets.token_bytes is called for salt
         import secrets
-        from unittest.mock import call
         
         salts = []
         for _ in range(10):
@@ -212,7 +209,7 @@ class TestPQCKEMSecureStorage:
                 mock_adapter_class.return_value = mock_adapter
                 
                 kem = PQCKeyExchange()
-                keypair = kem.generate_keypair(key_id="test-kem-key")
+                kem.generate_keypair(key_id="test-kem-key")
                 
                 # Verify key was stored
                 assert "test-kem-key" in kem._key_handles
@@ -270,7 +267,7 @@ class TestPQCDSASecureStorage:
                 mock_adapter_class.return_value = mock_adapter
                 
                 dsa = PQCDigitalSignature()
-                keypair = dsa.generate_keypair(key_id="test-dsa-key")
+                dsa.generate_keypair(key_id="test-dsa-key")
                 
                 # Verify key was stored
                 assert "test-dsa-key" in dsa._key_handles

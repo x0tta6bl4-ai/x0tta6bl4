@@ -9,11 +9,9 @@ Tests: init defaults, traffic analysis (normal vs attack), blocking/unblocking,
 severity classification, statistics, baseline learning, volumetric/protocol/application attacks.
 """
 
-import time
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from src.security.ddos_detection import (AttackSeverity, DDoSAlert,
                                          DDoSDetector, DDoSType,

@@ -8,8 +8,6 @@ Tests the complete workflow:
 """
 
 import time
-from datetime import datetime
-from typing import Dict, List, Tuple
 
 import pytest
 

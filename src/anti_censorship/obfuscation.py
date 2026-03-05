@@ -514,7 +514,7 @@ class TrafficObfuscator:
     def get_stats(self) -> Dict[str, Any]:
         """Get obfuscation statistics."""
         return {
-            "enabled_layers": [l.value for l in self.config.enabled_layers],
+            "enabled_layers": [layer.value for layer in self.config.enabled_layers],
             "packet_count": self._packet_count,
         }
 

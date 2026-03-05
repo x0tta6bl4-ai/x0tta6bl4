@@ -5,10 +5,7 @@ Tests: route entry lifecycle, packet serialization, routing table management,
 neighbor add/remove, TTL handling, route expiry, statistics.
 """
 
-import asyncio
-import json
 import time
-from unittest.mock import AsyncMock
 
 import pytest
 

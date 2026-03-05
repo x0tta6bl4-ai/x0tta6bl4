@@ -14,7 +14,7 @@ Tests cover:
 import json
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -238,7 +238,7 @@ class TestBuildTx:
         fn = MagicMock()
         fn.build_transaction.return_value = {"from": "0xSender", "nonce": 0}
 
-        result = _build_tx(w3, fn, "0xSender", 200_000)
+        _build_tx(w3, fn, "0xSender", 200_000)
 
         call_kwargs = fn.build_transaction.call_args[0][0]
         assert call_kwargs["chainId"] == CHAIN_ID
@@ -285,7 +285,7 @@ class TestProposeCommand:
     def test_creates_proposal_successfully(self, runner):
         from src.dao.governance_script import cli
 
-        with _patch_load_deployment(), _patch_context() as mock_ctx:
+        with _patch_load_deployment(), _patch_context():
             result = runner.invoke(cli, [
                 "--governance-address", "0xGov",
                 "--token-address", "0xTok",

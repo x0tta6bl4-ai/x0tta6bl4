@@ -285,7 +285,7 @@ class MeshVPNBridge:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
 
     def _select_exit_node(self):

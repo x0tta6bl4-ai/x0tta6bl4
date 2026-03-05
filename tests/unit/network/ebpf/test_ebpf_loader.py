@@ -149,7 +149,7 @@ class TestEBPFLoader:
 
             assert program["sections"] == [".text", ".maps", "license"]
             assert program["text_size"] == 100
-            assert program["has_maps"] == True
+            assert program["has_maps"]
             assert program["license"] == "GPL"
 
     def test_attach_to_interface_valid(
@@ -488,7 +488,7 @@ class TestEBPFLoader:
             program_id = loader.load_program(dest_file.name, EBPFProgramType.XDP)
 
             assert program_id in loader.loaded_programs
-            assert loader.loaded_programs[program_id]["has_btf"] == False
+            assert not loader.loaded_programs[program_id]["has_btf"]
 
     def test_verify_xdp_attachment(self, loader, mock_subprocess_run):
         """Test XDP attachment verification."""

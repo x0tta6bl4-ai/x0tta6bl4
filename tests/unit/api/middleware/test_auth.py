@@ -3,10 +3,9 @@ Unit tests for src/api/middleware/auth.py
 Covers admin token verification, error handling, and AdminAuthMiddleware.
 """
 
-import os
 
 import pytest
-from fastapi import Header, HTTPException, status
+from fastapi import HTTPException, status
 
 from src.api.middleware.auth import (AdminAuthMiddleware, get_current_admin,
                                      verify_admin_token)

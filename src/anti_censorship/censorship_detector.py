@@ -308,7 +308,7 @@ class CensorshipDetector:
             
             with socket.create_connection((host, port), timeout=self.config.tls_timeout) as sock:
                 with context.wrap_socket(sock, server_hostname=host) as ssock:
-                    cert = ssock.getpeercert(binary_form=True)
+                    ssock.getpeercert(binary_form=True)
                     cert_dict = ssock.getpeercert()
                     
                     # Check certificate issuer

@@ -149,8 +149,7 @@ class TestPlaybooks:
     @pytest.mark.asyncio
     async def test_create_playbook_enqueues_for_each_node(self):
         from src.api.maas_playbooks import (
-            create_playbook, poll_playbooks,
-            PlaybookCreateRequest, PlaybookAction, _node_queues
+            create_playbook, PlaybookCreateRequest, PlaybookAction, _node_queues
         )
         node_id = "enqueue-test-node"
         req = PlaybookCreateRequest(
@@ -256,8 +255,7 @@ class TestPlaybooks:
         """Истёкшие плейбуки не должны попасть в poll."""
         from datetime import datetime, timedelta
         from src.api.maas_playbooks import (
-            create_playbook, poll_playbooks, _playbook_store, _node_queues,
-            PlaybookCreateRequest, PlaybookAction
+            create_playbook, poll_playbooks, _playbook_store, PlaybookCreateRequest, PlaybookAction
         )
         node_id = "expire-test-node"
         req = PlaybookCreateRequest(

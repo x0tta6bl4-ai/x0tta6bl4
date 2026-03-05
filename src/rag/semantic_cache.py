@@ -346,13 +346,11 @@ class CachedRAGPipeline:
             Retrieval result with cache info
         """
         start_time = time.time()
-        cache_hit = False
 
         if use_cache:
             cached = self.cache.get(query)
             if cached:
                 results, scores = cached
-                cache_hit = True
                 cache_latency_ms = (time.time() - start_time) * 1000
 
                 return {

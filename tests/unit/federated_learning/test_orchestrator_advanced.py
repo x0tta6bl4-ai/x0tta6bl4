@@ -2,7 +2,6 @@
 Unit tests for Advanced Federated Learning Orchestrator
 """
 
-import statistics
 from datetime import datetime, timedelta
 
 import pytest
@@ -182,7 +181,7 @@ class TestAdaptiveScaler:
             )
             scaler.record_utilization(util)
 
-        assert scaler.should_scale_up() == True
+        assert scaler.should_scale_up()
 
     def test_scale_down_decision(self):
         """Test scale down decision"""
@@ -203,7 +202,7 @@ class TestAdaptiveScaler:
             )
             scaler.record_utilization(util)
 
-        assert scaler.should_scale_down() == True
+        assert scaler.should_scale_down()
 
     def test_scaling_limits(self):
         """Test that scaling respects min/max limits"""
@@ -213,7 +212,7 @@ class TestAdaptiveScaler:
         # Try to scale down below minimum
         scaler.last_scale_time = datetime.now() - timedelta(seconds=400)
         result = scaler.should_scale_down()
-        assert result == False
+        assert not result
 
 
 @pytest.mark.skipif(
