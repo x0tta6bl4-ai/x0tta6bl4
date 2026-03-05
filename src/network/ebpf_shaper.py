@@ -34,7 +34,8 @@ def main(interface="singbox_tun"):
     import subprocess
     res = subprocess.run(["ip", "addr", "show", interface], capture_output=True)
     if res.returncode != 0:
-        print(f"[!] Interface {interface} not found. Waiting...")        return
+        print(f"[!] Interface {interface} not found. Waiting...")
+        return
 
     try:
         b = BPF(text=bpf_text)

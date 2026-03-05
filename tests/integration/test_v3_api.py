@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.core.app import app
+from src.version import __version__
 
 # TestClient can deadlock in sandbox for this integration module.
 pytestmark = pytest.mark.skip(reason="TestClient-based V3 API integration is unstable in sandbox")
@@ -44,7 +45,7 @@ class TestV3Status:
                 assert response.status_code == 200
                 data = response.json()
                 assert data["status"] == "operational"
-                assert data["version"] == "3.2.1"
+                assert data["version"] == __version__
                 assert "components" in data
 
     def test_get_v3_status_unavailable(self):

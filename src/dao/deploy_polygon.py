@@ -62,9 +62,9 @@ def main():
     if balance == 0:
         print("⚠️ Warning: Balance is 0!")
 
-    # 1. Deploy X0TToken
-    print("\n📦 Deploying X0TToken...")
-    abi, bytecode = load_contract("X0TToken")
+    # 1. Deploy GovernanceToken
+    print("\n📦 Deploying GovernanceToken...")
+    abi, bytecode = load_contract("GovernanceToken")
     Token = w3.eth.contract(abi=abi, bytecode=bytecode)
     
     tx = Token.constructor().build_transaction({
@@ -87,14 +87,40 @@ def main():
     
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     token_address = receipt.contractAddress
-    print(f"✅ X0TToken deployed to: {token_address}")
+    print(f"✅ GovernanceToken deployed to: {token_address}")
 
-    # 2. Deploy MeshGovernance
-    print("\n🏛  Deploying MeshGovernance...")
-    gov_abi, gov_bytecode = load_contract("MeshGovernance")
+    # 2. Deploy Timelock
+    print("\n⏳ Deploying X0TTA6BL4Timelock...")
+    tl_abi, tl_bytecode = load_contract("X0TTA6BL4Timelock")
+    Timelock = w3.eth.contract(abi=tl_abi, bytecode=tl_bytecode)
+    
+    # proposers = [], executors = [], admin = deployer
+    tx_tl = Timelock.constructor([], [], account.address).build_transaction({
+        "from": account.address,
+        "nonce": w3.eth.get_transaction_count(account.address),
+        "gasPrice": w3.eth.gas_price,
+    })
+    
+    try:
+        gas = w3.eth.estimate_gas(tx_tl)
+        tx_tl["gas"] = int(gas * 1.1)
+    except Exception as e:
+        tx_tl["gas"] = 4000000
+
+    signed_tl = account.sign_transaction(tx_tl)
+    tx_hash_tl = w3.eth.send_raw_transaction(signed_tl.rawTransaction)
+    print(f"   Tx sent: {tx_hash_tl.hex()}")
+    
+    receipt_tl = w3.eth.wait_for_transaction_receipt(tx_hash_tl)
+    timelock_address = receipt_tl.contractAddress
+    print(f"✅ Timelock deployed to: {timelock_address}")
+
+    # 3. Deploy Governor
+    print("\n🏛  Deploying X0TTA6BL4Governor...")
+    gov_abi, gov_bytecode = load_contract("X0TTA6BL4Governor")
     Gov = w3.eth.contract(abi=gov_abi, bytecode=gov_bytecode)
     
-    tx_gov = Gov.constructor(token_address).build_transaction({
+    tx_gov = Gov.constructor(token_address, timelock_address).build_transaction({
         "from": account.address,
         "nonce": w3.eth.get_transaction_count(account.address),
         "gasPrice": w3.eth.gas_price,
@@ -104,7 +130,7 @@ def main():
         gas = w3.eth.estimate_gas(tx_gov)
         tx_gov["gas"] = int(gas * 1.1)
     except Exception as e:
-        tx_gov["gas"] = 3000000
+        tx_gov["gas"] = 5000000
 
     signed_gov = account.sign_transaction(tx_gov)
     tx_hash_gov = w3.eth.send_raw_transaction(signed_gov.rawTransaction)
@@ -112,7 +138,7 @@ def main():
     
     receipt_gov = w3.eth.wait_for_transaction_receipt(tx_hash_gov)
     gov_address = receipt_gov.contractAddress
-    print(f"✅ MeshGovernance deployed to: {gov_address}")
+    print(f"✅ X0TTA6BL4Governor deployed to: {gov_address}")
     
     # Save deployment info
     info = {
@@ -120,8 +146,9 @@ def main():
         "chain_id": w3.eth.chain_id,
         "deployer": account.address,
         "contracts": {
-            "X0TToken": token_address,
-            "MeshGovernance": gov_address
+            "GovernanceToken": token_address,
+            "Timelock": timelock_address,
+            "Governor": gov_address
         },
         "timestamp": time.time()
     }

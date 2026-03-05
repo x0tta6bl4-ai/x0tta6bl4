@@ -46,8 +46,7 @@ class PhotoRecoveryAgent:
                     output.append(line)
             
             process.wait(timeout=timeout)
-            return "
-".join(output)
+            return "\n".join(output)
         except Exception as e:
             logger.error(f"Ошибка при выполнении команды: {e}")
             return str(e)

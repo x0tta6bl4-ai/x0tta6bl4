@@ -453,3 +453,42 @@ class TestLRUCache:
             assert history[0]["cpu"] == 0.9
         finally:
             mod._LOCAL_TELEMETRY_FALLBACK = original
+
+
+class TestTelemetryDegradedDependencyMarkers:
+    def test_set_telemetry_marks_redis_degraded_when_redis_disabled(self):
+        import src.api.maas_telemetry as mod
+
+        original_redis = mod.REDIS_AVAILABLE
+        try:
+            mod.REDIS_AVAILABLE = False
+            degraded = set()
+            mod._set_telemetry("node-degraded-1", {"cpu": 0.2}, degraded_dependencies=degraded)
+            assert "redis" in degraded
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+
+    def test_get_telemetry_marks_redis_degraded_when_redis_read_fails(self):
+        import src.api.maas_telemetry as mod
+        from unittest.mock import MagicMock
+
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=32)
+        mod._LOCAL_TELEMETRY_FALLBACK.set("maas:telemetry:node-degraded-2", {"cpu": 0.3})
+        try:
+            mod.REDIS_AVAILABLE = True
+            mock_redis = MagicMock()
+            mock_redis.get.side_effect = RuntimeError("redis read failed")
+            mod.r_client = mock_redis
+
+            degraded = set()
+            result = mod._get_telemetry("node-degraded-2", degraded_dependencies=degraded)
+
+            assert result == {"cpu": 0.3}
+            assert "redis" in degraded
+        finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_fallback

@@ -18,13 +18,26 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x000000000000000000000000000000
 /** @type import('hardhat/config').HardhatUserConfig */
 export default {
     solidity: {
-        version: "0.8.20",
-        settings: {
-            optimizer: {
-                enabled: true,
-                runs: 200
+        compilers: [
+            {
+                version: "0.8.20",
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 200
+                    }
+                }
+            },
+            {
+                version: "0.8.24",
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 200
+                    }
+                }
             }
-        }
+        ]
     },
 
     networks: {

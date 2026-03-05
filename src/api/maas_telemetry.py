@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session
 
 from src.database import MeshNode, MeshInstance, get_db
 from src.api.maas_auth import get_current_user_from_maas
+from src.core.reliability_policy import mark_degraded_dependency
+from src.monitoring.maas_metrics import record_heartbeat as _record_heartbeat_metric
 from src.network.reputation_scoring import ReputationScoringSystem
 
 logger = logging.getLogger(__name__)
@@ -181,7 +183,11 @@ def _store_local_fallback(key: str, history_key: str, data: Dict) -> None:
     _LOCAL_TELEMETRY_FALLBACK.set(history_key, history)
 
 
-def _set_telemetry(node_id: str, data: Dict):
+def _set_telemetry(
+    node_id: str,
+    data: Dict,
+    degraded_dependencies: Optional[set[str]] = None,
+):
     key = f"maas:telemetry:{node_id}"
     history_key = f"{key}:history"
     if REDIS_AVAILABLE:
@@ -195,13 +201,20 @@ def _set_telemetry(node_id: str, data: Dict):
             pipeline.execute()
         except Exception as e:
             logger.warning(f"⚠️ Failed to persist telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             _store_local_fallback(key, history_key, data)
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         _store_local_fallback(key, history_key, data)
 
 
-def _get_telemetry(node_id: str) -> Dict:
+def _get_telemetry(
+    node_id: str,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> Dict:
     key = f"maas:telemetry:{node_id}"
     if REDIS_AVAILABLE:
         try:
@@ -209,15 +222,23 @@ def _get_telemetry(node_id: str) -> Dict:
             return json.loads(raw) if raw else {}
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry snapshot for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
             return fallback if isinstance(fallback, dict) else {}
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
         return fallback if isinstance(fallback, dict) else {}
 
 
-def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
+def _get_telemetry_history(
+    node_id: str,
+    limit: int = 100,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> List[Dict]:
     if limit <= 0:
         return []
     key = f"maas:telemetry:{node_id}:history"
@@ -226,6 +247,8 @@ def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
             raw_items = r_client.lrange(key, 0, limit - 1)
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
             if isinstance(fallback, list):
                 return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
@@ -241,6 +264,8 @@ def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
         return results
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
         if isinstance(fallback, list):
             return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
@@ -318,6 +343,7 @@ async def heartbeat(
 
     # Track long-term uptime for settlement
     uptime_tracker.record_heartbeat(req.node_id)
+    _record_heartbeat_metric(req.node_id)
 
     
     # Update Reputation based on heartbeat data
@@ -346,13 +372,17 @@ async def heartbeat(
         "last_seen": node.last_seen.isoformat(),
         "reputation": trust_score
     }
-    _set_telemetry(req.node_id, telemetry_data)
+    degraded_dependencies: set[str] = set()
+    _set_telemetry(req.node_id, telemetry_data, degraded_dependencies=degraded_dependencies)
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
     
     return {"status": "ack", "mesh_id": node.mesh_id, "trust_score": trust_score}
 
 @router.get("/{mesh_id}/topology")
 async def get_topology(
     mesh_id: str, 
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_from_maas)
 ):
@@ -362,9 +392,10 @@ async def get_topology(
     result_nodes = []
     links = []
     seen_links = set()
+    degraded_dependencies: set[str] = set()
     
     for n in nodes:
-        telemetry = _get_telemetry(n.id)
+        telemetry = _get_telemetry(n.id, degraded_dependencies=degraded_dependencies)
         result_nodes.append({
             "id": n.id,
             "class": n.device_class,
@@ -392,5 +423,7 @@ async def get_topology(
                         "type": "pqc-mesh"
                     })
                     seen_links.add(link_key)
-        
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
+
     return {"nodes": result_nodes, "links": links}

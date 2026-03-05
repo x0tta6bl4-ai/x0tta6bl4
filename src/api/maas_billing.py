@@ -8,6 +8,7 @@ SQLAlchemy-backed enterprise billing logic with Stripe integration.
 import logging
 import os
 import uuid
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -18,7 +19,11 @@ from sqlalchemy.orm import Session
 
 from src.database import User, Invoice, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
+                                         call_with_reliability,
+                                         mark_degraded_dependency)
 from src.utils.audit import record_audit_log
+from src.monitoring.maas_metrics import record_billing_error
 
 # Prefer legacy MaaS internals directly to avoid circular import
 try:
@@ -33,12 +38,21 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_DOMAIN = os.getenv("APP_DOMAIN", "https://app.x0tta6bl4.com")
 
-# Stripe Plan Price IDs (should come from env in production)
+# Stripe Plan Price IDs (must be set via environment variables)
+# NOTE: Placeholder values provided for backwards compatibility - set real Price IDs in production
 STRIPE_PLANS = {
-    "starter": os.getenv("STRIPE_PRICE_STARTER", "price_starter_id"),
-    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_id"),
-    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise_id"),
+    "starter": os.getenv("STRIPE_PRICE_STARTER", "price_starter_placeholder"),
+    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_placeholder"),
+    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise_placeholder"),
 }
+
+# Validate Stripe configuration at production startup
+_is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
+_missing_plans = [k for k, v in STRIPE_PLANS.items() if "placeholder" in str(v)]
+if _missing_plans and STRIPE_SECRET_KEY and _is_production:
+    logger.error(f"CRITICAL: STRIPE_PRICE_* not configured for production: {_missing_plans}")
+elif _missing_plans and STRIPE_SECRET_KEY:
+    logger.warning(f"STRIPE_PRICE_* not configured for plans: {_missing_plans}")
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -46,6 +60,38 @@ else:
     logger.warning("STRIPE_SECRET_KEY not set. Payments will fail.")
 
 router = APIRouter(prefix="/api/v1/maas/billing", tags=["MaaS Billing"])
+
+
+async def _execute_stripe_call(
+    operation,
+    *,
+    request: Optional[Request] = None,
+):
+    """Execute Stripe call via shared timeout/retry/circuit policy."""
+    try:
+        return await call_with_reliability(operation, dependency="stripe")
+    except CircuitBreakerOpen:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment service temporarily unavailable",
+        )
+    except RetryExhausted:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment gateway timeout",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Stripe call failed: %s", exc)
+        record_billing_error("stripe_timeout")
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(status_code=503, detail="Payment gateway error")
 
 class InvoiceResponse(BaseModel):
     id: str
@@ -75,8 +121,16 @@ async def create_subscription_session(
     db: Session = Depends(get_db)
 ):
     """Create a Stripe Checkout session for a subscription."""
+    # Validate plan and ensure price ID is configured
     if plan not in STRIPE_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan selected")
+    
+    price_id = STRIPE_PLANS.get(plan)
+    if not price_id:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Plan '{plan}' price not configured. Set STRIPE_PRICE_{plan.upper()}"
+        )
 
     if not STRIPE_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Stripe not configured")
@@ -84,30 +138,40 @@ async def create_subscription_session(
     try:
         # Create or retrieve Stripe Customer
         if not current_user.stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=current_user.email,
-                name=current_user.full_name,
-                metadata={"user_id": current_user.id}
-            )
+            async def _create_customer():
+                return await asyncio.to_thread(
+                    stripe.Customer.create,
+                    email=current_user.email,
+                    name=current_user.full_name,
+                    metadata={"user_id": current_user.id},
+                )
+
+            customer = await _execute_stripe_call(_create_customer, request=request)
             current_user.stripe_customer_id = customer.id
             db.commit()
 
-        checkout_session = stripe.checkout.Session.create(
-            customer=current_user.stripe_customer_id,
-            payment_method_types=['card'],
-            allow_promotion_codes=True,
-            line_items=[{
-                'price': STRIPE_PLANS[plan],
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url=APP_DOMAIN + "/billing/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=APP_DOMAIN + "/billing/cancel",
-            metadata={
-                "user_id": current_user.id,
-                "plan": plan
-            }
-        )
+        async def _create_checkout():
+            return await asyncio.to_thread(
+                stripe.checkout.Session.create,
+                customer=current_user.stripe_customer_id,
+                payment_method_types=["card"],
+                allow_promotion_codes=True,
+                line_items=[
+                    {
+                        "price": STRIPE_PLANS[plan],
+                        "quantity": 1,
+                    }
+                ],
+                mode="subscription",
+                success_url=APP_DOMAIN + "/billing/success?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=APP_DOMAIN + "/billing/cancel",
+                metadata={
+                    "user_id": current_user.id,
+                    "plan": plan,
+                },
+            )
+
+        checkout_session = await _execute_stripe_call(_create_checkout, request=request)
 
         record_audit_log(
             db, request, "SUBSCRIPTION_SESSION_CREATED",
@@ -117,12 +181,15 @@ async def create_subscription_session(
         )
         
         return {"url": checkout_session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe subscription session: {e}")
         raise HTTPException(status_code=500, detail="Payment gateway error")
 
 @router.post("/customer-portal")
 async def create_customer_portal(
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db)
 ):
@@ -131,11 +198,17 @@ async def create_customer_portal(
         raise HTTPException(status_code=400, detail="No billing history found")
 
     try:
-        session = stripe.billing_portal.Session.create(
-            customer=current_user.stripe_customer_id,
-            return_url=APP_DOMAIN + "/billing",
-        )
+        async def _create_portal():
+            return await asyncio.to_thread(
+                stripe.billing_portal.Session.create,
+                customer=current_user.stripe_customer_id,
+                return_url=APP_DOMAIN + "/billing",
+            )
+
+        session = await _execute_stripe_call(_create_portal, request=request)
         return {"url": session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe portal session: {e}")
         raise HTTPException(status_code=500, detail="Portal error")
@@ -205,6 +278,7 @@ async def list_invoices(
 @router.get("/invoices/{invoice_id}/checkout")
 async def create_checkout_session(
     invoice_id: str,
+    request: Request,
     current_user: User = Depends(require_permission("billing:pay")),
     db: Session = Depends(get_db)
 ):
@@ -220,31 +294,39 @@ async def create_checkout_session(
         raise HTTPException(status_code=500, detail="Stripe not configured")
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            customer_email=current_user.email,
-            payment_method_types=['card'],
-            allow_promotion_codes=True,
-            line_items=[
-                {
-                    'price_data': {
-                        'currency': inv.currency.lower(),
-                        'product_data': {
-                            'name': f"MaaS Mesh Usage ({inv.mesh_id})",
-                            'description': f"Period: {inv.period_start.date()} to {inv.period_end.date()}",
+        async def _create_invoice_checkout():
+            return await asyncio.to_thread(
+                stripe.checkout.Session.create,
+                customer_email=current_user.email,
+                payment_method_types=["card"],
+                allow_promotion_codes=True,
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": inv.currency.lower(),
+                            "product_data": {
+                                "name": f"MaaS Mesh Usage ({inv.mesh_id})",
+                                "description": f"Period: {inv.period_start.date()} to {inv.period_end.date()}",
+                            },
+                            "unit_amount": inv.total_amount,
                         },
-                        'unit_amount': inv.total_amount,
+                        "quantity": 1,
                     },
-                    'quantity': 1,
+                ],
+                mode="payment",
+                success_url=APP_DOMAIN
+                + f"/billing/success?session_id={{CHECKOUT_SESSION_ID}}&invoice_id={inv.id}",
+                cancel_url=APP_DOMAIN + f"/billing/cancel?invoice_id={inv.id}",
+                metadata={
+                    "invoice_id": inv.id,
+                    "user_id": current_user.id,
+                    "mesh_id": inv.mesh_id,
                 },
-            ],
-            mode='payment',
-            success_url=APP_DOMAIN + f"/billing/success?session_id={{CHECKOUT_SESSION_ID}}&invoice_id={inv.id}",
-            cancel_url=APP_DOMAIN + f"/billing/cancel?invoice_id={inv.id}",
-            metadata={
-                "invoice_id": inv.id,
-                "user_id": current_user.id,
-                "mesh_id": inv.mesh_id
-            }
+            )
+
+        checkout_session = await _execute_stripe_call(
+            _create_invoice_checkout,
+            request=request,
         )
         
         # Save session ID for reconciliation
@@ -252,6 +334,8 @@ async def create_checkout_session(
         db.commit()
         
         return {"url": checkout_session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe checkout session: {e}")
         raise HTTPException(status_code=500, detail="Payment gateway error")

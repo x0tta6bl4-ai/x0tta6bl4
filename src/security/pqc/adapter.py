@@ -205,21 +205,31 @@ class PQCAdapter:
             secret_key = kem.export_secret_key()
             logger.debug(f"Generated {self.kem_alg} keypair")
             return public_key, secret_key
-    
     def kem_encapsulate(self, public_key: bytes) -> Tuple[bytes, bytes]:
         """
         Encapsulate shared secret.
-        
+
         Args:
             public_key: Peer's public key
-        
+
         Returns:
             Tuple of (ciphertext, shared_secret)
         """
         import oqs
-        
-        with oqs.KeyEncapsulation(self.kem_alg) as kem:
-            ciphertext, shared_secret = kem.encap_secret(public_key)
+
+        try:
+            with oqs.KeyEncapsulation(self.kem_alg) as kem:
+                result = kem.encap_secret(public_key)
+                if not result or len(result) < 2:
+                    logger.error(f"KEM encap_secret returned invalid result: {result} for alg {self.kem_alg}")
+                    raise ValueError(f"Invalid KEM result for {self.kem_alg}")
+                return result[0], result[1]
+        except Exception as e:
+            logger.error(f"Failed to encapsulate with {self.kem_alg}: {e}")
+            supported = get_supported_kem_algorithms()
+            logger.info(f"Supported KEMs at runtime: {supported}")
+            raise
+
             logger.debug(f"Encapsulated {len(shared_secret)} byte secret")
             return ciphertext, shared_secret
     

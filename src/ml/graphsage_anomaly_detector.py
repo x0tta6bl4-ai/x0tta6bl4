@@ -217,17 +217,27 @@ class GraphSAGEAnomalyDetector:
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.anomaly_threshold = anomaly_threshold
-        self.use_quantization = bool(use_quantization and is_quantization_available())
+        self._use_quantization_requested = use_quantization
+        self._use_quantization_actual = None # Lazy initialized
         self.recall = 0.96
         self.precision = 0.98
         self.is_trained = False
         self.model = None
         self.device = None
         
-        # We don't call _ensure_torch here to keep __init__ fast
-        # unless we explicitly need to create the model.
-        
-        # Initialize causal analysis engine if available
+    @property
+    def use_quantization(self) -> bool:
+        """Lazy quantization support check."""
+        if self._use_quantization_actual is None:
+            self._use_quantization_actual = bool(
+                self._use_quantization_requested and is_quantization_available()
+            )
+        return self._use_quantization_actual
+
+    # We don't call _ensure_torch here to keep __init__ fast
+    # unless we explicitly need to create the model.
+    
+    # Initialize causal analysis engine if available
         self.causal_engine: Optional[Any] = None
         if _ensure_causal():
             try:
