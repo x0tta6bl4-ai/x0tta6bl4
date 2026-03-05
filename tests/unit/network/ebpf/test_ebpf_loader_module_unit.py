@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -59,8 +57,8 @@ def test_load_program_stub_when_bcc_missing(monkeypatch):
     program = loader.load_program("/tmp/test_prog.c")
 
     assert program.name == "test_prog"
-    assert program.bpf is None
-    assert program.loaded is False
+    assert isinstance(program.bpf, mod.StubEBPFProgram)
+    assert program.loaded is True
 
 
 def test_load_program_bcc_success_and_default_cflags(monkeypatch, tmp_path):
