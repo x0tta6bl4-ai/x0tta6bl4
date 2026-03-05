@@ -10,9 +10,8 @@ import os
 import random
 import time
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
-from .obfuscation.base import ObfuscationTransport, TransportManager
 from .obfuscation.domain_fronting import DomainFrontingTransport
 from .obfuscation.faketls import FakeTLSTransport
 from .obfuscation.shadowsocks import ShadowsocksTransport

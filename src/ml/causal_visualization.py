@@ -7,7 +7,6 @@ Supports multiple output formats: JSON API, Grafana dashboard, HTML demo.
 Target: Sales-ready visualization for email wave 3-4 demo.
 """
 
-import json
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -378,7 +377,7 @@ class CausalAnalysisVisualizer:
         Returns:
             Incident ID of generated demo incident
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         base_time = datetime.now() - timedelta(minutes=10)
 

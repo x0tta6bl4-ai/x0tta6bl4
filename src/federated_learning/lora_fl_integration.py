@@ -22,11 +22,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.federated_learning.coordinator import (
     CoordinatorConfig,
     FederatedCoordinator,
-    NodeStatus,
-    RoundStatus,
-    TrainingRound,
 )
-from src.federated_learning.protocol import AggregationResult, GlobalModel, ModelUpdate, ModelWeights
+from src.federated_learning.protocol import AggregationResult, ModelUpdate, ModelWeights
 from src.ml.lora.config import LoRAConfig
 
 logger = logging.getLogger(__name__)

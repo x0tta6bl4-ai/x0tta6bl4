@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Optional
 
 from src.self_healing.mape_k import SelfHealingManager
 from src.self_healing.recovery_actions import (

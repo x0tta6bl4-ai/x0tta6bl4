@@ -8,9 +8,9 @@ Zero-trust policy management backed by SQLAlchemy.
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 

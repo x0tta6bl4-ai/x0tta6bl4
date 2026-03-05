@@ -13,8 +13,7 @@ import time
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from telemetry_module import (EBPFTelemetryCollector, EventSeverity,
-                              MetricDefinition, MetricType, TelemetryConfig,
+from telemetry_module import (EBPFTelemetryCollector, MetricDefinition, MetricType, TelemetryConfig,
                               TelemetryEvent)
 
 

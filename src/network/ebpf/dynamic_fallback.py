@@ -7,7 +7,7 @@ Automatic reroute triggers based on eBPF latency measurements.
 import logging
 import time
 from collections import deque
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

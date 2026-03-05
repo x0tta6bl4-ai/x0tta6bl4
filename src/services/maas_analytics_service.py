@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.database import Invoice, MarketplaceListing, MeshInstance, MeshNode, User
+from src.database import Invoice, MarketplaceListing, MeshInstance, MeshNode
 
 logger = logging.getLogger(__name__)
 

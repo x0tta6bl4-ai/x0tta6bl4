@@ -4,7 +4,6 @@ CLI tool to check X0T balance and earnings.
 
 import argparse
 import logging
-import random
 from decimal import Decimal
 
 logging.basicConfig(level=logging.ERROR)

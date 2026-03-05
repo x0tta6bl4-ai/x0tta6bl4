@@ -5,13 +5,12 @@ Chaos Engineering Controller
 
 import asyncio
 import logging
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from src.monitoring.metrics import (record_mape_k_cycle, record_mttr,
+from src.monitoring.metrics import (record_mttr,
                                     record_self_healing_event)
 
 logger = logging.getLogger(__name__)

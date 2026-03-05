@@ -15,8 +15,6 @@ Reference: "Proximal Policy Optimization Algorithms" (Schulman et al., 2017)
 import logging
 import math
 import random
-from abc import ABC, abstractmethod
-from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 

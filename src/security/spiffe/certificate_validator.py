@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Set
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.extensions import CRLDistributionPoints
 from cryptography.x509.oid import AuthorityInformationAccessOID, ExtensionOID
 
 try:
@@ -429,7 +428,7 @@ class CertificateValidator:
                 logger.debug("OCSP: Certificate status is GOOD")
                 return (False, None)
             else:
-                logger.debug(f"OCSP: Certificate status is UNKNOWN")
+                logger.debug("OCSP: Certificate status is UNKNOWN")
                 return (False, None)
 
         except ImportError:

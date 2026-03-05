@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from .coordinator import CoordinatorConfig, FederatedCoordinator
+from .coordinator import FederatedCoordinator
 from .mesh_worker import FLMeshWorker
 
 logger = logging.getLogger(__name__)

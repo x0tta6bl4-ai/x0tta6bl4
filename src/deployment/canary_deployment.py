@@ -466,7 +466,6 @@ class CanaryDeployment:
             True if rollback was triggered successfully
         """
         import os
-        import subprocess
 
         ci_system = os.getenv("CI_SYSTEM", "").lower()
 
@@ -609,7 +608,7 @@ class CanaryDeployment:
 
                     response = httpx.post(url, headers=headers, json=data, timeout=10)
                     if response.status_code == 200:
-                        logger.info(f"✅ Azure DevOps rollback pipeline triggered")
+                        logger.info("✅ Azure DevOps rollback pipeline triggered")
                         return True
             except Exception as e:
                 logger.warning(f"Azure DevOps rollback failed: {e}")

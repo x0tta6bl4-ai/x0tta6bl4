@@ -11,7 +11,6 @@ Topology-Aware Aggregator for Mesh-FL Integration
 - Интеграция с Batman-adv метриками
 """
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass, field

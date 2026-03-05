@@ -129,8 +129,7 @@ class IntegratedAnomalyAnalyzer:
             incident_id = self._create_incident_id(node_id)
 
             # Create IncidentEvent
-            from causal_analysis_v2_enhanced import (IncidentEvent,
-                                                     IncidentSeverity)
+            from causal_analysis_v2_enhanced import (IncidentEvent)
 
             severity = self._score_to_severity(detection_result["anomaly_score"])
 

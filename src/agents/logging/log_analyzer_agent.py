@@ -4,14 +4,13 @@ Log Analyzer Agent - анализ логов на ошибки, паттерн d
 Интегрируется с существующим causal analysis engine.
 """
 
-import asyncio
 import logging
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -17,14 +17,12 @@ All patterns include:
 - Failure recovery
 """
 
-import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -665,7 +663,7 @@ class FLTrainingSession:
 
         # Stop if converged
         if self.convergence_round is not None:
-            logger.info(f"Training converged")
+            logger.info("Training converged")
             return False
 
         # Stop if max rounds reached

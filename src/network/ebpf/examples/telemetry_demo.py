@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from telemetry_module import (EBPFTelemetryCollector, EventSeverity,
                               MetricDefinition, MetricType, TelemetryConfig,
-                              TelemetryEvent, create_collector, quick_start)
+                              TelemetryEvent)
 
 # Configure logging
 logging.basicConfig(

@@ -7,7 +7,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.self_healing.mape_k import (MAPEKAnalyzer, MAPEKExecutor,
                                      MAPEKKnowledge, MAPEKMonitor,

@@ -5,13 +5,12 @@ Documentation Agent - автоматическое обновление доку
 """
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

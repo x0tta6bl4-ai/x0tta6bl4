@@ -10,18 +10,16 @@ Features:
 - What-if analysis for routing changes
 """
 
-import hashlib
 import json
 import logging
 import random
 import statistics
 import threading
 import time
-from abc import ABC, abstractmethod
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 

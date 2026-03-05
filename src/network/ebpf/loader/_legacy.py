@@ -16,8 +16,6 @@ References:
 """
 
 import logging
-import os
-import struct
 import subprocess
 import time
 from enum import Enum

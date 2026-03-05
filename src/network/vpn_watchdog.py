@@ -24,7 +24,7 @@ import socket
 import subprocess
 import time
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 

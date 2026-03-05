@@ -52,7 +52,6 @@ else:
 def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
     # Update metrics with current state
     from src.monitoring.metrics import MetricsRegistry
-    from src.resilience.advanced_patterns import CircuitState
 
     state_map = {CircuitState.CLOSED: 0, CircuitState.OPEN: 1, CircuitState.HALF_OPEN: 2}
     MetricsRegistry.db_circuit_breaker_state.set(state_map.get(db_circuit_breaker.state, 0))

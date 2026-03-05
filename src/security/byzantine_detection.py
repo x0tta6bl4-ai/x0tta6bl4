@@ -7,7 +7,6 @@ consensus validation, node reputation tracking, and automated isolation.
 
 import logging
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum

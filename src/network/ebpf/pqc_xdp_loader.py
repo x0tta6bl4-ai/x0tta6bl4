@@ -7,12 +7,9 @@ Integrates with EBPFPQCGateway for cryptographic session management.
 """
 
 import logging
-import os
-import struct  # Added for eBPF map packing
-import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 try:
     from bcc import BPF
@@ -21,7 +18,7 @@ try:
 except ImportError:
     BCC_AVAILABLE = False
 
-from ...security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway
+from ...security.ebpf_pqc_gateway import get_pqc_gateway
 from .loader import EBPFLoader
 
 logger = logging.getLogger(__name__)

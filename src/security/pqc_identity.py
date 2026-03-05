@@ -3,13 +3,12 @@ Post-Quantum Decentralized Identity (PQC-DID) for x0tta6bl4 Mesh.
 Upgrades W3C DID Core 1.0 to Quantum-Resistant standards using ML-DSA (Dilithium) and ML-KEM (Kyber).
 """
 
-import hashlib
 import json
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 # Import the existing PQC backend from libx0t
 try:

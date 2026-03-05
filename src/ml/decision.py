@@ -5,7 +5,6 @@ Intelligent policy selection and action optimization based on learned patterns.
 Integrates with MAPE-K planner and executor.
 """
 
-import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum

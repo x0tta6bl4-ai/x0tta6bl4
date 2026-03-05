@@ -8,12 +8,12 @@ Uses DB-backed data for all statistics including hardware attestation.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Dict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, MarketplaceEscrow, get_db
+from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
 
 logger = logging.getLogger(__name__)

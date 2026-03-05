@@ -19,10 +19,9 @@ _warnings.warn(
 import hashlib
 import logging
 import os
-import secrets
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
@@ -151,7 +150,6 @@ class LibOQSBackend:
             private_key = kem.export_secret_key()
 
         # Generate key_id from public key (using 32 chars for higher entropy/collision resistance)
-        import hashlib
 
         key_id = hashlib.sha256(public_key).hexdigest()[:32]
 
@@ -243,7 +241,6 @@ class LibOQSBackend:
         # Private key is stored internally, export it
         private_key = sig.export_secret_key()
         # Generate key_id from public key (using 32 chars for higher entropy)
-        import hashlib
 
         key_id = hashlib.sha256(public_key).hexdigest()[:32]
 
@@ -520,7 +517,6 @@ class HybridPQEncryption:
 
     def _classical_encrypt(self, message: bytes, public_key: bytes) -> bytes:
         """Classical encryption using AES-256-GCM."""
-        import hashlib
 
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -540,7 +536,6 @@ class HybridPQEncryption:
 
     def _classical_decrypt(self, ciphertext: bytes, private_key: bytes) -> bytes:
         """Classical decryption using AES-256-GCM."""
-        import hashlib
 
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM

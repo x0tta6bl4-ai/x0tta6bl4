@@ -8,7 +8,6 @@ Uses bpftool or direct syscalls to read map data.
 import json
 import logging
 import subprocess
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)

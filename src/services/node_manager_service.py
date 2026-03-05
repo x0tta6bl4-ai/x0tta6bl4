@@ -9,11 +9,10 @@ Node Manager Service
 - Закрытие соединения (Tor-like circuit)
 """
 
-import asyncio
 import logging
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from src.network.batman.topology import MeshTopology

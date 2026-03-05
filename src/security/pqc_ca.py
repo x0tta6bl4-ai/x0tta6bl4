@@ -6,12 +6,10 @@ Implements a second identity layer using ML-DSA-65 (Post-Quantum)
 to sign and rotate node identities, augmenting standard SPIFFE SVIDs.
 """
 
-import json
 import logging
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from src.security.pqc_identity import PQCNodeIdentity
 

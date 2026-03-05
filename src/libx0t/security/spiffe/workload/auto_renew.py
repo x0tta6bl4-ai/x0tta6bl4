@@ -15,10 +15,9 @@ Features:
 
 import asyncio
 import logging
-import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set
+from datetime import datetime
+from typing import TYPE_CHECKING, Callable, List, Optional, Set
 
 from prometheus_client import Counter, Gauge
 
@@ -436,7 +435,7 @@ class SPIFFEAutoRenew:
                 if attempt < self.config.max_retries - 1:
                     await asyncio.sleep(self.config.retry_delay)
                 else:
-                    logger.error(f"All X.509 renewal attempts failed")
+                    logger.error("All X.509 renewal attempts failed")
 
         return None
 

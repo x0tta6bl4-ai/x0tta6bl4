@@ -63,7 +63,6 @@ def record_handshake_success(latency: float):
 
         # Send alert for SLO violation
         try:
-            import asyncio
 
             from src.monitoring.alerting import AlertSeverity, send_alert_sync
 

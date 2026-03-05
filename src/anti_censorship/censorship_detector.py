@@ -10,7 +10,6 @@ Detects various types of internet censorship and network interference:
 - Throttling
 """
 
-import asyncio
 import logging
 import socket
 import ssl
@@ -18,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import dns.resolver
 

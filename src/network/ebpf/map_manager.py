@@ -5,8 +5,6 @@ eBPF Map Manager - Write and update eBPF maps from userspace
 import logging
 import subprocess
 import socket
-import struct
-from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
