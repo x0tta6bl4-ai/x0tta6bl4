@@ -1,9 +1,6 @@
-import binascii
-import importlib
 import os
 import sys
 
-import fastapi
 import httpx
 import pytest
 

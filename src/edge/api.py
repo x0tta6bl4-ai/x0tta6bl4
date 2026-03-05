@@ -513,7 +513,7 @@ async def submit_task(
     the current distribution strategy.
     """
     distributor = get_task_distributor()
-    manager = get_node_manager()
+    get_node_manager()
     
     task_id = str(uuid.uuid4())
     submitted_at = datetime.utcnow()

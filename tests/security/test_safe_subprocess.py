@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from src.core.safe_subprocess import (SafeCommandResult, SafeSubprocess,
+from src.core.safe_subprocess import (SafeSubprocess,
                                       SecurityError, ValidationError,
                                       safe_docker_tag, safe_helm_upgrade)
 

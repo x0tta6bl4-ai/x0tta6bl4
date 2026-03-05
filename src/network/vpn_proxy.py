@@ -143,7 +143,7 @@ class SOCKS5Server:
             writer.close()
             try:
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
 
     async def _socks5_handshake(

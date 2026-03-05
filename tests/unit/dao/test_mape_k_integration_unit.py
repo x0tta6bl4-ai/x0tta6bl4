@@ -14,8 +14,8 @@ Covers:
 import json
 import os
 import tempfile
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -556,7 +556,6 @@ def mock_oracle(_import_module):
 def adapter(_import_module, mock_oracle, _mock_web3_ecosystem):
     """Create MAEKGovernanceAdapter with mocked dependencies."""
     mod = _import_module
-    mocks = _mock_web3_ecosystem
 
     mock_w3 = MagicMock()
 
@@ -598,11 +597,10 @@ class TestMAEKGovernanceAdapter:
         self, adapter, sample_action, _import_module
     ):
         """When Web3.keccak raises, should return None."""
-        mod = _import_module
         # Patch the Web3 used by the module to raise
         with patch.object(adapter, "governor_address", side_effect=Exception("boom")):
             # Trigger exception in the try block by making keccak fail
-            orig_keccak = (
+            (
                 type(adapter.w3).keccak if hasattr(type(adapter.w3), "keccak") else None
             )
             # We can trigger the exception by making the string concatenation fail

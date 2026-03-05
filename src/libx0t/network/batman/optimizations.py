@@ -171,7 +171,7 @@ class AODVFallback:
 
         # Check if route exists in cache
         if destination in self.route_cache:
-            route = self.route_cache[destination]
+            self.route_cache[destination]
             # Check if route is still valid
             # Route validation implementation
             # Validates route by checking connectivity

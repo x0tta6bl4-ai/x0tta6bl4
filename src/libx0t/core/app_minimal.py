@@ -141,7 +141,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     metrics_str = f"""# HELP mesh_peers_count Number of known peers

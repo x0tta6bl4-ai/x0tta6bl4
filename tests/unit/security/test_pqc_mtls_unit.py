@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-import pytest
 
 from src.security import pqc_mtls as mod
 

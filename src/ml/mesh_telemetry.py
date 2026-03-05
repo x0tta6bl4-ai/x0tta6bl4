@@ -137,7 +137,7 @@ class MeshTelemetryGenerator:
         elif scenario == ScenarioType.PARTITION:
             self._apply_partition(features, labels, edges)
 
-        num_anomalous = sum(1 for l in labels if l > 0.5)
+        num_anomalous = sum(1 for label in labels if label > 0.5)
         return MeshSnapshot(
             node_features=features,
             edge_index=edges,
@@ -321,7 +321,7 @@ class MeshTelemetryGenerator:
         """Network partition: a group of nodes loses connectivity."""
         partition_size = self.rng.randint(2, max(2, len(features) // 4))
         partitioned = self.rng.sample(range(len(features)), partition_size)
-        partitioned_set = set(partitioned)
+        set(partitioned)
 
         for idx in partitioned:
             f = features[idx]
@@ -365,7 +365,7 @@ def generate_training_data(
     logger.info(
         f"Generated training data: {len(all_features)} nodes, "
         f"{len(all_edges)} edges, "
-        f"{sum(1 for l in all_labels if l > 0.5)} anomalies "
-        f"({sum(1 for l in all_labels if l > 0.5)/len(all_labels)*100:.1f}%)"
+        f"{sum(1 for label in all_labels if label > 0.5)} anomalies "
+        f"({sum(1 for label in all_labels if label > 0.5)/len(all_labels)*100:.1f}%)"
     )
     return all_features, all_edges, all_labels

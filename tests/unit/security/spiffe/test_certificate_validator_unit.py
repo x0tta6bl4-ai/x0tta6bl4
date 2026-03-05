@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-import pytest
 from cryptography import x509
 
 

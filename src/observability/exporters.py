@@ -464,7 +464,7 @@ class BatchSpanProcessor:
                 try:
                     span = self._queue.get(timeout=0.1)
                     batch.append(span)
-                except:
+                except Exception:
                     pass
                 
                 # Check if we should export
@@ -490,7 +490,7 @@ class BatchSpanProcessor:
         if not self._shutdown:
             try:
                 self._queue.put_nowait(span)
-            except:
+            except Exception:
                 logger.warning("Span queue full, dropping span")
     
     def shutdown(self) -> None:

@@ -7,8 +7,7 @@ Covers 60+ test scenarios for P1 #4.
 
 import asyncio
 import time
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import numpy as np
 import pytest
@@ -406,10 +405,10 @@ class TestCachedRAGPipeline:
         cached_pipeline = CachedRAGPipeline(mock_pipeline)
 
         result1 = await cached_pipeline.retrieve("test query", use_cache=True)
-        assert result1["cache_hit"] == False
+        assert not result1["cache_hit"]
 
         result2 = await cached_pipeline.retrieve("test query", use_cache=True)
-        assert result2["cache_hit"] == True
+        assert result2["cache_hit"]
 
     @pytest.mark.asyncio
     async def test_cached_rag_retrieve_without_cache(self):
@@ -423,7 +422,7 @@ class TestCachedRAGPipeline:
 
         result = await cached_pipeline.retrieve("test query", use_cache=False)
 
-        assert result["cache_hit"] == False
+        assert not result["cache_hit"]
 
     @pytest.mark.asyncio
     async def test_cached_rag_cache_stats(self):
@@ -625,12 +624,12 @@ class TestRAGEdgeCases:
         cache.put(queries[0], [{"id": "1"}], [0.95])
 
         stats = cache.get_stats()
-        initial_size = stats["cache_size"]
+        stats["cache_size"]
 
         for query in queries[1:]:
             cache.get(query)
 
-        final_stats = cache.get_stats()
+        cache.get_stats()
 
 
 if __name__ == "__main__":

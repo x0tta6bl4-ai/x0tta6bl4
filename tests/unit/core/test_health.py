@@ -2,12 +2,9 @@
 Tests for core health module.
 """
 
-import os
-import sys
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from src.core.health import check_cli, get_health
 
@@ -57,7 +54,7 @@ class TestHealth:
         """Test CLI health check with failure status"""
         with (
             patch("src.core.health.get_health", return_value={"status": "error"}),
-            patch("sys.stdout", new=StringIO()) as mock_stdout,
+            patch("sys.stdout", new=StringIO()),
             patch("sys.exit") as mock_exit,
         ):
             check_cli()

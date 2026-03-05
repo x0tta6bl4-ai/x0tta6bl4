@@ -135,7 +135,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         
         # Extract trace context from headers
         headers = dict(request.headers)
-        parent_context = RequestTracer.extract_context(headers)
+        RequestTracer.extract_context(headers)
         
         # Create span name from request
         span_name = self._get_span_name(request)
@@ -313,7 +313,7 @@ class AsyncTracingMiddleware:
         # Extract trace context
         headers = dict(scope.get("headers", []))
         headers = {k.decode(): v.decode() for k, v in headers}
-        parent_context = RequestTracer.extract_context(headers)
+        RequestTracer.extract_context(headers)
         
         # Create span
         method = scope.get("method", "UNKNOWN")

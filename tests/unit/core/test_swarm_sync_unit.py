@@ -1,7 +1,6 @@
 """Unit tests for src/core/swarm_sync.py."""
 
 import json
-from pathlib import Path
 
 from src.core import swarm_sync as mod
 

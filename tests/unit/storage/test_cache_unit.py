@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-import pytest
 
 from src.storage.cache import DistributedCache, LRUCache, cache_key, cached
 

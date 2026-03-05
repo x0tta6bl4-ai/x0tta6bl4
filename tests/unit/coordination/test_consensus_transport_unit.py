@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -620,7 +618,7 @@ class TestDistributedConsensusNode:
         assert node._current_term == 5
         assert node._voted_for == "candidate"
         mock_task.assert_called_once()
-        sent_msg: ConsensusMessage = mock_task.call_args[0][0].cr_frame.f_locals.get(
+        mock_task.call_args[0][0].cr_frame.f_locals.get(
             "message", None
         ) if False else None
         # Verify via transport send call — just check create_task was invoked
@@ -711,7 +709,7 @@ class TestDistributedConsensusNode:
         with patch(
             "src.coordination.consensus_transport.ConsensusTransport.__init__",
             return_value=None,
-        ) as mock_init:
+        ):
             # We can't easily test this without patching — just verify constructor accepts None
             pass
         # Basic: passing explicit transport works

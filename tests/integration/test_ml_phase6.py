@@ -6,7 +6,6 @@ Focused tests for complete ML module integration, production scenarios.
 
 import asyncio
 import time
-from datetime import datetime
 
 import numpy as np
 import pytest
@@ -14,7 +13,7 @@ import pytest
 from src.ml.anomaly import AnomalyDetectionSystem
 from src.ml.decision import DecisionEngine, Policy, PolicyPriority
 from src.ml.integration import MLEnhancedMAPEK
-from src.ml.lora import LoRAAdapter, LoRAConfig
+from src.ml.lora import LoRAConfig
 from src.ml.mlops import MLOpsManager
 from src.ml.rag import RAGAnalyzer
 

@@ -4,9 +4,7 @@ Chaos Monkey tests for MAPE-K self-healing.
 Tests recovery from various failure scenarios.
 """
 
-import asyncio
 import time
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -166,7 +164,7 @@ class TestMAPEKChaosMonkey:
     def test_threshold_adaptation(self):
         """Test adaptive threshold adjustment"""
         knowledge = MAPEKKnowledge()
-        monitor = MAPEKMonitor(knowledge=knowledge)
+        MAPEKMonitor(knowledge=knowledge)
 
         # Record false positives
         for _ in range(5):

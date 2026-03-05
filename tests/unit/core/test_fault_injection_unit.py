@@ -94,7 +94,6 @@ class TestRedisCacheFailure:
     @pytest.mark.asyncio
     async def test_in_memory_backend_get_set_delete(self):
         """InMemoryCacheBackend basic operations work correctly."""
-        import time as _time
 
         from src.core.cache import InMemoryCacheBackend
 
@@ -165,7 +164,6 @@ class TestCircuitBreakerStateMachine:
 
     @pytest.mark.asyncio
     async def test_trips_to_open_after_threshold(self):
-        from src.core.circuit_breaker import CircuitBreakerOpen
 
         cb = self._make_cb(failure_threshold=3)
 
@@ -225,7 +223,7 @@ class TestCircuitBreakerStateMachine:
 
     @pytest.mark.asyncio
     async def test_fallback_used_when_circuit_open(self):
-        from src.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+        from src.core.circuit_breaker import CircuitBreaker
 
         fallback = AsyncMock(return_value={"degraded": True})
         cb = CircuitBreaker(
@@ -242,7 +240,7 @@ class TestCircuitBreakerStateMachine:
             await cb.call(failing)
 
         # Circuit is now open; should invoke fallback
-        result = await cb.call(AsyncMock(side_effect=RuntimeError("still down")))
+        await cb.call(AsyncMock(side_effect=RuntimeError("still down")))
         fallback.assert_called_once()
 
     @pytest.mark.asyncio
@@ -462,8 +460,7 @@ class TestGracefulDegradation:
         assert "db" in parts
 
     def test_no_header_when_no_degraded(self):
-        from src.core.reliability_policy import (get_degraded_dependencies,
-                                                 set_degraded_dependencies_header)
+        from src.core.reliability_policy import (set_degraded_dependencies_header)
 
         req = _make_request_state()
         response = MagicMock()
@@ -641,7 +638,7 @@ class TestShutdownHooks:
 
     def test_shutdown_middleware_rejects_during_shutdown(self):
         """ShutdownMiddleware returns 503 when shutdown is in progress."""
-        from src.core.graceful_shutdown import GracefulShutdownManager, ShutdownMiddleware
+        from src.core.graceful_shutdown import GracefulShutdownManager
 
         mgr = GracefulShutdownManager(force_exit=False)
         mgr.state.is_shutting_down = True

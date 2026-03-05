@@ -9,8 +9,6 @@ Tests complete FL flow:
 - Privacy preservation
 """
 
-from typing import Dict, List
-from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest

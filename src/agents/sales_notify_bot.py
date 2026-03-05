@@ -38,7 +38,7 @@ class SalesBot:
         # Сейчас мы эмулируем продажу для теста
         if os.path.exists(SALES_LOG):
             with open(SALES_LOG, 'r') as f:
-                lines = f.readlines()
+                f.readlines()
                 # (Логика чтения новых строк была бы тут)
                 pass
 

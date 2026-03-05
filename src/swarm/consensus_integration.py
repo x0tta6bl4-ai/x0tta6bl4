@@ -16,7 +16,6 @@ import uuid
 from .consensus import (
     ConsensusEngine,
     RaftNode,
-    RaftState,
 )
 from .paxos import PaxosNode, MultiPaxos
 from .pbft import PBFTNode

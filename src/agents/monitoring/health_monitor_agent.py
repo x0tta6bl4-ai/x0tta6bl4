@@ -226,7 +226,7 @@ class HealthMonitorAgent:
     async def _analyze_with_mape_k(self) -> None:
         """Анализ через MAPE-K loop (упрощённая версия)."""
         # Подготовка данных для анализа
-        knowledge = {
+        {
             "health_history": self._get_recent_health_summary(),
             "active_alerts": len(self.active_alerts),
             "timestamp": datetime.utcnow().isoformat(),

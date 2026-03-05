@@ -79,7 +79,7 @@ class TestPQCKeyExchangeKeypair:
         mock_handle = MagicMock()
         mock_store.store_key.return_value = mock_handle
 
-        kp = kem.generate_keypair(key_id="my-key", validity_days=7)
+        kem.generate_keypair(key_id="my-key", validity_days=7)
         mock_store.store_key.assert_called_once_with(
             key_id="my-key",
             secret_key=b"sec",

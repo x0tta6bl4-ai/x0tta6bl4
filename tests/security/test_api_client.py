@@ -1,13 +1,12 @@
-import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.security.spiffe.workload.api_client import (JWTSVID, X509SVID,
+from src.security.spiffe.workload.api_client import (X509SVID,
                                                      WorkloadAPIClient)
 
 

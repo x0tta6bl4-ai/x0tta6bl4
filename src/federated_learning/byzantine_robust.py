@@ -73,7 +73,7 @@ class EnhancedKrumAggregator(KrumAggregator):
             # Vectorized distance computation (if numpy available)
             try:
                 distances = self._compute_distances_vectorized(vectors)
-            except:
+            except Exception:
                 # Fallback to pairwise
                 distances = self._compute_pairwise_distances(vectors)
 
@@ -388,7 +388,7 @@ class AdaptiveTrimmedMeanAggregator(TrimmedMeanAggregator):
                 adaptive_beta = max(0.05, base_beta * 0.5)
             else:
                 adaptive_beta = base_beta
-        except:
+        except Exception:
             adaptive_beta = base_beta
 
         return adaptive_beta

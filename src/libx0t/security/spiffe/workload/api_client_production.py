@@ -220,7 +220,7 @@ class WorkloadAPIClientProduction:
 
             # Extract the trust domain from the token's SPIFFE ID
             # Assuming the token's subject (sub) contains the SPIFFE ID
-            unverified_headers = jwt.get_unverified_header(token)
+            jwt.get_unverified_header(token)
             unverified_claims = jwt.get_unverified_claims(token)
 
             token_spiffe_id = unverified_claims.get("sub")

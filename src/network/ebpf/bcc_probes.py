@@ -128,7 +128,7 @@ int queue_congestion(struct pt_regs *ctx) {
                 for event in self.congestion_bpf.trace_read():
                     if "queue_len" in event:
                         parts = event.split()
-                        ifindex = int(parts[1].split("=")[1])
+                        int(parts[1].split("=")[1])
                         qlen = int(parts[2].split("=")[1])
                         QUEUE_CONGESTION.labels(interface=self.interface).set(qlen)
                         self.current_congestion = qlen

@@ -377,7 +377,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     current_time = time.time()

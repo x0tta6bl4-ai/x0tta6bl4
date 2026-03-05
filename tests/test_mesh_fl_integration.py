@@ -5,15 +5,13 @@ Tests for Mesh-FL Integration Layer
 Tests topology-aware aggregation and Batman-adv integration.
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
 
 from src.federated_learning.topology_aware_aggregator import (
-    AggregationResult,
     BatmanAdvMetricsProvider,
     ModelUpdate,
     NodeConnectivity,

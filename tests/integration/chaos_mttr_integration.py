@@ -11,12 +11,10 @@ system meets Stage 1 requirements:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
-from tests.chaos.test_slot_sync_chaos import (ChaosTestResult,
-                                              SlotSyncChaosTester)
-from tests.validation.mttr_validator import (MTTRValidationResult,
-                                             MTTRValidator, RecoveryType)
+from tests.chaos.test_slot_sync_chaos import (SlotSyncChaosTester)
+from tests.validation.mttr_validator import (MTTRValidator, RecoveryType)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

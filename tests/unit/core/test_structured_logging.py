@@ -5,12 +5,9 @@ Unit tests for structured logging module.
 import json
 import logging
 import pytest
-from io import StringIO
-from unittest.mock import patch, MagicMock
 
 from src.core.structured_logging import (
     StructuredFormatter,
-    StructuredLogger,
     mask_sensitive,
     set_trace_context,
     generate_trace_id,
@@ -19,7 +16,6 @@ from src.core.structured_logging import (
     timed,
     LogContext,
     configure_logging,
-    SENSITIVE_FIELDS,
     MASK,
 )
 

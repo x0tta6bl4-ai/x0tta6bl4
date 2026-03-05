@@ -9,13 +9,11 @@ Covers:
 """
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
-from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerMetrics,
-                                      CircuitBreakerOpen, CircuitState,
+from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerOpen, CircuitState,
                                       circuit_breaker, create_circuit_breaker,
                                       get_circuit_breaker)
 

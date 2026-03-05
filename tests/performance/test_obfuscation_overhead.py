@@ -3,7 +3,6 @@ Performance Benchmark for Obfuscation Layer.
 Measures latency overhead and CPU impact of different transports.
 """
 
-import os
 import statistics
 import time
 

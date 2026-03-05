@@ -299,7 +299,7 @@ class AnomalyDetectionSystem:
                 if deviations
                 else "unknown"
             )
-            max_dev_value = deviations.get(max_dev_metric, 0.0)
+            deviations.get(max_dev_metric, 0.0)
 
             anomaly = Anomaly(
                 timestamp=datetime.now().isoformat(),

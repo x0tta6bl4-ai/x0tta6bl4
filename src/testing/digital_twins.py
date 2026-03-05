@@ -133,7 +133,7 @@ class DigitalTwinsSimulator:
 
         # Запускаем self-healing (симуляция)
         recovery_start = datetime.now()
-        recovery_time = await self._simulate_self_healing(scenario, affected_nodes)
+        await self._simulate_self_healing(scenario, affected_nodes)
         recovery_end = datetime.now()
 
         actual_recovery_time = (recovery_end - recovery_start).total_seconds()

@@ -44,7 +44,7 @@ class TestPrometheusExporterInitialization:
         security = MagicMock()
         exporter = PrometheusExporter(telemetry_config, security)
 
-        assert exporter.server_started == False
+        assert not exporter.server_started
 
 
 class TestPrometheusExporterMetricRegistration:
@@ -286,7 +286,7 @@ class TestPrometheusExporterBatchExport:
         """Test auto-registration of metrics."""
         metrics_data = {"new_metric": 42.0}
 
-        result = exporter.export_metrics(metrics_data)
+        exporter.export_metrics(metrics_data)
 
         # Metric should be auto-registered
         assert "new_metric" in exporter.metric_definitions
@@ -322,7 +322,7 @@ class TestPrometheusExporterHTTPServer:
                 exporter.start_server()
 
                 mock_start.assert_called_once()
-                assert exporter.server_started == True
+                assert exporter.server_started
 
     def test_start_server_already_started(self, exporter):
         """Test starting server when already started."""
@@ -341,7 +341,7 @@ class TestPrometheusExporterHTTPServer:
             exporter.start_server()
 
             # Should not start
-            assert exporter.server_started == False
+            assert not exporter.server_started
 
     def test_get_metrics_text(self, exporter):
         """Test getting metrics in text format."""

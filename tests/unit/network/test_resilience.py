@@ -7,11 +7,8 @@ Tests cover:
 - WANOverlayPQC: PQC tunnel management
 """
 
-import asyncio
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-import time
 
 
 # Test MakeNeverBreak Engine
@@ -361,7 +358,7 @@ class TestWANOverlayPQC:
     @pytest.fixture
     def overlay(self):
         """Create a WAN overlay instance for testing."""
-        from src.network.resilience.wan_overlay_pqc import WANOverlayPQC, CryptoMode, TunnelState
+        from src.network.resilience.wan_overlay_pqc import WANOverlayPQC, CryptoMode
         
         # Use PQC_ONLY mode to avoid cryptography serialization issues in tests
         return WANOverlayPQC(

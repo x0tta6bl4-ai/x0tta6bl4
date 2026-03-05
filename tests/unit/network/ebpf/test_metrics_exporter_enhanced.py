@@ -9,7 +9,6 @@ These tests cover:
 - Error reporting
 """
 
-import json
 import subprocess
 import time
 from unittest.mock import MagicMock, patch
@@ -17,8 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.network.ebpf.metrics_exporter_enhanced import (
-    EBPFMetricsExporterEnhanced, MetricValidationResult,
-    MetricValidationStatus)
+    EBPFMetricsExporterEnhanced, MetricValidationStatus)
 
 
 class TestEBPFMetricsExporterEnhanced:
@@ -132,7 +130,7 @@ class TestEBPFMetricsExporterEnhanced:
 
     def test_performance_tracking(self, metrics_exporter):
         """Test performance tracking."""
-        start_time = time.time()
+        time.time()
         metrics_exporter._track_performance("read_time", 0.010)
         metrics_exporter._track_performance("read_time", 0.020)
         metrics_exporter._track_performance("read_time", 0.015)
@@ -285,7 +283,7 @@ class TestEBPFMetricsExporterEnhanced:
                 read_result if not isinstance(read_result, Exception) else None
             ),
             side_effect=read_result if isinstance(read_result, Exception) else None,
-        ) as mock_read:
+        ):
 
             result = metrics_exporter._read_map_via_bpftool_with_timeout("test_map")
 

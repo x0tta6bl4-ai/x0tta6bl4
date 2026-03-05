@@ -4,8 +4,6 @@ Fuzzing tests for Post-Quantum Cryptography (LibOQS).
 Tests edge cases, malformed inputs, and security boundaries.
 """
 
-import os
-from typing import Optional
 
 import pytest
 

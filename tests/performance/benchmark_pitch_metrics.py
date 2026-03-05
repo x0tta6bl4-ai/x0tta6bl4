@@ -20,7 +20,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -297,7 +297,7 @@ class PQCHandshakeBenchmark:
             shared_secret, ciphertext = backend.kem_encapsulate(keypair.public_key)
 
             # Decapsulate (completes handshake)
-            recovered_secret = backend.kem_decapsulate(ciphertext, keypair.private_key)
+            backend.kem_decapsulate(ciphertext, keypair.private_key)
 
             handshake_time = (time.perf_counter() - start_time) * 1000  # Convert to ms
             latencies_ms.append(handshake_time)
@@ -322,7 +322,7 @@ class PQCHandshakeBenchmark:
         p99 = statistics.quantiles(latencies_ms, n=100)[98]  # 99th percentile
         avg = statistics.mean(latencies_ms)
 
-        logger.info(f"✅ PQC Handshake Latency:")
+        logger.info("✅ PQC Handshake Latency:")
         logger.info(f"   Average: {avg:.3f}ms")
         logger.info(f"   p50: {p50:.3f}ms")
         logger.info(f"   p95: {p95:.3f}ms (target: {self.TARGET_HANDSHAKE_MS_P95}ms)")
@@ -527,15 +527,15 @@ async def main():
     else:
         # Run specific benchmarks
         if args.mttd:
-            results = await benchmark.mttd_benchmark.measure_detection_time(
+            await benchmark.mttd_benchmark.measure_detection_time(
                 iterations=args.iterations
             )
         if args.mttr:
-            results = await benchmark.mttr_benchmark.measure_recovery_time(
+            await benchmark.mttr_benchmark.measure_recovery_time(
                 iterations=args.iterations
             )
         if args.pqc:
-            results = benchmark.pqc_benchmark.measure_handshake_latency(
+            benchmark.pqc_benchmark.measure_handshake_latency(
                 iterations=args.pqc_iterations
             )
 

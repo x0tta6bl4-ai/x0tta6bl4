@@ -318,7 +318,6 @@ def db_session():
         def test_something(db_session):
             result = db_session.query(Model).first()
     """
-    import contextlib
 
     try:
         # Attempt to import SQLAlchemy - fallback to mock if not available

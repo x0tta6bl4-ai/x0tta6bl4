@@ -118,7 +118,7 @@ async def health_check_loop():
                                 "last_seen": last_seen,
                                 "elapsed": elapsed,
                             }
-                            event = byzantine_protection.report_node_failure(
+                            byzantine_protection.report_node_failure(
                                 peer_id, evidence
                             )
                             logger.info(
@@ -383,7 +383,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     current_time = time.time()

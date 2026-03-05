@@ -169,7 +169,7 @@ class DAOKnowledgeStorage:
 
         try:
             # Extract directive from state
-            directives = entry.data.get("directives", {})
+            entry.data.get("directives", {})
 
             # Create proposal
             proposal_id = self.dao_engine.create_proposal(

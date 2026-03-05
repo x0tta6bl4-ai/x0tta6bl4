@@ -5,7 +5,6 @@ Tests for LedgerDriftDetector from src/ledger/drift_detector.py.
 This version tests the new API introduced after Paradox Zone consolidation.
 """
 
-from pathlib import Path
 
 import pytest
 

@@ -4,7 +4,6 @@ Phase 2: PQC MAPE-K Integration Tests
 Tests PQC integration with MAPE-K self-healing loop.
 """
 
-import time
 
 import pytest
 

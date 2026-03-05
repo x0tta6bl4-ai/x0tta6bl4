@@ -7,7 +7,7 @@ from math import sqrt
 
 import pytest
 
-from src.dao.governance import (GovernanceEngine, Proposal, ProposalState,
+from src.dao.governance import (GovernanceEngine, ProposalState,
                                 VoteType)
 
 

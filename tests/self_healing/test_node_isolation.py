@@ -13,16 +13,12 @@
 
 import threading
 import time
-from unittest.mock import Mock, patch
 
 import pytest
 
-from src.security.auto_isolation import AutoIsolationManager
 from src.security.auto_isolation import \
     CircuitBreaker as IsolationCircuitBreaker
-from src.security.auto_isolation import (IsolationLevel, IsolationPolicy,
-                                         IsolationReason, IsolationRecord,
-                                         QuarantineZone)
+from src.security.auto_isolation import (IsolationLevel, IsolationReason, IsolationRecord)
 
 
 class TestIsolationLevel:

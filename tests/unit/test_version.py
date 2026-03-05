@@ -241,19 +241,7 @@ class TestVersionConsistency:
         from src.version import (
             __version__,
             __build__,
-            __commit__,
             __channel__,
-            __full_version__,
-            get_version,
-            get_version_info,
-            get_api_version,
-            get_docker_tag,
-            get_user_agent,
-            get_health_info,
-            is_compatible,
-            check_min_version,
-            parse_version,
-            VersionInfo,
         )
         
         assert __version__ is not None

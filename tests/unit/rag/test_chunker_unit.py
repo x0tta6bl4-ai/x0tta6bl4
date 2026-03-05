@@ -2,7 +2,6 @@
 
 import importlib.util
 
-import pytest
 
 # Load chunker directly from file to avoid src.rag.__init__.py
 # which imports RAGPipeline and heavy ML models that hang in CI.

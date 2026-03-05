@@ -108,7 +108,7 @@ class InputValidator:
         try:
             json.loads(value)
             return True
-        except:
+        except Exception:
             return False
 
     def validate_ipv4(self, value: str) -> bool:
@@ -120,7 +120,7 @@ class InputValidator:
                 num = int(part)
                 if num < 0 or num > 255:
                     return False
-            except:
+            except Exception:
                 return False
         return True
 

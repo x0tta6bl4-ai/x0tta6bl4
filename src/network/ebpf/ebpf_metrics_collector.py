@@ -146,7 +146,7 @@ class EBPFMetricsCollector:
 
             # Read system metrics map
             sys_metrics_map = self.perf_monitor["system_metrics_map"]
-            sys_metrics = sys_metrics_map[0]
+            sys_metrics_map[0]
 
             # Calculate rates (per second)
             current_time = time.time()

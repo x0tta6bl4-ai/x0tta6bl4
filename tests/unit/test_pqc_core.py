@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock, patch
-import os
 
 # Mock the liboqs wrapper since we might not have the binary in the environment
 class MockOQS:

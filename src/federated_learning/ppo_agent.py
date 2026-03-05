@@ -185,7 +185,7 @@ class MeshRoutingEnv:
         latency = self.current_state.latency[action]
         packet_loss = self.current_state.packet_loss[action]
         trust = self.current_state.trust_scores[action]
-        bandwidth = self.current_state.bandwidth[action]
+        self.current_state.bandwidth[action]
 
         # Simulate packet transmission
         self.hops_taken += 1

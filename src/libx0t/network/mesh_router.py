@@ -205,7 +205,7 @@ class MeshRouter:
                                 logger.info(
                                     f"📡 Discovered new peer: {new_peer.node_id}"
                                 )
-                    except:
+                    except Exception:
                         pass
 
             await asyncio.sleep(60)  # Discover every 60 seconds
@@ -221,7 +221,7 @@ class MeshRouter:
             writer.close()
             await writer.wait_closed()
             return latency
-        except:
+        except Exception:
             return -1
 
     async def _get_peers_from(self, peer: MeshPeer) -> List[MeshPeer]:
@@ -504,7 +504,7 @@ class MeshConnection:
             # Receive: VER METHOD
             response = await asyncio.wait_for(self.reader.read(2), timeout=5.0)
             return response == b"\x05\x00"
-        except:
+        except Exception:
             return False
 
     async def _socks5_connect(self, host: str, port: int) -> bool:
@@ -521,7 +521,7 @@ class MeshConnection:
                 # IPv4
                 request.append(0x01)
                 request.extend(socket.inet_aton(host))
-            except:
+            except Exception:
                 # Domain name
                 request.append(0x03)
                 request.append(len(host))
@@ -586,7 +586,7 @@ class MeshConnection:
         try:
             host, port = self.destination.rsplit(":", 1)
             return await self._connect_direct(host, int(port))
-        except:
+        except Exception:
             return False
 
     def get_tunnel(self):
@@ -599,7 +599,7 @@ class MeshConnection:
             try:
                 self.writer.close()
                 await self.writer.wait_closed()
-            except:
+            except Exception:
                 pass
         self.reader = None
         self.writer = None

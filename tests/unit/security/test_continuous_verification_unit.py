@@ -21,7 +21,7 @@ from src.security.continuous_verification import (BehaviorProfile,
                                                   DeviceVerificationStrategy,
                                                   IdentityVerificationStrategy,
                                                   NetworkVerificationStrategy,
-                                                  RiskLevel, Session,
+                                                  Session,
                                                   SessionVerificationStrategy,
                                                   VerificationCheck,
                                                   VerificationResult,
@@ -816,7 +816,7 @@ class TestContinuousVerificationEngine:
             base_interval_seconds=30,
             max_interval_seconds=120,
         )
-        s1 = engine.create_session("entity-1")
+        engine.create_session("entity-1")
         s2 = engine.create_session("entity-2")
         # Make s2 high risk
         s2.risk_score = 0.9
@@ -831,7 +831,7 @@ class TestContinuousVerificationEngine:
 
     def test_get_stats_with_terminated_session(self):
         engine = ContinuousVerificationEngine(node_id="test-node")
-        s1 = engine.create_session("entity-1")
+        engine.create_session("entity-1")
         s2 = engine.create_session("entity-2")
         engine.terminate_session(s2.session_id)
 

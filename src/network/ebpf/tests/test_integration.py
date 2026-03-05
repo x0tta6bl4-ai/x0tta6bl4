@@ -221,7 +221,7 @@ class TestIntegrationPerformance:
 
         # Collect metrics (should read maps in parallel)
         start_time = time.time()
-        metrics = collector.collect_all_metrics()
+        collector.collect_all_metrics()
         end_time = time.time()
 
         # Should complete quickly
@@ -271,13 +271,13 @@ class TestIntegrationLifecycle:
         collector.start()
 
         # Verify started
-        assert collector.stop_event.is_set() == False
+        assert not collector.stop_event.is_set()
 
         # Stop collector
         collector.stop()
 
         # Verify stopped
-        assert collector.stop_event.is_set() == True
+        assert collector.stop_event.is_set()
 
     def test_context_manager(self, telemetry_config, mock_bpf_program):
         """Test using collector as context manager."""
@@ -291,7 +291,7 @@ class TestIntegrationLifecycle:
             assert isinstance(metrics, dict)
 
         # Collector should be stopped after context exit
-        assert collector.stop_event.is_set() == True
+        assert collector.stop_event.is_set()
 
 
 class TestIntegrationStatistics:

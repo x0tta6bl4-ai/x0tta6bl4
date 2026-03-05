@@ -8,13 +8,9 @@ from __future__ import annotations
 
 import json
 import os
-import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 # Ensure no MESH_GOVERNANCE_ADDRESS causes graceful failure in tests
@@ -27,7 +23,6 @@ os.environ.pop("MESH_GOVERNANCE_ADDRESS", None)
 
 from src.dao.proposal_executor_webhook import (
     ExecutorConfig,
-    HelmResult,
     HelmRunner,
     ProcessedStore,
     ProposalExecutedListener,
@@ -193,7 +188,6 @@ class TestHelmRunnerSubprocess:
         assert "not found" in result.stderr
 
     def test_helm_nonzero_exit_returns_failure(self, tmp_path):
-        import subprocess
         cfg = self._cfg(tmp_path)
         runner = HelmRunner(cfg)
         mock_proc = MagicMock()
@@ -356,7 +350,6 @@ class TestProposalExecutedListenerNoWeb3:
         listener._contract = mock_contract
 
         # Patch subprocess to fail
-        import subprocess
         with patch("subprocess.run", side_effect=FileNotFoundError("helm not found")):
             listener.poll_once()
 

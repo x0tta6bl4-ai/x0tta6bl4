@@ -11,9 +11,6 @@ Tests the Paxos implementation including:
 
 import asyncio
 import pytest
-from datetime import datetime
-from typing import Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.swarm.paxos import (
     PaxosPhase,

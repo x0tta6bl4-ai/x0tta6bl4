@@ -1,5 +1,4 @@
 import subprocess
-from types import SimpleNamespace
 
 from src.network import yggdrasil_client
 

@@ -1,9 +1,8 @@
 """Unit tests for src/core/mape_k_loop.py — MAPE-K autonomic loop."""
 
-import time
 from dataclasses import dataclass
 from enum import Enum
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

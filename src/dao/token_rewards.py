@@ -170,7 +170,7 @@ class TokenRewards:
                 ).call()
                 balance = Decimal(balance_wei) / Decimal("1e18")
                 return f"{balance:.4f}"
-            except:
+            except Exception:
                 pass
         return f"{self.balance:.4f}"
 

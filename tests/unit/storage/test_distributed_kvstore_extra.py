@@ -4,9 +4,7 @@ Additional tests for Distributed KV Store.
 Tests edge cases, error handling, and distributed scenarios.
 """
 
-import asyncio
-from typing import Dict, List
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 

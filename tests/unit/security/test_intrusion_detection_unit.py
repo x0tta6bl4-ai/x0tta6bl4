@@ -6,7 +6,6 @@ behavioral baselines, alert filtering, incident response, and statistics.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 

@@ -10,13 +10,11 @@ Comprehensive tests for:
 - Resilience pattern integration
 """
 
-import asyncio
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
 
 # Import API and models
 from src.edge.api import (
@@ -24,20 +22,15 @@ from src.edge.api import (
     edge_startup,
     edge_shutdown,
     EdgeNodeRegister,
-    EdgeNodeResponse,
     ResourceMetrics,
     TaskSubmit,
-    TaskResponse,
-    TaskStatus,
-    TaskResult,
     CacheValueRequest,
-    EdgeHealth,
 )
 
 # Import edge components
 from src.edge.edge_node import EdgeNode, EdgeNodeManager, EdgeNodeStatus
 from src.edge.task_distributor import TaskDistributor, TaskDistributionStrategy
-from src.edge.edge_cache import EdgeCache, CachePolicy
+from src.edge.edge_cache import EdgeCache
 
 
 # =============================================================================
@@ -533,7 +526,7 @@ class TestResilienceIntegration:
                 responses.append(client.get("/edge/nodes"))
             
             # Some should be rate limited
-            rate_limited = [r for r in responses if r.status_code == 429]
+            [r for r in responses if r.status_code == 429]
             # Note: In test environment, rate limiting might not trigger
             # This is more of an integration test
     

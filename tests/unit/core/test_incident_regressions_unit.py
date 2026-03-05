@@ -17,7 +17,7 @@ Incidents covered:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 
@@ -38,7 +38,6 @@ class TestIncident001DBCircuitBreakerDatetime:
 
     def test_open_duration_calculation_handles_datetime(self):
         """Open-duration math must work whether last_failure_time is float or datetime."""
-        import time
         # Simulate the fixed code path from database/__init__.py
         lft_as_datetime = datetime.utcnow()
         # Should not raise:
@@ -57,7 +56,6 @@ class TestIncident001DBCircuitBreakerDatetime:
 
     def test_database_module_isinstance_guard_present(self):
         """database/__init__.py must have isinstance guard for datetime vs float."""
-        import ast
         import pathlib
         src = pathlib.Path("/mnt/projects/src/database/__init__.py").read_text()
         # Check guard is present
@@ -265,7 +263,6 @@ class TestIncident007OTLPExporterSocksProxy:
         with patch.dict(os.environ, env_override):
             try:
                 # These imports must not trigger any httpx socks connection
-                import importlib
                 import src.core.logging_config  # noqa: F401
             except Exception as e:
                 raise AssertionError(
@@ -294,10 +291,8 @@ class TestIncident008MAPEKMonitorReturnType:
         if hasattr(monitor, "check"):
             # The return type should be consistent — either always dict or always bool
             # This test documents that callers should not assume bool
-            import inspect
-            hints = {}
             try:
-                hints = monitor.check.__annotations__
+                pass
             except AttributeError:
                 pass
             # No crash during introspection

@@ -1,7 +1,6 @@
 import pytest
-import asyncio
 import time
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock
 from libx0t.core.circuit_breaker import (
     CircuitBreaker, CircuitState, CircuitBreakerOpen, circuit_breaker, create_circuit_breaker, _circuit_breakers
 )

@@ -12,7 +12,7 @@ import logging
 import pytest
 import unittest.mock as mock
 
-from src.swarm.pq_agent import create_pq_agent, PQSecureAgent
+from src.swarm.pq_agent import create_pq_agent
 from src.security.pqc_spiffe import PQCSpiffeBridge
 
 # Mock SPIRE for testing
