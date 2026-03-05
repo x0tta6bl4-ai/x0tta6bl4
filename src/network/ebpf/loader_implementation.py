@@ -8,19 +8,15 @@ All TODO items from loader.py are implemented here.
 """
 
 import logging
-import os
-import struct
 import subprocess
-import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 # Import base classes
 from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
-                                     EBPFLoader, EBPFLoadError,
-                                     EBPFProgramType)
+                                     EBPFLoader)
 
 
 class EBPFLoaderImplementation(EBPFLoader):

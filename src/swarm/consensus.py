@@ -6,7 +6,6 @@ decision making for swarm coordination.
 """
 
 import asyncio
-import hashlib
 import logging
 import time
 from dataclasses import dataclass, field

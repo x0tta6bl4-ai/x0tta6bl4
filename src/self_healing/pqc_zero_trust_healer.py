@@ -154,7 +154,6 @@ class PQCZeroTrustMonitor(MAPEKMonitor):
     ) -> List[PQCSessionAnomaly]:
         """Detect PQC session anomalies"""
         anomalies = []
-        import time
         from datetime import datetime
 
         current_time = datetime.fromtimestamp(current_ts)
@@ -769,7 +768,6 @@ class PQCZeroTrustHealer:
 
 if __name__ == "__main__":
     # Test the healer
-    import sys
 
     async def test_healer():
         healer = PQCZeroTrustHealer()

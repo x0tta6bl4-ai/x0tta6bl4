@@ -11,8 +11,6 @@ Provides distributed tracing for x0tta6bl4 with spans for:
 """
 
 import logging
-import os
-import time
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
@@ -454,7 +452,7 @@ def initialize_tracing(service_name: str = "x0tta6bl4", app=None):
             _tracer_manager.instrument_fastapi(app)
 
         _tracer_manager.instrument_requests()
-        logger.info(f"✅ OpenTelemetry tracing initialized")
+        logger.info("✅ OpenTelemetry tracing initialized")
 
 
 def get_tracer_manager() -> Optional[OTelTracingManager]:

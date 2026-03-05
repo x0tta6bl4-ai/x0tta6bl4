@@ -9,12 +9,11 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from src.ml.lora.adapter import LoRAAdapter
-from src.ml.lora.config import LoRAConfig
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +101,7 @@ class LoRAComposer:
         if weights is None:
             weights = [1.0 / len(adapter_ids)] * len(adapter_ids)
         elif len(weights) != len(adapter_ids):
-            logger.error(f"❌ Number of weights must match number of adapters")
+            logger.error("❌ Number of weights must match number of adapters")
             return None
 
         # Normalize weights
@@ -142,7 +141,7 @@ class LoRAComposer:
             composed_model.load_state_dict(state_dict)
             self.composed_model = composed_model
 
-            logger.info(f"✅ Adapter composition complete")
+            logger.info("✅ Adapter composition complete")
             return composed_model
 
         except Exception as e:
@@ -228,11 +227,11 @@ class LoRAQuantizer:
                     if isinstance(module, torch.nn.Linear):
                         module.to(torch.int8)
 
-                logger.info(f"✅ Applied INT8 quantization")
+                logger.info("✅ Applied INT8 quantization")
 
             elif quantization_type == "fp16":
                 adapter_model = adapter_model.half()
-                logger.info(f"✅ Applied FP16 quantization")
+                logger.info("✅ Applied FP16 quantization")
 
             return adapter_model
 

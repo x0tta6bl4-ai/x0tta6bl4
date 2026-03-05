@@ -4,7 +4,6 @@ Handles distributing X0T tokens for relay traffic and uptime.
 Supports both local simulation and real Base Sepolia transactions.
 """
 
-import json
 import logging
 import os
 from decimal import Decimal

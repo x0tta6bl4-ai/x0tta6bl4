@@ -16,7 +16,7 @@ import logging
 import os
 import platform
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ class WebRTCLeakFix:
             # Write back
             with open(prefs_file, "w") as f:
                 f.write("// x0tta6bl4 WebRTC Leak Fix\n")
-                f.write(f"// Generated automatically\n\n")
+                f.write("// Generated automatically\n\n")
                 for key, value in existing_prefs.items():
                     if isinstance(value, bool):
                         f.write(f'user_pref("{key}", {str(value).lower()});\n')

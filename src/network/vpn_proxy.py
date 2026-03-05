@@ -368,7 +368,7 @@ class MeshVPNProxy(SOCKS5Server):
 
         if self._mesh_enabled:
             logger.info(f"🔗 Exit Node: {self.exit_node}")
-            logger.info(f"   Traffic will be routed through exit node")
+            logger.info("   Traffic will be routed through exit node")
         else:
             logger.info("🔗 Mode: Direct (use --use-exit for mesh routing)")
 

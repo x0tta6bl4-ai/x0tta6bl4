@@ -5,15 +5,12 @@ Provides context-aware analysis by retrieving relevant historical patterns
 and generating augmented insights for better decision making.
 """
 
-import asyncio
 import json
 import logging
 import os
 import time
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np

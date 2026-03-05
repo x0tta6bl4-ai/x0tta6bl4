@@ -5,9 +5,8 @@ Core types for Parallel-Agent Reinforcement Learning.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import uuid
 import time
 

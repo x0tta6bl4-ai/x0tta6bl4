@@ -13,8 +13,6 @@ Import pattern (lazy, no hard dep on prometheus_client at module load):
 from __future__ import annotations
 
 import logging
-import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

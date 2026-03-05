@@ -10,7 +10,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.ledger.drift_detector import LedgerDriftDetector, get_drift_detector
+from src.ledger.drift_detector import get_drift_detector
 
 logger = logging.getLogger(__name__)
 

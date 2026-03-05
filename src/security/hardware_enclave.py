@@ -9,7 +9,7 @@ and Intel SGX. Ensures root-of-trust originates from hardware.
 import logging
 import os
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 

@@ -9,16 +9,13 @@ Resource isolation patterns for preventing cascade failures:
 - Adaptive Bulkhead: ML-based capacity adjustment
 """
 
-import asyncio
 import logging
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Generic, Union
-from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 

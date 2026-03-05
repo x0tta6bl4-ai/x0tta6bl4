@@ -5,10 +5,7 @@ Provides centralized state management and file-based locking for
 coordinating multiple AI agents working simultaneously.
 """
 
-import asyncio
 import json
-import os
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum

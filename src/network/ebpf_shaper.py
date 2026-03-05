@@ -8,7 +8,6 @@ Compatible with Ubuntu 24.04+
 from bcc import BPF
 import time
 import sys
-import os
 
 # Minimal BPF program - just count packets
 bpf_text = """

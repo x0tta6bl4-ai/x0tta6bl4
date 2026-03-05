@@ -16,8 +16,7 @@ Tests cover:
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from telemetry_module import (MetricDefinition, MetricType, PrometheusExporter,
-                              TelemetryConfig)
+from telemetry_module import (MetricDefinition, MetricType, PrometheusExporter)
 
 
 class TestPrometheusExporterInitialization:
@@ -192,7 +191,6 @@ class TestPrometheusExporterMetricSetting:
         exporter.register_metric(definition)
 
         # Set invalid value (NaN)
-        import math
 
         exporter.set_metric("test_gauge", float("nan"))
 

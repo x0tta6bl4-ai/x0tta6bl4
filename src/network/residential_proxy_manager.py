@@ -18,12 +18,11 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 
 from src.core.circuit_breaker import CircuitBreaker
-from src.core.connection_retry import RetryPolicy, with_retry
 
 logger = logging.getLogger(__name__)
 

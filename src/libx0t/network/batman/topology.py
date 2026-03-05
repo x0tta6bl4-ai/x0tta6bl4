@@ -3,10 +3,9 @@ Batman-adv Mesh Topology Discovery & Management
 Core module for x0tta6bl4 decentralized mesh networking
 """
 
-import heapq
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 

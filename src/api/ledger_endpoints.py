@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from src.ledger.rag_search import LedgerRAGSearch, get_ledger_rag
+from src.ledger.rag_search import get_ledger_rag
 
 logger = logging.getLogger(__name__)
 

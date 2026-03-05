@@ -5,13 +5,10 @@ Stripped of SPIFFE dependencies for basic mesh testing.
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import json
 import logging
 import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse

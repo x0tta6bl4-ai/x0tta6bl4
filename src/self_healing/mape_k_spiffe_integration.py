@@ -17,11 +17,10 @@ Example:
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List
 
 from src.security.spiffe import AttestationStrategy, SPIFFEController
-from src.security.spiffe.workload import JWTSVID, X509SVID
 
 logger = logging.getLogger(__name__)
 

@@ -11,11 +11,10 @@ import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from starlette.responses import RedirectResponse
 
 from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
                                       UserRegisterRequest, TokenResponse)

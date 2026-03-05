@@ -7,8 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from libx0t.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
-                                        shutdown_manager)
+from libx0t.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from libx0t.core.mtls_middleware import MTLSMiddleware
 from libx0t.core.production_lifespan import production_lifespan
 from libx0t.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
@@ -448,7 +447,6 @@ async def root():
     }
 
 
-import math
 import random
 
 

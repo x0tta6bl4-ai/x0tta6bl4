@@ -4,9 +4,8 @@ API Endpoints for Vision Coding Module
 """
 
 import logging
-import base64
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from typing import Any, Dict, List
+from fastapi import APIRouter, HTTPException, File, UploadFile
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)

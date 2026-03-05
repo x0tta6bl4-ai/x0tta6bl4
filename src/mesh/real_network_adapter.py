@@ -8,8 +8,7 @@ import json
 import logging
 import random
 import re
-import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.core.subprocess_validator import validate_command
 

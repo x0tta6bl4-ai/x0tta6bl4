@@ -10,7 +10,7 @@ Tests cover:
 - Error handling
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from telemetry_module import (EventSeverity, PerfBufferReader, TelemetryConfig,

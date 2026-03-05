@@ -8,7 +8,6 @@ Version: 1.0
 
 import logging
 import os
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -68,7 +67,6 @@ class EBPFLoader:
         self.program_stats: Dict[str, Dict[str, Any]] = {}
 
         # DEV MODE: BCC_STUB_MODE env allows stub without failing
-        import os
         if not BCC_AVAILABLE and os.getenv("BCC_STUB_MODE", "false").lower() != "true":
             raise RuntimeError("BCC not available - eBPF programs cannot be loaded. Set BCC_STUB_MODE=true for dev.")
 
@@ -342,7 +340,7 @@ class EBPFLoader:
         """
         if not BCC_AVAILABLE or not program.bpf:
             logger.warning(
-                f"⚠️ Cannot unload program - BCC not available or program not loaded"
+                "⚠️ Cannot unload program - BCC not available or program not loaded"
             )
             return False
 

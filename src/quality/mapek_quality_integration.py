@@ -19,13 +19,13 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..core.mape_k_thread_safe import ThreadSafeMAPEKLoop
 from ..core.thread_safe_stats import ThreadSafeMetrics
-from .code_quality_analyzer import CodeQualityAnalyzer, QualityMetrics
+from .code_quality_analyzer import CodeQualityAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +298,7 @@ class MAPEKQualityMonitor:
         self.improvement_queue = self._generate_improvements(analysis_results)
 
         # Log summary
-        logger.info(f"Quality analysis completed:")
+        logger.info("Quality analysis completed:")
         logger.info(f"  Files analyzed: {analysis_results['files_analyzed']}")
         logger.info(f"  Overall quality: {total_metrics.overall_score():.1f}/100")
         logger.info(f"  Security issues: {total_metrics.security_issues}")
@@ -525,7 +525,6 @@ class MAPEKQualityMonitor:
                 content = f.read()
 
             # Check for common security patterns and suggest fixes
-            from src.quality.code_quality_analyzer import CodeQualityAnalyzer
 
             # Detect hardcoded secrets
             if (

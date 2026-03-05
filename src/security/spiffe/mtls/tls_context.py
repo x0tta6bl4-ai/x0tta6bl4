@@ -6,7 +6,7 @@ import ssl
 import tempfile
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 from ..workload import X509SVID
 

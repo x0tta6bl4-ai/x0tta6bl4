@@ -6,11 +6,9 @@ Date: February 2, 2026
 Version: 1.0
 """
 
-import hashlib
 import logging
 import os
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 

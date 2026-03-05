@@ -6,11 +6,9 @@ Enhanced version with Signed Gossip and Quorum Validation.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import random
 import time
-from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, HTTPException

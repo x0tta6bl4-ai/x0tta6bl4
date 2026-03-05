@@ -20,12 +20,10 @@ Supports:
 import json
 import logging
 import signal
-import struct
 import subprocess
-import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 from pathlib import Path
@@ -501,12 +499,12 @@ class PrometheusExporter:
             start_http_server(self.port)
             self._server_started = True
             self.degradation.update_prometheus_status(True)
-            self.slog.info(f"Prometheus metrics server started", port=self.port)
+            self.slog.info("Prometheus metrics server started", port=self.port)
             return True
         except OSError as e:
             self.degradation.update_prometheus_status(False)
             self.slog.error(
-                f"Failed to start Prometheus server", error=e, port=self.port
+                "Failed to start Prometheus server", error=e, port=self.port
             )
             raise PrometheusExportError(
                 f"Failed to start Prometheus server on port {self.port}",
@@ -528,7 +526,7 @@ class PrometheusExporter:
             self.metrics[name] = metric
             return metric
         except Exception as e:
-            self.slog.error(f"Failed to create gauge metric", error=e, metric_name=name)
+            self.slog.error("Failed to create gauge metric", error=e, metric_name=name)
             raise MetricRegistrationError(
                 f"Failed to create gauge '{name}'",
                 {"metric_name": name, "error": str(e)},
@@ -550,7 +548,7 @@ class PrometheusExporter:
             return metric
         except Exception as e:
             self.slog.error(
-                f"Failed to create counter metric", error=e, metric_name=name
+                "Failed to create counter metric", error=e, metric_name=name
             )
             raise MetricRegistrationError(
                 f"Failed to create counter '{name}'",
@@ -581,7 +579,7 @@ class PrometheusExporter:
             return metric
         except Exception as e:
             self.slog.error(
-                f"Failed to create histogram metric", error=e, metric_name=name
+                "Failed to create histogram metric", error=e, metric_name=name
             )
             raise MetricRegistrationError(
                 f"Failed to create histogram '{name}'",
@@ -714,7 +712,7 @@ class EBPFMetricsExporter:
             )
 
         except Exception as e:
-            self.slog.error(f"Failed to register map", error=e, map_name=map_name)
+            self.slog.error("Failed to register map", error=e, map_name=map_name)
             raise MetricRegistrationError(
                 f"Failed to register map '{map_name}'",
                 {"map_name": map_name, "error": str(e)},
@@ -766,7 +764,7 @@ class EBPFMetricsExporter:
                     else map_info.get("id")
                 )
 
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 raise ParseError(
                     f"Failed to parse bpftool output for map '{map_name}'",
                     {"map_name": map_name, "output": result.stdout[:200]},
@@ -798,7 +796,7 @@ class EBPFMetricsExporter:
             )
             return None
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             raise TimeoutError(
                 f"bpftool command timed out for map '{map_name}'",
                 {"map_name": map_name, "timeout": 5},
@@ -885,7 +883,7 @@ class EBPFMetricsExporter:
                 )
             except Exception as e:
                 self.slog.error(
-                    f"Unexpected error collecting metrics", error=e, map_name=map_name
+                    "Unexpected error collecting metrics", error=e, map_name=map_name
                 )
 
         return metrics
@@ -989,7 +987,7 @@ class EBPFMetricsExporter:
 
                 except Exception as e:
                     self.slog.error(
-                        f"Failed to export metric", error=e, metric_name=metric_name
+                        "Failed to export metric", error=e, metric_name=metric_name
                     )
                     self._update_error_count("export")
 

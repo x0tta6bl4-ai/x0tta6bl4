@@ -5,9 +5,9 @@ Provides abstraction layer for database operations.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Generic, List, Optional, Type, TypeVar
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 # Import models

@@ -18,7 +18,6 @@ from ..registry import (
     get_node_telemetry,
     get_pending_nodes,
     is_node_revoked,
-    remove_pending_node,
     update_node_telemetry,
 )
 from ..services import MeshProvisioner
@@ -373,7 +372,6 @@ async def request_reissue(
     for a compromised or expired node certificate.
     """
     import secrets
-    from datetime import timedelta
     from ..registry import add_reissue_token
 
     await _resolve_mesh_for_user(mesh_id, user)

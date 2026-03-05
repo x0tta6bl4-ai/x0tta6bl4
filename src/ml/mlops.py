@@ -7,10 +7,9 @@ Manages ML lifecycle in production.
 
 import asyncio
 import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 

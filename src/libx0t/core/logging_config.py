@@ -17,7 +17,7 @@ import re
 import sys
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import structlog
 
@@ -284,7 +284,7 @@ class LoggingMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
 
-        except Exception as e:
+        except Exception:
             status_code = 500
             raise
 

@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from src.chaos.controller import (ChaosController, ChaosExperiment,
                                   ExperimentType)

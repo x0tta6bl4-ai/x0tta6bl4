@@ -272,7 +272,7 @@ class WorkloadAPIClientProduction:
                 # jose.jwt.decode can take a list of public keys
                 jwt.decode(token, public_keys, algorithms=["RS256"], audience=audience)
                 is_valid = True
-                logger.info(f"✅ JWT-SVID valid")
+                logger.info("✅ JWT-SVID valid")
             except JWTError as e:
                 logger.warning(f"⚠️ JWT-SVID invalid: {e}")
                 is_valid = False
