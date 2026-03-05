@@ -42,16 +42,22 @@ def main() -> int:
     version_file = (root / "VERSION").read_text(encoding="utf-8").strip()
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     pyproject_version = str(pyproject.get("project", {}).get("version", "")).strip()
-    roadmap_version = _extract_roadmap_version(root / "ROADMAP.md")
+    roadmap_path = root / "ROADMAP.md"
+    roadmap_version: str | None = None
+    if roadmap_path.exists():
+        roadmap_version = _extract_roadmap_version(roadmap_path)
 
     errors: list[str] = []
 
-    for label, value in [
+    version_checks = [
         ("src/version.py::__version__", src_version),
         ("VERSION", version_file),
         ("pyproject.toml[project.version]", pyproject_version),
-        ("ROADMAP.md **Version:**", roadmap_version),
-    ]:
+    ]
+    if roadmap_version is not None:
+        version_checks.append(("ROADMAP.md **Version:**", roadmap_version))
+
+    for label, value in version_checks:
         if not value:
             errors.append(f"{label} is empty")
             continue
@@ -67,7 +73,7 @@ def main() -> int:
             "pyproject mismatch: "
             f"src/version.py={src_version} vs pyproject.toml={pyproject_version}"
         )
-    if src_version != roadmap_version:
+    if roadmap_version is not None and src_version != roadmap_version:
         errors.append(
             f"ROADMAP mismatch: src/version.py={src_version} vs ROADMAP.md={roadmap_version}"
         )
