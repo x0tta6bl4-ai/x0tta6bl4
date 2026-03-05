@@ -112,7 +112,7 @@ class TestHybridPQEncryption:
         hybrid = HybridPQEncryption(kem_algorithm="ML-KEM-768")
 
         # Generate keypairs for two parties
-        alice_keypair = hybrid.generate_hybrid_keypair()
+        hybrid.generate_hybrid_keypair()
         bob_keypair = hybrid.generate_hybrid_keypair()
 
         # Alice encapsulates to Bob

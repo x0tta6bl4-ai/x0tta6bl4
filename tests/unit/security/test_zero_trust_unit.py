@@ -178,7 +178,7 @@ def test_ebpf_decrypt_too_short_returns_none():
 # ---------------------------------------------------------------------------
 # ZeroTrustValidator tests (mock WorkloadAPIClient)
 # ---------------------------------------------------------------------------
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestZeroTrustValidator:

@@ -9,7 +9,6 @@ Tests: init, detect different threat types, confidence calculation, severity map
 threat intelligence, filtering, mitigation, statistics.
 """
 
-import time
 from datetime import datetime, timedelta
 from unittest.mock import patch
 

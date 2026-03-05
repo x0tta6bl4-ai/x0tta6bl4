@@ -197,7 +197,7 @@ class NodeManagerService:
         if user_id not in self.user_nodes:
             return {"success": False, "error": "Узел не запущен"}
 
-        user_node = self.user_nodes[user_id]
+        self.user_nodes[user_id]
 
         # Находим соединения пользователя
         user_connections = [

@@ -6,7 +6,6 @@ Tests accessibility compliance for API responses and web interfaces.
 
 import json
 import socket
-from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import pytest

@@ -13,7 +13,7 @@ P1 #1: Prometheus Metrics Expansion - Integration Tests
 import time
 
 import pytest
-from prometheus_client import (REGISTRY, CollectorRegistry, Counter, Gauge,
+from prometheus_client import (Counter, Gauge,
                                Histogram)
 
 from src.monitoring.mapek_metrics import (DAOMetricsCollector,

@@ -1,6 +1,5 @@
 """Extended unit tests for eBPF Monitoring Integration."""
 import os
-import time
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -10,7 +9,6 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 from src.network.ebpf.monitoring_integration import (
     EBPFMonitoringIntegration,
-    EBPF_AVAILABLE,
 )
 
 

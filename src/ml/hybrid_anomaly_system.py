@@ -115,7 +115,6 @@ class HybridAnomalySystem:
         """Combine production and ensemble detection results"""
 
         timestamp = datetime.utcnow()
-        full_metric = f"{component}_{metric_name}"
 
         is_anomaly = False
         confidence = 0.0

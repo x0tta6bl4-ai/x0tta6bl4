@@ -4,9 +4,7 @@ Unit tests for DAO governance action dispatcher and ledger.
 
 import json
 import time
-from pathlib import Path
 
-import pytest
 
 from src.dao.governance import (ActionDispatcher, ActionResult,
                                 GovernanceEngine, ProposalState, VoteType)

@@ -1,6 +1,5 @@
 """Unit tests for PQC data types."""
 import os
-import pytest
 from datetime import datetime, timedelta
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")

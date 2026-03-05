@@ -73,7 +73,7 @@ def test_concurrent_requests():
             try:
                 resp = requests.get("http://localhost:8000/health", timeout=5)
                 return resp.status_code == 200
-            except:
+            except Exception:
                 return False
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -169,7 +169,7 @@ def run_all_tests():
     with open("/tmp/quick_validation_results.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"Results saved to: /tmp/quick_validation_results.json")
+    print("Results saved to: /tmp/quick_validation_results.json")
     print()
     print("=" * 60)
     print(f"Ended: {datetime.now().isoformat()}")

@@ -116,7 +116,7 @@ class ThreadSafeMAPEKLoop:
 
             try:
                 # MONITOR phase
-                phase_start = time.time()
+                time.time()
                 self.current_phase.update(1.0)  # MONITOR = 1
                 monitor_metrics = await self._monitor_phase(system_metrics, context)
 

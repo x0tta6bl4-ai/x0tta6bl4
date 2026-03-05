@@ -11,8 +11,8 @@
 import random
 import sys
 import time
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from typing import List
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -37,21 +37,16 @@ for mod_name, mock_obj in _mocked_modules.items():
     if mod_name not in sys.modules:
         sys.modules[mod_name] = mock_obj
 
-from src.federated_learning.aggregators import (Aggregator, FedAvgAggregator,
+from src.federated_learning.aggregators import (FedAvgAggregator,
                                                 KrumAggregator,
                                                 MedianAggregator,
-                                                TrimmedMeanAggregator,
-                                                get_aggregator)
+                                                TrimmedMeanAggregator)
 from src.federated_learning.coordinator import (CoordinatorConfig,
-                                                FederatedCoordinator, NodeInfo,
-                                                NodeStatus, RoundStatus,
-                                                TrainingRound)
+                                                FederatedCoordinator)
 from src.federated_learning.privacy import (DifferentialPrivacy, DPConfig,
                                             GaussianNoiseGenerator,
-                                            GradientClipper, PrivacyBudget,
-                                            SecureAggregation)
-from src.federated_learning.protocol import (AggregationResult, FLMessage,
-                                             FLMessageType, GlobalModel,
+                                            GradientClipper, SecureAggregation)
+from src.federated_learning.protocol import (GlobalModel,
                                              ModelUpdate, ModelWeights)
 
 # ============================================================================

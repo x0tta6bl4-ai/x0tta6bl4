@@ -4,8 +4,6 @@ Tests for Error Handler.
 Tests error handling, logging, and recovery mechanisms.
 """
 
-import asyncio
-import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

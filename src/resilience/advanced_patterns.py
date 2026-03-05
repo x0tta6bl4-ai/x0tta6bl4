@@ -197,7 +197,7 @@ class FallbackHandler:
             for fallback_fn in fallbacks:
                 try:
                     return fallback_fn(*args, **kwargs)
-                except:
+                except Exception:
                     continue
 
             raise

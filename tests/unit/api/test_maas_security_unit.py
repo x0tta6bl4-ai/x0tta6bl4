@@ -12,7 +12,6 @@ Vault is unavailable in tests → PQCTokenSigner falls back to HMAC-SHA256.
 """
 
 import hashlib
-import hmac
 import os
 import time
 from unittest.mock import MagicMock, patch
@@ -230,7 +229,7 @@ class TestPQCTokenSigner:
         assert signer.verify_token("mytoken", "mesh-fake", signed["signature"]) is False
 
     def test_verify_token_tampered_signature(self, signer):
-        signed = signer.sign_token("mytoken", "mesh-abc")
+        signer.sign_token("mytoken", "mesh-abc")
         bad_sig = "a" * 64
         assert signer.verify_token("mytoken", "mesh-abc", bad_sig) is False
 
@@ -513,7 +512,6 @@ class TestOIDCValidatorAdditionalBranches:
 
     def test_fetch_jwks_with_preknown_uri_success(self):
         """_jwks_uri already set, cache stale → fetches JWKS directly (lines 266-271)."""
-        import jwt as pyjwt
         v = self._enabled_validator()
         v._jwks_uri = "https://extra.example.com/jwks"
         v._jwks_cache = None
@@ -536,7 +534,6 @@ class TestOIDCValidatorAdditionalBranches:
     def test_validate_no_kid_in_header_uses_first_valid_key(self):
         """When header has no 'kid', code tries all JWKS keys (not kid → True branch)."""
         import jwt as pyjwt
-        from fastapi import HTTPException
 
         v = self._enabled_validator()
         mock_key = MagicMock()
@@ -808,7 +805,6 @@ class TestOIDCValidatorDiscoveryColdStart:
 
     def test_fetch_jwks_discovery_then_jwks_success(self):
         """_jwks_uri=None → discovery fetched → _jwks_uri set → JWKS fetched (lines 254-271)."""
-        import jwt as pyjwt
 
         with patch.dict(os.environ, {
             "OIDC_ISSUER": "https://coldstart.example.com",

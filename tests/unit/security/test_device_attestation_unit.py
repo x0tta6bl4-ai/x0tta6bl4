@@ -1,7 +1,6 @@
 """Unit tests for src.security.device_attestation module."""
 
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

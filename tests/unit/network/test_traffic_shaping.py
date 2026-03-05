@@ -1,12 +1,10 @@
 """Unit tests for Traffic Shaping module."""
 
-import asyncio
 import time
 
 import pytest
 
 from src.network.obfuscation.traffic_shaping import (TRAFFIC_PROFILES,
-                                                     ProfileParameters,
                                                      TrafficAnalyzer,
                                                      TrafficProfile,
                                                      TrafficShaper)

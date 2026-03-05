@@ -6,14 +6,13 @@ Tests core functionality of Paxos and PBFT implementations.
 """
 
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.swarm.paxos import (
     MultiPaxos,
     PaxosInstance,
-    PaxosMessage,
     PaxosNode,
     PaxosPhase,
     ProposalNumber,

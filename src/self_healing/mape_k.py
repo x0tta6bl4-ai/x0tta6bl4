@@ -946,7 +946,7 @@ class SelfHealingManager:
 
     def run_cycle(self, metrics: Dict):
         """Run MAPE-K cycle with MTTR tracking."""
-        cycle_start = time.time()
+        time.time()
 
         # MONITOR phase
         monitor_start = time.time()

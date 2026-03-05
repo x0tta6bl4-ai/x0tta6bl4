@@ -4,7 +4,7 @@ Integration tests for SPIRE (SPIFFE Runtime Environment) integration.
 Tests mTLS and workload identity management via SPIRE.
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

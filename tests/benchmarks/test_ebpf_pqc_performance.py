@@ -42,8 +42,8 @@ def test_ebpf_pqc_fastpath_performance():
         pytest.skip(f"eBPF не поддерживается в данной среде: {e}")
 
     # 1. Симуляция PQC Handshake (как в реальной MaaS сессии)
-    kem = PQCKeyExchange(algorithm="Kyber768")
-    dsa = PQCDigitalSignature(algorithm="Dilithium3")
+    PQCKeyExchange(algorithm="Kyber768")
+    PQCDigitalSignature(algorithm="Dilithium3")
     
     session_id = os.urandom(16)
     mac_key = os.urandom(16) # Упрощенно: ключ получен из KEM

@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-import pytest
 
 from src.consensus.raft_consensus import (LogEntry, RaftCluster, RaftNode,
                                           RaftState)

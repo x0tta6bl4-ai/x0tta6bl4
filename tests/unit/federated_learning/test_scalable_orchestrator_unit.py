@@ -1,10 +1,7 @@
 """Unit tests for ScalableFLOrchestrator and related classes."""
 
-import asyncio
-import hashlib
 import time
-from collections import defaultdict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 import pytest
@@ -446,7 +443,7 @@ class TestScalableFLOrchestratorAdaptiveSelection:
 
         with patch("src.federated_learning.scalable_orchestrator.np") as mock_np:
             mock_np.random.choice.return_value = np.array(["node-0"])
-            result = orch._adaptive_node_selection(10)
+            orch._adaptive_node_selection(10)
             # Should request min(10, 1) = 1
             call_args = mock_np.random.choice.call_args
             assert call_args[1]["size"] == 1

@@ -135,7 +135,7 @@ class PolicyRanker:
                 last_time = datetime.fromisoformat(policy.last_used)
                 age_hours = (datetime.now() - last_time).total_seconds() / 3600
                 recency_score = max(0.0, 1.0 - (age_hours / 24.0))  # Decay over 24h
-            except:
+            except Exception:
                 pass
 
         # Composite score

@@ -5,8 +5,6 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 """Unit tests for src/core/rate_limit_middleware.py"""
 
-import asyncio
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -470,7 +468,7 @@ class TestRateLimitMiddlewareDispatch:
         request = _make_request(path="/health/live")
 
         call_next = AsyncMock(return_value=MagicMock())
-        response = await mw.dispatch(request, call_next)
+        await mw.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio

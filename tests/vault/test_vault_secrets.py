@@ -2,13 +2,11 @@
 Unit tests for VaultSecretManager and SecretInjector.
 """
 
-from unittest.mock import AsyncMock
 
 import pytest
 
-from src.security.vault_client import VaultSecretError
 from src.security.vault_secrets import (ApiCredentials, DatabaseCredentials,
-                                        SecretInjector, SecretType,
+                                        SecretType,
                                         TLSCertificate, VaultSecretManager)
 
 

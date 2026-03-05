@@ -639,7 +639,7 @@ class MAPEOrchestrator:
     async def _snapshot_state(self) -> None:
         """Snapshot current state to IPFS."""
         try:
-            snapshot_data = {
+            {
                 "timestamp": time.time(),
                 "state": {
                     "metrics": self._state.metrics,

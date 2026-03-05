@@ -10,7 +10,6 @@ and indexes are reflected without needing a running PostgreSQL instance.
 from __future__ import annotations
 
 import pytest
-import sqlalchemy as sa
 from sqlalchemy import create_engine, inspect
 
 

@@ -422,7 +422,7 @@ class PaxosNode:
         """Handle an Accepted message (Phase 2b)."""
         instance_id = message["instance_id"]
         sender_id = message["sender_id"]
-        value = message.get("value")
+        message.get("value")
         
         instance = self._get_or_create_instance(instance_id)
         instance.accepts_received.add(sender_id)

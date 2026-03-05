@@ -75,7 +75,7 @@ class MPTCPManager:
             try:
                 with open("/proc/sys/net/mptcp/enabled", "r") as f:
                     enabled = f.read().strip() == "1"
-            except: pass
+            except Exception: pass
             
         return {
             "supported": supported,

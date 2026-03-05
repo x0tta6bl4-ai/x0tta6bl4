@@ -1,6 +1,5 @@
 """Unit tests for TrustEvaluator (trust_engine.py)."""
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 from src.security.trust_engine import TrustEvaluator
 

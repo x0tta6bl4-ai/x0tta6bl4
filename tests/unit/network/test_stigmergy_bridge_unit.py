@@ -4,11 +4,10 @@ Unit tests for src.network.ebpf.stigmergy_bridge — StigmergyBridge.
 All tests are deterministic; no eBPF kernel required.
 """
 
-import asyncio
 import struct
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.network.routing.stigmergy import StigmergyRouter, PHEROMONE_MIN
 from src.network.ebpf.stigmergy_bridge import (
@@ -145,7 +144,7 @@ class TestEbpfMapProcessing:
         bridge.register_peer("peer-1", "10.0.0.1")
 
         # ip 10.0.0.1 → u32 little-endian
-        ip_u32 = self._make_ip_u32(1, 0, 0, 10)  # 10.0.0.1 little-endian
+        self._make_ip_u32(1, 0, 0, 10)  # 10.0.0.1 little-endian
         # Actually let's use big-endian as _ip_u32_to_str expects big-endian
         ip_u32_be = 0x0A000001  # 10.0.0.1 big-endian
         bridge._ip_to_peer["10.0.0.1"] = "peer-1"

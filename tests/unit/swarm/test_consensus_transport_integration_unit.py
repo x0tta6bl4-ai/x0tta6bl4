@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.swarm.consensus import RaftNode, RaftState
+from src.swarm.consensus import RaftNode
 from src.swarm.consensus_integration import (
-    AgentInfo,
     ConsensusMode,
     SwarmConsensusManager,
     SwarmDecision,
@@ -492,7 +491,7 @@ class TestConsensusTransportIntegration:
     @pytest.mark.asyncio
     async def test_transport_stats_reflect_sent_messages(self, tmp_path):
         t1 = ConsensusTransport("mgr-1", project_root=str(tmp_path))
-        mgr = _make_manager("mgr-1", transport=t1)
+        _make_manager("mgr-1", transport=t1)
 
         await t1.send(ConsensusMessage(
             source_node="mgr-1", target_node="mgr-2",

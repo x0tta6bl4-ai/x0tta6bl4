@@ -4,8 +4,6 @@ Additional tests for Digital Twin.
 Tests edge cases, error handling, and simulation scenarios.
 """
 
-from typing import Dict, List
-from unittest.mock import Mock, patch
 
 import pytest
 

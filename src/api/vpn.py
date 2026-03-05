@@ -652,7 +652,7 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
     try:
         with open('/proc/uptime', 'r') as f:
             uptime_seconds = float(f.readline().split()[0])
-    except:
+    except Exception:
         uptime_seconds = 0.0
 
     return {

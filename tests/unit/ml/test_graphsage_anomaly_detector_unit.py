@@ -11,17 +11,14 @@ Covers:
 - Edge cases: empty data, missing features, no-torch fallback, error paths
 """
 
-import time
 from dataclasses import asdict
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.ml.graphsage_anomaly_detector import (
     AnomalyPrediction,
     GraphSAGEAnomalyDetector,
     create_graphsage_detector_for_mapek,
-    is_torch_available,
     is_quantization_available,
     get_model_class)
 
@@ -571,7 +568,7 @@ class TestGenerateLabels:
         nodes = [_normal_features() for _ in range(50)]
         labels = det._generate_labels(nodes)
         assert len(labels) == 50
-        assert all(l == 0.0 for l in labels)
+        assert all(label == 0.0 for label in labels)
 
 
 # ---------------------------------------------------------------------------
@@ -1360,7 +1357,7 @@ class TestCreateDetectorForMapek:
         with patch.object(
             GraphSAGEAnomalyDetector, "train_from_telemetry"
         ) as mock_train:
-            det = create_graphsage_detector_for_mapek(
+            create_graphsage_detector_for_mapek(
                 pretrain=True,
                 num_snapshots=5,
                 epochs=2,
@@ -1611,13 +1608,13 @@ class TestEdgeCases:
         det = _make_detector()
         nodes = [_anomalous_features() for _ in range(5)]
         labels = det._generate_labels(nodes)
-        assert all(l == 1.0 for l in labels)
+        assert all(label == 1.0 for label in labels)
 
     def test_generate_labels_all_normal(self):
         det = _make_detector()
         nodes = [_normal_features() for _ in range(5)]
         labels = det._generate_labels(nodes)
-        assert all(l == 0.0 for l in labels)
+        assert all(label == 0.0 for label in labels)
 
     def test_predict_many_neighbors(self):
         det = _make_detector()

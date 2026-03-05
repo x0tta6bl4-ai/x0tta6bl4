@@ -20,9 +20,6 @@ import asyncio
 import json
 import shutil
 import subprocess
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -613,7 +610,7 @@ spec:
         with open("/tmp/test-hpa.yaml", "w") as f:
             f.write(hpa_yaml)
 
-        result = subprocess.run(
+        subprocess.run(
             ["kubectl", "apply", "-f", "/tmp/test-hpa.yaml"],
             capture_output=True,
             text=True,
@@ -642,7 +639,7 @@ spec:
         with open("/tmp/test-pdb.yaml", "w") as f:
             f.write(pdb_yaml)
 
-        result = subprocess.run(
+        subprocess.run(
             ["kubectl", "apply", "-f", "/tmp/test-pdb.yaml"],
             capture_output=True,
             text=True,
@@ -732,7 +729,7 @@ spec:
         with open("/tmp/test-ingress.yaml", "w") as f:
             f.write(ingress_yaml)
 
-        result = subprocess.run(
+        subprocess.run(
             ["kubectl", "apply", "-f", "/tmp/test-ingress.yaml"],
             capture_output=True,
             text=True,

@@ -4,12 +4,10 @@ Unit and integration tests for Stripe billing integration.
 
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime
 from src.billing.stripe_client import (
     StripeClient, 
     StripeConfig, 
-    StripeSubscriptionStatus,
-    StripeSubscription
+    StripeSubscriptionStatus
 )
 
 @pytest.fixture

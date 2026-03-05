@@ -5,8 +5,6 @@ Tests atomic counters, gauges, sets, and thread-safe metrics collection.
 """
 
 import threading
-import time
-from unittest.mock import patch
 
 import pytest
 

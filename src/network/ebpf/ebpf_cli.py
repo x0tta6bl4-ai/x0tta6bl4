@@ -52,12 +52,12 @@ Examples:
         )
 
         # Status command
-        status_parser = subparsers.add_parser(
+        subparsers.add_parser(
             "status", help="Show eBPF orchestrator status"
         )
 
         # List programs command
-        list_parser = subparsers.add_parser("list", help="List loaded eBPF programs")
+        subparsers.add_parser("list", help="List loaded eBPF programs")
 
         # Load program command
         load_parser = subparsers.add_parser("load", help="Load eBPF program from file")
@@ -96,13 +96,13 @@ Examples:
         unload_parser.add_argument("program_name", help="Name of program to unload")
 
         # Statistics command
-        stats_parser = subparsers.add_parser("stats", help="Show eBPF statistics")
+        subparsers.add_parser("stats", help="Show eBPF statistics")
 
         # Flows command
-        flows_parser = subparsers.add_parser("flows", help="Show network flow metrics")
+        subparsers.add_parser("flows", help="Show network flow metrics")
 
         # Routes command
-        routes_parser = subparsers.add_parser("routes", help="Show routing table")
+        subparsers.add_parser("routes", help="Show routing table")
 
         # Update routes command
         update_routes_parser = subparsers.add_parser(
@@ -250,7 +250,7 @@ Examples:
         mode: str,
     ):
         """Handle attach command."""
-        attach_mode = EBPFAttachMode(mode)
+        EBPFAttachMode(mode)
 
         try:
             result = await orchestrator.attach_program(

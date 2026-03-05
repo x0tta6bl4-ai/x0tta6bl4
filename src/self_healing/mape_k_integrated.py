@@ -145,7 +145,7 @@ class IntegratedMAPEKCycle:
                 check_result = self.monitor.check(metrics)
                 anomaly_detected = check_result["anomaly_detected"]
                 scaling_recommended = check_result["scaling_recommended"]
-                issue_type = check_result["issue"]
+                check_result["issue"]
 
             result = {
                 "timestamp": datetime.now().isoformat(),
@@ -248,7 +248,7 @@ class IntegratedMAPEKCycle:
                 plan_trace = nullcontext()
 
             with plan_trace:
-                plan_start_time = time.time()
+                time.time()
                 strategy = self.planner.plan(analysis_issue)
 
         # Estimate recovery time based on strategy type and historical data

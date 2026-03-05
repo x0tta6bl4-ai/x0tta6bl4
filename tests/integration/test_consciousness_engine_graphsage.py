@@ -1,7 +1,6 @@
-import asyncio
 import os
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,7 +36,6 @@ class MockGraphSAGEAnomalyDetectorInTest:
         return True  # Assume trained for mock
 
 
-import src.ml.graphsage_anomaly_detector  # Import the module first
 
 
 @pytest.mark.asyncio
@@ -54,7 +52,6 @@ async def test_consciousness_engine_graphsage_anomaly_detection(
 
     # --- Now import ConsciousnessEngine and other related modules (after patch) ---
     from src.core.consciousness import (PHI, ConsciousnessEngine,
-                                        ConsciousnessMetrics,
                                         ConsciousnessState)
 
     """

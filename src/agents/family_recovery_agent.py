@@ -46,7 +46,7 @@ def main():
         try:
             with open(STATE_FILE, "r") as f:
                 processed_dirs = set(json.load(f))
-        except:
+        except Exception:
             pass
 
     # Поиск всех папок PhotoRec

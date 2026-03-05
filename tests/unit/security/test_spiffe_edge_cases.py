@@ -8,7 +8,7 @@ import asyncio
 import ssl
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -172,7 +172,7 @@ class TestSPIFFEEdgeCases:
 
         sock = tmp_path / "agent.sock"
         sock.write_text("")
-        client = WorkloadAPIClient(socket_path=sock)
+        WorkloadAPIClient(socket_path=sock)
 
         # Mock SVID with certificate chain
         svid_with_chain = X509SVID(
@@ -242,7 +242,7 @@ class TestMTLSEdgeCases:
         workload_client = WorkloadAPIClient(socket_path=sock)
 
         try:
-            controller = MTLSControllerProduction(workload_api_client=workload_client)
+            MTLSControllerProduction(workload_api_client=workload_client)
         except (ImportError, AttributeError, TypeError) as e:
             pytest.skip(f"MTLSControllerProduction requires SPIFFE SDK: {e}")
 
@@ -390,7 +390,7 @@ class TestSPIFFESecurityBoundaries:
 
         sock = tmp_path / "agent.sock"
         sock.write_text("")
-        client = WorkloadAPIClient(socket_path=sock)
+        WorkloadAPIClient(socket_path=sock)
 
         # Mock SVID with private key
         svid = X509SVID(
@@ -402,8 +402,8 @@ class TestSPIFFESecurityBoundaries:
 
         # Private key should not appear in string representation
         # dataclass default __str__ might include private_key, so we check repr or custom __str__
-        svid_str = str(svid)
-        svid_repr = repr(svid)
+        str(svid)
+        repr(svid)
 
         # Check that sensitive data is not exposed (or is masked)
         # Note: dataclass default __str__ might show private_key, but in production
@@ -422,7 +422,7 @@ class TestSPIFFESecurityBoundaries:
 
         sock = tmp_path / "agent.sock"
         sock.write_text("")
-        client = WorkloadAPIClient(socket_path=sock)
+        WorkloadAPIClient(socket_path=sock)
 
         # Mock tampered certificate
         tampered_svid = X509SVID(

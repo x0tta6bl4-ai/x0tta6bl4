@@ -695,7 +695,7 @@ class TestEdgeCases:
         ) as mock_c:
             with patch(
                 "src.monitoring.production_monitoring.production_request_duration"
-            ) as mock_d:
+            ):
                 for code in [200, 201, 400, 404, 500, 503]:
                     monitor.record_request("POST", "/api", code, 0.1)
                 assert mock_c.labels.call_count == 6

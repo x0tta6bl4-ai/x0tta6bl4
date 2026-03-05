@@ -6,10 +6,10 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 """Unit tests for src/core/request_validation.py"""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from starlette.datastructures import URL, Headers, QueryParams
+from starlette.datastructures import Headers, QueryParams
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +330,7 @@ class TestRequestValidationMiddleware:
         request = _make_request(path="/health")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once_with(request)
 
     @pytest.mark.asyncio
@@ -417,7 +417,7 @@ class TestRequestValidationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -435,7 +435,7 @@ class TestRequestValidationMiddleware:
         request = _make_request(method="GET")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -536,7 +536,7 @@ class TestRequestValidationMiddleware:
         request = _make_request(path="/api/data")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -558,7 +558,7 @@ class TestRequestValidationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -600,7 +600,7 @@ class TestJSONSanitizationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -615,7 +615,7 @@ class TestJSONSanitizationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -689,7 +689,7 @@ class TestJSONSanitizationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -705,7 +705,7 @@ class TestJSONSanitizationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -723,7 +723,7 @@ class TestJSONSanitizationMiddleware:
         )
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -745,7 +745,7 @@ class TestJSONSanitizationMiddleware:
         request.body = _raise_body
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
 
-        response = await middleware.dispatch(request, call_next)
+        await middleware.dispatch(request, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio

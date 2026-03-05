@@ -2,8 +2,6 @@
 Unit tests for Enhanced Federated Learning Aggregators
 """
 
-from typing import List
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -34,7 +32,7 @@ class TestEnhancedAggregator:
         aggregator = EnhancedAggregator(name="test_enhanced", enable_metrics=True)
 
         assert aggregator.name == "test_enhanced"
-        assert aggregator.enable_metrics == True
+        assert aggregator.enable_metrics
         assert len(aggregator.metrics_history) == 0
 
     def test_quality_score_calculation(self):
@@ -147,7 +145,7 @@ class TestEnhancedFedAvgAggregator:
 
         result = aggregator.aggregate(updates)
 
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
         assert "metrics" in result.metadata
 
@@ -166,7 +164,7 @@ class TestEnhancedFedAvgAggregator:
 
         result = aggregator.aggregate(updates)
 
-        assert result.success == True
+        assert result.success
         metrics = result.metadata.get("metrics", {})
         assert "aggregation_time_seconds" in metrics
         assert "quality_score" in metrics

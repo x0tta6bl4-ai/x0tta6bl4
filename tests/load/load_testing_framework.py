@@ -6,7 +6,6 @@ Tests throughput, latency, resource usage under sustained load.
 """
 
 import asyncio
-import statistics
 import time
 from datetime import datetime
 from typing import Any, Dict, List
@@ -111,7 +110,7 @@ class LoadTester:
                     await async_func(*args, **kwargs)
                     elapsed = (time.time() - start) * 1000  # ms
                     self.results.add_latency(elapsed)
-                except Exception as e:
+                except Exception:
                     self.results.record_error()
 
         # Run concurrent tasks

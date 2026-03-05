@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 import logging
 from datetime import datetime, timedelta

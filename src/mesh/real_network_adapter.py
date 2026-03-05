@@ -335,7 +335,7 @@ class UnifiedMeshAdapter:
             )
             await proc.communicate()
             return proc.returncode == 0
-        except:
+        except Exception:
             return False
 
 

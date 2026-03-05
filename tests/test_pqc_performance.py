@@ -9,7 +9,6 @@ Tests for:
 - eBPF integration
 """
 
-import asyncio
 import time
 from unittest.mock import Mock, patch
 
@@ -17,9 +16,8 @@ import pytest
 
 from src.security.pqc_ebpf_integration import (EnhancedPQCPerformanceOptimizer,
                                                PQCeBPFAccelerator)
-from src.security.pqc_hybrid import HybridPQEncryption, HybridPQMeshSecurity
-from src.security.pqc_performance import (HandshakeMetrics,
-                                          OptimizedPQMeshSecurity, PQCKeyCache,
+from src.security.pqc_hybrid import HybridPQEncryption
+from src.security.pqc_performance import (PQCKeyCache,
                                           PQCPerformanceOptimizer)
 
 
@@ -81,13 +79,13 @@ class TestPQCKeyCache:
         backend = LibOQSBackend()
 
         # Generate and cache
-        keypair1 = cache.get_or_generate_kem_keypair("key1", backend)
+        cache.get_or_generate_kem_keypair("key1", backend)
 
         # Wait for expiration
         time.sleep(1.1)
 
         # Should generate new keypair
-        keypair2 = cache.get_or_generate_kem_keypair("key1", backend)
+        cache.get_or_generate_kem_keypair("key1", backend)
         # Note: In real test, we'd check that keys are different
         # but mock returns same values, so we just check it works
 
@@ -185,7 +183,7 @@ class TestHybridPQEncryption:
         hybrid = HybridPQEncryption()
 
         # Generate two keypairs
-        keypair1 = hybrid.generate_hybrid_keypair()
+        hybrid.generate_hybrid_keypair()
         keypair2 = hybrid.generate_hybrid_keypair()
 
         # Encapsulate from keypair1 to keypair2
@@ -206,7 +204,7 @@ class TestHybridPQEncryption:
         hybrid = HybridPQEncryption()
 
         # Generate two keypairs
-        keypair1 = hybrid.generate_hybrid_keypair()
+        hybrid.generate_hybrid_keypair()
         keypair2 = hybrid.generate_hybrid_keypair()
 
         # Encapsulate

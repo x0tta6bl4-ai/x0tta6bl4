@@ -133,7 +133,7 @@ class Phase6LoadTestRunner:
         tester = StressTester(config)
         summary = await tester.run_stress_test(autonomic_loop)
 
-        print(f"\nStress Test Summary:")
+        print("\nStress Test Summary:")
         print(
             f"  Max Throughput Achieved: {summary['max_throughput_achieved']:.1f} ops/sec"
         )
@@ -202,7 +202,7 @@ class Phase6LoadTestRunner:
         # Baseline
         if "baseline" in self.results:
             baseline = self.results["baseline"]
-            print(f"\n✅ BASELINE TEST:")
+            print("\n✅ BASELINE TEST:")
             print(
                 f"   Throughput: {baseline.get('actual_throughput_ops_per_sec', 0):.1f} ops/sec"
             )
@@ -213,7 +213,7 @@ class Phase6LoadTestRunner:
         # Throughput
         if "throughput" in self.results:
             throughput = self.results["throughput"]
-            print(f"\n✅ THROUGHPUT TEST:")
+            print("\n✅ THROUGHPUT TEST:")
             print(
                 f"   Achieved: {throughput.get('actual_throughput_ops_per_sec', 0):.1f} ops/sec"
             )
@@ -223,7 +223,7 @@ class Phase6LoadTestRunner:
         # Concurrency
         if "concurrency" in self.results:
             concurrency = self.results["concurrency"]
-            print(f"\n✅ CONCURRENCY TEST (50 concurrent):")
+            print("\n✅ CONCURRENCY TEST (50 concurrent):")
             print(
                 f"   Throughput: {concurrency.get('actual_throughput_ops_per_sec', 0):.1f} ops/sec"
             )
@@ -233,7 +233,7 @@ class Phase6LoadTestRunner:
         # Stress
         if "stress" in self.results:
             stress = self.results["stress"]
-            print(f"\n✅ STRESS TEST:")
+            print("\n✅ STRESS TEST:")
             print(f"   Max Throughput: {stress['max_throughput_achieved']:.1f} ops/sec")
             print(f"   Max Stable: {stress['max_stable_throughput']:.1f} ops/sec")
             print(f"   Phases: {stress['phases_completed']}")
@@ -241,7 +241,7 @@ class Phase6LoadTestRunner:
 
         # Latency Consistency
         if "latency_consistency" in self.results:
-            print(f"\n✅ LATENCY CONSISTENCY:")
+            print("\n✅ LATENCY CONSISTENCY:")
             for load, latencies in self.results["latency_consistency"].items():
                 print(
                     f"   @ {load} ops/sec: Mean={latencies['mean']:.2f}ms, "
@@ -285,10 +285,10 @@ async def main():
         with open("/mnt/AC74CC2974CBF3DC/PHASE_6_LOAD_TEST_RESULTS.json", "w") as f:
             json.dump(summary, f, indent=2, default=str)
 
-        print(f"\n📊 Results saved to PHASE_6_LOAD_TEST_RESULTS.json")
-        print(f"✅ All tests completed successfully!")
+        print("\n📊 Results saved to PHASE_6_LOAD_TEST_RESULTS.json")
+        print("✅ All tests completed successfully!")
     else:
-        print(f"\n❌ Tests failed")
+        print("\n❌ Tests failed")
         sys.exit(1)
 
 

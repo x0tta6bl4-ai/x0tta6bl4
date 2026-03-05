@@ -5,10 +5,8 @@ Unit Tests for Batman-adv Health Monitoring
 Tests for BatmanHealthMonitor, BatmanMetricsCollector, and MAPE-K integration.
 """
 
-import asyncio
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 # Import Batman components
 from libx0t.network.batman.health_monitor import (
@@ -27,7 +25,6 @@ from libx0t.network.batman.metrics import (
 from libx0t.network.batman.mape_k_integration import (
     BatmanAnomaly,
     BatmanAnomalyType,
-    BatmanMAPEKMonitor,
     BatmanMAPEKAnalyzer,
     BatmanMAPEKPlanner,
     BatmanMAPEKExecutor,

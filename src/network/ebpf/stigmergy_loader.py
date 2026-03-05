@@ -69,7 +69,7 @@ class StigmergyBPF:
                     # Prune dead paths to save map space
                     try:
                         del pheromone_map[key]
-                    except:
+                    except Exception:
                         pass
                 else:
                     pheromone_map[key] = new_score

@@ -3,9 +3,8 @@ Tests for Zero Trust Validator module.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pytest
 
 
 class TestZeroTrustValidator:
@@ -232,7 +231,7 @@ class TestPolicyCheck:
         with patch("src.security.zero_trust.WorkloadAPIClient"):
             from src.security.zero_trust import ZeroTrustValidator
 
-            validator = ZeroTrustValidator()
+            ZeroTrustValidator()
 
             # Mock ImportError for policy engine
             with patch.dict(

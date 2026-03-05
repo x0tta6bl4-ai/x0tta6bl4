@@ -5,9 +5,7 @@ Unit tests for ZKP Attestor module
 Tests for NIZKP identity proofs and batch verification.
 """
 
-import hashlib
 import secrets
-from unittest.mock import patch
 
 import pytest
 
@@ -16,7 +14,7 @@ from src.security.zkp_attestor import (
     FirmwareAttestor,
     BatchZKPVerifier,
 )
-from src.security.zkp_auth import G, P, Q, SchnorrZKP
+from src.security.zkp_auth import P, Q
 
 
 class TestNIZKPAttestor:
@@ -254,7 +252,7 @@ class TestZKPIntegration:
 
         # 3. Node generates firmware attestation
         firmware_attestor = FirmwareAttestor(firmware_hash="v3.3.0-release")
-        bundle = firmware_attestor.get_attestation_bundle()
+        firmware_attestor.get_attestation_bundle()
 
         # 4. Verify firmware matches expected
         firmware_valid = firmware_attestor.prove_firmware_match("v3.3.0-release")

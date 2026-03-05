@@ -334,7 +334,6 @@ class RecoveryActionExecutor:
         action_type = self._parse_action_type(action)
 
         # Execute with retry logic
-        last_exception = None
         for attempt in range(self.max_retries):
             try:
                 # Execute through circuit breaker if enabled
@@ -367,7 +366,6 @@ class RecoveryActionExecutor:
                 return result.success
 
             except Exception as e:
-                last_exception = e
                 logger.warning(
                     f"Recovery action attempt {attempt + 1}/{self.max_retries} failed: {e}"
                 )

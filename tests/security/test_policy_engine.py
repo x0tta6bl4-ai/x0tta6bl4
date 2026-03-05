@@ -2,9 +2,7 @@
 Tests for Policy Engine module.
 """
 
-from unittest.mock import MagicMock, Mock, patch
 
-import pytest
 
 from src.security.policy_engine import (Attribute, AttributeType,
                                         PolicyCondition, PolicyEffect,

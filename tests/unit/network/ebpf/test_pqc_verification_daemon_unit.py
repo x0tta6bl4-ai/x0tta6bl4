@@ -1,6 +1,5 @@
 """Unit tests for PQC Verification Daemon."""
 import os
-import hashlib
 import struct
 import time
 import pytest
@@ -60,7 +59,7 @@ class TestPQCVerificationDaemonInit:
 
     def test_with_bpf(self):
         bpf = MagicMock()
-        d = PQCVerificationDaemon(bpf=bpf)
+        PQCVerificationDaemon(bpf=bpf)
         bpf.get_table.assert_called()
 
     def test_init_bpf_maps_missing(self):

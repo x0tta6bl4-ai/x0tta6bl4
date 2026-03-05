@@ -10,9 +10,8 @@ Tests cover:
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from src.security.auto_isolation import (AutoIsolationManager, CircuitBreaker,
                                          IsolationLevel, IsolationPolicy,
@@ -415,8 +414,8 @@ class TestAutoIsolationManager:
     def test_escalation_caps_at_max_level(self):
         mgr = self._make_manager()
         # threat_response policy has 3 levels: RESTRICTED, QUARANTINE, BLOCKED
-        r1 = mgr.isolate("target-1", IsolationReason.THREAT_DETECTED)
-        r2 = mgr.isolate("target-1", IsolationReason.THREAT_DETECTED)
+        mgr.isolate("target-1", IsolationReason.THREAT_DETECTED)
+        mgr.isolate("target-1", IsolationReason.THREAT_DETECTED)
         r3 = mgr.isolate("target-1", IsolationReason.THREAT_DETECTED)
         # Beyond available levels should stay at last
         assert r3.level == IsolationLevel.BLOCKED
