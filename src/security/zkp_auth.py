@@ -9,7 +9,6 @@ Implements:
 """
 
 import hashlib
-import hmac
 import logging
 import secrets
 from dataclasses import dataclass

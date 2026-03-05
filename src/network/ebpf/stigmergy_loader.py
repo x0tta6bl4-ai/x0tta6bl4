@@ -3,7 +3,6 @@ eBPF Loader for Stigmergy Routing.
 Manages the lifecycle of the BPF program and performs 'pheromone evaporation'.
 """
 
-import time
 import asyncio
 import logging
 import os

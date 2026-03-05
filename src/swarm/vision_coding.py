@@ -468,7 +468,6 @@ class VisionCodingEngine:
         self, image_data: bytes, start_pos: Tuple[int, int], end_pos: Tuple[int, int]
     ) -> Dict[str, Any]:
         """Анализирует лабиринт и находит путь"""
-        import io
 
         # Проверяем кэш
         cached = await self.cache.get(image_data, f"maze_{start_pos}_{end_pos}")

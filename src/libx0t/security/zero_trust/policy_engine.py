@@ -5,13 +5,11 @@ Provides fine-grained policy enforcement using rule-based engine.
 Now includes OPA/Rego integration, dynamic policy updates, and versioning.
 """
 
-import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

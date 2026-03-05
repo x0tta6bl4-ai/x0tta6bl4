@@ -3,7 +3,6 @@ import hmac
 import json
 import logging
 import os
-import sys
 import time
 import uuid
 import datetime
@@ -18,7 +17,6 @@ from slowapi.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.services.xray_manager import XrayManager
 
 # Simplified import
 try:
@@ -28,7 +26,7 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
-from src.database import BillingWebhookEvent, License, Payment, User, get_db
+from src.database import BillingWebhookEvent, License, User, get_db
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from src.ml.lora.adapter import LoRAAdapter, save_lora_adapter
 from src.ml.lora.config import LoRAConfig
@@ -180,7 +180,7 @@ class LoRATrainer:
             )
             total_params = sum(p.numel() for p in self.peft_model.parameters())
 
-            logger.info(f"✅ LoRA adapter setup complete")
+            logger.info("✅ LoRA adapter setup complete")
             logger.info(
                 f"   Trainable params: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)"
             )

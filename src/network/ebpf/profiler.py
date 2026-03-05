@@ -8,11 +8,9 @@ Target: <2% CPU overhead (Stage 1 requirement)
 """
 
 import logging
-import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import psutil

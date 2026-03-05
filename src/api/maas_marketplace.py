@@ -29,7 +29,7 @@ from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
 from src.utils.audit import record_audit_log
 
-from src.resilience.advanced_patterns import ResilientExecutor, get_resilient_executor
+from src.resilience.advanced_patterns import get_resilient_executor
 from src.monitoring.maas_metrics import record_escrow_failure
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
                                               PQKeyPair, PQMeshSecurityLibOQS)

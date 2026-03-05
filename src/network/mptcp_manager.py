@@ -9,7 +9,7 @@ mesh links into a single logical high-speed connection.
 import logging
 import subprocess
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 

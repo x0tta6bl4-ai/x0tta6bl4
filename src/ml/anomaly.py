@@ -5,8 +5,7 @@ Neural network-based anomaly detection for system behavior.
 Detects unusual patterns in monitoring data and execution traces.
 """
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 

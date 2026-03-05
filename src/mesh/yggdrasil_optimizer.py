@@ -6,14 +6,12 @@ for Yggdrasil-based mesh networks.
 """
 
 import asyncio
-import hashlib
 import logging
 import math
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +191,6 @@ class AdaptivePathSelector:
         Select best route using Thompson Sampling.
         Balances exploration of new routes with exploitation of good routes.
         """
-        import random
         
         valid_routes = [r for r in routes if r in self._route_stats]
         if not valid_routes:
@@ -218,7 +215,6 @@ class AdaptivePathSelector:
     
     def _sample_beta(self, alpha: float, beta: float) -> float:
         """Sample from Beta distribution using numpy-like approach."""
-        import random
         # Approximate Beta sampling using ratio of Gamma samples
         x = self._sample_gamma(alpha, 1.0)
         y = self._sample_gamma(beta, 1.0)
@@ -227,7 +223,6 @@ class AdaptivePathSelector:
     def _sample_gamma(self, shape: float, scale: float) -> float:
         """Sample from Gamma distribution using Marsaglia and Tsang's method."""
         import random
-        import math
         
         if shape < 1:
             return self._sample_gamma(shape + 1, scale) * (random.random() ** (1.0 / shape))

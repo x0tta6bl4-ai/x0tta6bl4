@@ -1,7 +1,6 @@
-import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from PIL import Image
 
 logger = logging.getLogger(__name__)

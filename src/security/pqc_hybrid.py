@@ -9,9 +9,8 @@ for maximum security and compatibility.
 import hashlib
 import json
 import logging
-import secrets
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,7 @@ except ImportError:
         "⚠️ cryptography library not available. Install with: pip install cryptography"
     )
 
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
-                                              PQKeyPair)
+from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend)
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,8 @@ Provides anomaly detection, trend analysis, and dynamic threshold adaptation.
 
 import logging
 import time
-from collections import OrderedDict, deque
+from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 

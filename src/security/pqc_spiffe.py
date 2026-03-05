@@ -6,13 +6,12 @@ Bridges SPIRE (X.509 SVIDs) with Post-Quantum Cryptography (ML-DSA/Dilithium).
 Provides a way to attest PQC public keys using SPIFFE identities.
 """
 
-import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 from src.security.pqc_identity import PQCNodeIdentity
 from src.security.spire_integration import SPIREClient, SPIREConfig
-from src.security.zkp_attestor import NIZKPAttestor, FirmwareAttestor
+from src.security.zkp_attestor import NIZKPAttestor
 from src.security.zkp_auth import SchnorrZKP
 
 logger = logging.getLogger(__name__)

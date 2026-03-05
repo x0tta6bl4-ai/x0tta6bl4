@@ -12,7 +12,6 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 
 from .aggregators import (AggregationResult, Aggregator, KrumAggregator,
                           TrimmedMeanAggregator)

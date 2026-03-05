@@ -1,24 +1,19 @@
 """FastAPI app with mTLS and real system status monitoring - P0#3-P0#4 implementation"""
 
 import importlib
-import logging
 import os
 import sys
 import uuid
 from pathlib import Path
-from typing import List as TypingList
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
 
 # Internal imports
 from src.core.api_error_handlers import register_api_error_handlers
 from src.core.cors_config import resolve_cors_allowed_origins
-from src.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
-                                        shutdown_manager)
+from src.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from src.core.mtls_middleware import MTLSMiddleware
 from src.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
 from src.core.request_validation import (RequestValidationMiddleware,

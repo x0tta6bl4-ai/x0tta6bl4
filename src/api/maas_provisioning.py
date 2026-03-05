@@ -10,13 +10,11 @@ import logging
 import uuid
 import base64
 import json
-from datetime import datetime
-from typing import List, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.database import MeshNode, MeshInstance, get_db, User
+from src.database import MeshNode, get_db, User
 from src.api.maas_auth import get_current_user_from_maas
 
 logger = logging.getLogger(__name__)

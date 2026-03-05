@@ -7,7 +7,6 @@ Purpose: Connect MAPE-K Execute component to real Charter system
 """
 
 import asyncio
-import json
 import logging
 from datetime import datetime
 from enum import Enum

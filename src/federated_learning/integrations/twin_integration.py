@@ -13,24 +13,21 @@ Features:
 import logging
 # Import Digital Twin
 import sys
-import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 from ..aggregators import get_aggregator
-from ..blockchain import ConsensusProof, ModelBlockchain, ModelMetadata
-from ..coordinator import CoordinatorConfig, FederatedCoordinator, NodeStatus
+from ..blockchain import ModelBlockchain, ModelMetadata
+from ..coordinator import CoordinatorConfig, FederatedCoordinator
 # Import FL components
 from ..ppo_agent import (MeshRoutingEnv, MeshState, PPOAgent, PPOConfig,
-                         TrajectoryBuffer, train_episode)
+                         train_episode)
 from ..privacy import DifferentialPrivacy, DPConfig
-from ..protocol import GlobalModel, ModelUpdate, ModelWeights
+from ..protocol import ModelUpdate, ModelWeights
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
-from src.simulation.digital_twin import (ChaosScenarioRunner, LinkState,
-                                         MeshDigitalTwin, NodeState, TwinLink,
-                                         TwinNode)
+from src.simulation.digital_twin import (MeshDigitalTwin, NodeState)
 
 logger = logging.getLogger(__name__)
 

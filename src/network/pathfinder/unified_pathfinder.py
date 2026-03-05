@@ -7,13 +7,9 @@ x0tta6bl4 Unified Pathfinder
 Интегрирует Batman-adv topology с MeshRouter для отказоустойчивой маршрутизации.
 """
 
-import asyncio
 import logging
-import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)

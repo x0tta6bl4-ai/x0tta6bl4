@@ -2,7 +2,7 @@
 # Defines rules and heuristics for root cause analysis
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Callable, Any
+from typing import List, Dict, Callable, Any
 from enum import Enum
 
 class RootCauseType(Enum):
@@ -213,7 +213,7 @@ class CausalKnowledgeBase:
                         "explanation": explanation,
                         "confidence": rule.confidence_score
                     })
-            except Exception as e:
+            except Exception:
                 # Log error but don't crash
                 # logger.error(f"Error evaluating rule {rule.rule_id}: {e}")
                 pass

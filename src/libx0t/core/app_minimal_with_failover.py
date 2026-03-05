@@ -6,13 +6,11 @@ Enhanced version with peer health monitoring and route recalculation.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import logging
 import random
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel

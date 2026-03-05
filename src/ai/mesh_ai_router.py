@@ -19,7 +19,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -271,7 +271,7 @@ class MeshAIRouter:
 
                 return response
 
-            except Exception as e:
+            except Exception:
                 # Self-healing: fast failover
                 failover_start = time.perf_counter()
                 node.record_failure()
@@ -432,7 +432,7 @@ async def demo():
     )
 
     print(f"  Global weights updated (round {fl.round_number})")
-    print(f"  Privacy: User data never left local nodes! ✅")
+    print("  Privacy: User data never left local nodes! ✅")
 
     print("\n" + "=" * 60)
     print("✅ Demo Complete!")

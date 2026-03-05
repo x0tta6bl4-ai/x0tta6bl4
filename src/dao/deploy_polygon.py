@@ -104,7 +104,7 @@ def main():
     try:
         gas = w3.eth.estimate_gas(tx_tl)
         tx_tl["gas"] = int(gas * 1.1)
-    except Exception as e:
+    except Exception:
         tx_tl["gas"] = 4000000
 
     signed_tl = account.sign_transaction(tx_tl)
@@ -129,7 +129,7 @@ def main():
     try:
         gas = w3.eth.estimate_gas(tx_gov)
         tx_gov["gas"] = int(gas * 1.1)
-    except Exception as e:
+    except Exception:
         tx_gov["gas"] = 5000000
 
     signed_gov = account.sign_transaction(tx_gov)

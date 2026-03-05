@@ -2,7 +2,7 @@ import logging
 import json
 from sqlalchemy.orm import Session
 from src.database import GovernanceProposal
-from src.mesh.yggdrasil_optimizer import get_optimizer, OptimizationConfig
+from src.mesh.yggdrasil_optimizer import get_optimizer
 
 logger = logging.getLogger(__name__)
 

@@ -728,7 +728,7 @@ class HealthMonitor:
                     else check_fn()
                 )
                 if not result:
-                    await self._handle_alert(f"check_failed", {"check": check_name})
+                    await self._handle_alert("check_failed", {"check": check_name})
             except Exception as e:
                 logger.error(f"Check {check_name} failed: {e}")
 

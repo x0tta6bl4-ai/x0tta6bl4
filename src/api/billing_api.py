@@ -9,8 +9,8 @@ subscription management and ZKP access.
 import os
 import logging
 import asyncio
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from typing import Optional
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from src.billing.stripe_client import StripeClient, StripeConfig

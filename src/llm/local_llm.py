@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 
 try:
     from llama_cpp import Llama

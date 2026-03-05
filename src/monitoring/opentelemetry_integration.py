@@ -6,9 +6,7 @@ for the entire system including traces, spans, metrics, and logs correlation.
 """
 
 import asyncio
-import json
 import logging
-import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime

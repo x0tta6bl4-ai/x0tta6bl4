@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from src.dao.quadratic_voting import QuadraticVoting, Vote
+from src.dao.quadratic_voting import QuadraticVoting
 
 logger = logging.getLogger(__name__)
 

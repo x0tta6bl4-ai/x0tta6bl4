@@ -1,7 +1,6 @@
-import asyncio
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 from src.vision.processor import VisionProcessor
 

@@ -37,7 +37,7 @@ import logging
 import os
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import IntEnum
 from pathlib import Path
@@ -372,7 +372,7 @@ def cli(ctx, rpc, governance_address, token_address, private_key, ledger):
         click.echo(
             "ERROR: Contract addresses required.\n"
             "Set MESH_GOVERNANCE_ADDRESS + X0T_TOKEN_ADDRESS, or run\n"
-            f"  governance_script.py set-deployment <gov_addr> <tok_addr>",
+            "  governance_script.py set-deployment <gov_addr> <tok_addr>",
             err=True,
         )
         sys.exit(1)

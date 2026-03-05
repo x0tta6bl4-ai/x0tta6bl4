@@ -6,7 +6,6 @@ Manages up to 100 parallel agents with PARL (Parallel-Agent RL) optimization.
 Provides 4.5x speedup vs sequential execution.
 """
 
-import asyncio
 import logging
 import time
 import uuid
@@ -14,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from src.swarm.agent import Agent, AgentCapability
+from src.swarm.agent import Agent
 from src.swarm.agents.pricing_agent import DynamicPricingAgent
 
 # Optional imports - graceful degradation if not available

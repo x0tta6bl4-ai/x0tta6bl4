@@ -19,12 +19,10 @@ Usage:
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 # Local imports
@@ -179,7 +177,7 @@ class EBPFCLI:
             prog_type = EBPFProgramType(program_type)
             program_id = self.loader.load_program(program_path, prog_type)
 
-            print_success(f"Program loaded successfully")
+            print_success("Program loaded successfully")
             print(f"  Program ID: {colorize(program_id, Colors.CYAN)}")
             print(f"  Type: {program_type}")
             print_info(
@@ -219,7 +217,7 @@ class EBPFCLI:
         interface = args.interface or self.interface
         mode = args.mode or "skb"
 
-        print_header(f"Attaching Program to Interface")
+        print_header("Attaching Program to Interface")
         print(f"  Program: {program_id}")
         print(f"  Interface: {interface}")
         print(f"  Mode: {mode}")
@@ -247,7 +245,7 @@ class EBPFCLI:
         program_id = args.program_id
         interface = args.interface or self.interface
 
-        print_header(f"Detaching Program from Interface")
+        print_header("Detaching Program from Interface")
         print(f"  Program: {program_id}")
         print(f"  Interface: {interface}")
 

@@ -11,10 +11,8 @@ import logging
 import threading
 import time
 from concurrent.futures import TimeoutError as ConcurrentTimeoutError
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +170,7 @@ class TimeoutPattern:
             
             return result
             
-        except (TimeoutError, ConcurrentTimeoutError) as e:
+        except (TimeoutError, ConcurrentTimeoutError):
             self._record_timeout(operation, calculated_timeout)
             
             if self.config.fallback_on_timeout and self.config.fallback_value is not None:

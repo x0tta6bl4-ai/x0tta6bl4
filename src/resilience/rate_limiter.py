@@ -9,16 +9,13 @@ Multiple rate limiting algorithms for distributed systems:
 - Adaptive Rate Limiter: ML-based rate adjustment
 """
 
-import asyncio
 import logging
-import math
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 logger = logging.getLogger(__name__)
 

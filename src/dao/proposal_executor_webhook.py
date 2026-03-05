@@ -175,7 +175,7 @@ class HelmRunner:
             "--wait",
             "--timeout", "5m",
             "--set", f"global.dao.proposalId={proposal_id}",
-            "--set", f"global.dao.autoUpgrade=true",
+            "--set", "global.dao.autoUpgrade=true",
         ]
 
         # Merge extra args from env

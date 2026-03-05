@@ -7,11 +7,9 @@ x0tta6bl4 Sales Bot v2.0
 Цель: Крым, первые 100 пользователей за неделю.
 """
 
-import asyncio
 import logging
 import os
 import secrets
-import time
 from dataclasses import dataclass
 
 try:
@@ -24,8 +22,8 @@ except ImportError:
     TELEGRAM_AVAILABLE = False
     print("pip install python-telegram-bot")
 
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 # Subprocess validation utilities
 import subprocess
-from typing import List, Optional
+from typing import List
 
 ALLOWED_COMMANDS = {"bpftool", "batctl", "yggdrasilctl", "ip", "tc", "which"}
 
