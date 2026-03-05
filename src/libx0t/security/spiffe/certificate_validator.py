@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Set
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.extensions import CRLDistributionPoints
 from cryptography.x509.oid import AuthorityInformationAccessOID, ExtensionOID
 
 try:

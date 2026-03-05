@@ -5,11 +5,10 @@ Provides a simple interface for quantum-secure, self-healing mesh networking.
 
 import logging
 import asyncio
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from libx0t.network.mesh_router import MeshRouter
 from libx0t.network.mesh_node import MeshNode, MeshNodeConfig
-from libx0t.security.post_quantum import PQMeshSecurityLibOQS as PQMeshSecurity
 
 logger = logging.getLogger("libx0t")
 

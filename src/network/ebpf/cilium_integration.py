@@ -9,7 +9,6 @@ Integrates Cilium-inspired eBPF optimizations from paradox_zone:
 - Zero Trust network policies
 """
 
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -313,7 +312,6 @@ class CiliumLikeIntegration:
     def _export_flow(self, flow_event: FlowEvent):
         """Export flow event to external collector."""
         try:
-            import httpx
 
             flow_data = {
                 "timestamp": flow_event.timestamp,

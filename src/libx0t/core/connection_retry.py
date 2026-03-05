@@ -13,7 +13,7 @@ import logging
 import random
 from dataclasses import dataclass
 from functools import wraps
-from typing import Callable, List, Optional, Type, TypeVar
+from typing import Callable, List, Optional, TypeVar
 
 from libx0t.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 

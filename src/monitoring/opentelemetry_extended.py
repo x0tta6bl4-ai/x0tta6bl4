@@ -12,7 +12,7 @@ Adds tracing support for:
 
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

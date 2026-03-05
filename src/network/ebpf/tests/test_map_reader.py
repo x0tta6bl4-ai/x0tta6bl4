@@ -11,10 +11,10 @@ Tests cover:
 - Performance
 """
 
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from telemetry_module import MapReader, MapType, TelemetryConfig
+from telemetry_module import MapReader
 
 
 class TestMapReaderInitialization:
@@ -226,7 +226,6 @@ class TestMapReaderCaching:
 
     def test_cache_expiration(self, reader, mock_bpf_program, mock_time):
         """Test cache expiration."""
-        import time
 
         # First read
         data1 = reader.read_map(mock_bpf_program, "test_map", use_cache=True)

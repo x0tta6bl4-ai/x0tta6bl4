@@ -11,13 +11,12 @@ Attestations supported:
 """
 
 import hashlib
-import json
 import logging
 import secrets
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.security.zkp_auth import G, P, Q, SchnorrZKP, PedersenCommitment
+from src.security.zkp_auth import G, P, Q, PedersenCommitment
 
 logger = logging.getLogger("zkp-attestor")
 

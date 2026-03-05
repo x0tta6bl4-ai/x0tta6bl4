@@ -4,7 +4,6 @@ MaaS Combined Router - Assembles all endpoint routers.
 Provides a single router that combines all domain-specific routers.
 """
 
-from typing import Optional
 
 from fastapi import APIRouter
 

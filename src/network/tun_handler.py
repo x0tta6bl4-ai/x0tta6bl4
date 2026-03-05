@@ -15,7 +15,7 @@ import fcntl
 import struct
 import asyncio
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class TUNInterface:
             # Create interface using ioctl
             # Pack interface name and flags
             ifr = struct.pack(
-                f"16sH", 
+                "16sH", 
                 self.name.encode("utf-8")[:15], 
                 IFF_TUN | IFF_NO_PI
             )
@@ -243,7 +243,6 @@ class TUNInterface:
             return None
         
         try:
-            import socket
             data = os.read(self.fd, self.mtu)
             return data if data else None
         except BlockingIOError:

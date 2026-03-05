@@ -11,7 +11,6 @@ Features:
 
 import asyncio
 import hashlib
-import json
 import logging
 import random
 import time

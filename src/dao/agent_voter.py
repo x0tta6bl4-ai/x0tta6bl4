@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Optional
 
 from src.dao.fl_governance import Proposal, VoteType

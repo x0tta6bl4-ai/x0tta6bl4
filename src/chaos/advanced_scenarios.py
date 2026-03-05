@@ -7,7 +7,6 @@ Extended chaos testing scenarios beyond basic node failures and partitions.
 import asyncio
 import logging
 import random
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum

@@ -20,7 +20,6 @@ from src.core.mape_orchestrator import (
 from src.agents import (
     AgentOrchestrator,
     get_orchestrator,
-    Alert,
     AlertSeverity,
 )
 

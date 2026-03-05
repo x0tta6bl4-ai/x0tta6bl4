@@ -19,8 +19,8 @@ def _get_graphsage_loader():
     except ImportError as e:
         if stub_mode:
             logging.getLogger(__name__).warning(
-                f"⚠️ GraphSAGE not available, using stub. "
-                f"Set ML_STUB_MODE=false and install ML dependencies for production."
+                "⚠️ GraphSAGE not available, using stub. "
+                "Set ML_STUB_MODE=false and install ML dependencies for production."
             )
             return lambda: None
         elif is_production:
@@ -31,8 +31,8 @@ def _get_graphsage_loader():
             )
         else:
             logging.getLogger(__name__).warning(
-                f"⚠️ GraphSAGE not available, using stub. "
-                f"Set ML_STUB_MODE=false for production or install ML dependencies."
+                "⚠️ GraphSAGE not available, using stub. "
+                "Set ML_STUB_MODE=false for production or install ML dependencies."
             )
             return lambda: None
 

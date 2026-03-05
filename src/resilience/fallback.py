@@ -16,7 +16,7 @@ import logging
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import (
@@ -695,7 +695,7 @@ class FallbackExecutor(Generic[T]):
                     execution_time_ms=(time.time() - start_time) * 1000
                 )
                 
-            except Exception as fallback_error:
+            except Exception:
                 with self._lock:
                     self._metrics.fallback_failures += 1
                 raise

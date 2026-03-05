@@ -10,14 +10,13 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable
-from datetime import datetime, timezone
 
 from src.parl.types import (
     Task, TaskId, Experience, Policy, StepResult, 
     PARLMetrics, PPOConfig, WorkerId
 )
 from src.parl.worker import AgentWorker, WorkerState
-from src.parl.scheduler import TaskScheduler, QueueStats
+from src.parl.scheduler import TaskScheduler
 
 logger = logging.getLogger(__name__)
 

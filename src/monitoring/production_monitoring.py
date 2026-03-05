@@ -9,12 +9,11 @@ Provides comprehensive monitoring for production deployment:
 """
 
 import logging
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from prometheus_client import Counter, Gauge, Histogram, Summary
+from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +259,6 @@ class ProductionMonitor:
         # If not available from Prometheus, try mesh router stats
         if active_connections == 0:
             try:
-                from src.network.mesh_router import MeshRouter
 
                 # Try to get router instance (if available in context)
                 router = getattr(self, "_mesh_router", None)

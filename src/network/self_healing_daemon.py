@@ -10,7 +10,6 @@ import signal
 import subprocess
 import time
 import logging
-from datetime import datetime
 
 # Configuration
 INTERFACE = "singbox_tun"

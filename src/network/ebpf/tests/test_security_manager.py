@@ -178,7 +178,6 @@ class TestMetricValueValidation:
 
     def test_nan_value(self, security_manager):
         """Test validation of NaN value."""
-        import math
 
         is_valid, error = security_manager.validate_metric_value(float("nan"))
 

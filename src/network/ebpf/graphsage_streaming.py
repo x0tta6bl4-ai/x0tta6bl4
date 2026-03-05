@@ -8,7 +8,7 @@ sub-millisecond anomaly detection.
 import logging
 import time
 from collections import deque
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 

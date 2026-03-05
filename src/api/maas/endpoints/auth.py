@@ -19,7 +19,6 @@ from ..auth import (
     UserContext,
     get_auth_service,
     get_current_user,
-    get_optional_user,
 )
 from ..models import (
     ApiKeyRotateRequest,

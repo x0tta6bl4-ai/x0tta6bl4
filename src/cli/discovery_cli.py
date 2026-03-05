@@ -43,7 +43,7 @@ async def run_discovery(args):
     await discovery.start()
 
     print("=" * 60)
-    print(f"🔍 MESH DISCOVERY")
+    print("🔍 MESH DISCOVERY")
     print("=" * 60)
     print(f"   Node ID:    {node_id}")
     print(f"   Port:       {args.port}")
@@ -96,7 +96,7 @@ async def scan_network(args):
     await discovery.stop()
 
     print("\n" + "=" * 60)
-    print(f"📋 РЕЗУЛЬТАТЫ СКАНИРОВАНИЯ")
+    print("📋 РЕЗУЛЬТАТЫ СКАНИРОВАНИЯ")
     print("=" * 60)
 
     if found_peers:

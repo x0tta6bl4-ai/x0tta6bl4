@@ -6,11 +6,11 @@ Simulates a full economic cycle: Deploy -> Stake -> Traffic -> Rewards -> ROI
 import random
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Import our actual core logic
 sys.path.append(".")
-from src.dao.token import MeshToken, ResourceType
+from src.dao.token import MeshToken
 from src.network.batman.node_manager import NodeManager
 
 
@@ -68,7 +68,7 @@ def main():
 
     # Stake
     token.stake(node_id, 1000.0)
-    print_success(f"Operator staked 1,000 X0T for Governance & Rewards")
+    print_success("Operator staked 1,000 X0T for Governance & Rewards")
     print_info("Voting Power", f"{token.voting_power(node_id)} votes")
     print_info("Staked Balance", f"{token.staked_amount(node_id)} X0T")
 

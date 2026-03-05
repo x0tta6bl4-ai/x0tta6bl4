@@ -11,7 +11,6 @@ import hashlib
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional
 
 try:
     import httpx

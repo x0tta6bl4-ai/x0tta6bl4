@@ -4,10 +4,8 @@ WebSocket транспорт с интегрированным Traffic Shaping.
 """
 
 import asyncio
-import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional

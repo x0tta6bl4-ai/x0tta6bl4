@@ -4,14 +4,13 @@ ML Integration with MAPE-K
 Integrates all ML modules (RAG, LoRA, Anomaly, Decision, MLOps) with the MAPE-K autonomic loop.
 """
 
-import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from src.ml.anomaly import AnomalyConfig, AnomalyDetectionSystem
-from src.ml.decision import DecisionEngine, Policy, PolicyPriority
+from src.ml.decision import DecisionEngine
 from src.ml.lora import LoRAAdapter, LoRAConfig
 from src.ml.mlops import MLOpsManager
 from src.ml.rag import RAGAnalyzer

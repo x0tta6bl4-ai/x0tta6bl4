@@ -11,9 +11,6 @@ x0tta6bl4 Sales Bot
 5. Бот выдаёт: ссылку + токен активации
 """
 
-import asyncio
-import hashlib
-import json
 import logging
 import os
 import secrets
@@ -21,7 +18,6 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from src.sales.payment_verification import TONVerifier, TronScanVerifier
 from src.services.xray_manager import XrayManager

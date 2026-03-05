@@ -2,7 +2,6 @@ import os
 import subprocess
 import json
 import time
-from pathlib import Path
 
 # Конфигурация
 SOURCE_BASE = "/mnt/projects/recovered_photos"

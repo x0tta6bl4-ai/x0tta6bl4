@@ -7,15 +7,13 @@ Provides post-quantum secure key exchange and verification for mesh networking.
 Integrates with eBPF XDP programs for kernel-space crypto operations.
 """
 
-import asyncio
 import hashlib
-import hmac
 import logging
 import os
 import secrets
 import struct
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM

@@ -205,7 +205,7 @@ class SPIFFEController:
         if not self.current_identity:
             return False
 
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         now = datetime.utcnow()
         time_until_expiry = (self.current_identity.expiry - now).total_seconds()

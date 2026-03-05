@@ -173,7 +173,7 @@ class PasswordMigrator:
             return is_valid, True
 
         # Unknown hash format
-        logger.error(f"Unknown hash format in verify_legacy_or_bcrypt")
+        logger.error("Unknown hash format in verify_legacy_or_bcrypt")
         return False, False
 
     def rehash_md5_to_bcrypt(self, md5_hash: str) -> Optional[str]:

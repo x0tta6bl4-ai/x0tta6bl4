@@ -34,11 +34,10 @@ from fastapi import (
     status,
     BackgroundTasks,
 )
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Import edge computing components
-from src.edge.edge_node import EdgeNode, EdgeNodeConfig, EdgeNodeManager, EdgeNodeStatus
+from src.edge.edge_node import EdgeNodeManager, EdgeNodeStatus
 from src.edge.task_distributor import TaskDistributor, DistributionStrategy as TaskDistributionStrategy
 from src.edge.edge_cache import EdgeCache, CacheConfig, CachePolicy
 
@@ -47,11 +46,9 @@ from src.resilience import (
     TokenBucket,
     SemaphoreBulkhead,
     BulkheadFullException,
-    FallbackExecutor,
     DefaultValueFallback,
     CircuitBreaker,
     CircuitBreakerConfig,
-    RateLimitExceeded,
 )
 
 # Import metrics
@@ -694,7 +691,7 @@ async def set_distribution_strategy(request: DistributionStrategyUpdate):
         strategy = TaskDistributionStrategy(request.strategy)
         distributor.set_strategy(strategy, request.config)
         return {"status": "updated"}
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid strategy: {request.strategy}"

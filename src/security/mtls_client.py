@@ -12,10 +12,10 @@ import asyncio
 import logging
 import os
 import ssl
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Optional
 
 import aiohttp
 from cryptography import x509
