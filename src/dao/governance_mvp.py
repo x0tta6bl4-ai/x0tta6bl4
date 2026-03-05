@@ -14,6 +14,18 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Import safe subprocess for helm operations
+try:
+    from src.core.safe_subprocess import safe_helm_upgrade
+    HELM_AVAILABLE = True
+except ImportError:
+    try:
+        from libx0t.core.safe_subprocess import safe_helm_upgrade
+        HELM_AVAILABLE = True
+    except ImportError:
+        HELM_AVAILABLE = False
+        logger.warning("safe_helm_upgrade not available")
+
 # Import existing governance components
 try:
     from .governance import GovernanceEngine, Proposal, ProposalState, VoteType
@@ -152,11 +164,64 @@ class ProposalExecutor:
                 return await self._upgrade_model(action.target, action.parameters)
             elif action.action_type == "change_threshold":
                 return await self._change_threshold(action.target, action.parameters)
+            elif action.action_type == "helm_upgrade":
+                return await self._helm_upgrade(action.target, action.parameters)
             else:
                 logger.warning(f"Unknown action type: {action.action_type}")
                 return False
         except Exception as e:
             logger.error(f"Action execution failed: {e}")
+            return False
+
+    async def _helm_upgrade(self, release_name: str, parameters: Dict[str, Any]) -> bool:
+        """
+        Execute helm upgrade via safe_helm_upgrade.
+        
+        Args:
+            release_name: Helm release name (e.g., "x0tta-mesh-operator")
+            parameters: Dict with keys:
+                - chart_path: Path to chart directory
+                - namespace: Kubernetes namespace
+                - values: Optional dict of helm values
+                
+        Returns:
+            True if successful
+        """
+        if not HELM_AVAILABLE:
+            logger.error("helm upgrade not available - safe_helm_upgrade not found")
+            return False
+            
+        chart_path = parameters.get("chart_path", f"charts/{release_name}")
+        namespace = parameters.get("namespace", "default")
+        values = parameters.get("values", {})
+        
+        # Add version info from parameters if provided
+        if "version" in parameters:
+            values["image.tag"] = parameters["version"]
+        if "image" in parameters:
+            values["image.repository"] = parameters["image"]
+            
+        logger.info(f"Executing helm upgrade: release={release_name}, chart={chart_path}, namespace={namespace}")
+        logger.info(f"Values: {values}")
+        
+        try:
+            result = safe_helm_upgrade(
+                release_name=release_name,
+                chart_path=chart_path,
+                namespace=namespace,
+                values=values,
+                timeout=parameters.get("timeout", 600),
+            )
+            
+            if result.success:
+                logger.info(f"Helm upgrade successful: {result.stdout}")
+                return True
+            else:
+                logger.error(f"Helm upgrade failed: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Helm upgrade exception: {e}")
             return False
 
     async def _update_config(self, target: str, parameters: Dict[str, Any]) -> bool:

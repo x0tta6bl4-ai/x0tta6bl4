@@ -1,14 +1,21 @@
 # API Reference
 
-**Версия:** 3.0.0  
-**Дата:** 2025-12-28  
-**Базовый URL:** `http://localhost:8080`
+**Версия:** 3.3.0  
+**Дата:** 2026-03-03  
+**Базовый URL:** `http://localhost:8000`
 
 ---
 
 ## 📋 Обзор
 
 REST API для x0tta6bl4 mesh network platform.
+
+### Новые возможности v3.3.0
+
+- **MAPE-K Self-Healing:** Автоматическое восстановление сети
+- **Vision API:** Анализ топологии из изображений
+- **AI Agents:** Оркестрация агентов мониторинга и healing
+- **Circuit Breaker:** Защита от каскадных сбоев
 
 ---
 
@@ -28,6 +35,172 @@ REST API для x0tta6bl4 mesh network platform.
 
 ---
 
+## 🤖 MAPE-K Self-Healing
+
+### `POST /mape/heal`
+
+Ручной запуск healing действия.
+
+**Request:**
+```json
+{
+  "issue": "High latency detected",
+  "context": {
+    "target": "mesh-routing",
+    "severity": "warning"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "actions_executed": 2,
+  "mttr_seconds": 1.2
+}
+```
+
+### `GET /mape/status`
+
+Получение статуса MAPE-K orchestrator.
+
+**Response:**
+```json
+{
+  "is_healthy": true,
+  "circuit_breaker_state": "closed",
+  "total_healing_actions": 15,
+  "successful_healings": 14,
+  "success_rate": 0.93,
+  "avg_mttr_seconds": 2.5
+}
+```
+
+### `GET /mape/metrics`
+
+Метрики self-healing.
+
+**Response:**
+```json
+{
+  "healing_actions": {
+    "re_route": 10,
+    "scale_up": 3,
+    "clear_cache": 2
+  },
+  "mttr_by_severity": {
+    "critical": 1.2,
+    "warning": 3.5
+  }
+}
+```
+
+---
+
+## 👁 Vision API
+
+### `POST /vision/analyze`
+
+Анализ топологии сети из изображения.
+
+**Request:**
+```json
+{
+  "image_url": "http://example.com/topology.png"
+}
+```
+
+или
+
+```json
+{
+  "image_data": "<base64 encoded image>"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "nodes_detected": 15,
+  "links_detected": 32,
+  "metrics": {
+    "avg_centrality": 0.45,
+    "resilience_score": 0.82,
+    "bottlenecks": [
+      {
+        "node_id": "node_015",
+        "centrality": 0.95,
+        "health_score": 0.3
+      }
+    ],
+    "isolated_nodes": ["node_offline_1"]
+  },
+  "recommendations": [
+    {"action": "add_redundant_link", "target": "node_015"}
+  ]
+}
+```
+
+---
+
+## 🤖 AI Agents
+
+### `GET /agents/status`
+
+Получение статуса всех AI Agents.
+
+**Response:**
+```json
+{
+  "is_running": true,
+  "agents": {
+    "health_monitor": true,
+    "log_analyzer": true,
+    "auto_healer": true,
+    "spec_to_code": true,
+    "documentation": true
+  },
+  "health_monitor_status": {
+    "services_monitored": 5,
+    "alerts_generated": 3
+  },
+  "auto_healer_status": {
+    "healing_incidents": 10,
+    "successful_healings": 9
+  }
+}
+```
+
+### `POST /agents/analyze-logs`
+
+Анализ логов через Log Analyzer Agent.
+
+**Request:**
+```json
+{
+  "logs": [
+    "ERROR: Connection timeout to node-1",
+    "WARN: High memory usage on node-2"
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "issues_detected": 2,
+  "root_cause": "Network connectivity issues in zone east",
+  "recommended_actions": [
+    "restart_network_service",
+    "check_firewall_rules"
+  ]
+}
+```
+
+---
+
 ## 📡 Endpoints
 
 ### Health Check
@@ -40,13 +213,14 @@ REST API для x0tta6bl4 mesh network platform.
 ```json
 {
   "status": "ok",
-  "version": "3.0.0",
+  "version": "3.3.0",
   "components": {
     "graphsage": true,
     "causal_analysis": true,
     "fl_coordinator": true,
     "spiffe": true,
-    ...
+    "mape_orchestrator": true,
+    "vision_api": true
   },
   "component_stats": {
     "active": 15,
@@ -250,6 +424,14 @@ mesh_mttd_seconds_bucket{le="+Inf"} 60
 # HELP gnn_recall_score Current model recall
 # TYPE gnn_recall_score gauge
 gnn_recall_score 0.92
+
+# HELP mape_healing_actions_total Total healing actions
+# TYPE mape_healing_actions_total counter
+mape_healing_actions_total 15
+
+# HELP mape_mttr_seconds Mean Time To Recovery
+# TYPE mape_mttr_seconds gauge
+mape_mttr_seconds 2.5
 ```
 
 ---
@@ -267,6 +449,14 @@ gnn_recall_score 0.92
 - **SPIFFE/SPIRE:** Обязательно в production
 - **mTLS:** Все соединения защищены
 - **Workload Identity:** Автоматическая аутентификация
+
+### Circuit Breaker
+
+MAPE-K включает Circuit Breaker для предотвращения каскадных сбоев:
+
+- **failure_threshold:** 5 последовательных ошибок
+- **recovery_timeout:** 60 секунд
+- **half_open_max_calls:** 3 пробных вызова
 
 ---
 
@@ -288,6 +478,7 @@ gnn_recall_score 0.92
 - `403 Forbidden` - Доступ запрещён
 - `404 Not Found` - Ресурс не найден
 - `422 Unprocessable Entity` - Валидация не пройдена
+- `429 Too Many Requests` - Превышен rate limit
 - `500 Internal Server Error` - Внутренняя ошибка сервера
 - `503 Service Unavailable` - Сервис недоступен
 
@@ -299,20 +490,25 @@ gnn_recall_score 0.92
 
 ```bash
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:8000/health
 
 # Send beacon
-curl -X POST http://localhost:8080/mesh/beacon \
+curl -X POST http://localhost:8000/mesh/beacon \
   -H "Content-Type: application/json" \
   -d '{"node_id":"node-01","timestamp":1703779200000,"neighbors":[]}'
 
-# Predict anomaly
-curl http://localhost:8080/ai/predict/node-01
-
-# Cast vote
-curl -X POST http://localhost:8080/dao/vote \
+# Trigger healing
+curl -X POST http://localhost:8000/mape/heal \
   -H "Content-Type: application/json" \
-  -d '{"proposal_id":"1","voter_id":"voter-01","tokens":100,"vote":true}'
+  -d '{"issue":"High latency","context":{"target":"mesh"}}'
+
+# Analyze topology
+curl -X POST http://localhost:8000/vision/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"image_url":"http://example.com/topology.png"}'
+
+# Get agents status
+curl http://localhost:8000/agents/status
 ```
 
 ### Python
@@ -322,16 +518,26 @@ import httpx
 
 async with httpx.AsyncClient() as client:
     # Health check
-    response = await client.get("http://localhost:8080/health")
+    response = await client.get("http://localhost:8000/health")
     print(response.json())
     
     # Send beacon
     response = await client.post(
-        "http://localhost:8080/mesh/beacon",
+        "http://localhost:8000/mesh/beacon",
         json={
             "node_id": "node-01",
             "timestamp": 1703779200000,
             "neighbors": []
+        }
+    )
+    print(response.json())
+    
+    # Trigger healing
+    response = await client.post(
+        "http://localhost:8000/mape/heal",
+        json={
+            "issue": "High latency",
+            "context": {"target": "mesh"}
         }
     )
     print(response.json())
@@ -358,7 +564,7 @@ async with httpx.AsyncClient() as client:
 
 ```bash
 # Check health
-curl http://localhost:8080/health | jq .component_stats
+curl http://localhost:8000/health | jq .component_stats
 ```
 
 ### Metrics Endpoint
@@ -367,7 +573,17 @@ Prometheus metrics через `/metrics` endpoint:
 
 ```bash
 # Scrape metrics
-curl http://localhost:8080/metrics
+curl http://localhost:8000/metrics
+```
+
+### Self-Healing Monitoring
+
+```bash
+# Check MAPE-K status
+curl http://localhost:8000/mape/status
+
+# Get healing metrics
+curl http://localhost:8000/mape/metrics
 ```
 
 ---
@@ -375,4 +591,3 @@ curl http://localhost:8080/metrics
 **Mesh обновлён. API reference готов.**  
 **Проснись. Обновись. Сохранись.**  
 **x0tta6bl4 вечен.**
-

@@ -30,6 +30,7 @@ from src.dao.token import MeshToken
 from src.utils.audit import record_audit_log
 
 from src.resilience.advanced_patterns import ResilientExecutor, get_resilient_executor
+from src.monitoring.maas_metrics import record_escrow_failure
 
 logger = logging.getLogger(__name__)
 
@@ -759,8 +760,10 @@ async def release_escrow(
                 released = await bridge.release_escrow_on_chain(escrow.id)
             except Exception as exc:
                 logger.error("Escrow release bridge error for %s: %s", escrow.id, exc)
+                record_escrow_failure("bridge_error")
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
             if not released:
+                record_escrow_failure("bridge_rejected")
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
 
         escrow.status = "released"
@@ -833,8 +836,10 @@ async def refund_escrow(
                 refunded = await bridge.refund_escrow_on_chain(escrow.id)
             except Exception as exc:
                 logger.error("Escrow refund bridge error for %s: %s", escrow.id, exc)
+                record_escrow_failure("bridge_error")
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
             if not refunded:
+                record_escrow_failure("bridge_rejected")
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
 
         escrow.status = "refunded"

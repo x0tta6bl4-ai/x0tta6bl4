@@ -1,7 +1,12 @@
+import os
 import time
 import unittest
 
 from src.dao.governance import GovernanceEngine, ProposalState, VoteType
+
+# Governance hardened в prod: unsigned votes отклоняются.
+# Тесты — unit-тесты без PQC-ключей, поэтому включаем test mode.
+os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 
 
 class TestGovernance(unittest.TestCase):

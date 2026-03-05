@@ -139,7 +139,7 @@ class MeshInstance(Base):
     __tablename__ = "mesh_instances"
     id = Column(String, primary_key=True) # mesh_id
     name = Column(String)
-    owner_id = Column(String, ForeignKey("users.id"))
+    owner_id = Column(String, ForeignKey("users.id"), index=True)
     plan = Column(String)
     region = Column(String, default="global")
     nodes = Column(Integer, default=5)
@@ -149,7 +149,7 @@ class MeshInstance(Base):
     traffic_profile = Column(String, default="none")
     join_token = Column(String)
     join_token_expires_at = Column(DateTime)
-    status = Column(String, default="active")
+    status = Column(String, default="active", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -183,15 +183,15 @@ class MarketplaceListing(Base):
     """P2P infrastructure listings."""
     __tablename__ = "marketplace_listings"
     id = Column(String, primary_key=True)
-    owner_id = Column(String, ForeignKey("users.id"))
+    owner_id = Column(String, ForeignKey("users.id"), index=True)
     node_id = Column(String, unique=True)
     region = Column(String, index=True)
     price_per_hour = Column(Integer)  # In cents
     price_token_per_hour = Column(Float, nullable=True)  # In X0T
     currency = Column(String, default="USD")  # USD or X0T
     bandwidth_mbps = Column(Integer)
-    status = Column(String, default="available")  # available, escrow, rented
-    renter_id = Column(String, ForeignKey("users.id"), nullable=True)
+    status = Column(String, default="available", index=True)  # available, escrow, rented
+    renter_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     mesh_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -203,14 +203,14 @@ class MarketplaceEscrow(Base):
     __tablename__ = "marketplace_escrows"
     id = Column(String, primary_key=True)
     listing_id = Column(String, ForeignKey("marketplace_listings.id"), index=True)
-    renter_id = Column(String, ForeignKey("users.id"), nullable=False)
+    renter_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     amount_cents = Column(Integer, nullable=True)  # 1-hour deposit in USD cents
     amount_token = Column(Float, nullable=True)  # 1-hour deposit in X0T
     currency = Column(String, default="USD")  # USD or X0T
-    status = Column(String, default="held")  # held, released, refunded, expired
+    status = Column(String, default="held", index=True)  # held, released, refunded, expired
     auto_renew = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
     released_at = Column(DateTime, nullable=True)
 
     listing = relationship("MarketplaceListing", back_populates="escrows")
@@ -221,11 +221,11 @@ class Invoice(Base):
 
     __tablename__ = "invoices"
     id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
-    mesh_id = Column(String)
+    user_id = Column(String, ForeignKey("users.id"), index=True)
+    mesh_id = Column(String, index=True)
     total_amount = Column(Integer)  # In cents
     currency = Column(String, default="USD")
-    status = Column(String, default="issued")  # issued, paid, overdue
+    status = Column(String, default="issued", index=True)  # issued, paid, overdue
     stripe_session_id = Column(String, unique=True, index=True, nullable=True)
     period_start = Column(DateTime)
     period_end = Column(DateTime)
@@ -251,9 +251,9 @@ class Session(Base):
     __tablename__ = "sessions"
 
     token = Column(String, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     email = Column(String, index=True, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="sessions")
@@ -272,7 +272,7 @@ class Payment(Base):
     payment_method = Column(String, nullable=False)  # "USDT", "TON", "STRIPE"
     transaction_hash = Column(String, nullable=True)
     status = Column(
-        String, default="pending"
+        String, default="pending", index=True
     )  # "pending", "verified", "failed", "refunded"
     verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -337,7 +337,7 @@ class NodeBinaryAttestation(Base):
     sbom_id = Column(String, ForeignKey("sbom_entries.id"), nullable=False)
     agent_version = Column(String, nullable=False)
     checksum_sha256 = Column(String, nullable=False)
-    status = Column(String, default="verified")  # verified, mismatch, unknown
+    status = Column(String, default="verified", index=True)  # verified, mismatch, unknown
     verified_at = Column(DateTime, default=datetime.utcnow)
 
     sbom = relationship("SBOMEntry", back_populates="node_attestations")
@@ -369,9 +369,9 @@ class GovernanceProposal(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    state = Column(String, default="active")  # active, passed, rejected, executed
+    state = Column(String, default="active", index=True)  # active, passed, rejected, executed
     actions_json = Column(Text, nullable=True)   # JSON of action list
-    end_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False, index=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=False)
     execution_hash = Column(String, nullable=True)  # Finality hash on execution
     executed_at = Column(DateTime, nullable=True)

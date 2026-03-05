@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/governance/TimelockController.sol";
 
@@ -29,13 +29,11 @@ import "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract X0TTA6BL4Timelock is TimelockController {
     /**
-     * @dev Initialize timelock with:
-     * - 2-day delay (172,800 seconds)
-     * - proposers: [Governor contract]
-     * - executors: [Governor contract, any address (0x0)]
-     * - admin: [deployer]
-     * 
-     * Note: Set proposer/executor based on Governor address
+     * @dev Initialize Timelock with:
+     * - minDelay: Minimum delay before execution
+     * - proposers: Addresses allowed to propose (usually Governor)
+     * - executors: Addresses allowed to execute (usually zero address for anyone)
+     * - admin: Admin address (usually Governor or deployer)
      */
     constructor(
         address[] memory proposers,
@@ -50,31 +48,8 @@ contract X0TTA6BL4Timelock is TimelockController {
         )
     {}
 
-    /**
-     * @dev Get minimum delay
-     */
-    function getMinDelay() public view returns (uint256) {
-        return minDelay;
-    }
-
-    /**
-     * @dev Check if operation is ready
-     */
-    function isOperationReady(bytes32 id) public view returns (bool) {
-        return super.isOperationReady(id);
-    }
-
-    /**
-     * @dev Check if operation is done
-     */
-    function isOperationDone(bytes32 id) public view returns (bool) {
-        return super.isOperationDone(id);
-    }
-
-    /**
-     * @dev Get operation state
-     */
-    function getOperationState(bytes32 id) public view returns (OperationState) {
-        return super.getOperationState(id);
-    }
+    // The functions isOperationReady, isOperationDone, getOperationState
+    // and getMinDelay are inherently provided by TimelockController.
+    // Explicit overriding without changing functionality is not required
+    // and leads to compiler errors in OpenZeppelin v5.
 }

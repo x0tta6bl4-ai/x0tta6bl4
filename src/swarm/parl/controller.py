@@ -75,35 +75,6 @@ class PARLConfig:
                 )
 
 
-class PPOPolicyStub:
-    """
-    Stub class for PPOPolicy when PyTorch is not available.
-    Provides no-op implementations of all methods.
-    """
-    def __init__(self, state_dim: int, action_dim: int):
-        self._dummy = True
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        logger.warning("PyTorch not available. PPOPolicy will be non-functional.")
-    
-    def forward(self, state):
-        return None, None
-    
-    def get_action(self, state):
-        return 0, 0.0
-    
-    def evaluate(self, state, action):
-        return None, None, None
-    
-    def parameters(self):
-        """Return empty iterator for compatibility with optimizer."""
-        return iter([])
-    
-    def zero_grad(self):
-        """No-op for compatibility."""
-        pass
-
-
 class PPOPolicy(nn.Module if TORCH_AVAILABLE else object):  # type: ignore[misc]
     """
     Actor-Critic neural network for PPO policy.
@@ -154,12 +125,12 @@ def create_ppo_policy(state_dim: int, action_dim: int):
     Factory function to create appropriate PPO policy based on PyTorch availability.
     
     Returns:
-        PPOPolicy if PyTorch is available, PPOPolicyStub otherwise.
+        PPOPolicy if PyTorch is available.
     """
     if TORCH_AVAILABLE:
         return PPOPolicy(state_dim, action_dim)
     else:
-        return PPOPolicyStub(state_dim, action_dim)
+        raise RuntimeError("PyTorch is not available. Cannot create PPOPolicy.")
 
 
 @dataclass
