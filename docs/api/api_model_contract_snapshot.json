@@ -1059,6 +1059,16 @@
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
+  "src/api/maas_agent_mesh.py:HealthBotRunRequest": {
+    "auto_heal": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    },
+    "dry_run": {
+      "required": false,
+      "annotation_ast": "Name(id='bool', ctx=Load())"
+    }
+  },
   "src/api/maas_analytics.py:AnalyticsSummary": {
     "cost_aws_estimate": {
       "required": true,
@@ -2291,6 +2301,20 @@
       "annotation_ast": "Name(id='int', ctx=Load())"
     }
   },
+  "src/api/swarm_endpoints.py:TaskRequest": {
+    "payload": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "priority": {
+      "required": false,
+      "annotation_ast": "Name(id='int', ctx=Load())"
+    },
+    "task_type": {
+      "required": true,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
   "src/api/users.py:SessionResponse": {
     "expires_at": {
       "required": true,
@@ -2404,6 +2428,20 @@
     },
     "protocol_mimic": {
       "required": false,
+      "annotation_ast": "Name(id='str', ctx=Load())"
+    }
+  },
+  "src/api/vision_endpoints.py:DebuggingResponse": {
+    "findings": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load())"
+    },
+    "proposed_plan": {
+      "required": true,
+      "annotation_ast": "Subscript(value=Name(id='List', ctx=Load()), slice=Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='Any', ctx=Load())], ctx=Load()), ctx=Load()), ctx=Load())"
+    },
+    "status": {
+      "required": true,
       "annotation_ast": "Name(id='str', ctx=Load())"
     }
   },
