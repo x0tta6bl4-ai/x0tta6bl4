@@ -43,7 +43,7 @@ if is_light_mode:
     app = FastAPI(
         title="x0tta6bl4 MaaS",
         description="Autonomous Mesh Intelligence Gateway (Light)",
-        version=__version__,
+        version=f"{__version__}-light",
     )
 else:
     # Production lifespan includes MAPE-K, ML engines, and background tasks
