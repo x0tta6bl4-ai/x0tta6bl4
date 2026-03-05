@@ -49,9 +49,12 @@ except (ImportError, RuntimeError, AttributeError) as e:
     logger.critical(
         f"❌ CRITICAL ERROR: liboqs-python not available! ({type(e).__name__}: {e})"
     )
-    logger.error("Fail-closed: PQC is MANDATORY. Ensure liboqs-dev and liboqs-python are installed.")
-    # In production-ready systems, we MUST NOT fall back to stubs.
-    raise RuntimeError("Fail-closed: PQC library missing. Refusing to start.")
+    _fail_closed = os.environ.get("PQC_FAIL_CLOSED", "true").lower() != "false"
+    if _fail_closed:
+        logger.error("Fail-closed: PQC is MANDATORY. Ensure liboqs-dev and liboqs-python are installed.")
+        # In production-ready systems, we MUST NOT fall back to stubs.
+        raise RuntimeError("Fail-closed: PQC library missing. Refusing to start.")
+    logger.warning("PQC_FAIL_CLOSED=false: running without post-quantum cryptography (DEV/CI ONLY)")
 
 
 class PQAlgorithm(Enum):
