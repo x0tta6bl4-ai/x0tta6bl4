@@ -54,6 +54,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ['3.11', '3.12']
+    env:
+      # Allow CI to run without liboqs (dev fallback mode).
+      # WARNING: Production deployments MUST have PQC_FAIL_CLOSED=true
+      PQC_FAIL_CLOSED: "false"
 
     steps:
     - uses: actions/checkout@v4
@@ -81,7 +85,8 @@ jobs:
         # Core test dependencies (keep lightweight — no liboqs/BCC/torch)
         pip install pytest pytest-cov pytest-asyncio pytest-mock ruff mypy hvac PyJWT \
                     httpx fastapi starlette pydantic pydantic-settings sqlalchemy alembic \
-                    redis cryptography python-dotenv prometheus-client structlog psutil
+                    redis cryptography python-dotenv prometheus-client structlog psutil \
+                    stripe slowapi aiohttp
 
     - name: Lint with ruff
       run: |
