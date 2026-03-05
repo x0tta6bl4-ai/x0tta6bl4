@@ -31,6 +31,7 @@ logging.basicConfig(
 )
 
 _consecutive_failures = 0
+_healing_attempts_count = 0
 _last_heal_time = 0.0
 _HEAL_COOLDOWN = 60
 
@@ -74,16 +75,17 @@ def get_fin_wait2_count() -> int:
 
 
 def trigger_healing(reason: str):
-    """Multi-stage healing: force-close stale connections, then SIGHUP xray."""
-    global _last_heal_time
+    """Multi-stage healing: force-close stale connections, SIGHUP, then Rotate Keys."""
+    global _last_heal_time, _healing_attempts_count
 
     now = time.monotonic()
     if (now - _last_heal_time) < _HEAL_COOLDOWN:
         logging.warning(f"Healing skipped (cooldown): {reason}")
         return
 
-    logging.warning(f"=== Triggering healing: {reason} ===")
+    logging.warning(f"=== Triggering healing Stage {min(_healing_attempts_count + 1, 4)}: {reason} ===")
     _last_heal_time = now
+    _healing_attempts_count += 1
 
     # Stage 1: force-close stale TCP connections
     for state in ("fin-wait-2", "close-wait"):
@@ -93,23 +95,37 @@ def trigger_healing(reason: str):
         )
 
     # Stage 2: SIGHUP xray (graceful reload)
-    try:
-        result = subprocess.run(["pgrep", "-f", "xray run"], capture_output=True, text=True)
-        pid = result.stdout.strip().split()[0] if result.stdout.strip() else None
-        if pid:
-            os.kill(int(pid), signal.SIGHUP)
-            logging.info(f"Sent SIGHUP to xray PID {pid}")
-            time.sleep(3)
-    except Exception as e:
-        logging.error(f"SIGHUP failed: {e}")
+    if _healing_attempts_count == 2:
+        try:
+            result = subprocess.run(["pgrep", "-f", "xray run"], capture_output=True, text=True)
+            pid = result.stdout.strip().split()[0] if result.stdout.strip() else None
+            if pid:
+                os.kill(int(pid), signal.SIGHUP)
+                logging.info(f"Sent SIGHUP to xray PID {pid}")
+                time.sleep(3)
+        except Exception as e:
+            logging.error(f"SIGHUP failed: {e}")
 
-    # Stage 3: run project heal script if available
-    heal_script = "/mnt/projects/heal_now.py"
-    if os.path.exists(heal_script):
-        subprocess.run(["python3", heal_script], check=False)
+    # Stage 3: run project heal script
+    if _healing_attempts_count == 3:
+        heal_script = "/mnt/projects/heal_now.py"
+        if os.path.exists(heal_script):
+            subprocess.run(["python3", heal_script], check=False)
 
-    logging.info("Healing complete. Waiting for stabilization.")
-    time.sleep(7)
+    # Stage 4: CRITICAL - Rotate Reality Keys (Possible IP blocking/GFW detection)
+    if _healing_attempts_count >= 4:
+        logging.critical("🚨 Stage 4: Initiating Reality Key Rotation (Self-Healing)")
+        try:
+            from vpn_config_generator import XUIAPIClient
+            xui = XUIAPIClient()
+            xui.rotate_reality_credentials()
+            logging.info("✅ Reality keys rotated and x-ui restarted.")
+            _healing_attempts_count = 0 # Reset after deep healing
+        except Exception as e:
+            logging.error(f"❌ Critical rotation failed: {e}")
+
+    logging.info("Healing iteration complete. Waiting for stabilization.")
+    time.sleep(10)
 
 
 def run_daemon():

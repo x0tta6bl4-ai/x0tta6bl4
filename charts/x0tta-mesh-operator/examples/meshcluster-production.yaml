@@ -6,7 +6,7 @@ metadata:
   namespace: x0tta-system
   annotations:
     mesh.x0tta6bl4.io/sla: "99.9"
-    mesh.x0tta6bl4.io/pqc-version: "3.3.2"
+    mesh.x0tta6bl4.io/pqc-version: "3.4.0"
 spec:
   replicas: 5
   trustDomain: x0tta6bl4.mesh

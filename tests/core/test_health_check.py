@@ -512,7 +512,7 @@ class TestHealthCheckResponse:
 
         response = HealthCheckResponse(
             status=HealthStatus.DEGRADED,
-            version="3.2.1",
+            version="3.4.0",
             timestamp="2024-01-01T00:00:00Z",
             uptime_seconds=3600.5,
             checks=checks,
@@ -521,7 +521,7 @@ class TestHealthCheckResponse:
         d = response.to_dict()
 
         assert d["status"] == "degraded"
-        assert d["version"] == "3.2.1"
+        assert d["version"] == "3.4.0"
         assert d["timestamp"] == "2024-01-01T00:00:00Z"
         assert d["uptime_seconds"] == 3600.5
         assert len(d["checks"]) == 2

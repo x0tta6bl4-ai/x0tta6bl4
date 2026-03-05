@@ -98,10 +98,19 @@ class TestGracefulShutdownManager:
 
         assert status == {
             "is_shutting_down": False,
+            "startup_completed_at": None,
             "active_requests": 1,
             "active_tasks": 0,
             "cleanup_handlers": 1,
+            "cleanup_started_at": None,
+            "cleanup_completed_at": None,
+            "cleanup_success_count": 0,
+            "cleanup_failure_count": 0,
+            "cleanup_timeout_count": 0,
+            "last_cleanup_error": None,
             "shutdown_started_at": None,
+            "shutdown_completed_at": None,
+            "shutdown_duration_seconds": None,
         }
 
     def test_get_status_during_shutdown(self):

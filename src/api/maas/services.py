@@ -875,6 +875,49 @@ class BillingService:
         }
         return limits.get(plan, 1)
 
+    async def generate_monthly_invoice(self, user_id: str) -> Dict[str, Any]:
+        """
+        Generate monthly invoice for Enterprise users based on node count.
+        Cost: €10 per node per month (Utrecht 6G pricing).
+        """
+        from src.database import SessionLocal, User, MeshInstance, Invoice
+        import secrets
+        from datetime import datetime
+        
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user or user.plan != "enterprise":
+                return {"status": "skipped", "reason": "not_enterprise"}
+
+            meshes = db.query(MeshInstance).filter(MeshInstance.owner_id == user_id).all()
+            total_nodes = sum(m.nodes for m in meshes)
+            
+            # Pricing: €10 (1000 cents) per node
+            amount_cents = total_nodes * 1000 
+            
+            invoice = Invoice(
+                id=f"inv_{secrets.token_hex(8)}",
+                user_id=user_id,
+                total_amount=amount_cents,
+                currency="EUR",
+                status="issued",
+                period_start=datetime.utcnow().replace(day=1),
+                period_end=datetime.utcnow(),
+                issued_at=datetime.utcnow()
+            )
+            db.add(invoice)
+            db.commit()
+            
+            logger.info(f"🧾 Invoice generated for user {user_id}: {total_nodes} nodes, €{amount_cents/100:.2f}")
+            return {"status": "success", "invoice_id": invoice.id, "amount": amount_cents}
+        except Exception as e:
+            logger.error(f"Failed to generate invoice for {user_id}: {e}")
+            return {"status": "error", "reason": str(e)}
+        finally:
+            db.close()
+
+
 
 # ---------------------------------------------------------------------------
 # Mesh Provisioner

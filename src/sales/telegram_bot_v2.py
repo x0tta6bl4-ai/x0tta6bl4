@@ -24,8 +24,24 @@ except ImportError:
     TELEGRAM_AVAILABLE = False
     print("pip install python-telegram-bot")
 
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+PROFILE_MESSAGE = """
+👤 *ВАШ ПРОФИЛЬ*
+
+🆔 ID: `{user_id}`
+📋 План: *{plan}*
+⏳ Действует до: *{expires_at}*
+📊 Использовано запросов: *{requests_count}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{status_text}
+"""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -240,22 +256,100 @@ async def notify_gtm(user_id: int, action: str):
 # ═══════════════════════════════════════════════════════════════
 
 
+def get_db_user(user_id: int):
+    """Fetch user from core database using SQLAlchemy."""
+    from src.database import SessionLocal, User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == str(user_id)).first()
+        return user
+    finally:
+        db.close()
+
+def ensure_user_exists(user_id: int, username: Optional[str] = None):
+    """Ensure user exists in core database."""
+    from src.database import SessionLocal, User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == str(user_id)).first()
+        if not user:
+            user = User(
+                id=str(user_id),
+                email=f"{username or user_id}@telegram.x0t",
+                password_hash="tg_auth_no_password",
+                full_name=username,
+                plan="starter",
+                requests_limit=10000,
+                api_key=f"tg_{secrets.token_urlsafe(32)}"
+            )
+            db.add(user)
+            db.commit()
+            logger.info(f"Created new user via TG: {user_id}")
+    finally:
+        db.close()
+
+async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user profile and subscription status."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+        user_id = query.from_user.id
+    else:
+        user_id = update.effective_user.id
+
+    user = get_db_user(user_id)
+    if not user:
+        ensure_user_exists(user_id, update.effective_user.username)
+        user = get_db_user(user_id)
+
+    expires_at = user.expires_at.strftime("%d.%m.%Y") if user.expires_at else "Бессрочно (Trial)"
+    
+    is_active = True
+    if user.expires_at and user.expires_at < datetime.utcnow():
+        is_active = False
+    
+    status_text = "✅ Подписка активна" if is_active else "❌ Подписка истекла. Пожалуйста, продлите её."
+    
+    text = PROFILE_MESSAGE.format(
+        user_id=user_id,
+        plan=user.plan.upper(),
+        expires_at=expires_at,
+        requests_count=user.requests_count or 0,
+        status_text=status_text
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("💳 Продлить / Купить", callback_data="pricing")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back")],
+    ]
+    
+    if query:
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Главный экран — РЕЗУЛЬТАТЫ."""
+    user_id = update.effective_user.id
+    username = update.effective_user.username
+    ensure_user_exists(user_id, username)
+
     keyboard = [
         [InlineKeyboardButton("🚀 Попробовать БЕСПЛАТНО", callback_data="try")],
         [
             InlineKeyboardButton("💰 Цены", callback_data="pricing"),
-            InlineKeyboardButton("❓ Как работает", callback_data="how"),
+            InlineKeyboardButton("👤 Профиль", callback_data="profile"),
         ],
+        [InlineKeyboardButton("❓ Как работает", callback_data="how")],
     ]
     await update.message.reply_text(
         START_MESSAGE,
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
-    logger.info(f"START: user={update.effective_user.id}")
-    await notify_gtm(update.effective_user.id, "Запуск бота (/start)")
+    logger.info(f"START: user={user_id}")
+    await notify_gtm(user_id, "Запуск бота (/start)")
+
 
 
 async def try_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -423,6 +517,7 @@ def main():
     app.add_handler(CommandHandler("try", cmd_try))
     app.add_handler(CommandHandler("pricing", cmd_pricing))
     app.add_handler(CommandHandler("how", cmd_how))
+    app.add_handler(CommandHandler("profile", profile_handler))
 
     # Кнопки
     app.add_handler(CallbackQueryHandler(try_handler, pattern="^try$"))
@@ -430,7 +525,9 @@ def main():
     app.add_handler(CallbackQueryHandler(pricing_handler, pattern="^pricing$"))
     app.add_handler(CallbackQueryHandler(how_handler, pattern="^how$"))
     app.add_handler(CallbackQueryHandler(referral_handler, pattern="^referral$"))
+    app.add_handler(CallbackQueryHandler(profile_handler, pattern="^profile$"))
     app.add_handler(CallbackQueryHandler(back_handler, pattern="^back$"))
+
 
     app.run_polling()
 

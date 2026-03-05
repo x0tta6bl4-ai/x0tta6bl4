@@ -46,9 +46,9 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_get_sbom_known_version(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         # get_sbom возвращает dict из реестра (FastAPI конвертирует в SBOMResponse при HTTP)
-        assert result["version"] == "3.4.0-alpha"
+        assert result["version"] == "3.4.0"
         assert result["format"] == "CycloneDX-JSON"
         assert len(result["components"]) > 0
 
@@ -62,14 +62,14 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_sbom_components_contain_agent(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         names = [c["name"] for c in result["components"]]
         assert "x0tta6bl4-agent" in names
 
     @pytest.mark.asyncio
     async def test_sbom_has_attestation(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         attestation = result.get("attestation")
         assert attestation is not None
         assert attestation.get("type") == "Sigstore-Bundle"
@@ -77,7 +77,7 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_verify_binary_known_version(self):
         from src.api.maas_supply_chain import verify_binary
-        result = await verify_binary("v3.4.0-alpha", "sha256:abc123")
+        result = await verify_binary("v3.4.0", "sha256:abc123")
         assert result["status"] == "verified"
         assert result["pqc_compliant"] is True
 

@@ -40,25 +40,19 @@ KeyEncapsulation = None
 Signature = None
 
 try:
-    # Try importing oqs - if it fails, we'll use stub
+    # Try importing oqs - if it fails, we fail closed
     from oqs import KeyEncapsulation, Signature
 
     LIBOQS_AVAILABLE = True
     logger.info("✅ liboqs-python available - Post-Quantum Cryptography enabled")
 except (ImportError, RuntimeError, AttributeError) as e:
     LIBOQS_AVAILABLE = False
-    # Don't log as error in staging/dev - this is expected when liboqs is not installed
-    import sys
-
-    if os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() != "true":
-        logger.info(
-            f"ℹ Staging mode: liboqs-python not available ({type(e).__name__}), using stub"
-        )
-    else:
-        logger.critical(
-            f"❌ CRITICAL: liboqs-python not available in PRODUCTION mode! ({type(e).__name__}: {e})"
-        )
-        raise RuntimeError("Fail-closed: liboqs-python missing in production environment")
+    logger.critical(
+        f"❌ CRITICAL ERROR: liboqs-python not available! ({type(e).__name__}: {e})"
+    )
+    logger.error("Fail-closed: PQC is MANDATORY. Ensure liboqs-dev and liboqs-python are installed.")
+    # In production-ready systems, we MUST NOT fall back to stubs.
+    raise RuntimeError("Fail-closed: PQC library missing. Refusing to start.")
 
 
 class PQAlgorithm(Enum):

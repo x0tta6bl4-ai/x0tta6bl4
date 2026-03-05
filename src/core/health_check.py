@@ -74,14 +74,14 @@ class HealthChecker:
     Health checker with configurable dependency checks.
 
     Usage:
-        checker = HealthChecker(version="3.1.0")
+        checker = HealthChecker(version="3.4.0")
         checker.add_check("database", check_database)
         checker.add_check("redis", check_redis)
 
         result = await checker.run_all_checks()
     """
 
-    def __init__(self, version: str = "3.1.0"):
+    def __init__(self, version: str = "3.4.0"):
         self.version = version
         self.start_time = time.time()
         self._checks: Dict[str, Callable] = {}
@@ -337,7 +337,7 @@ async def check_disk() -> CheckResult:
 
 
 # Global health checker instance
-health_checker = HealthChecker(version="3.1.0")
+health_checker = HealthChecker(version="3.4.0")
 
 # Register default checks
 health_checker.add_check("database", check_database)

@@ -6,6 +6,7 @@ Now with Quadratic Voting support and action dispatch.
 
 import json
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -127,10 +128,30 @@ class ActionDispatcher:
     @staticmethod
     def _handle_rotate_keys(action: Dict[str, Any]) -> ActionResult:
         scope = action.get("scope", "all")
-        logger.info(f"PQC key rotation triggered (scope={scope})")
-        return ActionResult(
-            "rotate_keys", True, f"key rotation initiated (scope={scope})"
-        )
+        logger.info(f"🚀 PQC/Reality key rotation triggered (scope={scope})")
+        
+        try:
+            # 1. Rotate Reality VPN Keys - use lazy import for optional dependency
+            try:
+                from vpn_config_generator import XUIAPIClient
+                xui = XUIAPIClient()
+            except ImportError as ie:
+                logger.warning(f"XUIAPIClient not available: {ie}, skipping Reality key rotation")
+                return ActionResult("rotate_keys", False, f"XUIAPIClient not available: {ie}")
+            new_creds = xui.rotate_reality_credentials()
+            
+            # 2. Update global environment (optional, but good for persistence)
+            # os.environ["REALITY_PUBLIC_KEY"] = new_creds["public_key"]
+            
+            detail = (
+                f"Reality keys rotated (scope={scope}). New Public Key: {new_creds['public_key'][:8]}..., "
+                f"ShortID: {new_creds.get('short_id')}"
+            )
+            return ActionResult("rotate_keys", True, detail)
+        except Exception as e:
+            logger.error(f"❌ Key rotation failed: {e}")
+            return ActionResult("rotate_keys", False, str(e))
+
 
     @staticmethod
     def _handle_update_threshold(action: Dict[str, Any]) -> ActionResult:
@@ -273,44 +294,55 @@ class GovernanceEngine:
             logger.warning(f"Voting closed for {proposal_id} (State: {proposal.state})")
             return False
             
-        # PQC Signature Verification
+        # PQC Signature Verification (MANDATORY in production)
+        # Test mode detection via environment variable only (reliable)
+        is_test_mode = os.environ.get("_X0TTA_TEST_MODE_") == "true"
+        
+        # In production, signatures are MANDATORY
+        if not is_test_mode:
+            if not signature or not voter_pubkey:
+                logger.error(f"❌ Unsigned vote from {voter_id} rejected. Signatures are MANDATORY in production.")
+                return False
+        
         if signature and voter_pubkey:
             try:
-                # Import verification utility locally to avoid circular imports
                 from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
                 
+                if not LIBOQS_AVAILABLE:
+                    if is_test_mode:
+                        logger.warning("⚠️ PQC Backend missing - using stub in TEST mode")
+                    else:
+                        logger.critical("❌ PQC Backend missing during vote verification!")
+                        raise RuntimeError("Fail-closed: PQC backend is mandatory for DAO voting.")
+
                 if LIBOQS_AVAILABLE:
-                    # Construct payload that was signed: proposal_id + voter_id + vote_value
+                    # Payload: proposal_id + voter_id + vote_value
                     payload = f"{proposal_id}:{voter_id}:{vote.value}".encode('utf-8')
                     
-                    # Create a temporary security backend to verify (algorithm is part of the key/sig)
-                    # We assume ML-DSA-65 by default for now, or infer from key length
-                    # But verifying logic is generic in backend usually
-                    
-                    # We can use a static method or instantiate a verifier. 
-                    # For simplicity, we'll try to use the backend directly if possible, 
-                    # or better: use the PQCNodeIdentity utility if available.
-                    
-                    # NOTE: Here we simply verify using the backend wrapper
-                    # Ideally we should resolve the DID to get the public key, 
-                    # but we accept it as an argument for this MVP stage.
-                    
+                    # ML-DSA-65 verification
                     verifier = PQMeshSecurityLibOQS("verifier-temp")
                     sig_bytes = bytes.fromhex(signature)
                     pub_bytes = bytes.fromhex(voter_pubkey)
                     
                     if not verifier.verify(payload, sig_bytes, pub_bytes):
-                        logger.error(f"Invalid PQC signature for vote from {voter_id}")
+                        logger.error(f"❌ Invalid PQC signature for vote from {voter_id}")
                         return False
-                    logger.info(f"PQC Vote Signature Verified for {voter_id}")
-                else:
-                    logger.warning("LIBOQS not available, skipping vote signature check (DEV MODE)")
+                    logger.info(f"✅ PQC Vote Signature Verified for {voter_id}")
 
+            except RuntimeError:
+                # Re-raise RuntimeError (fail-closed)
+                raise
             except Exception as e:
-                logger.error(f"Error verifying vote signature: {e}")
-                return False
-        elif not signature:
-             logger.warning(f"Unsigned vote from {voter_id} accepted (Legacy Mode)")
+                logger.error(f"❌ Error verifying vote signature: {e}")
+                if not is_test_mode:
+                    return False
+        elif not is_test_mode:
+            # In production, signatures are mandatory
+            logger.error(f"❌ Unsigned vote from {voter_id} rejected. Signatures are MANDATORY in production.")
+            return False
+        else:
+            logger.warning(f"⚠️ Unsigned vote from {voter_id} accepted in TEST mode only.")
+
 
         if time.time() > proposal.end_time:
             self._tally_votes(proposal)

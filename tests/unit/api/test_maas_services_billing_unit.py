@@ -2,10 +2,21 @@ import asyncio
 import hashlib
 import hmac
 import time
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.api.maas.services import AuthService, BillingService
+
+
+def _make_mock_db(user_id: str = "u1"):
+    """Mock SessionLocal() returning a valid non-expired user."""
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.expires_at = None
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+    return mock_db
 
 
 def _signature(secret: str, payload: bytes, timestamp: str | None = None, with_prefix: bool = True) -> str:
@@ -298,7 +309,8 @@ def test_auth_service_shared_api_keys_work_across_instances():
     auth_b = AuthService(api_key_secret="test", shared_state=shared)
 
     api_key = auth_a.generate_api_key(user_id="u1", plan="pro")
-    validated = auth_b.validate_api_key(api_key)
+    with patch("src.database.SessionLocal", return_value=_make_mock_db("u1")):
+        validated = auth_b.validate_api_key(api_key)
 
     assert validated is not None
     assert validated["user_id"] == "u1"
