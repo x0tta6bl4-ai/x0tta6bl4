@@ -1,0 +1,27 @@
+# Kind cluster config для локального демо x0tta-mesh-operator
+# Использование: kind create cluster --config k8s-demo.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: x0tta-demo
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
+  # 2 worker-ноды имитируют mesh-узлы
+  - role: worker
+    labels:
+      mesh.x0tta6bl4.io/role: mesh-node
+  - role: worker
+    labels:
+      mesh.x0tta6bl4.io/role: mesh-node

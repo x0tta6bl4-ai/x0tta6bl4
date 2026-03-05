@@ -11,6 +11,7 @@ Based on Tor Project's Pluggable Transport specification.
 """
 
 import asyncio
+import aiohttp
 import hashlib
 import logging
 import secrets

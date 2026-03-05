@@ -517,6 +517,11 @@ class GraphSAGEAnomalyDetector:
             # For GraphSAGE, we use a wrapper function
             def model_wrapper(x_input):
                 """Wrapper for SHAP to work with GraphSAGE model."""
+                t_comp = _ensure_torch()
+                if not t_comp["available"]:
+                    return None
+                torch = t_comp["torch"]
+                
                 self.model.eval()
                 with torch.no_grad():
                     predictions = self.model(
@@ -545,6 +550,9 @@ class GraphSAGEAnomalyDetector:
             else:
                 background = target_features
 
+            t_comp = _ensure_torch()
+            torch = t_comp["torch"]
+            
             explainer = shap.KernelExplainer(
                 lambda x_in: model_wrapper(torch.tensor(x_in, dtype=torch.float)),
                 background,
