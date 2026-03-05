@@ -83,6 +83,7 @@ Docker network: `x0tta6bl4_maas-network` (bridge)
 **Inbound (пользовательский трафик):**
 - Протокол: VLESS + Reality (TLS 1.3)
 - Порт: **39829** (TCP + UDP, открыт в UFW)
+- **Клиенты:** 33 зарегистрированных в x-ui, ~200+ одновременных TCP-соединений (у одного клиента может быть несколько)
 - Dest (SNI spoof): `www.google.com:443`
 - shortIds: `["6b", "97", "a1", "18e154a0558d9263", "88c2", "fb34"]`
   - `88c2` и `fb34` добавлены для обратной совместимости со старыми клиентами
@@ -195,6 +196,16 @@ Docker network: `x0tta6bl4_maas-network` (bridge)
 - mTLS: отключено (`MTLS_ENABLED=false`)
 - PQC: liboqs установлен, fail-closed отключён (`PQC_FAIL_CLOSED` не задан)
 - Intelligence Engine: деградирован (PyTorch недоступен, fail-open)
+
+### 10.1. API Authentication
+
+Доступ к защищённым эндпоинтам:
+1. **JWT Bearer Token** — стандарт для веб-сессий
+2. **X-API-Key Header** — статический ключ, хранится в `maas_db.users.api_key` (PostgreSQL на VPS)
+
+**ВАЖНО для агентов:** Пользователи в production — только в PostgreSQL `maas_db` (контейнер `x0tta6bl4-db-1`).
+Локальный файл `x0tta6bl4_enterprise.db` (SQLite) на dev-машине `/mnt/projects/` — это тестовая база,
+она НЕ связана с VPS и не влияет на работу сервера.
 
 ---
 
