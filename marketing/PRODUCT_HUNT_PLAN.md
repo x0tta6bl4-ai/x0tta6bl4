@@ -1,21 +1,24 @@
-# Product Hunt Launch Plan: x0tta6bl4
-**Target Date: March 2026**
+# Product Hunt Plan | x0tta6bl4 MaaS v3.4.0
+Date: 2026-03-05
 
-## 🏷 Tagline
-The World's First Self-Healing Post-Quantum Mesh Network.
+Canonical source moved to:
+- `docs/marketing/product_hunt_launch/README.md`
 
-## 📝 Description
-x0tta6bl4 is an autonomous cyber-physical mesh system designed for high-stakes environments. It combines post-quantum cryptography (PQC) with a self-healing MAPE-K loop to ensure 99.97% uptime. 
+## Quick Start
 
-## 🚀 Key Features to Highlight
-1. **Self-Healing:** Watch the network reroute around failures in real-time.
-2. **PQ-Ready:** Future-proof your infrastructure against quantum computing.
-3. **Zero-Trust:** Every packet is authenticated and encrypted via mTLS.
+1. Listing copy and maker comment:
+- `docs/marketing/product_hunt_launch/PH_ASSETS_MAAS_2026.md`
+- `docs/marketing/product_hunt_launch/PH_SUBMISSION_READY_MAAS_v3_4_0.md`
 
-## 🎁 Special Launch Offer
-"Use code **FOUNDER80** for 80% off your first 3 months on any Professional plan."
+2. GTM one-pager:
+- `docs/marketing/product_hunt_launch/GTM_ONE_PAGER_MAAS_v3_4_0.md`
+- `docs/marketing/product_hunt_launch/GTM_OUTREACH_PACK_MAAS_v3_4_0.md`
 
-## 📅 Action Items
-- [ ] Prepare a 2-minute video demo (using `deploy-demo.sh`).
-- [ ] Create 5 high-quality screenshots of the dashboard.
-- [ ] Reach out to top "Hunters" in the security/devops space.
+3. Launch execution checklist:
+- `docs/marketing/product_hunt_launch/LAUNCH_CHECKLIST_MAAS_v3_4_0.md`
+
+4. Claim governance before publishing:
+- `docs/marketing/product_hunt_launch/CLAIMS_EVIDENCE_MATRIX_MAAS_v3_4_0.md`
+
+5. Demo script (governance -> helm):
+- `docs/marketing/product_hunt_launch/DEMO_FLOW_DAO_HELM_UPGRADE.md`
