@@ -126,8 +126,10 @@ class LibOQSBackend:
                 "Install with: pip install liboqs-python"
             )
 
-        self.kem_algorithm = kem_algorithm
-        self.sig_algorithm = sig_algorithm
+        _legacy_sig = {"Dilithium2": "ML-DSA-44", "Dilithium3": "ML-DSA-65", "Dilithium5": "ML-DSA-87"}
+        _legacy_kem = {"Kyber512": "ML-KEM-512", "Kyber768": "ML-KEM-768", "Kyber1024": "ML-KEM-1024"}
+        self.kem_algorithm = _legacy_kem.get(kem_algorithm, kem_algorithm)
+        self.sig_algorithm = _legacy_sig.get(sig_algorithm, sig_algorithm)
 
         logger.info(
             f"✅ LibOQS Backend initialized: KEM={kem_algorithm}, SIG={sig_algorithm}"
