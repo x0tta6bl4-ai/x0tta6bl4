@@ -58,19 +58,25 @@ _INDEXES = [
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
     for table, columns, index_name in _INDEXES:
-        # Use IF NOT EXISTS equivalent: catch and ignore if index already exists.
-        # op.create_index handles this gracefully with postgresql_if_not_exists on PG;
-        # for SQLite, just create.
-        try:
-            op.create_index(index_name, table, columns, unique=False)
-        except Exception:
-            pass  # Index already exists — idempotent
+        col_list = ", ".join(columns)
+        if dialect == "postgresql":
+            # IF NOT EXISTS avoids aborting the PostgreSQL transaction on duplicate index.
+            # try/except alone is insufficient: PG marks the whole transaction as aborted
+            # after any DDL error, making subsequent statements fail.
+            bind.execute(sa.text(
+                f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({col_list})"
+            ))
+        else:
+            # SQLite also supports IF NOT EXISTS since 3.3.7.
+            bind.execute(sa.text(
+                f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({col_list})"
+            ))
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
     for _table, _columns, index_name in reversed(_INDEXES):
-        try:
-            op.drop_index(index_name)
-        except Exception:
-            pass  # Index did not exist — safe to ignore
+        bind.execute(sa.text(f"DROP INDEX IF EXISTS {index_name}"))
