@@ -184,7 +184,8 @@ async def check_database() -> CheckResult:
         db = SessionLocal()
         try:
             # Simple query to test connection
-            db.execute("SELECT 1")
+            from sqlalchemy import text as _sa_text
+            db.execute(_sa_text("SELECT 1"))
             latency = (time.time() - start) * 1000
 
             return CheckResult(
@@ -241,7 +242,17 @@ async def check_redis() -> CheckResult:
 async def check_vpn_server() -> CheckResult:
     """Check VPN server connectivity."""
     server = os.getenv("VPN_SERVER", "")
-    port = int(os.getenv("VPN_PORT", "0")) or 0
+    _port_str = os.getenv("VPN_PORT", "").strip()
+    port = int(_port_str) if _port_str else 0
+
+    if not server or not port:
+        return CheckResult(
+            name="vpn_server",
+            status=HealthStatus.DEGRADED,
+            latency_ms=0,
+            message="Not configured",
+            details={"server": server, "port": port},
+        )
 
     try:
         start = time.time()
