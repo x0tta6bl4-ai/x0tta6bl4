@@ -177,6 +177,58 @@ PY
   fi
 }
 
+queue_inbox_message() {
+  local from="${1:-}"
+  local to="${2:-}"
+  local subject="${3:-}"
+  local body="${4:-}"
+  local exact_next_command="${5:-}"
+  local priority="${6:-normal}"
+  local mode="${7:-}"
+  local bucket="${8:-}"
+  local evidence_target="${9:-}"
+  [[ -n "${from}" && -n "${to}" && -n "${subject}" ]] || return 1
+  local ts inbox
+  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  inbox="${COORD_DIR}/inbox/${to}.jsonl"
+  python3 - "${inbox}" "${from}" "${to}" "${subject}" "${body}" "${ts}" \
+    "${exact_next_command}" "${priority}" "${mode}" "${bucket}" "${evidence_target}" <<'PY'
+import json, sys
+(
+    inbox_path,
+    from_,
+    to_,
+    subject,
+    body,
+    ts,
+    exact_next_command,
+    priority,
+    mode,
+    bucket,
+    evidence_target,
+) = sys.argv[1:12]
+entry = {
+    "ts": ts,
+    "from": from_,
+    "to": to_,
+    "subject": subject,
+    "body": body,
+    "priority": priority or "normal",
+}
+if exact_next_command:
+    entry["exact_next_command"] = exact_next_command
+if mode:
+    entry["mode"] = mode
+if bucket:
+    entry["bucket"] = bucket
+if evidence_target:
+    entry["evidence_target"] = evidence_target
+with open(inbox_path, "a", encoding="utf-8") as f:
+    f.write(json.dumps(entry, ensure_ascii=True) + "\n")
+print(f"[coord] message sent: {from_} -> {to_}: {subject}")
+PY
+}
+
 run_validation_preflight() {
   local agent="${1:-}"
   local allow_blocked="${2:-0}"
@@ -228,6 +280,124 @@ cmd_next_task() {
     "${SWARM_COORD}" roadmap-next --agent "${agent}" --mode "${mode}"
   else
     "${SWARM_COORD}" roadmap-next --agent "${agent}"
+  fi
+}
+
+cmd_dispatch_ready() {
+  local from="${1:-lead-coordinator}"
+  shift || true
+  local bucket=""
+  local mode=""
+  local agent_filter=""
+  local limit=""
+  local dry_run="0"
+
+  while [[ $# -gt 0 ]]; do
+    case "${1}" in
+      --bucket)
+        bucket="${2:-}"
+        [[ -n "${bucket}" ]] || { echo "dispatch_ready: --bucket requires a value" >&2; exit 1; }
+        shift 2
+        ;;
+      --mode)
+        mode="${2:-}"
+        [[ -n "${mode}" ]] || { echo "dispatch_ready: --mode requires a value" >&2; exit 1; }
+        shift 2
+        ;;
+      --agent)
+        agent_filter="${2:-}"
+        [[ -n "${agent_filter}" ]] || { echo "dispatch_ready: --agent requires a value" >&2; exit 1; }
+        shift 2
+        ;;
+      --limit)
+        limit="${2:-}"
+        [[ -n "${limit}" ]] || { echo "dispatch_ready: --limit requires a value" >&2; exit 1; }
+        shift 2
+        ;;
+      --dry-run)
+        dry_run="1"
+        shift
+        ;;
+      *)
+        echo "dispatch_ready: unknown argument '${1}'" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  [[ -f "${ROADMAP_QUEUE}" ]] || { echo "dispatch_ready: missing ${ROADMAP_QUEUE}" >&2; exit 1; }
+
+  cmd_roadmap_sync "${from}" >/dev/null
+
+  mapfile -t messages < <(python3 - "${ROADMAP_QUEUE}" "${bucket}" "${mode}" "${agent_filter}" "${limit}" <<'PY'
+import json, sys
+
+queue_path, bucket, mode, agent_filter, limit = sys.argv[1:6]
+limit_n = int(limit) if limit else 0
+
+with open(queue_path, encoding="utf-8") as fh:
+    payload = json.load(fh)
+
+tasks = []
+for task in payload.get("tasks", []):
+    if task.get("status") != "ready":
+        continue
+    if bucket and task.get("bucket") != bucket:
+        continue
+    if mode and task.get("mode") != mode:
+        continue
+    if agent_filter and task.get("agent") != agent_filter:
+        continue
+    tasks.append(task)
+
+if limit_n > 0:
+    tasks = tasks[:limit_n]
+
+for task in tasks:
+    subject = f"roadmap:{task['id']}"
+    body = (
+        f"{task.get('summary','')}\n"
+        f"mode={task.get('mode','')}\n"
+        f"bucket={task.get('bucket','')}\n"
+        f"evidence={task.get('evidence_target','')}"
+    ).strip()
+    fields = [
+        task.get("agent", ""),
+        subject,
+        body,
+        task.get("exact_next_command", ""),
+        task.get("mode", ""),
+        task.get("bucket", ""),
+        task.get("evidence_target", ""),
+    ]
+    print("\t".join(field.replace("\t", " ").replace("\n", "\\n") for field in fields))
+PY
+  )
+
+  if [[ "${#messages[@]}" -eq 0 ]]; then
+    echo "[coord] no ready tasks matched the requested filters."
+    return 0
+  fi
+
+  local dispatched=0
+  for row in "${messages[@]}"; do
+    IFS=$'\t' read -r to subject body exact_next_command task_mode task_bucket evidence_target <<<"${row}"
+    body="${body//\\n/$'\n'}"
+    if [[ "${dry_run}" == "1" ]]; then
+      echo "[coord][dry-run] ${from} -> ${to}: ${subject}"
+      echo "  mode=${task_mode} bucket=${task_bucket}"
+      echo "  next=${exact_next_command}"
+      continue
+    fi
+    queue_inbox_message "${from}" "${to}" "${subject}" "${body}" "${exact_next_command}" "normal" "${task_mode}" "${task_bucket}" "${evidence_target}"
+    request_note_if_open "${from}" "handoff" "queued ${subject} for ${to}" "${exact_next_command}"
+    dispatched=$((dispatched + 1))
+  done
+
+  if [[ "${dry_run}" == "1" ]]; then
+    echo "[coord] dry-run complete."
+  else
+    echo "[coord] dispatched ${dispatched} ready task(s)."
   fi
 }
 
@@ -450,17 +620,7 @@ cmd_send() {
   [[ -n "${from}" && -n "${to}" && -n "${subject}" ]] || {
     echo "usage: agent-coord.sh send FROM TO SUBJECT BODY" >&2; exit 1
   }
-  local ts
-  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  local inbox="${COORD_DIR}/inbox/${to}.jsonl"
-  python3 - "${inbox}" "${from}" "${to}" "${subject}" "${body}" "${ts}" <<'PY'
-import json, sys
-inbox_path, from_, to_, subject, body, ts = sys.argv[1:7]
-entry = {"ts": ts, "from": from_, "to": to_, "subject": subject, "body": body, "priority": "normal"}
-with open(inbox_path, "a") as f:
-    f.write(json.dumps(entry) + "\n")
-print(f"[coord] message sent: {from_} → {to_}: {subject}")
-PY
+  queue_inbox_message "${from}" "${to}" "${subject}" "${body}"
 
   request_note_if_open "${from}" "handoff" "to=${to} subject=${subject} body=${body}" ""
 }
@@ -545,13 +705,14 @@ case "${COMMAND}" in
   inbox)         cmd_inbox "$@" ;;
   log)           cmd_log "$@" ;;
   send)          cmd_send "$@" ;;
+  dispatch_ready) cmd_dispatch_ready "$@" ;;
   roadmap_sync)  cmd_roadmap_sync "$@" ;;
   next_task)     cmd_next_task "$@" ;;
   session_start) cmd_session_start "$@" ;;
   session_end)   cmd_session_end "$@" ;;
   *)
     echo "unknown command: ${COMMAND}" >&2
-    echo "commands: status | inbox AGENT | log AGENT EVENT [JSON] | send FROM TO SUBJECT BODY | roadmap_sync AGENT | next_task AGENT [--mode verification|validation] | session_start AGENT [--mode verification|validation] [--allow-blocked] [SUMMARY] | session_end AGENT [JSON]" >&2
+    echo "commands: status | inbox AGENT | log AGENT EVENT [JSON] | send FROM TO SUBJECT BODY | dispatch_ready FROM [--bucket NAME] [--mode verification|validation] [--agent AGENT] [--limit N] [--dry-run] | roadmap_sync AGENT | next_task AGENT [--mode verification|validation] | session_start AGENT [--mode verification|validation] [--allow-blocked] [SUMMARY] | session_end AGENT [JSON]" >&2
     exit 1
     ;;
 esac

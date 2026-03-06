@@ -38,6 +38,11 @@ DEFAULT_ROADMAP_QUEUE_FILE = REPO_ROOT / "plans" / "ROADMAP_AGENT_QUEUE.json"
 MAX_EVENTS = 500
 MAX_REQUEST_NOTES = 200
 ROADMAP_TASK_MODES = {"verification", "validation"}
+ROADMAP_TASK_BUCKETS = {
+    "verification-ready",
+    "live-validation-only",
+    "blocked-horizon-2",
+}
 REQUEST_NOTE_KINDS = {
     "start",
     "intent",
@@ -315,6 +320,7 @@ def load_roadmap_queue(path: Path) -> dict[str, Any]:
     tasks = payload.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         raise ValueError(f"roadmap queue file has no tasks: {queue_path}")
+    seen_task_ids: set[str] = set()
     for task in tasks:
         if not isinstance(task, dict):
             raise ValueError("roadmap queue task entries must be objects")
@@ -329,10 +335,28 @@ def load_roadmap_queue(path: Path) -> dict[str, Any]:
         ):
             if not str(task.get(field, "")).strip():
                 raise ValueError(f"roadmap task is missing required field '{field}'")
+        task_id = str(task.get("id", "")).strip()
+        if task_id in seen_task_ids:
+            raise ValueError(f"roadmap queue contains duplicate task id '{task_id}'")
+        seen_task_ids.add(task_id)
         ensure_request_agent(str(task["agent"]))
         task_mode = str(task.get("mode", "")).strip()
         if task_mode not in ROADMAP_TASK_MODES:
             raise ValueError(f"roadmap task '{task['id']}' has invalid mode '{task_mode}'")
+        task_bucket = str(task.get("bucket", "")).strip()
+        task_status = str(task.get("status", "")).strip()
+        if task_bucket and task_bucket not in ROADMAP_TASK_BUCKETS:
+            raise ValueError(f"roadmap task '{task_id}' has invalid bucket '{task_bucket}'")
+        if task_bucket == "blocked-horizon-2" and task_status != "blocked":
+            raise ValueError(
+                f"roadmap task '{task_id}' uses blocked-horizon-2 but status is '{task_status}'"
+            )
+        completed_evidence = str(task.get("completed_evidence", "")).strip()
+        if task_bucket == "live-validation-only" and task_status == "completed" and not completed_evidence:
+            raise ValueError(
+                f"roadmap task '{task_id}' marks live-validation-only work as completed "
+                "without completed_evidence"
+            )
     return payload
 
 
