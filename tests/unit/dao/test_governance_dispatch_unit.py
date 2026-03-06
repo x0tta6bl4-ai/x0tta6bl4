@@ -3,8 +3,10 @@ Unit tests for DAO governance action dispatcher and ledger.
 """
 
 import json
+import os
 import time
 
+os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 
 from src.dao.governance import (ActionDispatcher, ActionResult,
                                 GovernanceEngine, ProposalState, VoteType)
