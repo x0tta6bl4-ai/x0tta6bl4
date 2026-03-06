@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/api/middleware/metering.py
+# hypothesis_version: 6.151.9
+
+[0.0, 429, 1000, '/api/v1/maas', '/api/v1/maas/login', '1', '5', 'X-API-Key', 'X-Process-Time', '__next__', 'application/json', 'close', 'detail', 'rollback', 'update']

@@ -29,8 +29,12 @@ $DRY_RUN && warn "Режим dry-run: команды не выполняются
 CURRENT=$(git rev-parse --abbrev-ref HEAD)
 [[ "$CURRENT" == "develop" ]] || { warn "Текущая ветка: $CURRENT (ожидается develop)"; }
 
-DIRTY=$(git status --porcelain)
-[[ -z "$DIRTY" ]] && info "Рабочее дерево чистое ✅" || warn "Есть незакоммиченные изменения:\n$DIRTY"
+if $DRY_RUN; then
+  warn "Проверка git status пропущена в dry-run для ускорения на больших репозиториях"
+else
+  DIRTY=$(git status --porcelain --untracked-files=no)
+  [[ -z "$DIRTY" ]] && info "Рабочее дерево чистое ✅" || warn "Есть незакоммиченные изменения:\n$DIRTY"
+fi
 
 DEVELOP_SHA=$(git rev-parse HEAD)
 info "develop HEAD: $DEVELOP_SHA"

@@ -1,7 +1,7 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-uninstall
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -49,6 +49,13 @@ help:
 	@echo "  make mesh-operator-install - Install operator chart into namespace"
 	@echo "  make mesh-operator-upgrade - Upgrade operator chart release"
 	@echo "  make mesh-operator-smoke   - Validate operator rollout/CRD/service health"
+	@echo "  make mesh-operator-reproducibility - Verify deterministic fallback image builds"
+	@echo "  make mesh-operator-release-dry-run - Run release dry-run with checkpoint report"
+	@echo "  make mesh-operator-lifecycle-e2e - Validate Helm install/upgrade/uninstall lifecycle in kind"
+	@echo "  make mesh-operator-canary-rollback-e2e - Validate canary rollout and rollback SLA in kind"
+	@echo "  make api-memory-profile-longrun - Run long-run API memory profile with report artifacts"
+	@echo "  make maas-api-load-scenarios - Run Marketplace/Telemetry/Nodes load scenarios with report artifacts"
+	@echo "  make maas-api-load-scenarios-ci - Run deterministic CI profile for Marketplace/Telemetry/Nodes load scenarios"
 	@echo "  make mesh-operator-uninstall - Uninstall operator chart release"
 	@echo ""
 	@echo "=== Development ==="
@@ -230,6 +237,41 @@ mesh-operator-smoke:
 	  --release $(MESH_OPERATOR_RELEASE) \
 	  --wait-seconds 180 \
 	  --kubectl scripts/ops/kubectl_safe.sh
+
+mesh-operator-reproducibility:
+	@echo "🧬 Checking mesh image reproducibility..."
+	bash scripts/ops/check_mesh_images_reproducibility.sh
+
+mesh-operator-release-dry-run:
+	@echo "🧭 Running mesh operator release dry-run checkpoints..."
+	bash scripts/ops/mesh_operator_release_dry_run.sh
+
+mesh-operator-lifecycle-e2e:
+	@echo "🧪 Running mesh operator Helm lifecycle e2e..."
+	bash scripts/ops/mesh_operator_helm_lifecycle_e2e.sh
+
+mesh-operator-canary-rollback-e2e:
+	@echo "🐤 Running mesh operator canary rollout + rollback e2e..."
+	bash scripts/ops/mesh_operator_canary_rollback_e2e.sh
+
+api-memory-profile-longrun:
+	@echo "🧠 Running long-run API memory profile..."
+	bash scripts/ops/profile_api_memory_longrun.sh
+
+maas-api-load-scenarios:
+	@echo "⚡ Running MaaS API load scenarios (Marketplace/Telemetry/Nodes)..."
+	bash scripts/ops/run_maas_api_load_scenarios.sh
+
+maas-api-load-scenarios-ci:
+	@echo "⚡ Running MaaS API load scenarios (CI profile)..."
+	REPORT_DIR=.artifacts/maas-api-load \
+	DURATION_SECONDS=30 \
+	CONCURRENCY=4 \
+	REQUEST_TIMEOUT_SECONDS=3 \
+	MAX_ERROR_RATE_PERCENT=1.0 \
+	MAX_SCENARIO_P95_MS=900 \
+	STARTUP_TIMEOUT_SECONDS=300 \
+	bash scripts/ops/run_maas_api_load_scenarios.sh
 
 mesh-operator-uninstall:
 	@echo "🧹 Uninstalling x0tta mesh operator..."
@@ -623,8 +665,11 @@ agent-cycle-strict:
 agent-cycle-dry:
 	@python3 scripts/agents/run_agent_cycle.py --dry-run
 
+agent-cycle-legacylog:
+	@python3 scripts/agents/run_agent_cycle.py --sync-paradox-log
+
 agent-cycle-nosync:
-	@python3 scripts/agents/run_agent_cycle.py --no-sync-paradox-log
+	@python3 scripts/agents/run_agent_cycle.py --no-sync-agent-coord --no-sync-paradox-log
 
 ai-status:
 	@./ai.sh status

@@ -224,20 +224,6 @@ class GraphSAGEAnomalyDetector:
         self.is_trained = False
         self.model = None
         self.device = None
-        
-    @property
-    def use_quantization(self) -> bool:
-        """Lazy quantization support check."""
-        if self._use_quantization_actual is None:
-            self._use_quantization_actual = bool(
-                self._use_quantization_requested and is_quantization_available()
-            )
-        return self._use_quantization_actual
-
-    # We don't call _ensure_torch here to keep __init__ fast
-    # unless we explicitly need to create the model.
-    
-    # Initialize causal analysis engine if available
         self.causal_engine: Optional[Any] = None
         if _ensure_causal():
             try:
@@ -248,6 +234,15 @@ class GraphSAGEAnomalyDetector:
                 logger.info("Causal analysis engine integrated with GraphSAGE")
             except Exception as e:
                 logger.warning(f"Failed to initialize causal engine: {e}")
+
+    @property
+    def use_quantization(self) -> bool:
+        """Lazy quantization support check."""
+        if self._use_quantization_actual is None:
+            self._use_quantization_actual = bool(
+                self._use_quantization_requested and is_quantization_available()
+            )
+        return self._use_quantization_actual
 
     def _init_model_if_needed(self):
         """Deferred initialization of the torch model."""

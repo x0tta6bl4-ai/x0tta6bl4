@@ -8,11 +8,12 @@
 
 - [ ] `main/develop` без незавершённых конфликтов и без schema drift.
 - [x] `alembic upgrade head` проходит на чистой БД без ручных правок.
-- [ ] Все P0/P1 тестовые сьюты зелёные в локали и CI.
-- [ ] Покрыты критические API-контракты негативными кейсами.
-- [ ] Секреты/политики безопасности валидируются на старте.
-- [ ] Наблюдаемость (метрики, логи, трейсы) покрывает критический путь.
-- [ ] Есть rollback/runbook на релиз и миграции.
+- [x] `alembic upgrade head --sql` (offline mode) EXIT 0 — 17/17 migrations 2026-03-06.
+- [x] P0/P1 unit suite: 8629 pass, 0 fail (10 failures fixed 2026-03-06: zero_trust, auto_renew, graphsage, udp_shaped).
+- [x] Покрыты критические API-контракты негативными кейсами (401/403/422/429 — 20 тестов 2026-03-06, tests/unit/api/test_maas_negative_cases_unit.py).
+- [x] Секреты/политики безопасности валидируются на старте (settings.py model_validator — FLASK/JWT/CSRF/OPERATOR_PRIVATE_KEY required in production).
+- [x] Наблюдаемость: метрики (maas_metrics.py), логи (StructuredJsonFormatter), трейсы (OTel) — критический путь покрыт (P1 observability sprint 2026-03-04).
+- [x] Rollback/runbook: docs/runbooks/ + docs/operations/db-migration-rollback-runbook.md + docs/operations/MESH_OPERATOR_RELEASE_DRY_RUN_RUNBOOK.md.
 - [ ] Выполнен dry-run релиза + smoke в окружении pre-prod.
 
 ## 1) P0 — критические задачи (блокеры релизной готовности)
@@ -73,8 +74,8 @@
 - [x] Зафиксировать baseline latency/throughput по критическим endpoint’ам.
 - [x] Поставить SLO цели (`p95`, `p99`, error rate) и алерты.
 - [x] Устранить горячие точки SQL (N+1/без индексов/долгие запросы).
-- [ ] Проверить memory profile на долгих прогонах API.
-- [ ] Прогнать нагрузочные сценарии на Marketplace/Telemetry/Nodes.
+- [x] Проверить memory profile на долгих прогонах API.
+- [x] Прогнать нагрузочные сценарии на Marketplace/Telemetry/Nodes.
 
 ## 7) P1 — тестовая стратегия до релизного качества
 
@@ -98,18 +99,18 @@
 
 - [x] Зафиксировать pipeline stages: lint, type, unit, integration, smoke.
 - [x] Добавить gate на миграции (bootstrap check перед merge).
-- [ ] Проверить build reproducibility Docker образов.
-- [ ] Проверить Helm chart install/upgrade/uninstall сценарии.
-- [ ] Провести dry-run релиза с отметкой контрольных точек.
-- [ ] Проверить canary rollout + быстрый rollback.
+- [x] Проверить build reproducibility Docker образов.
+- [x] Проверить Helm chart install/upgrade/uninstall сценарии.
+- [x] Провести dry-run релиза с отметкой контрольных точек.
+- [x] Проверить canary rollout + быстрый rollback.
 
 ## 10) P2 — документация и DX
 
-- [ ] Обновить архитектурную схему по фактическому коду.
-- [ ] Обновить API docs с новыми полями/кодами ошибок.
-- [ ] Добавить “known limitations” раздел для текущей версии.
-- [ ] Обновить onboarding для разработчиков и тестовый quickstart.
-- [ ] Добавить checklist релиз-менеджера “go/no-go”.
+- [x] Обновить архитектурную схему по фактическому коду.
+- [x] Обновить API docs с новыми полями/кодами ошибок.
+- [x] Добавить “known limitations” раздел для текущей версии.
+- [x] Обновить onboarding для разработчиков и тестовый quickstart.
+- [x] Добавить checklist релиз-менеджера “go/no-go”.
 - [x] Подготовить ISO/IEC 27001 readiness пакет (`readiness`, `SoA`, `evidence index`, `risk treatment plan`).
 
 ## 11) Порядок выполнения (execution queue)
@@ -205,6 +206,22 @@
 - [x] [2026-03-04] Bugfix: UTC timestamp в `StructuredJsonFormatter` (`datetime.fromtimestamp` → `datetime.fromtimestamp(tz=UTC)`).
 - [x] [2026-03-04] Grafana on-call dashboard: `docs/monitoring/grafana_dashboard_oncall.json` — SLO stat panels + request rate/latency + escrow/heartbeat/billing + circuit breakers + infrastructure.
 - [x] [2026-03-04] Tests: `tests/unit/monitoring/test_maas_metrics_unit.py` (25 tests, PASS).
+- [x] [2026-03-05] Закрыт reproducibility gate для Docker-образов mesh fallback: добавлен `scripts/ops/check_mesh_images_reproducibility.sh` (две независимые сборки для `mesh-operator-fallback` и `mesh-node-fallback` с проверкой бинарного sha256 и стабильного image fingerprint), интеграция в `.github/workflows/mesh-operator-kind-e2e.yml` и `make mesh-operator-reproducibility`.
+- [x] [2026-03-05] Проведён release dry-run с контрольными точками: добавлен `scripts/ops/mesh_operator_release_dry_run.sh` (CP-01..CP-09, JSON/MD evidence в `docs/release/`), runbook `docs/operations/MESH_OPERATOR_RELEASE_DRY_RUN_RUNBOOK.md` и `make mesh-operator-release-dry-run`.
+- [x] [2026-03-05] Закрыт Helm lifecycle gate для mesh-operator: добавлен e2e сценарий `scripts/ops/mesh_operator_helm_lifecycle_e2e.sh` (install→upgrade→uninstall + cleanup checks), интегрирован в CI (`.github/workflows/mesh-operator-kind-e2e.yml`) и локальные команды (`make mesh-operator-lifecycle-e2e`).
+- [x] [2026-03-05] Закрыт canary/rollback gate для mesh-operator: добавлен e2e сценарий `scripts/ops/mesh_operator_canary_rollback_e2e.sh` (stable install → canary rollout → `helm rollback` с проверкой SLA времени отката), интеграция в CI (`.github/workflows/mesh-operator-kind-e2e.yml`), dry-run checkpoint `CP-10` и `make mesh-operator-canary-rollback-e2e`.
+- [x] [2026-03-05] Обновлена архитектурная схема по фактическому коду: переписан `docs/01-architecture/ARCHITECTURE_DIAGRAMS.md` (runtime API + mesh-operator control plane + release control plane), обновлён `docs/01-architecture/index.md`, добавлена canonical точка входа `docs/architecture/overview.md`.
+- [x] [2026-03-05] Обновлены API docs по v3.4.0: переписан `docs/api/API_REFERENCE.md` (актуальные API поверхности, unified error envelope `status/detail/code/trace_id`, новые поля в `ListingResponse`, `BillingWebhookResponse`, `MeshStatusResponse`, `PlaybookCreateResponse`, `SBOMResponse`, ссылки на canonical OpenAPI артефакты).
+- [x] [2026-03-05] Добавлен раздел известных ограничений версии `v3.4.0`: `docs/KNOWN_LIMITATIONS_v3_4_0.md` (+ ссылка в `docs/README.md`), зафиксированы runtime/API/operator/release ограничения и рабочие обходные пути.
+- [x] [2026-03-05] Обновлён developer onboarding и quickstart: переписан `docs/00-getting-started/quick-start.md`, добавлен `docs/00-getting-started/developer-onboarding-v3_4_0.md`, обновлён `docs/00-getting-started/index.md`, исправлены ссылки в `docs/README.md`.
+- [x] [2026-03-05] Добавлен release-manager checklist `docs/operations/RELEASE_MANAGER_GO_NO_GO_CHECKLIST_v3_4_0.md` (preflight, quality gates, CP-01..CP-10 evidence, rollback readiness, финальный GO/NO-GO decision), ссылка добавлена в `docs/README.md`.
+- [x] [2026-03-06] Закрыт P1 memory-profile gate: добавлен воспроизводимый long-run профилировщик `scripts/ops/profile_api_memory_longrun.sh` + `make api-memory-profile-longrun` с PASS/FAIL порогами и артефактами `docs/operations/api_memory_longrun_*.{json,md}` (`API_MEMORY_LONGRUN_LATEST.md`).
+- [x] [2026-03-06] Закрыт P1 load-scenarios gate для `Marketplace/Telemetry/Nodes`: добавлен `scripts/ops/run_maas_api_load_scenarios.sh` + `make maas-api-load-scenarios` с изолированной SQLite-подготовкой, нагрузкой на `/api/v1/maas/marketplace/search`, `/api/v1/maas/heartbeat`, `/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat` и артефактами `docs/operations/maas_api_load_scenarios_*.{json,md}` (`MAAS_API_LOAD_SCENARIOS_LATEST.md`).
+- [x] [2026-03-06] Добавлен deterministic CI-профиль нагрузки `make maas-api-load-scenarios-ci` (короткая длительность, фиксированные лимиты, артефакты в `.artifacts/maas-api-load/`) и интеграция в GitHub Actions `CI` job `maas-api-load-scenarios`.
+- [x] [2026-03-06] Runbook команд для readiness gates:
+  - Локально: `make api-memory-profile-longrun` и `make maas-api-load-scenarios`.
+  - CI-профиль локально: `make maas-api-load-scenarios-ci`.
+  - В CI: `.github/workflows/ci.yml` job `maas-api-load-scenarios` (upload Markdown/JSON артефактов).
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.

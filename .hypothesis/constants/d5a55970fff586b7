@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/topology_aware_aggregator.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 30.0, 60.0, 100.0, 255.0, 'active_nodes', 'address', 'avg_link_quality', 'avg_participation', 'churn_rate', 'get_originators', 'history_size', 'hop_count', 'last_updated', 'latency', 'latency_ms', 'link_quality', 'node_churn_events', 'node_id', 'participation_rate', 'pending_rounds', 'total_aggregations', 'tq', 'weight']

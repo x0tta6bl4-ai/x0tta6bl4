@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/api/maas_dashboard.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 100.0, 100, 120, 404, '/nodes/{mesh_id}', '/summary', 'HARDWARE_ROOTED', 'MaaS Dashboard', 'Mesh not found', 'SOFTWARE_ONLY', '_using_fallback', 'action', 'active_rentals', 'admin', 'amount', 'analytics:view', 'attestation', 'backend', 'cache', 'count', 'created_at', 'currency', 'data', 'db_circuit_breaker', 'device_class', 'email', 'enclave_enabled', 'hardware_id', 'health', 'healthy', 'id', 'is_open', 'issued', 'issued_at', 'last_seen', 'memory', 'mesh:view', 'mesh_id', 'mesh_name', 'meshes', 'method', 'my_listings', 'name', 'node_health', 'nodes', 'offline', 'packet_loss', 'path', 'pending_invoices', 'pending_payment', 'plan', 'recent_audit', 'redis', 'rented', 'resilience', 'revoked', 'role', 'security', 'stale', 'state', 'stats', 'status', 'status_code', 'timeseries', 'timestamp', 'total_meshes', 'total_nodes', 'traffic_mbps', 'unknown', 'user']

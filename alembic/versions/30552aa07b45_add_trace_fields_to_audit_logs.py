@@ -18,26 +18,40 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _table_exists(inspector: sa.Inspector, table_name: str) -> bool:
+def _table_exists(inspector, table_name: str) -> bool:
+    if inspector is None:
+        return True
     return table_name in inspector.get_table_names()
 
 
-def _column_exists(inspector: sa.Inspector, table_name: str, column_name: str) -> bool:
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table_name):
         return False
-    return column_name in {col["name"] for col in inspector.get_columns(table_name)}
+    return column_name in {c["name"] for c in inspector.get_columns(table_name)}
 
 
 def _index_exists(inspector: sa.Inspector, table_name: str, index_name: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table_name):
         return False
     return any(idx.get("name") == index_name for idx in inspector.get_indexes(table_name))
 
 
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     table_name = "audit_logs"
     index_name = op.f("ix_audit_logs_correlation_id")
 
@@ -48,12 +62,12 @@ def upgrade() -> None:
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.add_column(sa.Column("user_agent", sa.String(), nullable=True))
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if not _column_exists(inspector, table_name, "correlation_id"):
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.add_column(sa.Column("correlation_id", sa.String(), nullable=True))
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _column_exists(inspector, table_name, "correlation_id") and not _index_exists(
         inspector, table_name, index_name
     ):
@@ -63,7 +77,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     table_name = "audit_logs"
     index_name = op.f("ix_audit_logs_correlation_id")
 
@@ -73,12 +87,12 @@ def downgrade() -> None:
     if _index_exists(inspector, table_name, index_name):
         op.drop_index(index_name, table_name=table_name)
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _column_exists(inspector, table_name, "correlation_id"):
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.drop_column("correlation_id")
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _column_exists(inspector, table_name, "user_agent"):
         with op.batch_alter_table(table_name, schema=None) as batch_op:
             batch_op.drop_column("user_agent")

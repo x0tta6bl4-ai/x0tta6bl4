@@ -1,0 +1,43 @@
+global:
+  controlNamespace: x0tta6bl4-control
+  tenantLabelKey: x0tta.io/tenant
+  pagerDutyService: x0tta6bl4-prod-security
+  auditRunbookURL: https://docs.x0tta6bl4.io/runbooks/audit-tamper
+  keyCompromiseRunbookURL: https://docs.x0tta6bl4.io/runbooks/key-compromise
+
+tenants:
+  - name: acme-industrial
+    tier: enterprise
+    namespace: tenant-acme-industrial
+    pqcKeyNamespace: tenant-acme-industrial-pqc
+    serviceAccountName: mesh-node-acme-industrial
+    pqcSecretName: mesh-pqc-keys
+    maxPods: 500
+    requestsCPU: "64"
+    requestsMemory: "128Gi"
+    limitsCPU: "128"
+    limitsMemory: "256Gi"
+
+  - name: bluebird-health
+    tier: enterprise
+    namespace: tenant-bluebird-health
+    pqcKeyNamespace: tenant-bluebird-health-pqc
+    serviceAccountName: mesh-node-bluebird-health
+    pqcSecretName: mesh-pqc-keys
+    maxPods: 300
+    requestsCPU: "48"
+    requestsMemory: "96Gi"
+    limitsCPU: "96"
+    limitsMemory: "192Gi"
+
+  - name: northstar-logistics
+    tier: enterprise
+    namespace: tenant-northstar-logistics
+    pqcKeyNamespace: tenant-northstar-logistics-pqc
+    serviceAccountName: mesh-node-northstar-logistics
+    pqcSecretName: mesh-pqc-keys
+    maxPods: 250
+    requestsCPU: "32"
+    requestsMemory: "64Gi"
+    limitsCPU: "64"
+    limitsMemory: "128Gi"

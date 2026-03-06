@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/agents/orchestration/agent_orchestrator.py
+# hypothesis_version: 6.151.9
+
+[300, 'agents', 'alert_id', 'auto_healer', 'auto_healer_status', 'critical', 'documentation', 'enable_auto_healer', 'enable_log_analyzer', 'error', 'health_monitor', 'is_running', 'last_sync', 'log_analyzer', 'log_analyzer_status', 'rate_limit_window', 'service_name', 'severity', 'spec_to_code', 'sync_interval', 'warning']

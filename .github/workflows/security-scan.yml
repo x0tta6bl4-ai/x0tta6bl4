@@ -262,8 +262,7 @@ jobs:
           set -euo pipefail
           python scripts/agents/run_agent_cycle.py \
             --strict \
-            --agents agent-2 \
-            --no-sync-paradox-log
+            --agents agent-2
 
       - name: Upload strict agent-cycle summary
         uses: actions/upload-artifact@v4

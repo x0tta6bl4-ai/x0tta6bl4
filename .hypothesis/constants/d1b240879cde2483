@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/network/obfuscation/traffic_shaping.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.3, 0.7, 0.9, 1.0, 1000.0, 100, 128, 160, 180, 200, 255, 256, 300, 500, 512, 1000, 1024, 1200, 1316, 1328, 1460, 'File Download', 'Gaming (Low Latency)', 'Web Browsing (HTTPS)', 'avg_interval_ms', 'avg_size', 'big', 'burst_enabled', 'file_download', 'gaming', 'max_size', 'min_size', 'name', 'none', 'packet_sizes', 'packets', 'profile', 'throughput_pps', 'timing_range_ms', 'video_streaming', 'voice_call', 'web_browsing']

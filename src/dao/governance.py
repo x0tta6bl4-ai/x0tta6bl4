@@ -7,12 +7,15 @@ Now with Quadratic Voting support and action dispatch.
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+_NODE_ID_RE = re.compile(r"^[\w\-\.]{1,64}$")
 
 from src.dao.quadratic_voting import QuadraticVoting
 
@@ -122,6 +125,8 @@ class ActionDispatcher:
         node_id = action.get("node_id", "")
         if not node_id:
             return ActionResult("restart_node", False, "missing node_id")
+        if not _NODE_ID_RE.match(node_id):
+            return ActionResult("restart_node", False, f"invalid node_id: {node_id!r}")
         logger.info(f"MAPE-K execute: restarting node {node_id}")
         return ActionResult("restart_node", True, f"restart queued for {node_id}")
 
@@ -175,6 +180,8 @@ class ActionDispatcher:
         node_id = action.get("node_id", "")
         if not node_id:
             return ActionResult("ban_node", False, "missing node_id")
+        if not _NODE_ID_RE.match(node_id):
+            return ActionResult("ban_node", False, f"invalid node_id: {node_id!r}")
         logger.info(f"Node {node_id} banned from mesh")
         return ActionResult("ban_node", True, f"node {node_id} banned")
 
@@ -242,6 +249,18 @@ class GovernanceEngine:
         Returns:
             Created Proposal object
         """
+        title = title.strip() if title else ""
+        if not title:
+            raise ValueError("Proposal title cannot be empty")
+        if len(title) > 200:
+            raise ValueError("Proposal title exceeds 200 characters")
+        if duration_seconds <= 0:
+            raise ValueError("duration_seconds must be positive")
+        if not (0 < quorum <= 1.0):
+            raise ValueError(f"quorum must be in range (0, 1], got {quorum}")
+        if not (0 < threshold <= 1.0):
+            raise ValueError(f"threshold must be in range (0, 1], got {threshold}")
+
         proposal_id = f"prop_{uuid.uuid4().hex[:8]}_{self.node_id}"
         now = time.time()
 
@@ -284,6 +303,14 @@ class GovernanceEngine:
         Returns:
             True if vote was recorded, False otherwise
         """
+        if not voter_id or not voter_id.strip():
+            logger.warning("Empty voter_id rejected")
+            return False
+
+        if tokens < 0:
+            logger.warning(f"Negative tokens ({tokens}) rejected for voter {voter_id}")
+            return False
+
         if proposal_id not in self.proposals:
             logger.warning(f"Unknown proposal: {proposal_id}")
             return False

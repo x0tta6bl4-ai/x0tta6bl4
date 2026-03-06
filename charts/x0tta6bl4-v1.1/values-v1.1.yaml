@@ -1,0 +1,23 @@
+federatedML:
+  enabled: true
+  clusters: 3
+  dp_sigma: 0.1
+  privacy_budget_max: 1.0
+  target_accuracy: 0.95
+
+edge5g:
+  enabled: true
+  upf:
+    handoff_latency_target: 50
+  slices:
+    - id: "premium"
+      qos: 10
+
+lorawan:
+  gateway: "SX1303"
+  target_range_km: 15
+  hybrid_backhaul: true
+
+dao_qos:
+  enabled: true
+  contract: "QoSManager"

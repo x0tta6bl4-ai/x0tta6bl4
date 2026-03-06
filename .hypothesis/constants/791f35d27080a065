@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/spiffe/agent/manager.py
+# hypothesis_version: 6.151.9
+
+[0.5, 3600, '-config', '-parentID', '-selector', '-socketPath', '-spiffeID', '-ttl', '.conf', '127.0.0.1', '8081', ':', 'SPIRE_AGENT_DATA_DIR', 'SPIRE_JOIN_TOKEN', 'SPIRE_SERVER_ADDRESS', 'SPIRE_SERVER_PORT', 'SPIRE_TRUST_DOMAIN', 'aws_iid', 'create', 'entry', 'healthcheck', 'join_token', 'k8s_psat', 'parent id', 'parent_id', 'return_value', 'run', 's', 'selector', 'selectors', 'show', 'side_effect', 'spiffe id', 'spiffe_id', 'spire-agent', 'spire-agent-', 'spire-server', 'token', 'ttl', 'utf-8', 'w', 'x0tta6bl4.mesh', 'x509pop']

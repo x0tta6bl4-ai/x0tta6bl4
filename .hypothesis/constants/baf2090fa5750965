@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/swarm/paxos.py
+# hypothesis_version: 6.151.9
+
+[5.0, 'MultiPaxos', 'PaxosInstance', 'PaxosMessage', 'PaxosNode', 'PaxosPhase', 'ProposalNumber', 'accept', 'accepted', 'accepts', 'commit', 'committed', 'idle', 'instance_id', 'prepare', 'promise', 'promises', 'proposal_number', 'proposer_id', 'round', 'sender_id', 'timestamp', 'type', 'value']

@@ -1,0 +1,11 @@
+{
+  "title": "GraphSAGE Accuracy",
+  "panels": [
+    {
+      "type": "gauge",
+      "title": "Inference Routing Accuracy",
+      "targets": [{"expr": "graphsage_accuracy"}],
+      "fieldConfig": { "min": 0, "max": 1 }
+    }
+  ]
+}

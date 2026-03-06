@@ -1,0 +1,8 @@
+{{- if and .Values.operator.webhook.enabled (not .Values.operator.webhook.certManager.enabled) -}}
+{{- if not .Values.operator.webhook.tls.secretName -}}
+{{- fail "operator.webhook.tls.secretName is required when operator.webhook.enabled=true and operator.webhook.certManager.enabled=false" -}}
+{{- end -}}
+{{- if not .Values.operator.webhook.tls.caBundle -}}
+{{- fail "operator.webhook.tls.caBundle is required when operator.webhook.enabled=true and operator.webhook.certManager.enabled=false" -}}
+{{- end -}}
+{{- end -}}

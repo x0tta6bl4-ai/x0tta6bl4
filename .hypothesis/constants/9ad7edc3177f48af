@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/network/obfuscation/shadowsocks.py
+# hypothesis_version: 6.151.9
+
+[b'ss-subkey', '!H', 'ShadowsocksTransport', 'utf-8']

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/api_error_handlers.py
+# hypothesis_version: 6.151.9
+
+[422, 500, 'INTERNAL_ERROR', 'VALIDATION_ERROR', 'X-Request-ID', 'X-Trace-ID', 'code', 'detail', 'error', 'http', 'status', 'trace_id']

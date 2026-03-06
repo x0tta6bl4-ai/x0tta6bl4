@@ -1,0 +1,11 @@
+{
+  "title": "SLO Error Budget",
+  "panels": [
+    {
+      "type": "gauge",
+      "title": "Monthly Error Budget Remaining",
+      "targets": [{"expr": "slo_error_budget_remaining"}],
+      "fieldConfig": { "min": 0, "max": 5 }
+    }
+  ]
+}

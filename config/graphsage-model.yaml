@@ -1,0 +1,11 @@
+graphsage:
+  model_path: "/opt/x0tta6bl4/models/graphsage_v2_attention.onnx"
+  inference_timeout_ms: 10
+  features:
+    - "node_degree"
+    - "latency_p99"
+    - "packet_loss_rate"
+    - "rssi"
+  target_accuracy: 0.94
+  attention_heads: 4
+  embedding_dim: 128
