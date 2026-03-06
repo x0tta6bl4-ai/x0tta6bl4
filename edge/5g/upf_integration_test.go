@@ -372,3 +372,22 @@ func (s *stubHTTPDoer) Do(req *http.Request) (*http.Response, error) {
 		Header:     make(http.Header),
 	}, nil
 }
+
+func TestOpen5GSSignalingSCTPContract(t *testing.T) {
+	// Мы не ожидаем успешного коннекта на 127.0.0.1:38412, но мы ожидаем,
+	// что ошибка придет именно от SCTP транспорта (а не TCP).
+	signaling := &edge5g.Open5GSSignaling{
+		AMFAddr: "127.0.0.1:38412",
+		Timeout: 100 * time.Millisecond,
+	}
+
+	err := signaling.EstablishNGAP("imsi-208930000000001")
+	if err == nil {
+		t.Fatal("expected connection failure on localhost, but got success")
+	}
+
+	// Ошибка должна содержать "SCTP transport failure", что подтверждает использование SCTP диалера.
+	if !strings.Contains(err.Error(), "SCTP transport failure") {
+		t.Fatalf("expected SCTP-specific error, got: %v", err)
+	}
+}
