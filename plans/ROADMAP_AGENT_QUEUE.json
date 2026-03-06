@@ -1,0 +1,200 @@
+{
+  "version": "2026-03-06",
+  "description": "Machine-readable next-task queue derived from canonical roadmap sources and current agent lanes.",
+  "derived_from": [
+    "ROADMAP.md",
+    "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+    "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+    "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md",
+    "AGENTS.md",
+    "docs/verification/operator-live-validation-checklist.md"
+  ],
+  "agents": {
+    "claude": {
+      "lane": "verification/evidence/compliance",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification"
+      ]
+    },
+    "gemini": {
+      "lane": "ebpf datapath and live attach",
+      "preferred_mode": "validation",
+      "allowed_modes": [
+        "verification",
+        "validation"
+      ]
+    },
+    "codex": {
+      "lane": "5G/Open5GS transport and integration tests",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification",
+        "validation"
+      ]
+    },
+    "lead-coordinator": {
+      "lane": "roadmap sync and freeze-point reporting",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification"
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "CLAUDE-RDM-001",
+      "agent": "claude",
+      "mode": "verification",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "ready",
+      "summary": "Run containerized Helm render and capture render evidence for the current hardening slice.",
+      "exact_next_command": "bash charts/render-in-docker.sh",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "Helm render output and chart acceptance checks",
+      "blocker": ""
+    },
+    {
+      "id": "CLAUDE-RDM-002",
+      "agent": "claude",
+      "mode": "verification",
+      "initiative": "Security Gates In CI",
+      "status": "ready",
+      "summary": "Run the local/containerized SBOM gate and update evidence docs from the result.",
+      "exact_next_command": "bash security/sbom/run-local-sbom-check.sh full --tool-mode docker",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "SBOM artifact generation and CVE gate result",
+      "blocker": ""
+    },
+    {
+      "id": "CLAUDE-RDM-003",
+      "agent": "claude",
+      "mode": "verification",
+      "initiative": "Security Gates In CI",
+      "status": "ready",
+      "summary": "Run the mock cosign/Rekor path and update the release-gate evidence snapshot.",
+      "exact_next_command": "bash security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "Mock signing output and Rekor-mode distinction in docs",
+      "blocker": ""
+    },
+    {
+      "id": "GEMINI-RDM-001",
+      "agent": "gemini",
+      "mode": "validation",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "blocked",
+      "summary": "Run live XDP attach on a real NIC and capture attach evidence.",
+      "exact_next_command": "sudo -E IFACE=eth0 ebpf/prod/verify-local.sh --live-attach",
+      "prereqs": [
+        "sudo-noninteractive",
+        "real-nic",
+        "btf-vmlinux"
+      ],
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "verify-local live attach output plus kernel/BPF evidence",
+      "blocker": "Requires root privileges and a real NIC in this environment."
+    },
+    {
+      "id": "GEMINI-RDM-002",
+      "agent": "gemini",
+      "mode": "validation",
+      "initiative": "Mesh-FL + Swarm Consensus",
+      "status": "blocked",
+      "summary": "Run the PPS benchmark harness only after live attach is working and produce a benchmark JSON with pass=true.",
+      "exact_next_command": "modprobe pktgen && RUN_BENCH=1 sudo -E IFACE=eth0 ebpf/prod/benchmark-harness.sh",
+      "prereqs": [
+        "sudo-noninteractive",
+        "real-nic",
+        "btf-vmlinux",
+        "pktgen-available"
+      ],
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "ebpf/prod/results/benchmark-<ts>.json with measured_pps and pass=true",
+      "blocker": "Requires live attach, root, and pktgen-capable environment."
+    },
+    {
+      "id": "CODEX-RDM-001",
+      "agent": "codex",
+      "mode": "verification",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "ready",
+      "summary": "Re-run the focused 5G package tests before the next Open5GS transport tranche.",
+      "exact_next_command": "go test ./edge/5g/... -v",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "AGENTS.md"
+      ],
+      "evidence_target": "Focused 5G package test output",
+      "blocker": ""
+    },
+    {
+      "id": "CODEX-RDM-002",
+      "agent": "codex",
+      "mode": "verification",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "ready",
+      "summary": "Implement the next real Open5GS transport bridge behind the existing provider contract without upgrading live status.",
+      "exact_next_command": "bash scripts/verify-5g-path.sh",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "AGENTS.md"
+      ],
+      "evidence_target": "Updated 5G verify path and transport contract tests",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-001",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "initiative": "Roadmap / Release Coordination",
+      "status": "ready",
+      "summary": "Refresh the shared roadmap dispatch snapshot and post the next-task allocation into the active request thread.",
+      "exact_next_command": "bash scripts/agent-coord.sh roadmap_sync lead-coordinator",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md"
+      ],
+      "evidence_target": "Updated roadmap dispatch state in shared swarm backend",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-002",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "initiative": "Horizon-2 / Decentralized RAG",
+      "status": "blocked",
+      "summary": "Keep decentralized RAG at RFC stage until v1.1 live-validation blockers close.",
+      "exact_next_command": "bash scripts/verify-v1.1.sh --fast",
+      "source_docs": [
+        "plans/RAG_HORIZON_2_RFC_2026-03-06.md",
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md"
+      ],
+      "evidence_target": "Fresh release-gate snapshot showing whether Horizon-2 can move from blocked to ready",
+      "blocker": "Do not start broad implementation until live eBPF attach, live Open5GS, and release evidence gaps are re-evaluated."
+    }
+  ]
+}
