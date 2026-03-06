@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ishidawataru/sctp"
 	metrics "x0tta6bl4/internal/metrics"
 )
 
@@ -308,11 +309,21 @@ func (s *Open5GSSignaling) EstablishNGAP(ueID string) error {
 
 	timeout := s.Timeout
 	if timeout <= 0 {
-		timeout = 500 * time.Millisecond
+		timeout = 1 * time.Second
 	}
 
-	log.Printf("[5G-CORE] NGAP: dialing AMF at %s for UE %s", s.AMFAddr, ueID)
-	conn, err := net.DialTimeout("tcp", s.AMFAddr, timeout)
+	addr, err := net.ResolveTCPAddr("tcp", s.AMFAddr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve AMF address: %w", err)
+	}
+
+	sctpAddr := &sctp.SCTPAddr{
+		IPAddrs: []net.IPAddr{{IP: addr.IP}},
+		Port:    addr.Port,
+	}
+
+	log.Printf("[5G-CORE][SCTP] NGAP: dialing AMF at %s for UE %s", s.AMFAddr, ueID)
+	conn, err := sctp.DialSCTP("sctp", nil, sctpAddr)
 	if err != nil {
 		SCTPConnErrors.Inc()
 		return fmt.Errorf("SCTP transport failure to AMF (%s): %w", s.AMFAddr, err)
