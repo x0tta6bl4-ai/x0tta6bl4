@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -400,11 +401,54 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 	}
 
 	latency, err := signaling.CreatePFCPSSession("premium")
-	if err != nil {
-		t.Logf("PFCP session attempt (expected behavior): %v", err)
-	}
-
 	if latency == 0 && err == nil {
 		t.Fatal("expected non-zero latency or error")
+	}
+	}
+
+	func TestUERANSIMConfigGeneration(t *testing.T) {
+
+	tmpDir, err := os.MkdirTemp("", "ueransim-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	controller := &edge5g.UERANSIMController{
+		ConfigDir: tmpDir,
+	}
+
+	// Test UE Config
+	ueCfg := edge5g.UEConfig{
+		Supi: "imsi-208930000000001",
+		Mcc:  "208",
+		Mnc:  "93",
+		AmfAddr: "127.0.0.1",
+		GnbAddr: "127.0.0.1",
+	}
+	uePath, err := controller.GenerateUEConfig(ueCfg)
+	if err != nil {
+		t.Fatalf("failed to generate UE config: %v", err)
+	}
+	if _, err := os.Stat(uePath); os.IsNotExist(err) {
+		t.Errorf("UE config file not created: %s", uePath)
+	}
+
+	// Test gNB Config
+	gnbCfg := edge5g.GNBConfig{
+		Mcc: "208",
+		Mnc: "93",
+		Nci: "0x00000001",
+		IdLength: 32,
+		AmfAddr: "127.0.0.1",
+		GnbAddr: "127.0.0.1",
+		NgapPort: 38412,
+	}
+	gnbPath, err := controller.GenerateGNBConfig(gnbCfg)
+	if err != nil {
+		t.Fatalf("failed to generate gNB config: %v", err)
+	}
+	if _, err := os.Stat(gnbPath); os.IsNotExist(err) {
+		t.Errorf("gNB config file not created: %s", gnbPath)
 	}
 }
