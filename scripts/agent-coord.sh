@@ -24,6 +24,7 @@ LOG="${COORD_DIR}/log.jsonl"
 REQUEST_CHANNEL="${ROOT_DIR}/scripts/agents/request_channel.sh"
 SWARM_COORD="${ROOT_DIR}/scripts/agents/swarm_coord.py"
 VALIDATION_PREFLIGHT="${ROOT_DIR}/scripts/agents/validation_preflight.sh"
+ROADMAP_QUEUE="${ROOT_DIR}/plans/ROADMAP_AGENT_QUEUE.json"
 
 mkdir -p "${COORD_DIR}/inbox"
 
@@ -230,6 +231,62 @@ cmd_next_task() {
   fi
 }
 
+print_execution_buckets() {
+  [[ -f "${ROADMAP_QUEUE}" ]] || return 0
+  python3 - "${ROADMAP_QUEUE}" <<'PY'
+import json, sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    data = json.load(fh)
+
+buckets = data.get("execution_buckets", {})
+tasks = {task["id"]: task for task in data.get("tasks", [])}
+
+if not buckets:
+    raise SystemExit(0)
+
+print("")
+print("Execution buckets:")
+for bucket_name in ("verification-ready", "live-validation-only", "blocked-horizon-2"):
+    bucket = buckets.get(bucket_name)
+    if not bucket:
+        continue
+    task_ids = bucket.get("task_ids", [])
+    print(f"  {bucket_name}: {len(task_ids)}")
+    for task_id in task_ids[:3]:
+        task = tasks.get(task_id, {})
+        agent = task.get("agent", "?")
+        status = task.get("status", "?")
+        print(f"    - {task_id} [{agent}/{status}]")
+PY
+}
+
+print_agent_bucket_summary() {
+  local agent="${1:-}"
+  local mode="${2:-}"
+  [[ -n "${agent}" && -f "${ROADMAP_QUEUE}" ]] || return 0
+  python3 - "${ROADMAP_QUEUE}" "${agent}" "${mode}" <<'PY'
+import json, sys
+
+queue_path, agent, mode = sys.argv[1:4]
+with open(queue_path, encoding="utf-8") as fh:
+    data = json.load(fh)
+
+tasks = [task for task in data.get("tasks", []) if task.get("agent") == agent]
+if mode:
+    tasks = [task for task in tasks if task.get("mode") == mode]
+
+if not tasks:
+    raise SystemExit(0)
+
+ready = [task for task in tasks if task.get("status") == "ready"]
+current = ready[0] if ready else tasks[0]
+bucket = current.get("bucket", "unclassified")
+print(f"[coord] current bucket: {bucket}")
+print(f"[coord] bucket task: {current.get('id')} — {current.get('summary')}")
+PY
+}
+
 # ── status ────────────────────────────────────────────────────────────────────
 cmd_status() {
   echo ""
@@ -270,6 +327,8 @@ print("NOT VERIFIED YET:")
 for item in s.get("global_not_verified_yet", []):
     print(f"  - {item}")
 PY
+
+  print_execution_buckets
 
   if request_channel_available && "${REQUEST_CHANNEL}" show >/dev/null 2>&1; then
     echo ""
@@ -451,9 +510,11 @@ cmd_session_start() {
       cmd_log "${agent}" "session_start" "{\"mode\":\"${mode}\"}"
     fi
     cmd_next_task "${agent}" --mode "${mode}" || true
+    print_agent_bucket_summary "${agent}" "${mode}"
   else
     cmd_log "${agent}" "session_start" "{}"
     cmd_next_task "${agent}" || true
+    print_agent_bucket_summary "${agent}" ""
   fi
   echo "[coord] Done. Check inbox above for messages from other agents."
   echo ""
