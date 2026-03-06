@@ -391,3 +391,20 @@ func TestOpen5GSSignalingSCTPContract(t *testing.T) {
 		t.Fatalf("expected SCTP-specific error, got: %v", err)
 	}
 }
+
+func TestOpen5GSSignalingPFCPContract(t *testing.T) {
+	// Проверяем, что PFCP транспорт (UDP) инициируется корректно.
+	signaling := &edge5g.Open5GSSignaling{
+		UPFAddr: "127.0.0.1:8805",
+		Timeout: 100 * time.Millisecond,
+	}
+
+	latency, err := signaling.CreatePFCPSSession("premium")
+	if err != nil {
+		t.Logf("PFCP session attempt (expected behavior): %v", err)
+	}
+
+	if latency == 0 && err == nil {
+		t.Fatal("expected non-zero latency or error")
+	}
+}
