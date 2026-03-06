@@ -102,6 +102,23 @@ def validate_ci_workflow_text(workflow_text: str) -> list[str]:
     for command in required_commands:
         if command not in workflow_text:
             errors.append(f"ci.yml: missing required command `{command}`")
+
+    load_job = _find_job_block(workflow_text, "maas-api-load-scenarios")
+    if load_job is None:
+        errors.append("ci.yml: missing required job `maas-api-load-scenarios`")
+        return errors
+
+    required_load_tokens = (
+        "name: Run MaaS API load scenarios (CI profile)",
+        "make maas-api-load-scenarios-ci",
+        "name: Upload MaaS API load reports",
+        "uses: actions/upload-artifact@v4",
+        "name: maas-api-load-scenarios-report",
+        "path: .artifacts/maas-api-load/",
+    )
+    for token in required_load_tokens:
+        if token not in load_job:
+            errors.append(f"ci.yml: load job missing required token `{token}`")
     return errors
 
 

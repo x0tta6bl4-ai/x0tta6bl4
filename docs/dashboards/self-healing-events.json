@@ -1,0 +1,168 @@
+{
+  "uid": "x0tta-self-healing",
+  "title": "Self-Healing Events",
+  "description": "Auto-remediation events, MTTR histogram, success rate, MAPE-K loop health",
+  "tags": ["x0tta", "healing", "mape-k", "slo"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Heal Events (last 1h)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "increase(mesh_heal_events_total[1h])",
+          "legendFormat": "Events"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Success Rate",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(mesh_heal_success_total[5m])) / sum(rate(mesh_heal_events_total[5m])) * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 80, "color": "yellow" },
+              { "value": 95, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "MTTR p50",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(mesh_heal_duration_seconds_bucket[5m])) * 1000"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 4,
+      "title": "MTTR p95 vs SLA (2500ms)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(mesh_heal_duration_seconds_bucket[5m])) * 1000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 2500, "color": "yellow" },
+              { "value": 5000, "color": "red" }
+            ]
+          },
+          "mappings": [
+            { "type": "range", "options": { "from": 2500, "to": 99999, "result": { "text": "SLA BREACH", "color": "red" } } }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Auto-Remediation Events Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(mesh_heal_events_total[5m]) * 60",
+          "legendFormat": "{{strategy}} heal events/min"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 6,
+      "title": "MTTR Histogram",
+      "type": "histogram",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(mesh_heal_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{le}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "2.5" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "#ef4444", "mode": "fixed" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Healing Strategy Breakdown",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (strategy) (increase(mesh_heal_events_total[1h]))",
+          "legendFormat": "{{strategy}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "MAPE-K Loop Cycle Duration",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 12, "w": 16, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(mapek_cycle_duration_seconds_bucket[5m])) * 1000",
+          "legendFormat": "MAPE-K cycle p95 ms"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(mapek_cycle_duration_seconds_bucket[5m])) * 1000",
+          "legendFormat": "MAPE-K cycle p50 ms"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 9,
+      "title": "Failed Healing Events Log",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{app=\"mesh-node\"} |= \"heal\" |= \"failed\" | json | line_format \"[{{.node_id}}] {{.message}}\""
+        }
+      ]
+    }
+  ]
+}

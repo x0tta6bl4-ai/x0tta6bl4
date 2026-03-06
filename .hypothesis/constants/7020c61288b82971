@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/cors_config.py
+# hypothesis_version: 6.151.9
+
+['*', ',', ', ', '1', 'CORS_ALLOWED_ORIGINS', 'ENVIRONMENT', 'X0TTA6BL4_PRODUCTION', 'https://', 'live', 'on', 'prod', 'production', 'true', 'yes']

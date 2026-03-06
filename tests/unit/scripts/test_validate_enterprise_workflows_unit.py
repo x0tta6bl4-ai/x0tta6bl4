@@ -62,6 +62,16 @@ jobs:
       - name: Validate gates
         run: |
           {command_block}
+  maas-api-load-scenarios:
+    steps:
+      - name: Run MaaS API load scenarios (CI profile)
+        run: |
+          make maas-api-load-scenarios-ci
+      - name: Upload MaaS API load reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: maas-api-load-scenarios-report
+          path: .artifacts/maas-api-load/
 """
 
 
@@ -175,6 +185,47 @@ def test_ci_policy_requires_production_env_contract_command():
     policy = _load_policy_module()
     errors = policy.validate_ci_workflow_text(_ci_workflow_text(include_env_contract=False))
     assert any("validate_production_env_contract.py" in item for item in errors)
+
+
+def test_ci_policy_requires_maas_api_load_job():
+    policy = _load_policy_module()
+    ci_text = """
+name: CI
+jobs:
+  test:
+    steps:
+      - name: Validate gates
+        run: |
+          python scripts/validate_runtime_contracts.py
+          python scripts/validate_version_contract.py
+          python scripts/validate_production_env_contract.py
+          python scripts/validate_enterprise_workflows.py
+"""
+    errors = policy.validate_ci_workflow_text(ci_text)
+    assert any("missing required job `maas-api-load-scenarios`" in item for item in errors)
+
+
+def test_ci_policy_requires_maas_api_load_artifact_upload():
+    policy = _load_policy_module()
+    ci_text = """
+name: CI
+jobs:
+  test:
+    steps:
+      - name: Validate gates
+        run: |
+          python scripts/validate_runtime_contracts.py
+          python scripts/validate_version_contract.py
+          python scripts/validate_production_env_contract.py
+          python scripts/validate_enterprise_workflows.py
+  maas-api-load-scenarios:
+    steps:
+      - name: Run MaaS API load scenarios (CI profile)
+        run: |
+          make maas-api-load-scenarios-ci
+"""
+    errors = policy.validate_ci_workflow_text(ci_text)
+    assert any("maas-api-load-scenarios-report" in item for item in errors)
 
 
 def test_cd_policy_requires_strict_production_env_contract_block():

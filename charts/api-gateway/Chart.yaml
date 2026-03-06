@@ -1,0 +1,14 @@
+apiVersion: v2
+name: api-gateway
+description: x0tta Mesh API Gateway — Nest.js service for mesh-node management
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - mesh
+  - api
+  - x0tta
+home: https://x0tta6bl4.io
+maintainers:
+  - name: x0tta-team
+    email: ops@x0tta6bl4.io

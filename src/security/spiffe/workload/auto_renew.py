@@ -16,7 +16,7 @@ Features:
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Callable, List, Optional, Set
 
 from prometheus_client import Counter, Gauge

@@ -61,6 +61,10 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 
 def _allow_insecure_escrow_fallback() -> bool:
+    """Only allow insecure fallback in development/testing mode."""
+    env = os.getenv("ENVIRONMENT", "").lower()
+    if env in {"production", "prod"}:
+        return False
     # Escape hatch for local debugging only. Keep secure-by-default in production.
     return _env_flag("MAAS_MARKETPLACE_ALLOW_INSECURE_ESCROW_FALLBACK", False)
 

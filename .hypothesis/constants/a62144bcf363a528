@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/rbac.py
+# hypothesis_version: 6.151.9
+
+['acl:read', 'acl:update', 'acl:view', 'acl:write', 'admin', 'analytics:view', 'billing:view', 'marketplace:list', 'marketplace:rent', 'mesh:create', 'mesh:delete', 'mesh:read', 'mesh:update', 'mesh:view', 'mesh:write', 'node:approve', 'node:delete', 'node:heal', 'node:read', 'node:revoke', 'node:view', 'node:write', 'operator', 'playbook:create', 'playbook:view', 'telemetry:export', 'telemetry:read', 'telemetry:view', 'user', 'viewer', 'vpn:admin', 'vpn:config', 'vpn:status']

@@ -1,0 +1,59 @@
+{
+  "timestamp_utc": "2026-03-06T05:28:44Z",
+  "base_url": "http://127.0.0.1:38080",
+  "duration_seconds": 180,
+  "concurrency": 12,
+  "request_timeout_seconds": 5.0,
+  "scenarios_selected": [
+    "marketplace_search",
+    "telemetry_heartbeat",
+    "node_heartbeat"
+  ],
+  "mesh_id": "mesh-load-profile",
+  "node_id": "node-001",
+  "requests_total": 3450,
+  "requests_ok": 1157,
+  "requests_error": 2293,
+  "error_rate_percent": 66.46376811594202,
+  "throughput_rps": 19.166666666666668,
+  "scenarios": {
+    "marketplace_search": {
+      "requests_total": 1149,
+      "requests_ok": 1145,
+      "requests_error": 4,
+      "error_rate_percent": 0.34812880765883375,
+      "latency_mean_ms": 445.6685074099264,
+      "latency_p95_ms": 833.5775449959328,
+      "throughput_rps": 6.383333333333334,
+      "errors_by_reason": {
+        "timeout": 4
+      }
+    },
+    "telemetry_heartbeat": {
+      "requests_total": 1150,
+      "requests_ok": 11,
+      "requests_error": 1139,
+      "error_rate_percent": 99.04347826086956,
+      "latency_mean_ms": 764.1513954127415,
+      "latency_p95_ms": 1535.9957439941354,
+      "throughput_rps": 6.388888888888889,
+      "errors_by_reason": {
+        "timeout": 12,
+        "http_500": 1127
+      }
+    },
+    "node_heartbeat": {
+      "requests_total": 1151,
+      "requests_ok": 1,
+      "requests_error": 1150,
+      "error_rate_percent": 99.9131190269331,
+      "latency_mean_ms": 670.1170680235065,
+      "latency_p95_ms": 1341.4706570038106,
+      "throughput_rps": 6.394444444444445,
+      "errors_by_reason": {
+        "timeout": 11,
+        "http_500": 1139
+      }
+    }
+  }
+}

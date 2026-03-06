@@ -1,0 +1,57 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: x0tta6bl4-default-deny
+  namespace: x0tta6bl4-mesh
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: x0tta6bl4-mesh-zero-trust
+  namespace: x0tta6bl4-mesh
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4-agent
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: x0tta6bl4-agent
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP
+            - port: "7443"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: x0tta6bl4-agent
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP
+            - port: "7443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: spire-agent
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: opa
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+        - kube-dns

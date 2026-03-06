@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/swarm/consensus_integration.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 1.0, 2.0, 30.0, 100, 300, 1000, 3600, 10000, '\x00', 'AgentInfo', 'ConsensusMessage', 'ConsensusMode', 'ConsensusTransport', 'RaftNode', 'State', 'SwarmDecision', 'WeightedVote', 'accept', 'accepted', 'agent_id', 'agents', 'append_entries', 'avg_duration_ms', 'capabilities', 'choice', 'commit', 'consensus_msg', 'decision_id', 'duration_ms', 'executed', 'failed', 'is_byzantine', 'is_leader', 'last_seen', 'mode', 'mode_usage', 'multipaxos', 'name', 'new_view', 'node_id', 'operation', 'paxos', 'pbft', 'pre_prepare', 'prepare', 'promise', 'proposals', 'raft', 'raft_state', 'request_vote', 'simple', 'started', 'state', 'status', 'success', 'success_rate', 'successful', 'term', 'timestamp', 'topic', 'total_decisions', 'type', 'value', 'view_change', 'vote_response', 'voter_id', 'votes', 'weight', 'weighted', 'winner']

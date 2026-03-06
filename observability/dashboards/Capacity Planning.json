@@ -1,0 +1,10 @@
+{
+  "title": "Capacity Planning",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Aggregate Throughput per Node",
+      "targets": [{"expr": "rate(bandwidth_monitor_bytes_total[1m]) * 8"}]
+    }
+  ]
+}

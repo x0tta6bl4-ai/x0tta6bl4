@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'mesh-nodes'
+    static_configs:
+      - targets: ['localhost:2112']
+
+rule_files:
+  - "alert_rules.yml"

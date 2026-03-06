@@ -1,39 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract X0TToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
-    constructor(address initialOwner)
-        ERC20("x0tta6bl4 Token", "X0T")
-        ERC20Permit("x0tta6bl4 Token")
-        Ownable(initialOwner)
-    {
-        // Initial mint for the DAO treasury and early node operators
-        _mint(msg.sender, 100000000 * 10 ** decimals());
-    }
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
-
-    // The following functions are overrides required by Solidity.
-    function _update(address from, address to, uint256 value)
-        internal
-        override(ERC20, ERC20Votes)
-    {
-        super._update(from, to, value);
-    }
-
-    function nonces(address owner)
-        public
-        view
-        override(ERC20Permit, Nonces)
-        returns (uint256)
-    {
-        return super.nonces(owner);
+contract X0TToken is ERC20, Ownable {
+    constructor() ERC20("x0tta6bl4 Token", "X0T") {
+        _mint(msg.sender, 1_000_000_000 * 10**decimals()); // 1 Billion Supply
     }
 }

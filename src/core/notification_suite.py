@@ -211,7 +211,7 @@ def main():
         rc = send_slack(args.webhook, args.message)
         sys.exit(rc)
     elif args.command == "watch":
-        labels = [label.strip() for label in args.labels.split(",") if l.strip()]
+        labels = [label.strip() for label in args.labels.split(",") if label.strip()]
         rc = watch(args.namespace, labels, args.timeout, args.interval)
         sys.exit(rc)
     else:

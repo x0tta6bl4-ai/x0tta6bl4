@@ -1,0 +1,25 @@
+{
+  "timestamp_utc": "2026-03-06T05:01:32Z",
+  "base_url": "http://127.0.0.1:8000",
+  "duration_seconds": 180,
+  "concurrency": 8,
+  "sample_interval_seconds": 1.0,
+  "endpoints": [
+    "/health/ready",
+    "/health",
+    "/metrics",
+    "/api/v1/maas/plans"
+  ],
+  "requests_total": 2241,
+  "requests_ok": 2241,
+  "requests_error": 0,
+  "error_rate_percent": 0.0,
+  "throughput_rps": 12.45,
+  "latency_mean_ms": 643.4558409554992,
+  "latency_p95_ms": 1477.7613920014119,
+  "rss_start_mb": 156.0625,
+  "rss_end_mb": 162.3671875,
+  "rss_peak_mb": 162.37109375,
+  "rss_growth_mb": 6.3046875,
+  "rss_samples_count": 180
+}

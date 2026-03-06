@@ -16,25 +16,39 @@ branch_labels = None
 depends_on = None
 
 
-def _table_exists(inspector: sa.Inspector, table_name: str) -> bool:
+def _table_exists(inspector, table_name: str) -> bool:
+    if inspector is None:
+        return True
     return table_name in inspector.get_table_names()
 
 
-def _column_exists(inspector: sa.Inspector, table_name: str, column_name: str) -> bool:
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table_name):
         return False
     return column_name in {c["name"] for c in inspector.get_columns(table_name)}
 
 
-def _index_exists(inspector: sa.Inspector, table_name: str, index_name: str) -> bool:
+def _index_exists(inspector, table_name: str, index_name: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table_name):
         return False
-    return index_name in {idx["name"] for idx in inspector.get_indexes(table_name)}
+    return index_name in {i["name"] for i in inspector.get_indexes(table_name)}
+
+
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     if _table_exists(inspector, "users"):
         with op.batch_alter_table("users", schema=None) as batch_op:
@@ -50,7 +64,7 @@ def upgrade() -> None:
                 batch_op.add_column(sa.Column("vpn_uuid", sa.String(), nullable=True))
 
     # Refresh inspector after DDL.
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _table_exists(inspector, "users"):
         if not _index_exists(inspector, "users", "ix_users_oidc_id"):
             op.create_index("ix_users_oidc_id", "users", ["oidc_id"], unique=True)
@@ -71,7 +85,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("event_id"),
         )
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _table_exists(inspector, "billing_webhook_events"):
         if not _index_exists(
             inspector, "billing_webhook_events", "ix_billing_webhook_events_event_id"
@@ -95,7 +109,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     if _table_exists(inspector, "billing_webhook_events"):
         if _index_exists(
@@ -114,7 +128,7 @@ def downgrade() -> None:
             )
         op.drop_table("billing_webhook_events")
 
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     if _table_exists(inspector, "users"):
         if _index_exists(inspector, "users", "ix_users_vpn_uuid"):
             op.drop_index("ix_users_vpn_uuid", table_name="users")

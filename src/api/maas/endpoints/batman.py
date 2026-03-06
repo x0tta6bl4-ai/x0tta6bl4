@@ -404,11 +404,11 @@ async def get_batman_topology(
         
         links = [
             {
-                "source": l.source,
-                "destination": l.destination,
-                "quality": l.quality.name,
-                "throughput_mbps": l.throughput_mbps,
-                "latency_ms": l.latency_ms,
+                "source": link.source,
+                "destination": link.destination,
+                "quality": link.quality.name,
+                "throughput_mbps": link.throughput_mbps,
+                "latency_ms": link.latency_ms,
                 "packet_loss_percent": link.packet_loss_percent,
             }
             for link in topology.links.values()

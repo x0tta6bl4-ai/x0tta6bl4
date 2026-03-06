@@ -1,0 +1,35 @@
+{{- if and .Values.operator.webhook.enabled .Values.operator.webhook.certManager.enabled }}
+{{- if .Values.operator.webhook.certManager.createIssuer }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "x0tta-mesh-operator.webhookIssuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "x0tta-mesh-operator.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "x0tta-mesh-operator.webhookCertificateName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "x0tta-mesh-operator.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "x0tta-mesh-operator.webhookSecretName" . }}
+  duration: {{ .Values.operator.webhook.certManager.duration }}
+  renewBefore: {{ .Values.operator.webhook.certManager.renewBefore }}
+  issuerRef:
+    name: {{ include "x0tta-mesh-operator.webhookIssuerName" . }}
+    kind: {{ .Values.operator.webhook.certManager.issuerRef.kind }}
+    group: {{ .Values.operator.webhook.certManager.issuerRef.group }}
+  dnsNames:
+    - {{ include "x0tta-mesh-operator.webhookServiceName" . }}
+    - {{ include "x0tta-mesh-operator.webhookServiceName" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "x0tta-mesh-operator.webhookServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+{{- end }}

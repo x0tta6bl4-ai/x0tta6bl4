@@ -18,19 +18,31 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _table_exists(inspector: sa.Inspector, table_name: str) -> bool:
+def _table_exists(inspector, table_name: str) -> bool:
+    if inspector is None:
+        return True
     return table_name in inspector.get_table_names()
 
 
-def _column_exists(inspector: sa.Inspector, table_name: str, column_name: str) -> bool:
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table_name):
         return False
-    return column_name in {col["name"] for col in inspector.get_columns(table_name)}
+    return column_name in {c["name"] for c in inspector.get_columns(table_name)}
+
+
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     table_name = "users"
 
     if not _table_exists(inspector, table_name):
@@ -43,7 +55,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     table_name = "users"
 
     if not _table_exists(inspector, table_name):

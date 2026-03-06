@@ -33,14 +33,24 @@ _BOOTSTRAP_TABLES = (
 )
 
 
-def _table_exists(inspector: sa.Inspector, name: str) -> bool:
+def _table_exists(inspector, name: str) -> bool:
+    if inspector is None:
+        return True
     return name in inspector.get_table_names()
+
+
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
 
 
 def upgrade() -> None:
     """Create core MaaS tables that may be missing on a clean migration path."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     missing_table_names = [
         table_name

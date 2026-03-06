@@ -26,6 +26,27 @@ echo -e "${CYAN}
 ${NC}"
 echo -e "${GREEN}Deploying 'The Living Network' (v3.3.0-rc1)...${NC}\n"
 
+# 0. Argument Parsing
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --node-id)
+      NODE_ID="$2"
+      shift 2
+      ;;
+    --token)
+      JOIN_TOKEN="$2"
+      shift 2
+      ;;
+    --mesh)
+      MESH_ID="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
 # 1. Root Check
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}Please run as root (sudo).${NC}"
@@ -51,6 +72,21 @@ fi
 echo -e "${YELLOW}[3/5] Installing application to $INSTALL_DIR...${NC}"
 mkdir -p "$INSTALL_DIR"
 cp -r . "$INSTALL_DIR"
+
+# Create production .env from template
+if [ -f "$INSTALL_DIR/.env.example" ]; then
+  cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+else
+  touch "$INSTALL_DIR/.env"
+fi
+
+# Apply MaaS provisioning if provided
+if [ ! -z "$NODE_ID" ]; then
+  echo "X0T_NODE_ID=$NODE_ID" >> "$INSTALL_DIR/.env"
+  echo "X0T_MESH_ID=$MESH_ID" >> "$INSTALL_DIR/.env"
+  echo "X0T_JOIN_TOKEN=$JOIN_TOKEN" >> "$INSTALL_DIR/.env"
+fi
+
 chown -R "$USER:$USER" "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"

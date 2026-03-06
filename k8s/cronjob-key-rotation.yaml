@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pqc-key-rotation
+  namespace: x0tta6bl4-mesh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pqc-key-rotation
+  namespace: x0tta6bl4-mesh
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pqc-key-rotation
+  namespace: x0tta6bl4-mesh
+subjects:
+  - kind: ServiceAccount
+    name: pqc-key-rotation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pqc-key-rotation
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pqc-key-rotation
+  namespace: x0tta6bl4-mesh
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pqc-key-rotation
+          restartPolicy: OnFailure
+          containers:
+            - name: rotate
+              image: ghcr.io/x0tta6bl4/agent:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /app/agent
+                - rotate-keys
+                - --namespace=x0tta6bl4-mesh
+                - --secret-name=mesh-pqc-keys
+                - --policy-config=/config/policy.yaml
+                - --audit-dir=/var/lib/x0tta6bl4/audit
+              env:
+                - name: NODE_ID
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              volumeMounts:
+                - name: rotation-policy
+                  mountPath: /config
+                  readOnly: true
+                - name: audit
+                  mountPath: /var/lib/x0tta6bl4/audit
+          volumes:
+            - name: rotation-policy
+              configMap:
+                name: pqc-rotation-policy
+            - name: audit
+              persistentVolumeClaim:
+                claimName: x0tta6bl4-audit-pvc

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/production_lifespan.py
+# hypothesis_version: 6.151.9
+
+['1', 'DB_AUTO_MIGRATE', 'DB_ENFORCE_SCHEMA', 'MAAS_LIGHT_MODE', 'PYTEST_CURRENT_TEST', 'TESTING', 'X0TTA6BL4_PRODUCTION', 'false', 'mtls_enabled', 'on', 'rate_limit_enabled', 'true', 'yes']

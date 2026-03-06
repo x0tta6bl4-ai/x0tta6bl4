@@ -1,8 +1,8 @@
 # x0tta6bl4 Four-Agent Sync Protocol
 
-Baseline read: `.paradox` (2026-02-16).
-This file is the coordination guide for exactly 4 working agents.
-Current runtime mode: `normal` (4 active agents: `agent-1`, `agent-2`, `agent-3`, `agent-4`; restored in `D025/V025`).
+Historical role/ownership guide for 4-agent mode.
+Current request coordination no longer uses `.paradox` as authoritative state.
+Use `bash scripts/agent-coord.sh ...` backed by shared swarm state.
 
 ## 1. Roles and ownership
 
@@ -29,46 +29,44 @@ Current runtime mode: `normal` (4 active agents: `agent-1`, `agent-2`, `agent-3`
 | `T010` | `agent-3` + `agent-2` | done | completed |
 | `T011` | `agent-2` | done | completed |
 
-Execution rule: before any work unit, update task status and lock entries in `.paradox`.
+Execution rule: before any work unit, open or join the active request thread and
+respect file ownership / lease rules from shared swarm state.
 
 ## 3. Communication scheme
 
-Primary state: `.paradox`  
-Chronological log: `.paradox.log`
+Primary request state: `.git/swarm/coordination_state.json`  
+Stable front door: `scripts/agent-coord.sh`
 
 Required cadence:
-1. Session start: one `[START]` log line + task claim in `.paradox`.
-2. Heartbeat every 30 minutes: one `[HB]` line with progress or blocker.
-3. Immediate `[ALERT]` line for hard blockers or conflicts.
-4. Handoff on pause/finish: one `[END]` line + task/lock update in `.paradox`.
+1. Session start: `bash scripts/agent-coord.sh session_start <agent> "summary"`.
+2. During work: `bash scripts/agent-coord.sh log <agent> <event> '{"message":"..."}'`.
+3. Hard blocker or conflict: post a blocker note or handoff note immediately.
+4. Pause/finish: `bash scripts/agent-coord.sh session_end <agent> '{"result":"...","next":"..."}'`.
 
 Message format:
-`[TIMESTAMP] agent-X: [TAG] task=<id> files=<paths> status=<state> next=<action>`
+`agent-coord.sh` and the swarm-backed request thread record timestamps and agent metadata automatically.
 
 ## 4. Discussion and dispute protocol
 
 Use this whenever architecture, security, or dependency order is contested.
 
-1. Open `DISCUSSIONS` item in `.paradox` with id `Dxxx`.
+1. Open a request-thread note that clearly states the contested decision.
 2. Round A (position): each agent posts one short stance.
 3. Round B (dispute): each agent challenges one risk or assumption.
 4. Moderator summarizes options in 3 bullets max.
-5. If still unresolved, start `VOTES` item `Vxxx`.
+5. If still unresolved, escalate outside the request thread with an explicit owner.
 
 Moderator rotation: `agent-1 -> agent-2 -> agent-3 -> agent-4` (per decision).
 
 ## 5. Voting rules
 
-1. Quorum: 3 of 4 agents in normal mode; 2 of 2 active agents in degraded mode.
-2. Winner: simple majority.
-3. Tie: moderator decides for process issues, `agent-1` decides for architecture issues.
-4. Security veto: `agent-2` can block decisions that reduce security posture.
-5. Vote timeout: 2h for urgent items, 24h for normal items.
-6. Decision must be written back to `.paradox` with rationale and follow-up actions.
+1. Keep one active request thread, not parallel ledgers.
+2. Record the decision and next owner in the request thread.
+3. If a security veto or ownership conflict exists, leave the thread open with a blocker note.
 
 ## 6. Kickoff decisions (completed)
 
-Decisions recorded in `.paradox`:
+Historical decisions recorded in older coordination artifacts:
 1. `D010` + `V010`: security-first order approved.
 2. `D011` + `V011`: `T009` split approved (agent-2 crypto core, agent-1 compatibility layer).
 3. `D012` + `V012`: full quality gate approved before `T007`.
@@ -78,32 +76,22 @@ Decisions recorded in `.paradox`:
 7. `D025` + `V025`: restored full four-agent normal mode by explicit user command.
 
 Current execution queue:
-1. `agent-4`: run consolidated CI quality gate and publish updated coverage artifacts.
-2. `agent-2`: complete security regression sign-off for the newly covered modules.
-3. `agent-3`: execute remaining network integration checks post T007/T006 closure.
-4. `agent-1`: coordinate next backlog and facilitate cross-agent planning.
+Current execution priorities should be taken from the active request thread and
+the current ownership matrix, not from legacy `.paradox` tasks.
 
 ## 7. Locking protocol
 
-1. Add lock in `.paradox` before editing any file.
-2. Lock TTL: 120 minutes.
-3. Renew on heartbeat if still active.
-4. Never edit files in another active lock.
-5. Remove lock immediately after commit/handoff.
+1. Use swarm leases / ownership checks before editing.
+2. Never edit files in another active lease without handoff.
+3. Request-thread notes do not replace file lease rules.
 
 ## 8. Copy-paste templates
 
 Start:
-`[TIMESTAMP] agent-X: [START] task=T00Y files=<paths> eta=<minutes>`
+`bash scripts/agent-coord.sh session_start codex "short request summary"`
 
-Heartbeat:
-`[TIMESTAMP] agent-X: [HB] task=T00Y done=<summary> blocked=<yes/no> next=<action>`
-
-Dispute:
-`[TIMESTAMP] agent-X: [DISCUSSION D0ZZ] position=<one line> risk=<one line> proposal=<one line>`
-
-Vote:
-`[TIMESTAMP] agent-X: [VOTE V0ZZ] option=<A|B|C> reason=<one line>`
+Progress:
+`bash scripts/agent-coord.sh log codex progress '{"message":"what changed","next":"next action"}'`
 
 End:
-`[TIMESTAMP] agent-X: [END] task=T00Y result=<done|partial|blocked> handoff=<next owner>`
+`bash scripts/agent-coord.sh session_end codex '{"result":"done or handoff","next":"next action"}'`
