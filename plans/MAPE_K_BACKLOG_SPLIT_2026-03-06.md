@@ -32,6 +32,8 @@ Rules:
 
 - Do not promote any PPS number without a fresh benchmark artifact.
 - Do not reuse older bridge-only or hand-crafted JSON as evidence.
+- Current repo benchmark JSON files under `ebpf/prod/results/` still show
+  `measured_pps=0`; treat them as non-promotable for PPS claims.
 - Keep this bucket separate from the local verification baseline.
 
 ## Blocked / Horizon-2
