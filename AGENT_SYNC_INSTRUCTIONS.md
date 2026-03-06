@@ -169,6 +169,7 @@ Read the current thread at any time:
 ```bash
 bash scripts/agent-coord.sh status
 bash scripts/agent-coord.sh next_task codex
+bash scripts/agent-coord.sh dispatch_ready lead-coordinator --bucket verification-ready --dry-run
 bash scripts/agent-coord.sh roadmap_sync lead-coordinator
 scripts/agents/request_channel.sh show
 scripts/agents/request_channel.sh tail --limit 12
@@ -190,10 +191,36 @@ It now also shows the current execution bucket for that task:
 - `live-validation-only`
 - `blocked-horizon-2`
 
+To fan out the current ready queue into agent inboxes without copying commands by
+hand, use:
+
+```bash
+bash scripts/agent-coord.sh dispatch_ready lead-coordinator --bucket verification-ready
+```
+
+Useful filters:
+
+- `--bucket verification-ready`
+- `--bucket live-validation-only`
+- `--agent codex`
+- `--mode verification`
+- `--dry-run`
+
 Roadmap tasks are tagged with one of:
 
 - `verification`
 - `validation`
+
+Queue contract:
+
+- duplicate task ids are invalid
+- `live-validation-only` tasks must not be marked `completed` without an
+  explicit `completed_evidence` field
+- allowed execution buckets are:
+  - `verification-ready`
+  - `live-validation-only`
+  - `blocked-horizon-2`
+- `blocked-horizon-2` tasks must keep `status=blocked`
 
 ## Completion Or Handoff
 
