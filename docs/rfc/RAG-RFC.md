@@ -42,6 +42,19 @@
 
 ---
 
+## Пятислойная архитектура (из Gemini RFC v0.1)
+
+1. **Ingestion/Chunking** — семантическая нарезка документов с metadata (source, tenant, ACL, timestamp)
+2. **Local Indexing** — гибридный поиск на каждом узле:
+   - Sparse: BM25/TF-IDF для лексического recall
+   - Dense (мощные узлы): HNSW ANN index
+   - Edge (лёгкие узлы): LEANN compact index
+3. **Mesh Routing** — knowledge-aware request brokering через существующую multi-path логику (BATMAN-adv aware)
+4. **Context Assembly** — federated retrieval + cross-encoder reranking
+5. **Generation** — LLM gateway, потребляет только top-k контекст
+
+---
+
 ## MVP-схема (для RFC фазы)
 
 ```
