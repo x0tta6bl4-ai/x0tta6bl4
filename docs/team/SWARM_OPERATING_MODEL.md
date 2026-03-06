@@ -137,6 +137,9 @@ Operational next-task distribution uses:
 - `plans/ROADMAP_AGENT_QUEUE.json` as the curated machine-readable queue
 - `scripts/agents/swarm_coord.py roadmap-sync` to sync it into shared swarm state
 - `bash scripts/agent-coord.sh next_task <agent>` to show the next roadmap-derived task for that lane
+- `bash scripts/agent-coord.sh dispatch_ready lead-coordinator --bucket verification-ready`
+  to fan out ready tasks into agent inboxes with mode, bucket, command, and
+  evidence target attached
 
 `session_start` now prints the next roadmap task automatically for the current
 agent, using either the explicitly requested mode or the queue's
