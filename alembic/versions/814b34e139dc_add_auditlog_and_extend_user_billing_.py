@@ -47,13 +47,7 @@ def upgrade() -> None:
 
     # Step 1: Add columns (guarded — marketplace_listings may not exist in SQLite/test envs)
     if _table_exists(inspector, 'marketplace_listings'):
-        with op.batch_alter_table('marketplace_listings', schema=None) as batch_op:
-            if not _column_exists(inspector, 'marketplace_listings', 'renter_id'):
-                batch_op.add_column(sa.Column('renter_id', sa.String(), nullable=True))
-            if not _column_exists(inspector, 'marketplace_listings', 'mesh_id'):
-                batch_op.add_column(sa.Column('mesh_id', sa.String(), nullable=True))
-
-        # Step 2: Add foreign key (separate block to avoid SQLite circular dep issues)
+        # Step 2: Add foreign key
         with op.batch_alter_table('marketplace_listings', schema=None) as batch_op:
             batch_op.create_foreign_key('fk_listing_renter', 'users', ['renter_id'], ['id'])
 
