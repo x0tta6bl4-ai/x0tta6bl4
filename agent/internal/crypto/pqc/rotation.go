@@ -1,12 +1,20 @@
 package pqc
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 )
 
+// KeyStore defines the interface for durable PQC material storage.
+type KeyStore interface {
+	Load(ctx context.Context) (*RotationSnapshot, error)
+	Save(ctx context.Context, snapshot RotationSnapshot) error
+}
+
 const (
+
 	DefaultKEMRotationInterval       = 30 * 24 * time.Hour
 	DefaultSignatureRotationInterval = 90 * 24 * time.Hour
 	DefaultOverlapPeriod             = 7 * 24 * time.Hour
@@ -74,9 +82,9 @@ type RotationManager struct {
 	backupKeys      []BackupKeyReference
 }
 
-// NewRotationManager creates active ML-KEM and ML-DSA identities with the
-// requested rotation windows.
-func NewRotationManager(policy RotationPolicy, kemBackend KEMBackend, signerBackend SignerBackend) (*RotationManager, error) {
+// NewRotationManager creates active ML-KEM and ML-DSA identities.
+// If store is provided, it attempts to bootstrap material from durable storage.
+func NewRotationManager(ctx context.Context, policy RotationPolicy, kemBackend KEMBackend, signerBackend SignerBackend, store KeyStore) (*RotationManager, error) {
 	if kemBackend == nil {
 		kemBackend = MLKEM768Backend{}
 	}
@@ -86,6 +94,7 @@ func NewRotationManager(policy RotationPolicy, kemBackend KEMBackend, signerBack
 	if policy.Clock == nil {
 		policy.Clock = time.Now
 	}
+	// ... defaults ...
 	if policy.KEMRotationInterval <= 0 {
 		policy.KEMRotationInterval = DefaultKEMRotationInterval
 	}
@@ -95,8 +104,23 @@ func NewRotationManager(policy RotationPolicy, kemBackend KEMBackend, signerBack
 	if policy.OverlapPeriod <= 0 {
 		policy.OverlapPeriod = DefaultOverlapPeriod
 	}
-	if policy.BackupAlgorithm == "" {
-		policy.BackupAlgorithm = "NTRU-HRSS-701"
+
+	m := &RotationManager{
+		policy:        policy,
+		kemBackend:    kemBackend,
+		signerBackend: signerBackend,
+	}
+
+	if store != nil {
+		snapshot, err := store.Load(ctx)
+		if err == nil && snapshot != nil {
+			m.activeKEM = snapshot.ActiveKEM
+			m.activeSignature = snapshot.ActiveSignature
+			m.previousKEM = snapshot.AcceptedKEM
+			m.previousSigners = snapshot.AcceptedSigners
+			m.backupKeys = snapshot.BackupReferences
+			return m, nil
+		}
 	}
 
 	now := policy.Clock()
@@ -109,15 +133,15 @@ func NewRotationManager(policy RotationPolicy, kemBackend KEMBackend, signerBack
 		return nil, err
 	}
 
-	return &RotationManager{
-		policy:          policy,
-		kemBackend:      kemBackend,
-		signerBackend:   signerBackend,
-		activeKEM:       activeKEM,
-		activeSignature: activeSignature,
-	}, nil
-}
+	m.activeKEM = activeKEM
+	m.activeSignature = activeSignature
 
+	if store != nil {
+		_ = store.Save(ctx, m.Snapshot(now))
+	}
+
+	return m, nil
+}
 // RotateDue rotates keys that are past their interval and preserves the old
 // generation for the configured overlap period.
 func (m *RotationManager) RotateDue(now time.Time) ([]RotationEvent, error) {
