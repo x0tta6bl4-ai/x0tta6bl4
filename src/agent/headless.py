@@ -133,7 +133,7 @@ class HeadlessAgent:
         """Verify and execute a single playbook."""
         pb_id = pb["playbook_id"]
         payload_json = pb["payload"]
-        pb["signature"]
+        signature = pb["signature"]
         
         logger.info(f"📜 Received Playbook {pb_id}. Verifying PQC signature...")
         # In production: self.identity.security.verify(payload_json.encode(), bytes.fromhex(signature), cp_pub_key)

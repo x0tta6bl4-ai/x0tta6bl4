@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/parl/controller.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 10.0, 30.0, 60.0, 100, 1000, 1500, 10000, 100000, 'PARLController', 'Timeout', 'avg_reward', 'created_by', 'experiences', 'global', 'num_experiences', 'total_reward']

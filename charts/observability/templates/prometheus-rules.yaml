@@ -1,0 +1,175 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: x0tta-mesh-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+    app.kubernetes.io/part-of: x0tta-mesh
+spec:
+  groups:
+    # ── Node availability ─────────────────────────────────────────────────────
+    - name: mesh.node_availability
+      interval: 15s
+      rules:
+        - alert: MeshNodeDown
+          expr: |
+            mesh_nodes_total{status="active"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: mesh-ops
+          annotations:
+            summary: "No active mesh nodes in {{"{{"}} $labels.namespace {{"}}"}}"
+            description: "All mesh nodes are down for > 1 minute. Immediate action required."
+            runbook: "https://wiki.x0tta6bl4.io/runbooks/mesh-node-down"
+
+        - alert: MeshNodeDegraded
+          expr: |
+            sum by (namespace) (mesh_nodes_total{status="degraded"}) /
+            sum by (namespace) (mesh_nodes_total) > 0.3
+          for: 2m
+          labels:
+            severity: warning
+            team: mesh-ops
+          annotations:
+            summary: "More than 30% of mesh nodes degraded in {{"{{"}} $labels.namespace {{"}}"}}"
+            description: "{{"{{"}} $value | humanizePercentage {{"}}"}} nodes are in degraded state."
+
+        - alert: MeshSplitBrain
+          expr: |
+            mesh_network_partitions_total > 0
+          for: 0s
+          labels:
+            severity: critical
+            team: mesh-ops
+          annotations:
+            summary: "Network partition detected in mesh"
+            description: "batman-adv split-brain or partition detected. MAPE-K should auto-heal."
+
+    # ── SLA: MTTR ─────────────────────────────────────────────────────────────
+    - name: mesh.sla_mttr
+      rules:
+        - alert: MeshMTTRSLABreach
+          expr: |
+            histogram_quantile(0.95,
+              rate(mesh_heal_duration_seconds_bucket[10m])
+            ) > 2.5
+          for: 5m
+          labels:
+            severity: critical
+            team: mesh-ops
+            sla: mttr
+          annotations:
+            summary: "MTTR p95 breaches 2.5s SLA"
+            description: "p95 MTTR is {{"{{"}} $value | humanizeDuration {{"}}"}}. SLA target: 2.5s."
+            runbook: "https://wiki.x0tta6bl4.io/runbooks/mttr-breach"
+
+        - alert: MeshHealingSuccessRateLow
+          expr: |
+            sum(rate(mesh_heal_success_total[5m])) /
+            sum(rate(mesh_heal_events_total[5m])) < 0.90
+          for: 3m
+          labels:
+            severity: warning
+            team: mesh-ops
+          annotations:
+            summary: "Self-healing success rate below 90%"
+            description: "Only {{"{{"}} $value | humanizePercentage {{"}}"}} of heal events succeeded."
+
+    # ── SLA: Uptime ───────────────────────────────────────────────────────────
+    - name: mesh.sla_uptime
+      rules:
+        - alert: MeshUptimeBelowSLA
+          expr: |
+            avg(mesh_node_uptime_percent) < 0.95
+          for: 10m
+          labels:
+            severity: critical
+            team: mesh-ops
+            sla: uptime
+          annotations:
+            summary: "Mesh uptime below 95% SLA"
+            description: "Average uptime is {{"{{"}} $value | humanizePercentage {{"}}"}}. SLA: 95%."
+
+    # ── API performance ───────────────────────────────────────────────────────
+    - name: mesh.api_performance
+      rules:
+        - alert: MeshAPIHighLatency
+          expr: |
+            histogram_quantile(0.99,
+              rate(http_request_duration_seconds_bucket{app="mesh-api"}[5m])
+            ) * 1000 > 100
+          for: 2m
+          labels:
+            severity: warning
+            team: mesh-ops
+          annotations:
+            summary: "Mesh API p99 latency > 100ms"
+            description: "p99 = {{"{{"}} $value {{"}}"}}ms for {{"{{"}} $labels.endpoint {{"}}"}}. Target: 100ms."
+
+        - alert: MeshAPIErrorRateHigh
+          expr: |
+            sum(rate(http_requests_total{app="mesh-api", status=~"5.."}[5m])) /
+            sum(rate(http_requests_total{app="mesh-api"}[5m])) > 0.005
+          for: 1m
+          labels:
+            severity: critical
+            team: mesh-ops
+          annotations:
+            summary: "Mesh API error rate > 0.5%"
+            description: "Error rate is {{"{{"}} $value | humanizePercentage {{"}}"}}."
+
+        - alert: MeshAPIRateLimitExceeded
+          expr: |
+            sum(rate(http_requests_total{app="mesh-api", status="429"}[1m])) > 50
+          for: 0s
+          labels:
+            severity: warning
+            team: mesh-ops
+          annotations:
+            summary: "High rate of 429 Too Many Requests on mesh API"
+            description: "{{"{{"}} $value {{"}}"}} 429s/s — possible client abuse or misconfiguration."
+
+    # ── PQC handshake ─────────────────────────────────────────────────────────
+    - name: mesh.pqc
+      rules:
+        - alert: PQCHandshakeFailureRateHigh
+          expr: |
+            rate(pqc_handshake_failures_total[5m]) /
+            rate(pqc_handshake_total[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            team: security
+          annotations:
+            summary: "PQC handshake failure rate > 5%"
+            description: "{{"{{"}} $value | humanizePercentage {{"}}"}} failure rate for {{"{{"}} $labels.algorithm {{"}}"}}."
+
+        - alert: PQCHandshakeLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              rate(pqc_handshake_duration_seconds_bucket[5m])
+            ) * 1000 > 50
+          for: 5m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "PQC handshake p95 latency > 50ms"
+            description: "p95 Kyber handshake: {{"{{"}} $value {{"}}"}}ms."
+
+    # ── Throughput ────────────────────────────────────────────────────────────
+    - name: mesh.throughput
+      rules:
+        - alert: MeshThroughputLow
+          expr: |
+            sum(rate(mesh_bytes_forwarded_total[5m])) * 8 / 1e6 < 5
+          for: 5m
+          labels:
+            severity: warning
+            team: mesh-ops
+          annotations:
+            summary: "Mesh throughput below 5 Mbps (target: 10 Mbps)"
+            description: "Current throughput: {{"{{"}} $value | humanize {{"}}"}}Mbps."

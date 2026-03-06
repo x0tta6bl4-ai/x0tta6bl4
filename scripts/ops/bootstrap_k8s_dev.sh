@@ -9,16 +9,26 @@
 #   kind v0.20+, kubectl, helm v3+, docker
 #
 # Usage:
-#   ./scripts/ops/bootstrap_k8s_dev.sh [--cluster-name NAME] [--skip-build]
-#                                       [--dao-gov-addr 0x...] [--dao-tok-addr 0x...]
+#   ./scripts/ops/bootstrap_k8s_dev.sh [--cluster-name NAME] [--release-name NAME]
+#                                       [--skip-build] [--dao-gov-addr 0x...] [--dao-tok-addr 0x...]
 #
 # Env overrides:
 #   CLUSTER_NAME        kind cluster name         (default: x0tta-dev)
 #   K8S_NAMESPACE       operator namespace         (default: x0tta-system)
+#   HELM_RELEASE        Helm release name          (default: mesh-op)
+#   IMAGE_REPO          mesh-operator repository   (default: x0tta6bl4/mesh-operator)
 #   IMAGE_TAG           mesh-operator image tag    (default: 3.4.0)
+#   MESH_NODE_IMAGE_REPO mesh-node repository      (default: x0tta6bl4/mesh-node)
+#   MESH_NODE_IMAGE_TAG  mesh-node image tag       (default: 3.4.0)
 #   BASE_SEPOLIA_RPC    DAO RPC endpoint           (default: https://sepolia.base.org)
 #   GOV_ADDRESS         MeshGovernance address     (default: "")
 #   TOK_ADDRESS         X0TToken address           (default: "")
+#   ENABLE_WEBHOOKS     enable admission webhooks  (default: 0)
+#   WEBHOOK_CERT_MANAGER_ENABLED use cert-manager  (default: 0)
+#   WEBHOOK_TLS_SECRET_NAME webhook TLS secret name (default: "")
+#   WEBHOOK_TLS_CA_BUNDLE webhook CA bundle b64     (default: "")
+#   INSTALL_CRDS        set to "0" to skip CRD install (default: 1)
+#   SKIP_DEMO_CR        set to "1" to skip applying demo MeshCluster
 #   SKIP_KIND_CREATE    set to "1" to reuse existing cluster
 # =============================================================================
 set -euo pipefail
@@ -28,11 +38,22 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 CLUSTER_NAME="${CLUSTER_NAME:-x0tta-dev}"
 K8S_NAMESPACE="${K8S_NAMESPACE:-x0tta-system}"
+HELM_RELEASE="${HELM_RELEASE:-mesh-op}"
+IMAGE_REPO="${IMAGE_REPO:-x0tta6bl4/mesh-operator}"
 IMAGE_TAG="${IMAGE_TAG:-3.4.0}"
+MESH_NODE_IMAGE_REPO="${MESH_NODE_IMAGE_REPO:-x0tta6bl4/mesh-node}"
+MESH_NODE_IMAGE_TAG="${MESH_NODE_IMAGE_TAG:-3.4.0}"
 BASE_SEPOLIA_RPC="${BASE_SEPOLIA_RPC:-https://sepolia.base.org}"
 GOV_ADDRESS="${GOV_ADDRESS:-}"
 TOK_ADDRESS="${TOK_ADDRESS:-}"
+ENABLE_WEBHOOKS="${ENABLE_WEBHOOKS:-0}"
+WEBHOOK_CERT_MANAGER_ENABLED="${WEBHOOK_CERT_MANAGER_ENABLED:-0}"
+WEBHOOK_TLS_SECRET_NAME="${WEBHOOK_TLS_SECRET_NAME:-}"
+WEBHOOK_TLS_CA_BUNDLE="${WEBHOOK_TLS_CA_BUNDLE:-}"
+INSTALL_CRDS="${INSTALL_CRDS:-1}"
+SKIP_DEMO_CR="${SKIP_DEMO_CR:-0}"
 SKIP_KIND_CREATE="${SKIP_KIND_CREATE:-0}"
+CHART_NAME="x0tta-mesh-operator"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -50,12 +71,29 @@ error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cluster-name)   CLUSTER_NAME="$2"; shift 2 ;;
+    --release-name)   HELM_RELEASE="$2"; shift 2 ;;
     --skip-build)     SKIP_BUILD=1; shift ;;
     --dao-gov-addr)   GOV_ADDRESS="$2"; shift 2 ;;
     --dao-tok-addr)   TOK_ADDRESS="$2"; shift 2 ;;
     *) warn "Unknown arg: $1"; shift ;;
   esac
 done
+
+OPERATOR_DEPLOYMENT="$HELM_RELEASE"
+if [[ "$HELM_RELEASE" != *"$CHART_NAME"* ]]; then
+  OPERATOR_DEPLOYMENT="${HELM_RELEASE}-${CHART_NAME}"
+fi
+
+EXISTING_RELEASE_NAMESPACE="$(helm list -A 2>/dev/null | awk -v rel="$HELM_RELEASE" 'NR>1 && $1==rel {print $2; exit}')"
+if [[ -n "$EXISTING_RELEASE_NAMESPACE" && "$EXISTING_RELEASE_NAMESPACE" != "$K8S_NAMESPACE" ]]; then
+  warn "  Helm release ${HELM_RELEASE} already exists in namespace ${EXISTING_RELEASE_NAMESPACE}; overriding K8S_NAMESPACE=${K8S_NAMESPACE} -> ${EXISTING_RELEASE_NAMESPACE}"
+  K8S_NAMESPACE="$EXISTING_RELEASE_NAMESPACE"
+fi
+
+RELEASE_EXISTS="0"
+if [[ -n "$EXISTING_RELEASE_NAMESPACE" ]]; then
+  RELEASE_EXISTS="1"
+fi
 
 # ---------------------------------------------------------------------------
 # Step 1 — Preflight checks
@@ -130,15 +168,39 @@ info "  Namespace OK"
 # ---------------------------------------------------------------------------
 # Step 4 — Helm install x0tta-mesh-operator
 # ---------------------------------------------------------------------------
-info "=== Step 4: Helm install x0tta-mesh-operator ==="
+info "=== Step 4: Helm install x0tta-mesh-operator (release: ${HELM_RELEASE}) ==="
+
+info "  Ensuring mesh-node image availability: ${MESH_NODE_IMAGE_REPO}:${MESH_NODE_IMAGE_TAG}"
+IMAGE_REPO="$MESH_NODE_IMAGE_REPO" IMAGE_TAG="$MESH_NODE_IMAGE_TAG" KIND_CLUSTER="$CLUSTER_NAME" \
+  "$REPO_ROOT/scripts/ops/ensure_mesh_node_image.sh"
+
+info "  Ensuring image availability: ${IMAGE_REPO}:${IMAGE_TAG}"
+IMAGE_REPO="$IMAGE_REPO" IMAGE_TAG="$IMAGE_TAG" KIND_CLUSTER="$CLUSTER_NAME" \
+  "$REPO_ROOT/scripts/ops/ensure_mesh_operator_image.sh"
+
+if [[ "$RELEASE_EXISTS" == "0" && "$INSTALL_CRDS" == "1" ]] && kubectl get customresourcedefinition meshclusters.x0tta6bl4.io >/dev/null 2>&1; then
+  CRD_OWNER_RELEASE="$(kubectl get customresourcedefinition meshclusters.x0tta6bl4.io -o jsonpath='{.metadata.annotations.meta\\.helm\\.sh/release-name}' 2>/dev/null || true)"
+  CRD_OWNER_NAMESPACE="$(kubectl get customresourcedefinition meshclusters.x0tta6bl4.io -o jsonpath='{.metadata.annotations.meta\\.helm\\.sh/release-namespace}' 2>/dev/null || true)"
+
+  if [[ -n "$CRD_OWNER_RELEASE" && -n "$CRD_OWNER_NAMESPACE" ]]; then
+    if [[ "$CRD_OWNER_RELEASE" != "$HELM_RELEASE" || "$CRD_OWNER_NAMESPACE" != "$K8S_NAMESPACE" ]]; then
+      warn "  CRD meshclusters.x0tta6bl4.io is owned by ${CRD_OWNER_RELEASE}/${CRD_OWNER_NAMESPACE}; forcing installCRDs=0 to avoid Helm ownership conflicts"
+      INSTALL_CRDS="0"
+    fi
+  else
+    warn "  CRD meshclusters.x0tta6bl4.io exists without Helm ownership metadata; forcing installCRDs=0 to avoid import conflicts"
+    INSTALL_CRDS="0"
+  fi
+fi
 
 HELM_ARGS=(
-  upgrade --install mesh-operator "$CHART_DIR"
+  upgrade --install "$HELM_RELEASE" "$CHART_DIR"
   --namespace "$K8S_NAMESPACE"
   --create-namespace
+  --set "operator.image.repository=${IMAGE_REPO}"
   --set "operator.image.tag=${IMAGE_TAG}"
   --set "operator.image.pullPolicy=IfNotPresent"
-  --set "installCRDs=true"
+  --set "installCRDs=${INSTALL_CRDS}"
   --set "meshDefaults.pqc.enabled=true"
   --set "meshDefaults.pqc.kemAlgorithm=ML-KEM-768"
   --set "meshDefaults.pqc.dsaAlgorithm=ML-DSA-65"
@@ -150,6 +212,20 @@ HELM_ARGS=(
   --wait
   --timeout 120s
 )
+
+if [[ "$ENABLE_WEBHOOKS" == "1" ]]; then
+  HELM_ARGS+=(--set "operator.webhook.enabled=true")
+  if [[ "$WEBHOOK_CERT_MANAGER_ENABLED" == "1" ]]; then
+    HELM_ARGS+=(--set "operator.webhook.certManager.enabled=true")
+  else
+    if [[ -z "$WEBHOOK_TLS_SECRET_NAME" || -z "$WEBHOOK_TLS_CA_BUNDLE" ]]; then
+      error "ENABLE_WEBHOOKS=1 without cert-manager requires WEBHOOK_TLS_SECRET_NAME and WEBHOOK_TLS_CA_BUNDLE"
+    fi
+    HELM_ARGS+=(--set "operator.webhook.certManager.enabled=false")
+    HELM_ARGS+=(--set "operator.webhook.tls.secretName=${WEBHOOK_TLS_SECRET_NAME}")
+    HELM_ARGS+=(--set "operator.webhook.tls.caBundle=${WEBHOOK_TLS_CA_BUNDLE}")
+  fi
+fi
 
 # Inject DAO contract addresses if provided
 if [[ -n "$GOV_ADDRESS" ]]; then
@@ -169,11 +245,11 @@ info "  Helm release OK"
 # ---------------------------------------------------------------------------
 info "=== Step 5: Operator pod health ==="
 
-kubectl rollout status deployment/mesh-operator \
+kubectl rollout status "deployment/${OPERATOR_DEPLOYMENT}" \
   -n "$K8S_NAMESPACE" --timeout=90s
 
 OPERATOR_POD=$(kubectl get pod -n "$K8S_NAMESPACE" \
-  -l app.kubernetes.io/name=x0tta-mesh-operator \
+  -l app.kubernetes.io/name=x0tta-mesh-operator,app.kubernetes.io/instance=${HELM_RELEASE} \
   -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 
 if [[ -z "$OPERATOR_POD" ]]; then
@@ -199,15 +275,18 @@ fi
 # ---------------------------------------------------------------------------
 info "=== Step 7: Demo MeshCluster CR ==="
 
-if [[ -f "$EXAMPLE_CR" ]]; then
-  # Patch namespace to match our target
-  sed "s/namespace: .*/namespace: ${K8S_NAMESPACE}/" "$EXAMPLE_CR" \
-    | kubectl apply -n "$K8S_NAMESPACE" -f - 2>/dev/null \
-    && info "  MeshCluster CR applied from $EXAMPLE_CR" \
-    || warn "  Could not apply CR (operator image may not be running)"
+if [[ "$SKIP_DEMO_CR" == "1" ]]; then
+  info "  SKIP_DEMO_CR=1 -> skipping demo MeshCluster apply"
 else
-  warn "  Example CR not found at $EXAMPLE_CR, applying inline demo..."
-  kubectl apply -n "$K8S_NAMESPACE" -f - <<EOF
+  if [[ -f "$EXAMPLE_CR" ]]; then
+    # Patch namespace to match our target
+    sed "s/namespace: .*/namespace: ${K8S_NAMESPACE}/" "$EXAMPLE_CR" \
+      | kubectl apply -n "$K8S_NAMESPACE" -f - 2>/dev/null \
+      && info "  MeshCluster CR applied from $EXAMPLE_CR" \
+      || warn "  Could not apply CR (operator image may not be running)"
+  else
+    warn "  Example CR not found at $EXAMPLE_CR, applying inline demo..."
+    kubectl apply -n "$K8S_NAMESPACE" -f - <<EOF
 apiVersion: x0tta6bl4.io/v1alpha1
 kind: MeshCluster
 metadata:
@@ -230,6 +309,7 @@ spec:
   mapek:
     enabled: true
 EOF
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -241,7 +321,7 @@ echo ""
 echo "  ┌─────────────────────────────────────────────────────┐"
 echo "  │  x0tta6bl4 dev cluster: kind-${CLUSTER_NAME}"
 echo "  │  Namespace  : ${K8S_NAMESPACE}"
-echo "  │  Operator   : mesh-operator v${IMAGE_TAG}"
+echo "  │  Operator   : ${HELM_RELEASE} (${OPERATOR_DEPLOYMENT}) v${IMAGE_TAG}"
 echo "  │  CRD        : meshclusters.x0tta6bl4.io ✓"
 echo "  │  DAO chain  : Base Sepolia (84532)"
 echo "  │  RPC        : ${BASE_SEPOLIA_RPC}"
@@ -253,8 +333,8 @@ echo ""
 echo "  Quick commands:"
 echo "    kubectl get mc -n ${K8S_NAMESPACE}           # list MeshClusters"
 echo "    kubectl describe mc dev-mesh -n ${K8S_NAMESPACE}"
-echo "    kubectl logs -l app.kubernetes.io/name=x0tta-mesh-operator -n ${K8S_NAMESPACE}"
-echo "    helm list -n ${K8S_NAMESPACE}"
+echo "    kubectl logs -l app.kubernetes.io/name=x0tta-mesh-operator,app.kubernetes.io/instance=${HELM_RELEASE} -n ${K8S_NAMESPACE}"
+echo "    helm status ${HELM_RELEASE} -n ${K8S_NAMESPACE}"
 echo "    kind delete cluster --name ${CLUSTER_NAME}   # teardown"
 echo ""
 

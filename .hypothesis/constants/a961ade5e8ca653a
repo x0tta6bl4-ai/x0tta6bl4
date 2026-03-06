@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/network/obfuscation/faketls.py
+# hypothesis_version: 6.151.9
+
+[b'\x00', b'\x13\x01\x13\x02\x13\x03\xc0+\xc0/\xcc\xa9\xcc\xa8', 769, 771, 772, '!B', '!BHH', '!H', '!HHBH', '!I', 'B', 'FakeTLSTransport', 'utf-8', 'www.cloudflare.com']

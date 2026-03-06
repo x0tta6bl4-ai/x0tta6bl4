@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mcp-server
+description: x0tta MCP server — AI-powered mesh error analysis and chaos testing
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

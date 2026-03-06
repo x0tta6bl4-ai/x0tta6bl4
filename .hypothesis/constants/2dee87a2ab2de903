@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/utils/audit.py
+# hypothesis_version: 6.151.9
+
+['********', 'INTERNAL', 'X-Correlation-ID', 'X-Request-ID', 'X-Trace-ID', '\\1: \\2 ********', '\\1=********', 'access_token', 'api_key', 'authorization', 'credential', 'passphrase', 'passwd', 'password', 'pqc_key', 'private_key', 'refresh_token', 'request_id', 'secret', 'session_token', 'token', 'trace_id', 'unknown']

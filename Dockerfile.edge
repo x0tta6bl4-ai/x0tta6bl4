@@ -1,0 +1,22 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+
+# Copy the go module files and download dependencies
+COPY go.mod ./
+# If go.sum exists, copy it too. To prevent errors if it doesn't, we can just copy go.mod first.
+# Run go mod tidy to ensure everything is resolved
+RUN go mod tidy
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the edge worker binary statically
+RUN CGO_ENABLED=0 GOOS=linux go build -o /edge-worker ./cmd/edge-worker
+
+FROM alpine:latest
+WORKDIR /root/
+COPY --from=builder /edge-worker .
+
+# Expose no ports as this is a worker node
+CMD ["./edge-worker"]

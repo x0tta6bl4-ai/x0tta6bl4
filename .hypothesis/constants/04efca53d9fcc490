@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/edge/edge_cache.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.2, 0.3, 1.0, 10.0, 60.0, 90.0, 300.0, 3600.0, 100, 1024, 3600, 10000, '*', 'DistributedEdgeCache', 'Edge cache stopped', 'K', 'V', 'access_count', 'active', 'adaptive', 'age_seconds', 'avg_get_time_ns', 'avg_set_time_ns', 'config', 'created_at', 'entry_count', 'entry_usage_percent', 'evicting', 'evictions', 'expirations', 'expired', 'fifo', 'hit_rate', 'hits', 'idle_seconds', 'is_expired', 'key', 'last_accessed', 'lfu', 'local', 'lru', 'max_entries', 'max_size_bytes', 'misses', 'pending', 'policy', 'size_bytes', 'tags', 'total_size_bytes', 'ttl', 'ttl_seconds', 'usage_percent']

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/ml/lora/trainer.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.0002, 100, 500, 'LoRA not setup', 'auto', 'batch_size', 'epoch', 'eval_loss', 'frozen', 'learning_rate', 'log_history', 'loss', 'no', 'none', 'num_epochs', 'total', 'trainable', 'trainable_percent', 'training_loss', 'validation_loss', '✅ Base model loaded']

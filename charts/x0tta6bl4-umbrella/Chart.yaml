@@ -1,0 +1,13 @@
+apiVersion: v2
+name: x0tta6bl4-umbrella
+description: Umbrella chart for x0tta6bl4 MaaS Production
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+dependencies:
+  - name: mesh-node
+    version: 1.0.0
+    repository: file://../mesh-node
+  - name: observability
+    version: 1.0.0
+    repository: file://../observability

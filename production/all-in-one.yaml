@@ -1,0 +1,429 @@
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# x0tta6bl4 MaaS v1.0.0 — All-in-one Kubernetes manifest
+#
+# Deploy: kubectl apply -f production/all-in-one.yaml
+# Remove: kubectl delete -f production/all-in-one.yaml
+#
+# Namespaces created: x0tta-production, monitoring
+# Images: registry.gitlab.com/x0tta/{api-gateway,mcp-server,mesh-node}:v1.0.0
+# Requirements: Kubernetes 1.28+, cert-manager, nginx-ingress, Prometheus Operator
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Namespaces ─────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: x0tta-production
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+
+# ── Secrets (placeholders — replace before deploy) ─────────────────────────────
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: x0tta-secrets
+  namespace: x0tta-production
+type: Opaque
+stringData:
+  jwt-secret: "REPLACE_WITH_32_CHAR_RANDOM_SECRET"
+  redis-url: "redis://:REPLACE_PASSWORD@redis-master.x0tta-production.svc:6379"
+  db-url: "postgresql://x0tta:REPLACE_PASSWORD@postgres.x0tta-production.svc:5432/x0tta_maas"
+  dao-executor-pk: "REPLACE_WITH_0x_PREFIXED_PRIVATE_KEY"
+
+# ── ConfigMap ──────────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x0tta-config
+  namespace: x0tta-production
+data:
+  NODE_ENV: production
+  LOG_LEVEL: info
+  MESH_NODES_MIN: "3"
+  PQC_ALGORITHM: kyber768
+  MTTR_TARGET_MS: "2500"
+  UPTIME_TARGET_PCT: "95"
+
+# ── ServiceAccount ─────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-api
+  namespace: x0tta-production
+
+# ── API Gateway Deployment ─────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mesh-api
+  namespace: x0tta-production
+  labels:
+    app: mesh-api
+    version: v1.0.0
+    app.kubernetes.io/part-of: x0tta-mesh
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: mesh-api
+      slot: blue
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: mesh-api
+        slot: blue
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mesh-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api-gateway
+          image: registry.gitlab.com/x0tta/api-gateway:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4000
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: x0tta-config
+                  key: NODE_ENV
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: x0tta-secrets
+                  key: jwt-secret
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: x0tta-secrets
+                  key: redis-url
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: x0tta-secrets
+                  key: db-url
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: mesh-api
+              topologyKey: kubernetes.io/hostname
+
+# ── API Gateway Service ────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mesh-api
+  namespace: x0tta-production
+  labels:
+    app: mesh-api
+spec:
+  type: ClusterIP
+  selector:
+    app: mesh-api
+    slot: blue
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+
+# ── API Gateway HPA ────────────────────────────────────────────────────────────
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mesh-api
+  namespace: x0tta-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mesh-api
+  minReplicas: 5
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+# ── Pod Disruption Budget ──────────────────────────────────────────────────────
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mesh-api-pdb
+  namespace: x0tta-production
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: mesh-api
+
+# ── Mesh Node DaemonSet ────────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mesh-node
+  namespace: x0tta-production
+  labels:
+    app: mesh-node
+    app.kubernetes.io/part-of: x0tta-mesh
+spec:
+  selector:
+    matchLabels:
+      app: mesh-node
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: mesh-node
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      hostNetwork: false
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsNonRoot: false   # eBPF requires root on host (isolated via seccomp)
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: mesh-node
+          image: registry.gitlab.com/x0tta/mesh-node:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mesh
+              containerPort: 8080
+            - name: batman
+              containerPort: 4305
+              protocol: UDP
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PQC_ALGORITHM
+              valueFrom:
+                configMapKeyRef:
+                  name: x0tta-config
+                  key: PQC_ALGORITHM
+            - name: BCC_STUB_MODE
+              value: "false"
+          securityContext:
+            capabilities:
+              add: [NET_ADMIN, NET_RAW, SYS_ADMIN]   # batman-adv + eBPF
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: mesh
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+# ── MCP Server Deployment ──────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: x0tta-production
+  labels:
+    app: mcp-server
+    app.kubernetes.io/part-of: x0tta-mesh
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+        version: v1.0.0
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: mcp-server
+          image: registry.gitlab.com/x0tta/mcp-server:v1.0.0
+          imagePullPolicy: IfNotPresent
+          stdin: true
+          env:
+            - name: MESH_API_URL
+              value: http://mesh-api.x0tta-production.svc/mesh
+            - name: LOKI_URL
+              value: http://loki.monitoring.svc:3100
+            - name: DAO_EXECUTOR_PK
+              valueFrom:
+                secretKeyRef:
+                  name: x0tta-secrets
+                  key: dao-executor-pk
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+# ── Ingress ────────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: x0tta-ingress
+  namespace: x0tta-production
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.x0tta6bl4.io]
+      secretName: x0tta-tls
+  rules:
+    - host: api.x0tta6bl4.io
+      http:
+        paths:
+          - path: /mesh
+            pathType: Prefix
+            backend:
+              service:
+                name: mesh-api
+                port:
+                  name: http
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: mesh-api
+                port:
+                  name: http
+
+# ── NetworkPolicy ──────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mesh-api-netpol
+  namespace: x0tta-production
+spec:
+  podSelector:
+    matchLabels:
+      app: mesh-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mcp-server
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mesh-node
+    - ports:
+        - port: 6379   # Redis
+        - port: 5432   # PostgreSQL
+        - port: 53     # DNS
+          protocol: UDP

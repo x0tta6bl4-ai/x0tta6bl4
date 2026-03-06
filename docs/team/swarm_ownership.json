@@ -90,6 +90,17 @@
         "tests/unit/services/test_maas_auth_service_unit.py"
       ]
     },
+    "claude": {
+      "description": "Claude Code \u2014 verification, SBOM, compliance, release-gate docs",
+      "allow": [
+        "scripts/verify-v1.1.sh",
+        "docs/verification/",
+        "compliance/soc2/",
+        "security/sbom/",
+        "docs/commercial/",
+        "docs/STATUS.md"
+      ]
+    },
     "codex-implementer": {
       "description": "Codex implementation lane for MaaS 80/20 delivery",
       "allow": [
@@ -190,13 +201,34 @@
         ".gitlab-ci.yml.ebpf"
       ]
     },
+    "codex": {
+      "description": "Codex implementation lane for 5G/Open5GS and integration tests",
+      "allow": [
+        "edge/5g/",
+        "integration/",
+        "test/",
+        "scripts/verify-5g-path.sh",
+        "README.v1.1.md",
+        "docs/v1.1/VERIFICATION-MATRIX.md"
+      ]
+    },
+    "gemini": {
+      "description": "Gemini lane for eBPF datapath and live attach follow-up",
+      "allow": [
+        "ebpf/prod/",
+        "edge/5g/ebpf/"
+      ]
+    },
     "lead-coordinator": {
       "description": "Swarm governance and guardrails",
       "allow": [
+        "AGENT_SYNC_INSTRUCTIONS.md",
         "docs/TEAM_RESPONSIBILITIES.md",
         "docs/team/SWARM_OPERATING_MODEL.md",
         "docs/team/swarm_ownership.json",
+        "scripts/agent-coord.sh",
         "scripts/agents/check_swarm_ownership.py",
+        "scripts/agents/request_channel.sh",
         "scripts/agents/swarm_coord.py",
         "scripts/agents/install_swarm_hook.sh",
         "scripts/agents/start_swarm_session.sh",

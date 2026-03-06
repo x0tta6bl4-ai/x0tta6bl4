@@ -1,0 +1,10 @@
+{
+  "title": "eBPF Telemetry",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Packet Filter Rate (pps)",
+      "targets": [{"expr": "ebpf_packet_filter_rate"}]
+    }
+  ]
+}

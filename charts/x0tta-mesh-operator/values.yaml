@@ -6,6 +6,27 @@ operator:
     repository: x0tta6bl4/mesh-operator
     tag: "3.4.0"
     pullPolicy: IfNotPresent
+  webhook:
+    enabled: false
+    port: 9443
+    certDir: /tmp/k8s-webhook-server/serving-certs
+    service:
+      port: 443
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    tls:
+      # If certManager.enabled=false, set both secretName and caBundle.
+      secretName: ""
+      caBundle: ""
+    certManager:
+      enabled: false
+      createIssuer: true
+      issuerRef:
+        name: ""
+        kind: Issuer
+        group: cert-manager.io
+      duration: 2160h      # 90d
+      renewBefore: 360h    # 15d
   replicaCount: 1
   resources:
     requests:

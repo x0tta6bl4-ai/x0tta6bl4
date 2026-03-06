@@ -39,25 +39,24 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_DOMAIN = os.getenv("APP_DOMAIN", "https://app.x0tta6bl4.com")
 
 # Stripe Plan Price IDs (must be set via environment variables)
-# NOTE: Placeholder values provided for backwards compatibility - set real Price IDs in production
+# We enforce real configuration for non-dev environments.
 STRIPE_PLANS = {
-    "starter": os.getenv("STRIPE_PRICE_STARTER", "price_starter_placeholder"),
-    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_placeholder"),
-    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise_placeholder"),
+    "starter": os.getenv("STRIPE_PRICE_STARTER"),
+    "pro": os.getenv("STRIPE_PRICE_PRO"),
+    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE"),
 }
 
-# Validate Stripe configuration at production startup
-_is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
-_missing_plans = [k for k, v in STRIPE_PLANS.items() if "placeholder" in str(v)]
-if _missing_plans and STRIPE_SECRET_KEY and _is_production:
-    logger.error(f"CRITICAL: STRIPE_PRICE_* not configured for production: {_missing_plans}")
-elif _missing_plans and STRIPE_SECRET_KEY:
-    logger.warning(f"STRIPE_PRICE_* not configured for plans: {_missing_plans}")
+# Validate Stripe configuration
+_is_production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
+_missing_plans = [k for k, v in STRIPE_PLANS.items() if not v]
+
+if _is_production and (not STRIPE_SECRET_KEY or _missing_plans):
+    logger.critical(f"FATAL: Stripe not fully configured for production. Missing plans: {_missing_plans}")
+elif _missing_plans:
+    logger.warning(f"Development mode: Stripe plans missing ({_missing_plans}). Payments will only work with mock/legacy mode.")
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
-else:
-    logger.warning("STRIPE_SECRET_KEY not set. Payments will fail.")
 
 router = APIRouter(prefix="/api/v1/maas/billing", tags=["MaaS Billing"])
 
@@ -213,18 +212,48 @@ async def create_customer_portal(
         logger.error(f"Failed to create Stripe portal session: {e}")
         raise HTTPException(status_code=500, detail="Portal error")
 
+async def sync_subscription_with_stripe(user: User, db: Session):
+    """
+    Directly query Stripe API to reconcile subscription status.
+    Call this periodically or on critical user actions.
+    """
+    if not user.stripe_customer_id or not STRIPE_SECRET_KEY:
+        return
+
+    try:
+        def _get_subs():
+            return stripe.Subscription.list(customer=user.stripe_customer_id, status="active", limit=1)
+
+        subs = await _execute_stripe_call(_get_subs)
+        if subs.data:
+            stripe_sub = subs.data[0]
+            # Map Stripe price ID back to local plan (inverse lookup)
+            price_id = stripe_sub['items']['data'][0]['price']['id']
+            plan_name = next((k for k, v in STRIPE_PLANS.items() if v == price_id), "free")
+            
+            user.plan = plan_name
+            user.stripe_subscription_id = stripe_sub.id
+        else:
+            user.plan = "free"
+            user.stripe_subscription_id = None
+        
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to sync subscription for user {user.id}: {e}")
+
+
 @router.get("/status", response_model=SubscriptionResponse)
 async def get_subscription_status(
-    current_user: User = Depends(get_current_user_from_maas)
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
 ):
-    """Fetch current subscription status from User model/Stripe."""
-    # In a real app, we'd sync this via webhooks. 
-    # Here we just return what's in the DB for the POC.
+    """Sync with Stripe then fetch current subscription status."""
+    await sync_subscription_with_stripe(current_user, db)
     return SubscriptionResponse(
         id=current_user.stripe_subscription_id,
         plan=current_user.plan,
         status="active" if current_user.stripe_subscription_id else "free",
-        current_period_end=None, # To be synced from Stripe
+        current_period_end=None, # In production, sync from stripe_sub['current_period_end']
         cancel_at_period_end=False
     )
 

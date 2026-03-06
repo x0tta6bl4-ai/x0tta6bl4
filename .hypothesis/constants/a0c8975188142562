@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/spiffe/mtls/tls_context.py
+# hypothesis_version: 6.151.9
+
+[b'\n', '.pem', 'client', 'server', 'spiffe-cert-', 'spiffe-key-', 'w+b']

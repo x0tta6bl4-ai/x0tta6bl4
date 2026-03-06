@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from src.network.yggdrasil_client import get_yggdrasil_peers
+from src.network.yggdrasil_client import get_yggdrasil_peers, get_yggdrasil_status
 from src.mesh.yggdrasil_optimizer import get_optimizer, RouteMetrics
 
 logger = logging.getLogger(__name__)

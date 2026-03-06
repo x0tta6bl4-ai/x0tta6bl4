@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/api/users.py
+# hypothesis_version: 6.151.9
+
+[128, 401, 403, 500, 10000, '/', '/api/v1/users', '/login', '/logout', '/me', '/register', '/stats', '3/hour', '30/minute', '5/minute', '60/minute', 'ADMIN_TOKEN', 'Authorization', 'Bearer ', 'Not authenticated', 'PYTEST_CURRENT_TEST', 'X-API-Key', '^[^@]+@[^@]+\\.[^@]+$', 'active_sessions', 'enterprise', 'free', 'message', 'plans', 'pro', 'total_users', 'users']
