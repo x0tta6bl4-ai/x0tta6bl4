@@ -339,7 +339,28 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	if strings.TrimSpace(sliceID) == "" {
 		return 0, fmt.Errorf("invalid PFCP request: slice ID required")
 	}
-	log.Printf("[5G-CORE] PFCP: preparing session on %s for slice %s", s.UPFAddr, sliceID)
+
+	timeout := s.Timeout
+	if timeout <= 0 {
+		timeout = 1 * time.Second
+	}
+
+	// PFCP uses UDP port 8805
+	log.Printf("[5G-CORE][PFCP] Dialing UPF at %s for slice %s", s.UPFAddr, sliceID)
+	conn, err := net.DialTimeout("udp", s.UPFAddr, timeout)
+	if err != nil {
+		return 0, fmt.Errorf("PFCP transport failure to UPF (%s): %w", s.UPFAddr, err)
+	}
+	defer conn.Close()
+
+	// PFCP Heartbeat Request (Simplified Header: Version=1, MP=0, S=0, Type=1, Length=0, Seq=1)
+	heartbeat := []byte{0x20, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00}
+	_, err = conn.Write(heartbeat)
+	if err != nil {
+		return 0, fmt.Errorf("failed to send PFCP heartbeat: %w", err)
+	}
+
+	log.Printf("[5G-CORE][PFCP] Heartbeat sent to %s", s.UPFAddr)
 	return 25, nil
 }
 
