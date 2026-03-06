@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LAUNCHER="${ROOT_DIR}/scripts/agents/start_gemini_proxy.sh"
+
+: "${AI_HEAP_MB:=4096}"
+: "${GEMINI_USE_PROXY:=1}"
+: "${GEMINI_PROXY_URL:=http://127.0.0.1:7890}"
+: "${GEMINI_AUTO_RESUME:=0}"
+: "${GEMINI_NO_EXEC:=0}"
+: "${GEMINI_PRINT_ENV:=0}"
+
+cmd=("${LAUNCHER}" "--node-max-old-space-size" "${AI_HEAP_MB}")
+
+if [[ "${GEMINI_USE_PROXY}" == "1" ]]; then
+  cmd+=("--proxy" "${GEMINI_PROXY_URL}")
+else
+  unset GEMINI_PROXY_URL HTTPS_PROXY HTTP_PROXY
+fi
+
+if [[ "${GEMINI_NO_EXEC}" == "1" ]]; then
+  cmd+=("--no-exec")
+fi
+
+if [[ "${GEMINI_PRINT_ENV}" == "1" ]]; then
+  cmd+=("--print-env")
+fi
+
+cmd+=("--")
+if [[ "${GEMINI_AUTO_RESUME}" == "1" ]]; then
+  cmd+=("--resume")
+fi
+cmd+=("$@")
+
+exec "${cmd[@]}"
