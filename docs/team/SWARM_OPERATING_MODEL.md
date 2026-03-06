@@ -141,6 +141,15 @@ Operational next-task distribution uses:
 `session_start` now prints the next roadmap task automatically for the current
 agent, using either the explicitly requested mode or the queue's
 `preferred_mode`.
+It also prints the task's current execution bucket, so operators can distinguish
+`verification-ready` work from `live-validation-only` work without opening the
+queue JSON manually.
+
+The queue now exposes three machine-readable execution buckets:
+
+1. `verification-ready`
+2. `live-validation-only`
+3. `blocked-horizon-2`
 
 Session automation:
 

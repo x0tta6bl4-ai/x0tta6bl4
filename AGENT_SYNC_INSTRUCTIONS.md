@@ -184,6 +184,11 @@ Roadmap-derived next tasks come from:
 
 Use `roadmap_sync` after roadmap priorities change. `session_start` already shows
 the current next task for the active agent.
+It now also shows the current execution bucket for that task:
+
+- `verification-ready`
+- `live-validation-only`
+- `blocked-horizon-2`
 
 Roadmap tasks are tagged with one of:
 
