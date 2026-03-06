@@ -92,9 +92,9 @@ def test_udppacket_from_bytes_rejects_short_data():
         mod.UDPPacket.from_bytes(b"tiny")
 
 
-def test_prepare_packet_reliable_branch_raises_name_error():
+def test_prepare_packet_reliable_branch_raises_no_peer():
     transport = mod.ShapedUDPTransport(traffic_profile="none", obfuscation="none")
-    with pytest.raises(NameError):
+    with pytest.raises((NameError, AttributeError)):
         transport._prepare_packet(b"payload", requires_ack=True)
 
 

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  open5gs-amf:
+    image: open5gs/amf
+    network_mode: host
+
+  open5gs-upf:
+    image: open5gs/upf
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    command: ["open5gs-upfd", "-c", "/etc/open5gs/upf.yaml"]
+
+  ueransim-gnb:
+    image: s5uishida/ueransim
+    command: ["nr-gnb", "-c", "/config/gnb.yaml"]
+    network_mode: host
+
+  ueransim-ue:
+    image: s5uishida/ueransim
+    command: ["nr-ue", "-c", "/config/ue.yaml"]
+    network_mode: host
+    cap_add:
+      - NET_ADMIN

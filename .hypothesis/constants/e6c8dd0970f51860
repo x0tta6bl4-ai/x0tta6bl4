@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/api/maas_policies.py
+# hypothesis_version: 6.151.9
+
+[404, '/api/v1/maas', '/{mesh_id}/policies', 'MaaS Policies', 'Policy not found', '^(allow|deny)$', 'admin', 'allow', 'deleted', 'operator', 'policy_id', 'status']

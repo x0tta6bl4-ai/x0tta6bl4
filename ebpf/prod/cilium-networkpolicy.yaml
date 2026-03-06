@@ -1,0 +1,38 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: x0tta6bl4-prod-ebpf
+  namespace: x0tta6bl4-mesh
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: x0tta6bl4-agent
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            tenant: any
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP
+            - port: "7443"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            tenant: any
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP
+            - port: "7443"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+        - kube-dns
+  enableDefaultDeny:
+    ingress: true
+    egress: true

@@ -1,0 +1,11 @@
+groups:
+  - name: mesh_healing_alerts
+    rules:
+      - alert: HighMTTR
+        expr: rate(mesh_self_healing_events_total[1m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High rate of self-healing events detected in mesh"
+          description: "MAPE-K loop is triggering excessively. MTTR target (<2.5s) at risk."

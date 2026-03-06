@@ -58,10 +58,12 @@ Each run creates:
 - `.tmp/agent_runs/<timestamp>/logs/*.stderr.log`
 - `.tmp/agent_runs/<timestamp>/summary.json`
 - `.tmp/agent_runs/<timestamp>/summary.md`
-- optional sync events in `.paradox.log`
+- sync events in `scripts/agent-coord.sh` / shared swarm request thread
+- optional legacy sync events in `.paradox.log` only if `--sync-paradox-log` is enabled
 
 ## Notes
 
 - Security agent is advisory in non-strict mode; use `--strict` for hard-gating.
 - Context files include current sprint pending tasks, sync instructions, role file (if present), and skill instructions.
-- Disable paradox sync if needed: `--no-sync-paradox-log`.
+- Default coordination sink is `scripts/agent-coord.sh`.
+- Enable the legacy paradox sink only when explicitly needed: `--sync-paradox-log`.

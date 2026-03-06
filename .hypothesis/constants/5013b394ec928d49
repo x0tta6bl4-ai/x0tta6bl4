@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/spiffe/server/client.py
+# hypothesis_version: 6.151.9
+
+[3600, ',', '-admin', '-entryID', '-parentID', '-selector', '-shallow', '-spiffeID', '-ttl', '127.0.0.1:8081', '3600', ':', 'Admin', 'Entry ID', 'Parent ID', 'SPIFFE ID', 'Selectors', 'TTL', 'address', 'create', 'delete', 'entry', 'error', 'false', 'healthcheck', 'healthy', 'output', 'show', 'spire-server', 'true']

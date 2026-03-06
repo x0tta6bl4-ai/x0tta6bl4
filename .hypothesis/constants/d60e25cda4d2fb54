@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/ledger/rag_search.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1000, '## ', 'CONTINUITY.md', 'Unknown', 'content', 'error', 'metadata', 'query', 'rerank_time_ms', 'results', 'retrieval_time_ms', 'score', 'search_time_ms', 'section', 'section_index', 'source', 'text', 'title', 'total_results', 'utf-8']

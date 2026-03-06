@@ -269,7 +269,7 @@ def test_memory_governance_proposal_vote_cycle():
         prop = gov.create_proposal(
             f"Bench Proposal {i}",
             f"Description {i}",
-            duration_seconds=0.0,
+            duration_seconds=0.001,
         )
         for voter in ["v1", "v2", "v3"]:
             gov.cast_vote(prop.id, voter, VoteType.YES, tokens=100.0)

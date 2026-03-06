@@ -4,24 +4,25 @@
 
 ```
 docs/
-├── getting-started/     # Начало работы
+├── 00-getting-started/  # Начало работы
+├── 01-architecture/     # Архитектурная документация (as-built)
 ├── architecture/        # Архитектурная документация
 ├── api/                 # API документация
-├── deployment/          # Руководства по развёртыванию
-└── business/            # Бизнес-документация
+├── operations/          # Runbooks и release-операции
+└── compliance/          # ISO/IEC 27001 readiness
 ```
 
 ## Быстрый доступ
 
 ### Для новичков
 - [Начни здесь](../START_HERE.md) — единая точка входа
-- [Быстрый старт](getting-started/quick-start.md) — за 15 минут
-- [Установка](getting-started/installation.md) — пошаговое руководство
+- [Быстрый старт](00-getting-started/quick-start.md) — локальный запуск и smoke
+- [Onboarding разработчика](00-getting-started/developer-onboarding-v3_4_0.md)
 
 ### Для разработчиков
 - [Архитектура](architecture/overview.md) — общий обзор
-- [API Reference](api/endpoints.md) — документация API
-- [Развёртывание](deployment/docker.md) — Docker и Kubernetes
+- [API Reference](api/API_REFERENCE.md) — документация API
+- [Quick Start](00-getting-started/quick-start.md) — dev/runtime/operator базовый цикл
 
 ### Для бизнеса
 - [Бизнес-стратегия](business/strategy.md)
@@ -32,6 +33,10 @@ docs/
 - [ISO/IEC 27001 readiness pack](compliance/README.md)
 - [Readiness report](compliance/ISO_IEC_27001_2025_READINESS.md)
 - [Statement of Applicability](compliance/ISO_27001_2025_SOA.md)
+
+### Для релиза v3.4.0
+- [Known Limitations](KNOWN_LIMITATIONS_v3_4_0.md)
+- [Go/No-Go Checklist](operations/RELEASE_MANAGER_GO_NO_GO_CHECKLIST_v3_4_0.md)
 
 ## Контрибьютинг
 

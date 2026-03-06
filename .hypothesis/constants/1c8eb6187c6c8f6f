@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/event_sourcing/query_bus.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 60.0, 100.0, 1000, ' (cached)', 'Query', 'Rate limit exceeded', 'TQuery', 'TResult', 'cached_queries', 'created_at', 'desc', 'failed', 'hit_rate', 'hits', 'metadata', 'misses', 'query_id', 'query_type', 'succeeded', 'timestamp']

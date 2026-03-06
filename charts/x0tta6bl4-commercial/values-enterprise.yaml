@@ -1,0 +1,215 @@
+# ── Global ────────────────────────────────────────────────────────────────────
+global:
+  imageTag: "1.0.0"
+  imageRegistry: registry.gitlab.com/x0tta
+  slot: blue
+  domain: x0tta6bl4.io
+  environment: production
+
+  # Multi-tenancy: each tenant gets its own namespace and RBAC
+  tenants:
+    - name: tenant-alpha
+      namespace: x0tta-alpha
+      tier: enterprise
+      maxNodes: 500
+      pqcProfile: kyber1024
+    - name: tenant-beta
+      namespace: x0tta-beta
+      tier: business
+      maxNodes: 100
+      pqcProfile: kyber768
+
+  # Federation: cross-DC bootstrap relays
+  federation:
+    enabled: true
+    relays:
+      - id: relay-eu-west
+        endpoint: relay.eu-west.x0tta6bl4.io:9000
+        region: eu-west-1
+      - id: relay-us-east
+        endpoint: relay.us-east.x0tta6bl4.io:9000
+        region: us-east-1
+      - id: relay-ap-south
+        endpoint: relay.ap-south.x0tta6bl4.io:9000
+        region: ap-south-1
+
+# ── API Gateway (HA) ──────────────────────────────────────────────────────────
+apiGateway:
+  replicaCount: 5
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/api-gateway"
+    tag: "{{ .Values.global.imageTag }}"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 3   # keep 3 of 5 up during rolling update
+
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: mesh-api
+          topologyKey: kubernetes.io/hostname
+
+  ingress:
+    host: api.x0tta6bl4.io
+    tlsSecret: x0tta-prod-tls
+    annotations:
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# ── PostgreSQL (External or bundled) ──────────────────────────────────────────
+postgresql:
+  enabled: false   # set true to deploy bundled; false = use externalDatabase
+
+externalDatabase:
+  host: "pg.x0tta-prod.internal"
+  port: 5432
+  database: x0tta_maas
+  username: x0tta_app
+  existingSecret: x0tta-db-secret
+  secretKey: postgresql-password
+  sslMode: require
+  poolMin: 5
+  poolMax: 20
+
+# ── Redis (HA Sentinel) ───────────────────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: x0tta-redis-secret
+  sentinel:
+    enabled: true
+    quorum: 2
+  replica:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+# ── Mesh Node DaemonSet ───────────────────────────────────────────────────────
+meshNode:
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/mesh-node"
+    tag: "{{ .Values.global.imageTag }}"
+  pqc:
+    algorithm: kyber768
+    keyRotationHours: 24
+    ebpf:
+      enabled: true
+      packetCounter: true
+  batman:
+    originInterval: 1000
+    hopPenalty: 15
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── MCP Server ────────────────────────────────────────────────────────────────
+mcpServer:
+  replicaCount: 2
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/mcp-server"
+    tag: "{{ .Values.global.imageTag }}"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# ── Observability ─────────────────────────────────────────────────────────────
+monitoring:
+  prometheus:
+    retention: 30d
+    storageSize: 100Gi
+    additionalAlertmanagerRoutes:
+      - matchers: [severity = critical]
+        receiver: pagerduty-prod
+
+  pagerduty:
+    enabled: true
+    integrationKey: ""   # set via --set monitoring.pagerduty.integrationKey=...
+
+  grafana:
+    adminPassword: ""    # set via secret
+    sloAnnotations:
+      uptime: "95"
+      mttr_ms: "2500"
+      throughput_mbps: "10"
+
+  loki:
+    retention: 720h      # 30 days
+    storageSize: 50Gi
+
+# ── RBAC / Multi-tenancy ──────────────────────────────────────────────────────
+rbac:
+  create: true
+  roles:
+    - name: mesh-admin
+      rules:
+        - apiGroups: ["x0tta6bl4.io"]
+          resources: ["meshclusters", "pqckeypairs"]
+          verbs: ["*"]
+        - apiGroups: [""]
+          resources: ["pods", "services", "configmaps"]
+          verbs: ["get", "list", "watch"]
+    - name: mesh-node
+      rules:
+        - apiGroups: ["x0tta6bl4.io"]
+          resources: ["meshclusters"]
+          verbs: ["get", "list", "watch", "update"]
+    - name: mesh-readonly
+      rules:
+        - apiGroups: ["x0tta6bl4.io"]
+          resources: ["meshclusters", "pqckeypairs"]
+          verbs: ["get", "list", "watch"]
+
+# ── Network Policies ──────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Only mesh-api can reach postgres and redis
+  # mesh-nodes can only reach each other and api-gateway
+
+# ── DAO / Governance ──────────────────────────────────────────────────────────
+dao:
+  enabled: true
+  contractAddress: "0x0000000000000000000000000000000000000000"
+  chainId: 84532    # Base Sepolia
+  bridge:
+    enabled: true
+    confirmations: 6
+
+# ── Security ──────────────────────────────────────────────────────────────────
+security:
+  podSecurityStandards: restricted
+  seccompProfile: RuntimeDefault
+  auditLog:
+    enabled: true
+    retention: 90d
+  sbom:
+    verify: true   # cosign verify on startup

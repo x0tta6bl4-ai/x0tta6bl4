@@ -1,0 +1,20 @@
+apiVersion: v2
+name: x0tta6bl4-commercial
+description: x0tta6bl4 MaaS — Enterprise-grade commercial Helm chart (HA, multi-tenant, federated)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords: [mesh, pqc, enterprise, ha, multi-tenant]
+home: https://x0tta6bl4.io
+maintainers:
+  - name: x0tta-team
+    email: enterprise@x0tta6bl4.io
+dependencies:
+  - name: postgresql
+    version: "15.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "19.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

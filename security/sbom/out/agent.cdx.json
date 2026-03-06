@@ -1,0 +1,197 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:c235f900-a2e0-4e0d-b6e8-2d9fd10af636",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-03-06T16:41:48Z",
+    "tools": [
+      {
+        "vendor": "CycloneDX",
+        "name": "cyclonedx-gomod",
+        "version": "v1.8.0",
+        "hashes": [
+          {
+            "alg": "MD5",
+            "content": "9bbe0eb3d450bea907ed67429b9c19ce"
+          },
+          {
+            "alg": "SHA-1",
+            "content": "f812b117a4e8f216be9e92cbb464dbb8a65bef89"
+          },
+          {
+            "alg": "SHA-256",
+            "content": "a55b35190c5d7b7c7ba1090762861434cbce539ca2ee47c9952b20876f507a54"
+          },
+          {
+            "alg": "SHA-384",
+            "content": "efc20e42af1efe3ff1f3d7b85c5cfc18f13ff99573d233985f5c484adc8356af56917a462fea2e5145fc2144bd379e30"
+          },
+          {
+            "alg": "SHA-512",
+            "content": "566c460611544149914a3cee7b79edcf6db03665b6765470c74b9d63efe192f35af74c2bb9ef62e48fe19bc682e699d6e483fca8187ac0c3cca7fc74dc4d17da"
+          }
+        ],
+        "externalReferences": [
+          {
+            "url": "https://github.com/CycloneDX/cyclonedx-gomod",
+            "type": "vcs"
+          },
+          {
+            "url": "https://cyclonedx.org",
+            "type": "website"
+          }
+        ]
+      }
+    ],
+    "component": {
+      "bom-ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module",
+      "type": "application",
+      "name": "github.com/x0tta6bl4/agent",
+      "version": "v1.0.0",
+      "purl": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/x0tta6bl4/agent",
+          "type": "vcs"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module",
+      "type": "library",
+      "name": "github.com/cloudflare/circl",
+      "version": "v1.6.3",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f463ce850185f4c09851e5f231896a4d1e9ae604eb811fdf04b5ef520b55720f"
+        }
+      ],
+      "purl": "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/cloudflare/circl",
+          "type": "vcs"
+        }
+      ],
+      "evidence": {
+        "licenses": [
+          {
+            "license": {
+              "id": "BSD-3-Clause"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
+      "type": "library",
+      "name": "golang.org/x/crypto",
+      "version": "v0.48.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fd547356a8914a0827858ee0351c4f6ae110e43af0f6168a74cd23a9f70216db"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/crypto@v0.48.0?type=module\u0026goos=linux\u0026goarch=amd64",
+      "evidence": {
+        "licenses": [
+          {
+            "license": {
+              "id": "BSD-Source-Code"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/sys@v0.41.0?type=module",
+      "type": "library",
+      "name": "golang.org/x/sys",
+      "version": "v0.41.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "22f8fed82a7fca5ccb88453cf508566e5627384f737abb9db7d16d79cab60ba9"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/sys@v0.41.0?type=module\u0026goos=linux\u0026goarch=amd64",
+      "evidence": {
+        "licenses": [
+          {
+            "license": {
+              "id": "BSD-Source-Code"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module",
+      "type": "library",
+      "name": "gopkg.in/yaml.v3",
+      "version": "v3.0.1",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7f1566fc6cc0cc45aa2c7baf72d23dd4a4bd8613669963a85aed174d8252ec20"
+        }
+      ],
+      "purl": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/go-yaml/yaml",
+          "type": "vcs"
+        }
+      ],
+      "evidence": {
+        "licenses": [
+          {
+            "license": {
+              "id": "Apache-2.0"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module",
+      "dependsOn": [
+        "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module",
+        "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
+        "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module",
+      "dependsOn": [
+        "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
+        "pkg:golang/golang.org/x/sys@v0.41.0?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
+      "dependsOn": [
+        "pkg:golang/golang.org/x/sys@v0.41.0?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/golang.org/x/sys@v0.41.0?type=module"
+    },
+    {
+      "ref": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
+    }
+  ]
+}

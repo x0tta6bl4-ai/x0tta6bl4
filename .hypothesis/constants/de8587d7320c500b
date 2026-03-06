@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/event_sourcing/event_store.py
+# hypothesis_version: 6.151.9
+
+[100, 1000, '.jsonl', 'Event', 'EventMetadata', 'EventVersion', 'Snapshot', 'T', '_snapshots.jsonl', 'aggregate_id', 'aggregate_type', 'aggregate_types', 'causation_id', 'correlation_id', 'created_at', 'custom', 'data', 'event_count', 'event_id', 'event_type', 'event_types', 'events.jsonl', 'global_position', 'major', 'metadata', 'minor', 'r', 'sequence_number', 'snapshot_id', 'source', 'state', 'stream', 'stream_id', 'timestamp', 'total_aggregates', 'total_events', 'total_snapshots', 'updated_at', 'user_id', 'version', 'w']

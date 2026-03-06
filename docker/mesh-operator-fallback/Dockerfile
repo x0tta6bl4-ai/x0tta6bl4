@@ -1,0 +1,7 @@
+FROM scratch
+
+ARG MANAGER_BIN=manager
+COPY ${MANAGER_BIN} /manager
+
+USER 65532:65532
+ENTRYPOINT ["/manager"]

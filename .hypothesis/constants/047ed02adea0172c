@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/edge/edge_node.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 5.0, 10.0, 60.0, 80.0, 85.0, 300.0, 3600.0, 100, 1000, 1024, 8080, '/', ':', '://', 'Cancelled', 'EdgeNodeStatus', 'Invalid endpoint', 'Node is offline', 'Task queue is full', 'active', 'active_tasks', 'available_slots', 'busy', 'cache', 'cache_size', 'capabilities', 'completed_tasks', 'compute', 'cpu_percent', 'default', 'degraded', 'disk_percent', 'draining', 'healthy_nodes', 'inactive', 'initializing', 'localhost', 'maintenance', 'memory_percent', 'network_in_mbps', 'network_mbps', 'network_out_mbps', 'node_id', 'offline', 'queue_size', 'queued_tasks', 'ready', 'region', 'regions', 'state', 'storage', 'tasks_failed', 'tasks_processed', 'total_active_tasks', 'total_nodes', 'total_queued_tasks', 'unhealthy_nodes', 'uptime_seconds', 'value', 'zone']

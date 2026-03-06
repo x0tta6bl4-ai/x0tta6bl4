@@ -40,11 +40,12 @@ TELEMETRY_HISTORY_TTL_SECONDS = 7 * 24 * 60 * 60
 MAX_FALLBACK_ENTRIES = 10000  # Prevent unbounded memory growth
 FALLBACK_EVICTION_BATCH = 1000  # Evict this many entries when over limit
 try:
-    r_client = redis.from_url(REDIS_URL, decode_responses=True)
+    r_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+    r_client.ping()
     REDIS_AVAILABLE = True
 except Exception as e:
     logger.warning(f"⚠️ Redis connection failed: {e}. Falling back to memory.")
-    r_client = {}
+    r_client = None
     REDIS_AVAILABLE = False
 
 

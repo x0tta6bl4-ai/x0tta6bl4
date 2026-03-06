@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/coordinator.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1e-05, 0.1, 0.5, 0.8, 0.9, 1.0, 5.0, 10.0, 30.0, 60.0, 'Byzantine behavior', 'Coordinator started', 'Coordinator stopped', 'No active round', 'adaptive', 'aggregating', 'avg_round_time', 'avg_training_time', 'banned', 'banned_nodes', 'byzantine_detections', 'byzantine_violations', 'collecting', 'collection_deadline', 'completed', 'completed_at', 'current_round', 'eligible_nodes', 'enhanced_fedavg', 'failed', 'global_model_version', 'idle', 'initial', 'krum', 'online', 'participating_nodes', 'pending', 'registered_nodes', 'round_number', 'rounds_completed', 'rounds_participated', 'selected_nodes', 'stale', 'started', 'started_at', 'status', 'total_samples', 'training', 'training_loss', 'trust_score', 'unknown', 'updates_received']

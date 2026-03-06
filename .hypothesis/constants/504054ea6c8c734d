@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/mesh_fl_integration.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 5.0, 10.0, 30.0, 120.0, 100, 'aggregator_metrics', 'avg_round_duration', 'completed', 'coordinator', 'current_round', 'duration', 'error', 'failed', 'failed_rounds', 'hop_count', 'latency_ms', 'link_quality', 'metrics', 'model_version', 'node_count', 'node_id', 'nodes', 'participants', 'pending', 'round_number', 'running', 'status', 'successful_rounds', 'total_participants', 'total_rounds', 'v1.0']
