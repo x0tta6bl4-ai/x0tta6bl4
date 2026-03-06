@@ -94,9 +94,9 @@
       "agent": "gemini",
       "mode": "validation",
       "initiative": "Release Readiness (P0/P1 gate)",
-      "status": "blocked",
-      "summary": "Run live XDP attach on a real NIC and capture attach evidence.",
-      "exact_next_command": "sudo -E IFACE=eth0 ebpf/prod/verify-local.sh --live-attach",
+      "status": "ready",
+      "summary": "Run live XDP attach on NIC enp8s0 and capture attach evidence.",
+      "exact_next_command": "sudo -E IFACE=enp8s0 ebpf/prod/verify-local.sh --live-attach",
       "prereqs": [
         "sudo-noninteractive",
         "real-nic",
@@ -107,17 +107,16 @@
         "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
         "docs/verification/operator-live-validation-checklist.md"
       ],
-      "evidence_target": "verify-local live attach output plus kernel/BPF evidence",
-      "blocker": "Requires root privileges and a real NIC in this environment."
+      "evidence_target": "verify-local live attach output plus kernel/BPF evidence"
     },
     {
       "id": "GEMINI-RDM-002",
       "agent": "gemini",
       "mode": "validation",
       "initiative": "Mesh-FL + Swarm Consensus",
-      "status": "blocked",
+      "status": "ready",
       "summary": "Run the PPS benchmark harness only after live attach is working and produce a benchmark JSON with pass=true.",
-      "exact_next_command": "modprobe pktgen && RUN_BENCH=1 sudo -E IFACE=eth0 ebpf/prod/benchmark-harness.sh",
+      "exact_next_command": "modprobe pktgen && RUN_BENCH=1 sudo -E IFACE=enp8s0 ebpf/prod/benchmark-harness.sh",
       "prereqs": [
         "sudo-noninteractive",
         "real-nic",
@@ -129,8 +128,7 @@
         "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
         "docs/verification/operator-live-validation-checklist.md"
       ],
-      "evidence_target": "ebpf/prod/results/benchmark-<ts>.json with measured_pps and pass=true",
-      "blocker": "Requires live attach, root, and pktgen-capable environment."
+      "evidence_target": "ebpf/prod/results/benchmark-<ts>.json with measured_pps and pass=true"
     },
     {
       "id": "CODEX-RDM-001",
