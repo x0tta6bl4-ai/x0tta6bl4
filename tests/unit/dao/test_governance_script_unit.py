@@ -149,58 +149,42 @@ def _patch_load_deployment(gov="0xGovAddr", tok="0xTokAddr"):
 # ---------------------------------------------------------------------------
 
 class TestDeploymentIO:
-    def test_save_and_load(self, tmp_path):
+    def test_save_and_load(self, tmp_path, monkeypatch):
         from src.dao import governance_script as gs
-        orig = gs.DEPLOYMENT_FILE
-        gs.DEPLOYMENT_FILE = tmp_path / "base_sepolia.json"
-        gs.DEPLOYMENTS_DIR = tmp_path
-        try:
-            gs._save_deployment("0xGov", "0xTok")
-            gov, tok = gs._load_deployment()
-            assert gov == "0xGov"
-            assert tok == "0xTok"
-        finally:
-            gs.DEPLOYMENT_FILE = orig
+        monkeypatch.setattr(gs, "DEPLOYMENT_FILE", tmp_path / "base_sepolia.json")
+        monkeypatch.setattr(gs, "DEPLOYMENTS_DIR", tmp_path)
+        gs._save_deployment("0xGov", "0xTok")
+        gov, tok = gs._load_deployment()
+        assert gov == "0xGov"
+        assert tok == "0xTok"
 
-    def test_load_missing_file_returns_none(self, tmp_path):
+    def test_load_missing_file_returns_none(self, tmp_path, monkeypatch):
         from src.dao import governance_script as gs
-        orig = gs.DEPLOYMENT_FILE
-        gs.DEPLOYMENT_FILE = tmp_path / "nonexistent.json"
-        try:
-            gov, tok = gs._load_deployment()
-            assert gov is None
-            assert tok is None
-        finally:
-            gs.DEPLOYMENT_FILE = orig
+        monkeypatch.setattr(gs, "DEPLOYMENT_FILE", tmp_path / "nonexistent.json")
+        gov, tok = gs._load_deployment()
+        assert gov is None
+        assert tok is None
 
     def test_env_overrides_file(self, tmp_path, monkeypatch):
         from src.dao import governance_script as gs
-        orig = gs.DEPLOYMENT_FILE
-        gs.DEPLOYMENT_FILE = tmp_path / "base_sepolia.json"
-        gs.DEPLOYMENTS_DIR = tmp_path
-        try:
-            gs._save_deployment("0xFileGov", "0xFileTok")
-            monkeypatch.setenv("MESH_GOVERNANCE_ADDRESS", "0xEnvGov")
-            monkeypatch.setenv("X0T_TOKEN_ADDRESS", "0xEnvTok")
-            gov, tok = gs._load_deployment()
-            assert gov == "0xEnvGov"
-            assert tok == "0xEnvTok"
-        finally:
-            gs.DEPLOYMENT_FILE = orig
+        monkeypatch.setattr(gs, "DEPLOYMENT_FILE", tmp_path / "base_sepolia.json")
+        monkeypatch.setattr(gs, "DEPLOYMENTS_DIR", tmp_path)
+        gs._save_deployment("0xFileGov", "0xFileTok")
+        monkeypatch.setenv("MESH_GOVERNANCE_ADDRESS", "0xEnvGov")
+        monkeypatch.setenv("X0T_TOKEN_ADDRESS", "0xEnvTok")
+        gov, tok = gs._load_deployment()
+        assert gov == "0xEnvGov"
+        assert tok == "0xEnvTok"
 
-    def test_corrupted_file_handled(self, tmp_path):
+    def test_corrupted_file_handled(self, tmp_path, monkeypatch):
         from src.dao import governance_script as gs
-        orig = gs.DEPLOYMENT_FILE
         f = tmp_path / "base_sepolia.json"
         f.write_text("not json {{")
-        gs.DEPLOYMENT_FILE = f
-        try:
-            gov, tok = gs._load_deployment()
-            # Should return None (corrupted file gracefully handled)
-            assert gov is None
-            assert tok is None
-        finally:
-            gs.DEPLOYMENT_FILE = orig
+        monkeypatch.setattr(gs, "DEPLOYMENT_FILE", f)
+        gov, tok = gs._load_deployment()
+        # Should return None (corrupted file gracefully handled)
+        assert gov is None
+        assert tok is None
 
 
 # ---------------------------------------------------------------------------
