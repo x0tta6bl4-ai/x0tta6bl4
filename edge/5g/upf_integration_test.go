@@ -151,7 +151,8 @@ func TestOpen5GSProviderRejectsDeniedOrInvalidTransportResponses(t *testing.T) {
 }
 
 type staticMockQoSMonitor struct {
-	latency int64
+	latency  int64
+	lastUEID string
 }
 
 func (m *staticMockQoSMonitor) GetPacketStats() (edge5g.BPFStats, error) {
@@ -159,6 +160,7 @@ func (m *staticMockQoSMonitor) GetPacketStats() (edge5g.BPFStats, error) {
 }
 
 func (m *staticMockQoSMonitor) GetEstimatedLatencyMs(ueID string) int64 {
+	m.lastUEID = ueID
 	return m.latency
 }
 
@@ -191,6 +193,22 @@ func TestOpen5GSProviderEBPFMonitorOverrideLatency(t *testing.T) {
 	}
 	if latency != 15 {
 		t.Fatalf("expected base transport latency 15ms when eBPF monitor is lower, got %dms", latency)
+	}
+
+	provider.Monitor = &staticMockQoSMonitor{latency: 45}
+	latency, err = provider.EstablishSession("  ue1  ", "premium")
+	if err != nil {
+		t.Fatalf("expected trimmed monitor lookup success, got %v", err)
+	}
+	monitor, ok := provider.Monitor.(*staticMockQoSMonitor)
+	if !ok {
+		t.Fatalf("expected static mock monitor, got %T", provider.Monitor)
+	}
+	if monitor.lastUEID != "ue1" {
+		t.Fatalf("expected monitor lookup to use trimmed UEID, got %q", monitor.lastUEID)
+	}
+	if latency != 45 {
+		t.Fatalf("expected override latency 45ms after trimmed monitor lookup, got %dms", latency)
 	}
 
 	provider.Monitor = nil
