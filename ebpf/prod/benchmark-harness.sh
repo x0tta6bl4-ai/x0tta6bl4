@@ -213,9 +213,11 @@ echo "queue_map_min 0"   > "${PGDEV}"
 echo "queue_map_max 0"   > "${PGDEV}"
 echo ""
 echo "  [pktgen] generating traffic for ${DURATION}s ..."
-echo "start" > /proc/net/pktgen/pgctrl
+( echo "start" > /proc/net/pktgen/pgctrl ) &
+PG_PID=$!
 sleep "${DURATION}"
 echo "stop" > /proc/net/pktgen/pgctrl
+kill $PG_PID 2>/dev/null || true
 
 # Capture post-benchmark counters
 RX_AFTER=$(ip -s link show dev "${IFACE}" 2>/dev/null \
