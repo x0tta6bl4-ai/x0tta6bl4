@@ -753,6 +753,29 @@ func TestUERANSIMConfigGenerationTrimsWhitespaceInputs(t *testing.T) {
 	}
 }
 
+func TestUERANSIMConfigGenerationTrimsConfigDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ueransim-dir-trim-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	controller := &edge5g.UERANSIMController{ConfigDir: " " + tmpDir + " "}
+	uePath, err := controller.GenerateUEConfig(edge5g.UEConfig{
+		Supi:    "imsi-208930000000001",
+		Mcc:     "208",
+		Mnc:     "93",
+		AmfAddr: "127.0.0.1",
+		GnbAddr: "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected trimmed config dir success, got %v", err)
+	}
+	if !strings.HasPrefix(uePath, tmpDir+string(os.PathSeparator)) {
+		t.Fatalf("expected config to be written under trimmed dir %s, got %s", tmpDir, uePath)
+	}
+}
+
 func TestUERANSIMConfigGenerationRejectsInvalidConfig(t *testing.T) {
 	controller := &edge5g.UERANSIMController{}
 
