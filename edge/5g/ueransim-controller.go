@@ -84,7 +84,8 @@ func validateUEConfig(cfg UEConfig, configDir string) error {
 // GenerateUEConfig writes a YAML configuration for nr-ue.
 func (c *UERANSIMController) GenerateUEConfig(cfg UEConfig) (string, error) {
 	cfg = normalizeUEConfig(cfg)
-	if err := validateUEConfig(cfg, c.ConfigDir); err != nil {
+	configDir := strings.TrimSpace(c.ConfigDir)
+	if err := validateUEConfig(cfg, configDir); err != nil {
 		return "", err
 	}
 
@@ -93,12 +94,12 @@ func (c *UERANSIMController) GenerateUEConfig(cfg UEConfig) (string, error) {
 		return "", err
 	}
 
-	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return "", err
 	}
 
 	fileName := fmt.Sprintf("ue-%s.yaml", cfg.Supi)
-	fullPath := filepath.Join(c.ConfigDir, fileName)
+	fullPath := filepath.Join(configDir, fileName)
 
 	f, err := os.Create(fullPath)
 	if err != nil {
@@ -175,7 +176,8 @@ func validateGNBConfig(cfg GNBConfig, configDir string) error {
 // GenerateGNBConfig writes a YAML configuration for nr-gnb.
 func (c *UERANSIMController) GenerateGNBConfig(cfg GNBConfig) (string, error) {
 	cfg = normalizeGNBConfig(cfg)
-	if err := validateGNBConfig(cfg, c.ConfigDir); err != nil {
+	configDir := strings.TrimSpace(c.ConfigDir)
+	if err := validateGNBConfig(cfg, configDir); err != nil {
 		return "", err
 	}
 
@@ -184,12 +186,12 @@ func (c *UERANSIMController) GenerateGNBConfig(cfg GNBConfig) (string, error) {
 		return "", err
 	}
 
-	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return "", err
 	}
 
 	fileName := fmt.Sprintf("gnb-%s.yaml", cfg.Nci)
-	fullPath := filepath.Join(c.ConfigDir, fileName)
+	fullPath := filepath.Join(configDir, fileName)
 
 	f, err := os.Create(fullPath)
 	if err != nil {
