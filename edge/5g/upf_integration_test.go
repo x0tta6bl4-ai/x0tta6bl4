@@ -583,6 +583,75 @@ func TestUERANSIMConfigGeneration(t *testing.T) {
 	}
 }
 
+func TestUERANSIMConfigGenerationTrimsWhitespaceInputs(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ueransim-trim-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	controller := &edge5g.UERANSIMController{ConfigDir: tmpDir}
+
+	uePath, err := controller.GenerateUEConfig(edge5g.UEConfig{
+		Supi:    " imsi-208930000000001 ",
+		Mcc:     " 208 ",
+		Mnc:     " 93 ",
+		AmfAddr: " 127.0.0.1 ",
+		GnbAddr: " 127.0.0.1 ",
+	})
+	if err != nil {
+		t.Fatalf("expected trimmed UE config success, got %v", err)
+	}
+	if strings.Contains(uePath, " ") {
+		t.Fatalf("expected trimmed UE config filename, got %s", uePath)
+	}
+
+	gnbPath, err := controller.GenerateGNBConfig(edge5g.GNBConfig{
+		Mcc:      " 208 ",
+		Mnc:      " 93 ",
+		Nci:      " 0x00000001 ",
+		IdLength: 32,
+		AmfAddr:  " 127.0.0.1 ",
+		GnbAddr:  " 127.0.0.1 ",
+		NgapPort: 38412,
+	})
+	if err != nil {
+		t.Fatalf("expected trimmed gNB config success, got %v", err)
+	}
+	if strings.Contains(gnbPath, " ") {
+		t.Fatalf("expected trimmed gNB config filename, got %s", gnbPath)
+	}
+}
+
+func TestUERANSIMConfigGenerationRejectsInvalidConfig(t *testing.T) {
+	controller := &edge5g.UERANSIMController{}
+
+	if _, err := controller.GenerateUEConfig(edge5g.UEConfig{}); err == nil || !strings.Contains(err.Error(), "config dir required") {
+		t.Fatalf("expected missing config dir rejection for UE config, got %v", err)
+	}
+
+	controller.ConfigDir = t.TempDir()
+	if _, err := controller.GenerateUEConfig(edge5g.UEConfig{Supi: "ue1"}); err == nil || !strings.Contains(err.Error(), "MCC/MNC required") {
+		t.Fatalf("expected missing MCC/MNC rejection for UE config, got %v", err)
+	}
+
+	if _, err := controller.GenerateGNBConfig(edge5g.GNBConfig{}); err == nil || !strings.Contains(err.Error(), "MCC/MNC required") {
+		t.Fatalf("expected missing MCC/MNC rejection for gNB config, got %v", err)
+	}
+
+	if _, err := controller.GenerateGNBConfig(edge5g.GNBConfig{
+		Mcc:      "208",
+		Mnc:      "93",
+		Nci:      "0x1",
+		IdLength: 0,
+		AmfAddr:  "127.0.0.1",
+		GnbAddr:  "127.0.0.1",
+		NgapPort: 38412,
+	}); err == nil || !strings.Contains(err.Error(), "idLength must be positive") {
+		t.Fatalf("expected invalid idLength rejection for gNB config, got %v", err)
+	}
+}
+
 func TestMeasureLatency(t *testing.T) {
 	controller := &edge5g.UERANSIMController{}
 
