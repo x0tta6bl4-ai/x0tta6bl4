@@ -192,10 +192,12 @@ func NewRealOpen5GSUPF(cfg UPFConfig) *RealOpen5GSUPF {
 }
 
 func (s *Open5GSUPFProvider) BuildSessionRequest(ueID string, sliceID string) (SessionRequest, error) {
-	if strings.TrimSpace(ueID) == "" {
+	trimmedUEID := strings.TrimSpace(ueID)
+	if trimmedUEID == "" {
 		return SessionRequest{}, fmt.Errorf("invalid session request: UE ID required")
 	}
-	if strings.TrimSpace(sliceID) == "" {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if trimmedSliceID == "" {
 		return SessionRequest{}, fmt.Errorf("invalid session request: slice ID required")
 	}
 
@@ -205,8 +207,8 @@ func (s *Open5GSUPFProvider) BuildSessionRequest(ueID string, sliceID string) (S
 	}
 
 	return SessionRequest{
-		UEID:        ueID,
-		SliceID:     sliceID,
+		UEID:        trimmedUEID,
+		SliceID:     trimmedSliceID,
 		AMFEndpoint: endpoints.AMF,
 		UPFEndpoint: endpoints.UPF,
 		Timeout:     s.Config.sessionTimeout(),
@@ -255,7 +257,8 @@ func (t *Open5GSHTTPTransport) EstablishSession(request SessionRequest) (Session
 	if err := validateSessionRequest(request); err != nil {
 		return SessionResponse{}, err
 	}
-	if strings.TrimSpace(t.BaseURL) == "" || t.Client == nil {
+	baseURL := strings.TrimSpace(t.BaseURL)
+	if baseURL == "" || t.Client == nil {
 		return SessionResponse{}, fmt.Errorf("Open5GSHTTPTransport not configured (NOT VERIFIED)")
 	}
 
@@ -268,7 +271,7 @@ func (t *Open5GSHTTPTransport) EstablishSession(request SessionRequest) (Session
 		path = "/sessions"
 	}
 
-	url := strings.TrimRight(t.BaseURL, "/") + "/" + strings.TrimLeft(path, "/")
+	url := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
 	httpRequest, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		return SessionResponse{}, fmt.Errorf("invalid transport request: %w", err)
@@ -366,10 +369,10 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 
 func (s *Open5GSSignaling) EstablishSession(request SessionRequest) (SessionResponse, error) {
 	if strings.TrimSpace(s.AMFAddr) == "" {
-		s.AMFAddr = request.AMFEndpoint
+		s.AMFAddr = strings.TrimSpace(request.AMFEndpoint)
 	}
 	if strings.TrimSpace(s.UPFAddr) == "" {
-		s.UPFAddr = request.UPFEndpoint
+		s.UPFAddr = strings.TrimSpace(request.UPFEndpoint)
 	}
 	if request.Timeout > 0 {
 		s.Timeout = request.Timeout
@@ -430,12 +433,16 @@ func (s *RealEBPFQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) e
 func (s *RealEBPFQoSEnforcer) IsSimulated() bool { return false }
 
 func (c UPFConfig) effectiveEndpoints() EndpointConfig {
-	if strings.TrimSpace(c.Endpoints.AMF) != "" || strings.TrimSpace(c.Endpoints.UPF) != "" {
-		return c.Endpoints
+	trimmed := EndpointConfig{
+		AMF: strings.TrimSpace(c.Endpoints.AMF),
+		UPF: strings.TrimSpace(c.Endpoints.UPF),
+	}
+	if trimmed.AMF != "" || trimmed.UPF != "" {
+		return trimmed
 	}
 	return EndpointConfig{
-		AMF: c.AMFEndpoint,
-		UPF: c.UPFEndpoint,
+		AMF: strings.TrimSpace(c.AMFEndpoint),
+		UPF: strings.TrimSpace(c.UPFEndpoint),
 	}
 }
 
