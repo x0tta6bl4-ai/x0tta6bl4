@@ -191,6 +191,10 @@ It now also shows the current execution bucket for that task:
 - `live-validation-only`
 - `blocked-horizon-2`
 
+Bucket summaries now print `ready / total`, and `next_task` explicitly says
+when no ready tasks remain and it is only showing non-ready backlog for
+visibility.
+
 To fan out the current ready queue into agent inboxes without copying commands by
 hand, use:
 
@@ -220,6 +224,18 @@ Queue contract:
   - `verification-ready`
   - `live-validation-only`
   - `blocked-horizon-2`
+
+Autonomous execution rule:
+
+- if a task is not present in `plans/ROADMAP_AGENT_QUEUE.json`, it is not an
+  active execution lane
+- references in old docs, archive notes, or ad-hoc exploration do not activate
+  a task by themselves
+- current example: `k6 load test` remains `NOT VERIFIED YET` and must not be
+  started as an autonomous tranche unless it is explicitly queued
+- `session_start` now blocks summaries that explicitly ask for `k6/load test`
+  work when no queued lane for that agent covers it; use `--allow-blocked`
+  only for standby/handoff, not for evidence promotion
 - `blocked-horizon-2` tasks must keep `status=blocked`
 
 ## Completion Or Handoff
