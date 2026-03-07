@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -50,10 +51,47 @@ integrity: {IA1: true, IA2: true, IA3: true}
 ciphering: {EA1: true, EA2: true, EA3: true}
 `
 
+func normalizeUEConfig(cfg UEConfig) UEConfig {
+	cfg.Supi = strings.TrimSpace(cfg.Supi)
+	cfg.Mcc = strings.TrimSpace(cfg.Mcc)
+	cfg.Mnc = strings.TrimSpace(cfg.Mnc)
+	cfg.Key = strings.TrimSpace(cfg.Key)
+	cfg.Op = strings.TrimSpace(cfg.Op)
+	cfg.OpType = strings.TrimSpace(cfg.OpType)
+	cfg.AmfAddr = strings.TrimSpace(cfg.AmfAddr)
+	cfg.GnbAddr = strings.TrimSpace(cfg.GnbAddr)
+	return cfg
+}
+
+func validateUEConfig(cfg UEConfig, configDir string) error {
+	if strings.TrimSpace(configDir) == "" {
+		return fmt.Errorf("config dir required")
+	}
+	if cfg.Supi == "" {
+		return fmt.Errorf("UE config SUPI required")
+	}
+	if cfg.Mcc == "" || cfg.Mnc == "" {
+		return fmt.Errorf("UE config MCC/MNC required")
+	}
+	if cfg.AmfAddr == "" || cfg.GnbAddr == "" {
+		return fmt.Errorf("UE config AMF/gNB addresses required")
+	}
+	return nil
+}
+
 // GenerateUEConfig writes a YAML configuration for nr-ue.
 func (c *UERANSIMController) GenerateUEConfig(cfg UEConfig) (string, error) {
+	cfg = normalizeUEConfig(cfg)
+	if err := validateUEConfig(cfg, c.ConfigDir); err != nil {
+		return "", err
+	}
+
 	tmpl, err := template.New("ue-config").Parse(ueTemplate)
 	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
 		return "", err
 	}
 
@@ -75,15 +113,15 @@ func (c *UERANSIMController) GenerateUEConfig(cfg UEConfig) (string, error) {
 
 // GNBConfig defines parameters for a UERANSIM gNB instance.
 type GNBConfig struct {
-	Mcc        string
-	Mnc        string
-	Nci        string
-	IdLength   int
-	Tac        string
-	AmfAddr    string
-	GnbAddr    string
-	NgapPort   int
-	GtpPort    int
+	Mcc      string
+	Mnc      string
+	Nci      string
+	IdLength int
+	Tac      string
+	AmfAddr  string
+	GnbAddr  string
+	NgapPort int
+	GtpPort  int
 }
 
 const gnbTemplate = `
@@ -100,10 +138,51 @@ amfConfigs:
     port: {{.NgapPort}}
 `
 
+func normalizeGNBConfig(cfg GNBConfig) GNBConfig {
+	cfg.Mcc = strings.TrimSpace(cfg.Mcc)
+	cfg.Mnc = strings.TrimSpace(cfg.Mnc)
+	cfg.Nci = strings.TrimSpace(cfg.Nci)
+	cfg.Tac = strings.TrimSpace(cfg.Tac)
+	cfg.AmfAddr = strings.TrimSpace(cfg.AmfAddr)
+	cfg.GnbAddr = strings.TrimSpace(cfg.GnbAddr)
+	return cfg
+}
+
+func validateGNBConfig(cfg GNBConfig, configDir string) error {
+	if strings.TrimSpace(configDir) == "" {
+		return fmt.Errorf("config dir required")
+	}
+	if cfg.Mcc == "" || cfg.Mnc == "" {
+		return fmt.Errorf("gNB config MCC/MNC required")
+	}
+	if cfg.Nci == "" {
+		return fmt.Errorf("gNB config NCI required")
+	}
+	if cfg.IdLength <= 0 {
+		return fmt.Errorf("gNB config idLength must be positive")
+	}
+	if cfg.AmfAddr == "" || cfg.GnbAddr == "" {
+		return fmt.Errorf("gNB config AMF/gNB addresses required")
+	}
+	if cfg.NgapPort <= 0 {
+		return fmt.Errorf("gNB config NGAP port must be positive")
+	}
+	return nil
+}
+
 // GenerateGNBConfig writes a YAML configuration for nr-gnb.
 func (c *UERANSIMController) GenerateGNBConfig(cfg GNBConfig) (string, error) {
+	cfg = normalizeGNBConfig(cfg)
+	if err := validateGNBConfig(cfg, c.ConfigDir); err != nil {
+		return "", err
+	}
+
 	tmpl, err := template.New("gnb-config").Parse(gnbTemplate)
 	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
 		return "", err
 	}
 
