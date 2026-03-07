@@ -100,7 +100,11 @@
         "compliance/soc2/",
         "security/sbom/",
         "docs/commercial/",
-        "docs/STATUS.md"
+        "docs/STATUS.md",
+        "version.txt",
+        "version.txt.hash",
+        "model.hash",
+        "config.hmac"
       ]
     },
     "codex-implementer": {
