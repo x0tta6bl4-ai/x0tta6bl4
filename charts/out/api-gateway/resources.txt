@@ -1,0 +1,4 @@
+ConfigMap/test-release-api-gateway-config
+Deployment/test-release-api-gateway
+Ingress/test-release-api-gateway
+Service/test-release-api-gateway
