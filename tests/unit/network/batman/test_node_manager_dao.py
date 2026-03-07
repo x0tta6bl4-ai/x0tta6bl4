@@ -1,4 +1,7 @@
+import os
 import unittest
+
+os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 
 from src.network.batman.node_manager import NodeManager
 

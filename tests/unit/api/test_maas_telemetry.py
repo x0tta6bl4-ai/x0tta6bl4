@@ -9,6 +9,7 @@ tested at the unit level directly for Redis vs. memory fallback behaviour.
 import uuid
 import os
 import json
+from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -19,7 +20,7 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 from src.core.app import app
-from src.database import Base, get_db
+from src.database import Base, MeshNode, get_db
 
 _TEST_DB_PATH = f"./test_telemetry_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"
@@ -489,6 +490,154 @@ class TestTelemetryDegradedDependencyMarkers:
             assert result == {"cpu": 0.3}
             assert "redis" in degraded
         finally:
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_fallback
+
+
+class TestTelemetryPheromoneContract:
+    def test_extract_pheromone_score_supports_numeric_and_structured_payloads(self):
+        import src.api.maas_telemetry as mod
+
+        assert mod._extract_pheromone_score(0.9) == pytest.approx(0.9)
+        assert mod._extract_pheromone_score({"score": 0.7}) == pytest.approx(0.7)
+        assert mod._extract_pheromone_score({"weight": 0.4}) == pytest.approx(0.4)
+        assert mod._extract_pheromone_score({"unknown": "shape"}) == 0.0
+
+    def test_derive_topology_status_preserves_degraded_and_offline_semantics(self):
+        import src.api.maas_telemetry as mod
+
+        assert mod._derive_topology_status({"status": "degraded"}, "approved") == "degraded"
+        assert mod._derive_topology_status({"status": "unhealthy"}, "approved") == "degraded"
+        assert mod._derive_topology_status({"cpu": 0.2}, "approved") == "healthy"
+        assert mod._derive_topology_status({}, "approved") == "offline"
+        assert mod._derive_topology_status(None, "approved") == "offline"
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_persists_pheromones_and_topology_uses_numeric_weights(self, monkeypatch):
+        import src.api.maas_telemetry as mod
+
+        local_db_path = f"./test_telemetry_direct_{uuid.uuid4().hex}.db"
+        local_engine = create_engine(f"sqlite:///{local_db_path}", connect_args={"check_same_thread": False})
+        LocalSession = sessionmaker(autocommit=False, autoflush=False, bind=local_engine)
+
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+
+        class _ReputationStub:
+            async def record_proxy_result(self, **_kwargs):
+                return None
+
+            def get_proxy_trust(self, _node_id):
+                return None
+
+        mod.REDIS_AVAILABLE = False
+        mod.r_client = None
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=64)
+        monkeypatch.setattr(mod, "reputation_system", _ReputationStub())
+        monkeypatch.setattr(mod, "_record_heartbeat_metric", lambda _node_id: None)
+        monkeypatch.setattr(mod.uptime_tracker, "record_heartbeat", lambda _node_id: None)
+
+        Base.metadata.create_all(bind=local_engine)
+        db = LocalSession()
+        try:
+            db.add_all([
+                MeshNode(id="node-a", mesh_id="mesh-direct", device_class="edge", status="healthy"),
+                MeshNode(id="node-b", mesh_id="mesh-direct", device_class="edge", status="healthy"),
+            ])
+            db.commit()
+
+            heartbeat_request = SimpleNamespace(
+                state=SimpleNamespace(),
+                client=SimpleNamespace(host="198.51.100.10"),
+            )
+            await mod.heartbeat(
+                mod.NodeHeartbeatRequest(
+                    node_id="node-a",
+                    cpu_usage=0.5,
+                    memory_usage=0.3,
+                    neighbors_count=1,
+                    routing_table_size=8,
+                    uptime=120.0,
+                    latency_ms=12.0,
+                    pheromones={"dest-b": {"node-b": 0.91}},
+                ),
+                request=heartbeat_request,
+                db=db,
+            )
+
+            telemetry = mod._get_telemetry("node-a")
+            assert telemetry["status"] == "healthy"
+            assert telemetry["pheromones"] == {"dest-b": {"node-b": 0.91}}
+            assert telemetry["latency"] == 12.0
+            assert "redis" in heartbeat_request.state.degraded_dependencies
+
+            topology_request = SimpleNamespace(state=SimpleNamespace())
+            topology = await mod.get_topology(
+                "mesh-direct",
+                request=topology_request,
+                db=db,
+                current_user=SimpleNamespace(id="owner-1"),
+            )
+
+            assert any(
+                link["source"] == "node-a"
+                and link["target"] == "node-b"
+                and link["quality"] == pytest.approx(0.91)
+                for link in topology["links"]
+            )
+            assert "redis" in topology_request.state.degraded_dependencies
+        finally:
+            db.close()
+            Base.metadata.drop_all(bind=local_engine)
+            if os.path.exists(local_db_path):
+                os.remove(local_db_path)
+            mod.REDIS_AVAILABLE = original_redis
+            mod.r_client = original_client
+            mod._LOCAL_TELEMETRY_FALLBACK = original_fallback
+
+    @pytest.mark.asyncio
+    async def test_topology_uses_degraded_status_from_existing_snapshot(self):
+        import src.api.maas_telemetry as mod
+
+        local_db_path = f"./test_telemetry_topology_{uuid.uuid4().hex}.db"
+        local_engine = create_engine(f"sqlite:///{local_db_path}", connect_args={"check_same_thread": False})
+        LocalSession = sessionmaker(autocommit=False, autoflush=False, bind=local_engine)
+
+        original_redis = mod.REDIS_AVAILABLE
+        original_client = mod.r_client
+        original_fallback = mod._LOCAL_TELEMETRY_FALLBACK
+
+        mod.REDIS_AVAILABLE = False
+        mod.r_client = None
+        mod._LOCAL_TELEMETRY_FALLBACK = mod.LRUCache(max_size=64)
+
+        Base.metadata.create_all(bind=local_engine)
+        db = LocalSession()
+        try:
+            db.add(MeshNode(id="node-degraded", mesh_id="mesh-topology", device_class="edge", status="degraded"))
+            db.commit()
+
+            mod._set_telemetry("node-degraded", {"status": "degraded", "latency_ms": 88.1})
+
+            topology_request = SimpleNamespace(state=SimpleNamespace())
+            topology = await mod.get_topology(
+                "mesh-topology",
+                request=topology_request,
+                db=db,
+                current_user=SimpleNamespace(id="owner-1"),
+            )
+
+            assert topology["nodes"][0]["id"] == "node-degraded"
+            assert topology["nodes"][0]["status"] == "degraded"
+            assert topology["nodes"][0]["telemetry"]["latency_ms"] == 88.1
+            assert "redis" in topology_request.state.degraded_dependencies
+        finally:
+            db.close()
+            Base.metadata.drop_all(bind=local_engine)
+            if os.path.exists(local_db_path):
+                os.remove(local_db_path)
             mod.REDIS_AVAILABLE = original_redis
             mod.r_client = original_client
             mod._LOCAL_TELEMETRY_FALLBACK = original_fallback

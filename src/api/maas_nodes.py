@@ -478,6 +478,31 @@ def _to_optional_float(value: Any) -> Optional[float]:
         return None
 
 
+def _normalize_external_telemetry_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Add stable aliases for telemetry payloads emitted by different MaaS modules."""
+    normalized = dict(payload)
+
+    if "latency_ms" not in normalized:
+        latency = _to_optional_float(normalized.get("latency"))
+        if latency is not None and latency >= 0:
+            normalized["latency_ms"] = latency
+
+    if "neighbors_count" not in normalized:
+        neighbors = normalized.get("neighbors")
+        if isinstance(neighbors, int) and not isinstance(neighbors, bool):
+            normalized["neighbors_count"] = neighbors
+        else:
+            converted = _to_optional_float(neighbors)
+            if converted is not None and converted >= 0 and float(converted).is_integer():
+                normalized["neighbors_count"] = int(converted)
+
+    status = normalized.get("status")
+    if isinstance(status, str):
+        normalized["status"] = status.strip().lower()
+
+    return normalized
+
+
 def _build_analytics_telemetry_payload(
     mesh_id: str,
     node_id: str,
@@ -530,7 +555,9 @@ def _read_external_telemetry(node_id: str) -> Dict[str, Any]:
         return {}
     try:
         payload = _get_external_telemetry(node_id)
-        return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            return {}
+        return _normalize_external_telemetry_payload(payload)
     except Exception as exc:
         logger.warning("Failed to read external telemetry snapshot (node=%s): %s", node_id, exc)
         return {}
@@ -546,7 +573,11 @@ def _read_external_telemetry_history(node_id: str, limit: int) -> List[Dict[str,
         return []
     if not isinstance(payload, list):
         return []
-    return [item for item in payload if isinstance(item, dict)]
+    return [
+        _normalize_external_telemetry_payload(item)
+        for item in payload
+        if isinstance(item, dict)
+    ]
 
 
 @router.post("/{mesh_id}/nodes/{node_id}/heartbeat")
