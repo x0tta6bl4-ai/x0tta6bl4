@@ -205,7 +205,9 @@
         "values-utrecht.yaml",
         "config.yml",
         ".gitlab-ci.yml.ebpf",
-        "agent/"
+        "agent/",
+        "go.mod",
+        "go.sum"
       ]
     },
     "codex": {
