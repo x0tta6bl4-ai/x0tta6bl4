@@ -452,3 +452,17 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 		t.Errorf("gNB config file not created: %s", gnbPath)
 	}
 }
+
+func TestMeasureLatency(t *testing.T) {
+	controller := &edge5g.UERANSIMController{}
+	
+	// We cannot reliably ping a real interface in a CI/unit test environment without privileges or a real uesimtun0.
+	// So we will just test the error handling path for an invalid interface to ensure the method is wired correctly.
+	_, err := controller.MeasureLatency("invalid_iface_999", "8.8.8.8")
+	if err == nil {
+		t.Fatal("expected ping to fail on invalid interface")
+	}
+	if !strings.Contains(err.Error(), "ping failed") {
+		t.Errorf("expected 'ping failed' error, got: %v", err)
+	}
+}
