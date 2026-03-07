@@ -14,6 +14,7 @@ def test_get_combined_router_default_includes_all_domains():
     assert any(path.startswith("/api/v1/maas/mesh/") for path in paths)
     assert any(path.startswith("/api/v1/maas/nodes/") for path in paths)
     assert any(path.startswith("/api/v1/maas/billing/") for path in paths)
+    assert any(path.startswith("/api/v1/maas/batman/") for path in paths)
 
 
 def test_get_combined_router_respects_include_flags():
@@ -22,6 +23,7 @@ def test_get_combined_router_respects_include_flags():
         include_mesh=True,
         include_nodes=False,
         include_billing=False,
+        include_batman=False,
     )
     paths = _route_paths(router)
 
@@ -29,6 +31,21 @@ def test_get_combined_router_respects_include_flags():
     assert not any(path.startswith("/api/v1/maas/auth/") for path in paths)
     assert not any(path.startswith("/api/v1/maas/nodes/") for path in paths)
     assert not any(path.startswith("/api/v1/maas/billing/") for path in paths)
+    assert not any(path.startswith("/api/v1/maas/batman/") for path in paths)
+
+
+def test_get_combined_router_batman_only():
+    router = get_combined_router(
+        include_auth=False,
+        include_mesh=False,
+        include_nodes=False,
+        include_billing=False,
+        include_batman=True,
+    )
+    paths = _route_paths(router)
+
+    assert any(path.startswith("/api/v1/maas/batman/") for path in paths)
+    assert not any(path.startswith("/api/v1/maas/mesh/") for path in paths)
 
 
 def test_get_combined_router_applies_custom_prefix():
