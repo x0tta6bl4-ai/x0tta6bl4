@@ -192,6 +192,15 @@ func TestOpen5GSProviderEBPFMonitorOverrideLatency(t *testing.T) {
 	if latency != 15 {
 		t.Fatalf("expected base transport latency 15ms when eBPF monitor is lower, got %dms", latency)
 	}
+
+	provider.Monitor = nil
+	latency, err = provider.EstablishSession("ue1", "premium")
+	if err != nil {
+		t.Fatalf("expected nil monitor to preserve success path, got %v", err)
+	}
+	if latency != 15 {
+		t.Fatalf("expected base transport latency 15ms when monitor is nil, got %dms", latency)
+	}
 }
 
 func TestOpen5GSProviderPropagatesTransportFailure(t *testing.T) {
@@ -200,6 +209,7 @@ func TestOpen5GSProviderPropagatesTransportFailure(t *testing.T) {
 			Endpoints: edge5g.EndpointConfig{AMF: "http://amf.local", UPF: "http://upf.local"},
 		},
 		Transport: &stubSessionTransport{err: errors.New("transport unavailable")},
+		Monitor:   &staticMockQoSMonitor{latency: 45},
 	}
 
 	_, err := provider.EstablishSession("ue1", "premium")
