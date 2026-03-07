@@ -24,6 +24,16 @@ type EBPFQoSMonitor struct {
 	ebpfMap *ebpf.Map
 }
 
+func estimateLatencyMsFromStats(stats BPFStats) int64 {
+	if stats.Total == 0 {
+		return 25
+	}
+
+	// Heuristic: latency increases slightly under heavy drop rates.
+	dropRatio := float64(stats.Dropped) / float64(stats.Total)
+	return int64(15 + (dropRatio * 100))
+}
+
 func NewEBPFQoSMonitor(mapPath string) (*EBPFQoSMonitor, error) {
 	m, err := ebpf.LoadPinnedMap(mapPath, nil)
 	if err != nil {
@@ -39,33 +49,41 @@ func (m *EBPFQoSMonitor) GetPacketStats() (BPFStats, error) {
 	}
 
 	numCPUs := runtime.NumCPU()
-	
+
 	// Read TOTAL (key 0)
 	var totalKey uint32 = 0
 	totalVals := make([]uint64, numCPUs)
 	if err := m.ebpfMap.Lookup(&totalKey, &totalVals); err == nil {
-		for _, v := range totalVals { stats.Total += v }
+		for _, v := range totalVals {
+			stats.Total += v
+		}
 	}
 
 	// Read PASSED (key 1)
 	var passedKey uint32 = 1
 	passedVals := make([]uint64, numCPUs)
 	if err := m.ebpfMap.Lookup(&passedKey, &passedVals); err == nil {
-		for _, v := range passedVals { stats.Passed += v }
+		for _, v := range passedVals {
+			stats.Passed += v
+		}
 	}
 
 	// Read DROPPED (key 2)
 	var droppedKey uint32 = 2
 	droppedVals := make([]uint64, numCPUs)
 	if err := m.ebpfMap.Lookup(&droppedKey, &droppedVals); err == nil {
-		for _, v := range droppedVals { stats.Dropped += v }
+		for _, v := range droppedVals {
+			stats.Dropped += v
+		}
 	}
 
 	// Read FORWARDED (key 3)
 	var fwdKey uint32 = 3
 	fwdVals := make([]uint64, numCPUs)
 	if err := m.ebpfMap.Lookup(&fwdKey, &fwdVals); err == nil {
-		for _, v := range fwdVals { stats.Forwarded += v }
+		for _, v := range fwdVals {
+			stats.Forwarded += v
+		}
 	}
 
 	return stats, nil
@@ -74,13 +92,11 @@ func (m *EBPFQoSMonitor) GetPacketStats() (BPFStats, error) {
 func (m *EBPFQoSMonitor) GetEstimatedLatencyMs(ueID string) int64 {
 	// Baseline derived from packet stats activity (simulated bridging logic)
 	stats, err := m.GetPacketStats()
-	if err != nil || stats.Total == 0 {
+	if err != nil {
 		return 25 // fallback baseline
 	}
-	
-	// Heuristic: latency increases slightly under heavy drop rates
-	dropRatio := float64(stats.Dropped) / float64(stats.Total)
-	return int64(15 + (dropRatio * 100))
+
+	return estimateLatencyMsFromStats(stats)
 }
 
 type MockQoSMonitor struct{}
