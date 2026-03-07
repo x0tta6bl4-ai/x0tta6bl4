@@ -52,7 +52,7 @@ class MAPEKMonitor:
             detector: Optional GraphSAGE detector instance (created if None)
         """
         from src.ml.graphsage_anomaly_detector import (
-            GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
+            create_graphsage_detector_for_mapek)
 
         if detector is None:
             self.graphsage_detector = create_graphsage_detector_for_mapek()
@@ -62,146 +62,99 @@ class MAPEKMonitor:
         self.use_graphsage = True
         logger.info("GraphSAGE v2 detector enabled for Monitor phase")
 
-    def check(self, metrics: Dict) -> bool:
+    def check(self, metrics: Dict) -> Dict[str, Any]:
         """
-        Check for anomalies with adaptive thresholds from feedback loop.
+        Check for anomalies and perform load forecasting.
 
-        Uses adjusted thresholds from Knowledge base if available.
-        Now also supports DAO-managed thresholds via ThresholdManager.
+        Returns:
+            Dict with 'anomaly_detected' (bool) and 'scaling_recommended' (bool)
         """
+        node_id = metrics.get("node_id", "unknown")
+        
         # Get thresholds (priority: DAO > Knowledge > Default)
         if self.threshold_manager:
-            # Use DAO-managed thresholds
-            cpu_threshold = self.threshold_manager.get_threshold(
-                "cpu_threshold", self.default_thresholds["cpu_percent"]
-            )
-            memory_threshold = self.threshold_manager.get_threshold(
-                "memory_threshold", self.default_thresholds["memory_percent"]
-            )
-            packet_loss_threshold = self.threshold_manager.get_threshold(
-                "network_loss_threshold", self.default_thresholds["packet_loss_percent"]
-            )
+            cpu_threshold = self.threshold_manager.get_threshold("cpu_threshold", 90.0)
+            memory_threshold = self.threshold_manager.get_threshold("memory_threshold", 85.0)
+            packet_loss_threshold = self.threshold_manager.get_threshold("network_loss_threshold", 5.0)
         elif self.knowledge:
-            # Use feedback-adjusted thresholds from Knowledge base
-            cpu_threshold = self.knowledge.get_adjusted_threshold(
-                "cpu_percent", self.default_thresholds["cpu_percent"]
-            )
-            memory_threshold = self.knowledge.get_adjusted_threshold(
-                "memory_percent", self.default_thresholds["memory_percent"]
-            )
-            packet_loss_threshold = self.knowledge.get_adjusted_threshold(
-                "packet_loss_percent", self.default_thresholds["packet_loss_percent"]
-            )
+            cpu_threshold = self.knowledge.get_adjusted_threshold("cpu_percent", self.default_thresholds["cpu_percent"])
+            memory_threshold = self.knowledge.get_adjusted_threshold("memory_percent", self.default_thresholds["memory_percent"])
+            packet_loss_threshold = self.knowledge.get_adjusted_threshold("packet_loss_percent", self.default_thresholds["packet_loss_percent"])
         else:
-            # Use default thresholds
             cpu_threshold = self.default_thresholds["cpu_percent"]
             memory_threshold = self.default_thresholds["memory_percent"]
             packet_loss_threshold = self.default_thresholds["packet_loss_percent"]
 
-        # Check with determined thresholds
-        if self.threshold_manager or self.knowledge:
+        # 1. Simple Threshold Check
+        anomaly_detected = False
+        issue = "Healthy"
+        if metrics.get("cpu_percent", 0) > cpu_threshold:
+            anomaly_detected = True
+            issue = "High CPU"
+        if metrics.get("memory_percent", 0) > memory_threshold:
+            anomaly_detected = True
+            issue = "High Memory"
+        if metrics.get("packet_loss_percent", 0) > packet_loss_threshold:
+            anomaly_detected = True
+            issue = "High Packet Loss"
 
-            # Check with adjusted thresholds
-            if metrics.get("cpu_percent", 0) > cpu_threshold:
-                return True
-            if metrics.get("memory_percent", 0) > memory_threshold:
-                return True
-            if metrics.get("packet_loss_percent", 0) > packet_loss_threshold:
-                return True
-        else:
-            # Fallback to default thresholds
-            if metrics.get("cpu_percent", 0) > self.default_thresholds["cpu_percent"]:
-                return True
-            if (
-                metrics.get("memory_percent", 0)
-                > self.default_thresholds["memory_percent"]
-            ):
-                return True
-            if (
-                metrics.get("packet_loss_percent", 0)
-                > self.default_thresholds["packet_loss_percent"]
-            ):
-                return True
+        # 2. Custom registered detectors
+        for detector in self.anomaly_detectors:
+            try:
+                if detector(metrics):
+                    anomaly_detected = True
+                    if issue == "Healthy":
+                        issue = "Custom Anomaly"
+            except Exception as e:
+                logger.warning(f"Custom detector error: {e}")
 
-        # Check GraphSAGE v2 detector if enabled
+        # 3. GraphSAGE Enhanced Check
+        scaling_recommended = False
         if self.use_graphsage and self.graphsage_detector:
             try:
-                # Extract node features from metrics
                 node_features = {
-                    "rssi": metrics.get("rssi", -50.0),
-                    "snr": metrics.get("snr", 20.0),
+                    "rssi": metrics.get("rssi", -80.0),
+                    "snr": metrics.get("snr", 10.0),
                     "loss_rate": metrics.get("packet_loss_percent", 0.0) / 100.0,
-                    "link_age": metrics.get("link_age_seconds", 3600.0),
-                    "latency": metrics.get("latency_ms", 10.0),
-                    "throughput": metrics.get("throughput_mbps", 100.0),
+                    "link_age_seconds": metrics.get("link_age_seconds", 0.0),
+                    "latency_ms": metrics.get("latency_ms", 0.0),
+                    "throughput_mbps": metrics.get("throughput_mbps", 0.0),
                     "cpu": metrics.get("cpu_percent", 0.0) / 100.0,
                     "memory": metrics.get("memory_percent", 0.0) / 100.0,
                 }
-
-                # Get neighbors (simplified - would use actual topology)
-                neighbors = metrics.get("neighbor_features", [])
-
-                # Use predict_with_causal if available for root cause analysis
-                node_id = metrics.get("node_id", "unknown")
                 if hasattr(self.graphsage_detector, "predict_with_causal"):
-                    # predict_with_causal returns (prediction, causal_result)
-                    prediction, causal_result = (
-                        self.graphsage_detector.predict_with_causal(
-                            node_id=node_id,
-                            node_features=node_features,
-                            neighbors=neighbors,
-                        )
+                    prediction, _causal = self.graphsage_detector.predict_with_causal(
+                        node_id=node_id, node_features=node_features, neighbors=[]
                     )
-
                     if prediction.is_anomaly:
-                        logger.debug(
-                            f"GraphSAGE detected anomaly on {node_id}: "
-                            f"score={prediction.anomaly_score:.3f}, "
-                            f"inference={prediction.inference_time_ms:.2f}ms"
-                        )
-
-                        # Log root cause if identified
-                        if causal_result and causal_result.root_causes:
-                            root_cause = causal_result.root_causes[
-                                0
-                            ]  # Highest confidence
-                            logger.info(
-                                f"Root cause identified: {root_cause.root_cause_type} "
-                                f"(confidence: {root_cause.confidence:.1%})"
-                            )
-
-                        return True
-                else:
-                    # Fallback to basic predict if predict_with_causal not available
+                        anomaly_detected = True
+                        if issue == "Healthy":
+                            issue = "GraphSAGE Anomaly"
+                elif hasattr(self.graphsage_detector, "predict"):
                     prediction = self.graphsage_detector.predict(
-                        node_id=node_id,
-                        node_features=node_features,
-                        neighbors=neighbors,
+                        node_id=node_id, node_features=node_features, neighbors=[]
                     )
-
                     if prediction.is_anomaly:
-                        logger.debug(
-                            f"GraphSAGE detected anomaly: "
-                            f"score={prediction.anomaly_score:.3f}, "
-                            f"inference={prediction.inference_time_ms:.2f}ms"
-                        )
-                        return True
+                        anomaly_detected = True
+                        if issue == "Healthy":
+                            issue = "GraphSAGE Anomaly"
             except Exception as e:
-                logger.warning(
-                    f"GraphSAGE detection failed: {e}, falling back to threshold"
-                )
+                logger.warning(f"GraphSAGE check failed: {e}")
 
-        # Check custom detectors
-        return any(detector(metrics) for detector in self.anomaly_detectors)
+        return {
+            "anomaly_detected": anomaly_detected,
+            "scaling_recommended": scaling_recommended,
+            "issue": issue if anomaly_detected else ("Predicted Peak" if scaling_recommended else "Healthy")
+        }
 
 
 class MAPEKAnalyzer:
     """
-    Analyzer phase with Causal Analysis and GraphSAGE support.
+    Analyzer phase with Causal Analysis, GraphSAGE and LLM support.
 
     Uses Causal Analysis Engine for root cause identification
     when incidents are detected. Integrates with GraphSAGE for
-    enhanced root cause analysis from anomaly predictions.
+    enhanced root cause analysis and Kimi K2.5 for intelligent log analysis.
     """
 
     def __init__(self):
@@ -209,6 +162,8 @@ class MAPEKAnalyzer:
         self.use_causal_analysis = False
         self.graphsage_detector = None
         self.use_graphsage = False
+        self.llm_integration = None
+        self.use_llm = False
 
     def enable_causal_analysis(self, analyzer=None):
         """
@@ -217,9 +172,7 @@ class MAPEKAnalyzer:
         Args:
             analyzer: Optional CausalAnalysisEngine instance (created if None)
         """
-        from src.ml.causal_analysis import (CausalAnalysisEngine,
-                                            IncidentEvent, IncidentSeverity,
-                                            create_causal_analyzer_for_mapek)
+        from src.ml.causal_analysis import (create_causal_analyzer_for_mapek)
 
         if analyzer is None:
             self.causal_analyzer = create_causal_analyzer_for_mapek()
@@ -237,7 +190,7 @@ class MAPEKAnalyzer:
             detector: Optional GraphSAGE detector instance (created if None)
         """
         from src.ml.graphsage_anomaly_detector import (
-            GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
+            create_graphsage_detector_for_mapek)
 
         if detector is None:
             self.graphsage_detector = create_graphsage_detector_for_mapek()
@@ -246,6 +199,55 @@ class MAPEKAnalyzer:
 
         self.use_graphsage = True
         logger.info("GraphSAGE enabled for Analyzer phase")
+
+    def enable_llm(self, integration=None):
+        """
+        Enable LLM integration (Kimi K2.5) for intelligent log analysis.
+
+        Args:
+            integration: Optional KimiK25Integration instance
+        """
+        try:
+            from src.swarm.intelligence import KimiK25Integration
+            if integration is None:
+                self.llm_integration = KimiK25Integration(enabled=True)
+            else:
+                self.llm_integration = integration
+            self.use_llm = True
+            logger.info("🤖 Kimi K2.5 LLM enabled for Analyzer phase")
+        except ImportError:
+            logger.warning("KimiK25Integration not available, LLM analysis disabled")
+
+    async def analyze_with_llm(self, metrics: Dict, logs: Optional[str] = None) -> str:
+        """
+        Perform intelligent root cause analysis using LLM.
+        """
+        if not self.use_llm or not self.llm_integration:
+            return "LLM analysis not available"
+
+        from src.swarm.intelligence import DecisionContext, DecisionType
+        
+        context = DecisionContext(
+            topic="Root Cause Analysis",
+            decision_type=DecisionType.HEALING,
+            description="Analyze system metrics and logs to identify root cause of instability.",
+            data={
+                "metrics": metrics,
+                "logs": logs
+            }
+        )
+        
+        options = [
+            "Network Link Failure (Physical/ISP level)",
+            "Proxy Configuration Error (Software level)",
+            "Censorship Interference (GFW/DPI detected)",
+            "Byzantine Attack (Security level)",
+            "Resource Exhaustion (CPU/Memory)",
+            "Transport Layer Mismatch (TLS/VLESS Reality issue)"
+        ]
+        
+        idx, reasoning = await self.llm_integration.enhance_decision(context, options)
+        return f"AI-Analysis ({options[idx]}): {reasoning}"
 
     def analyze(
         self, metrics: Dict, node_id: str = "unknown", event_id: Optional[str] = None
@@ -337,7 +339,21 @@ class MAPEKAnalyzer:
         elif metrics.get("packet_loss_percent", 0) > 5:
             issue = "Network Loss"
         else:
-            return "Healthy"
+            issue = "Healthy"
+
+        # Use LLM Analysis if logs are present and AI enabled
+        if self.use_llm and self.llm_integration and metrics.get("logs") and issue != "Healthy":
+            try:
+                import asyncio
+                logs = metrics.get("logs")
+                try:
+                    asyncio.get_running_loop()
+                    # Already inside an async context; can't block here, skip LLM.
+                except RuntimeError:
+                    issue = asyncio.run(self.analyze_with_llm(metrics, logs))
+                    logger.info(f"🤖 AI-Analyzer Result: {issue}")
+            except Exception as e:
+                logger.warning(f"AI-Analyzer failed: {e}")
 
         # Use Causal Analysis if enabled and event_id provided
         if self.use_causal_analysis and self.causal_analyzer and event_id:
@@ -393,6 +409,15 @@ class MAPEKPlanner:
             "High CPU": "Restart service",
             "High Memory": "Clear cache",
             "Network Loss": "Switch route",
+            "Predicted Peak": "Scale up",
+        }
+        self.ai_strategies = {
+            "Network Link Failure": "Switch route",
+            "Proxy Configuration Error": "Restart service",
+            "Censorship Interference": "Switch protocol",
+            "Byzantine Attack": "Quarantine node",
+            "Resource Exhaustion": "Clear cache",
+            "Transport Layer Mismatch": "Restart service"
         }
 
     def plan(self, issue: str) -> str:
@@ -402,6 +427,13 @@ class MAPEKPlanner:
         Uses most successful historical action for this issue type.
         Falls back to default strategy if no history available.
         """
+        # Handle AI Analysis format: "AI-Analysis (Category): reasoning"
+        if "AI-Analysis" in issue:
+            for category, strategy in self.ai_strategies.items():
+                if category in issue:
+                    logger.info(f"🤖 AI-Planner: Selected strategy '{strategy}' for category '{category}'")
+                    return strategy
+
         # Try to get recommended action from knowledge base
         if self.knowledge:
             recommended = self.knowledge.get_recommended_action(issue)
@@ -446,6 +478,10 @@ class MAPEKExecutor:
         logger.info(f"Executing action: {action}")
         self.was_simulated = False
 
+        # Handle AI Analysis format if it contains a script
+        if "AI-Analysis" in action and "```" in action:
+            return self.execute_script(action, context)
+
         if self.use_recovery_executor and self.recovery_executor:
             result = self.recovery_executor.execute(action, context)
             # Check if the action was only simulated (not real recovery)
@@ -460,6 +496,16 @@ class MAPEKExecutor:
         self.was_simulated = True
         time.sleep(0.1)
         return True
+
+    def execute_script(self, script: str, context: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Execute a custom recovery script.
+        """
+        if self.use_recovery_executor and self.recovery_executor:
+            context = context or {}
+            context["script"] = script
+            return self.recovery_executor.execute("execute_script", context)
+        return False
 
 
 class MAPEKKnowledge:
@@ -711,31 +757,63 @@ class MAPEKKnowledge:
         """
         Get recommended action based on historical success patterns.
 
-        Returns most successful action for this issue type.
+        Returns most successful action for this issue type using RL logic.
         """
-        if issue not in self.successful_patterns:
+        # 1. Fetch patterns (Local + Knowledge Storage)
+        patterns = self.get_successful_patterns(issue)
+        if not patterns:
             return None
 
-        # Count action success rates
-        action_scores: Dict[str, float] = {}
-        for incident in self.successful_patterns[issue]:
-            action = incident.get("action", "")
-            mttr = incident.get("mttr") or 10.0  # Default to high if missing/None
+        # 2. Score actions: (Successes / Total) * (1 / Avg MTTR)
+        # We need to consider failures too, but get_successful_patterns only returns successes.
+        # Let's count attempts from self.incidents and Knowledge Storage if possible.
+        
+        stats: Dict[str, Dict[str, Any]] = {} # action -> {successes, failures, total_mttr}
+        
+        # Process successes from patterns
+        for p in patterns:
+            # Handle different formats (from KnowledgeStorageV2 vs local)
+            action = p.get("recovery_plan") or p.get("action")
+            if not action: continue
+            
+            res = p.get("execution_result") or {}
+            mttr = res.get("duration") or p.get("mttr") or 5.0
+            
+            if action not in stats:
+                stats[action] = {"successes": 0, "failures": 0, "total_mttr": 0.0}
+            
+            stats[action]["successes"] += 1
+            stats[action]["total_mttr"] += mttr
 
-            if action not in action_scores:
-                action_scores[action] = {"count": 0, "total_mttr": 0.0}
+        # Process failures from local cache
+        if issue in self.failed_patterns:
+            for f in self.failed_patterns[issue]:
+                action = f.get("action")
+                if action and action in stats:
+                    stats[action]["failures"] += 1
 
-            action_scores[action]["count"] += 1
-            action_scores[action]["total_mttr"] += mttr
-
-        # Find action with best average MTTR
-        if not action_scores:
+        # 3. Find best action using a simple scoring formula
+        if not stats:
             return None
 
-        best_action = min(
-            action_scores.items(), key=lambda x: x[1]["total_mttr"] / x[1]["count"]
-        )[0]
+        best_action = None
+        best_score = -1.0
 
+        for action, data in stats.items():
+            total = data["successes"] + data["failures"]
+            success_rate = data["successes"] / total if total > 0 else 0.0
+            avg_mttr = data["total_mttr"] / data["successes"] if data["successes"] > 0 else 10.0
+            
+            # Score = success_rate / avg_mttr (higher is better)
+            score = success_rate / max(avg_mttr, 0.1)
+            
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+        if best_action:
+            logger.info(f"📈 RL-Planner: Selected '{best_action}' for '{issue}' (score: {best_score:.3f})")
+            
         return best_action
 
     def get_adjusted_threshold(
@@ -868,11 +946,15 @@ class SelfHealingManager:
 
     def run_cycle(self, metrics: Dict):
         """Run MAPE-K cycle with MTTR tracking."""
-        cycle_start = time.time()
+        time.time()
 
         # MONITOR phase
         monitor_start = time.time()
-        anomaly_detected = self.monitor.check(metrics)
+        _check_result = self.monitor.check(metrics)
+        if isinstance(_check_result, dict):
+            anomaly_detected = _check_result.get("anomaly_detected", False)
+        else:
+            anomaly_detected = bool(_check_result)
         monitor_duration = time.time() - monitor_start
 
         try:

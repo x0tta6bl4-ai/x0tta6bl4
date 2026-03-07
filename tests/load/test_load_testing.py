@@ -7,7 +7,6 @@ for various load patterns and scenarios.
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -349,7 +348,7 @@ class TestSystemPerformanceBenchmark:
         async def fast_operation():
             await asyncio.sleep(0.001)
 
-        results = await benchmark.benchmark_operation(
+        results = await system_benchmark.benchmark_operation(
             "fast_op", fast_operation, iterations=10
         )
 
@@ -374,7 +373,7 @@ class TestSystemPerformanceBenchmark:
                 raise RuntimeError("Simulated error")
             await asyncio.sleep(0.001)
 
-        results = await benchmark.benchmark_operation(
+        results = await system_benchmark.benchmark_operation(
             "failing_op", sometimes_failing_operation, iterations=9
         )
 
@@ -389,10 +388,10 @@ class TestSystemPerformanceBenchmark:
         async def op2():
             await asyncio.sleep(0.002)
 
-        await benchmark.benchmark_operation("op1", op1, iterations=5)
-        await benchmark.benchmark_operation("op2", op2, iterations=5)
+        await system_benchmark.benchmark_operation("op1", op1, iterations=5)
+        await system_benchmark.benchmark_operation("op2", op2, iterations=5)
 
-        summary = benchmark.get_benchmark_summary()
+        summary = system_benchmark.get_benchmark_summary()
         assert summary["total_benchmarks"] == 2
         assert "op1" in summary["benchmarks"]
         assert "op2" in summary["benchmarks"]
@@ -402,7 +401,7 @@ class TestSystemPerformanceBenchmark:
         async def noop():
             pass
 
-        results = await benchmark.benchmark_operation("noop", noop, iterations=0)
+        results = await system_benchmark.benchmark_operation("noop", noop, iterations=0)
         assert results["iterations"] == 0
 
 
@@ -815,7 +814,7 @@ class TestLoadTestingIntegration:
     @pytest.mark.asyncio
     async def test_benchmark_and_slo_validation(self):
         benchmark = SystemPerformanceBenchmark()
-        validator = SLOValidator()
+        SLOValidator()
 
         async def operation():
             await asyncio.sleep(0.001)

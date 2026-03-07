@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/rate_limit_middleware.py
+# hypothesis_version: 6.151.9
+
+[100, 300, 429, 1000, ',', '/health', '/metrics', 'RATE_LIMIT_BURST', 'RATE_LIMIT_RPS', 'RateLimitConfig', 'Retry-After', 'Too Many Requests', 'X-API-Key', 'X-Forwarded-For', 'X-RateLimit-Limit', 'X-Real-IP', 'active_buckets', 'block_duration', 'blocked_ips', 'burst_size', 'config', 'error', 'message', 'requests_per_second', 'retry_after', 'unknown']

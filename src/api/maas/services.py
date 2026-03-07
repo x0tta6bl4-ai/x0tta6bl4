@@ -11,7 +11,6 @@ import logging
 import os
 import secrets
 import time
-from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from threading import Lock
@@ -42,6 +41,33 @@ logger = logging.getLogger(__name__)
 
 _SHARED_STATE_STORE_LOCK = Lock()
 _SHARED_STATE_STORE: Optional["_SharedStateStore"] = None
+
+_ENV_TRUE_VALUES = {"1", "true", "yes", "on"}
+_ENV_FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """
+    Parse boolean env value safely.
+
+    Prevents bugs where non-empty strings like "false" are treated as truthy.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = str(raw).strip().lower()
+    if normalized in _ENV_TRUE_VALUES:
+        return True
+    if normalized in _ENV_FALSE_VALUES:
+        return False
+    return default
+
+
+def _env_value(name: str, default: str = "") -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return str(value).strip()
 
 
 class _SharedStateStore:
@@ -105,8 +131,7 @@ class _SharedStateStore:
 
 
 def _build_shared_state_store() -> _SharedStateStore:
-    enabled_flag = os.getenv("MAAS_SHARED_STATE_REDIS_ENABLED", "false").strip().lower()
-    if enabled_flag not in {"1", "true", "yes", "on"}:
+    if not _env_flag("MAAS_SHARED_STATE_REDIS_ENABLED", False):
         return _SharedStateStore()
 
     redis_url = (
@@ -363,9 +388,9 @@ class BillingService:
         # In production, integrate with actual Stripe library
         try:
             from src.billing.stripe_client import StripeClient
-            client = StripeClient()
+            StripeClient()
             # If PRODUCTION is not explicitly false, we assume real gateway
-            is_prod = os.getenv("ENVIRONMENT") == "production"
+            is_prod = _env_value("ENVIRONMENT", "development").lower() == "production"
             
             # Using our StripeClient to simulate session ID generation
             session_id = f"sess_{'prod' if is_prod else 'test'}_{secrets.token_hex(16)}"
@@ -480,8 +505,8 @@ class BillingService:
         network = os.getenv("ETH_NETWORK", "mainnet")
         
         if not api_key:
-            # Check if stub mode is explicitly enabled
-            stub_enabled = os.getenv("STUB_CRYPTO_ENABLED", "false").lower() == "true"
+            # Check if stub mode is explicitly enabled for development
+            stub_enabled = _env_flag("STUB_CRYPTO_ENABLED", False)
             
             if not stub_enabled:
                 logger.error(
@@ -496,10 +521,9 @@ class BillingService:
                     "or set STUB_CRYPTO_ENABLED=true for development only."
                 )
             
-            # Fall back to stub mode for development (explicitly enabled)
+            # Stub mode for development only - log warning prominently
             logger.warning(
-                "No ETHERSCAN_API_KEY or ALCHEMY_API_KEY configured. "
-                "Using stub verification (STUB_CRYPTO_ENABLED=true)."
+                "⚠️ STUB CRYPTO VERIFICATION (DEVELOPMENT ONLY) - NOT FOR PRODUCTION USE"
             )
             return self._stub_verify_crypto_payment(tx_hash, expected_amount)
         
@@ -621,9 +645,9 @@ class BillingService:
         """
         # Check multiple production indicators
         is_production = (
-            os.getenv("PRODUCTION", "false").lower() == "true" or
-            os.getenv("ENVIRONMENT", "development").lower() in ("production", "prod", "live") or
-            os.getenv("NODE_ENV", "development").lower() == "production"
+            _env_flag("PRODUCTION", False)
+            or _env_value("ENVIRONMENT", "development").lower() in ("production", "prod", "live")
+            or _env_value("NODE_ENV", "development").lower() == "production"
         )
         
         if is_production:
@@ -638,7 +662,7 @@ class BillingService:
         )
         
         return True
-
+    
     async def process_webhook(
         self,
         event_type: str,
@@ -707,18 +731,75 @@ class BillingService:
         return result
 
     async def _handle_invoice_paid(self, data: Dict) -> Dict[str, Any]:
-        """Handle invoice.paid event."""
+        """Handle invoice.paid event and update database."""
         customer_id = data.get("customer_id")
-        amount = data.get("amount", 0)
+        amount = data.get("amount", 0) / 100.0  # Stripe amounts are in cents
+        currency = data.get("currency", "usd")
+        
+        # In a real app, we would map customer_id to user_id via metadata or a mapping table
+        # For x0tta6bl4, we assume user_id is passed in subscription metadata
+        user_id_str = data.get("metadata", {}).get("user_id")
+        plan = data.get("metadata", {}).get("plan", "pro")
+        
+        if not user_id_str:
+            logger.warning(f"Invoice paid for customer {customer_id} but user_id missing in metadata — acknowledging payment")
+            return {
+                "status": "processed",
+                "action": "subscription_extended",
+                "customer_id": customer_id,
+            }
 
-        logger.info(f"Invoice paid for customer {customer_id}: ${amount}")
+        user_id = user_id_str
+        
+        from src.database import SessionLocal, User, Payment
+        db = SessionLocal()
+        
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                logger.error(f"User {user_id} not found in database")
+                return {"status": "error", "reason": "user_not_found"}
 
-        # Extend subscription period, update quotas, etc.
-        return {
-            "status": "processed",
-            "action": "subscription_extended",
-            "customer_id": customer_id,
-        }
+            # Update user plan and expiry (add 30 days)
+            from datetime import datetime, timedelta
+            user.plan = plan
+            # If already has expiry in future, add 30 days to it, otherwise from now
+            current_expiry = user.expires_at or datetime.utcnow()
+            if current_expiry < datetime.utcnow():
+                current_expiry = datetime.utcnow()
+            
+            user.expires_at = current_expiry + timedelta(days=30)
+            user.updated_at = datetime.utcnow()
+            
+            # Record payment
+            payment = Payment(
+                id=f"pay_{secrets.token_hex(8)}",
+                user_id=user_id,
+                order_id=data.get("id", f"stripe_{secrets.token_hex(8)}"),
+                amount=int(amount * 100), # Store in cents/minimal units
+                currency=currency.upper(),
+                payment_method="STRIPE",
+                status="verified",
+                verified_at=datetime.utcnow()
+            )
+            db.add(payment)
+            db.commit()
+            
+            logger.info(f"✅ Subscription extended for user {user_id} via SQLAlchemy")
+            return {
+                "status": "processed",
+                "action": "subscription_extended",
+                "customer_id": customer_id,
+                "user_id": user_id
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update user {user_id} after payment: {e}")
+            return {"status": "error", "reason": "db_update_failed"}
+        finally:
+            db.close()
+
+
 
     async def _handle_payment_failed(self, data: Dict) -> Dict[str, Any]:
         """Handle invoice.payment_failed event."""
@@ -792,6 +873,49 @@ class BillingService:
             "enterprise": 50,
         }
         return limits.get(plan, 1)
+
+    async def generate_monthly_invoice(self, user_id: str) -> Dict[str, Any]:
+        """
+        Generate monthly invoice for Enterprise users based on node count.
+        Cost: €10 per node per month (Utrecht 6G pricing).
+        """
+        from src.database import SessionLocal, User, MeshInstance, Invoice
+        import secrets
+        from datetime import datetime
+        
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user or user.plan != "enterprise":
+                return {"status": "skipped", "reason": "not_enterprise"}
+
+            meshes = db.query(MeshInstance).filter(MeshInstance.owner_id == user_id).all()
+            total_nodes = sum(m.nodes for m in meshes)
+            
+            # Pricing: €10 (1000 cents) per node
+            amount_cents = total_nodes * 1000 
+            
+            invoice = Invoice(
+                id=f"inv_{secrets.token_hex(8)}",
+                user_id=user_id,
+                total_amount=amount_cents,
+                currency="EUR",
+                status="issued",
+                period_start=datetime.utcnow().replace(day=1),
+                period_end=datetime.utcnow(),
+                issued_at=datetime.utcnow()
+            )
+            db.add(invoice)
+            db.commit()
+            
+            logger.info(f"🧾 Invoice generated for user {user_id}: {total_nodes} nodes, €{amount_cents/100:.2f}")
+            return {"status": "success", "invoice_id": invoice.id, "amount": amount_cents}
+        except Exception as e:
+            logger.error(f"Failed to generate invoice for {user_id}: {e}")
+            return {"status": "error", "reason": str(e)}
+        finally:
+            db.close()
+
 
 
 # ---------------------------------------------------------------------------
@@ -1119,17 +1243,38 @@ class MeshProvisioner:
 class UsageMeteringService:
     """
     Tracks and reports usage metrics for billing.
+    Uses shared state (Redis) for persistent tracking across restarts.
 
     Responsibilities:
-    - Request counting
+    - Request counting with quota enforcement
     - Bandwidth tracking
     - Storage metering
     - Usage reports
     """
 
-    def __init__(self, metrics: Optional[MetricsCollector] = None):
+    def __init__(self, metrics: Optional[MetricsCollector] = None, shared_state: Optional[Any] = None):
         self._metrics = metrics
+        self._shared_state = _resolve_shared_state_store(shared_state)
         self._usage_cache: Dict[str, Dict[str, float]] = {}
+
+    def _get_usage_key(self, mesh_id: str) -> str:
+        return f"maas:usage:{mesh_id}"
+
+    def _get_mesh_usage(self, mesh_id: str) -> Dict[str, float]:
+        """Fetch current usage from shared state or local cache."""
+        shared_usage = self._shared_state.get_json(self._get_usage_key(mesh_id))
+        if shared_usage:
+            return shared_usage
+        return self._usage_cache.get(mesh_id, {
+            "requests": 0,
+            "bandwidth_bytes": 0,
+            "storage_bytes": 0,
+        })
+
+    def _save_mesh_usage(self, mesh_id: str, usage: Dict[str, float]) -> None:
+        """Save usage to shared state and local cache."""
+        self._usage_cache[mesh_id] = usage
+        self._shared_state.set_json(self._get_usage_key(mesh_id), usage)
 
     def record_request(
         self,
@@ -1138,14 +1283,9 @@ class UsageMeteringService:
         latency_ms: float,
     ) -> None:
         """Record an API request."""
-        if mesh_id not in self._usage_cache:
-            self._usage_cache[mesh_id] = {
-                "requests": 0,
-                "bandwidth_bytes": 0,
-                "storage_bytes": 0,
-            }
-
-        self._usage_cache[mesh_id]["requests"] += 1
+        usage = self._get_mesh_usage(mesh_id)
+        usage["requests"] = usage.get("requests", 0) + 1
+        self._save_mesh_usage(mesh_id, usage)
 
         if self._metrics:
             self._metrics.record_meter(
@@ -1159,6 +1299,31 @@ class UsageMeteringService:
                 {"mesh_id": mesh_id},
             )
 
+    def is_within_limits(self, mesh_id: str, plan: str) -> bool:
+        """
+        Check if a mesh is within its plan's request and bandwidth limits.
+        """
+        from .constants import PLAN_REQUEST_LIMITS, PLAN_BANDWIDTH_LIMITS, PLAN_ALIASES
+        
+        normalized_plan = PLAN_ALIASES.get(plan, plan)
+        req_limit = PLAN_REQUEST_LIMITS.get(normalized_plan, 1000)
+        bw_limit = PLAN_BANDWIDTH_LIMITS.get(normalized_plan, 10 * 1024 * 1024)
+        
+        usage = self._get_mesh_usage(mesh_id)
+        current_requests = usage.get("requests", 0)
+        current_bw = usage.get("bandwidth_bytes", 0)
+        
+        if current_requests >= req_limit:
+            logger.warning(f"🚫 Request quota exceeded for mesh {mesh_id} ({normalized_plan})")
+            return False
+            
+        if current_bw >= bw_limit:
+            logger.warning(f"🚫 Bandwidth quota exceeded for mesh {mesh_id} ({normalized_plan})")
+            return False
+            
+        return True
+
+
     def record_bandwidth(
         self,
         mesh_id: str,
@@ -1166,13 +1331,10 @@ class UsageMeteringService:
         bytes_out: int,
     ) -> None:
         """Record bandwidth usage."""
-        if mesh_id not in self._usage_cache:
-            self._usage_cache[mesh_id] = {}
-
+        usage = self._get_mesh_usage(mesh_id)
         total = bytes_in + bytes_out
-        self._usage_cache[mesh_id]["bandwidth_bytes"] = (
-            self._usage_cache[mesh_id].get("bandwidth_bytes", 0) + total
-        )
+        usage["bandwidth_bytes"] = usage.get("bandwidth_bytes", 0) + total
+        self._save_mesh_usage(mesh_id, usage)
 
         if self._metrics:
             self._metrics.record_meter(
@@ -1187,10 +1349,9 @@ class UsageMeteringService:
         bytes_used: int,
     ) -> None:
         """Record storage usage."""
-        if mesh_id not in self._usage_cache:
-            self._usage_cache[mesh_id] = {}
-
-        self._usage_cache[mesh_id]["storage_bytes"] = bytes_used
+        usage = self._get_mesh_usage(mesh_id)
+        usage["storage_bytes"] = bytes_used
+        self._save_mesh_usage(mesh_id, usage)
 
         if self._metrics:
             self._metrics.record_meter(
@@ -1201,7 +1362,7 @@ class UsageMeteringService:
 
     def get_usage_report(self, mesh_id: str) -> Dict[str, Any]:
         """Get usage report for a mesh."""
-        usage = self._usage_cache.get(mesh_id, {})
+        usage = self._get_mesh_usage(mesh_id)
 
         return {
             "mesh_id": mesh_id,
@@ -1213,12 +1374,13 @@ class UsageMeteringService:
 
     def reset_usage(self, mesh_id: str) -> None:
         """Reset usage counters (e.g., after billing cycle)."""
-        if mesh_id in self._usage_cache:
-            self._usage_cache[mesh_id] = {
-                "requests": 0,
-                "bandwidth_bytes": 0,
-                "storage_bytes": 0,
-            }
+        usage = {
+            "requests": 0,
+            "bandwidth_bytes": 0,
+            "storage_bytes": 0,
+        }
+        self._save_mesh_usage(mesh_id, usage)
+
 
 
 # ---------------------------------------------------------------------------
@@ -1291,7 +1453,7 @@ class AuthService:
         return key
 
     def validate_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        """Validate an API key and return associated data."""
+        """Validate an API key and verify active subscription."""
         key_data = self._shared_state.get_json(self._api_key_store_key(api_key))
         if key_data is None:
             if self._shared_state_authoritative:
@@ -1301,7 +1463,32 @@ class AuthService:
         if key_data is None:
             return None
 
+        user_id = key_data.get("user_id")
+        if user_id:
+            from src.database import SessionLocal, User
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+                if not user:
+                    return None
+                
+                # Enforce subscription expiration
+                if user.expires_at and user.expires_at < datetime.utcnow():
+                    logger.warning(f"🚫 Access denied: Subscription for user {user_id} expired on {user.expires_at}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error checking user activity for {user_id}: {e}")
+                # DB schema error — key is structurally valid; fail open for availability
+                # NOTE: For financial operations, consider fail-closed: metrics.get("subscription_check_failed")
+                import logging as log
+                log.warning("SECURITY_AUDIT: Subscription check failed-open for API key")
+            finally:
+                db.close()
+
+
+
         key_data = dict(key_data)
+
 
         # Update last used
         key_data["last_used"] = datetime.utcnow().isoformat()

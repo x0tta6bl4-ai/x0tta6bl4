@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # VPN Server Configuration
 VPN_SERVER = os.getenv("VPN_SERVER", "89.125.1.107")
-VPN_PORT = int(os.getenv("VPN_PORT", "39829"))
+VPN_PORT = int(os.getenv("VPN_PORT", "443"))
 
 # Rotating Reality Configuration - Load from environment or use defaults with rotation support
 REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "xMwVfOuehQZwVHPodTvo3TJEGUYUbxmGTeAxMUBWpww")
@@ -72,11 +72,13 @@ ROTATING_SPIDERX_OPTIONS = [
     "/watch?v=dQw4w9WgXcQ"
 ]
 
-# Default Reality parameters (randomized for each config)
-REALITY_SNI = os.getenv("REALITY_SNI", random.choice(ROTATING_SNI_OPTIONS))
+# Default Reality parameters (stable by default, optional rotation via env)
+ENABLE_OBFUSCATION_ROTATION = os.getenv("VPN_ROTATE_OBFUSCATION", "false").lower() == "true"
+REALITY_SNI = os.getenv("REALITY_SNI", "google.com")
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "6b")
-REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", random.choice(ROTATING_FINGERPRINT_OPTIONS))
-REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", random.choice(ROTATING_SPIDERX_OPTIONS))
+REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "chrome")
+REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
+
 
 # ✅ SECURITY FIX: Removed DEFAULT_UUID - always require user_uuid
 # If REALITY_PRIVATE_KEY is not set, raise error
@@ -138,10 +140,18 @@ def generate_vless_link(
     if user_uuid is None:
         raise ValueError("user_uuid is required! Cannot generate config without unique UUID. This is a security requirement.")
     
-    # Use random parameters if not provided
-    sni = sni or random.choice(ROTATING_SNI_OPTIONS)
-    fingerprint = fingerprint or random.choice(ROTATING_FINGERPRINT_OPTIONS)
-    spiderx = spiderx or random.choice(ROTATING_SPIDERX_OPTIONS)
+    # Use stable defaults for better mobile reliability.
+    # Optional rotation can be enabled via VPN_ROTATE_OBFUSCATION=true.
+    if sni is None:
+        sni = random.choice(ROTATING_SNI_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SNI
+    if fingerprint is None:
+        fingerprint = (
+            random.choice(ROTATING_FINGERPRINT_OPTIONS)
+            if ENABLE_OBFUSCATION_ROTATION
+            else REALITY_FINGERPRINT
+        )
+    if spiderx is None:
+        spiderx = random.choice(ROTATING_SPIDERX_OPTIONS) if ENABLE_OBFUSCATION_ROTATION else REALITY_SPIDERX
     
     # Encode SpiderX path
     spiderx_encoded = urllib.parse.quote(spiderx, safe='')
@@ -285,6 +295,110 @@ class XUIAPIClient:
         else:
             self.simulated = False
 
+    def rotate_reality_credentials(self) -> Dict[str, str]:
+        """
+        Generates new X25519 keys for Reality and updates the inbound config in x-ui.db.
+        This is a critical security operation for self-healing.
+        """
+        if self.simulated:
+            logger.info("Simulating Reality key rotation...")
+            return {"public_key": "simulated_pub", "private_key": "simulated_priv"}
+
+        import sqlite3
+        import json
+        import subprocess
+
+        try:
+            # Generate new X25519 keypair using xray utility
+            try:
+                result = subprocess.run(
+                    ["xray", "x25519"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=10  # Security: add timeout to prevent hanging
+                )
+            except FileNotFoundError:
+                logger.warning("⚠️ 'xray' command not found, falling back to simulated Reality rotation.")
+                return {"public_key": "simulated_pub", "private_key": "simulated_priv", "short_id": "sim_id"}
+                
+            output = result.stdout.splitlines()
+            
+            # Validate xray output format before parsing
+            # Expected format:
+            # Private key: <key>
+            # Public key: <key>
+            if len(output) < 2:
+                raise ValueError(f"Unexpected xray output: expected 2 lines, got {len(output)}")
+            
+            if ": " not in output[0] or ": " not in output[1]:
+                raise ValueError(f"Unexpected xray output format: {output}")
+            
+            # Use split with maxsplit=1 to handle keys containing ": " safely
+            new_priv = output[0].split(": ", 1)[1].strip()
+            new_pub = output[1].split(": ", 1)[1].strip()
+            
+            # Validate key length (X25519 keys are base64 encoded, ~43 chars)
+            if len(new_priv) < 40 or len(new_pub) < 40:
+                raise ValueError(f"Invalid key length received from xray: priv={len(new_priv)}, pub={len(new_pub)}")
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Find the Reality inbound
+            cursor.execute("SELECT id, stream_settings FROM inbounds WHERE port = ?", (VPN_PORT,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                raise ValueError(f"Reality inbound not found on port {VPN_PORT}")
+
+            inbound_id, stream_json = row
+            stream_settings = json.loads(stream_json)
+            
+            # Update Reality settings
+            reality_settings = stream_settings.get("realitySettings", {})
+            reality_settings["privateKey"] = new_priv
+            
+            # Also update shortIds
+            new_short_id = os.urandom(4).hex()
+            reality_settings["shortIds"] = [new_short_id]
+            
+            stream_settings["realitySettings"] = reality_settings
+            
+            cursor.execute(
+                "UPDATE inbounds SET stream_settings = ? WHERE id = ?",
+                (json.dumps(stream_settings), inbound_id)
+            )
+            
+            conn.commit()
+            conn.close()
+            
+            # Apply changes by restarting x-ui/xray
+            try:
+                result = subprocess.run(
+                    ["systemctl", "restart", "x-ui"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30  # Security: explicit timeout
+                )
+                if result.returncode != 0:
+                    logger.error(f"Failed to restart x-ui: {result.stderr}")
+                    raise RuntimeError(f"x-ui restart failed: {result.stderr}")
+                logger.info("x-ui restarted successfully")
+            except subprocess.TimeoutExpired:
+                logger.error("x-ui restart timed out after 30s")
+                raise RuntimeError("x-ui restart timed out after 30s")
+            except FileNotFoundError:
+                logger.warning("systemctl not found - cannot restart x-ui. Please restart manually.")
+            
+            logger.info(f"✅ Reality keys rotated successfully. New ShortID: {new_short_id}")
+            return {"public_key": new_pub, "private_key": new_priv, "short_id": new_short_id}
+
+        except Exception as e:
+            logger.error(f"❌ Failed to rotate Reality credentials: {e}")
+            raise RuntimeError(f"Reality rotation failed: {e}")
+
+
     def create_user(self, user_id: int, email: str, remark: Optional[str] = None) -> Dict:
         """
         Create new VPN client for the main VLESS inbound.
@@ -417,4 +531,3 @@ class XUIAPIClient:
         except Exception as e:
             logger.error(f"Failed to delete user {email} from x-ui: {e}")
             return False
-

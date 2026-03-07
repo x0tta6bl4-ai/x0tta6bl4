@@ -1,9 +1,8 @@
 """Unit tests for src/core/mape_k_loop.py — MAPE-K autonomic loop."""
 
-import time
 from dataclasses import dataclass
 from enum import Enum
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -187,7 +186,8 @@ class TestExecutePhase:
 
     @pytest.mark.asyncio
     async def test_execute_dao_actions(self, loop):
-        from src.dao.governance import ActionDispatcher
+        from src.dao.governance import ActionDispatcher, ActionResult
+        from unittest.mock import patch
 
         loop.action_dispatcher = ActionDispatcher()
         directives = {
@@ -196,7 +196,13 @@ class TestExecutePhase:
                 {"type": "rotate_keys", "scope": "all"},
             ]
         }
-        actions = await loop._execute(directives)
+        # Patch _handle_rotate_keys to avoid real XUIAPIClient/VPN calls in unit tests
+        with patch.object(
+            ActionDispatcher,
+            "_handle_rotate_keys",
+            staticmethod(lambda action: ActionResult("rotate_keys", True, "mocked rotation")),
+        ):
+            actions = await loop._execute(directives)
         dao_actions = [a for a in actions if a.startswith("dao:")]
         assert len(dao_actions) == 2
         assert all("OK" in a for a in dao_actions)

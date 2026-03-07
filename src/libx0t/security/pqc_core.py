@@ -30,11 +30,11 @@ except ImportError:
     oqs = None
     LIBOQS_AVAILABLE = False
 
+logger = logging.getLogger(__name__)
+
 if os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true" and not LIBOQS_AVAILABLE:
     logger.critical("❌ CRITICAL: liboqs not available in PRODUCTION mode!")
     raise RuntimeError("Fail-closed: liboqs missing in production environment")
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

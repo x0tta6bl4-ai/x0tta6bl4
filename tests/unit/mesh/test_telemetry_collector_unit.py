@@ -1,7 +1,7 @@
 """Unit tests for MeshTelemetryCollector (telemetry_collector.py)."""
 import pytest
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ class TestCollectOnce:
         from src.mesh.telemetry_collector import MeshTelemetryCollector
         c = MeshTelemetryCollector()
 
-        asyncio.get_event_loop().run_until_complete(c._collect_once())
+        asyncio.run(c._collect_once())
         optimizer.update_route_metrics.assert_not_called()
 
     def test_updates_route_for_each_peer(self, mock_deps):
@@ -67,7 +67,7 @@ class TestCollectOnce:
         from src.mesh.telemetry_collector import MeshTelemetryCollector
         c = MeshTelemetryCollector()
 
-        asyncio.get_event_loop().run_until_complete(c._collect_once())
+        asyncio.run(c._collect_once())
         assert optimizer.update_route_metrics.call_count == 2
 
     def test_registers_new_routes(self, mock_deps):
@@ -83,7 +83,7 @@ class TestCollectOnce:
         from src.mesh.telemetry_collector import MeshTelemetryCollector
         c = MeshTelemetryCollector()
 
-        asyncio.get_event_loop().run_until_complete(c._collect_once())
+        asyncio.run(c._collect_once())
         optimizer.register_route.assert_called_once()
 
     def test_skips_peers_without_remote(self, mock_deps):
@@ -98,7 +98,7 @@ class TestCollectOnce:
         from src.mesh.telemetry_collector import MeshTelemetryCollector
         c = MeshTelemetryCollector()
 
-        asyncio.get_event_loop().run_until_complete(c._collect_once())
+        asyncio.run(c._collect_once())
         optimizer.update_route_metrics.assert_not_called()
 
     def test_existing_route_not_re_registered(self, mock_deps):
@@ -114,5 +114,5 @@ class TestCollectOnce:
         from src.mesh.telemetry_collector import MeshTelemetryCollector
         c = MeshTelemetryCollector()
 
-        asyncio.get_event_loop().run_until_complete(c._collect_once())
+        asyncio.run(c._collect_once())
         optimizer.register_route.assert_not_called()

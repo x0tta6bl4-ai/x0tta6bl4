@@ -14,7 +14,7 @@ from src.ml.anomaly import AnomalyConfig, AnomalyDetectionSystem
 from src.ml.decision import DecisionEngine, Policy, PolicyPriority
 from src.ml.lora import LoRAAdapter, LoRAConfig
 from src.ml.mlops import MLOpsManager, ModelMetadata
-from src.ml.rag import Document, RAGAnalyzer, VectorStore
+from src.ml.rag import Document, RAGAnalyzer
 
 # ========== RAG Tests ==========
 
@@ -28,7 +28,7 @@ class TestRAG:
         rag = RAGAnalyzer()
         assert rag is not None
         stats = rag.get_stats()
-        assert "documents_count" in stats
+        assert "documents_indexed" in stats
 
     @pytest.mark.asyncio
     async def test_document_indexing(self):
@@ -53,8 +53,8 @@ class TestRAG:
         rag = RAGAnalyzer()
 
         docs = [
-            Document(id="1", content="High latency issue resolution"),
-            Document(id="2", content="Memory optimization techniques"),
+            Document(id="1", content="High latency issue resolution", metadata={}),
+            Document(id="2", content="Memory optimization techniques", metadata={}),
         ]
 
         await rag.index_knowledge(docs)
@@ -78,7 +78,7 @@ class TestLoRA:
     async def test_lora_layer(self):
         """Test LoRA layer"""
         config = LoRAConfig(rank=4)
-        from src.ml.lora import LoRALayer
+        from src.ml.lora import LoRALayer  # public alias for _LoRALayer
 
         layer = LoRALayer(input_dim=32, output_dim=16, config=config)
 
@@ -268,7 +268,7 @@ class TestMLPerformance:
         import time
 
         start = time.time()
-        context = await rag.retrieve_context("test", k=5)
+        await rag.retrieve_context("test", k=5)
         elapsed = time.time() - start
 
         assert elapsed < 0.1  # Should be fast

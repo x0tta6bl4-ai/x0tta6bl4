@@ -1,5 +1,4 @@
 import uuid
-import json
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from src.core.app import app
@@ -95,8 +94,8 @@ def run_full_flow_test():
     ).all()
     for e in expired_escrows:
         e.status = "refunded"
-        l = db.query(MarketplaceListing).filter(MarketplaceListing.id == e.listing_id).first()
-        if l: l.status = "available"
+        listing = db.query(MarketplaceListing).filter(MarketplaceListing.id == e.listing_id).first()
+        if listing: listing.status = "available"
     db.commit()
     
     db.refresh(stale_escrow)
@@ -105,7 +104,7 @@ def run_full_flow_test():
     # 7. Audit Log Verification
     print("📑 Verifying Audit Logs...")
     logs = db.query(AuditLog).filter(AuditLog.user_id == test_user.id).all()
-    actions = [l.action for l in logs]
+    actions = [log.action for log in logs]
     print(f"Captured actions for test_user: {actions}")
     # Middleware logs like 'POST /api/v1/maas/marketplace/list' or explicit 'MARKETPLACE_LISTING_CREATED'
     assert any("marketplace/list" in a or "MARKETPLACE_LISTING_CREATED" in a for a in actions)

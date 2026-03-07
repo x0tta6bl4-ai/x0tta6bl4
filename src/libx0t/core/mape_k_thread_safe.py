@@ -18,7 +18,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .thread_safe_stats import AtomicCounter, AtomicFloat, ThreadSafeMetrics
 
@@ -116,7 +116,7 @@ class ThreadSafeMAPEKLoop:
 
             try:
                 # MONITOR phase
-                phase_start = time.time()
+                time.time()
                 self.current_phase.update(1.0)  # MONITOR = 1
                 monitor_metrics = await self._monitor_phase(system_metrics, context)
 

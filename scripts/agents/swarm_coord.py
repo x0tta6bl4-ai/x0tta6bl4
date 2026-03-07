@@ -28,11 +28,31 @@ if GIT_COMMON_DIR_RAW.is_absolute():
 else:
     GIT_COMMON_DIR = (REPO_ROOT / GIT_COMMON_DIR_RAW).resolve()
 
-SWARM_STATE_DIR = GIT_COMMON_DIR / "swarm"
+SWARM_STATE_DIR = Path(
+    os.environ.get("X0TTA6BL4_SWARM_STATE_DIR", str(GIT_COMMON_DIR / "swarm"))
+).resolve()
 SWARM_STATE_FILE = SWARM_STATE_DIR / "coordination_state.json"
 SWARM_LOCK_FILE = SWARM_STATE_DIR / "coordination.lock"
 OWNERSHIP_FILE = REPO_ROOT / "docs" / "team" / "swarm_ownership.json"
+DEFAULT_ROADMAP_QUEUE_FILE = REPO_ROOT / "plans" / "ROADMAP_AGENT_QUEUE.json"
 MAX_EVENTS = 500
+MAX_REQUEST_NOTES = 200
+ROADMAP_TASK_MODES = {"verification", "validation"}
+ROADMAP_TASK_BUCKETS = {
+    "verification-ready",
+    "live-validation-only",
+    "blocked-horizon-2",
+}
+REQUEST_NOTE_KINDS = {
+    "start",
+    "intent",
+    "progress",
+    "decision",
+    "blocker",
+    "handoff",
+    "done",
+    "alert",
+}
 
 
 def utcnow() -> datetime:
@@ -82,6 +102,20 @@ def load_state() -> dict[str, Any]:
             "agents": {},
             "leases": {},
             "events": [],
+            "request_channel": {
+                "active_request_id": None,
+                "next_request_seq": 1,
+                "items": {},
+            },
+            "roadmap_dispatch": {
+                "version": 1,
+                "queue_file": "",
+                "synced_at": None,
+                "synced_by": None,
+                "derived_from": [],
+                "agents": {},
+                "tasks": [],
+            },
         }
     with SWARM_STATE_FILE.open("r", encoding="utf-8") as fh:
         state = json.load(fh)
@@ -90,6 +124,18 @@ def load_state() -> dict[str, Any]:
     state.setdefault("agents", {})
     state.setdefault("leases", {})
     state.setdefault("events", [])
+    request_channel = state.setdefault("request_channel", {})
+    request_channel.setdefault("active_request_id", None)
+    request_channel.setdefault("next_request_seq", 1)
+    request_channel.setdefault("items", {})
+    roadmap_dispatch = state.setdefault("roadmap_dispatch", {})
+    roadmap_dispatch.setdefault("version", 1)
+    roadmap_dispatch.setdefault("queue_file", "")
+    roadmap_dispatch.setdefault("synced_at", None)
+    roadmap_dispatch.setdefault("synced_by", None)
+    roadmap_dispatch.setdefault("derived_from", [])
+    roadmap_dispatch.setdefault("agents", {})
+    roadmap_dispatch.setdefault("tasks", [])
     return state
 
 
@@ -100,6 +146,255 @@ def save_state(state: dict[str, Any]) -> None:
         json.dump(state, fh, ensure_ascii=True, indent=2, sort_keys=True)
         fh.write("\n")
     os.replace(tmp_file, SWARM_STATE_FILE)
+
+
+def ensure_request_agent(agent: str) -> None:
+    if not agent:
+        raise ValueError("request agent cannot be empty")
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+    if any(ch not in allowed for ch in agent):
+        raise ValueError(
+            "request agent may only contain letters, digits, '-', '_' or '.'"
+        )
+
+
+def request_channel(state: dict[str, Any]) -> dict[str, Any]:
+    channel = state.setdefault("request_channel", {})
+    channel.setdefault("active_request_id", None)
+    channel.setdefault("next_request_seq", 1)
+    channel.setdefault("items", {})
+    return channel
+
+
+def roadmap_dispatch(state: dict[str, Any]) -> dict[str, Any]:
+    dispatch = state.setdefault("roadmap_dispatch", {})
+    dispatch.setdefault("version", 1)
+    dispatch.setdefault("queue_file", "")
+    dispatch.setdefault("synced_at", None)
+    dispatch.setdefault("synced_by", None)
+    dispatch.setdefault("derived_from", [])
+    dispatch.setdefault("agents", {})
+    dispatch.setdefault("tasks", [])
+    return dispatch
+
+
+def touch_agent_state(state: dict[str, Any], agent: str, now: datetime) -> None:
+    agents_state = state.setdefault("agents", {})
+    current = agents_state.get(agent, {})
+    active_leases = len(
+        [path for path, lease in state.setdefault("leases", {}).items() if lease.get("agent") == agent]
+    )
+    ttl_seconds = current.get("ttl_seconds", 0)
+    agents_state[agent] = {
+        "last_seen": isoformat_z(now),
+        "ttl_seconds": ttl_seconds,
+        "active_leases": active_leases,
+    }
+
+
+def allocate_request_id(channel: dict[str, Any]) -> str:
+    items = channel.setdefault("items", {})
+    seq = int(channel.get("next_request_seq", 1))
+    while True:
+        request_id = f"R{seq:04d}"
+        if request_id not in items:
+            channel["next_request_seq"] = seq + 1
+            return request_id
+        seq += 1
+
+
+def active_request(channel: dict[str, Any]) -> dict[str, Any] | None:
+    active_id = channel.get("active_request_id")
+    if not active_id:
+        return None
+    request = channel.setdefault("items", {}).get(active_id)
+    if request and request.get("status") == "open":
+        return request
+    return None
+
+
+def resolve_request(
+    state: dict[str, Any],
+    request_id: str | None,
+    *,
+    require_open: bool,
+) -> dict[str, Any]:
+    channel = request_channel(state)
+    resolved_id = request_id or channel.get("active_request_id")
+    if not resolved_id:
+        raise ValueError("no active request is open")
+    request = channel.setdefault("items", {}).get(resolved_id)
+    if not request:
+        raise ValueError(f"request '{resolved_id}' not found")
+    if require_open and request.get("status") != "open":
+        raise ValueError(f"request '{resolved_id}' is not open")
+    return request
+
+
+def append_request_note(
+    request: dict[str, Any],
+    *,
+    ts: str,
+    agent: str,
+    kind: str,
+    message: str,
+    files: list[str] | None = None,
+    next_action: str = "",
+) -> dict[str, Any]:
+    note = {
+        "ts": ts,
+        "agent": agent,
+        "kind": kind,
+        "message": message,
+    }
+    if files:
+        note["files"] = files
+    if next_action:
+        note["next"] = next_action
+
+    notes = request.setdefault("notes", [])
+    notes.append(note)
+    if len(notes) > MAX_REQUEST_NOTES:
+        del notes[: len(notes) - MAX_REQUEST_NOTES]
+    return note
+
+
+def request_summary(request: dict[str, Any], *, note_limit: int = 5) -> dict[str, Any]:
+    payload = {
+        "id": request.get("id"),
+        "summary": request.get("summary"),
+        "status": request.get("status"),
+        "opened_at": request.get("opened_at"),
+        "opened_by": request.get("opened_by"),
+        "closed_at": request.get("closed_at"),
+        "closed_by": request.get("closed_by"),
+        "result": request.get("result"),
+    }
+    notes = request.get("notes", [])
+    if note_limit > 0:
+        payload["notes_tail"] = notes[-note_limit:]
+    else:
+        payload["notes_tail"] = []
+    return payload
+
+
+def repo_relative(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path.resolve())
+
+
+def load_roadmap_queue(path: Path) -> dict[str, Any]:
+    queue_path = path.resolve()
+    if not queue_path.exists():
+        raise FileNotFoundError(f"roadmap queue file is missing: {queue_path}")
+    with queue_path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    agents = payload.get("agents", {})
+    if agents and not isinstance(agents, dict):
+        raise ValueError(f"roadmap queue agents must be an object: {queue_path}")
+    for agent_name, agent_meta in agents.items():
+        ensure_request_agent(str(agent_name))
+        if agent_meta is None:
+            continue
+        if not isinstance(agent_meta, dict):
+            raise ValueError(f"roadmap queue agent '{agent_name}' must be an object")
+        preferred_mode = str(agent_meta.get("preferred_mode", "")).strip()
+        if preferred_mode and preferred_mode not in ROADMAP_TASK_MODES:
+            raise ValueError(
+                f"roadmap agent '{agent_name}' has invalid preferred_mode '{preferred_mode}'"
+            )
+        allowed_modes = agent_meta.get("allowed_modes", [])
+        if allowed_modes:
+            if not isinstance(allowed_modes, list):
+                raise ValueError(
+                    f"roadmap agent '{agent_name}' allowed_modes must be a list"
+                )
+            for mode in allowed_modes:
+                mode_value = str(mode).strip()
+                if mode_value not in ROADMAP_TASK_MODES:
+                    raise ValueError(
+                        f"roadmap agent '{agent_name}' has invalid allowed_mode '{mode_value}'"
+                    )
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        raise ValueError(f"roadmap queue file has no tasks: {queue_path}")
+    seen_task_ids: set[str] = set()
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise ValueError("roadmap queue task entries must be objects")
+        for field in (
+            "id",
+            "agent",
+            "initiative",
+            "status",
+            "summary",
+            "exact_next_command",
+            "mode",
+        ):
+            if not str(task.get(field, "")).strip():
+                raise ValueError(f"roadmap task is missing required field '{field}'")
+        task_id = str(task.get("id", "")).strip()
+        if task_id in seen_task_ids:
+            raise ValueError(f"roadmap queue contains duplicate task id '{task_id}'")
+        seen_task_ids.add(task_id)
+        ensure_request_agent(str(task["agent"]))
+        task_mode = str(task.get("mode", "")).strip()
+        if task_mode not in ROADMAP_TASK_MODES:
+            raise ValueError(f"roadmap task '{task['id']}' has invalid mode '{task_mode}'")
+        task_bucket = str(task.get("bucket", "")).strip()
+        task_status = str(task.get("status", "")).strip()
+        if task_bucket and task_bucket not in ROADMAP_TASK_BUCKETS:
+            raise ValueError(f"roadmap task '{task_id}' has invalid bucket '{task_bucket}'")
+        if task_bucket == "blocked-horizon-2" and task_status != "blocked":
+            raise ValueError(
+                f"roadmap task '{task_id}' uses blocked-horizon-2 but status is '{task_status}'"
+            )
+        completed_evidence = str(task.get("completed_evidence", "")).strip()
+        if task_bucket == "live-validation-only" and task_status == "completed" and not completed_evidence:
+            raise ValueError(
+                f"roadmap task '{task_id}' marks live-validation-only work as completed "
+                "without completed_evidence"
+            )
+    return payload
+
+
+def roadmap_tasks_for_agent(
+    tasks: list[dict[str, Any]], agent: str, mode: str | None = None
+) -> list[dict[str, Any]]:
+    scoped = [task for task in tasks if task.get("agent") == agent]
+    if mode:
+        scoped = [task for task in scoped if str(task.get("mode", "")).strip() == mode]
+    if not scoped:
+        return []
+    ready = [task for task in scoped if task.get("status") == "ready"]
+    blocked = [task for task in scoped if task.get("status") == "blocked"]
+    other = [task for task in scoped if task.get("status") not in {"ready", "blocked"}]
+    return ready + blocked + other
+
+
+def roadmap_summary_payload(dispatch: dict[str, Any]) -> dict[str, Any]:
+    by_agent: dict[str, int] = {}
+    by_mode: dict[str, int] = {}
+    for task in dispatch.get("tasks", []):
+        agent = str(task.get("agent", "")).strip()
+        if not agent:
+            continue
+        by_agent[agent] = by_agent.get(agent, 0) + 1
+        mode = str(task.get("mode", "")).strip()
+        if mode:
+            by_mode[mode] = by_mode.get(mode, 0) + 1
+    return {
+        "queue_file": dispatch.get("queue_file", ""),
+        "synced_at": dispatch.get("synced_at"),
+        "synced_by": dispatch.get("synced_by"),
+        "derived_from": dispatch.get("derived_from", []),
+        "tasks_total": len(dispatch.get("tasks", [])),
+        "tasks_by_agent": by_agent,
+        "tasks_by_mode": by_mode,
+        "agents": dispatch.get("agents", {}),
+    }
 
 
 def list_staged_files() -> list[str]:
@@ -451,6 +746,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         purged = purge_expired_leases(state, now)
         leases = state.get("leases", {})
         agents = state.get("agents", {})
+        channel = request_channel(state)
+        current_request = active_request(channel)
+        dispatch = roadmap_dispatch(state)
         payload = {
             "updated_at": state.get("updated_at"),
             "purged_expired": purged,
@@ -458,6 +756,20 @@ def cmd_status(args: argparse.Namespace) -> int:
             "agents": agents,
             "leases": leases,
             "events_tail": state.get("events", [])[-20:],
+            "request_channel": {
+                "active_request_id": channel.get("active_request_id"),
+                "open_requests": len(
+                    [
+                        item
+                        for item in channel.get("items", {}).values()
+                        if item.get("status") == "open"
+                    ]
+                ),
+                "active_request": request_summary(current_request, note_limit=3)
+                if current_request
+                else None,
+            },
+            "roadmap_dispatch": roadmap_summary_payload(dispatch),
         }
 
     if args.json:
@@ -472,6 +784,23 @@ def cmd_status(args: argparse.Namespace) -> int:
         )
     if not leases:
         print("  (none)")
+    request_info = payload["request_channel"]
+    if request_info["active_request"]:
+        current = request_info["active_request"]
+        print(
+            f"[swarm] active request: {current['id']} "
+            f"({current['summary']}) [{current['status']}]"
+        )
+    else:
+        print("[swarm] active request: (none)")
+    roadmap_info = payload["roadmap_dispatch"]
+    if roadmap_info["synced_at"]:
+        print(
+            f"[swarm] roadmap sync: {roadmap_info['synced_at']} by "
+            f"{roadmap_info['synced_by']} ({roadmap_info['tasks_total']} task(s))"
+        )
+    else:
+        print("[swarm] roadmap sync: (none)")
     return 0
 
 
@@ -480,6 +809,314 @@ def cmd_cleanup(_: argparse.Namespace) -> int:
         removed = purge_expired_leases(state, utcnow())
         add_event(state, action="cleanup", agent="system", paths=[], note=f"removed={removed}")
     print(f"[swarm] cleanup removed {removed} expired lease(s).")
+    return 0
+
+
+def cmd_open_request(args: argparse.Namespace) -> int:
+    ensure_request_agent(args.agent)
+    summary = args.summary.strip()
+    if not summary:
+        print("[swarm] request summary cannot be empty", file=sys.stderr)
+        return 2
+
+    now = utcnow()
+    with locked_state() as state:
+        purge_expired_leases(state, now)
+        channel = request_channel(state)
+        existing = active_request(channel)
+        if existing:
+            if args.reuse_if_open:
+                touch_agent_state(state, args.agent, now)
+                payload = request_summary(existing, note_limit=args.note_tail)
+                if args.json:
+                    print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+                else:
+                    print(
+                        f"[swarm] active request already open: {existing['id']} "
+                        f"({existing['summary']})"
+                    )
+                return 0
+            print(
+                f"[swarm] request '{existing['id']}' is already open; "
+                "close it or use --reuse-if-open",
+                file=sys.stderr,
+            )
+            return 1
+
+        request_id = args.request_id or allocate_request_id(channel)
+        if request_id in channel["items"]:
+            print(f"[swarm] request '{request_id}' already exists", file=sys.stderr)
+            return 1
+
+        request = {
+            "id": request_id,
+            "summary": summary,
+            "status": "open",
+            "opened_at": isoformat_z(now),
+            "opened_by": args.agent,
+            "notes": [],
+        }
+        append_request_note(
+            request,
+            ts=isoformat_z(now),
+            agent=args.agent,
+            kind="start",
+            message=summary,
+            next_action=args.next,
+        )
+        channel["items"][request_id] = request
+        channel["active_request_id"] = request_id
+        touch_agent_state(state, args.agent, now)
+        add_event(state, action="open-request", agent=args.agent, paths=[], note=request_id)
+        payload = request_summary(request, note_limit=args.note_tail)
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+    else:
+        print(f"[swarm] opened request '{payload['id']}': {payload['summary']}")
+    return 0
+
+
+def cmd_show_request(args: argparse.Namespace) -> int:
+    with locked_state() as state:
+        request = resolve_request(state, args.request_id, require_open=args.open_only)
+        payload = request_summary(request, note_limit=args.note_tail)
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+        return 0
+
+    print(f"[swarm] request {payload['id']} [{payload['status']}]")
+    print(f"  summary: {payload['summary']}")
+    print(f"  opened_by: {payload['opened_by']} at {payload['opened_at']}")
+    if payload.get("closed_at"):
+        print(f"  closed_by: {payload.get('closed_by')} at {payload['closed_at']}")
+    if payload.get("result"):
+        print(f"  result: {payload['result']}")
+    return 0
+
+
+def cmd_post_note(args: argparse.Namespace) -> int:
+    ensure_request_agent(args.agent)
+    kind = args.kind.strip().lower()
+    if kind not in REQUEST_NOTE_KINDS:
+        print(
+            "[swarm] invalid note kind. Allowed: " + ", ".join(sorted(REQUEST_NOTE_KINDS)),
+            file=sys.stderr,
+        )
+        return 2
+
+    message = args.message.strip()
+    if not message:
+        print("[swarm] note message cannot be empty", file=sys.stderr)
+        return 2
+
+    files = unique_paths(args.files or [])
+    now = utcnow()
+    with locked_state() as state:
+        request = resolve_request(state, args.request_id, require_open=True)
+        note = append_request_note(
+            request,
+            ts=isoformat_z(now),
+            agent=args.agent,
+            kind=kind,
+            message=message,
+            files=files,
+            next_action=args.next,
+        )
+        touch_agent_state(state, args.agent, now)
+        add_event(
+            state,
+            action=f"request-note:{kind}",
+            agent=args.agent,
+            paths=files,
+            note=request["id"],
+        )
+
+    if args.json:
+        print(json.dumps(note, ensure_ascii=True, indent=2, sort_keys=True))
+    else:
+        print(f"[swarm] note posted to {request['id']} [{kind}]")
+    return 0
+
+
+def cmd_tail_notes(args: argparse.Namespace) -> int:
+    with locked_state() as state:
+        request = resolve_request(state, args.request_id, require_open=False)
+        notes = request.get("notes", [])[-args.limit :]
+        payload = {
+            "request": request_summary(request, note_limit=0),
+            "notes": notes,
+        }
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+        return 0
+
+    print(f"[swarm] notes for {payload['request']['id']} [{payload['request']['status']}]")
+    if not notes:
+        print("  (no notes)")
+        return 0
+    for note in notes:
+        files = f" files={','.join(note['files'])}" if note.get("files") else ""
+        next_action = f" next={note['next']}" if note.get("next") else ""
+        print(
+            f"  - {note['ts']} {note['agent']} [{note['kind']}] "
+            f"{note['message']}{files}{next_action}"
+        )
+    return 0
+
+
+def cmd_close_request(args: argparse.Namespace) -> int:
+    ensure_request_agent(args.agent)
+    result = args.result.strip()
+    if not result:
+        print("[swarm] close result cannot be empty", file=sys.stderr)
+        return 2
+
+    now = utcnow()
+    with locked_state() as state:
+        request = resolve_request(state, args.request_id, require_open=True)
+        append_request_note(
+            request,
+            ts=isoformat_z(now),
+            agent=args.agent,
+            kind="done",
+            message=result,
+            next_action=args.next,
+        )
+        request["status"] = "closed"
+        request["closed_at"] = isoformat_z(now)
+        request["closed_by"] = args.agent
+        request["result"] = result
+        channel = request_channel(state)
+        if channel.get("active_request_id") == request.get("id"):
+            channel["active_request_id"] = None
+        touch_agent_state(state, args.agent, now)
+        add_event(state, action="close-request", agent=args.agent, paths=[], note=request["id"])
+        payload = request_summary(request, note_limit=args.note_tail)
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+    else:
+        print(f"[swarm] closed request '{payload['id']}' with result: {payload['result']}")
+    return 0
+
+
+def cmd_roadmap_sync(args: argparse.Namespace) -> int:
+    ensure_request_agent(args.agent)
+    queue_path = Path(args.queue_file or DEFAULT_ROADMAP_QUEUE_FILE)
+    payload = load_roadmap_queue(queue_path)
+    now = utcnow()
+
+    with locked_state() as state:
+        purge_expired_leases(state, now)
+        dispatch = roadmap_dispatch(state)
+        dispatch["queue_file"] = repo_relative(queue_path)
+        dispatch["synced_at"] = isoformat_z(now)
+        dispatch["synced_by"] = args.agent
+        dispatch["derived_from"] = list(payload.get("derived_from", []))
+        dispatch["agents"] = dict(payload.get("agents", {}))
+        dispatch["tasks"] = list(payload.get("tasks", []))
+        touch_agent_state(state, args.agent, now)
+        add_event(
+            state,
+            action="roadmap-sync",
+            agent=args.agent,
+            paths=[repo_relative(queue_path)],
+            note=f"tasks={len(dispatch['tasks'])}",
+        )
+        if args.post_note:
+            request = active_request(request_channel(state))
+            if request:
+                summary_parts = []
+                for agent in sorted(dispatch.get("agents", {})):
+                    next_tasks = roadmap_tasks_for_agent(dispatch.get("tasks", []), agent)
+                    if next_tasks:
+                        summary_parts.append(
+                            f"{agent}={next_tasks[0]['id']}@{next_tasks[0].get('mode', '?')}"
+                        )
+                append_request_note(
+                    request,
+                    ts=isoformat_z(now),
+                    agent=args.agent,
+                    kind="decision",
+                    message="roadmap sync: " + ", ".join(summary_parts or ["no tasks"]),
+                    files=[repo_relative(queue_path)],
+                )
+
+        summary = roadmap_summary_payload(dispatch)
+
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=True, indent=2, sort_keys=True))
+        return 0
+
+    print(
+        f"[swarm] roadmap synced from {summary['queue_file']} by {summary['synced_by']} "
+        f"({summary['tasks_total']} task(s))"
+    )
+    return 0
+
+
+def cmd_roadmap_next(args: argparse.Namespace) -> int:
+    ensure_request_agent(args.agent)
+
+    with locked_state() as state:
+        dispatch = roadmap_dispatch(state)
+        queue_file = dispatch.get("queue_file", "") or repo_relative(DEFAULT_ROADMAP_QUEUE_FILE)
+        synced_at = dispatch.get("synced_at")
+        synced_by = dispatch.get("synced_by")
+    queue_path = REPO_ROOT / queue_file if not Path(queue_file).is_absolute() else Path(queue_file)
+    try:
+        payload = load_roadmap_queue(queue_path)
+        tasks = list(payload.get("tasks", []))
+        agents_meta = dict(payload.get("agents", {}))
+        queue_file = repo_relative(queue_path)
+    except Exception:
+        tasks = list(dispatch.get("tasks", []))
+        agents_meta = dict(dispatch.get("agents", {}))
+        if not tasks:
+            payload = load_roadmap_queue(DEFAULT_ROADMAP_QUEUE_FILE)
+            tasks = list(payload.get("tasks", []))
+            agents_meta = dict(payload.get("agents", {}))
+            queue_file = repo_relative(DEFAULT_ROADMAP_QUEUE_FILE)
+            synced_at = None
+            synced_by = None
+
+    requested_mode = (args.mode or "").strip()
+    preferred_mode = str(agents_meta.get(args.agent, {}).get("preferred_mode", "")).strip()
+    effective_mode = requested_mode or preferred_mode or None
+    if effective_mode and effective_mode not in ROADMAP_TASK_MODES:
+        print(f"[swarm] invalid roadmap mode '{effective_mode}'", file=sys.stderr)
+        return 2
+
+    next_tasks = roadmap_tasks_for_agent(tasks, args.agent, effective_mode)[: args.limit]
+    result = {
+        "agent": args.agent,
+        "mode": effective_mode,
+        "queue_file": queue_file,
+        "synced_at": synced_at,
+        "synced_by": synced_by,
+        "preferred_mode": preferred_mode or None,
+        "tasks": next_tasks,
+    }
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=True, indent=2, sort_keys=True))
+        return 0
+
+    suffix = f" mode={effective_mode}" if effective_mode else ""
+    if not next_tasks:
+        print(f"[swarm] roadmap next for {args.agent}{suffix}: (none)")
+        return 0
+
+    print(f"[swarm] roadmap next for {args.agent}{suffix}:")
+    for task in next_tasks:
+        blocker = f" blocker={task['blocker']}" if task.get("blocker") else ""
+        print(
+            f"  - {task['id']} [{task['status']}|{task.get('mode', '?')}] {task['summary']}"
+            f" next={task['exact_next_command']}{blocker}"
+        )
     return 0
 
 
@@ -521,6 +1158,71 @@ def build_parser() -> argparse.ArgumentParser:
     status = sub.add_parser("status", help="Print lease status")
     status.add_argument("--json", action="store_true")
     status.set_defaults(func=cmd_status)
+
+    open_request = sub.add_parser(
+        "open-request",
+        help="Open a request-scoped coordination thread in shared swarm state",
+    )
+    open_request.add_argument("--agent", required=True)
+    open_request.add_argument("--summary", required=True)
+    open_request.add_argument("--request-id", default="")
+    open_request.add_argument("--next", default="")
+    open_request.add_argument("--note-tail", type=int, default=3)
+    open_request.add_argument("--reuse-if-open", action=argparse.BooleanOptionalAction, default=True)
+    open_request.add_argument("--json", action="store_true")
+    open_request.set_defaults(func=cmd_open_request)
+
+    show_request = sub.add_parser("show-request", help="Show the active or selected request")
+    show_request.add_argument("--request-id", default="")
+    show_request.add_argument("--note-tail", type=int, default=5)
+    show_request.add_argument("--open-only", action="store_true")
+    show_request.add_argument("--json", action="store_true")
+    show_request.set_defaults(func=cmd_show_request)
+
+    post_note = sub.add_parser("post-note", help="Append a request note")
+    post_note.add_argument("--agent", required=True)
+    post_note.add_argument("--request-id", default="")
+    post_note.add_argument("--kind", required=True)
+    post_note.add_argument("--message", required=True)
+    post_note.add_argument("--files", nargs="*", default=[])
+    post_note.add_argument("--next", default="")
+    post_note.add_argument("--json", action="store_true")
+    post_note.set_defaults(func=cmd_post_note)
+
+    tail_notes = sub.add_parser("tail-notes", help="Show recent notes for a request")
+    tail_notes.add_argument("--request-id", default="")
+    tail_notes.add_argument("--limit", type=int, default=10)
+    tail_notes.add_argument("--json", action="store_true")
+    tail_notes.set_defaults(func=cmd_tail_notes)
+
+    close_request = sub.add_parser("close-request", help="Close the active or selected request")
+    close_request.add_argument("--agent", required=True)
+    close_request.add_argument("--request-id", default="")
+    close_request.add_argument("--result", required=True)
+    close_request.add_argument("--next", default="")
+    close_request.add_argument("--note-tail", type=int, default=5)
+    close_request.add_argument("--json", action="store_true")
+    close_request.set_defaults(func=cmd_close_request)
+
+    roadmap_sync = sub.add_parser(
+        "roadmap-sync",
+        help="Sync the machine-readable roadmap queue into shared swarm state",
+    )
+    roadmap_sync.add_argument("--agent", required=True)
+    roadmap_sync.add_argument("--queue-file", default=str(DEFAULT_ROADMAP_QUEUE_FILE))
+    roadmap_sync.add_argument("--post-note", action="store_true")
+    roadmap_sync.add_argument("--json", action="store_true")
+    roadmap_sync.set_defaults(func=cmd_roadmap_sync)
+
+    roadmap_next = sub.add_parser(
+        "roadmap-next",
+        help="Show the next roadmap-derived task(s) for an agent",
+    )
+    roadmap_next.add_argument("--agent", required=True)
+    roadmap_next.add_argument("--limit", type=int, default=3)
+    roadmap_next.add_argument("--mode", choices=sorted(ROADMAP_TASK_MODES))
+    roadmap_next.add_argument("--json", action="store_true")
+    roadmap_next.set_defaults(func=cmd_roadmap_next)
 
     cleanup = sub.add_parser("cleanup", help="Remove expired leases")
     cleanup.set_defaults(func=cmd_cleanup)

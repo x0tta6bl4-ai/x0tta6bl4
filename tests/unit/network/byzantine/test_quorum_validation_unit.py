@@ -1,6 +1,5 @@
 """Unit tests for quorum_validation module."""
 
-import time
 from unittest.mock import patch
 
 import pytest

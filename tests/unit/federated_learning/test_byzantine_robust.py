@@ -4,8 +4,6 @@ Tests for Enhanced Byzantine-Robust Aggregators.
 Tests performance optimizations, adaptive parameters, and outlier detection.
 """
 
-from typing import List
-from unittest.mock import Mock
 
 import pytest
 
@@ -46,7 +44,7 @@ class TestEnhancedKrumAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
     def test_adaptive_f_selection(self):
@@ -66,7 +64,7 @@ class TestEnhancedKrumAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
 
     def test_byzantine_detection(self):
         """Test Byzantine node detection"""
@@ -95,7 +93,7 @@ class TestEnhancedKrumAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed and detect Byzantine
-        assert result.success == True
+        assert result.success
         if hasattr(result, "suspected_byzantine"):
             assert len(result.suspected_byzantine) > 0
 
@@ -145,7 +143,7 @@ class TestAdaptiveTrimmedMeanAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
     def test_adaptive_beta_selection(self):
@@ -165,7 +163,7 @@ class TestAdaptiveTrimmedMeanAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
 
     def test_outlier_detection(self):
         """Test outlier detection"""
@@ -194,7 +192,7 @@ class TestAdaptiveTrimmedMeanAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
 
     def test_stats_tracking(self):
         """Test statistics tracking"""
@@ -267,7 +265,7 @@ class TestByzantineRobustPerformance:
         elapsed = time.time() - start
 
         # Should succeed and be reasonably fast
-        assert result.success == True
+        assert result.success
         assert elapsed < 1.0  # Should complete in < 1 second
 
     def test_adaptive_trimmed_mean_performance(self):
@@ -291,7 +289,7 @@ class TestByzantineRobustPerformance:
         elapsed = time.time() - start
 
         # Should succeed and be reasonably fast
-        assert result.success == True
+        assert result.success
         assert elapsed < 1.0  # Should complete in < 1 second
 
 

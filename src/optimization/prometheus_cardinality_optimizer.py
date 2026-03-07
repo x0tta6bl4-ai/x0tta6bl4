@@ -217,7 +217,7 @@ class CardinalityTracker:
                 message=f"Max unique metrics exceeded: {len(self.metrics)} >= {self.max_metrics}",
             )
             self.alerts.append(alert)
-            logger.error(f"Max unique metrics exceeded")
+            logger.error("Max unique metrics exceeded")
 
     def get_cardinality_report(self) -> Dict:
         total_cardinality = sum(m.current_cardinality for m in self.metrics.values())

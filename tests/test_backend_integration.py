@@ -8,12 +8,11 @@ Tests the interaction between PostgreSQL and MongoDB backends:
 - Cross-backend validation
 """
 
-import asyncio
 import os
 import pytest
 from datetime import datetime
 from typing import AsyncGenerator, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 # Skip tests if database dependencies not available
 pytest.importorskip("asyncpg", reason="asyncpg not installed")
@@ -21,7 +20,6 @@ pytest.importorskip("motor", reason="motor not installed")
 
 from src.event_sourcing.backends.base import (
     DatabaseBackend,
-    VersionConflictError,
 )
 from src.event_sourcing.backends.postgres import PostgresEventStore, PostgresConfig
 from src.event_sourcing.backends.mongodb import MongoDBEventStore, MongoDBConfig
@@ -30,8 +28,6 @@ from src.event_sourcing.backends.migration import (
     MigrationConfig,
     MigrationStatus,
     DualBackendEventStore,
-    migrate_postgresql_to_mongodb,
-    migrate_mongodb_to_postgresql,
 )
 from src.event_sourcing.event_store import Event, Snapshot, EventMetadata
 
@@ -147,7 +143,7 @@ class TestMockedBackendIntegration:
             write_to_both=True,
         )
         
-        result = await store.append_events("test-stream", sample_events[:1])
+        await store.append_events("test-stream", sample_events[:1])
         
         # Both backends should be called
         primary.append_events.assert_called_once()

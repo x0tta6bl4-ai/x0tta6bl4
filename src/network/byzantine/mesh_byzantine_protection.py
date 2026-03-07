@@ -6,7 +6,6 @@ Byzantine Protection для Mesh Network.
 """
 
 import logging
-import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set
 

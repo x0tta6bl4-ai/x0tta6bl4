@@ -11,16 +11,13 @@ Covers:
 - Edge cases: empty data, missing features, no torch fallback
 """
 
-import time
 from dataclasses import asdict
-from unittest.mock import MagicMock, call, mock_open, patch
+from unittest.mock import MagicMock, patch
 
-import numpy as np
-import pytest
 import torch
 
 from src.ml.graphsage_anomaly_detector import (
-    _QUANTIZATION_AVAILABLE, _TORCH_AVAILABLE, AnomalyPrediction,
+    AnomalyPrediction,
     GraphSAGEAnomalyDetector, GraphSAGEAnomalyDetectorV2,
     create_graphsage_detector_for_mapek)
 
@@ -803,7 +800,6 @@ class TestExplainAnomaly:
 
     def test_explain_exception_returns_empty(self):
         """When SHAP explainer raises, returns empty dict."""
-        import sys
 
         mock_shap = MagicMock()
         mock_shap.KernelExplainer.side_effect = ValueError("shap error")
@@ -944,7 +940,7 @@ class TestCreateDetectorForMapek:
         with patch.object(
             GraphSAGEAnomalyDetector, "train_from_telemetry"
         ) as mock_train:
-            det = create_graphsage_detector_for_mapek(
+            create_graphsage_detector_for_mapek(
                 pretrain=True,
                 num_snapshots=5,
                 epochs=2,

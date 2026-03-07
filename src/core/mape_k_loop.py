@@ -2,8 +2,17 @@
 import asyncio
 import logging
 import time
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, List
+
+# TD-008: MAPE-K duplication resolution
+warnings.warn(
+    "src.core.mape_k_loop is deprecated and will be removed. "
+    "Please use src.self_healing.mape_k.SelfHealingManager instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 from ..dao.ipfs_logger import DAOAuditLogger
 from ..mesh.network_manager import MeshNetworkManager
@@ -252,7 +261,6 @@ class MAPEKLoop:
         ANALYZE phase: Evaluate consciousness state using Swarm Intelligence & ML
         """
         swarm_risk_penalty = 0.0
-        ml_anomaly_risk = 0.0
 
         # 1. Neural Anomaly Detection
         try:
@@ -263,7 +271,6 @@ class MAPEKLoop:
             metric_vector = np.array([v for v in raw_metrics.values() if isinstance(v, (int, float))])
             anomaly, confidence = await detector_system.check_component("mesh_core", metric_vector)
             if anomaly:
-                ml_anomaly_risk = confidence
                 logger.warning(f"🧠 ML: Anomaly detected with confidence {confidence:.2f}")
         except Exception as e:
             logger.debug(f"ML analysis failed: {e}")

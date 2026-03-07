@@ -7,15 +7,13 @@ Tests all 4 new systems:
 4. Edge case handling
 """
 
-from datetime import datetime
 
 import pytest
 
 from src.ml.production_anomaly_detector import (
-    AnomalySeverity, get_production_anomaly_detector)
+    get_production_anomaly_detector)
 from src.monitoring.advanced_sla_metrics import AdvancedSLAManager, MetricType
-from src.monitoring.tracing_optimizer import (SamplingStrategy,
-                                              get_tracing_optimizer)
+from src.monitoring.tracing_optimizer import (get_tracing_optimizer)
 from src.testing.edge_case_validator import EdgeCaseValidator
 
 

@@ -10,7 +10,7 @@ Tests cover:
 - Error handling
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from telemetry_module import (EventSeverity, PerfBufferReader, TelemetryConfig,
@@ -25,7 +25,7 @@ class TestPerfBufferReaderInitialization:
         reader = PerfBufferReader(telemetry_config, MagicMock())
 
         assert reader.config == telemetry_config
-        assert reader.running == False
+        assert not reader.running
         assert len(reader.event_queue) == 0
         assert isinstance(reader.event_handlers, dict)
 
@@ -314,14 +314,14 @@ class TestPerfBufferReaderLifecycle:
         """Test starting reading."""
         reader.start_reading()
 
-        assert reader.running == True
+        assert reader.running
 
     def test_stop_reading(self, reader):
         """Test stopping reading."""
         reader.start_reading()
         reader.stop_reading()
 
-        assert reader.running == False
+        assert not reader.running
 
 
 class TestPerfBufferReaderEdgeCases:

@@ -8,7 +8,8 @@ SQLAlchemy-backed enterprise billing logic with Stripe integration.
 import logging
 import os
 import uuid
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import stripe
@@ -18,7 +19,11 @@ from sqlalchemy.orm import Session
 
 from src.database import User, Invoice, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
+                                         call_with_reliability,
+                                         mark_degraded_dependency)
 from src.utils.audit import record_audit_log
+from src.monitoring.maas_metrics import record_billing_error
 
 # Prefer legacy MaaS internals directly to avoid circular import
 try:
@@ -33,19 +38,59 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 APP_DOMAIN = os.getenv("APP_DOMAIN", "https://app.x0tta6bl4.com")
 
-# Stripe Plan Price IDs (should come from env in production)
+# Stripe Plan Price IDs (must be set via environment variables)
+# We enforce real configuration for non-dev environments.
 STRIPE_PLANS = {
-    "starter": os.getenv("STRIPE_PRICE_STARTER", "price_starter_id"),
-    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_id"),
-    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise_id"),
+    "starter": os.getenv("STRIPE_PRICE_STARTER"),
+    "pro": os.getenv("STRIPE_PRICE_PRO"),
+    "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE"),
 }
+
+# Validate Stripe configuration
+_is_production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
+_missing_plans = [k for k, v in STRIPE_PLANS.items() if not v]
+
+if _is_production and (not STRIPE_SECRET_KEY or _missing_plans):
+    logger.critical(f"FATAL: Stripe not fully configured for production. Missing plans: {_missing_plans}")
+elif _missing_plans:
+    logger.warning(f"Development mode: Stripe plans missing ({_missing_plans}). Payments will only work with mock/legacy mode.")
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
-else:
-    logger.warning("STRIPE_SECRET_KEY not set. Payments will fail.")
 
 router = APIRouter(prefix="/api/v1/maas/billing", tags=["MaaS Billing"])
+
+
+async def _execute_stripe_call(
+    operation,
+    *,
+    request: Optional[Request] = None,
+):
+    """Execute Stripe call via shared timeout/retry/circuit policy."""
+    try:
+        return await call_with_reliability(operation, dependency="stripe")
+    except CircuitBreakerOpen:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment service temporarily unavailable",
+        )
+    except RetryExhausted:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment gateway timeout",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Stripe call failed: %s", exc)
+        record_billing_error("stripe_timeout")
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(status_code=503, detail="Payment gateway error")
 
 class InvoiceResponse(BaseModel):
     id: str
@@ -75,8 +120,16 @@ async def create_subscription_session(
     db: Session = Depends(get_db)
 ):
     """Create a Stripe Checkout session for a subscription."""
+    # Validate plan and ensure price ID is configured
     if plan not in STRIPE_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan selected")
+    
+    price_id = STRIPE_PLANS.get(plan)
+    if not price_id:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Plan '{plan}' price not configured. Set STRIPE_PRICE_{plan.upper()}"
+        )
 
     if not STRIPE_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Stripe not configured")
@@ -84,31 +137,41 @@ async def create_subscription_session(
     try:
         # Create or retrieve Stripe Customer
         if not current_user.stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=current_user.email,
-                name=current_user.full_name,
-                metadata={"user_id": current_user.id}
-            )
+            async def _create_customer():
+                return await asyncio.to_thread(
+                    stripe.Customer.create,
+                    email=current_user.email,
+                    name=current_user.full_name,
+                    metadata={"user_id": current_user.id},
+                )
+
+            customer = await _execute_stripe_call(_create_customer, request=request)
             current_user.stripe_customer_id = customer.id
             db.commit()
 
-        checkout_session = stripe.checkout.Session.create(
-            customer=current_user.stripe_customer_id,
-            payment_method_types=['card'],
-            allow_promotion_codes=True,
-            line_items=[{
-                'price': STRIPE_PLANS[plan],
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url=APP_DOMAIN + "/billing/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=APP_DOMAIN + "/billing/cancel",
-            metadata={
-                "user_id": current_user.id,
-                "plan": plan
-            }
-        )
-        
+        async def _create_checkout():
+            return await asyncio.to_thread(
+                stripe.checkout.Session.create,
+                customer=current_user.stripe_customer_id,
+                payment_method_types=["card"],
+                allow_promotion_codes=True,
+                line_items=[
+                    {
+                        "price": STRIPE_PLANS[plan],
+                        "quantity": 1,
+                    }
+                ],
+                mode="subscription",
+                success_url=APP_DOMAIN + "/billing/success?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=APP_DOMAIN + "/billing/cancel",
+                metadata={
+                    "user_id": current_user.id,
+                    "plan": plan,
+                },
+            )
+
+        checkout_session = await _execute_stripe_call(_create_checkout, request=request)
+
         record_audit_log(
             db, request, "SUBSCRIPTION_SESSION_CREATED",
             user_id=current_user.id,
@@ -117,12 +180,15 @@ async def create_subscription_session(
         )
         
         return {"url": checkout_session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe subscription session: {e}")
         raise HTTPException(status_code=500, detail="Payment gateway error")
 
 @router.post("/customer-portal")
 async def create_customer_portal(
+    request: Request,
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db)
 ):
@@ -131,27 +197,63 @@ async def create_customer_portal(
         raise HTTPException(status_code=400, detail="No billing history found")
 
     try:
-        session = stripe.billing_portal.Session.create(
-            customer=current_user.stripe_customer_id,
-            return_url=APP_DOMAIN + "/billing",
-        )
+        async def _create_portal():
+            return await asyncio.to_thread(
+                stripe.billing_portal.Session.create,
+                customer=current_user.stripe_customer_id,
+                return_url=APP_DOMAIN + "/billing",
+            )
+
+        session = await _execute_stripe_call(_create_portal, request=request)
         return {"url": session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe portal session: {e}")
         raise HTTPException(status_code=500, detail="Portal error")
 
+async def sync_subscription_with_stripe(user: User, db: Session):
+    """
+    Directly query Stripe API to reconcile subscription status.
+    Call this periodically or on critical user actions.
+    """
+    if not user.stripe_customer_id or not STRIPE_SECRET_KEY:
+        return
+
+    try:
+        def _get_subs():
+            return stripe.Subscription.list(customer=user.stripe_customer_id, status="active", limit=1)
+
+        subs = await _execute_stripe_call(_get_subs)
+        if subs.data:
+            stripe_sub = subs.data[0]
+            # Map Stripe price ID back to local plan (inverse lookup)
+            price_id = stripe_sub['items']['data'][0]['price']['id']
+            plan_name = next((k for k, v in STRIPE_PLANS.items() if v == price_id), "free")
+            
+            user.plan = plan_name
+            user.stripe_subscription_id = stripe_sub.id
+        else:
+            user.plan = "free"
+            user.stripe_subscription_id = None
+        
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to sync subscription for user {user.id}: {e}")
+
+
 @router.get("/status", response_model=SubscriptionResponse)
 async def get_subscription_status(
-    current_user: User = Depends(get_current_user_from_maas)
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
 ):
-    """Fetch current subscription status from User model/Stripe."""
-    # In a real app, we'd sync this via webhooks. 
-    # Here we just return what's in the DB for the POC.
+    """Sync with Stripe then fetch current subscription status."""
+    await sync_subscription_with_stripe(current_user, db)
     return SubscriptionResponse(
         id=current_user.stripe_subscription_id,
         plan=current_user.plan,
         status="active" if current_user.stripe_subscription_id else "free",
-        current_period_end=None, # To be synced from Stripe
+        current_period_end=None, # In production, sync from stripe_sub['current_period_end']
         cancel_at_period_end=False
     )
 
@@ -205,6 +307,7 @@ async def list_invoices(
 @router.get("/invoices/{invoice_id}/checkout")
 async def create_checkout_session(
     invoice_id: str,
+    request: Request,
     current_user: User = Depends(require_permission("billing:pay")),
     db: Session = Depends(get_db)
 ):
@@ -220,31 +323,39 @@ async def create_checkout_session(
         raise HTTPException(status_code=500, detail="Stripe not configured")
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            customer_email=current_user.email,
-            payment_method_types=['card'],
-            allow_promotion_codes=True,
-            line_items=[
-                {
-                    'price_data': {
-                        'currency': inv.currency.lower(),
-                        'product_data': {
-                            'name': f"MaaS Mesh Usage ({inv.mesh_id})",
-                            'description': f"Period: {inv.period_start.date()} to {inv.period_end.date()}",
+        async def _create_invoice_checkout():
+            return await asyncio.to_thread(
+                stripe.checkout.Session.create,
+                customer_email=current_user.email,
+                payment_method_types=["card"],
+                allow_promotion_codes=True,
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": inv.currency.lower(),
+                            "product_data": {
+                                "name": f"MaaS Mesh Usage ({inv.mesh_id})",
+                                "description": f"Period: {inv.period_start.date()} to {inv.period_end.date()}",
+                            },
+                            "unit_amount": inv.total_amount,
                         },
-                        'unit_amount': inv.total_amount,
+                        "quantity": 1,
                     },
-                    'quantity': 1,
+                ],
+                mode="payment",
+                success_url=APP_DOMAIN
+                + f"/billing/success?session_id={{CHECKOUT_SESSION_ID}}&invoice_id={inv.id}",
+                cancel_url=APP_DOMAIN + f"/billing/cancel?invoice_id={inv.id}",
+                metadata={
+                    "invoice_id": inv.id,
+                    "user_id": current_user.id,
+                    "mesh_id": inv.mesh_id,
                 },
-            ],
-            mode='payment',
-            success_url=APP_DOMAIN + f"/billing/success?session_id={{CHECKOUT_SESSION_ID}}&invoice_id={inv.id}",
-            cancel_url=APP_DOMAIN + f"/billing/cancel?invoice_id={inv.id}",
-            metadata={
-                "invoice_id": inv.id,
-                "user_id": current_user.id,
-                "mesh_id": inv.mesh_id
-            }
+            )
+
+        checkout_session = await _execute_stripe_call(
+            _create_invoice_checkout,
+            request=request,
         )
         
         # Save session ID for reconciliation
@@ -252,6 +363,8 @@ async def create_checkout_session(
         db.commit()
         
         return {"url": checkout_session.url}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create Stripe checkout session: {e}")
         raise HTTPException(status_code=500, detail="Payment gateway error")
@@ -281,65 +394,126 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         session = data_object
         mode = session.get('mode')
         metadata = session.get('metadata', {})
-        user_id = metadata.get('user_id')
-        
+        session_id = session.get('id')
+        payment_status = session.get('payment_status')
+        if payment_status and payment_status not in {"paid", "no_payment_required"}:
+            logger.info(
+                "Ignoring checkout session %s with payment_status=%s",
+                session_id or "<missing>",
+                payment_status,
+            )
+            return {"status": "success", "skipped": "payment_not_completed"}
+        if session_id:
+            existing_paid = db.query(Invoice).filter(
+                Invoice.stripe_session_id == session_id,
+                Invoice.status == "paid",
+            ).first()
+            if existing_paid:
+                logger.info("Skipping already processed checkout session %s", session_id)
+                return {"status": "success", "idempotent": True}
+        elif mode == 'subscription':
+            logger.error("Missing checkout session id in webhook payload for subscription")
+            return {"status": "error", "reason": "missing_session_id"}
+
         if mode == 'subscription':
+            user_id = metadata.get('user_id')
+            user = None
+            if user_id:
+                user = db.query(User).filter(User.id == user_id).first()
+            customer_id = session.get('customer')
+            if not user and customer_id:
+                user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if not user:
+                logger.error("User not found for completed session %s", session_id or "<missing>")
+                return {"status": "error", "reason": "user_not_found"}
+
             plan = metadata.get('plan')
             subscription_id = session.get('subscription')
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                # Validate plan from metadata to prevent tampering
-                if plan not in STRIPE_PLANS:
-                    logger.error(
-                        "Invalid plan '%s' in Stripe webhook metadata for user %s",
-                        plan, user.id
-                    )
-                    return {"status": "error", "reason": "invalid_plan"}
-                
-                # Update user plan
-                user.plan = plan
-                user.stripe_subscription_id = subscription_id
-                
-                # Create a record for the initial payment in Invoice table
-                # Stripe amounts are in cents
-                amount_total = session.get('amount_total', 4900) 
-                currency = session.get('currency', 'usd').upper()
-                
+            # Validate plan from metadata to prevent tampering
+            if plan not in STRIPE_PLANS:
+                logger.error(
+                    "Invalid plan '%s' in Stripe webhook metadata for user %s",
+                    plan,
+                    user.id,
+                )
+                return {"status": "error", "reason": "invalid_plan"}
+
+            user.plan = plan
+            user.stripe_subscription_id = subscription_id
+
+            # Stripe amounts are in cents
+            try:
+                amount_total = int(session.get('amount_total', 4900))
+            except (TypeError, ValueError):
+                amount_total = 4900
+            if amount_total < 0:
+                amount_total = 0
+            currency = session.get('currency', 'usd').upper()
+
+            existing_invoice = db.query(Invoice).filter(
+                Invoice.stripe_session_id == session_id
+            ).first()
+            if existing_invoice:
+                existing_invoice.status = "paid"
+                existing_invoice.user_id = user.id
+                new_invoice = existing_invoice
+            else:
                 new_invoice = Invoice(
                     id=f"inv_{uuid.uuid4().hex[:8]}",
                     user_id=user.id,
-                    mesh_id="subscription", # Virtual mesh ID for sub billing
+                    mesh_id="subscription",
                     total_amount=amount_total,
                     currency=currency,
                     status="paid",
-                    stripe_session_id=session.get('id'),
+                    stripe_session_id=session_id,
                     period_start=datetime.utcnow(),
                     period_end=datetime.utcnow() + timedelta(days=30),
-                    issued_at=datetime.utcnow()
+                    issued_at=datetime.utcnow(),
                 )
                 db.add(new_invoice)
-                db.commit()
-                
-                record_audit_log(
-                    db, request, "SUBSCRIPTION_ACTIVATED",
-                    user_id=user.id,
-                    payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
-                    status_code=200
-                )
+
+            db.commit()
+
+            # Optional fiat->X0T bridge: only when explicitly requested in metadata.
+            bridge_flag = str(metadata.get("bridge_x0t", "")).strip().lower() in {"1", "true", "yes"}
+            if bridge_flag and amount_total > 0:
+                try:
+                    from src.api.maas_marketplace import _get_token_bridge
+                    bridge = _get_token_bridge()
+                    bridge.mesh_token.mint(
+                        user.id,
+                        float(amount_total),
+                        f"stripe_payment_{session_id}",
+                    )
+                    logger.info("Minted %s X0T for user %s via Stripe bridge", amount_total, user.id)
+                except Exception as exc:
+                    logger.error("Failed to bridge Stripe payment to X0T: %s", exc)
+
+            record_audit_log(
+                db, request, "SUBSCRIPTION_ACTIVATED",
+                user_id=user.id,
+                payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
+                status_code=200
+            )
         else:
             # payment mode or mode not set — handle invoice_id if present
             invoice_id = metadata.get('invoice_id')
             if invoice_id:
                 inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
                 if inv:
-                    inv.status = "paid"
-                    db.commit()
-                    record_audit_log(
-                        db, request, "INVOICE_PAID",
-                        user_id=inv.user_id,
-                        payload={"invoice_id": invoice_id},
-                        status_code=200
-                    )
+                    if inv.status != "paid":
+                        inv.status = "paid"
+                        if session_id:
+                            inv.stripe_session_id = session_id
+                        db.commit()
+                        record_audit_log(
+                            db, request, "INVOICE_PAID",
+                            user_id=inv.user_id,
+                            payload={"invoice_id": invoice_id},
+                            status_code=200
+                        )
+                    else:
+                        logger.info("Invoice %s already marked paid", invoice_id)
                 else:
                     logger.error("Invoice %s not found for webhook", invoice_id)
 

@@ -37,6 +37,14 @@ class TestPQCAvailability:
 class TestMLKEM768:
     """ML-KEM-768 Key Exchange Tests"""
 
+    @pytest.fixture(autouse=True)
+    def _skip_if_oqs_mocked(self):
+        """Skip tests that require real oqs when it is mocked by conftest."""
+        import oqs as _oqs
+        from unittest.mock import MagicMock
+        if isinstance(_oqs, MagicMock):
+            pytest.skip("oqs module is mocked; ML-KEM-768 tests require real oqs")
+
     def test_kem_initialization(self):
         """Test ML-KEM-768 initialization"""
         kem = get_pqc_key_exchange()
@@ -64,7 +72,7 @@ class TestMLKEM768:
     def test_keypair_expiration(self):
         """Test keypair expiration check"""
         kem = PQCKeyExchange()
-        keypair = kem.generate_keypair(validity_days=0)
+        kem.generate_keypair(validity_days=0)
         # Keypair with 0 days validity
 
     @pytest.mark.skipif(not PQCKeyExchange().enabled, reason="PQC not available")
@@ -92,6 +100,14 @@ class TestMLKEM768:
 
 class TestMLDSA65:
     """ML-DSA-65 Digital Signature Tests"""
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_oqs_mocked(self):
+        """Skip tests that require real oqs when it is mocked by conftest."""
+        import oqs as _oqs
+        from unittest.mock import MagicMock
+        if isinstance(_oqs, MagicMock):
+            pytest.skip("oqs module is mocked; ML-DSA-65 tests require real oqs")
 
     def test_dsa_initialization(self):
         """Test ML-DSA-65 initialization"""
@@ -200,7 +216,7 @@ class TestPQCHybrid:
         signature = hybrid.sign_certificate(cert_data)
 
         # Verify with signer's public key
-        keypair = hybrid.dsa.generate_keypair(key_id="verifier")
+        hybrid.dsa.generate_keypair(key_id="verifier")
 
         is_valid = hybrid.verify_certificate(
             cert_data,

@@ -27,6 +27,10 @@ class PacketType(IntEnum):
     RERR = 3   # Route Error
     HELLO = 4  # Neighbor Hello
     DATA = 5   # Data packet (for forwarding)
+    
+    # PQC Handshake (Custom)
+    HANDSHAKE_INIT = 10
+    HANDSHAKE_RESPONSE = 11
 
 
 @dataclass
@@ -173,13 +177,18 @@ class PacketHandler:
     
     def create_rrep(self, rreq: RoutingPacket, hop_count: int) -> RoutingPacket:
         """Create a Route Reply packet in response to RREQ."""
+        # rreq.origin is not preserved through serialization; fall back to rreq.source
+        # (for self-originated RREQs, source == origin).
+        requester = rreq.origin or rreq.source
+        # Encode the route target in payload so it survives serialization.
         packet = RoutingPacket(
             packet_type=PacketType.RREP,
             source=self.local_node_id,
-            destination=rreq.origin,
+            destination=requester,
             seq_num=self.next_seq_num(),
             hop_count=hop_count,
-            origin=rreq.destination
+            origin=rreq.destination,
+            payload=rreq.destination.encode()[:16].ljust(16, b'\x00'),
         )
         
         logger.debug(f"Created RREP to {rreq.origin} for {rreq.destination}")

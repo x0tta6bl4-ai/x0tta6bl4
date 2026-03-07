@@ -46,9 +46,9 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_get_sbom_known_version(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         # get_sbom возвращает dict из реестра (FastAPI конвертирует в SBOMResponse при HTTP)
-        assert result["version"] == "3.4.0-alpha"
+        assert result["version"] == "3.4.0"
         assert result["format"] == "CycloneDX-JSON"
         assert len(result["components"]) > 0
 
@@ -62,14 +62,14 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_sbom_components_contain_agent(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         names = [c["name"] for c in result["components"]]
         assert "x0tta6bl4-agent" in names
 
     @pytest.mark.asyncio
     async def test_sbom_has_attestation(self):
         from src.api.maas_supply_chain import get_sbom
-        result = await get_sbom("v3.4.0-alpha")
+        result = await get_sbom("v3.4.0")
         attestation = result.get("attestation")
         assert attestation is not None
         assert attestation.get("type") == "Sigstore-Bundle"
@@ -77,7 +77,7 @@ class TestSupplyChainSBOM:
     @pytest.mark.asyncio
     async def test_verify_binary_known_version(self):
         from src.api.maas_supply_chain import verify_binary
-        result = await verify_binary("v3.4.0-alpha", "sha256:abc123")
+        result = await verify_binary("v3.4.0", "sha256:abc123")
         assert result["status"] == "verified"
         assert result["pqc_compliant"] is True
 
@@ -127,10 +127,29 @@ class TestPlaybooks:
         assert result.algorithm == "HMAC-SHA256"
 
     @pytest.mark.asyncio
+    async def test_create_playbook_rejects_missing_signature(self):
+        """Playbook creation must fail (500) if signer returns no signature."""
+        from fastapi import HTTPException
+        from src.api.maas_playbooks import create_playbook, PlaybookCreateRequest, PlaybookAction
+
+        req = PlaybookCreateRequest(
+            name="missing-signature",
+            target_nodes=["node-z"],
+            actions=[PlaybookAction(action="restart", params={})],
+            expires_in_sec=3600,
+        )
+        with patch("src.api.maas_playbooks.token_signer") as mock_signer:
+            mock_signer.sign_token.return_value = {}
+            with pytest.raises(HTTPException) as exc_info:
+                await create_playbook("mesh-fallback", req, current_user=_admin_user())
+
+        assert exc_info.value.status_code == 500
+        assert "signature" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
     async def test_create_playbook_enqueues_for_each_node(self):
         from src.api.maas_playbooks import (
-            create_playbook, poll_playbooks,
-            PlaybookCreateRequest, PlaybookAction, _node_queues
+            create_playbook, PlaybookCreateRequest, PlaybookAction, _node_queues
         )
         node_id = "enqueue-test-node"
         req = PlaybookCreateRequest(
@@ -156,10 +175,11 @@ class TestPlaybooks:
             target_nodes=[node_id],
             actions=[PlaybookAction(action="restart", params={})],
         )
-        with patch("src.api.maas_playbooks.token_signer") as mock_signer:
+        with patch("src.api.maas_playbooks.token_signer") as mock_signer, \
+             patch("src.api.maas_playbooks._has_valid_signature", return_value=True):
             mock_signer.sign_token.return_value = _FAKE_SIGN_RESULT
             await create_playbook("mesh-003", req, current_user=_admin_user())
-        result = await poll_playbooks("mesh-003", node_id)
+            result = await poll_playbooks("mesh-003", node_id)
         assert len(result["playbooks"]) >= 1
         pb = result["playbooks"][0]
         assert "playbook_id" in pb
@@ -178,11 +198,12 @@ class TestPlaybooks:
             target_nodes=[node_id],
             actions=[PlaybookAction(action="restart", params={})],
         )
-        with patch("src.api.maas_playbooks.token_signer") as mock_signer:
+        with patch("src.api.maas_playbooks.token_signer") as mock_signer, \
+             patch("src.api.maas_playbooks._has_valid_signature", return_value=True):
             mock_signer.sign_token.return_value = _FAKE_SIGN_RESULT
             await create_playbook("mesh-004", req, current_user=_admin_user())
-        first = await poll_playbooks("mesh-004", node_id)
-        second = await poll_playbooks("mesh-004", node_id)
+            first = await poll_playbooks("mesh-004", node_id)
+            second = await poll_playbooks("mesh-004", node_id)
         assert len(first["playbooks"]) == 1
         assert len(second["playbooks"]) == 0  # очередь пуста после первой доставки
 
@@ -194,9 +215,22 @@ class TestPlaybooks:
 
     @pytest.mark.asyncio
     async def test_acknowledge_playbook(self):
-        from src.api.maas_playbooks import acknowledge_playbook
-        result = await acknowledge_playbook("pbk-test123", "node-a", status="completed")
-        assert result["status"] == "received"
+        from src.api.maas_playbooks import acknowledge_playbook, _playbook_store
+        _playbook_store["pbk-test123"] = {
+            "playbook_id": "pbk-test123",
+            "mesh_id": "mesh-test",
+            "name": "ack-test",
+            "payload": "{}",
+            "signature": "a" * 64,
+            "algorithm": "HMAC-SHA256",
+            "target_nodes": ["node-a"],
+            "expires_at": "2099-01-01T00:00:00",
+        }
+        try:
+            result = await acknowledge_playbook("pbk-test123", "node-a", status="completed")
+            assert result["status"] == "received"
+        finally:
+            _playbook_store.pop("pbk-test123", None)
 
     @pytest.mark.asyncio
     async def test_playbook_payload_is_valid_json(self):
@@ -221,8 +255,7 @@ class TestPlaybooks:
         """Истёкшие плейбуки не должны попасть в poll."""
         from datetime import datetime, timedelta
         from src.api.maas_playbooks import (
-            create_playbook, poll_playbooks, _playbook_store, _node_queues,
-            PlaybookCreateRequest, PlaybookAction
+            create_playbook, poll_playbooks, _playbook_store, PlaybookCreateRequest, PlaybookAction
         )
         node_id = "expire-test-node"
         req = PlaybookCreateRequest(
@@ -345,6 +378,19 @@ class TestMarketplace:
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
+    async def test_rent_own_node_mixed_id_types_raises_400(self):
+        from src.api.maas_marketplace import create_listing, rent_node, ListingCreate
+        owner_int = _mock_user(user_id=101, email="owner-int@x0t.net")
+        listing = await create_listing(
+            ListingCreate(node_id="own-node-mixed", region="us-east", price_per_hour=0.05, bandwidth_mbps=50),
+            current_user=owner_int,
+        )
+        owner_str = _mock_user(user_id="101", email="owner-str@x0t.net")
+        with pytest.raises(HTTPException) as exc:
+            await rent_node(listing["listing_id"], "mesh-x", current_user=owner_str)
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_rent_nonexistent_raises_404(self):
         from src.api.maas_marketplace import rent_node
         with pytest.raises(HTTPException) as exc:
@@ -376,6 +422,18 @@ class TestMarketplace:
         with pytest.raises(HTTPException) as exc:
             await cancel_listing(listing["listing_id"], current_user=thief)
         assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_cancel_owner_mixed_id_types_allowed(self):
+        from src.api.maas_marketplace import create_listing, cancel_listing, ListingCreate
+        owner_int = _mock_user(user_id=202, email="owner-int-cancel@x0t.net")
+        listing = await create_listing(
+            ListingCreate(node_id="cancel-node-mixed", region="us-west", price_per_hour=0.03, bandwidth_mbps=100),
+            current_user=owner_int,
+        )
+        owner_str = _mock_user(user_id="202", email="owner-str-cancel@x0t.net")
+        result = await cancel_listing(listing["listing_id"], current_user=owner_str)
+        assert result["status"] == "cancelled"
 
     @pytest.mark.asyncio
     async def test_double_rent_raises_400(self):

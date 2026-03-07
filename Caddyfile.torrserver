@@ -1,0 +1,30 @@
+:80 {
+    # Jackett-compatible endpoint for Lampa when parser_torrent_type=jackett
+    @jackett path /api/v2.0/indexers/*/results
+    handle @jackett {
+        reverse_proxy lampa-bridge:8090
+    }
+
+    # Route search via bridge (working index + browser-audio prioritization)
+    @search path /search /search/
+    handle @search {
+        reverse_proxy lampa-bridge:8090
+    }
+
+    # Send only actual playback requests through bridge for audio fix.
+    @stream_play expression {path}.startsWith("/stream") && ({uri}.contains("&play") || {uri}.contains("?play"))
+    handle @stream_play {
+        reverse_proxy lampa-bridge:8090
+    }
+
+    # Keep control stream operations native for stable startup.
+    @stream path /stream /stream/*
+    handle @stream {
+        reverse_proxy torrserver:8090
+    }
+
+    # Default TorrServer traffic (parser_torrent_type=torrserver and player paths)
+    handle {
+        reverse_proxy torrserver:8090
+    }
+}

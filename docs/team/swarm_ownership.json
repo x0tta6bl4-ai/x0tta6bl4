@@ -64,7 +64,7 @@
       ]
     },
     "claude-maas-reviewer": {
-      "description": "Claude Code — MaaS RBAC, security review, test coverage",
+      "description": "Claude Code \u2014 MaaS RBAC, security review, test coverage",
       "allow": [
         "src/api/maas_auth.py",
         "src/api/maas_analytics.py",
@@ -90,6 +90,17 @@
         "tests/unit/services/test_maas_auth_service_unit.py"
       ]
     },
+    "claude": {
+      "description": "Claude Code \u2014 verification, SBOM, compliance, release-gate docs",
+      "allow": [
+        "scripts/verify-v1.1.sh",
+        "docs/verification/",
+        "compliance/soc2/",
+        "security/sbom/",
+        "docs/commercial/",
+        "docs/STATUS.md"
+      ]
+    },
     "codex-implementer": {
       "description": "Codex implementation lane for MaaS 80/20 delivery",
       "allow": [
@@ -112,12 +123,19 @@
         "VERSION",
         "pyproject.toml",
         "requirements.txt",
+        "requirements.lock",
         "swarm.py",
         "swarm_state.json",
         "SASE_PQC_OFFER.md",
         "WHITE_PAPER.md",
+        ".env.production",
         "local_ygg.conf",
         "check_actual_schema.py",
+        "collect_telemetry.sh",
+        "temp_attest.py",
+        "telegram_bot.py",
+        "qr_code_generator.py",
+        "vpn_config_generator.py",
         "debug_healing.py",
         "migrate_db.py",
         "migrate_enterprise_db.py",
@@ -133,6 +151,7 @@
         "deduplicate_photos_fast_v2.py",
         "scripts/sync_version.py",
         "scripts/check_competitive_self_healing_gate.py",
+        "scripts/check_requirements_lock_sync.py",
         "scripts/demo/",
         "scripts/ab_test_gnn.py",
         "scripts/dpi_simulator.py",
@@ -142,6 +161,7 @@
         "scripts/setup_stripe.py",
         "scripts/simulate_pqc_failures.py",
         "scripts/smoke_local.py",
+        "scripts/golden_smoke_premerge.sh",
         "scripts/validate_runtime_contracts.py",
         "scripts/validate_version_contract.py",
         "scripts/validate_enterprise_workflows.py",
@@ -152,6 +172,19 @@
         "scripts/run_geneva_poc.py",
         "scripts/simulate_token_economy.py",
         "scripts/validate_production_env_contract.py",
+        "scripts/vpn_heal.sh",
+        "scripts/vpn_status.sh",
+        "scripts/mesh_client.py",
+        "scripts/mesh_exit_node.py",
+        "scripts/mesh_server.py",
+        "scripts/apply_vpn_mobile_fix.sh",
+        "scripts/setup_k8s_staging.sh",
+        "scripts/ops/",
+        "scripts/agents/agent_cycle_profiles.json",
+        "scripts/agents/run_agent_cycle.py",
+        "Makefile",
+        "staging/",
+        "requirements-staging.txt",
         ".gitignore",
         "database.py",
         "run_backend.py",
@@ -161,16 +194,42 @@
         "__init__.py",
         "PROJECT_COMPLETION_REPORT.json",
         "dashboard.html",
-        "defects_inventory.json"
+        "defects_inventory.json",
+        "utrecht-deploy-manifest.yaml",
+        "values-utrecht.yaml",
+        "config.yml",
+        ".gitlab-ci.yml.ebpf"
+      ]
+    },
+    "codex": {
+      "description": "Codex implementation lane for 5G/Open5GS and integration tests",
+      "allow": [
+        "edge/5g/",
+        "integration/",
+        "test/",
+        "scripts/verify-5g-path.sh",
+        "README.v1.1.md",
+        "docs/v1.1/VERIFICATION-MATRIX.md"
+      ]
+    },
+    "gemini": {
+      "description": "Gemini lane for eBPF datapath and live attach follow-up",
+      "allow": [
+        "ebpf/prod/",
+        "edge/5g/ebpf/"
       ]
     },
     "lead-coordinator": {
       "description": "Swarm governance and guardrails",
       "allow": [
+        "AGENT_SYNC_INSTRUCTIONS.md",
         "docs/TEAM_RESPONSIBILITIES.md",
         "docs/team/SWARM_OPERATING_MODEL.md",
         "docs/team/swarm_ownership.json",
+        "docs/verification/v1.1-hardening-status.md",
+        "scripts/agent-coord.sh",
         "scripts/agents/check_swarm_ownership.py",
+        "scripts/agents/request_channel.sh",
         "scripts/agents/swarm_coord.py",
         "scripts/agents/install_swarm_hook.sh",
         "scripts/agents/start_swarm_session.sh",
@@ -178,6 +237,8 @@
         ".githooks/pre-commit",
         ".githooks/post-commit",
         "plans/",
+        "docs/rfc/RAG-RFC.md",
+        "docs/v1.1/RAG-RFC.md",
         "COORDINATION.md"
       ]
     }

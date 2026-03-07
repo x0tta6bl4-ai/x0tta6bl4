@@ -209,11 +209,30 @@ class StatusData:
         else:
             status = "critical"
 
+        # Resilience status (P2 Observability)
+        from src.database import db_circuit_breaker
+        from src.core.cache import get_cache
+        from src.resilience.advanced_patterns import CircuitState
+        
+        cache_obj = get_cache()
+        
         return {
             "status": status,
-            "version": "3.1.0",
+            "version": "3.4.0",
             "timestamp": datetime.utcnow().isoformat(),
             "uptime_seconds": self.system_metrics.get_uptime_seconds(),
+            # Resilience
+            "resilience": {
+                "db_circuit_breaker": {
+                    "state": db_circuit_breaker.state.value,
+                    "failure_count": db_circuit_breaker.failure_count,
+                    "is_open": db_circuit_breaker.state == CircuitState.OPEN
+                },
+                "cache": {
+                    "backend": "memory" if getattr(cache_obj, "_using_fallback", False) else "redis",
+                    "initialized": cache_obj._initialized
+                }
+            },
             # Система
             "system": {
                 "cpu": self.system_metrics.get_cpu_metrics(),

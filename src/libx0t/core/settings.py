@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     def validate_secrets(cls, v: Optional[str]) -> Optional[str]:
         """Warn if secrets are not set in production."""
         if os.getenv("ENVIRONMENT") == "production" and not v:
-            raise ValueError(f"❌ Secret key must be set in production")
+            raise ValueError("❌ Secret key must be set in production")
         return v
 
     # ─────────────────────────────────────────

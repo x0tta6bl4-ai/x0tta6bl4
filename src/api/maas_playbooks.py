@@ -12,11 +12,11 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Set
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.api.maas_auth import require_permission
 from src.api.maas_security import token_signer
 from src.database import PlaybookAck, SignedPlaybook, User, get_db
 from src.utils.audit import record_audit_log
@@ -29,6 +29,7 @@ _playbook_store: Dict[str, Dict[str, Any]] = {}
 _node_queues: Dict[str, List[str]] = {}
 _playbook_acks: Dict[str, Dict[str, Dict[str, Any]]] = {}
 _playbook_deliveries: Dict[str, Set[str]] = {}
+_ALLOWED_ACK_STATUSES = {"completed", "failed", "partial"}
 
 
 class PlaybookAction(BaseModel):
@@ -70,11 +71,15 @@ def _is_expired(playbook: Dict[str, Any], now: datetime) -> bool:
     raw_expires = playbook.get("expires_at")
     if not raw_expires:
         return False
-    if isinstance(raw_expires, datetime):
-        expires_at = raw_expires
-    else:
-        expires_at = datetime.fromisoformat(str(raw_expires))
-    return expires_at <= now
+    try:
+        if isinstance(raw_expires, datetime):
+            expires_at = raw_expires
+        else:
+            expires_at = datetime.fromisoformat(str(raw_expires))
+        return expires_at <= now
+    except Exception:
+        # Fail closed on malformed expiry data.
+        return True
 
 
 def _queue_playbook_for_targets(playbook_id: str, target_nodes: List[str]) -> None:
@@ -85,6 +90,82 @@ def _queue_playbook_for_targets(playbook_id: str, target_nodes: List[str]) -> No
         queue = _node_queues.setdefault(node_id, [])
         if playbook_id not in queue:
             queue.append(playbook_id)
+
+
+def _normalize_target_nodes(raw_nodes: Any) -> List[str]:
+    if not isinstance(raw_nodes, list):
+        return []
+    return [str(node) for node in raw_nodes if isinstance(node, str) and node]
+
+
+def _get_playbook(playbook_id: str, db: Any) -> Dict[str, Any] | None:
+    cached = _playbook_store.get(playbook_id)
+    if cached:
+        return cached
+
+    if not _db_query_available(db):
+        return None
+
+    row = db.query(SignedPlaybook).filter(SignedPlaybook.id == playbook_id).first()
+    if not row:
+        return None
+
+    payload_obj: Dict[str, Any] = {}
+    try:
+        payload_obj = json.loads(row.payload or "{}")
+    except Exception:
+        payload_obj = {}
+
+    playbook = {
+        "playbook_id": row.id,
+        "mesh_id": row.mesh_id,
+        "name": row.name,
+        "payload": row.payload,
+        "signature": row.signature,
+        "algorithm": row.algorithm,
+        "target_nodes": _normalize_target_nodes(payload_obj.get("target_nodes", [])),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+    }
+    _playbook_store[playbook_id] = playbook
+    return playbook
+
+
+def _has_valid_signature(playbook: Dict[str, Any]) -> bool:
+    payload = str(playbook.get("payload", ""))
+    mesh_id = str(playbook.get("mesh_id", ""))
+    signature = str(playbook.get("signature", "")).strip()
+    algorithm = str(playbook.get("algorithm", "")).upper()
+
+    if not payload or not mesh_id or not signature:
+        return False
+
+    if algorithm.startswith("HMAC"):
+        try:
+            return token_signer.verify_token(payload, mesh_id, signature)
+        except Exception as exc:
+            logger.warning("Playbook HMAC verification failed: %s", exc)
+            return False
+
+    if algorithm.startswith("ML-DSA"):
+        try:
+            token_signer._init_pqc()
+            pqc_signer = getattr(token_signer, "_pqc_signer", None)
+            signing_keypair = getattr(token_signer, "_signing_keypair", None)
+            if not pqc_signer or not signing_keypair:
+                return False
+            signed_payload = f"{mesh_id}:{payload}".encode()
+            return pqc_signer.verify(
+                signed_payload,
+                bytes.fromhex(signature),
+                signing_keypair.public_key,
+            )
+        except Exception as exc:
+            logger.warning("Playbook ML-DSA verification failed: %s", exc)
+            return False
+
+    # Fail closed for unknown algorithms.
+    return False
 
 
 def _seed_store_from_db(mesh_id: str, db: Any) -> None:
@@ -169,14 +250,22 @@ async def create_playbook(
     }
     payload_json = json.dumps(payload_data, sort_keys=True)
     signed_data = token_signer.sign_token(payload_json, mesh_id)
+    # Validate signature is present - required for security
+    if not signed_data or "signature" not in signed_data:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate playbook signature",
+        )
+    signature_val = str(signed_data.get("signature", ""))
+    algorithm_val = str(signed_data.get("algorithm", "HMAC-SHA256"))
 
     _playbook_store[playbook_id] = {
         "playbook_id": playbook_id,
         "mesh_id": mesh_id,
         "name": req.name,
         "payload": payload_json,
-        "signature": signed_data["signature"],
-        "algorithm": signed_data["algorithm"],
+        "signature": signature_val,
+        "algorithm": algorithm_val,
         "target_nodes": list(req.target_nodes),
         "created_at": payload_data["created_at"],
         "expires_at": expires_at_dt.isoformat(),
@@ -190,8 +279,8 @@ async def create_playbook(
                 mesh_id=mesh_id,
                 name=req.name,
                 payload=payload_json,
-                signature=signed_data["signature"],
-                algorithm=signed_data["algorithm"],
+                signature=signature_val,
+                algorithm=algorithm_val,
                 expires_at=expires_at_dt,
             )
         )
@@ -209,8 +298,8 @@ async def create_playbook(
         playbook_id=playbook_id,
         name=req.name,
         payload=payload_json,
-        signature=signed_data["signature"],
-        algorithm=signed_data["algorithm"],
+        signature=signature_val,
+        algorithm=algorithm_val,
         expires_at=expires_at_dt.isoformat(),
     )
 
@@ -226,11 +315,17 @@ async def poll_playbooks(mesh_id: str, node_id: str, db: Session = Depends(get_d
     remaining: List[str] = []
 
     for playbook_id in queue:
-        playbook = _playbook_store.get(playbook_id)
+        playbook = _get_playbook(playbook_id, db)
         if not playbook:
             continue
         if playbook.get("mesh_id") != mesh_id:
             remaining.append(playbook_id)
+            continue
+        targets = _normalize_target_nodes(playbook.get("target_nodes", []))
+        if targets and node_id not in targets:
+            continue
+        if not _has_valid_signature(playbook):
+            logger.warning("Skipping playbook with invalid signature: %s", playbook_id)
             continue
         if _is_expired(playbook, now):
             continue
@@ -260,11 +355,24 @@ async def poll_playbooks(mesh_id: str, node_id: str, db: Session = Depends(get_d
 async def acknowledge_playbook(
     playbook_id: str,
     node_id: str,
-    status: str = "completed",
+    status: str = Query(default="completed", pattern="^(completed|failed|partial)$"),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """Acknowledge playbook execution. Persists to DB for audit trail."""
     now = datetime.utcnow()
+    playbook = _get_playbook(playbook_id, db)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+    if _is_expired(playbook, now):
+        raise HTTPException(status_code=410, detail="Playbook expired")
+
+    targets = _normalize_target_nodes(playbook.get("target_nodes", []))
+    if targets and node_id not in targets:
+        raise HTTPException(status_code=403, detail="Node is not a target for this playbook")
+
+    if status not in _ALLOWED_ACK_STATUSES:
+        raise HTTPException(status_code=422, detail="Invalid playbook ack status")
+
     _playbook_acks.setdefault(playbook_id, {})[node_id] = {
         "status": status,
         "acknowledged_at": now.isoformat(),

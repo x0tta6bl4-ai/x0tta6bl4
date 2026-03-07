@@ -25,20 +25,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/maas/supply-chain", tags=["MaaS Supply Chain"])
 
 _sbom_registry: Dict[str, Dict[str, Any]] = {
-    "v3.4.0-alpha": {
+    "v3.4.0": {
         "id": "sbom-v340a",
-        "version": "3.4.0-alpha",
+        "version": "3.4.0",
         "format": "CycloneDX-JSON",
         "checksum_sha256": "sha256:abc123",
         "components": [
-            {"name": "x0tta6bl4-agent", "version": "3.4.0-alpha", "type": "application"},
+            {"name": "x0tta6bl4-agent", "version": "3.4.0", "type": "application"},
             {"name": "liboqs", "version": "0.10.1", "type": "library"},
         ],
         "attestation": {
             "type": "Sigstore-Bundle",
             "signer": "ci@x0tta6bl4.net",
             "signed_at": "2026-02-20T00:00:00Z",
-            "bundle_url": "https://example.local/sigstore/bundle/v3.4.0-alpha",
+            "bundle_url": "https://example.local/sigstore/bundle/v3.4.0",
         },
         "created_at": "2026-02-20T00:00:00Z",
     }
@@ -127,10 +127,16 @@ def _sbom_to_response_dict(row: SBOMEntry) -> Dict[str, Any]:
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
-    from src.core.app import pqc_sign
-    signed = pqc_sign(f"{row.version}:{row.checksum_sha256}".encode())
-    if signed:
-        payload["pqc_signature"] = signed.hex()
+    # PQC attestation is best-effort in environments where legacy app shims
+    # don't expose pqc_sign(). Never fail SBOM read/write because of this.
+    try:
+        from src.core.app import pqc_sign
+
+        signed = pqc_sign(f"{row.version}:{row.checksum_sha256}".encode())
+        if signed:
+            payload["pqc_signature"] = signed.hex()
+    except Exception as exc:
+        logger.warning("PQC signature unavailable for SBOM %s: %s", row.id, exc)
     return payload
 
 
@@ -328,6 +334,18 @@ async def verify_binary(
                 verified_at=datetime.utcnow(),
             )
         )
+
+    # 5. Update Kernel-level eBPF filter
+    try:
+        from src.network.ebpf.map_manager import EBPFMapManager
+        node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()
+        if node and node.ip_address:
+            if checksums_match:
+                EBPFMapManager.update_attestation(node.ip_address, is_attested=True)
+            else:
+                EBPFMapManager.update_attestation(node.ip_address, is_attested=False)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to update eBPF supply chain filter: {e}")
 
     if not checksums_match:
         node = db.query(MeshNode).filter(MeshNode.id == req.node_id).first()

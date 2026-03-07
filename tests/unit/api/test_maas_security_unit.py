@@ -12,7 +12,6 @@ Vault is unavailable in tests → PQCTokenSigner falls back to HMAC-SHA256.
 """
 
 import hashlib
-import hmac
 import os
 import time
 from unittest.mock import MagicMock, patch
@@ -230,7 +229,7 @@ class TestPQCTokenSigner:
         assert signer.verify_token("mytoken", "mesh-fake", signed["signature"]) is False
 
     def test_verify_token_tampered_signature(self, signer):
-        signed = signer.sign_token("mytoken", "mesh-abc")
+        signer.sign_token("mytoken", "mesh-abc")
         bad_sig = "a" * 64
         assert signer.verify_token("mytoken", "mesh-abc", bad_sig) is False
 
@@ -513,7 +512,6 @@ class TestOIDCValidatorAdditionalBranches:
 
     def test_fetch_jwks_with_preknown_uri_success(self):
         """_jwks_uri already set, cache stale → fetches JWKS directly (lines 266-271)."""
-        import jwt as pyjwt
         v = self._enabled_validator()
         v._jwks_uri = "https://extra.example.com/jwks"
         v._jwks_cache = None
@@ -536,7 +534,6 @@ class TestOIDCValidatorAdditionalBranches:
     def test_validate_no_kid_in_header_uses_first_valid_key(self):
         """When header has no 'kid', code tries all JWKS keys (not kid → True branch)."""
         import jwt as pyjwt
-        from fastapi import HTTPException
 
         v = self._enabled_validator()
         mock_key = MagicMock()
@@ -702,6 +699,42 @@ class TestPQCTokenSignerVault:
 
         assert secret == "env-fallback-secret"
 
+    def test_get_hmac_secret_vault_failure_raises_in_production_without_env_secret(self):
+        """Production mode must fail closed when both Vault and env fallback are unavailable."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", side_effect=Exception("vault down")):
+            with patch.dict(
+                os.environ,
+                {"ENVIRONMENT": "production", "X0TTA6BL4_PRODUCTION": "true"},
+                clear=False,
+            ):
+                with patch.dict(os.environ, {"MAAS_TOKEN_SECRET": ""}, clear=False):
+                    with pytest.raises(
+                        RuntimeError,
+                        match="MAAS_TOKEN_SECRET must be configured",
+                    ):
+                        signer._get_hmac_secret()
+
+    def test_get_hmac_secret_vault_failure_non_prod_uses_stable_ephemeral_secret(self):
+        """Non-production mode may use an in-memory fallback, stable within signer instance."""
+        with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
+            signer = PQCTokenSigner()
+
+        with patch("hvac.Client", side_effect=Exception("vault down")):
+            with patch.dict(
+                os.environ,
+                {"ENVIRONMENT": "development", "X0TTA6BL4_PRODUCTION": "false"},
+                clear=False,
+            ):
+                with patch.dict(os.environ, {"MAAS_TOKEN_SECRET": ""}, clear=False):
+                    first = signer._get_hmac_secret()
+                    second = signer._get_hmac_secret()
+
+        assert isinstance(first, str) and len(first) >= 32
+        assert first == second
+
     def test_sign_token_pqc_exception_falls_through_to_hmac(self):
         """PQC signer raises on sign() → falls through to HMAC-SHA256."""
         with patch("src.api.maas_security.PQCTokenSigner._init_pqc", lambda self: None):
@@ -772,7 +805,6 @@ class TestOIDCValidatorDiscoveryColdStart:
 
     def test_fetch_jwks_discovery_then_jwks_success(self):
         """_jwks_uri=None → discovery fetched → _jwks_uri set → JWKS fetched (lines 254-271)."""
-        import jwt as pyjwt
 
         with patch.dict(os.environ, {
             "OIDC_ISSUER": "https://coldstart.example.com",

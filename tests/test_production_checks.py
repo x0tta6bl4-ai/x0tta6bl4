@@ -2,12 +2,11 @@
 Tests for production dependency checks
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.core.production_checks import (PRODUCTION_MODE,
-                                        ProductionDependencyError,
+from src.core.production_checks import (ProductionDependencyError,
                                         check_production_dependencies,
                                         get_dependency_status)
 

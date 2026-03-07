@@ -11,19 +11,13 @@ End-to-End тесты сценариев self-healing.
 
 import asyncio
 import threading
-import time
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerOpen,
+from src.core.circuit_breaker import (CircuitBreakerOpen,
                                       CircuitState)
-from src.security.auto_isolation import (AutoIsolationManager, IsolationLevel,
-                                         IsolationReason, QuarantineZone)
-from src.self_healing.recovery_actions import (RateLimiter,
-                                               RecoveryActionExecutor,
-                                               RecoveryActionType)
+from src.security.auto_isolation import (IsolationLevel,
+                                         IsolationReason)
 
 
 class TestAnomalyToRecoveryScenario:
@@ -350,7 +344,7 @@ class TestRaceConditionScenario:
             t.join()
 
         # Система должна остаться в консистентном состоянии
-        level = isolation_manager.get_isolation_level(node_id)
+        isolation_manager.get_isolation_level(node_id)
         # level может быть NONE или не-NONE, главное - без ошибок
 
 

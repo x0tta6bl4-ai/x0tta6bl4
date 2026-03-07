@@ -2,14 +2,14 @@
 
 import json
 import logging
-from types import SimpleNamespace
 from typing import Any, Dict, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
 from starlette.requests import Request
 
+from src.core.logging_config import RequestIdContextVar
 from src.utils.audit import record_audit_log, _audit
 
 
@@ -168,6 +168,58 @@ class TestRecordAuditLog:
         assert entry.ip_address == "unknown"
         assert entry.method == "GET"
 
+    def test_audit_log_sets_trace_extra_from_request_state(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class, caplog
+    ):
+        """Trace id from request.state is mirrored into structured logging extras."""
+        request = _make_request(app, "/api/v1/test", "POST", "10.0.0.2")
+        request.state.trace_id = "trace-state-123"
+
+        with caplog.at_level(logging.INFO):
+            record_audit_log(
+                db=mock_db,
+                request=request,
+                action="TRACE_STATE_TEST",
+                user_id="user-trace",
+                status_code=200,
+            )
+
+        matching = [
+            rec
+            for rec in caplog.records
+            if "AUDIT TRACE_STATE_TEST" in rec.getMessage()
+        ]
+        assert matching
+        assert getattr(matching[-1], "request_id", None) == "trace-state-123"
+        assert getattr(matching[-1], "trace_id", None) == "trace-state-123"
+
+    def test_audit_log_background_uses_request_context_trace_id(
+        self, mock_db: _MockDB, mock_audit_log_class, caplog
+    ):
+        """Background audit events should keep request trace context when available."""
+        RequestIdContextVar.clear()
+        RequestIdContextVar.set("ctx-trace-789")
+        try:
+            with caplog.at_level(logging.INFO):
+                record_audit_log(
+                    db=mock_db,
+                    request=None,
+                    action="BACKGROUND_TRACE_TEST",
+                    user_id="user-bg",
+                    status_code=202,
+                )
+        finally:
+            RequestIdContextVar.clear()
+
+        matching = [
+            rec
+            for rec in caplog.records
+            if "AUDIT BACKGROUND_TRACE_TEST" in rec.getMessage()
+        ]
+        assert matching
+        assert getattr(matching[-1], "request_id", None) == "ctx-trace-789"
+        assert getattr(matching[-1], "trace_id", None) == "ctx-trace-789"
+
     def test_audit_log_without_payload(
         self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class
     ):
@@ -230,6 +282,64 @@ class TestRecordAuditLog:
         parsed = json.loads(entry.payload)
         assert parsed == complex_payload
         assert parsed["unicode"] == "привет мир"
+
+    def test_audit_log_redacts_sensitive_payload_fields(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class
+    ):
+        """Sensitive payload fields must be redacted before storing in DB."""
+        request = _make_request(app)
+        payload = {
+            "password": "super-secret",
+            "nested": {"api_key": "key-123", "safe": "ok"},
+            "authorization": "Bearer top-secret-token",
+            "details": "Authorization: Bearer inline-token token=abc123",
+        }
+
+        record_audit_log(
+            db=mock_db,
+            request=request,
+            action="SENSITIVE_PAYLOAD",
+            payload=payload,
+        )
+
+        entry = mock_db.added_entries[0]
+        parsed = json.loads(entry.payload)
+        assert parsed["password"] == "********"
+        assert parsed["nested"]["api_key"] == "********"
+        assert parsed["authorization"] == "********"
+        assert parsed["nested"]["safe"] == "ok"
+        assert "top-secret-token" not in entry.payload
+        assert "inline-token" not in parsed["details"]
+        assert "abc123" not in parsed["details"]
+
+    def test_audit_log_redacts_case_insensitive_keys_in_lists_and_tuples(
+        self, app: FastAPI, mock_db: _MockDB, mock_audit_log_class
+    ):
+        """Redaction must work for mixed-case key names and tuple/list payloads."""
+        request = _make_request(app)
+        payload = {
+            "dbPassword": "p@ss",
+            "nested_list": [{"Private_Key": "pk-123"}],
+            "tuple_payload": (
+                {"accessToken": "jwt-abc"},
+                "api_key=inline-123",
+            ),
+        }
+
+        record_audit_log(
+            db=mock_db,
+            request=request,
+            action="SENSITIVE_MIXED_CASE_PAYLOAD",
+            payload=payload,
+        )
+
+        entry = mock_db.added_entries[0]
+        parsed = json.loads(entry.payload)
+        assert parsed["dbPassword"] == "********"
+        assert parsed["nested_list"][0]["Private_Key"] == "********"
+        assert parsed["tuple_payload"][0]["accessToken"] == "********"
+        assert "inline-123" not in parsed["tuple_payload"][1]
+        assert parsed["tuple_payload"][1] == "api_key=********"
 
 
 class TestAuditShorthand:

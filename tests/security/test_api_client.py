@@ -1,13 +1,12 @@
-import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.security.spiffe.workload.api_client import (JWTSVID, X509SVID,
+from src.security.spiffe.workload.api_client import (X509SVID,
                                                      WorkloadAPIClient)
 
 
@@ -64,6 +63,7 @@ def test_init_mock_mode_default_warning(caplog):
         patch(
             "src.security.spiffe.workload.api_client.SpiffeWorkloadApiClient", new=None
         ),
+        patch.dict(os.environ, {"X0TTA6BL4_FORCE_MOCK_SPIFFE": "false"}),
     ):
         with caplog.at_level(logging.WARNING):
             client = WorkloadAPIClient()

@@ -3,7 +3,7 @@ Tests for Graceful Shutdown module.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 

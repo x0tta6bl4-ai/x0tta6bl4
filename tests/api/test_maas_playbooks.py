@@ -9,7 +9,6 @@ Integration tests for MaaS Signed Playbooks:
 """
 
 import os
-import time
 import uuid
 import pytest
 from fastapi.testclient import TestClient
@@ -201,6 +200,75 @@ class TestPlaybookPoll:
         r2 = client.get(f"/api/v1/maas/playbooks/poll/{_MESH_ID}/{node}")
         assert r2.json()["playbooks"] == []
 
+    def test_tampered_hmac_signature_not_delivered(self, client, admin_token):
+        import src.api.maas_playbooks as pb_mod
+
+        node = f"node-sig-{uuid.uuid4().hex[:6]}"
+        r = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            headers={"X-API-Key": admin_token},
+            json={
+                "name": "sig-check",
+                "target_nodes": [node],
+                "actions": [{"action": "restart", "params": {}}],
+                "expires_in_sec": 3600,
+            },
+        )
+        assert r.status_code == 200
+        pb_id = r.json()["playbook_id"]
+        pb_mod._playbook_store[pb_id]["algorithm"] = "HMAC-SHA256"
+        pb_mod._playbook_store[pb_id]["signature"] = "0" * 64
+
+        polled = client.get(f"/api/v1/maas/playbooks/poll/{_MESH_ID}/{node}")
+        assert polled.status_code == 200
+        assert polled.json()["playbooks"] == []
+
+    def test_unknown_signature_algorithm_not_delivered(self, client, admin_token):
+        import src.api.maas_playbooks as pb_mod
+
+        node = f"node-sig-unknown-{uuid.uuid4().hex[:6]}"
+        r = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            headers={"X-API-Key": admin_token},
+            json={
+                "name": "sig-check-unknown",
+                "target_nodes": [node],
+                "actions": [{"action": "restart", "params": {}}],
+                "expires_in_sec": 3600,
+            },
+        )
+        assert r.status_code == 200
+        pb_id = r.json()["playbook_id"]
+        pb_mod._playbook_store[pb_id]["algorithm"] = "UNKNOWN-ALG"
+
+        polled = client.get(f"/api/v1/maas/playbooks/poll/{_MESH_ID}/{node}")
+        assert polled.status_code == 200
+        assert polled.json()["playbooks"] == []
+
+    def test_mldsa_algorithm_with_hmac_signature_not_delivered(self, client, admin_token):
+        import src.api.maas_playbooks as pb_mod
+
+        node = f"node-sig-mldsa-{uuid.uuid4().hex[:6]}"
+        r = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            headers={"X-API-Key": admin_token},
+            json={
+                "name": "sig-check-mldsa",
+                "target_nodes": [node],
+                "actions": [{"action": "restart", "params": {}}],
+                "expires_in_sec": 3600,
+            },
+        )
+        assert r.status_code == 200
+        pb_id = r.json()["playbook_id"]
+        # Force algorithm mismatch to ensure there is no HMAC fallback for ML-DSA.
+        pb_mod._playbook_store[pb_id]["algorithm"] = "ML-DSA-65"
+        pb_mod._playbook_store[pb_id]["signature"] = "0" * 64
+
+        polled = client.get(f"/api/v1/maas/playbooks/poll/{_MESH_ID}/{node}")
+        assert polled.status_code == 200
+        assert polled.json()["playbooks"] == []
+
 
 class TestPlaybookAck:
     def test_ack_playbook(self, client, admin_token):
@@ -252,6 +320,63 @@ class TestPlaybookAck:
         node_ids = {r.node_id for r in rows}
         assert _NODE_A in node_ids
         assert _NODE_B in node_ids
+
+    def test_ack_unknown_playbook_returns_404(self, client):
+        r = client.post(
+            f"/api/v1/maas/playbooks/ack/pbk-unknown-{uuid.uuid4().hex[:6]}/{_NODE_A}?status=completed",
+        )
+        assert r.status_code == 404
+
+    def test_ack_invalid_status_rejected(self, client):
+        pb_id = pytest.shared_playbook_id
+        r = client.post(f"/api/v1/maas/playbooks/ack/{pb_id}/{_NODE_A}?status=invalid")
+        assert r.status_code == 422
+
+    def test_ack_non_target_node_forbidden(self, client, admin_token):
+        not_targeted = f"node-not-target-{uuid.uuid4().hex[:6]}"
+        r_create = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            headers={"X-API-Key": admin_token},
+            json={
+                "name": "ack-target-check",
+                "target_nodes": [_NODE_A],
+                "actions": [{"action": "restart", "params": {}}],
+                "expires_in_sec": 3600,
+            },
+        )
+        assert r_create.status_code == 200
+        pb_id = r_create.json()["playbook_id"]
+
+        r_ack = client.post(
+            f"/api/v1/maas/playbooks/ack/{pb_id}/{not_targeted}?status=completed",
+        )
+        assert r_ack.status_code == 403
+
+    def test_ack_expired_playbook_returns_410(self, client, admin_token):
+        import src.api.maas_playbooks as pb_mod
+        from datetime import datetime, timedelta
+
+        r_create = client.post(
+            f"/api/v1/maas/playbooks/create?mesh_id={_MESH_ID}",
+            headers={"X-API-Key": admin_token},
+            json={
+                "name": "ack-expired-check",
+                "target_nodes": [_NODE_A],
+                "actions": [{"action": "restart", "params": {}}],
+                "expires_in_sec": 3600,
+            },
+        )
+        assert r_create.status_code == 200
+        pb_id = r_create.json()["playbook_id"]
+
+        pb_mod._playbook_store[pb_id]["expires_at"] = (
+            datetime.utcnow() - timedelta(seconds=1)
+        ).isoformat()
+
+        r_ack = client.post(
+            f"/api/v1/maas/playbooks/ack/{pb_id}/{_NODE_A}?status=completed",
+        )
+        assert r_ack.status_code == 410
 
 
 class TestPlaybookStatus:

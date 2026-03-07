@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -40,7 +39,7 @@ class GTMAgent:
             total_revenue = self.db.query(func.sum(Payment.amount)).scalar() or 0
             active_licenses = (
                 self.db.query(func.count(License.token))
-                .filter(License.is_active == True)
+                .filter(License.is_active)
                 .scalar()
             )
 
@@ -57,7 +56,7 @@ class GTMAgent:
             expiring_soon = (
                 self.db.query(func.count(License.token))
                 .filter(
-                    License.is_active == True,
+                    License.is_active,
                     License.expires_at <= soon,
                     License.expires_at >= datetime.utcnow(),
                 )
@@ -110,13 +109,13 @@ class GTMAgent:
         )
 
     async def send_to_telegram(self, message: str):
-        """Send message via Telegram Bot API."""
+        """Send message via Telegram Bot API (Async)."""
         if not self.bot_token or not self.report_chat_id:
             logger.warning("Telegram configuration missing. Skipping send.")
             print(f"\n--- DRY RUN REPORT ---\n{message}\n----------------------")
             return
 
-        import requests
+        import httpx
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = {
@@ -125,8 +124,9 @@ class GTMAgent:
             "parse_mode": "Markdown",
         }
         try:
-            response = requests.post(url, json=payload, timeout=10)
-            response.raise_for_status()
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
             logger.info("Report sent to Telegram successfully.")
         except Exception as e:
             logger.error(f"Failed to send Telegram report: {e}")

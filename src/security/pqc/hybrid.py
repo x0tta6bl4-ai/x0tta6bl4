@@ -9,9 +9,9 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
-from .types import PQCKeyPair, PQCSignature
+from .types import PQCKeyPair
 from .kem import PQCKeyExchange
 from .dsa import PQCDigitalSignature
 from .adapter import is_liboqs_available

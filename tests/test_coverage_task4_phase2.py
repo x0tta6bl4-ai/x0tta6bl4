@@ -7,9 +7,7 @@ Phase 2 Strategy (1.5 hours):
 - Target: 78% → 81% coverage
 """
 
-import asyncio
 import json
-from typing import Any, Dict, Optional
 from unittest import mock
 
 import pytest
@@ -129,7 +127,7 @@ class TestAsyncHTTPClient:
                 return {"status": "ok"}
 
         async with AsyncHTTPClient() as client:
-            assert client.connected == True
+            assert client.connected
             result = await client.get("http://example.com")
             assert result["status"] == "ok"
 
@@ -228,7 +226,7 @@ class TestCacheMocking:
         cache = redis.Redis()
         result = cache.set("key", "value")
 
-        assert result == True
+        assert result
         mock_client.set.assert_called_once()
 
     @mock.patch("redis.Redis")

@@ -4,8 +4,6 @@ Comprehensive tests for Zero Trust Policy Engine.
 Tests policy evaluation, rule matching, and edge cases.
 """
 
-from typing import Any, Dict
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -49,7 +47,7 @@ class TestZeroTrustPolicyEngine:
         decision = engine.evaluate(
             peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
         )
-        assert decision.allowed == False
+        assert not decision.allowed
         assert "deny" in decision.reason.lower() or "default" in decision.reason.lower()
 
     def test_explicit_allow_rule(self):
@@ -71,7 +69,7 @@ class TestZeroTrustPolicyEngine:
         decision = engine.evaluate(
             peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
         )
-        assert decision.allowed == True
+        assert decision.allowed
 
     def test_explicit_deny_rule(self):
         """Test explicit deny rule (overrides allow)"""
@@ -103,7 +101,7 @@ class TestZeroTrustPolicyEngine:
         decision = engine.evaluate(
             peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
         )
-        assert decision.allowed == False  # Deny should override allow
+        assert not decision.allowed  # Deny should override allow
 
     def test_wildcard_subject(self):
         """Test wildcard matching for subjects"""
@@ -126,7 +124,7 @@ class TestZeroTrustPolicyEngine:
             decision = engine.evaluate(
                 peer_spiffe_id=f"spiffe://test/workload/{user}", resource="resource-1"
             )
-            assert decision.allowed == True
+            assert decision.allowed
 
     def test_wildcard_resource(self):
         """Test wildcard matching for resources"""
@@ -149,7 +147,7 @@ class TestZeroTrustPolicyEngine:
             decision = engine.evaluate(
                 peer_spiffe_id="spiffe://test/workload/user-1", resource=resource
             )
-            assert decision.allowed == True
+            assert decision.allowed
 
     def test_action_specific_rules(self):
         """Test action-specific rules"""
@@ -185,16 +183,14 @@ class TestZeroTrustPolicyEngine:
             engine.evaluate(
                 peer_spiffe_id="spiffe://test/workload/user-1", resource="read-resource"
             ).allowed
-            == True
         )
 
         # Write should be denied
         assert (
-            engine.evaluate(
+            not engine.evaluate(
                 peer_spiffe_id="spiffe://test/workload/user-1",
                 resource="write-resource",
             ).allowed
-            == False
         )
 
     def test_rule_priority(self):
@@ -228,7 +224,7 @@ class TestZeroTrustPolicyEngine:
         decision = engine.evaluate(
             peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
         )
-        assert decision.allowed == False  # Specific deny overrides general allow
+        assert not decision.allowed  # Specific deny overrides general allow
 
 
 @pytest.mark.skipif(
@@ -244,7 +240,7 @@ class TestZeroTrustEdgeCases:
 
         # Should deny empty SPIFFE ID
         decision = engine.evaluate(peer_spiffe_id="", resource="resource-1")
-        assert decision.allowed == False
+        assert not decision.allowed
 
     def test_empty_resource(self):
         """Test handling of empty resource"""
@@ -255,7 +251,7 @@ class TestZeroTrustEdgeCases:
         decision = engine.evaluate(
             peer_spiffe_id="spiffe://test/workload/user-1", resource=""
         )
-        assert decision.allowed == False
+        assert not decision.allowed
 
     def test_invalid_action(self):
         """Test handling of invalid workload type"""
@@ -291,7 +287,7 @@ class TestZeroTrustEdgeCases:
             peer_spiffe_id="spiffe://test/workload/user@domain.com",
             resource="resource-1",
         )
-        assert decision.allowed == True
+        assert decision.allowed
 
     def test_case_sensitivity(self):
         """Test case sensitivity in matching"""
@@ -338,7 +334,6 @@ class TestZeroTrustEdgeCases:
             engine.evaluate(
                 peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
             ).allowed
-            == True
         )
 
         # Remove rule
@@ -346,10 +341,9 @@ class TestZeroTrustEdgeCases:
 
         # Should now be denied
         assert (
-            engine.evaluate(
+            not engine.evaluate(
                 peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
             ).allowed
-            == False
         )
 
 
@@ -387,7 +381,7 @@ class TestZeroTrustPerformance:
 
         # Should complete in reasonable time (<100ms)
         assert elapsed < 0.1
-        assert decision.allowed == True
+        assert decision.allowed
 
     def test_concurrent_evaluations(self):
         """Test concurrent policy evaluations"""

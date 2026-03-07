@@ -10,9 +10,8 @@ mTLS middleware for FastAPI with TLS 1.3 enforcement
 
 import logging
 import ipaddress
-import ssl
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 from urllib.parse import unquote
 
 from cryptography import x509
@@ -352,36 +351,48 @@ class MTLSMiddleware(BaseHTTPMiddleware):
                     },
                 )
 
-            # Если это реальный сертификат, проверить его
-            if isinstance(client_cert, x509.Certificate):
-                # Валидировать SPIFFE SVID
-                spiffe_valid, spiffe_id = self.validator.validate_spiffe_svid(
-                    client_cert
+            # Fail-closed: only parsed x509 certificates are accepted.
+            if not isinstance(client_cert, x509.Certificate):
+                logger.warning(
+                    "Client certificate extraction returned unexpected object type: %s",
+                    type(client_cert).__name__,
                 )
-                if not spiffe_valid:
-                    logger.warning(f"Invalid SPIFFE SVID: {spiffe_id}")
-                    return JSONResponse(
-                        status_code=403,
-                        content={"error": "Invalid SPIFFE SVID", "details": spiffe_id},
-                    )
-
-                # Валидировать истечение
-                expiry_valid, expiry_info = self.validator.validate_cert_expiry(
-                    client_cert
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": "Client certificate required",
+                        "details": "mTLS authentication failed",
+                    },
                 )
-                if not expiry_valid:
-                    logger.warning(f"Certificate validation failed: {expiry_info}")
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": "Certificate validation failed",
-                            "details": expiry_info,
-                        },
-                    )
 
-                # Добавить информацию в request state
-                request.state.spiffe_id = spiffe_id
-                request.state.cert_expiry = expiry_info
+            # Валидировать SPIFFE SVID
+            spiffe_valid, spiffe_id = self.validator.validate_spiffe_svid(
+                client_cert
+            )
+            if not spiffe_valid:
+                logger.warning(f"Invalid SPIFFE SVID: {spiffe_id}")
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": "Invalid SPIFFE SVID", "details": spiffe_id},
+                )
+
+            # Валидировать истечение
+            expiry_valid, expiry_info = self.validator.validate_cert_expiry(
+                client_cert
+            )
+            if not expiry_valid:
+                logger.warning(f"Certificate validation failed: {expiry_info}")
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": "Certificate validation failed",
+                        "details": expiry_info,
+                    },
+                )
+
+            # Добавить информацию в request state
+            request.state.spiffe_id = spiffe_id
+            request.state.cert_expiry = expiry_info
 
         # Добавить безопасность заголовки в response
         response = await call_next(request)

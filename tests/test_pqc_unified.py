@@ -5,7 +5,7 @@ Tests the new unified PQC package at src/security/pqc/.
 """
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 
 class TestPQCTypes:
@@ -320,7 +320,6 @@ class TestHybridSchemes:
         # Mock PQC KEM
         mock_pqc_kem = Mock()
         from src.security.pqc.types import PQCKeyPair
-        from datetime import datetime, timedelta
         
         mock_pqc_keypair = PQCKeyPair(
             algorithm="ML-KEM-768",
@@ -349,20 +348,9 @@ class TestPQCModuleAPI:
             is_liboqs_available,
             get_supported_kem_algorithms,
             get_supported_sig_algorithms,
-            PQCAdapter,
-            PQCAlgorithm,
-            PQCKeyPair,
-            PQCSignature,
-            PQCEncapsulationResult,
-            PQCKeyExchange,
-            PQCDigitalSignature,
-            HybridKeyPair,
-            HybridSignature,
-            HybridKeyExchange,
-            HybridSignatureScheme,
         )
         
-        assert __version__ == "2.0.0"
+        assert __version__ == "2.1.0"
         assert callable(is_liboqs_available)
         assert callable(get_supported_kem_algorithms)
         assert callable(get_supported_sig_algorithms)
@@ -375,9 +363,10 @@ class TestPQCModuleAPI:
         assert PQCAlgorithm.ML_DSA_65.value == "ML-DSA-65"
 
 
+@pytest.mark.usefixtures("real_oqs")
 class TestPQCIntegration:
     """Integration tests for PQC operations."""
-    
+
     @pytest.mark.skipif(
         not pytest.importorskip("oqs", reason="liboqs not installed"),
         reason="Requires liboqs"

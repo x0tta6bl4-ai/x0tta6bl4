@@ -15,9 +15,10 @@ import logging.handlers
 import os
 import re
 import sys
-from datetime import datetime
+from contextvars import ContextVar
+from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import structlog
 
@@ -33,12 +34,22 @@ def mask_sensitive_data(data: str) -> str:
     patterns = [
         # Authentication credentials
         (r'password["\']?\s*[:=]\s*["\']?[^"\'\s]+', "password=***"),
+        (r'passwd["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passwd=***"),
+        (r'passphrase["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passphrase=***"),
         (r'token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "token=***"),
+        (r'access[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "access_token=***"),
+        (r'refresh[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "refresh_token=***"),
+        (r'session[_-]?token["\']?\s*[:=]\s*["\']?[^"\'\s]+', "session_token=***"),
         (r'api[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "api_key=***"),
         (r'authorization["\']?\s*[:=]\s*["\']?[^"\'\s]+', "authorization=***"),
         (r'secret["\']?\s*[:=]\s*["\']?[^"\'\s]+', "secret=***"),
         (r'private[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "private_key=***"),
-        (r'passwd["\']?\s*[:=]\s*["\']?[^"\'\s]+', "passwd=***"),
+        (r'pqc[_-]?key["\']?\s*[:=]\s*["\']?[^"\'\s]+', "pqc_key=***"),
+        (r'credential[s]?["\']?\s*[:=]\s*["\']?[^"\'\s]+', "credential=***"),
+        # Financial / PII
+        (r'cvv["\']?\s*[:=]\s*["\']?[^"\'\s]+', "cvv=***"),
+        (r'card[_-]?number["\']?\s*[:=]\s*["\']?[^"\'\s]+', "card_number=***"),
+        (r'ssn["\']?\s*[:=]\s*["\']?[^"\'\s]+', "ssn=***"),
         # IP address masking (preserve private ranges, mask public)
         (r"\b(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}\b", r"\1.***"),
         # Email masking
@@ -58,7 +69,7 @@ class StructuredJsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -72,6 +83,24 @@ class StructuredJsonFormatter(logging.Formatter):
 
         if hasattr(record, "request_id"):
             log_entry["request_id"] = record.request_id
+        else:
+            context_request_id = RequestIdContextVar.get()
+            if context_request_id:
+                log_entry["request_id"] = context_request_id
+
+        if "request_id" not in log_entry:
+            try:
+                # Lazy import avoids hard dependency/cycle at module import time.
+                from src.core.tracing_middleware import get_correlation_id
+
+                correlation_id = get_correlation_id()
+                if correlation_id:
+                    log_entry["request_id"] = correlation_id
+            except Exception:
+                pass
+
+        if "request_id" in log_entry and "trace_id" not in log_entry:
+            log_entry["trace_id"] = log_entry["request_id"]
 
         if hasattr(record, "user_id"):
             log_entry["user_id"] = record.user_id
@@ -233,22 +262,22 @@ def get_logger(name: str) -> logging.Logger:
 class RequestIdContextVar:
     """Store request ID in logging context"""
 
-    _context = {}
+    _context: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 
     @classmethod
     def set(cls, request_id: str):
         """Set request ID for current context"""
-        cls._context[id(cls)] = request_id
+        cls._context.set(request_id)
 
     @classmethod
     def get(cls) -> Optional[str]:
         """Get request ID from current context"""
-        return cls._context.get(id(cls))
+        return cls._context.get()
 
     @classmethod
     def clear(cls):
         """Clear request ID from context"""
-        cls._context.pop(id(cls), None)
+        cls._context.set(None)
 
 
 class LoggingMiddleware:
@@ -284,7 +313,7 @@ class LoggingMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
 
-        except Exception as e:
+        except Exception:
             status_code = 500
             raise
 

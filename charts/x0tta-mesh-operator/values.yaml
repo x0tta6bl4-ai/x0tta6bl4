@@ -1,0 +1,157 @@
+# x0tta-mesh-operator default values (v3.4.0)
+
+# Operator deployment
+operator:
+  image:
+    repository: x0tta6bl4/mesh-operator
+    tag: "3.4.0"
+    pullPolicy: IfNotPresent
+  webhook:
+    enabled: false
+    port: 9443
+    certDir: /tmp/k8s-webhook-server/serving-certs
+    service:
+      port: 443
+    failurePolicy: Fail
+    timeoutSeconds: 10
+    tls:
+      # If certManager.enabled=false, set both secretName and caBundle.
+      secretName: ""
+      caBundle: ""
+    certManager:
+      enabled: false
+      createIssuer: true
+      issuerRef:
+        name: ""
+        kind: Issuer
+        group: cert-manager.io
+      duration: 2160h      # 90d
+      renewBefore: 360h    # 15d
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+# Leader election for HA operator deployments
+leaderElection:
+  enabled: true
+  namespace: ""  # defaults to release namespace
+
+# Default MeshCluster configuration (used as template for CR defaults)
+meshDefaults:
+  replicas: 3
+  trustDomain: x0tta6bl4.mesh
+  image:
+    repository: x0tta6bl4/mesh-node
+    tag: "3.4.0"
+    pullPolicy: IfNotPresent
+
+  # Post-Quantum Cryptography
+  pqc:
+    enabled: true
+    kemAlgorithm: ML-KEM-768
+    dsaAlgorithm: ML-DSA-65
+    keyRotationInterval: 3600  # seconds
+    hybridMode: true  # classical + PQC for backward compat
+    ebpf:
+      enabled: true
+      packetCounter: true    # track packet_counter in PQCSession
+      antiReplay: true       # sliding window anti-replay
+      windowSize: 64         # bits in replay window bitmap
+      xdpMode: "skb"         # xdp_generic fallback (no native driver req)
+
+  # Adaptive Fallback & Circuit Breaker
+  fallback:
+    enabled: true
+    retryAttempts: 3
+    retryDelay: 1.0
+    circuit:
+      enabled: true
+      failureThreshold: 5      # failures before OPEN
+      resetTimeout: 30         # seconds until HALF_OPEN
+      halfOpenMaxCalls: 3      # calls allowed in HALF_OPEN
+      successThreshold: 2      # successes to close from HALF_OPEN
+    cache:
+      enabled: true
+      ttlSeconds: 300
+      maxEntries: 1000
+      evictionPolicy: lru      # lru | lfu | fifo | ttl | adaptive
+    defaultValue:
+      enabled: false           # return static fallback on failure
+
+  # SPIFFE/SPIRE Identity
+  spiffe:
+    enabled: true
+    socketPath: /run/spire/sockets/agent.sock
+    renewBeforeExpiry: 300     # seconds before SVIDexpiry to renew
+
+  # DAO Governance + Base Sepolia Bridge
+  dao:
+    enabled: true
+    governance:
+      votingPeriod: 7200         # seconds (2h)
+      quorumThreshold: 0.51
+      proposalExpiry: 86400
+      # On-chain governance (governance_script.py)
+      onChain:
+        enabled: true
+        chainId: 84532           # Base Sepolia
+        rpc: "https://sepolia.base.org"  # override with Alchemy/Infura for prod
+        governanceAddress: ""    # set to MeshGovernance address after deploy
+        tokenAddress: ""         # set to X0TToken address after deploy
+        eip1559:
+          maxPriorityFeeGwei: 1.5
+          maxFeeGwei: 10.0
+        audit:
+          ledgerPath: "/data/dao/audit.jsonl"  # mounted via PVC
+    bridge:
+      enabled: false             # enable for Sepolia token operations
+      chainId: 84532             # Base Sepolia testnet
+      contractAddress: ""        # set to deployed BridgeContract address
+      gasLimit: 200000
+      maxGasPriceGwei: 50.0
+      confirmations: 2
+
+  # Mesh networking
+  mesh:
+    maxNodes: 100
+    heartbeatInterval: 30      # seconds
+    routeOptimization: true
+    gossipFanout: 3
+
+  # MAPE-K Autonomic Loop
+  mapek:
+    enabled: true
+    monitorInterval: 15        # seconds
+    analysisWindow: 300        # seconds
+    adaptationEnabled: true
+
+# Service for operator metrics endpoint
+service:
+  enabled: true
+  type: ClusterIP
+  port: 8080
+  metricsPort: 9090
+
+# ServiceMonitor for Prometheus operator
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Install CRDs (set false if managing CRDs separately)
+installCRDs: true

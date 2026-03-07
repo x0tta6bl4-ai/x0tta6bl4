@@ -28,3 +28,14 @@ for mod_name, mock_obj in _mocked_modules.items():
         sys.modules[mod_name] = mock_obj
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def reset_billing_rate_limiter():
+    """Reset the billing rate limiter storage before each test to prevent bleed-over."""
+    try:
+        from src.api.billing import limiter
+        limiter.reset()
+    except Exception:
+        pass
+    yield

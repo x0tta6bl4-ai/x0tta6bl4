@@ -17,13 +17,12 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 
 import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-import numpy as np
 
 
 class IncidentSeverity(Enum):

@@ -10,6 +10,7 @@ Provides automatic request/response tracing with:
 """
 
 import logging
+import hashlib
 import time
 import uuid
 from contextvars import ContextVar
@@ -42,6 +43,30 @@ except ImportError:
 def get_correlation_id() -> Optional[str]:
     """Get current request correlation ID."""
     return correlation_id_var.get()
+
+
+def _masked_credential_id(request: Request) -> str:
+    """
+    Return a non-sensitive credential fingerprint for telemetry.
+
+    Never return raw API keys/tokens. Output is one of:
+    - anonymous
+    - api_key_<hash12>
+    - bearer_<hash12>
+    """
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
+        return f"api_key_{digest}"
+
+    auth_val = request.headers.get("Authorization", "")
+    if auth_val.startswith("Bearer "):
+        token = auth_val[7:].strip()
+        if token:
+            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+            return f"bearer_{digest}"
+
+    return "anonymous"
 
 
 class TracingMiddleware(BaseHTTPMiddleware):
@@ -93,6 +118,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
             correlation_id = str(uuid.uuid4())
         correlation_id_var.set(correlation_id)
 
+        # Derive non-sensitive credential fingerprint for telemetry context.
+        credential_id = _masked_credential_id(request)
+
         # If OpenTelemetry not available, just add correlation ID
         if not OTEL_AVAILABLE or not self.tracer:
             start_time = time.time()
@@ -104,7 +132,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
             logger.debug(
                 f"{request.method} {path} - {response.status_code} "
-                f"({duration:.3f}s) [correlation_id={correlation_id}]"
+                f"({duration:.3f}s) [correlation_id={correlation_id}, credential_id={credential_id}]"
             )
             return response
 
@@ -123,6 +151,8 @@ class TracingMiddleware(BaseHTTPMiddleware):
             span.set_attribute("http.path", path)
             span.set_attribute("http.host", request.url.hostname or "unknown")
             span.set_attribute("http.scheme", request.url.scheme)
+            span.set_attribute("http.credential_id", credential_id)
+            span.set_attribute("http.auth_present", credential_id != "anonymous")
             span.set_attribute("correlation_id", correlation_id)
 
             # Client info

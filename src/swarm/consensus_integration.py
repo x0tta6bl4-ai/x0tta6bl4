@@ -10,19 +10,15 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set
 import uuid
 
 from .consensus import (
     ConsensusEngine,
-    ConsensusAlgorithm,
-    ConsensusResult,
-    Decision,
-    Vote,
-    VoteType,
+    RaftNode,
 )
-from .paxos import PaxosNode, MultiPaxos, ProposalNumber
-from .pbft import PBFTNode, PBFTPhase
+from .paxos import PaxosNode, MultiPaxos
+from .pbft import PBFTNode
 
 try:
     from src.coordination.consensus_transport import (
@@ -510,26 +506,23 @@ class SwarmConsensusManager:
     ) -> Any:
         """Simple majority voting."""
         import random
-        from collections import Counter
-        
-        # Collect weighted votes
-        weighted_votes: Dict[Any, float] = {}
-        
+
+        # Use index-based voting to handle unhashable proposals (e.g., dicts)
+        vote_weights: Dict[int, float] = {i: 0.0 for i in range(len(proposals))}
+
         # Each agent votes for their preferred proposal
         for agent_id, agent in self.agents.items():
             # In real implementation, agents would actually vote
             # For now, simulate random voting
-            chosen = random.choice(proposals)
-            if chosen not in weighted_votes:
-                weighted_votes[chosen] = 0.0
-            weighted_votes[chosen] += agent.weight
-        
+            idx = random.randrange(len(proposals))
+            vote_weights[idx] += agent.weight
+
         # Find winner by total weight
-        if not weighted_votes:
+        if not vote_weights:
             return proposals[0]
-        
-        winner = max(weighted_votes.keys(), key=lambda x: weighted_votes[x])
-        return winner
+
+        winner_idx = max(vote_weights.keys(), key=lambda x: vote_weights[x])
+        return proposals[winner_idx]
     
     async def _raft_decide(
         self,

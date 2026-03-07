@@ -5,12 +5,9 @@ Unit tests for structured logging module.
 import json
 import logging
 import pytest
-from io import StringIO
-from unittest.mock import patch, MagicMock
 
 from src.core.structured_logging import (
     StructuredFormatter,
-    StructuredLogger,
     mask_sensitive,
     set_trace_context,
     generate_trace_id,
@@ -19,7 +16,6 @@ from src.core.structured_logging import (
     timed,
     LogContext,
     configure_logging,
-    SENSITIVE_FIELDS,
     MASK,
 )
 
@@ -73,6 +69,22 @@ class TestMaskSensitive:
         result = mask_sensitive(data)
         assert result["username"] == "alice"
         assert result["email"] == "alice@example.com"
+
+    def test_mask_inline_secret_text(self):
+        """Inline secret-like fragments in string values should be masked."""
+        data = {
+            "details": (
+                "Authorization: Bearer very-secret-token "
+                "api_key=abc123 password=hunter2"
+            )
+        }
+        result = mask_sensitive(data)
+        assert "very-secret-token" not in result["details"]
+        assert "abc123" not in result["details"]
+        assert "hunter2" not in result["details"]
+        assert "Authorization: Bearer ***MASKED***" in result["details"]
+        assert "api_key=***MASKED***" in result["details"]
+        assert "password=***MASKED***" in result["details"]
     
     def test_max_depth(self):
         """Test max recursion depth is respected."""
@@ -106,6 +118,25 @@ class TestStructuredFormatter:
         assert log_entry["message"] == "Test message"
         assert log_entry["line"] == 42
         assert "timestamp" in log_entry
+
+    def test_format_masks_sensitive_text_in_message(self):
+        """Secrets in plain log message must be redacted."""
+        formatter = StructuredFormatter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=42,
+            msg="Authorization: Bearer topsecret token=abc123",
+            args=(),
+            exc_info=None,
+        )
+        result = formatter.format(record)
+        log_entry = json.loads(result)
+        assert "topsecret" not in log_entry["message"]
+        assert "abc123" not in log_entry["message"]
+        assert "Authorization: Bearer ***MASKED***" in log_entry["message"]
+        assert "token=***MASKED***" in log_entry["message"]
     
     def test_format_with_extra(self):
         """Test log with extra fields."""
@@ -155,6 +186,30 @@ class TestStructuredFormatter:
         assert log_entry["exception"]["type"] == "ValueError"
         assert log_entry["exception"]["message"] == "Test error"
         assert "stacktrace" in log_entry["exception"]
+
+    def test_format_with_exception_masks_sensitive_message(self):
+        """Sensitive exception text should be redacted in JSON fields."""
+        formatter = StructuredFormatter()
+        try:
+            raise ValueError("token=abc123")
+        except ValueError:
+            import sys
+            exc_info = sys.exc_info()
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.ERROR,
+            pathname="test.py",
+            lineno=42,
+            msg="Error with token=abc123",
+            args=(),
+            exc_info=exc_info,
+        )
+        result = formatter.format(record)
+        log_entry = json.loads(result)
+        assert "abc123" not in log_entry["message"]
+        assert "abc123" not in log_entry["exception"]["message"]
+        assert log_entry["exception"]["message"] == "token=***MASKED***"
     
     def test_format_with_trace_context(self):
         """Test log with trace context."""

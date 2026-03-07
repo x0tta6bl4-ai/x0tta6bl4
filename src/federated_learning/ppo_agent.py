@@ -15,8 +15,6 @@ Reference: "Proximal Policy Optimization Algorithms" (Schulman et al., 2017)
 import logging
 import math
 import random
-from abc import ABC, abstractmethod
-from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
@@ -187,7 +185,7 @@ class MeshRoutingEnv:
         latency = self.current_state.latency[action]
         packet_loss = self.current_state.packet_loss[action]
         trust = self.current_state.trust_scores[action]
-        bandwidth = self.current_state.bandwidth[action]
+        self.current_state.bandwidth[action]
 
         # Simulate packet transmission
         self.hops_taken += 1

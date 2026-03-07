@@ -5,9 +5,8 @@ Tests MTTR optimization including parallel execution, priority queuing,
 and adaptive monitoring intervals.
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -342,7 +341,7 @@ class TestMTTREndToEnd:
         optimizer.record_diagnosis_complete()
 
         # Execute parallel MAPE-K
-        result = await executor.execute_parallel(
+        await executor.execute_parallel(
             monitor, analyze, plan, execute, knowledge
         )
 

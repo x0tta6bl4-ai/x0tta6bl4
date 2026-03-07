@@ -1,0 +1,39 @@
+SHELL := /bin/bash
+
+CLANG ?= clang
+GO ?= go
+BPF2GO ?= $(GO) run github.com/cilium/ebpf/cmd/bpf2go
+SRC ?= ../../src/network/ebpf/programs/xdp_mesh_filter.c
+VMLINUX ?= ../../src/network/ebpf/programs/vmlinux/vmlinux.h
+OUT ?= .
+PACKAGE ?= main
+ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
+
+CFLAGS = -O2 -g -D__TARGET_ARCH_$(ARCH) -I../../src/network/ebpf/programs/vmlinux -I/usr/include -I/usr/include/$(shell uname -m)-linux-gnu
+
+.PHONY: generate clean validate-kernel
+
+validate-kernel:
+	@test -f /sys/kernel/btf/vmlinux || (echo "BTF not available at /sys/kernel/btf/vmlinux" && exit 1)
+	@KERNEL="$$(cat /proc/sys/kernel/osrelease)"; \
+	MAJOR="$${KERNEL%%.*}"; \
+	REST="$${KERNEL#*.}"; \
+	MINOR="$${REST%%[^0-9]*}"; \
+	if [ "$$MAJOR" -lt 6 ] || { [ "$$MAJOR" -eq 6 ] && [ "$$MINOR" -lt 1 ]; }; then \
+		echo "Kernel $$KERNEL is unsupported; require 6.1+"; \
+		exit 1; \
+	fi
+
+generate: validate-kernel
+	@test -f "$(VMLINUX)" || (echo "Missing $(VMLINUX)" && exit 1)
+	cd "$(OUT)" && \
+		BPF2GO_CFLAGS='$(CFLAGS)' \
+		$(BPF2GO) \
+			-cc "$(CLANG)" \
+			-target amd64,arm64 \
+			-go-package $(PACKAGE) \
+			meshcore \
+			"$(SRC)"
+
+clean:
+	rm -f $(OUT)/meshcore_bpf*.go $(OUT)/meshcore_bpf*.o $(OUT)/cilium-networkpolicy.yaml

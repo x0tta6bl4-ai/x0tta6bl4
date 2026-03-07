@@ -9,11 +9,10 @@ Node Manager Service
 - Закрытие соединения (Tor-like circuit)
 """
 
-import asyncio
 import logging
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from src.network.batman.topology import MeshTopology
@@ -198,7 +197,7 @@ class NodeManagerService:
         if user_id not in self.user_nodes:
             return {"success": False, "error": "Узел не запущен"}
 
-        user_node = self.user_nodes[user_id]
+        self.user_nodes[user_id]
 
         # Находим соединения пользователя
         user_connections = [

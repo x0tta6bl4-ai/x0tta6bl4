@@ -5,7 +5,7 @@ Provides pluggable transport obfuscation to bypass DPI (Deep Packet Inspection).
 
 import socket
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional
 
 
 class ObfuscationTransport(ABC):

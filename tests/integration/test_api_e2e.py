@@ -9,11 +9,9 @@ End-to-End интеграционные тесты для API.
 
 import hashlib
 import hmac
-import json
 import os
 import time
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient

@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -71,7 +70,7 @@ def test_monitor_uses_threshold_manager_over_default():
     tm.get_threshold = Mock(side_effect=lambda name, default: 1.0)
 
     mon = MAPEKMonitor(knowledge=None, threshold_manager=tm)
-    assert mon.check({"cpu_percent": 2.0}) is True
+    assert mon.check({"cpu_percent": 2.0})["anomaly_detected"] is True
 
 
 def test_planner_uses_knowledge_recommended_action():

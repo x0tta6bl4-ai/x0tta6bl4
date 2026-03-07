@@ -21,7 +21,7 @@ Target Metrics:
 
 import logging
 import time
-from collections import deque
+from collections import deque, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -203,6 +203,7 @@ class GraphSAGEAnomalyDetectorV3:
 
         # Metrics tracking
         self.prediction_history: deque = deque(maxlen=1000)
+        self.load_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=60)) # Last 60 samples
         self.last_predictions: Dict[str, float] = {}
         self.network_health: float = 1.0
 
@@ -212,6 +213,44 @@ class GraphSAGEAnomalyDetectorV3:
             f"adaptive_threshold={use_adaptive_threshold}, "
             f"confidence_calibration={confidence_calibration}"
         )
+
+    def predict_load_forecast(self, node_id: str, current_load: float) -> Dict[str, Any]:
+        """
+        Forecast node load 5 minutes into the future.
+        
+        Args:
+            node_id: Node identifier
+            current_load: Current CPU/Resource load (0.0-1.0)
+            
+        Returns:
+            Dict with forecast_load, trend, and scaling_recommended flag
+        """
+        history = self.load_history[node_id]
+        history.append(current_load)
+        
+        if len(history) < 5:
+            return {"forecast_load": current_load, "trend": 0.0, "scaling_recommended": False}
+            
+        # Calculate trend using simple linear regression or EMA difference
+        loads = list(history)
+        x = np.arange(len(loads))
+        y = np.array(loads)
+        
+        # Simple linear fit
+        slope, intercept = np.polyfit(x, y, 1)
+        
+        # Forecast 5 minutes ahead (assuming 10s sampling interval -> 30 samples ahead)
+        forecast = intercept + slope * (len(loads) + 30)
+        forecast = max(0.0, min(1.2, forecast)) # Allow > 1.0 to indicate saturation
+        
+        scaling_recommended = forecast > 0.85 and slope > 0.005 # High load + rising trend
+        
+        return {
+            "current_load": current_load,
+            "forecast_load": round(float(forecast), 3),
+            "trend": round(float(slope), 4),
+            "scaling_recommended": bool(scaling_recommended)
+        }
 
     def predict_enhanced(
         self,
@@ -419,11 +458,11 @@ class GraphSAGEAnomalyDetectorV3:
 
         # Average neighbor RSSI
         neighbor_rssis = [f.get("rssi", -70.0) for f in neighbor_features]
-        avg_neighbor_rssi = np.mean(neighbor_rssis)
+        np.mean(neighbor_rssis)
 
         # Average neighbor loss rate
         neighbor_losses = [f.get("loss_rate", 0.01) for f in neighbor_features]
-        avg_neighbor_loss = np.mean(neighbor_losses)
+        np.mean(neighbor_losses)
 
         # Compare node to neighbor baseline
         node_rssi = normalized_features.get("rssi_z", 0)

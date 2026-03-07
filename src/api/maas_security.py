@@ -11,14 +11,27 @@ import logging
 import os
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import hvac
 import httpx
 import jwt
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
+
+
+def _is_production_mode() -> bool:
+    """Detect production mode from standard environment switches."""
+    env = os.getenv("ENVIRONMENT", "").strip().lower()
+    if env in {"production", "prod", "live"}:
+        return True
+    return os.getenv("X0TTA6BL4_PRODUCTION", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 class ApiKeyManager:
@@ -110,7 +123,8 @@ class PQCTokenSigner:
         self._pqc_signer = None
         self._signing_keypair = None
         self.vault_url = os.getenv("VAULT_URL", "http://localhost:8200")
-        self.vault_token = os.getenv("VAULT_TOKEN", "x0t-master-token")
+        self.vault_token = os.getenv("VAULT_TOKEN", "")
+        self._ephemeral_hmac_secret: Optional[str] = None
         self._pqc_initialized = False
 
     def _get_hmac_secret(self) -> str:
@@ -122,7 +136,20 @@ class PQCTokenSigner:
             return read_response['data']['data']['secret']
         except Exception as e:
             logger.debug(f"[MaaS Security] Vault access failed, using fallback: {e}")
-            return os.getenv("MAAS_TOKEN_SECRET", "dev-fallback-secret-non-prod")
+            env_secret = os.getenv("MAAS_TOKEN_SECRET", "").strip()
+            if env_secret:
+                return env_secret
+            if _is_production_mode():
+                raise RuntimeError(
+                    "MAAS_TOKEN_SECRET must be configured when Vault is unavailable in production"
+                ) from e
+            if not self._ephemeral_hmac_secret:
+                self._ephemeral_hmac_secret = secrets.token_hex(32)
+                logger.warning(
+                    "[MaaS Security] Vault unavailable and MAAS_TOKEN_SECRET is unset. "
+                    "Using ephemeral in-memory fallback secret for non-production mode."
+                )
+            return self._ephemeral_hmac_secret
 
     def _init_pqc(self):
         """Try to initialize PQC signer."""
@@ -159,7 +186,8 @@ class PQCTokenSigner:
                 return {
                     "token": token,
                     "algorithm": "ML-DSA-65",
-                    "signature": sig.signature_bytes.hex()[:64] + "...",
+                    # Keep full signature to make verification cryptographically sound.
+                    "signature": sig.signature_bytes.hex(),
                     "signer_key_id": sig.signer_key_id,
                     "pqc_secured": True,
                 }
@@ -184,12 +212,13 @@ class PQCTokenSigner:
         """Verify a signed join token using dynamic secret."""
         self._init_pqc()
         payload = f"{mesh_id}:{token}".encode()
+        signature_hex = (signature or "").strip()
 
         if self._pqc_signer and self._signing_keypair:
             try:
                 return self._pqc_signer.verify(
                     payload,
-                    bytes.fromhex(signature),
+                    bytes.fromhex(signature_hex),
                     self._signing_keypair.public_key,
                 )
             except Exception:
@@ -201,7 +230,7 @@ class PQCTokenSigner:
         expected = hmac.new(
             secret.encode(), payload, hashlib.sha256
         ).hexdigest()
-        return hmac.compare_digest(signature[:64], expected[:64])
+        return hmac.compare_digest(signature_hex[:64], expected[:64])
 
 
 class OIDCClaims:

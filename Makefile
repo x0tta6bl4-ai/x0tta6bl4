@@ -1,9 +1,13 @@
 # Makefile for x0tta6bl4 v3.3.0
 # ================================
 
-.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status
+.PHONY: help install test benchmark clean lint format up down logs status build build-prod plan code ops-test gtm ai-status cleanup-baseline cleanup-gate cleanup-rc-check utrecht-plan utrecht-deploy utrecht-manifest-diff utrecht-manifest-apply utrecht-observation utrecht-observation-tail utrecht-kpi-summary utrecht-funding-draft iso-p2-readiness-check mesh-operator-preflight mesh-operator-lint mesh-operator-plan mesh-operator-install mesh-operator-upgrade mesh-operator-smoke mesh-operator-reproducibility mesh-operator-release-dry-run mesh-operator-lifecycle-e2e mesh-operator-canary-rollback-e2e api-memory-profile-longrun maas-api-load-scenarios maas-api-load-scenarios-ci mesh-operator-uninstall
 
 .DEFAULT_GOAL := help
+
+MESH_OPERATOR_RELEASE ?= x0tta-mesh
+MESH_OPERATOR_NAMESPACE ?= x0tta-mesh-system
+MESH_OPERATOR_VALUES ?= deploy/helm/values-x0tta-mesh-operator-utrecht.yaml
 
 help:
 	@echo "x0tta6bl4 v3.3.0 - Available commands:"
@@ -29,6 +33,31 @@ help:
 	@echo "=== Monitoring ==="
 	@echo "  make monitoring-stack - Deploy Prometheus + Grafana"
 	@echo ""
+	@echo "=== Pilot Ops (Utrecht 6G) ==="
+	@echo "  make utrecht-plan          - Preview Utrecht mesh provisioning request"
+	@echo "  make utrecht-deploy        - Provision Utrecht pilot mesh"
+	@echo "  make utrecht-manifest-diff - Show K8s diff for Utrecht manifest"
+	@echo "  make utrecht-manifest-apply - Apply Utrecht pilot manifest"
+	@echo "  make utrecht-observation   - Run reliability drill and append pilot observation log"
+	@echo "  make utrecht-observation-tail - Show latest pilot observation entries"
+	@echo "  make utrecht-kpi-summary   - Generate KPI summary from observation log"
+	@echo "  make utrecht-funding-draft - Generate follow-up DAO funding draft from KPI summary"
+	@echo "  make iso-p2-readiness-check - Validate ISO 27001 P2 documentation package"
+	@echo "  make mesh-operator-preflight - Verify kubectl context/cluster before install"
+	@echo "  make mesh-operator-lint    - Lint x0tta mesh operator chart with Utrecht values"
+	@echo "  make mesh-operator-plan    - Render operator manifests (dry-run plan)"
+	@echo "  make mesh-operator-install - Install operator chart into namespace"
+	@echo "  make mesh-operator-upgrade - Upgrade operator chart release"
+	@echo "  make mesh-operator-smoke   - Validate operator rollout/CRD/service health"
+	@echo "  make mesh-operator-reproducibility - Verify deterministic fallback image builds"
+	@echo "  make mesh-operator-release-dry-run - Run release dry-run with checkpoint report"
+	@echo "  make mesh-operator-lifecycle-e2e - Validate Helm install/upgrade/uninstall lifecycle in kind"
+	@echo "  make mesh-operator-canary-rollback-e2e - Validate canary rollout and rollback SLA in kind"
+	@echo "  make api-memory-profile-longrun - Run long-run API memory profile with report artifacts"
+	@echo "  make maas-api-load-scenarios - Run Marketplace/Telemetry/Nodes load scenarios with report artifacts"
+	@echo "  make maas-api-load-scenarios-ci - Run deterministic CI profile for Marketplace/Telemetry/Nodes load scenarios"
+	@echo "  make mesh-operator-uninstall - Uninstall operator chart release"
+	@echo ""
 	@echo "=== Development ==="
 	@echo "  make install     - Install Python dependencies locally"
 	@echo "  make lint        - Run linters (flake8, black, mypy)"
@@ -42,6 +71,7 @@ help:
 	@echo ""
 	@echo "=== Database & Cache ==="
 	@echo "  make db-connect  - Connect to PostgreSQL"
+	@echo "  make db-connect-admin - Connect to PostgreSQL as admin"
 	@echo "  make redis-cli   - Connect to Redis CLI"
 	@echo "  make shell       - Open shell in API container"
 	@echo ""
@@ -124,9 +154,128 @@ test:
 	@docker exec x0tta6bl4-db psql -h localhost -U x0tta6bl4 -c "SELECT 1" 2>/dev/null && echo "  ✅ Connected" || echo "  ❌ Failed"
 	@echo ""
 	@echo "✓ Redis:"
-	@docker exec x0tta6bl4-redis redis-cli ping 2>/dev/null && echo "  ✅ Connected" || echo "  ❌ Failed"
+	@REDIS_PING=$$(docker exec x0tta6bl4-redis redis-cli ping 2>/dev/null || true); \
+	if [ "$$REDIS_PING" = "PONG" ]; then \
+		echo "  PONG"; \
+		echo "  ✅ Connected"; \
+	else \
+		if [ -n "$$REDIS_PING" ]; then echo "  $$REDIS_PING"; else echo "  Not responding"; fi; \
+		echo "  ❌ Redis degraded"; \
+	fi
 	@echo ""
 	@echo "✅ Health checks complete"
+
+utrecht-plan:
+	@echo "📋 Previewing Utrecht 6G provisioning request..."
+	python3 scripts/ops/utrecht_6g_deploy.py --dry-run --output json --values-file values-utrecht.yaml
+
+utrecht-deploy:
+	@echo "🚀 Deploying Utrecht 6G pilot mesh..."
+	python3 scripts/ops/utrecht_6g_deploy.py --values-file values-utrecht.yaml
+
+utrecht-manifest-diff:
+	@echo "🔎 Diffing Utrecht deployment manifest..."
+	kubectl diff -f utrecht-deploy-manifest.yaml || true
+
+utrecht-manifest-apply:
+	@echo "📦 Applying Utrecht deployment manifest..."
+	kubectl apply -f utrecht-deploy-manifest.yaml
+
+utrecht-observation:
+	@echo "📈 Recording Utrecht pilot observation..."
+	bash scripts/ops/record_utrecht_pilot_observation.sh
+
+utrecht-observation-tail:
+	@echo "🗒️ Latest Utrecht pilot observations:"
+	@tail -n 20 docs/governance/proposals/UTRECHT_PILOT_OBSERVATION_LOG.md 2>/dev/null || echo "No observation log yet."
+
+utrecht-kpi-summary:
+	@echo "📊 Building Utrecht KPI summary from observations..."
+	python3 scripts/ops/build_utrecht_pilot_governance_artifacts.py --write-summary
+
+utrecht-funding-draft:
+	@echo "🗳️ Building Utrecht follow-up DAO funding draft..."
+	python3 scripts/ops/build_utrecht_pilot_governance_artifacts.py --write-summary --write-funding-draft
+
+iso-p2-readiness-check:
+	@echo "🛡️ Running ISO 27001 P2 readiness document checks..."
+	python3 scripts/ops/check_iso27001_p2_readiness.py
+
+mesh-operator-preflight:
+	@echo "🔎 Running mesh operator preflight checks..."
+	python3 scripts/ops/mesh_operator_health.py preflight \
+	  --require-cluster \
+	  --kubectl scripts/ops/kubectl_safe.sh
+
+mesh-operator-lint:
+	@echo "🔍 Linting x0tta mesh operator chart..."
+	scripts/ops/helm_safe.sh lint charts/x0tta-mesh-operator -f $(MESH_OPERATOR_VALUES)
+
+mesh-operator-plan:
+	@echo "🧭 Rendering x0tta mesh operator manifests..."
+	scripts/ops/helm_safe.sh template $(MESH_OPERATOR_RELEASE) charts/x0tta-mesh-operator \
+	  --namespace $(MESH_OPERATOR_NAMESPACE) \
+	  -f $(MESH_OPERATOR_VALUES)
+
+mesh-operator-install: mesh-operator-preflight
+	@echo "🚀 Installing x0tta mesh operator..."
+	scripts/ops/helm_safe.sh upgrade --install $(MESH_OPERATOR_RELEASE) charts/x0tta-mesh-operator \
+	  --namespace $(MESH_OPERATOR_NAMESPACE) \
+	  --create-namespace \
+	  -f $(MESH_OPERATOR_VALUES)
+
+mesh-operator-upgrade: mesh-operator-preflight
+	@echo "⬆️  Upgrading x0tta mesh operator..."
+	scripts/ops/helm_safe.sh upgrade $(MESH_OPERATOR_RELEASE) charts/x0tta-mesh-operator \
+	  --namespace $(MESH_OPERATOR_NAMESPACE) \
+	  -f $(MESH_OPERATOR_VALUES)
+
+mesh-operator-smoke:
+	@echo "🩺 Running mesh operator smoke checks..."
+	python3 scripts/ops/mesh_operator_health.py smoke \
+	  --namespace $(MESH_OPERATOR_NAMESPACE) \
+	  --release $(MESH_OPERATOR_RELEASE) \
+	  --wait-seconds 180 \
+	  --kubectl scripts/ops/kubectl_safe.sh
+
+mesh-operator-reproducibility:
+	@echo "🧬 Checking mesh image reproducibility..."
+	bash scripts/ops/check_mesh_images_reproducibility.sh
+
+mesh-operator-release-dry-run:
+	@echo "🧭 Running mesh operator release dry-run checkpoints..."
+	bash scripts/ops/mesh_operator_release_dry_run.sh
+
+mesh-operator-lifecycle-e2e:
+	@echo "🧪 Running mesh operator Helm lifecycle e2e..."
+	bash scripts/ops/mesh_operator_helm_lifecycle_e2e.sh
+
+mesh-operator-canary-rollback-e2e:
+	@echo "🐤 Running mesh operator canary rollout + rollback e2e..."
+	bash scripts/ops/mesh_operator_canary_rollback_e2e.sh
+
+api-memory-profile-longrun:
+	@echo "🧠 Running long-run API memory profile..."
+	bash scripts/ops/profile_api_memory_longrun.sh
+
+maas-api-load-scenarios:
+	@echo "⚡ Running MaaS API load scenarios (Marketplace/Telemetry/Nodes)..."
+	bash scripts/ops/run_maas_api_load_scenarios.sh
+
+maas-api-load-scenarios-ci:
+	@echo "⚡ Running MaaS API load scenarios (CI profile)..."
+	REPORT_DIR=.artifacts/maas-api-load \
+	DURATION_SECONDS=30 \
+	CONCURRENCY=4 \
+	REQUEST_TIMEOUT_SECONDS=3 \
+	MAX_ERROR_RATE_PERCENT=1.0 \
+	MAX_SCENARIO_P95_MS=900 \
+	STARTUP_TIMEOUT_SECONDS=300 \
+	bash scripts/ops/run_maas_api_load_scenarios.sh
+
+mesh-operator-uninstall:
+	@echo "🧹 Uninstalling x0tta mesh operator..."
+	scripts/ops/helm_safe.sh uninstall $(MESH_OPERATOR_RELEASE) --namespace $(MESH_OPERATOR_NAMESPACE)
 
 db-connect:
 	@echo "📊 Connecting to PostgreSQL..."
@@ -309,7 +458,7 @@ db-monitor:
 	@echo "📊 Database cluster monitoring..."
 	bash scripts/database/postgres_monitor.sh
 
-db-connect:
+db-connect-admin:
 	@echo "🔌 Connecting to database..."
 	psql -h localhost -p 5432 -U postgres -d x0tta6bl4
 
@@ -516,10 +665,38 @@ agent-cycle-strict:
 agent-cycle-dry:
 	@python3 scripts/agents/run_agent_cycle.py --dry-run
 
+agent-cycle-legacylog:
+	@python3 scripts/agents/run_agent_cycle.py --sync-paradox-log
+
 agent-cycle-nosync:
-	@python3 scripts/agents/run_agent_cycle.py --no-sync-paradox-log
+	@python3 scripts/agents/run_agent_cycle.py --no-sync-agent-coord --no-sync-paradox-log
 
 ai-status:
 	@./ai.sh status
 
 all: install test lint
+
+# ============================================================================
+# PLATFORM CLEANUP GATES (single-purpose PR era)
+# ============================================================================
+
+cleanup-baseline:
+	@echo "📋 Cleanup baseline"
+	@echo ""
+	@echo "Branch: $$(git rev-parse --abbrev-ref HEAD)"
+	@echo "Commit: $$(git rev-parse --short HEAD)"
+	@echo ""
+	@git status --short
+	@echo ""
+	@docker compose -f staging/docker-compose.quick.yml ps
+
+cleanup-gate:
+	@./scripts/ops/cleanup_gate.sh
+
+cleanup-rc-check:
+	@echo "🧪 RC verification sequence"
+	@echo "1) make up"
+	@echo "2) make cleanup-gate"
+	@echo "3) docs/runbooks/MAAS_PLATFORM_CLEANUP_RUNBOOK.md"
+	@make up
+	@make cleanup-gate

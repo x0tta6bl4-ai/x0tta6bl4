@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/governance/Governor.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
@@ -147,43 +147,6 @@ contract X0TTA6BL4Governor is
     }
 
     /**
-     * @dev Cancel proposal
-     * Can be called by proposer or governance
-     */
-    function cancel(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public override(Governor) returns (uint256) {
-        return super.cancel(targets, values, calldatas, descriptionHash);
-    }
-
-    /**
-     * @dev Execute proposal (after timelock delay)
-     */
-    function execute(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public payable override(Governor, GovernorTimelockControl) returns (uint256) {
-        return super.execute(targets, values, calldatas, descriptionHash);
-    }
-
-    /**
-     * @dev Queue proposal for execution (transition to Queued state)
-     */
-    function queue(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) public override(Governor, GovernorTimelockControl) returns (uint256) {
-        return super.queue(targets, values, calldatas, descriptionHash);
-    }
-
-    /**
      * @dev Get proposal threshold (tokens needed to create proposal)
      */
     function proposalThreshold()
@@ -231,58 +194,54 @@ contract X0TTA6BL4Governor is
                 currentState == ProposalState.Executed);
     }
 
-    /**
-     * @dev Get proposal vote counts
-     */
-    function proposalVotes(uint256 proposalId)
+    // ===== Internal Override Functions =====
+
+    function proposalNeedsQueuing(uint256 proposalId)
         public
         view
-        returns (
-            uint256 forVotes,
-            uint256 againstVotes,
-            uint256 abstainVotes
-        )
+        virtual
+        override(Governor, GovernorTimelockControl)
+        returns (bool)
     {
-        (againstVotes, forVotes, abstainVotes) = proposalVotes(proposalId);
+        return super.proposalNeedsQueuing(proposalId);
     }
-
-    // ===== Internal Override Functions =====
 
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(Governor, GovernorTimelockControl)
+        override(Governor)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
 
     function _queueOperations(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) internal override(Governor, GovernorTimelockControl) {
-        super._queueOperations(targets, values, calldatas, descriptionHash);
+    ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
+        return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
 
     function _executeOperations(
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) {
-        super._executeOperations(targets, values, calldatas, descriptionHash);
+        super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
 
     function _cancel(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
-        bytes32 descriptionHash,
-        address proposer
-    ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
-        return super._cancel(targets, values, calldatas, descriptionHash, proposer);
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
+        return super._cancel(targets, values, calldatas, descriptionHash);
     }
 
     function _executor()

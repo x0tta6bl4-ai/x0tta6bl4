@@ -14,8 +14,6 @@ Tests cover:
 - MetricsMiddleware ASGI middleware
 """
 
-import asyncio
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -859,11 +857,11 @@ class TestMetricsMiddleware:
             mock_get.return_value = mock_registry
             await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="GET", endpoint="/api/health", status=200
+                method="GET", endpoint="/api/health", status=200, api_key="anonymous"
             )
             mock_registry.request_count.labels().inc.assert_called()
             mock_registry.request_duration.labels.assert_called_with(
-                method="GET", endpoint="/api/health"
+                method="GET", endpoint="/api/health", api_key="anonymous"
             )
             mock_registry.request_duration.labels().observe.assert_called()
 
@@ -887,7 +885,7 @@ class TestMetricsMiddleware:
                 await mw(scope, receive, send)
             # Metrics should still be recorded
             mock_registry.request_count.labels.assert_called_with(
-                method="POST", endpoint="/api/data", status=500
+                method="POST", endpoint="/api/data", status=500, api_key="anonymous"
             )
             mock_registry.request_count.labels().inc.assert_called()
 
@@ -910,7 +908,7 @@ class TestMetricsMiddleware:
             with pytest.raises(RuntimeError):
                 await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="GET", endpoint="/crash", status=500
+                method="GET", endpoint="/crash", status=500, api_key="anonymous"
             )
 
     @pytest.mark.asyncio
@@ -932,7 +930,7 @@ class TestMetricsMiddleware:
             mock_get.return_value = mock_registry
             await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="GET", endpoint="/missing", status=404
+                method="GET", endpoint="/missing", status=404, api_key="anonymous"
             )
 
     @pytest.mark.asyncio
@@ -953,7 +951,7 @@ class TestMetricsMiddleware:
             mock_get.return_value = mock_registry
             await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="unknown", endpoint="/test", status=200
+                method="unknown", endpoint="/test", status=200, api_key="anonymous"
             )
 
     @pytest.mark.asyncio
@@ -974,7 +972,7 @@ class TestMetricsMiddleware:
             mock_get.return_value = mock_registry
             await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="GET", endpoint="unknown", status=200
+                method="GET", endpoint="unknown", status=200, api_key="anonymous"
             )
 
     @pytest.mark.asyncio
@@ -1043,7 +1041,7 @@ class TestMetricsMiddleware:
             mock_get.return_value = mock_registry
             await mw(scope, receive, send)
             mock_registry.request_count.labels.assert_called_with(
-                method="GET", endpoint="/no-status", status=500
+                method="GET", endpoint="/no-status", status=500, api_key="anonymous"
             )
 
 
@@ -1053,7 +1051,12 @@ class TestMetricLabels:
     def test_request_count_labels(self):
         from src.monitoring.metrics import MetricsRegistry
         # Verify we can use the expected labels
-        labeled = MetricsRegistry.request_count.labels(method="GET", endpoint="/test", status="200")
+        labeled = MetricsRegistry.request_count.labels(method="GET", endpoint="/test", status="200", api_key="anonymous")
+        assert labeled is not None
+
+    def test_request_duration_labels(self):
+        from src.monitoring.metrics import MetricsRegistry
+        labeled = MetricsRegistry.request_duration.labels(method="GET", endpoint="/test", api_key="anonymous")
         assert labeled is not None
 
     def test_mapek_cycle_duration_labels(self):

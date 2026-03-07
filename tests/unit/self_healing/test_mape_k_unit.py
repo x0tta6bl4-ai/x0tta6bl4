@@ -5,8 +5,7 @@ Tests cover: MAPEKMonitor, MAPEKAnalyzer, MAPEKPlanner,
 MAPEKExecutor, MAPEKKnowledge, SelfHealingManager.
 """
 
-import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -49,14 +48,17 @@ class TestMAPEKMonitor:
 
     def test_register_detector(self):
         monitor = MAPEKMonitor()
-        fn = lambda m: True
+        def fn(m):
+            return True
         monitor.register_detector(fn)
         assert fn in monitor.anomaly_detectors
 
     def test_register_multiple_detectors(self):
         monitor = MAPEKMonitor()
-        fn1 = lambda m: False
-        fn2 = lambda m: True
+        def fn1(m):
+            return False
+        def fn2(m):
+            return True
         monitor.register_detector(fn1)
         monitor.register_detector(fn2)
         assert len(monitor.anomaly_detectors) == 2
@@ -65,53 +67,53 @@ class TestMAPEKMonitor:
 
     def test_check_default_cpu_anomaly(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"cpu_percent": 95}) is True
+        assert monitor.check({"cpu_percent": 95})["anomaly_detected"] is True
 
     def test_check_default_cpu_normal(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"cpu_percent": 80}) is False
+        assert monitor.check({"cpu_percent": 80})["anomaly_detected"] is False
 
     def test_check_default_cpu_boundary(self):
         monitor = MAPEKMonitor()
         # Exactly at threshold should NOT trigger (> not >=)
-        assert monitor.check({"cpu_percent": 90}) is False
+        assert monitor.check({"cpu_percent": 90})["anomaly_detected"] is False
 
     def test_check_default_memory_anomaly(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"memory_percent": 90}) is True
+        assert monitor.check({"memory_percent": 90})["anomaly_detected"] is True
 
     def test_check_default_memory_normal(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"memory_percent": 80}) is False
+        assert monitor.check({"memory_percent": 80})["anomaly_detected"] is False
 
     def test_check_default_memory_boundary(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"memory_percent": 85}) is False
+        assert monitor.check({"memory_percent": 85})["anomaly_detected"] is False
 
     def test_check_default_packet_loss_anomaly(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"packet_loss_percent": 10}) is True
+        assert monitor.check({"packet_loss_percent": 10})["anomaly_detected"] is True
 
     def test_check_default_packet_loss_normal(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"packet_loss_percent": 3}) is False
+        assert monitor.check({"packet_loss_percent": 3})["anomaly_detected"] is False
 
     def test_check_default_packet_loss_boundary(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"packet_loss_percent": 5}) is False
+        assert monitor.check({"packet_loss_percent": 5})["anomaly_detected"] is False
 
     def test_check_default_all_normal(self):
         monitor = MAPEKMonitor()
         metrics = {"cpu_percent": 50, "memory_percent": 50, "packet_loss_percent": 1}
-        assert monitor.check(metrics) is False
+        assert monitor.check(metrics)["anomaly_detected"] is False
 
     def test_check_empty_metrics(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({}) is False
+        assert monitor.check({})["anomaly_detected"] is False
 
     def test_check_missing_metric_keys(self):
         monitor = MAPEKMonitor()
-        assert monitor.check({"unrelated": 100}) is False
+        assert monitor.check({"unrelated": 100})["anomaly_detected"] is False
 
     # ── check() with knowledge thresholds ──
 
@@ -123,13 +125,13 @@ class TestMAPEKMonitor:
             "packet_loss_percent": 5.0,
         }[name]
         monitor = MAPEKMonitor(knowledge=knowledge)
-        assert monitor.check({"cpu_percent": 85}) is True
+        assert monitor.check({"cpu_percent": 85})["anomaly_detected"] is True
 
     def test_check_with_knowledge_no_anomaly(self):
         knowledge = MagicMock()
         knowledge.get_adjusted_threshold.return_value = 95.0
         monitor = MAPEKMonitor(knowledge=knowledge)
-        assert monitor.check({"cpu_percent": 91}) is False
+        assert monitor.check({"cpu_percent": 91})["anomaly_detected"] is False
 
     # ── check() with threshold_manager ──
 
@@ -142,7 +144,7 @@ class TestMAPEKMonitor:
         }[name]
         monitor = MAPEKMonitor(threshold_manager=tm)
         # 75 > 70 threshold from DAO
-        assert monitor.check({"cpu_percent": 75}) is True
+        assert monitor.check({"cpu_percent": 75})["anomaly_detected"] is True
 
     def test_check_with_threshold_manager_memory(self):
         tm = MagicMock()
@@ -152,7 +154,7 @@ class TestMAPEKMonitor:
             "network_loss_threshold": 5.0,
         }[name]
         monitor = MAPEKMonitor(threshold_manager=tm)
-        assert monitor.check({"memory_percent": 65}) is True
+        assert monitor.check({"memory_percent": 65})["anomaly_detected"] is True
 
     def test_check_with_threshold_manager_packet_loss(self):
         tm = MagicMock()
@@ -162,7 +164,7 @@ class TestMAPEKMonitor:
             "network_loss_threshold": 2.0,
         }[name]
         monitor = MAPEKMonitor(threshold_manager=tm)
-        assert monitor.check({"packet_loss_percent": 3}) is True
+        assert monitor.check({"packet_loss_percent": 3})["anomaly_detected"] is True
 
     def test_check_threshold_manager_priority_over_knowledge(self):
         """threshold_manager takes priority over knowledge."""
@@ -176,7 +178,7 @@ class TestMAPEKMonitor:
         }[name]
         monitor = MAPEKMonitor(knowledge=knowledge, threshold_manager=tm)
         # Should use tm threshold (70), not knowledge (95)
-        assert monitor.check({"cpu_percent": 75}) is True
+        assert monitor.check({"cpu_percent": 75})["anomaly_detected"] is True
         # Knowledge should not be called
         knowledge.get_adjusted_threshold.assert_not_called()
 
@@ -185,24 +187,24 @@ class TestMAPEKMonitor:
     def test_check_custom_detector_triggers(self):
         monitor = MAPEKMonitor()
         monitor.register_detector(lambda m: m.get("custom", 0) > 50)
-        assert monitor.check({"custom": 60}) is True
+        assert monitor.check({"custom": 60})["anomaly_detected"] is True
 
     def test_check_custom_detector_does_not_trigger(self):
         monitor = MAPEKMonitor()
         monitor.register_detector(lambda m: m.get("custom", 0) > 50)
-        assert monitor.check({"custom": 30}) is False
+        assert monitor.check({"custom": 30})["anomaly_detected"] is False
 
     def test_check_any_detector_triggers(self):
         monitor = MAPEKMonitor()
         monitor.register_detector(lambda m: False)
         monitor.register_detector(lambda m: True)
-        assert monitor.check({}) is True
+        assert monitor.check({})["anomaly_detected"] is True
 
     def test_check_no_detector_triggers(self):
         monitor = MAPEKMonitor()
         monitor.register_detector(lambda m: False)
         monitor.register_detector(lambda m: False)
-        assert monitor.check({}) is False
+        assert monitor.check({})["anomaly_detected"] is False
 
     # ── enable_graphsage ──
 
@@ -274,7 +276,7 @@ class TestMAPEKMonitor:
         monitor.use_graphsage = True
 
         metrics = {"cpu_percent": 50, "memory_percent": 50}
-        assert monitor.check(metrics) is True
+        assert monitor.check(metrics)["anomaly_detected"] is True
 
     def test_check_graphsage_predict_with_causal_no_anomaly(self):
         monitor = MAPEKMonitor()
@@ -288,7 +290,7 @@ class TestMAPEKMonitor:
         monitor.use_graphsage = True
 
         metrics = {"cpu_percent": 50, "memory_percent": 50}
-        assert monitor.check(metrics) is False
+        assert monitor.check(metrics)["anomaly_detected"] is False
 
     def test_check_graphsage_predict_with_causal_no_root_causes(self):
         monitor = MAPEKMonitor()
@@ -306,7 +308,7 @@ class TestMAPEKMonitor:
         monitor.graphsage_detector = mock_detector
         monitor.use_graphsage = True
 
-        assert monitor.check({"cpu_percent": 50}) is True
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is True
 
     def test_check_graphsage_predict_with_causal_null_result(self):
         monitor = MAPEKMonitor()
@@ -321,7 +323,7 @@ class TestMAPEKMonitor:
         monitor.graphsage_detector = mock_detector
         monitor.use_graphsage = True
 
-        assert monitor.check({"cpu_percent": 50}) is True
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is True
 
     def test_check_graphsage_fallback_predict(self):
         """If predict_with_causal not available, falls back to predict."""
@@ -337,7 +339,7 @@ class TestMAPEKMonitor:
         monitor.graphsage_detector = mock_detector
         monitor.use_graphsage = True
 
-        assert monitor.check({"cpu_percent": 50}) is True
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is True
 
     def test_check_graphsage_fallback_predict_no_anomaly(self):
         monitor = MAPEKMonitor()
@@ -350,7 +352,7 @@ class TestMAPEKMonitor:
         monitor.graphsage_detector = mock_detector
         monitor.use_graphsage = True
 
-        assert monitor.check({"cpu_percent": 50}) is False
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is False
 
     def test_check_graphsage_exception_falls_through(self):
         """GraphSAGE exception should not prevent custom detectors from running."""
@@ -362,7 +364,7 @@ class TestMAPEKMonitor:
         monitor.use_graphsage = True
 
         monitor.register_detector(lambda m: True)
-        assert monitor.check({"cpu_percent": 50}) is True
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is True
 
     def test_check_graphsage_disabled(self):
         """GraphSAGE not used when use_graphsage is False."""
@@ -371,7 +373,7 @@ class TestMAPEKMonitor:
         monitor.graphsage_detector = mock_detector
         monitor.use_graphsage = False
 
-        assert monitor.check({"cpu_percent": 50}) is False
+        assert monitor.check({"cpu_percent": 50})["anomaly_detected"] is False
         mock_detector.predict_with_causal.assert_not_called()
 
     def test_check_graphsage_node_features_extraction(self):
@@ -1445,9 +1447,9 @@ class TestMAPEKIntegration:
         knowledge.threshold_adjustments["cpu_percent"] = 80.0
         monitor = MAPEKMonitor(knowledge=knowledge)
         # 85 > 80 adjusted threshold should trigger
-        assert monitor.check({"cpu_percent": 85}) is True
+        assert monitor.check({"cpu_percent": 85})["anomaly_detected"] is True
         # 75 < 80 should not trigger
-        assert monitor.check({"cpu_percent": 75}) is False
+        assert monitor.check({"cpu_percent": 75})["anomaly_detected"] is False
 
     @patch("src.self_healing.mape_k.MAPEKExecutor")
     def test_multiple_cycles_accumulate_knowledge(self, mock_executor_cls):

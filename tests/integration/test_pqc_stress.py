@@ -48,7 +48,7 @@ class TestPQCStress:
         signatures = [pqc.sign(msg) for msg in messages]
         elapsed = time.time() - start
 
-        throughput = len(signatures) / elapsed
+        len(signatures) / elapsed
         assert len(signatures) == 100
         assert all(s is not None for s in signatures)
 
@@ -65,7 +65,7 @@ class TestPQCStress:
         elapsed = time.time() - start
 
         assert all(results)
-        throughput = len(results) / elapsed
+        len(results) / elapsed
 
     @pytest.mark.slow
     @pytest.mark.asyncio
@@ -74,7 +74,7 @@ class TestPQCStress:
 
         async def pqc_operation(task_id):
             pqc = PQMeshSecurityLibOQS(node_id=f"stress-concurrent-{task_id}")
-            pk = pqc.generate_kem_keypair()
+            pqc.generate_kem_keypair()
             msg = f"task-{task_id}".encode()
             sig = pqc.sign(msg)
             verified = pqc.verify(msg, sig)
@@ -92,7 +92,7 @@ class TestPQCStress:
 
         for iteration in range(50):
             for i in range(10):
-                pk = pqc.generate_kem_keypair()
+                pqc.generate_kem_keypair()
                 msg = f"iter-{iteration}-msg-{i}".encode()
                 sig = pqc.sign(msg)
                 pqc.verify(msg, sig)
@@ -125,7 +125,7 @@ class TestPQCStress:
                 shared = pqc.kem_encapsulate(pk)
                 results.append(shared is not None)
 
-        elapsed = time.time() - start
+        time.time() - start
         assert all(results)
 
     @pytest.mark.slow
@@ -154,11 +154,11 @@ class TestPQCStress:
 
         start = time.time()
         signatures = [pqc.sign(msg) for msg in messages]
-        sign_time = time.time() - start
+        time.time() - start
 
         start = time.time()
         verifications = [pqc.verify(msg, sig) for msg, sig in zip(messages, signatures)]
-        verify_time = time.time() - start
+        time.time() - start
 
         assert all(verifications)
         assert len(signatures) == batch_size

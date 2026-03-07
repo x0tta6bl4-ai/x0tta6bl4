@@ -4,8 +4,7 @@ Tests for Chaos Engine.
 Tests chaos injection, scenario execution, and recovery verification.
 """
 
-import asyncio
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 

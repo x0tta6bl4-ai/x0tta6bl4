@@ -23,17 +23,26 @@ def test_postgresql_url_branch_uses_plain_create_engine(monkeypatch):
 
     def _fake_create_engine(url, **kwargs):
         calls.append((url, kwargs))
-        return object()
+        return MagicMock()
+
+    def _noop_listens_for(target, identifier, *args, **kwargs):
+        """No-op decorator — avoids SQLAlchemy inspection of MagicMock engine."""
+        def decorator(fn):
+            return fn
+        return decorator
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/x0tta6bl4")
     monkeypatch.setattr(sqlalchemy, "create_engine", _fake_create_engine)
+    monkeypatch.setattr(sqlalchemy.event, "listens_for", _noop_listens_for)
 
     ns = _run_database_module()
 
     assert ns["DATABASE_URL"].startswith("postgresql://")
     assert calls
     assert calls[0][0].startswith("postgresql://")
-    assert calls[0][1] == {}
+    # Codex added connection pool kwargs for production-grade postgresql connections
+    assert "pool_size" in calls[0][1]
+    assert "pool_pre_ping" in calls[0][1]
 
 
 def test_unsupported_database_url_raises_value_error(monkeypatch):

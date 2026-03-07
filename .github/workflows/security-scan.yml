@@ -177,8 +177,8 @@ jobs:
           set -euo pipefail
           echo "Running pip-audit for known vulnerabilities..."
           pip_audit_exit=0
-          pip-audit -r requirements.txt --format json > pip-audit-report.json || pip_audit_exit=$?
-          pip-audit -r requirements.txt --format markdown
+          pip-audit -r requirements.lock --no-deps --disable-pip --format json > pip-audit-report.json || pip_audit_exit=$?
+          pip-audit -r requirements.lock --no-deps --disable-pip --format markdown
 
           if [ ! -s pip-audit-report.json ]; then
             echo "::error::pip-audit-report.json was not generated"
@@ -262,8 +262,7 @@ jobs:
           set -euo pipefail
           python scripts/agents/run_agent_cycle.py \
             --strict \
-            --agents agent-2 \
-            --no-sync-paradox-log
+            --agents agent-2
 
       - name: Upload strict agent-cycle summary
         uses: actions/upload-artifact@v4

@@ -6,7 +6,6 @@ Tests accessibility compliance for API responses and web interfaces.
 
 import json
 import socket
-from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import pytest
@@ -73,10 +72,11 @@ class TestWCAGCompliance:
         """WCAG 2.1: Error messages must be descriptive"""
         response = await client.get(f"{base_url}/nonexistent")
 
-        assert response.status_code == 404
+        # Accept 404 (route not found) or 400 (rejected by validation/TLS middleware)
+        assert response.status_code in (400, 404)
         data = response.json()
-        assert "detail" in data or "message" in data
-        error_message = data.get("detail") or data.get("message", "")
+        assert "detail" in data or "message" in data or "error" in data
+        error_message = data.get("detail") or data.get("message") or data.get("error", "")
         assert len(error_message) > 0
 
     @pytest.mark.asyncio

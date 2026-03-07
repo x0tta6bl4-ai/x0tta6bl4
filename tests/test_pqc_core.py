@@ -7,6 +7,7 @@ Run: python -m pytest tests/test_pqc_core.py -v
 import pytest
 
 
+@pytest.mark.usefixtures("real_oqs")
 class TestLibx0tPQC:
     """Tests for libx0t/crypto/pqc.py"""
 
@@ -105,11 +106,11 @@ class TestMAPEK:
 
         # Normal metrics should not trigger
         normal_metrics = {"cpu_percent": 50, "memory_percent": 60}
-        assert monitor.check(normal_metrics) is False
+        assert monitor.check(normal_metrics)["anomaly_detected"] is False
 
         # Critical metrics should trigger
         critical_metrics = {"cpu_percent": 95, "memory_percent": 90}
-        assert monitor.check(critical_metrics) is True
+        assert monitor.check(critical_metrics)["anomaly_detected"] is True
 
     def test_mapek_analyzer(self):
         """Test MAPE-K Analyzer phase."""

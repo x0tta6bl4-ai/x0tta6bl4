@@ -18,7 +18,6 @@ Docker setup:
 import os
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
 
 # Skip all tests if SPIRE not available
 pytestmark = pytest.mark.skipif(

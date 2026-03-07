@@ -249,7 +249,7 @@ class BaseLLMProvider(ABC):
         """
         try:
             # Simple generation test
-            result = self.generate("test", max_tokens=5)
+            self.generate("test", max_tokens=5)
             self._status = ProviderStatus.AVAILABLE
             return True
         except Exception as e:

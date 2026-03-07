@@ -7,7 +7,7 @@ Configuration for LoRA fine-tuning adapters.
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

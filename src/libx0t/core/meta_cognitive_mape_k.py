@@ -8,12 +8,9 @@
 создавая проверяемый след рассуждений и самокорректирующуюся логику.
 """
 
-import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -733,7 +730,7 @@ class MetaCognitiveMAPEK:
                     # Упрощенное выполнение
                     result = {"status": "success", "message": "Executed via MAPE-K"}
                     if self.think_aloud:
-                        self.think_aloud.log(f"✅ Шаг выполнен успешно")
+                        self.think_aloud.log("✅ Шаг выполнен успешно")
                 except Exception as e:
                     result = {"status": "error", "message": str(e)}
                     if self.think_aloud:
@@ -885,7 +882,7 @@ class MetaCognitiveMAPEK:
             try:
                 three_questions = self.three_questions.reflect(execution_log)
                 if self.think_aloud:
-                    self.think_aloud.log(f"Метод трёх вопросов:")
+                    self.think_aloud.log("Метод трёх вопросов:")
                     self.think_aloud.log(
                         f"  Что удачно: {len(three_questions.what_worked)} пунктов"
                     )

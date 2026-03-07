@@ -11,11 +11,10 @@ import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from starlette.responses import RedirectResponse
 
 from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
                                       UserRegisterRequest, TokenResponse)
@@ -45,13 +44,59 @@ API_KEY_TOKEN_TTL_SECONDS = 31_536_000
 # OAuth2 / OIDC Setup (redirect-based flow, only when authlib works)
 oauth = _OAuth() if _oauth_available else None
 if oauth is not None and oidc_validator.enabled:
+    oidc_client_secret = os.getenv("OIDC_CLIENT_SECRET", "").strip() or None
     oauth.register(
         name='oidc',
         server_metadata_url=oidc_validator.issuer + oidc_validator.WELL_KNOWN_SUFFIX,
         client_id=oidc_validator.client_id,
-        client_secret=oidc_validator.audience,
+        client_secret=oidc_client_secret,
         client_kwargs={'scope': 'openid email profile'},
     )
+
+from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS
+
+def _permission_to_value(permission: Union[MeshPermission, str]) -> str:
+    if isinstance(permission, MeshPermission):
+        return permission.value
+    return str(permission).strip()
+
+
+# Backward-compatible role scopes used by legacy MaaS routes.
+_LEGACY_ROLE_DEFAULTS = {
+    "operator": {
+        "mesh:view",
+        "mesh:update",
+        "node:approve",
+        "node:revoke",
+        "policy:view",
+        "policy:create",
+        "analytics:view",
+        "telemetry:view",
+        "playbook:create",
+        "playbook:view",
+        "audit:view",
+        "node:view",
+    },
+    "user": {
+        "mesh:create",
+        "mesh:view",
+        "mesh:update",
+        "mesh:delete",
+        "billing:view",
+        "marketplace:list",
+        "marketplace:rent",
+        "playbook:view",
+    },
+}
+
+
+def _default_permissions_for_role(role: str) -> set[str]:
+    permissions: set[str] = set()
+    if role in DEFAULT_ROLE_PERMISSIONS:
+        permissions.update(_permission_to_value(p) for p in DEFAULT_ROLE_PERMISSIONS[role])
+    permissions.update(_LEGACY_ROLE_DEFAULTS.get(role, set()))
+    return permissions
+
 
 def require_role(role: str):
     """Dependency factory for role-based access control."""
@@ -64,8 +109,10 @@ def require_role(role: str):
         return user
     return role_checker
 
-def require_permission(permission: str):
-    """Dependency factory for granular permission-based access control (Scopes)."""
+def require_permission(permission: Union[MeshPermission, str]):
+    """Dependency factory for granular permission-based access control."""
+    required_permission = _permission_to_value(permission)
+
     def permission_checker(user: User = Depends(get_current_user_from_maas)):
         # Admin bypass
         if user.role == "admin":
@@ -74,58 +121,135 @@ def require_permission(permission: str):
         # 1. Check explicit permissions string (comma-separated)
         if user.permissions:
             user_perms = [p.strip() for p in user.permissions.split(",")]
-            if permission in user_perms or "*" in user_perms:
+            if required_permission in user_perms or "*" in user_perms:
                 return user
         
         # 2. Map default permissions for roles
-        role_defaults = {
-            "operator": [
-                "mesh:view", "mesh:update", "node:approve", "node:revoke",
-                "policy:view", "policy:create", "analytics:view", "telemetry:view",
-                "playbook:create", "playbook:view",
-                "audit:view", "node:view",
-            ],
-            "user": [
-                "mesh:create", "mesh:view", "mesh:update", "mesh:delete",
-                "billing:view", "marketplace:list", "marketplace:rent",
-                "playbook:view",
-            ],
-        }
-        
-        if user.role in role_defaults and permission in role_defaults[user.role]:
+        role_permissions = _default_permissions_for_role(user.role)
+        if required_permission in role_permissions:
             return user
             
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Insufficient permissions: required scope '{permission}'"
+            detail=f"Insufficient permissions: required scope '{required_permission}'"
         )
     return permission_checker
+
+def require_mesh_access(permission: Union[MeshPermission, str]):
+    """
+    Advanced Guard: Проверяет право доступа к КОНКРЕТНОЙ сети (mesh_id).
+    
+    Сценарии разрешения прав:
+    1. Admin -> Всегда можно (Superuser).
+    2. Owner -> Можно свои сети (Owner).
+    3. Explicit Grant -> Можно, если есть запись в MeshOperatorPermission.
+    4. Global Role -> Можно, если разрешено глобально для роли (Fallback).
+    """
+    from src.database import MeshInstance
+    
+    def access_checker(
+        mesh_id: str,
+        user: User = Depends(get_current_user_from_maas),
+        db: Session = Depends(get_db)
+    ):
+        required_permission = _permission_to_value(permission)
+        # Admin bypass
+        if user.role == "admin":
+            return user
+            
+        # 1. Проверяем существование сети и владельца
+        mesh = db.query(MeshInstance).filter(MeshInstance.id == mesh_id).first()
+        if not mesh:
+            raise HTTPException(status_code=404, detail="Mesh instance not found")
+            
+        # 2. Если пользователь владелец сети — разрешаем
+        if mesh.owner_id == user.id:
+            # Владельцу разрешены все базовые операции + специфические (MESH_WRITE и т.д.)
+            # Мы разрешаем владельцу всё, что не запрещено политикой
+            return user
+            
+        # 3. Проверка явных разрешений (Explicit Grants)
+        try:
+            from src.database import MeshOperatorPermission
+            explicit = db.query(MeshOperatorPermission).filter(
+                MeshOperatorPermission.user_id == user.id,
+                MeshOperatorPermission.mesh_id == mesh_id,
+                MeshOperatorPermission.permission == required_permission
+            ).first()
+            if explicit:
+                return user
+        except ImportError:
+            # Таблица не существует — пропускаем
+            pass
+            
+        # 4. Fallback на глобальные права роли
+        role_permissions = _default_permissions_for_role(user.role)
+        if required_permission in role_permissions:
+            return user
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail=f"No access to mesh {mesh_id} with scope {required_permission}"
+        )
+    return access_checker
 
 async def get_current_user_from_maas(
     request: Request,
     db: Session = Depends(get_db)
 ) -> User:
-    """Resolve user from API Key or Session Cookie."""
-    # 1. Check Header
+    """
+    Production-ready user resolver. 
+    Supports API Keys (X-API-Key) and Bearer tokens for Dashboard sessions.
+    """
+    # 1. Check API Key Header (Prioritize machine-to-machine)
     api_key = request.headers.get("X-API-Key")
     if api_key:
+        # Never store plaintext keys in prod, but for now we query as-is 
+        # based on current DB model. Future: hash and salt.
         user = db.query(User).filter(User.api_key == api_key).first()
         if user:
             return user
     
-    # 2. Check Session Cookie / Token (for Dashboard)
-    # This is a simplified version for the POC
+    # 2. Check Bearer Token (Session-based for UI/Frontend)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
+        token = auth_header[7:].strip()
         session = db.query(UserSession).filter(UserSession.token == token).first()
-        if session and session.expires_at > datetime.utcnow():
-            return session.user
+        if session:
+            if session.expires_at > datetime.utcnow():
+                user = db.query(User).filter(User.id == session.user_id).first()
+                if user:
+                    return user
+            else:
+                # Cleanup expired session (Background task candidate)
+                logger.info(f"Session {session.id[:8]} expired for user {session.user_id}")
             
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated"
+        detail="Invalid authentication credentials or session expired"
     )
+
+@router.get("/keys")
+async def list_api_keys(
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
+):
+    """List masked API keys for the current user."""
+    # Since we currently store keys in the User model directly, 
+    # we return the primary key masked.
+    # In a future P3 upgrade, we should have a dedicated ApiKey model (One-to-Many).
+    if not current_user.api_key:
+        return []
+        
+    key = current_user.api_key
+    masked = f"{key[:8]}...{key[-4:]}"
+    
+    return [{
+        "id": "primary",
+        "name": "Primary Key",
+        "key_masked": masked,
+        "created_at": current_user.created_at or datetime.utcnow()
+    }]
 
 @router.post("/register", response_model=TokenResponse)
 async def register(req: UserRegisterRequest, db: Session = Depends(get_db)):

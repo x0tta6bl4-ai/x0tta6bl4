@@ -48,6 +48,12 @@ deploy/proxy/*.pem
 # Archives & Artifacts
 archive/artifacts/
 archive/legacy/
+
+# Solidity Build Artifacts (auto-generated)
+artifacts/
+cache/
+src/dao/contracts/artifacts/
+src/dao/contracts/cache/
 archive/snapshots/
 *.tar.gz
 *.zip
@@ -284,3 +290,6 @@ LOCAL_SWARM_RECEIVE.txt
 final_vpn.py
 x0t_ghost_vpn.py
 x0t_real_vpn.py
+
+# API response files with potential secrets (testing artifacts)
+response.json

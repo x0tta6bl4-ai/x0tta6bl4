@@ -11,12 +11,10 @@ Requirements:
 - BPF capable hardware (not all CI environments support this)
 """
 
-import json
 import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 import pytest
 
@@ -78,6 +76,10 @@ def compile_ebpf_programs():
             pytest.skip("eBPF compilation skipped")
 
 
+@pytest.mark.skipif(
+    not EBPF_PROGRAMS_DIR.exists(),
+    reason="eBPF programs directory not found — requires kernel build env",
+)
 class TestEBPFCompilation:
     """Test eBPF program compilation."""
 
@@ -170,6 +172,7 @@ class TestEBPFLoader:
     """Test eBPF loader functionality."""
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_loader_initialization(self):
         """Test eBPF loader initialization."""
         try:
@@ -184,6 +187,7 @@ class TestEBPFLoader:
             logger.warning(f"Loader initialization: {e}")
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_load_xdp_program(self, ebpf_compiled_objects):
         """Test loading XDP program."""
         if "xdp_counter" not in ebpf_compiled_objects:
@@ -197,7 +201,7 @@ class TestEBPFLoader:
 
             # This may fail if not running with proper BPF capabilities
             try:
-                result = loader.load_xdp_program(obj_path)
+                result = loader.load_program(obj_path)
                 assert result is not None
                 logger.info("✅ XDP program loaded successfully")
             except Exception as e:
@@ -213,6 +217,7 @@ class TestEBPFWithMAKEPK:
     """Test eBPF integration with MAPE-K loop."""
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_ebpf_metrics_collection(self):
         """Test that eBPF programs can export metrics."""
         try:
@@ -234,6 +239,7 @@ class TestEBPFWithMAKEPK:
             logger.info(f"⚠️ Metrics collection: {e}")
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_ebpf_anomaly_detection(self):
         """Test eBPF integration with anomaly detection."""
         try:
@@ -259,6 +265,7 @@ class TestEBPFMeshIntegration:
     """Test eBPF integration with mesh networking."""
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_mesh_packet_filtering(self):
         """Test mesh packet filtering with eBPF."""
         try:
@@ -293,8 +300,8 @@ class TestEBPFPerformance:
             # Benchmark loading time
             def load_program():
                 try:
-                    return loader.load_xdp_program(obj_path)
-                except:
+                    return loader.load_program(obj_path)
+                except Exception:
                     return None
 
             result = benchmark(load_program)
@@ -320,12 +327,12 @@ class TestEBPFErrorHandling:
 
             # Try to load non-existent file
             try:
-                loader.load_xdp_program("/nonexistent/path.o")
+                loader.load_program("/nonexistent/path.o")
                 assert False, "Should raise exception for missing file"
             except FileNotFoundError:
                 logger.info("✅ Proper error handling for missing files")
             except Exception as e:
-                if "No such file" in str(e):
+                if "No such file" in str(e) or "not found" in str(e).lower():
                     logger.info("✅ Proper error handling for missing files")
                 else:
                     raise
@@ -347,7 +354,7 @@ class TestEBPFErrorHandling:
 
             try:
                 try:
-                    loader.load_xdp_program(invalid_path)
+                    loader.load_program(invalid_path)
                     # May or may not raise depending on implementation
                 except Exception as e:
                     logger.info(
@@ -363,6 +370,7 @@ class TestEBPFErrorHandling:
 class TestEBPFSecurityValidation:
     """Test security aspects of eBPF programs."""
 
+    @pytest.mark.asyncio
     async def test_pqc_xdp_signature_validation(self):
         """Test PQC signature validation in XDP context."""
         try:
@@ -377,6 +385,7 @@ class TestEBPFSecurityValidation:
         except Exception as e:
             logger.info(f"⚠️ PQC XDP validation: {e}")
 
+    @pytest.mark.asyncio
     async def test_ebpf_memory_safety(self):
         """Test eBPF memory safety checks."""
         # eBPF kernel enforces memory safety, but we can test configuration

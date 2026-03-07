@@ -9,8 +9,6 @@ Tests for:
 - DAO → MAPE-K integration
 """
 
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -136,9 +134,9 @@ class TestMAPEKThresholdProposal:
 class TestMAPEKThresholdManager:
     """Tests for MAPE-K Threshold Manager."""
 
-    def test_get_threshold(self, tempfile):
+    def test_get_threshold(self, tmp_path):
         """Test getting threshold."""
-        temp_dir = Path(tempfile.mkdtemp())
+        temp_dir = tmp_path
         governance = GovernanceEngine("node-1")
 
         manager = MAPEKThresholdManager(
@@ -151,9 +149,9 @@ class TestMAPEKThresholdManager:
         assert threshold is not None
         assert threshold > 0
 
-    def test_apply_threshold_changes(self, tempfile):
+    def test_apply_threshold_changes(self, tmp_path):
         """Test applying threshold changes."""
-        temp_dir = Path(tempfile.mkdtemp())
+        temp_dir = tmp_path
         governance = GovernanceEngine("node-1")
 
         manager = MAPEKThresholdManager(
@@ -170,9 +168,9 @@ class TestMAPEKThresholdManager:
         assert manager.get_threshold("cpu_threshold") == 70.0
         assert manager.get_threshold("memory_threshold") == 85.0
 
-    def test_check_and_apply_dao_proposals(self, tempfile):
+    def test_check_and_apply_dao_proposals(self, tmp_path):
         """Test checking and applying DAO proposals."""
-        temp_dir = Path(tempfile.mkdtemp())
+        temp_dir = tmp_path
         governance = GovernanceEngine("node-1")
 
         manager = MAPEKThresholdManager(

@@ -132,10 +132,22 @@ class LoRAAdapter:
         layer = self.lora_layers.get(component)
         return layer.weights if layer else None
 
+    def get_stats(self) -> Dict[str, Any]:
+        """Return summary statistics for this adapter."""
+        return {
+            "layers_count": len(self.lora_layers),
+            "adaptation_steps": len(self.adaptation_history),
+            "rank": self.config.rank,
+            "alpha": self.config.alpha,
+        }
+
+
+LoRALayer = _LoRALayer  # public alias for backwards-compatibility
 
 __all__ = [
     "LoRAConfig",
     "LoRAAdapter",
+    "LoRALayer",
     "PeftLoRAConfig",
     "PeftLoRAAdapter",
     "LoRATargetModules",

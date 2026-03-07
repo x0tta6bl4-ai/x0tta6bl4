@@ -1,0 +1,11 @@
+node:
+  listen_addrs:
+    - "/ip4/0.0.0.0/udp/9000/quic-v1"
+    - "/ip6/::/udp/9000/quic-v1"
+  bootstrap_peers:
+    - "/ip4/192.168.1.10/udp/9000/quic-v1/p2p/QmPeerBootstrap1..."
+    - "/ip4/192.168.1.11/udp/9000/quic-v1/p2p/QmPeerBootstrap2..."
+  beacon_interval: "5s"
+  timeout_threshold: "15s"
+  pqc_handshake: true
+  noise_encryption: true

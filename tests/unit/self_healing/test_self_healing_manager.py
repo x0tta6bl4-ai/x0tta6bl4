@@ -4,7 +4,6 @@ Unit tests for SelfHealingManager
 
 from unittest.mock import Mock, patch
 
-import pytest
 
 from src.self_healing.mape_k import SelfHealingManager
 
@@ -60,15 +59,13 @@ class TestSelfHealingManager:
             incident = manager.knowledge.incidents[0]
             assert incident["issue"] == "High CPU"
             assert incident["action"] == "Restart service"
-            assert incident["success"] == True
+            assert incident["success"]
 
     def test_feedback_loop_tracking(self):
         """Test that feedback loop statistics are tracked"""
         manager = SelfHealingManager()
 
         initial_updates = manager.feedback_updates
-        initial_adjustments = manager.threshold_adjustments
-        initial_improvements = manager.strategy_improvements
 
         # Run a cycle
         with (

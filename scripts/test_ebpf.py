@@ -4,7 +4,11 @@ import time
 from bcc import BPF
 
 # 1. Load BPF program
-cflags = ["-I/usr/src/linux-headers-6.14.0-37-generic/include"]
+cflags = [
+    "-I/usr/include/bpf",
+    "-I/usr/src/linux-headers-6.14.0-37-generic/include",
+    "-I/usr/src/linux-headers-6.14.0-37-generic/arch/x86/include"
+]
 b = BPF(src_file="src/network/ebpf/programs/xdp_counter.c", cflags=cflags)
 
 # 2. Attach to interface

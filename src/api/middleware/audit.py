@@ -2,6 +2,7 @@
 import logging
 import json
 import os
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -9,6 +10,7 @@ from typing import Any, Callable, Optional, Tuple, Generator
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.database import User, AuditLog, get_db
+from src.core.tracing_middleware import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,33 @@ _IDENTITY_CACHE_MAX_SIZE = max(
     128,
     int(os.getenv("MAAS_AUDIT_IDENTITY_CACHE_MAX_SIZE", "4096")),
 )
+
+_SENSITIVE_KEYS = (
+    "password",
+    "passwd",
+    "token",
+    "secret",
+    "api_key",
+    "private_key",
+    "pqc_key",
+    "authorization",
+    "access_token",
+    "refresh_token",
+    "session_token",
+    "credential",
+    "passphrase",
+)
+
+_INLINE_SECRET_PATTERNS = [
+    (
+        re.compile(r"(?i)\b(authorization)\s*[:=]\s*(bearer|basic)\s+([^\s,;]+)"),
+        r"\1: \2 ********",
+    ),
+    (
+        re.compile(r"(?i)\b(token|password|secret|api[_-]?key|private[_-]?key)\s*[:=]\s*([^\s,;]+)"),
+        r"\1=********",
+    ),
+]
 
 class AuditMiddleware(BaseHTTPMiddleware):
     """
@@ -49,13 +78,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 if body:
                     try:
                         payload_json = json.loads(body)
-                        # Basic filtering of sensitive keys
-                        sensitive_keys = ["password", "token", "secret", "api_key", "pqc_key", "private_key"]
-                        self._filter_sensitive_data(payload_json, sensitive_keys)
-                        payload = json.dumps(payload_json)
+                        # Redact sensitive fields and inline secrets before persisting.
+                        payload_json = self._filter_sensitive_data(payload_json, list(_SENSITIVE_KEYS))
+                        payload = json.dumps(payload_json, ensure_ascii=False)
                     except json.JSONDecodeError:
                         # Fallback for non-JSON or malformed JSON
-                        payload = body.decode("utf-8", errors="replace")[:1000]
+                        payload = self._sanitize_text_payload(
+                            body.decode("utf-8", errors="replace")
+                        )
                 
                 # Re-wrap the request body for downstream consumers
                 async def receive():
@@ -75,17 +105,27 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    def _filter_sensitive_data(self, data: Any, sensitive_keys: list):
+    def _sanitize_text_payload(self, value: str) -> str:
+        """Redact inline secrets from text payloads and enforce size limit."""
+        sanitized = value[:1000]
+        for pattern, replacement in _INLINE_SECRET_PATTERNS:
+            sanitized = pattern.sub(replacement, sanitized)
+        return sanitized
+
+    def _filter_sensitive_data(self, data: Any, sensitive_keys: list) -> Any:
         """Recursively redact sensitive keys from a dictionary or list."""
         if isinstance(data, dict):
             for key in list(data.keys()):
                 if any(s in key.lower() for s in sensitive_keys):
                     data[key] = "********"
                 else:
-                    self._filter_sensitive_data(data[key], sensitive_keys)
+                    data[key] = self._filter_sensitive_data(data[key], sensitive_keys)
         elif isinstance(data, list):
-            for item in data:
-                self._filter_sensitive_data(item, sensitive_keys)
+            for idx, item in enumerate(data):
+                data[idx] = self._filter_sensitive_data(item, sensitive_keys)
+        elif isinstance(data, str):
+            return self._sanitize_text_payload(data)
+        return data
 
     def _cache_identity_get(self, cache_key: str) -> Optional[str]:
         if _IDENTITY_CACHE_TTL_SECONDS <= 0:
@@ -148,6 +188,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         db, generator = self._resolve_db(request)
         try:
             user_id = self._resolve_user_id(db, request)
+            user_agent = request.headers.get("User-Agent")
+            correlation_id = get_correlation_id()
 
             # Create Audit Log entry
             audit_entry = AuditLog(
@@ -157,7 +199,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
                 payload=payload,
                 status_code=response.status_code,
-                ip_address=request.client.host if request.client else None
+                ip_address=request.client.host if request.client else None,
+                user_agent=user_agent,
+                correlation_id=correlation_id
             )
             db.add(audit_entry)
             db.commit()

@@ -36,8 +36,8 @@ class TestSecurityManagerInitialization:
         )
         security = SecurityManager(config)
 
-        assert security.config.enable_validation == False
-        assert security.config.enable_sanitization == False
+        assert not security.config.enable_validation
+        assert not security.config.enable_sanitization
         assert security.config.max_metric_value == 1e10
 
     def test_blocked_patterns_initialization(self):
@@ -178,7 +178,6 @@ class TestMetricValueValidation:
 
     def test_nan_value(self, security_manager):
         """Test validation of NaN value."""
-        import math
 
         is_valid, error = security_manager.validate_metric_value(float("nan"))
 
@@ -205,7 +204,7 @@ class TestMetricValueValidation:
     def test_value_exceeds_maximum(self, security_manager):
         """Test validation of value that exceeds maximum."""
         config = TelemetryConfig(max_metric_value=1000)
-        security = SecurityManager(config)
+        SecurityManager(config)
 
         is_valid, error = security_manager.validate_metric_value(1001)
 
@@ -331,7 +330,7 @@ class TestPathSanitization:
     def test_sanitize_path_disabled(self, telemetry_config):
         """Test path sanitization when disabled."""
         config = TelemetryConfig(sanitize_paths=False)
-        security = SecurityManager(config)
+        SecurityManager(config)
 
         input_path = "/etc/passwd"
         result = security_manager.sanitize_path(input_path)
@@ -535,7 +534,7 @@ class TestSecurityManagerEdgeCases:
     def test_metric_value_very_large(self, security_manager):
         """Test metric value that is very large but within limit."""
         config = TelemetryConfig(max_metric_value=1e15)
-        security = SecurityManager(config)
+        SecurityManager(config)
 
         is_valid, error = security_manager.validate_metric_value(1e14)
 

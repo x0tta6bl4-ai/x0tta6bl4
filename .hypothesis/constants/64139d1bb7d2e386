@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/app_integration.py
+# hypothesis_version: 6.151.9
+
+['aggregation_method', 'enable_privacy', 'enabled', 'model_sync_available', 'model_versioning', 'secure_fedavg', 'sync_interval']

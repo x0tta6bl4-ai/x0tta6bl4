@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 
 from src.optimization.prometheus_cardinality_optimizer import (
     CardinalityAlert, CardinalityLimiter, CardinalityMetric,
     CardinalityTracker, LabelAggregator, PrometheusCardinalityOptimizer,
-    SamplingStrategy, get_cardinality_optimizer)
+    SamplingStrategy)
 
 
 class TestCardinalityMetric:
@@ -118,7 +118,7 @@ class TestSamplingStrategy:
     def test_different_metrics_independent(self):
         sampler = SamplingStrategy()
         sampler.set_sampling_rate("metric1", 0.5)
-        m1_samples = sum(1 for _ in range(100) if sampler.should_sample("metric1"))
+        sum(1 for _ in range(100) if sampler.should_sample("metric1"))
         m2_samples = sum(1 for _ in range(100) if sampler.should_sample("metric2"))
         assert m2_samples == 100
 

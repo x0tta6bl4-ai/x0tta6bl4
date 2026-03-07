@@ -8,16 +8,16 @@ and monitoring.
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, call, patch
+from unittest.mock import patch
 
 import pytest
 
 from src.config.vault_config import VaultIntegrationConfig, load_vault_config
-from src.security.vault_client import (VaultAuthError, VaultClient,
+from src.security.vault_client import (VaultClient,
                                        VaultSecretError)
 from src.security.vault_monitoring import (VaultHealthMonitor,
                                            VaultMetricsReporter)
-from src.security.vault_secrets import ApiCredentials, SecretInjector, VaultSecretManager
+from src.security.vault_secrets import ApiCredentials, VaultSecretManager
 
 
 @pytest.mark.asyncio

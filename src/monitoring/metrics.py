@@ -11,10 +11,11 @@ Prometheus метрики для x0tta6bl4
 - DAO Governance
 """
 
-from typing import Any, Dict
+import hashlib
+import re
 
 import prometheus_client
-from prometheus_client import Counter, Gauge, Histogram, Summary
+from prometheus_client import Counter, Gauge, Histogram
 
 # Создаем собственный реестр для избежания конфликтов
 _metrics_registry = prometheus_client.CollectorRegistry()
@@ -30,21 +31,27 @@ class MetricsRegistry:
     request_count = Counter(
         "x0tta6bl4_requests_total",
         "Всего HTTP запросов",
-        ["method", "endpoint", "status"],
+        ["method", "endpoint", "status", "api_key"],
         registry=_metrics_registry,
     )
 
     request_duration = Histogram(
         "x0tta6bl4_request_duration_seconds",
         "Задержка HTTP запроса в секундах",
-        ["method", "endpoint"],
+        ["method", "endpoint", "api_key"],
         buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
         registry=_metrics_registry,
     )
 
     db_connections_active = Gauge(
         "x0tta6bl4_db_connections_active",
-        "Количество активных подключений к БД",
+        "Количество активных соединений с БД",
+        registry=_metrics_registry,
+    )
+
+    db_circuit_breaker_state = Gauge(
+        "x0tta6bl4_db_circuit_breaker_state",
+        "Состояние предохранителя БД (0=CLOSED, 1=OPEN, 2=HALF_OPEN)",
         registry=_metrics_registry,
     )
 
@@ -717,6 +724,72 @@ class MetricsMiddleware:
     def __init__(self, app):
         self.app = app
 
+    @staticmethod
+    def _extract_api_key_label(headers: list[tuple[bytes, bytes]]) -> str:
+        """
+        Build low-cardinality, non-sensitive credential label value.
+
+        Never expose raw API keys or bearer tokens in Prometheus labels.
+        """
+        for header_name, header_value in headers:
+            if header_name == b"x-api-key":
+                api_key = header_value.decode("utf-8", errors="ignore").strip()
+                if not api_key:
+                    return "anonymous"
+                digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
+                return f"api_key_{digest}"
+            if header_name == b"authorization":
+                auth_val = header_value.decode("utf-8", errors="ignore")
+                if auth_val.startswith("Bearer "):
+                    token = auth_val[7:].strip()
+                    if token:
+                        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+                        return f"bearer_{digest}"
+        return "anonymous"
+
+    @staticmethod
+    def _normalize_endpoint(path: str) -> str:
+        """
+        Normalize dynamic path segments to cap metrics label cardinality.
+        """
+        if not path:
+            return "unknown"
+        if path == "/":
+            return path
+
+        uuid_re = re.compile(
+            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+            r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        )
+        long_hex_re = re.compile(r"^[0-9a-fA-F]{16,}$")
+        base64ish_re = re.compile(r"^[A-Za-z0-9_-]{24,}$")
+
+        parts = path.split("/")
+        normalized_parts = []
+        for part in parts:
+            if not part:
+                normalized_parts.append(part)
+                continue
+
+            lower = part.lower()
+            if re.fullmatch(r"v\d+", lower):
+                normalized_parts.append(part)
+            elif part.isdigit():
+                normalized_parts.append(":int")
+            elif uuid_re.fullmatch(part):
+                normalized_parts.append(":uuid")
+            elif long_hex_re.fullmatch(part):
+                normalized_parts.append(":hex")
+            elif base64ish_re.fullmatch(part):
+                normalized_parts.append(":token")
+            elif any(c.isdigit() for c in part) and len(part) >= 6:
+                normalized_parts.append(":id")
+            else:
+                normalized_parts.append(part)
+
+        normalized = "/".join(normalized_parts)
+        return normalized or "unknown"
+
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -724,12 +797,15 @@ class MetricsMiddleware:
 
         method = scope.get("method", "unknown")
         path = scope.get("path", "unknown")
+        endpoint = self._normalize_endpoint(path)
 
         if path == "/metrics":
             await self.app(scope, receive, send)
             return
 
         import time
+
+        api_key = self._extract_api_key_label(scope.get("headers", []))
 
         start_time = time.time()
         status = 500
@@ -746,13 +822,19 @@ class MetricsMiddleware:
         except Exception:
             duration = time.time() - start_time
             metrics = _get_singleton_metrics()
-            metrics.request_count.labels(method=method, endpoint=path, status=status).inc()
-            metrics.request_duration.labels(method=method, endpoint=path).observe(
-                duration
-            )
+            metrics.request_count.labels(
+                method=method, endpoint=endpoint, status=500, api_key=api_key
+            ).inc()
+            metrics.request_duration.labels(
+                method=method, endpoint=endpoint, api_key=api_key
+            ).observe(duration)
             raise
 
         duration = time.time() - start_time
         metrics = _get_singleton_metrics()
-        metrics.request_count.labels(method=method, endpoint=path, status=status).inc()
-        metrics.request_duration.labels(method=method, endpoint=path).observe(duration)
+        metrics.request_count.labels(
+            method=method, endpoint=endpoint, status=status, api_key=api_key
+        ).inc()
+        metrics.request_duration.labels(
+            method=method, endpoint=endpoint, api_key=api_key
+        ).observe(duration)

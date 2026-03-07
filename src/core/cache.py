@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Callable, Optional, ParamSpec, Protocol, TypeVar
 
@@ -141,15 +140,17 @@ class RedisCache:
         return instance
 
     async def _initialize(self):
-        """Initialize Redis connection pool with Sentinel support."""
-        if self._initialized or self._init_failed:
+        """Initialize Redis connection pool with Sentinel support and fallback."""
+        if self._initialized:
             return
 
-        # In unit tests, avoid creating real Redis transport resources by default.
+        # Check if we should force memory cache (e.g. in tests without Redis)
         if os.getenv("PYTEST_CURRENT_TEST") and os.getenv(
             "X0TTA6BL4_ALLOW_REDIS_IN_TESTS", "false"
         ).lower() not in {"1", "true", "yes", "on"}:
-            self._init_failed = True
+            logger.info("🧪 Using InMemory cache for testing")
+            self._backend = InMemoryCacheBackend()
+            self._initialized = True
             return
 
         # If backend was injected, mark as initialized
@@ -158,37 +159,29 @@ class RedisCache:
             return
 
         try:
-            import redis.asyncio as redis
-            from redis.asyncio.connection import ConnectionPool
-
             # Check if Sentinel mode is enabled
             sentinel_hosts = os.getenv("REDIS_SENTINEL_HOSTS", "")
             sentinel_master = os.getenv("REDIS_SENTINEL_MASTER", "mymaster")
 
             if sentinel_hosts:
-                # Redis Sentinel mode for HA
                 await self._initialize_sentinel(sentinel_hosts, sentinel_master)
             else:
-                # Standalone Redis mode
                 await self._initialize_standalone()
+            
+            # Test connection
+            await self._backend.ping()
+            self._initialized = True
+            self._using_fallback = False
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Redis: {e}")
-            # Best-effort cleanup to avoid lingering transport tasks on event loop teardown.
-            pool = getattr(self, "_pool", None)
-            if pool is not None:
-                try:
-                    await pool.disconnect()
-                except Exception:
-                    pass
-                finally:
-                    self._pool = None
-            self._backend = None
-            self._init_failed = True
+            logger.error(f"❌ Failed to initialize Redis: {e}. Falling back to In-Memory cache.")
+            self._backend = InMemoryCacheBackend()
+            self._initialized = True
+            self._using_fallback = True
+            self._init_failed = False # We consider initialized with fallback
 
     async def _initialize_sentinel(self, sentinel_hosts: str, master_name: str):
         """Initialize Redis with Sentinel for HA."""
-        import redis.asyncio as redis
         from redis.asyncio.sentinel import Sentinel
 
         # Parse sentinel hosts: "host1:port1,host2:port2,host3:port3"
@@ -251,7 +244,7 @@ class RedisCache:
         logger.info(f"✅ Redis cache initialized (standalone): {redis_url}")
 
     async def get(self, key: str) -> Optional[Any]:
-        """Get value from cache."""
+        """Get value from cache with runtime fallback support."""
         if not self._initialized:
             await self._initialize()
 
@@ -268,6 +261,10 @@ class RedisCache:
             return None
         except Exception as e:
             logger.warning(f"Cache get error: {e}")
+            if not isinstance(self._backend, InMemoryCacheBackend):
+                logger.info("Switching to InMemory fallback due to runtime error")
+                self._backend = InMemoryCacheBackend()
+                self._using_fallback = True
             return None
 
     async def set(self, key: str, value: Any, ttl: int = 60, nx: bool = False) -> bool:
@@ -323,10 +320,7 @@ class RedisCache:
         Returns:
             dict with status, mode, and connection details
         """
-        if not self._initialized:
-            await self._initialize()
-
-        if not self._backend:
+        if not self._initialized or not self._backend:
             return {
                 "status": "unhealthy",
                 "error": "Redis not initialized",

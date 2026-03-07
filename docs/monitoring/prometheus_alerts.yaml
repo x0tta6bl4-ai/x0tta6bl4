@@ -1,0 +1,369 @@
+---
+# x0tta6bl4 MaaS — Prometheus Alert Rules
+# SLO targets:   p95 latency < 500 ms, error rate < 1%, availability > 99.5%
+# MTTR target:   < 30 min for P1 incidents
+# Review cycle:  quarterly (next: 2026-06-01)
+
+groups:
+
+  # =========================================================================
+  # SLO: Latency
+  # =========================================================================
+  - name: slo_latency
+    rules:
+
+      - alert: MaaSHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="x0tta6bl4"}[5m])) by (le, endpoint)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "p95 latency {{ $labels.endpoint }} > 500 ms"
+          description: >
+            Endpoint {{ $labels.endpoint }} p95 latency is {{ $value | humanizeDuration }},
+            exceeding the 500 ms SLO threshold for the last 5 minutes.
+          runbook: "docs/runbooks/HIGH_LATENCY.md"
+
+      - alert: MaaSCriticalLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="x0tta6bl4"}[5m])) by (le, endpoint)
+          ) > 2.0
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "p99 latency {{ $labels.endpoint }} > 2 s (critical)"
+          description: >
+            Endpoint {{ $labels.endpoint }} p99 latency is {{ $value | humanizeDuration }}.
+            Service may be overloaded or hitting an external bottleneck.
+          runbook: "docs/runbooks/HIGH_LATENCY.md"
+
+  # =========================================================================
+  # SLO: Error Rate
+  # =========================================================================
+  - name: slo_error_rate
+    rules:
+
+      - alert: MaaSHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="x0tta6bl4", status=~"5.."}[5m])) by (endpoint)
+            /
+            sum(rate(http_requests_total{job="x0tta6bl4"}[5m])) by (endpoint)
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "5xx error rate {{ $labels.endpoint }} > 1%"
+          description: >
+            Error rate for {{ $labels.endpoint }} is {{ $value | humanizePercentage }}
+            over the last 5 minutes, exceeding 1% SLO.
+          runbook: "docs/runbooks/HIGH_ERROR_RATE.md"
+
+      - alert: MaaSCriticalErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="x0tta6bl4", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="x0tta6bl4"}[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Global 5xx error rate > 5% (critical)"
+          description: >
+            Global error rate is {{ $value | humanizePercentage }}.
+            Possible widespread failure — check DB, Redis, external APIs.
+          runbook: "docs/runbooks/HIGH_ERROR_RATE.md"
+
+  # =========================================================================
+  # Circuit Breakers
+  # =========================================================================
+  - name: circuit_breakers
+    rules:
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{job="x0tta6bl4"} == 1
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit_name }} OPEN"
+          description: >
+            Circuit breaker {{ $labels.circuit_name }} has been open for > 1 minute.
+            Downstream service is likely failing. Requests are being rejected.
+          runbook: "docs/runbooks/CIRCUIT_BREAKER_OPEN.md"
+
+      - alert: CircuitBreakerFlapping
+        expr: |
+          increase(circuit_breaker_state_changes_total{job="x0tta6bl4"}[10m]) > 4
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit_name }} flapping"
+          description: >
+            Circuit breaker {{ $labels.circuit_name }} changed state more than 4 times
+            in 10 minutes. Dependency may be intermittently failing.
+          runbook: "docs/runbooks/CIRCUIT_BREAKER_OPEN.md"
+
+      - alert: HighCircuitBreakerFailureRate
+        expr: |
+          rate(circuit_breaker_failures_total{job="x0tta6bl4"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High failure rate on {{ $labels.circuit_name }}"
+          description: >
+            Circuit {{ $labels.circuit_name }} is recording {{ $value | humanize }}
+            failures/s. Circuit may trip soon.
+
+  # =========================================================================
+  # Redis
+  # =========================================================================
+  - name: redis_health
+    rules:
+
+      - alert: RedisUnavailable
+        expr: redis_up{job="x0tta6bl4-redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis is DOWN"
+          description: >
+            Redis has been unreachable for > 1 minute.
+            Cache operations will fail; API will fall back to degraded mode.
+          runbook: "docs/runbooks/REDIS_FAILURE.md"
+
+      - alert: RedisHighMemoryUsage
+        expr: |
+          redis_memory_used_bytes{job="x0tta6bl4-redis"}
+          /
+          redis_memory_max_bytes{job="x0tta6bl4-redis"} > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage > 85%"
+          description: >
+            Redis is using {{ $value | humanizePercentage }} of its max memory.
+            Risk of eviction or OOM. Review TTL settings and key growth.
+          runbook: "docs/runbooks/REDIS_FAILURE.md"
+
+      - alert: RedisConnectionPoolExhausted
+        expr: |
+          redis_connected_clients{job="x0tta6bl4-redis"}
+          /
+          redis_maxclients{job="x0tta6bl4-redis"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis connection pool at {{ $value | humanizePercentage }} capacity"
+          description: >
+            Redis connection pool is near exhaustion.
+            New connections may be rejected, causing cache failures.
+
+  # =========================================================================
+  # Database
+  # =========================================================================
+  - name: database_health
+    rules:
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (
+            sqlalchemy_pool_checkedout{job="x0tta6bl4"}
+            /
+            sqlalchemy_pool_size{job="x0tta6bl4"}
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DB connection pool > 90% utilised"
+          description: >
+            {{ $value | humanizePercentage }} of DB connections are checked out.
+            Risk of connection wait latency or timeouts.
+          runbook: "docs/runbooks/HIGH_LATENCY.md"
+
+      - alert: DatabaseQuerySlowP99
+        expr: |
+          histogram_quantile(0.99,
+            rate(sqlalchemy_query_duration_seconds_bucket{job="x0tta6bl4"}[5m])
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DB query p99 > 1 s"
+          description: >
+            Slow DB queries detected (p99 = {{ $value | humanizeDuration }}).
+            Check for N+1 queries, missing indexes, or lock contention.
+          runbook: "docs/runbooks/HIGH_LATENCY.md"
+
+  # =========================================================================
+  # MaaS Business Logic
+  # =========================================================================
+  - name: maas_business
+    rules:
+
+      - alert: MaaSEscrowFailureSpike
+        expr: |
+          increase(maas_escrow_failures_total{job="x0tta6bl4"}[5m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          team: maas
+        annotations:
+          summary: "MaaS escrow failures spike ({{ $value }} in 5 min)"
+          description: >
+            Escrow auto-release or refund failures are spiking.
+            Payments may be stuck. Review maas_marketplace logs.
+          runbook: "docs/runbooks/MAAS_ESCROW_FAILURE.md"
+
+      - alert: MaaSNodeHeartbeatMissing
+        expr: |
+          increase(maas_heartbeat_received_total{job="x0tta6bl4"}[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          team: maas
+        annotations:
+          summary: "No MaaS node heartbeats in 10 min"
+          description: >
+            No heartbeat events received from any MaaS node in the last 10 minutes.
+            Nodes may be offline or telemetry pipeline is broken.
+          runbook: "docs/runbooks/MAAS_ESCROW_FAILURE.md"
+
+      - alert: MaaSBillingFailure
+        expr: |
+          increase(maas_billing_errors_total{job="x0tta6bl4"}[5m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          team: maas
+        annotations:
+          summary: "MaaS billing errors spike"
+          description: >
+            {{ $value }} billing errors in 5 minutes.
+            Stripe or internal billing pipeline may be failing.
+          runbook: "docs/runbooks/CIRCUIT_BREAKER_OPEN.md"
+
+      - alert: MaaSGovernanceQuorumFailed
+        expr: |
+          increase(maas_governance_quorum_failures_total{job="x0tta6bl4"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: maas
+        annotations:
+          summary: "DAO governance quorum failure"
+          description: >
+            At least one governance proposal failed quorum check.
+            Review on-chain voting activity and validator participation.
+
+  # =========================================================================
+  # Security
+  # =========================================================================
+  - name: security
+    rules:
+
+      - alert: HighRateLimitRejections
+        expr: |
+          rate(maas_rate_limit_rejected_total{job="x0tta6bl4"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Rate limit rejections > 10/s"
+          description: >
+            Elevated rate-limit rejections ({{ $value | humanize }}/s).
+            Could indicate a DDoS or misconfigured client.
+
+      - alert: PQCHandshakeFailures
+        expr: |
+          increase(pqc_handshake_failures_total{job="x0tta6bl4"}[5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "PQC handshake failures spiking"
+          description: >
+            {{ $value }} PQC/mTLS handshake failures in 5 minutes.
+            Check certificate rotation and liboqs availability.
+
+  # =========================================================================
+  # Infrastructure
+  # =========================================================================
+  - name: infrastructure
+    rules:
+
+      - alert: PodCrashLooping
+        expr: |
+          increase(kube_pod_container_status_restarts_total{
+            namespace="x0tta6bl4", job="kube-state-metrics"
+          }[15m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} crash-looping"
+          description: >
+            Pod {{ $labels.pod }} in namespace {{ $labels.namespace }}
+            has restarted {{ $value }} times in 15 minutes.
+
+      - alert: HighCPUUsage
+        expr: |
+          rate(container_cpu_usage_seconds_total{
+            namespace="x0tta6bl4", container!=""
+          }[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU: {{ $labels.container }} > 80%"
+          description: >
+            Container {{ $labels.container }} CPU usage is {{ $value | humanizePercentage }}.
+            Consider horizontal scaling.
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_working_set_bytes{namespace="x0tta6bl4", container!=""}
+            /
+            container_spec_memory_limit_bytes{namespace="x0tta6bl4", container!=""}
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory: {{ $labels.container }} > 85%"
+          description: >
+            Container {{ $labels.container }} memory is {{ $value | humanizePercentage }}
+            of its limit. Risk of OOMKill.

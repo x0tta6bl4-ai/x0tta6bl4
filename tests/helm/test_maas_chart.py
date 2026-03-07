@@ -8,7 +8,6 @@ Run with: pytest tests/helm/test_maas_chart.py -v
 
 import os
 import subprocess
-import json
 import pytest
 from pathlib import Path
 
@@ -134,15 +133,17 @@ class TestAPIDeployment:
         assert len(api_deployments) > 0, "API deployment not found"
     
     def test_api_deployment_replicas(self):
-        """Verify API deployment has correct replica count."""
-        docs = helm_template({"api": {"replicaCount": 5}})
-        
+        """Verify API deployment has correct replica count (autoscaling disabled)."""
+        docs = helm_template({
+            "api": {"replicaCount": 5, "autoscaling": {"enabled": False}},
+        })
+
         api_deployment = next(
             d for d in docs
             if d.get("kind") == "Deployment"
             and d.get("metadata", {}).get("name", "").endswith("-api")
         )
-        
+
         assert api_deployment["spec"]["replicas"] == 5
     
     def test_api_deployment_resources(self):
@@ -251,14 +252,16 @@ class TestConfigMap:
         assert len(configmaps) > 0, "ConfigMap not found"
     
     def test_configmap_has_environment(self):
-        """Verify ConfigMap has environment variable."""
+        """Verify app ConfigMap has environment variable."""
         docs = helm_template({"global": {"environment": "staging"}})
-        
+
+        # Filter to the app-specific ConfigMap (name ends with "-config")
         configmap = next(
             d for d in docs
             if d.get("kind") == "ConfigMap"
+            and d.get("metadata", {}).get("name", "").endswith("-config")
         )
-        
+
         assert configmap["data"]["ENVIRONMENT"] == "staging"
 
 
@@ -358,15 +361,24 @@ class TestRBAC:
     """Tests for RBAC template."""
     
     def test_rbac_disabled(self):
-        """Verify RBAC can be disabled."""
+        """Verify app RBAC can be disabled.
+
+        The app's rbac.yaml creates namespace-scoped Role/RoleBinding only.
+        Subchart RBAC (prometheus, grafana) uses ClusterRole/ClusterRoleBinding
+        and is not affected by .Values.rbac.create.
+        """
+        release = "test-maas"
         docs = helm_template({"rbac": {"create": False}})
-        
-        roles = [
+
+        # App creates Role/RoleBinding named exactly after the release (maas.fullname = test-maas).
+        # Subcharts use suffixed names (test-maas-grafana, test-maas-prometheus-server, etc.).
+        app_roles = [
             d for d in docs
-            if d.get("kind") in ["Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding"]
+            if d.get("kind") in ["Role", "RoleBinding"]
+            and d.get("metadata", {}).get("name") == release
         ]
-        
-        assert len(roles) == 0, "RBAC should be disabled"
+
+        assert len(app_roles) == 0, "App Role/RoleBinding should be disabled"
     
     def test_rbac_enabled(self):
         """Verify RBAC renders when enabled."""
@@ -390,15 +402,22 @@ class TestServiceAccount:
     """Tests for ServiceAccount template."""
     
     def test_service_account_disabled(self):
-        """Verify ServiceAccount can be disabled."""
+        """Verify app ServiceAccount can be disabled.
+
+        The app creates a single SA named after the release (test-maas).
+        Subchart SAs (test-maas-prometheus-server, test-maas-redis, etc.) are ignored.
+        """
         docs = helm_template({"serviceAccount": {"create": False}})
-        
-        service_accounts = [
+        release = "test-maas"
+
+        # App SA has exactly the release name; subchart SAs have extra suffixes
+        app_sas = [
             d for d in docs
             if d.get("kind") == "ServiceAccount"
+            and d.get("metadata", {}).get("name") == release
         ]
-        
-        assert len(service_accounts) == 0, "ServiceAccount should be disabled"
+
+        assert len(app_sas) == 0, "App ServiceAccount should be disabled"
     
     def test_service_account_enabled(self):
         """Verify ServiceAccount renders when enabled."""
@@ -440,10 +459,11 @@ class TestWorkerDeployment:
         
         if worker_deployment:
             container = worker_deployment["spec"]["template"]["spec"]["containers"][0]
-            env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
-            
-            # Should have Celery broker URL
-            assert "CELERY_BROKER_URL" in env_vars or any(
+            # Use get() to handle env vars with valueFrom (secrets/configmap refs)
+            env_names = {e["name"] for e in container.get("env", [])}
+
+            # Should have Celery broker URL (direct value or valueFrom reference)
+            assert "CELERY_BROKER_URL" in env_names or any(
                 e.get("name") == "CELERY_BROKER_URL" for e in container.get("envFrom", [])
             ), "Missing Celery broker configuration"
 

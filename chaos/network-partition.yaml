@@ -1,0 +1,21 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mesh-network-partition
+  namespace: default
+spec:
+  engineState: 'active'
+  appinfo:
+    appns: 'default'
+    applabel: 'app=mesh-node'
+    appkind: 'deployment'
+  chaosServiceAccount: network-chaos-sa
+  experiments:
+    - name: pod-network-partition
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: DEST_IPS
+              value: '10.0.0.0/8'

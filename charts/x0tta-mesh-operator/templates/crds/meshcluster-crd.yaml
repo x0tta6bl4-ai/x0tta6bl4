@@ -1,0 +1,413 @@
+{{- if .Values.installCRDs }}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: meshclusters.x0tta6bl4.io
+  labels:
+    {{- include "x0tta-mesh-operator.labels" . | nindent 4 }}
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+spec:
+  group: x0tta6bl4.io
+  names:
+    kind: MeshCluster
+    listKind: MeshClusterList
+    plural: meshclusters
+    singular: meshcluster
+    shortNames:
+      - mc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+        scale:
+          specReplicasPath: .spec.replicas
+          statusReplicasPath: .status.readyReplicas
+      additionalPrinterColumns:
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Ready
+          type: integer
+          jsonPath: .status.readyReplicas
+        - name: PQC
+          type: boolean
+          jsonPath: .spec.pqc.enabled
+        - name: Bridge
+          type: boolean
+          jsonPath: .spec.dao.bridge.enabled
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: MeshCluster defines a self-healing x0tta6bl4 mesh cluster.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              description: MeshClusterSpec defines the desired state of a MeshCluster.
+              properties:
+
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  default: 3
+                  description: Number of mesh node replicas.
+
+                trustDomain:
+                  type: string
+                  default: x0tta6bl4.mesh
+                  description: SPIFFE trust domain for the mesh.
+
+                image:
+                  type: object
+                  description: Container image for mesh nodes.
+                  properties:
+                    repository:
+                      type: string
+                    tag:
+                      type: string
+                    pullPolicy:
+                      type: string
+                      enum: [Always, IfNotPresent, Never]
+
+                # ── PQC ──────────────────────────────────────────────────────
+                pqc:
+                  type: object
+                  description: Post-Quantum Cryptography configuration.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                      description: Enable PQC security for all mesh communications.
+                    kemAlgorithm:
+                      type: string
+                      default: ML-KEM-768
+                      enum: [ML-KEM-512, ML-KEM-768, ML-KEM-1024]
+                      description: KEM algorithm for key encapsulation (NIST PQC standard).
+                    dsaAlgorithm:
+                      type: string
+                      default: ML-DSA-65
+                      enum: [ML-DSA-44, ML-DSA-65, ML-DSA-87]
+                      description: DSA algorithm for digital signatures (NIST PQC standard).
+                    keyRotationInterval:
+                      type: integer
+                      minimum: 60
+                      default: 3600
+                      description: PQC session key rotation interval in seconds.
+                    hybridMode:
+                      type: boolean
+                      default: true
+                      description: >
+                        Enable hybrid classical+PQC mode for backward compatibility.
+                        Uses X25519 + ML-KEM-768 in parallel.
+                    ebpf:
+                      type: object
+                      description: eBPF kernel-space PQC enforcement configuration.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                          description: Enable eBPF PQC gateway for in-kernel packet filtering.
+                        packetCounter:
+                          type: boolean
+                          default: true
+                          description: >
+                            Track packet_counter in PQCSession eBPF map.
+                            Enables per-session packet accounting for audit and anomaly detection.
+                        antiReplay:
+                          type: boolean
+                          default: true
+                          description: Enable sliding-window anti-replay protection.
+                        windowSize:
+                          type: integer
+                          default: 64
+                          enum: [32, 64, 128, 256]
+                          description: Anti-replay window size in bits.
+                        xdpMode:
+                          type: string
+                          default: skb
+                          enum: [native, skb, offload]
+                          description: >
+                            XDP attachment mode. 'skb' works on all drivers (lower perf).
+                            'native' requires driver support. 'offload' requires NIC firmware.
+
+                # ── Fallback & Circuit Breaker ────────────────────────────────
+                fallback:
+                  type: object
+                  description: Adaptive fallback and circuit breaker configuration.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    retryAttempts:
+                      type: integer
+                      minimum: 0
+                      maximum: 10
+                      default: 3
+                      description: Number of retry attempts before triggering fallback.
+                    retryDelay:
+                      type: number
+                      minimum: 0.0
+                      default: 1.0
+                      description: Base delay between retries in seconds (exponential backoff).
+                    circuit:
+                      type: object
+                      description: Circuit breaker configuration (Hystrix-style).
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                          description: Enable circuit breaker for downstream protection.
+                        failureThreshold:
+                          type: integer
+                          minimum: 1
+                          default: 5
+                          description: Consecutive failures before circuit opens.
+                        resetTimeout:
+                          type: integer
+                          minimum: 1
+                          default: 30
+                          description: Seconds to wait before transitioning to HALF_OPEN.
+                        halfOpenMaxCalls:
+                          type: integer
+                          minimum: 1
+                          default: 3
+                          description: Max calls allowed in HALF_OPEN state.
+                        successThreshold:
+                          type: integer
+                          minimum: 1
+                          default: 2
+                          description: Successes in HALF_OPEN required to close circuit.
+                    cache:
+                      type: object
+                      description: Cache-based fallback configuration.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                        ttlSeconds:
+                          type: integer
+                          minimum: 1
+                          default: 300
+                        maxEntries:
+                          type: integer
+                          minimum: 1
+                          default: 1000
+                        evictionPolicy:
+                          type: string
+                          default: lru
+                          enum: [lru, lfu, fifo, ttl, adaptive]
+
+                # ── SPIFFE/SPIRE ──────────────────────────────────────────────
+                spiffe:
+                  type: object
+                  description: SPIFFE/SPIRE workload identity configuration.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    socketPath:
+                      type: string
+                      default: /run/spire/sockets/agent.sock
+                    renewBeforeExpiry:
+                      type: integer
+                      default: 300
+                      description: Seconds before SVID expiry to trigger renewal.
+
+                # ── DAO + Bridge ──────────────────────────────────────────────
+                dao:
+                  type: object
+                  description: DAO governance and token bridge configuration.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    governance:
+                      type: object
+                      properties:
+                        votingPeriod:
+                          type: integer
+                          default: 7200
+                          description: Voting period in seconds.
+                        quorumThreshold:
+                          type: number
+                          minimum: 0.1
+                          maximum: 1.0
+                          default: 0.51
+                        proposalExpiry:
+                          type: integer
+                          default: 86400
+                        onChain:
+                          type: object
+                          description: On-chain DAO governance execution settings.
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: true
+                            chainId:
+                              type: integer
+                              default: 84532
+                            rpc:
+                              type: string
+                              default: "https://sepolia.base.org"
+                            governanceAddress:
+                              type: string
+                              default: ""
+                            tokenAddress:
+                              type: string
+                              default: ""
+                            eip1559:
+                              type: object
+                              properties:
+                                maxPriorityFeeGwei:
+                                  type: number
+                                  default: 1.5
+                                maxFeeGwei:
+                                  type: number
+                                  default: 10.0
+                            audit:
+                              type: object
+                              properties:
+                                ledgerPath:
+                                  type: string
+                                  default: "/data/dao/audit.jsonl"
+                    bridge:
+                      type: object
+                      description: Base Sepolia token bridge configuration.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                          description: Enable DAO token bridge operations.
+                        chainId:
+                          type: integer
+                          default: 84532
+                          description: EVM chain ID. 84532 = Base Sepolia testnet.
+                        contractAddress:
+                          type: string
+                          default: ""
+                          description: Deployed BridgeContract address (0x...).
+                        gasLimit:
+                          type: integer
+                          default: 200000
+                          description: Gas limit per bridge transaction.
+                        maxGasPriceGwei:
+                          type: number
+                          default: 50.0
+                          description: Maximum gas price in Gwei.
+                        confirmations:
+                          type: integer
+                          minimum: 1
+                          default: 2
+                          description: Required block confirmations before mint.
+
+                # ── Mesh Networking ───────────────────────────────────────────
+                mesh:
+                  type: object
+                  properties:
+                    maxNodes:
+                      type: integer
+                      default: 100
+                    heartbeatInterval:
+                      type: integer
+                      default: 30
+                    routeOptimization:
+                      type: boolean
+                      default: true
+                    gossipFanout:
+                      type: integer
+                      minimum: 1
+                      maximum: 10
+                      default: 3
+
+                # ── MAPE-K ────────────────────────────────────────────────────
+                mapek:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    monitorInterval:
+                      type: integer
+                      default: 15
+                    analysisWindow:
+                      type: integer
+                      default: 300
+                    adaptationEnabled:
+                      type: boolean
+                      default: true
+
+            status:
+              type: object
+              description: MeshClusterStatus reflects the current state of a MeshCluster.
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Initializing, Running, Degraded, Healing, Terminating]
+                  description: Current phase of the MeshCluster lifecycle.
+                readyReplicas:
+                  type: integer
+                  description: Number of mesh nodes in Ready state.
+                observedGeneration:
+                  type: integer
+                  description: Most recent generation observed by the operator.
+                pqcStatus:
+                  type: object
+                  properties:
+                    rotationsCompleted:
+                      type: integer
+                    lastRotation:
+                      type: string
+                      format: date-time
+                    activeSessionCount:
+                      type: integer
+                    packetCounterEnabled:
+                      type: boolean
+                bridgeStatus:
+                  type: object
+                  properties:
+                    connected:
+                      type: boolean
+                    chainId:
+                      type: integer
+                    lastMintTx:
+                      type: string
+                    pendingMints:
+                      type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status]
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", Unknown]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      observedGeneration:
+                        type: integer
+{{- end }}

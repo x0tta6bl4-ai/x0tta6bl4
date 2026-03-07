@@ -209,6 +209,17 @@ try:
 except Exception:
     pass
 
+# Pre-import governance_script so its module dict stays stable across tests.
+# mock_dependencies uses sys.modules.clear() on each teardown; if governance_script
+# is first imported inside a test, subsequent re-imports share the same pyc code
+# object but with a fresh dict, which corrupts CPython's LOAD_GLOBAL inline cache
+# for DEPLOYMENT_FILE (heisenbug: monkeypatch.setattr works on the dict but
+# LOAD_GLOBAL returns the cached stale value from the previous module dict).
+try:
+    import src.dao.governance_script  # noqa: F401
+except Exception:
+    pass
+
 try:
     import prometheus_client  # noqa: F401
 except Exception:
@@ -226,6 +237,13 @@ try:
     )
 except Exception:
     pass
+
+# Save the real oqs module before any mocking so tests that need it can restore it.
+try:
+    import oqs as _REAL_OQS_MODULE  # noqa: F401
+except ImportError:
+    _REAL_OQS_MODULE = None  # type: ignore[assignment]
+
 
 # Mock optional dependencies to prevent import errors during testing
 # NOTE: torch and torch_geometric are NOT mocked — they are installed
@@ -250,7 +268,21 @@ mocked_modules = {
 def mock_dependencies():
     """Automatically mock optional dependencies for all tests."""
     with mock.patch.dict("sys.modules", mocked_modules):
-        yield
+        # governance_script is pre-imported with real web3; patch its Web3 class
+        # reference back to the mock so class-level calls (Web3.to_checksum_address)
+        # use the mock, exactly as when governance_script is freshly imported inside
+        # the mock_dependencies context.
+        with mock.patch("src.dao.governance_script.Web3", mocked_modules["web3"].Web3, create=True):
+            yield
+
+
+@pytest.fixture
+def real_oqs(monkeypatch):
+    """Restore the real oqs module for tests that need actual PQC operations."""
+    if _REAL_OQS_MODULE is None:
+        pytest.skip("oqs not installed")
+    monkeypatch.setitem(sys.modules, "oqs", _REAL_OQS_MODULE)
+    yield _REAL_OQS_MODULE
 
 
 @pytest.fixture
@@ -302,7 +334,6 @@ def db_session():
         def test_something(db_session):
             result = db_session.query(Model).first()
     """
-    import contextlib
 
     try:
         # Attempt to import SQLAlchemy - fallback to mock if not available

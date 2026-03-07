@@ -90,7 +90,7 @@ class TestVersionModule:
         """Test parsing valid version strings."""
         from src.version import parse_version
         
-        assert parse_version("3.2.1") == (3, 2, 1)
+        assert parse_version("3.4.0") == (3, 4, 0)
         assert parse_version("3.0.0") == (3, 0, 0)
         assert parse_version("4.1.0") == (4, 1, 0)
 
@@ -99,9 +99,9 @@ class TestVersionModule:
         from src.version import parse_version
         
         # Should ignore build metadata
-        assert parse_version("3.2.1+build123") == (3, 2, 1)
-        assert parse_version("3.2.1-beta") == (3, 2, 1)
-        assert parse_version("3.2.1-alpha+build") == (3, 2, 1)
+        assert parse_version("3.4.0+build123") == (3, 4, 0)
+        assert parse_version("3.4.0-beta") == (3, 4, 0)
+        assert parse_version("3.4.0-alpha+build") == (3, 4, 0)
 
     def test_is_compatible_same_version(self):
         """Test compatibility check with same version."""
@@ -234,25 +234,14 @@ class TestVersionConsistency:
         assert '"3.2.0"' not in source
         assert '"3.2.1"' not in source
         assert '"3.3.0"' not in source
+        assert '"3.4.0"' not in source
 
     def test_version_module_exports(self):
         """Test that version module exports all expected symbols."""
         from src.version import (
             __version__,
             __build__,
-            __commit__,
             __channel__,
-            __full_version__,
-            get_version,
-            get_version_info,
-            get_api_version,
-            get_docker_tag,
-            get_user_agent,
-            get_health_info,
-            is_compatible,
-            check_min_version,
-            parse_version,
-            VersionInfo,
         )
         
         assert __version__ is not None

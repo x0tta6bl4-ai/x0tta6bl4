@@ -3,10 +3,11 @@ MAPE-K Cycle с интеграцией всех новых компоненто�
 Готово для demo и sales presentations
 """
 
+import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.self_healing.mape_k import (MAPEKAnalyzer, MAPEKExecutor,
                                      MAPEKKnowledge, MAPEKMonitor,
@@ -57,11 +58,14 @@ class IntegratedMAPEKCycle:
         enable_observe_mode: bool = True,
         enable_chaos: bool = True,
         enable_ebpf_explainer: bool = True,
+        enable_llm: bool = True,
     ):
         # Базовый MAPE-K цикл
         self.knowledge = MAPEKKnowledge()
         self.monitor = MAPEKMonitor(knowledge=self.knowledge)
         self.analyzer = MAPEKAnalyzer()
+        if enable_llm:
+            self.analyzer.enable_llm()
         self.planner = MAPEKPlanner(knowledge=self.knowledge)
         self.executor = MAPEKExecutor()
 
@@ -97,7 +101,7 @@ class IntegratedMAPEKCycle:
 
         logger.info("Integrated MAPE-K Cycle initialized with all components")
 
-    def run_cycle(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    async def run_cycle(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         """
         Запустить полный MAPE-K цикл с интеграцией всех компонентов
 
@@ -138,20 +142,24 @@ class IntegratedMAPEKCycle:
                 monitor_trace = nullcontext()
 
             with monitor_trace:
-                anomaly_detected = self.monitor.check(metrics)
+                check_result = self.monitor.check(metrics)
+                anomaly_detected = check_result["anomaly_detected"]
+                scaling_recommended = check_result["scaling_recommended"]
+                check_result["issue"]
 
             result = {
                 "timestamp": datetime.now().isoformat(),
                 "cycle_id": cycle_id,
                 "anomaly_detected": anomaly_detected,
-                "monitor_results": {},
+                "scaling_recommended": scaling_recommended,
+                "monitor_results": check_result,
                 "analyzer_results": {},
                 "planner_results": {},
                 "executor_results": {},
                 "explanations": {},
             }
 
-            if not anomaly_detected:
+            if not anomaly_detected and not scaling_recommended:
                 return result
 
             # 2. Analyze: Root cause analysis with tracing
@@ -162,7 +170,8 @@ class IntegratedMAPEKCycle:
                     {
                         "cycle_id": cycle_id,
                         "node_id": node_id,
-                        "anomaly_detected": True,
+                        "anomaly_detected": anomaly_detected,
+                        "scaling_recommended": scaling_recommended,
                     },
                 )
             else:
@@ -173,14 +182,28 @@ class IntegratedMAPEKCycle:
             with analyze_trace:
 
                 try:
-                    analysis_issue = self.analyzer.analyze(
-                        metrics,
-                        node_id=metrics.get("node_id", "unknown"),
-                        event_id=f"{metrics.get('node_id', 'unknown')}_{int(time.time() * 1000)}",
-                    )
+                    # Support async analyze if available
+                    if asyncio.iscoroutinefunction(self.analyzer.analyze):
+                        analysis_issue = await self.analyzer.analyze(
+                            metrics,
+                            node_id=metrics.get("node_id", "unknown"),
+                            event_id=f"{metrics.get('node_id', 'unknown')}_{int(time.time() * 1000)}",
+                        )
+                    else:
+                        analysis_issue = self.analyzer.analyze(
+                            metrics,
+                            node_id=metrics.get("node_id", "unknown"),
+                            event_id=f"{metrics.get('node_id', 'unknown')}_{int(time.time() * 1000)}",
+                        )
+                    # If it was a predictive scaling recommendation, override issue
+                    if scaling_recommended and not anomaly_detected:
+                        analysis_issue = "Predicted Peak"
                 except TypeError as exc:
                     if "unexpected keyword argument" in str(exc):
-                        analysis_issue = self.analyzer.analyze(metrics)
+                        if asyncio.iscoroutinefunction(self.analyzer.analyze):
+                            analysis_issue = await self.analyzer.analyze(metrics)
+                        else:
+                            analysis_issue = self.analyzer.analyze(metrics)
                     else:
                         raise
                 result["analyzer_results"] = {
@@ -225,7 +248,7 @@ class IntegratedMAPEKCycle:
                 plan_trace = nullcontext()
 
             with plan_trace:
-                plan_start_time = time.time()
+                time.time()
                 strategy = self.planner.plan(analysis_issue)
 
         # Estimate recovery time based on strategy type and historical data
@@ -254,7 +277,12 @@ class IntegratedMAPEKCycle:
             "service_name": metrics.get("service_name", "x0tta6bl4"),
             "issue": analysis_issue,
         }
-        execution_success = self.executor.execute(strategy, context=execution_context)
+        
+        if asyncio.iscoroutinefunction(self.executor.execute):
+            execution_success = await self.executor.execute(strategy, context=execution_context)
+        else:
+            execution_success = self.executor.execute(strategy, context=execution_context)
+            
         execution_duration = time.time() - execution_start_time
 
         result["executor_results"] = {

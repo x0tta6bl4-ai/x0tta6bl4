@@ -8,9 +8,8 @@ import json
 import os
 import time
 import uuid
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.core.app import app
@@ -342,7 +341,6 @@ class TestBillingRateLimiting:
     )
     def test_checkout_rate_limit(self):
         """Test checkout session rate limiting (10/minute)."""
-        from src.core.circuit_breaker import CircuitBreakerOpen
 
         responses = []
         for i in range(15):
@@ -371,29 +369,21 @@ class TestCircuitBreakerIntegration:
     )
     def test_circuit_breaker_records_failures(self):
         """Test that failures are recorded in circuit breaker."""
-        # Reset circuit breaker state
         import asyncio
-
         from src.core.circuit_breaker import stripe_circuit
 
+        # Reset circuit breaker
         asyncio.get_event_loop().run_until_complete(stripe_circuit.reset())
-
-        initial_failures = stripe_circuit.metrics.total_failures
-
-        with patch("src.api.billing.stripe_circuit") as mock_circuit:
-
-            async def failing_call(*args, **kwargs):
-                raise Exception("Stripe API error")
-
-            mock_circuit.call = failing_call
-
+        
+        # Mock httpx to fail, which should trigger circuit breaker through the API call
+        with patch("httpx.AsyncClient.post") as mock_post:
+            mock_post.side_effect = Exception("Stripe API error")
+            
             payload = {"email": "test@example.com", "plan": "pro", "quantity": 1}
+            
+            # Request should fail with 502 (our mapped error) or the original exception
+            response = client.post("/api/v1/billing/checkout-session", json=payload)
+            assert response.status_code in [502, 503, 500]
 
-            # This should record a failure
-            try:
-                response = client.post("/api/v1/billing/checkout-session", json=payload)
-            except Exception:
-                pass
-
-        # Verify circuit breaker is accessible
-        assert stripe_circuit.name == "stripe_api"
+        # Verify circuit breaker recorded the failure
+        assert stripe_circuit.metrics.total_failures > 0

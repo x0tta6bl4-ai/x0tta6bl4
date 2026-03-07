@@ -22,7 +22,12 @@ NC='\033[0m' # No Color
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 ALERTMANAGER_URL="${ALERTMANAGER_URL:-http://localhost:9093}"
 GRAFANA_URL="${GRAFANA_URL:-http://localhost:3000}"
-GRAFANA_API_KEY="${GRAFANA_API_KEY:-admin:admin}"
+GRAFANA_API_KEY="${GRAFANA_API_KEY:-}"
+
+if [ -z "$GRAFANA_API_KEY" ]; then
+    echo "ERROR: GRAFANA_API_KEY must be set (format: user:password or API token)." >&2
+    exit 1
+fi
 
 # Directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

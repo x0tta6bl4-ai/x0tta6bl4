@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,12 @@ class DomainReputation:
     def record_event(self, event: ReputationEvent):
         """Record a new reputation event."""
         self.events.append(event)
-        self.last_access = event.timestamp
 
-        # Apply decay based on time since last event
-        time_diff_days = (event.timestamp - self.last_access) / 86400
+        # Apply decay based on time since last event (must use old last_access)
+        # Clamp to [0, 3650] days to prevent OverflowError on out-of-order or synthetic timestamps
+        time_diff_days = max(0.0, min(3650.0, (event.timestamp - self.last_access) / 86400))
         self.score *= self.decay_factor**time_diff_days
+        self.last_access = event.timestamp
 
         if event.success:
             self.success_streak += 1

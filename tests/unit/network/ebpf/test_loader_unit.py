@@ -16,9 +16,8 @@ Covers:
 
 import json
 import subprocess
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, call, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -355,7 +354,7 @@ class TestLoadProgram:
             with patch.object(loader, "_load_via_bpftool", return_value=(None, None)):
                 with patch("src.network.ebpf.loader.record_ebpf_event") as mock_event:
                     with patch("src.network.ebpf.loader.record_ebpf_compilation") as mock_comp:
-                        pid = loader.load_program("prog.o")
+                        loader.load_program("prog.o")
                         mock_event.assert_called_once_with("program_load", "xdp")
                         mock_comp.assert_called_once()
 
@@ -510,7 +509,7 @@ class TestAttachXDP:
 
     def test_hw_mode_fallback_to_skb(self, loader):
         """HW mode fails, DRV mode fails, SKB mode succeeds."""
-        fail_result = MagicMock()
+        MagicMock()
         success_result = MagicMock(returncode=0)
 
         call_count = [0]
@@ -959,7 +958,7 @@ class TestCleanup:
         loader.attached_interfaces["eth0"] = [att]
 
         with patch.object(loader, "detach_from_interface") as mock_detach:
-            with patch.object(loader, "unload_program") as mock_unload:
+            with patch.object(loader, "unload_program"):
                 loader.cleanup()
 
         # detach is called for the attached program
@@ -1004,7 +1003,7 @@ class TestLoadPrograms:
         assert len(result) == 3
         # Verify program types were inferred from filenames
         calls = mock_load.call_args_list
-        types_used = {c.args[1] if len(c.args) > 1 else c.kwargs.get("program_type") for c in calls}
+        {c.args[1] if len(c.args) > 1 else c.kwargs.get("program_type") for c in calls}
         # We can't predict exact call order due to glob, but check they were called
         assert mock_load.call_count == 3
 

@@ -32,7 +32,7 @@ except ImportError:
 
 # Obfuscation Integration
 try:
-    from src.network.obfuscation import ObfuscationTransport, TransportManager
+    from libx0t.network.obfuscation import ObfuscationTransport, TransportManager
 
     OBFUSCATION_AVAILABLE = True
 except ImportError:
@@ -65,8 +65,8 @@ except ImportError:
 
 # Traffic Shaping Integration
 try:
-    from src.network.obfuscation.traffic_shaping import (TrafficProfile,
-                                                         TrafficShaper)
+    from libx0t.network.obfuscation.traffic_shaping import (TrafficProfile,
+                                                            TrafficShaper)
 
     TRAFFIC_SHAPING_AVAILABLE = True
 except ImportError:
@@ -208,10 +208,14 @@ class NodeManager:
             logger.warning("Governance not available")
             return None
 
-        proposal = self.governance.create_proposal(
-            title=title, description=f"Network update: {action}", actions=[action]
-        )
-        return proposal.id
+        try:
+            proposal = self.governance.create_proposal(
+                title=title, description=f"Network update: {action}", actions=[action]
+            )
+            return proposal.id
+        except ValueError as e:
+            logger.warning(f"Invalid proposal parameters: {e}")
+            return None
 
     def vote_on_proposal(self, proposal_id: str, vote_str: str) -> bool:
         """Vote on an existing proposal."""
@@ -279,7 +283,7 @@ class NodeManager:
             "timestamp": datetime.now().isoformat(),
         }
         data = json.dumps(payload).encode("utf-8")
-        original_len = len(data)
+        len(data)
 
         # Apply Hybrid TLS encryption (PQC) before obfuscation
         if HYBRID_TLS_AVAILABLE and self._hybrid_tls_session_key is not None:
@@ -660,7 +664,7 @@ class HealthMonitor:
                     else check_fn()
                 )
                 if not result:
-                    await self._handle_alert(f"check_failed", {"check": check_name})
+                    await self._handle_alert("check_failed", {"check": check_name})
             except Exception as e:
                 logger.error(f"Check {check_name} failed: {e}")
 
@@ -725,7 +729,7 @@ class HealthMonitor:
 
         for handler in self.alert_handlers:
             try:
-                result = (
+                (
                     await handler(alert_type, data)
                     if asyncio.iscoroutinefunction(handler)
                     else handler(alert_type, data)

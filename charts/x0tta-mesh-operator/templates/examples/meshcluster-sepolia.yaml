@@ -1,0 +1,77 @@
+{{- if .Values.installExamples | default false }}
+---
+# Example MeshCluster with Base Sepolia DAO bridge enabled
+# Deploy: helm install x0tta-mesh charts/x0tta-mesh-operator --set installExamples=true
+apiVersion: x0tta6bl4.io/v1alpha1
+kind: MeshCluster
+metadata:
+  name: demo-mesh-sepolia
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "x0tta-mesh-operator.labels" . | nindent 4 }}
+    mesh.x0tta6bl4.io/tier: demo
+    mesh.x0tta6bl4.io/network: sepolia
+spec:
+  replicas: 3
+  trustDomain: x0tta6bl4.mesh
+
+  pqc:
+    enabled: true
+    kemAlgorithm: ML-KEM-768
+    dsaAlgorithm: ML-DSA-65
+    keyRotationInterval: 3600
+    hybridMode: true
+    ebpf:
+      enabled: true
+      packetCounter: true
+      antiReplay: true
+      windowSize: 64
+      xdpMode: skb
+
+  fallback:
+    enabled: true
+    retryAttempts: 3
+    retryDelay: 1.0
+    circuit:
+      enabled: true
+      failureThreshold: 5
+      resetTimeout: 30
+      halfOpenMaxCalls: 3
+      successThreshold: 2
+    cache:
+      enabled: true
+      ttlSeconds: 300
+      maxEntries: 1000
+      evictionPolicy: lru
+
+  spiffe:
+    enabled: true
+    socketPath: /run/spire/sockets/agent.sock
+    renewBeforeExpiry: 300
+
+  dao:
+    enabled: true
+    governance:
+      votingPeriod: 7200
+      quorumThreshold: 0.51
+      proposalExpiry: 86400
+    bridge:
+      enabled: true
+      chainId: 84532         # Base Sepolia testnet
+      contractAddress: ""   # TODO: set deployed BridgeContract address
+      gasLimit: 200000
+      maxGasPriceGwei: 50.0
+      confirmations: 2
+
+  mesh:
+    maxNodes: 100
+    heartbeatInterval: 30
+    routeOptimization: true
+    gossipFanout: 3
+
+  mapek:
+    enabled: true
+    monitorInterval: 15
+    analysisWindow: 300
+    adaptationEnabled: true
+{{- end }}

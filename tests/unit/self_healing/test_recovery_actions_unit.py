@@ -13,9 +13,8 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 import subprocess
-import time
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -41,6 +40,8 @@ class TestRecoveryActionType:
             "SCALE_DOWN",
             "FAILOVER",
             "QUARANTINE_NODE",
+            "EXECUTE_SCRIPT",
+            "SWITCH_PROTOCOL",
             "NO_ACTION",
         }
         assert set(RecoveryActionType.__members__.keys()) == expected
@@ -137,9 +138,10 @@ class TestCircuitBreaker:
         assert cb.state.failures == 0
 
     def test_opens_after_threshold_failures(self, monkeypatch):
-        fake_dt = self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
+        self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
         cb = CircuitBreaker(failure_threshold=3, timeout=timedelta(seconds=60))
-        boom = lambda: (_ for _ in ()).throw(RuntimeError("fail"))
+        def boom():
+            return (_ for _ in ()).throw(RuntimeError("fail"))
 
         for _ in range(3):
             with pytest.raises(RuntimeError):
@@ -149,9 +151,10 @@ class TestCircuitBreaker:
         assert cb.state.failures == 3
 
     def test_open_circuit_rejects_calls(self, monkeypatch):
-        fake_dt = self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
+        self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
         cb = CircuitBreaker(failure_threshold=2, timeout=timedelta(seconds=60))
-        boom = lambda: (_ for _ in ()).throw(RuntimeError("fail"))
+        def boom():
+            return (_ for _ in ()).throw(RuntimeError("fail"))
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -167,7 +170,8 @@ class TestCircuitBreaker:
             success_threshold=1,
             timeout=timedelta(seconds=10),
         )
-        boom = lambda: (_ for _ in ()).throw(RuntimeError("fail"))
+        def boom():
+            return (_ for _ in ()).throw(RuntimeError("fail"))
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -187,7 +191,8 @@ class TestCircuitBreaker:
             success_threshold=2,
             timeout=timedelta(seconds=10),
         )
-        boom = lambda: (_ for _ in ()).throw(RuntimeError("fail"))
+        def boom():
+            return (_ for _ in ()).throw(RuntimeError("fail"))
 
         # Open the breaker
         for _ in range(2):
@@ -211,7 +216,8 @@ class TestCircuitBreaker:
             success_threshold=3,
             timeout=timedelta(seconds=10),
         )
-        boom = lambda: (_ for _ in ()).throw(RuntimeError("fail"))
+        def boom():
+            return (_ for _ in ()).throw(RuntimeError("fail"))
         for _ in range(2):
             with pytest.raises(RuntimeError):
                 cb.call(boom)
@@ -260,7 +266,7 @@ class TestRateLimiter:
         return FakeDT
 
     def test_allows_up_to_max_actions(self, monkeypatch):
-        fake_dt = self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
+        self._make_fake_datetime(monkeypatch, datetime(2026, 1, 1))
         rl = RateLimiter(max_actions=3, window_seconds=60)
         assert rl.allow() is True
         assert rl.allow() is True

@@ -9,7 +9,7 @@ These tests cover:
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -229,7 +229,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_fallback()
         assert result.status == HealthStatus.HEALTHY
         assert "Dynamic fallback mechanism idle" in result.message
-        assert result.details["active_fallback"] == False
+        assert not result.details["active_fallback"]
         assert result.details["fallback_count"] == 0
 
     @pytest.mark.asyncio
@@ -246,7 +246,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_fallback()
         assert result.status == HealthStatus.DEGRADED
         assert "Dynamic fallback mechanism active" in result.message
-        assert result.details["active_fallback"] == True
+        assert result.details["active_fallback"]
         assert result.details["fallback_count"] == 1
 
     @pytest.mark.asyncio
@@ -257,7 +257,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_mapek()
         assert result.status == HealthStatus.HEALTHY
         assert "MAPE-K integration operational" in result.message
-        assert result.details["operational"] == True
+        assert result.details["operational"]
 
     @pytest.mark.asyncio
     async def test_check_mapek_degraded(self, health_checker, mock_mapek):
@@ -267,7 +267,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_mapek()
         assert result.status == HealthStatus.DEGRADED
         assert "MAPE-K integration non-operational" in result.message
-        assert result.details["operational"] == False
+        assert not result.details["operational"]
 
     @pytest.mark.asyncio
     async def test_check_ring_buffer_healthy(self, health_checker, mock_ring_buffer):
@@ -277,7 +277,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_ring_buffer()
         assert result.status == HealthStatus.HEALTHY
         assert "Ring buffer reader active" in result.message
-        assert result.details["running"] == True
+        assert result.details["running"]
 
     @pytest.mark.asyncio
     async def test_check_ring_buffer_degraded(self, health_checker, mock_ring_buffer):
@@ -287,7 +287,7 @@ class TestEBPFHealthChecker:
         result = await health_checker.check_ring_buffer()
         assert result.status == HealthStatus.DEGRADED
         assert "Ring buffer reader inactive" in result.message
-        assert result.details["running"] == False
+        assert not result.details["running"]
 
     @pytest.mark.asyncio
     async def test_check_all_components(self, health_checker):

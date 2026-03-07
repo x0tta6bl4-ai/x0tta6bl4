@@ -11,8 +11,6 @@ Provides distributed tracing for x0tta6bl4 with spans for:
 """
 
 import logging
-import os
-import time
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
@@ -129,7 +127,7 @@ class OTelTracingManager:
             self.tracer = trace.get_tracer(__name__)
 
             # Setup metrics (optional)
-            if enable_metrics and PROMETHEUS_EXPORTER_AVAILABLE and PrometheusMetricReader is not None:
+            if enable_metrics and PrometheusMetricReader is not None:
                 prometheus_reader = PrometheusMetricReader()
                 meter_provider = MeterProvider(metric_readers=[prometheus_reader])
                 metrics.set_meter_provider(meter_provider)
@@ -454,7 +452,7 @@ def initialize_tracing(service_name: str = "x0tta6bl4", app=None):
             _tracer_manager.instrument_fastapi(app)
 
         _tracer_manager.instrument_requests()
-        logger.info(f"✅ OpenTelemetry tracing initialized")
+        logger.info("✅ OpenTelemetry tracing initialized")
 
 
 def get_tracer_manager() -> Optional[OTelTracingManager]:

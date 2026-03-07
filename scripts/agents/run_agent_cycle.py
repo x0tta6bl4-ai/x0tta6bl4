@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import shlex
+import subprocess
 import textwrap
 import time
 from dataclasses import asdict, dataclass
@@ -54,7 +55,7 @@ DEFAULT_PROFILES: Dict[str, AgentProfile] = {
         skill_path="skills/x0tta6bl4-mesh-orchestrator/SKILL.md",
         role_file="ai/roles/architect.md",
         command=(
-            "python3 -m pytest -q "
+            "python3 -m pytest -q --no-cov "
             "tests/unit/core/test_app_endpoints.py "
             "tests/unit/core/test_demo_api_unit.py"
         ),
@@ -76,7 +77,7 @@ DEFAULT_PROFILES: Dict[str, AgentProfile] = {
         skill_path="skills/deploy-mesh-node/SKILL.md",
         role_file=None,
         command=(
-            "python3 -m pytest -q "
+            "python3 -m pytest -q --no-cov "
             "tests/unit/network/routing/test_mesh_router_unit.py "
             "tests/unit/network/test_mesh_routing_unit.py "
             "tests/network/test_mesh_router.py"
@@ -147,13 +148,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sync-paradox-log",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Append START/HB/END entries to paradox log (default: enabled).",
+        default=False,
+        help="Append START/HB/END entries to legacy paradox log (default: disabled).",
     )
     parser.add_argument(
         "--paradox-log",
         default=".paradox.log",
-        help="Path to paradox communication log (default: .paradox.log).",
+        help="Path to legacy paradox communication log (default: .paradox.log).",
+    )
+    parser.add_argument(
+        "--sync-agent-coord",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Mirror cycle START/HB/END events to scripts/agent-coord.sh (default: enabled).",
+    )
+    parser.add_argument(
+        "--ensure-request-thread",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "If no active request thread exists, open one for the cycle and close it "
+            "after completion (default: enabled)."
+        ),
+    )
+    parser.add_argument(
+        "--request-summary",
+        default="",
+        help="Explicit summary to use if the cycle auto-opens a request thread.",
     )
     return parser.parse_args()
 
@@ -269,6 +290,110 @@ def append_paradox_line(log_path: Path, actor: str, message: str) -> None:
     line = f"[{paradox_ts()}] {actor}: {message}\n"
     with log_path.open("a", encoding="utf-8") as f:
         f.write(line)
+
+
+def append_agent_coord_event(
+    project_root: Path,
+    agent: str,
+    event: str,
+    payload: dict[str, object],
+) -> None:
+    coord_script = project_root / "scripts" / "agent-coord.sh"
+    if not coord_script.exists():
+        return
+    subprocess.run(
+        ["bash", str(coord_script), "log", agent, event, json.dumps(payload, ensure_ascii=True)],
+        cwd=str(project_root),
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def request_channel_path(project_root: Path) -> Path:
+    return project_root / "scripts" / "agents" / "request_channel.sh"
+
+
+def request_channel_json(project_root: Path, *args: str) -> dict[str, object] | None:
+    channel = request_channel_path(project_root)
+    if not channel.exists():
+        return None
+    proc = subprocess.run(
+        ["bash", str(channel), *args, "--json"],
+        cwd=str(project_root),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def ensure_request_thread(
+    project_root: Path,
+    *,
+    ensure_enabled: bool,
+    summary: str,
+) -> tuple[str | None, bool]:
+    if not ensure_enabled:
+        return None, False
+
+    current = request_channel_json(project_root, "show")
+    if current and current.get("status") == "open":
+        return str(current.get("id", "")) or None, False
+
+    open_payload = request_channel_json(
+        project_root,
+        "open",
+        "--agent",
+        "agent-cycle",
+        "--summary",
+        summary,
+    )
+    if not open_payload:
+        return None, False
+
+    request_id = str(open_payload.get("id", "")) or None
+    opened_here = open_payload.get("opened_by") == "agent-cycle" and open_payload.get("status") == "open"
+    return request_id, bool(request_id and opened_here)
+
+
+def close_request_thread(
+    project_root: Path,
+    *,
+    request_id: str | None,
+    should_close: bool,
+    result: str,
+    next_action: str,
+) -> None:
+    if not should_close or not request_id:
+        return
+    channel = request_channel_path(project_root)
+    if not channel.exists():
+        return
+    subprocess.run(
+        [
+            "bash",
+            str(channel),
+            "close",
+            "--agent",
+            "agent-cycle",
+            "--request-id",
+            request_id,
+            "--result",
+            result,
+            "--next",
+            next_action,
+        ],
+        cwd=str(project_root),
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 async def run_agent_command(
@@ -473,7 +598,32 @@ def main() -> int:
     print(f"[agent-cycle] run_dir={run_dir.relative_to(project_root)}")
     print(f"[agent-cycle] agents={', '.join(profile.agent_id for profile in profiles)}")
     print(f"[agent-cycle] strict={args.strict} dry_run={args.dry_run}")
+    print(
+        "[agent-cycle] sync_agent_coord="
+        f"{args.sync_agent_coord} sync_paradox_log={args.sync_paradox_log}"
+    )
+    auto_request_summary = args.request_summary or (
+        "agent-cycle: "
+        f"agents={','.join(profile.agent_id for profile in profiles)} "
+        f"strict={str(args.strict).lower()} dry_run={str(args.dry_run).lower()}"
+    )
+    request_id, opened_request_here = ensure_request_thread(
+        project_root,
+        ensure_enabled=args.sync_agent_coord and args.ensure_request_thread,
+        summary=auto_request_summary,
+    )
+    if request_id:
+        print(
+            f"[agent-cycle] request_thread={request_id} "
+            f"opened_here={str(opened_request_here).lower()}"
+        )
 
+    start_payload = {
+        "agents": [profile.agent_id for profile in profiles],
+        "strict": args.strict,
+        "dry_run": args.dry_run,
+        "run_dir": str(run_dir.relative_to(project_root)),
+    }
     if args.sync_paradox_log:
         append_paradox_line(
             paradox_log_path,
@@ -486,6 +636,8 @@ def main() -> int:
                 f"run_dir={run_dir.relative_to(project_root)}"
             ),
         )
+    if args.sync_agent_coord:
+        append_agent_coord_event(project_root, "agent-cycle", "cycle_start", start_payload)
 
     if args.dry_run:
         for profile in profiles:
@@ -520,6 +672,20 @@ def main() -> int:
                     f"stdout={result.stdout_log}"
                 ),
             )
+        if args.sync_agent_coord:
+            append_agent_coord_event(
+                project_root,
+                result.agent_id,
+                "cycle_result",
+                {
+                    "status": status,
+                    "return_code": result.return_code,
+                    "duration_sec": result.duration_sec,
+                    "stdout": result.stdout_log,
+                    "stderr": result.stderr_log,
+                    "timed_out": result.timed_out,
+                },
+            )
 
     exit_code = write_summary(
         project_root=project_root,
@@ -544,6 +710,24 @@ def main() -> int:
                 f"summary={run_dir.relative_to(project_root) / 'summary.md'}"
             ),
         )
+    if args.sync_agent_coord:
+        append_agent_coord_event(
+            project_root,
+            "agent-cycle",
+            "cycle_end",
+            {
+                "result": "done" if exit_code == 0 else "blocked",
+                "exit_code": exit_code,
+                "summary": str(run_dir.relative_to(project_root) / "summary.md"),
+            },
+        )
+    close_request_thread(
+        project_root,
+        request_id=request_id,
+        should_close=opened_request_here,
+        result="agent-cycle completed",
+        next_action=str(run_dir.relative_to(project_root) / "summary.md"),
+    )
     return exit_code
 
 

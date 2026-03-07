@@ -6,7 +6,6 @@ Tests for complete ML module integration, production scenarios, and edge cases.
 
 import asyncio
 import time
-from datetime import datetime
 
 import numpy as np
 import pytest
@@ -139,7 +138,7 @@ class TestMLIntegrationComplete:
             {"score": 0.85},
         ]
 
-        alert = await manager.monitor.update_metrics("test_model", "1.0.0", predictions)
+        await manager.monitor.update_metrics("test_model", "1.0.0", predictions)
 
         health = await manager.check_model_health("test_model")
         assert "model" in health
@@ -214,7 +213,7 @@ class TestProductionScenarios:
         engine.ranker.register_policy(policy)
 
         # Initial decision
-        decision1 = await engine.decide_on_action(["test"], {})
+        await engine.decide_on_action(["test"], {})
 
         # Record successful outcomes
         for i in range(10):
@@ -420,11 +419,11 @@ class TestReliability:
 
         # Normal operation
         normal = {"cpu": 0.3}
-        result1 = await system.autonomic_loop_iteration(normal, ["scale_up"])
+        await system.autonomic_loop_iteration(normal, ["scale_up"])
 
         # Anomalous
         anomalous = {"cpu": 0.95}
-        result2 = await system.autonomic_loop_iteration(anomalous, ["scale_up"])
+        await system.autonomic_loop_iteration(anomalous, ["scale_up"])
 
         # Recovery to normal
         normal_again = {"cpu": 0.35}

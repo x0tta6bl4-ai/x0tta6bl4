@@ -8,10 +8,9 @@ import json
 import logging
 import socket
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-import struct
 import threading
 from queue import Queue
 import time
@@ -234,29 +233,26 @@ class OTLPSpanExporter(SpanExporter):
                 }]
             }
             
-            # Send via HTTP (simplified - in production use grpc or proper HTTP client)
+            # Send via stdlib urllib (avoids env proxy issues like ALL_PROXY=socks://)
+            import json as _json
             import urllib.request
-            
+
             url = f"{self.endpoint}/v1/traces"
-            data = json.dumps(request_data).encode("utf-8")
-            
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    **self.headers,
-                },
-            )
-            
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                if response.status == 200:
-                    return ExportResult(success=True, spans_exported=len(spans))
-                else:
-                    return ExportResult(
-                        success=False,
-                        error=f"OTLP export failed with status {response.status}",
-                    )
+            payload = _json.dumps(request_data).encode()
+            req_headers = {"Content-Type": "application/json", **self.headers}
+
+            try:
+                req = urllib.request.Request(url, data=payload, headers=req_headers, method="POST")
+                with urllib.request.urlopen(req, timeout=float(self.timeout)) as response:
+                    if response.status == 200:
+                        return ExportResult(success=True, spans_exported=len(spans))
+                    else:
+                        return ExportResult(
+                            success=False,
+                            error=f"OTLP export failed with status {response.status}",
+                        )
+            except Exception as exc:
+                return ExportResult(success=False, error=str(exc))
         
         except Exception as e:
             logger.error(f"OTLP export failed: {e}")
@@ -468,7 +464,7 @@ class BatchSpanProcessor:
                 try:
                     span = self._queue.get(timeout=0.1)
                     batch.append(span)
-                except:
+                except Exception:
                     pass
                 
                 # Check if we should export
@@ -494,7 +490,7 @@ class BatchSpanProcessor:
         if not self._shutdown:
             try:
                 self._queue.put_nowait(span)
-            except:
+            except Exception:
                 logger.warning("Span queue full, dropping span")
     
     def shutdown(self) -> None:

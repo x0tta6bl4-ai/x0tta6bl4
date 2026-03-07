@@ -1,8 +1,6 @@
 """Unit tests for src/dao/token_bridge.py."""
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -133,7 +131,11 @@ class TestTokenBridgeInit:
 
 class TestInitWeb3:
     def test_already_initialized(self, bridge):
+        # _init_web3 early-returns True only when _initialized AND web3.is_connected()
         bridge._initialized = True
+        mock_w3 = MagicMock()
+        mock_w3.is_connected.return_value = True
+        bridge.web3 = mock_w3
         assert bridge._init_web3() is True
 
     @patch("src.dao.token_bridge.Web3", None)
@@ -156,7 +158,7 @@ class TestInitWeb3:
 
         with patch("src.dao.token_bridge.Web3", mock_web3_cls):
             # We need to mock the import inside _init_web3
-            mock_account_mod = MagicMock()
+            MagicMock()
             with patch.object(bridge, '_initialized', False):
                 # _init_web3 does `from web3 import Web3` and `from eth_account import Account`
                 # We mock at the import level
@@ -244,32 +246,38 @@ class TestInitWeb3:
         assert bridge.contract is None
 
     def test_web3_exception(self, bridge):
-        import builtins
-        original_import = builtins.__import__
+        """When Web3 HTTPProvider raises RuntimeError, _init_web3 returns False."""
+        mock_web3_cls = MagicMock()
+        mock_web3_cls.HTTPProvider.side_effect = RuntimeError("connection failed")
 
-        def mock_import(name, *args, **kwargs):
-            if name == "web3":
-                raise RuntimeError("connection failed")
-            if name == "eth_account":
-                raise RuntimeError("connection failed")
-            return original_import(name, *args, **kwargs)
-
-        with patch("builtins.__import__", side_effect=mock_import):
+        with patch("src.dao.token_bridge.Web3", mock_web3_cls):
             result = bridge._init_web3()
 
         assert result is False
 
     def test_import_error_path(self, bridge):
+        """When web3/eth_account raise ImportError during _init_web3, return False."""
+        import sys
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
             if name in ("web3", "eth_account"):
-                raise ImportError("no web3")
+                raise ImportError("no module named web3")
             return original_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=mock_import):
-            result = bridge._init_web3()
+        # Remove cached modules so the in-function import actually executes
+        web3_bak = sys.modules.pop("web3", None)
+        eth_bak = sys.modules.pop("eth_account", None)
+        try:
+            with patch("builtins.__import__", side_effect=mock_import):
+                result = bridge._init_web3()
+        finally:
+            if web3_bak is not None:
+                sys.modules["web3"] = web3_bak
+            if eth_bak is not None:
+                sys.modules["eth_account"] = eth_bak
 
         assert result is False
 
@@ -1263,3 +1271,118 @@ class TestEpochRewardScheduler:
 
         # Should not raise
         await scheduler._distribute_epoch()
+
+
+# ─── TokenBridge.mint_from_bridge_event ──────────────────────────
+
+
+class TestMintFromBridgeEvent:
+    """Tests for operator-triggered mint after Base Sepolia deposit confirmation."""
+
+    @pytest.mark.asyncio
+    async def test_mint_known_address_success(self, bridge, mock_mesh_token):
+        bridge.register_address("node1", "0xabc123")
+        with patch.object(bridge, "_init_web3", return_value=False):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xdeadbeef01",
+                recipient_address="0xabc123",
+                amount_wei=int(5e18),
+                block_number=1000,
+            )
+
+        assert result is not None
+        assert result.status == "confirmed"
+        assert result.amount == 5.0
+        assert result.event_type == "BridgeDeposit"
+        assert result.direction == BridgeDirection.FROM_CHAIN
+        mock_mesh_token.mint.assert_called_once_with("node1", 5.0, "bridge_deposit_sepolia")
+
+    @pytest.mark.asyncio
+    async def test_mint_unknown_address_unresolved(self, bridge, mock_mesh_token):
+        with patch.object(bridge, "_init_web3", return_value=False):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xunknown01",
+                recipient_address="0xdeadbeef00",
+                amount_wei=int(1e18),
+                block_number=500,
+            )
+
+        assert result is not None
+        assert result.status == "unresolved"
+        mock_mesh_token.mint.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_idempotency_skip_duplicate(self, bridge, mock_mesh_token):
+        bridge.register_address("node2", "0xbbb222")
+        with patch.object(bridge, "_init_web3", return_value=False):
+            r1 = await bridge.mint_from_bridge_event(
+                tx_hash="0xduplicatehash",
+                recipient_address="0xbbb222",
+                amount_wei=int(2e18),
+                block_number=200,
+            )
+            r2 = await bridge.mint_from_bridge_event(
+                tx_hash="0xduplicatehash",
+                recipient_address="0xbbb222",
+                amount_wei=int(2e18),
+                block_number=200,
+            )
+
+        # Second call returns cached record without re-minting
+        assert r2 is r1
+        assert mock_mesh_token.mint.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_insufficient_confirmations_returns_none(self, bridge):
+        mock_web3 = MagicMock()
+        mock_web3.eth.block_number = 1001  # only 1 conf, need 2
+        bridge.web3 = mock_web3
+
+        with patch.object(bridge, "_init_web3", return_value=True):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xnewblock",
+                recipient_address="0xaaa111",
+                amount_wei=int(1e18),
+                block_number=1000,
+                confirmations=2,
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_sufficient_confirmations_proceeds(self, bridge, mock_mesh_token):
+        bridge.register_address("node3", "0xccc333")
+        mock_web3 = MagicMock()
+        mock_web3.eth.block_number = 1005  # 5 confs >= 2
+        bridge.web3 = mock_web3
+
+        with patch.object(bridge, "_init_web3", return_value=True):
+            result = await bridge.mint_from_bridge_event(
+                tx_hash="0xfiveconfs",
+                recipient_address="0xccc333",
+                amount_wei=int(3e18),
+                block_number=1000,
+                confirmations=2,
+            )
+
+        assert result is not None
+        assert result.status == "confirmed"
+        assert result.amount == 3.0
+
+    @pytest.mark.asyncio
+    async def test_record_added_to_tx_history(self, bridge, mock_mesh_token):
+        bridge.register_address("node4", "0xddd444")
+        initial_len = len(bridge.get_tx_history())
+
+        with patch.object(bridge, "_init_web3", return_value=False):
+            await bridge.mint_from_bridge_event(
+                tx_hash="0xhistorycheck",
+                recipient_address="0xddd444",
+                amount_wei=int(1e17),
+                block_number=999,
+            )
+
+        assert len(bridge.get_tx_history()) == initial_len + 1
+        tx = bridge.get_tx_history()[-1]
+        assert tx.tx_hash == "0xhistorycheck"
+        assert tx.block_number == 999

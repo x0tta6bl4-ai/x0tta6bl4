@@ -15,7 +15,7 @@ NC='\033[0m'
 # Configuration
 VPS_HOST="${VPS_HOST:-89.125.1.107}"
 VPS_USER="${VPS_USER:-root}"
-LANDING_FILE="deployment/landing_simple.html"
+LANDING_FILE="deployment/landing_v9_final.html"
 REMOTE_PATH="/var/www/html/landing.html"
 
 # Check if landing file exists

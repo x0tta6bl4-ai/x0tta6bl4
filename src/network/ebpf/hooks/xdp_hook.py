@@ -15,7 +15,7 @@ import logging
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

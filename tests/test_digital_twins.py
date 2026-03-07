@@ -2,7 +2,6 @@
 Tests for Digital Twins Simulator
 """
 
-import asyncio
 
 import pytest
 

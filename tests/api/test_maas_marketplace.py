@@ -21,8 +21,10 @@ Permissions:
   operator role does NOT have these (but admin bypasses all)
 """
 
+import json
 import os
 import uuid
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,7 +32,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
-from src.database import Base, MarketplaceListing, MarketplaceEscrow, User, get_db
+from src.database import Base, GlobalConfig, MarketplaceEscrow, MarketplaceListing, User, get_db
 
 _TEST_DB_PATH = f"./test_marketplace_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -84,6 +86,29 @@ def _unique_node():
     return f"node-{uuid.uuid4().hex[:12]}"
 
 
+def _set_global_multiplier(value: float) -> None:
+    db = TestingSessionLocal()
+    try:
+        row = db.query(GlobalConfig).filter(GlobalConfig.key == "global_price_multiplier").first()
+        if row is None:
+            row = GlobalConfig(key="global_price_multiplier", value_json=json.dumps(value))
+            db.add(row)
+        else:
+            row.value_json = json.dumps(value)
+        db.commit()
+    finally:
+        db.close()
+
+
+def _clear_global_multiplier() -> None:
+    db = TestingSessionLocal()
+    try:
+        db.query(GlobalConfig).filter(GlobalConfig.key == "global_price_multiplier").delete()
+        db.commit()
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Create Listing
 # ---------------------------------------------------------------------------
@@ -117,6 +142,8 @@ class TestCreateListing:
         assert data["region"] == "us-east"
         assert data["price_per_hour"] == 1.0
         assert data["bandwidth_mbps"] == 200
+        assert "trust_score" in data
+        assert 0.0 <= data["trust_score"] <= 1.0
 
     def test_create_saves_to_db(self, client, market_data):
         node_id = _unique_node()
@@ -450,6 +477,323 @@ class TestEscrowRefund:
 
 
 # ---------------------------------------------------------------------------
+# Idempotency (create/rent/release/refund)
+# ---------------------------------------------------------------------------
+
+class TestMarketplaceIdempotency:
+    def _create_listing(self, client, seller_token):
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "us-east",
+                  "price_per_hour": 1.0, "bandwidth_mbps": 100},
+            headers={"X-API-Key": seller_token},
+        )
+        return node_id, r.json()["listing_id"]
+
+    def _create_rented_listing(self, client, seller_token, buyer_token):
+        _, listing_id = self._create_listing(client, seller_token)
+        rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-idem",
+            headers={"X-API-Key": buyer_token},
+        )
+        assert rent.status_code == 200
+        return listing_id
+
+    def test_create_listing_idempotent_replay(self, client, market_data):
+        node_id = _unique_node()
+        idem_key = f"idem-create-{uuid.uuid4().hex[:10]}"
+        headers = {
+            "X-API-Key": market_data["seller_token"],
+            "Idempotency-Key": idem_key,
+        }
+        payload = {
+            "node_id": node_id,
+            "region": "us-east",
+            "price_per_hour": 0.9,
+            "bandwidth_mbps": 100,
+        }
+
+        first = client.post("/api/v1/maas/marketplace/list", json=payload, headers=headers)
+        second = client.post("/api/v1/maas/marketplace/list", json=payload, headers=headers)
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["listing_id"] == second.json()["listing_id"]
+
+        db = TestingSessionLocal()
+        count = db.query(MarketplaceListing).filter(MarketplaceListing.node_id == node_id).count()
+        db.close()
+        assert count == 1
+
+    def test_rent_idempotent_replay(self, client, market_data):
+        _, listing_id = self._create_listing(client, market_data["seller_token"])
+        idem_key = f"idem-rent-{uuid.uuid4().hex[:10]}"
+        headers = {
+            "X-API-Key": market_data["buyer_token"],
+            "Idempotency-Key": idem_key,
+        }
+
+        first = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-idem-rent",
+            headers=headers,
+        )
+        second = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-idem-rent",
+            headers=headers,
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["escrow_id"] == second.json()["escrow_id"]
+        assert first.json()["status"] == "escrow"
+        assert second.json()["status"] == "escrow"
+
+        db = TestingSessionLocal()
+        held_count = (
+            db.query(MarketplaceEscrow)
+            .filter(
+                MarketplaceEscrow.listing_id == listing_id,
+                MarketplaceEscrow.status == "held",
+            )
+            .count()
+        )
+        db.close()
+        assert held_count == 1
+
+    def test_release_idempotent_replay(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+        idem_key = f"idem-release-{uuid.uuid4().hex[:10]}"
+        headers = {
+            "X-API-Key": market_data["buyer_token"],
+            "Idempotency-Key": idem_key,
+        }
+
+        first = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/release",
+            headers=headers,
+        )
+        second = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/release",
+            headers=headers,
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["status"] == "released"
+        assert second.json()["status"] == "released"
+        assert first.json()["listing_id"] == second.json()["listing_id"] == listing_id
+        assert first.json()["released_at"] == second.json()["released_at"]
+
+    def test_refund_idempotent_replay(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+        idem_key = f"idem-refund-{uuid.uuid4().hex[:10]}"
+        headers = {
+            "X-API-Key": market_data["buyer_token"],
+            "Idempotency-Key": idem_key,
+        }
+
+        first = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers=headers,
+        )
+        second = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers=headers,
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["status"] == "refunded"
+        assert second.json()["status"] == "refunded"
+        assert first.json()["listing_id"] == second.json()["listing_id"] == listing_id
+
+        db = TestingSessionLocal()
+        row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+        assert row is not None
+        assert row.status == "available"
+        db.close()
+
+    def test_create_rejects_invalid_idempotency_key_chars(self, client, market_data):
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={
+                "node_id": node_id,
+                "region": "us-east",
+                "price_per_hour": 1.0,
+                "bandwidth_mbps": 100,
+            },
+            headers={
+                "X-API-Key": market_data["seller_token"],
+                "Idempotency-Key": "bad key with spaces",
+            },
+        )
+        assert r.status_code == 400
+        assert "Idempotency-Key" in r.json()["detail"]
+
+    def test_create_rejects_too_long_idempotency_key(self, client, market_data):
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={
+                "node_id": node_id,
+                "region": "us-east",
+                "price_per_hour": 1.0,
+                "bandwidth_mbps": 100,
+            },
+            headers={
+                "X-API-Key": market_data["seller_token"],
+                "Idempotency-Key": "x" * 1024,
+            },
+        )
+        assert r.status_code == 400
+        assert "Idempotency-Key" in r.json()["detail"]
+
+    def test_rent_rechecks_db_status_when_cache_is_stale(self, client, market_data):
+        import src.api.maas_marketplace as marketplace_mod
+
+        _, listing_id = self._create_listing(client, market_data["seller_token"])
+        first = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-stale-1",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert first.status_code == 200, first.text
+
+        # Simulate stale cache that still marks listing as available.
+        with marketplace_mod._listings_lock:
+            marketplace_mod._listings[listing_id]["status"] = "available"
+            marketplace_mod._listings[listing_id]["renter_id"] = None
+            marketplace_mod._listings[listing_id]["mesh_id"] = None
+
+        second = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-stale-2",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert second.status_code == 400
+        assert "not available" in second.json()["detail"].lower()
+
+        db = TestingSessionLocal()
+        held_count = (
+            db.query(MarketplaceEscrow)
+            .filter(
+                MarketplaceEscrow.listing_id == listing_id,
+                MarketplaceEscrow.status == "held",
+            )
+            .count()
+        )
+        db.close()
+        assert held_count == 1
+
+    def test_release_rechecks_db_renter_when_cache_is_tampered(self, client, market_data):
+        import src.api.maas_marketplace as marketplace_mod
+
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller_id = seller.id
+        db.close()
+
+        # Tamper cache to impersonate seller as renter.
+        with marketplace_mod._listings_lock:
+            marketplace_mod._listings[listing_id]["renter_id"] = seller_id
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/release",
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        assert r.status_code == 403
+
+    def test_refund_rechecks_db_renter_when_cache_is_tampered(self, client, market_data):
+        import src.api.maas_marketplace as marketplace_mod
+
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        seller = db.query(User).filter(User.api_key == market_data["seller_token"]).first()
+        seller_id = seller.id
+        db.close()
+
+        with marketplace_mod._listings_lock:
+            marketplace_mod._listings[listing_id]["renter_id"] = seller_id
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Contract Safety (state consistency under DB/cache mismatch)
+# ---------------------------------------------------------------------------
+
+class TestMarketplaceContractSafety:
+    def _create_rented_listing(self, client, seller_token, buyer_token):
+        node_id = _unique_node()
+        create = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={
+                "node_id": node_id,
+                "region": "us-east",
+                "price_per_hour": 1.0,
+                "bandwidth_mbps": 100,
+            },
+            headers={"X-API-Key": seller_token},
+        )
+        listing_id = create.json()["listing_id"]
+        rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-contract",
+            headers={"X-API-Key": buyer_token},
+        )
+        assert rent.status_code == 200, rent.text
+        return listing_id
+
+    def test_release_requires_held_escrow_row(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        db.query(MarketplaceEscrow).filter(MarketplaceEscrow.listing_id == listing_id).delete()
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/release",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 409
+        assert "Escrow state mismatch" in r.json()["detail"]
+
+    def test_refund_requires_held_escrow_row(self, client, market_data):
+        listing_id = self._create_rented_listing(
+            client, market_data["seller_token"], market_data["buyer_token"]
+        )
+
+        db = TestingSessionLocal()
+        db.query(MarketplaceEscrow).filter(MarketplaceEscrow.listing_id == listing_id).delete()
+        db.commit()
+        db.close()
+
+        r = client.post(
+            f"/api/v1/maas/marketplace/escrow/{listing_id}/refund",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r.status_code == 409
+        assert "Escrow state mismatch" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
 # Cancel Listing
 # ---------------------------------------------------------------------------
 
@@ -516,6 +860,161 @@ class TestCancelListing:
             headers={"X-API-Key": market_data["seller_token"]},
         )
         assert r.status_code == 404
+
+    def test_cancel_rechecks_db_state_when_cache_is_stale(self, client, market_data):
+        import src.api.maas_marketplace as marketplace_mod
+
+        listing_id = self._create(client, market_data["seller_token"])
+        # Move real DB state to rented while keeping cache stale/available.
+        db = TestingSessionLocal()
+        row = db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
+        row.status = "rented"
+        db.commit()
+        db.close()
+
+        with marketplace_mod._listings_lock:
+            marketplace_mod._listings[listing_id]["status"] = "available"
+
+        r = client.delete(
+            f"/api/v1/maas/marketplace/list/{listing_id}",
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        assert r.status_code == 400
+        assert "active rental state" in r.json()["detail"]
+
+
+class TestX0TTokenMarketplace:
+    def test_create_listing_x0t(self, client, market_data):
+        node_id = _unique_node()
+        r = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "eu-central",
+                  "price_token_per_hour": 10.5, "currency": "X0T", "bandwidth_mbps": 100},
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["currency"] == "X0T"
+        assert data["price_token_per_hour"] == 10.5
+        assert data["price_per_hour"] is None
+
+    def test_search_filter_by_currency(self, client, market_data):
+        # Create one USD and one X0T listing
+        node_usd = _unique_node()
+        node_x0t = _unique_node()
+        client.post("/api/v1/maas/marketplace/list",
+                    json={"node_id": node_usd, "region": "global", "price_per_hour": 1.0, "currency": "USD", "bandwidth_mbps": 100},
+                    headers={"X-API-Key": market_data["seller_token"]})
+        client.post("/api/v1/maas/marketplace/list",
+                    json={"node_id": node_x0t, "region": "global", "price_token_per_hour": 50.0, "currency": "X0T", "bandwidth_mbps": 100},
+                    headers={"X-API-Key": market_data["seller_token"]})
+
+        # Search for X0T only
+        r = client.get("/api/v1/maas/marketplace/search?currency=X0T")
+        results = r.json()
+        assert all(x["currency"] == "X0T" for x in results)
+        assert any(x["node_id"] == node_x0t for x in results)
+        assert not any(x["node_id"] == node_usd for x in results)
+
+    def test_rent_success_x0t(self, client, market_data):
+        node_id = _unique_node()
+        r_list = client.post(
+            "/api/v1/maas/marketplace/list",
+            json={"node_id": node_id, "region": "us-west",
+                  "price_token_per_hour": 5.0, "currency": "X0T", "bandwidth_mbps": 100},
+            headers={"X-API-Key": market_data["seller_token"]},
+        )
+        listing_id = r_list.json()["listing_id"]
+
+        r_rent = client.post(
+            f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-token-1&hours=2",
+            headers={"X-API-Key": market_data["buyer_token"]},
+        )
+        assert r_rent.status_code == 200, r_rent.text
+        data = r_rent.json()
+        assert data["status"] == "escrow"
+        assert data["currency"] == "X0T"
+        assert data["amount_held_token"] == 10.0  # 5.0 * 2 hours
+        assert data["amount_held_cents"] is None
+
+    def test_search_x0t_applies_global_multiplier(self, client, market_data):
+        node_id = _unique_node()
+        _set_global_multiplier(1.5)
+        try:
+            r_list = client.post(
+                "/api/v1/maas/marketplace/list",
+                json={
+                    "node_id": node_id,
+                    "region": "global",
+                    "price_token_per_hour": 10.0,
+                    "currency": "X0T",
+                    "bandwidth_mbps": 100,
+                },
+                headers={"X-API-Key": market_data["seller_token"]},
+            )
+            assert r_list.status_code == 200, r_list.text
+
+            r_search = client.get("/api/v1/maas/marketplace/search?currency=X0T&region=global")
+            assert r_search.status_code == 200, r_search.text
+            matched = [x for x in r_search.json() if x["node_id"] == node_id]
+            assert matched, r_search.json()
+            assert matched[0]["price_token_per_hour"] == 15.0
+        finally:
+            _clear_global_multiplier()
+
+    def test_search_x0t_max_price_uses_global_multiplier(self, client, market_data):
+        node_id = _unique_node()
+        _set_global_multiplier(1.5)
+        try:
+            r_list = client.post(
+                "/api/v1/maas/marketplace/list",
+                json={
+                    "node_id": node_id,
+                    "region": "us-east",
+                    "price_token_per_hour": 10.0,
+                    "currency": "X0T",
+                    "bandwidth_mbps": 100,
+                },
+                headers={"X-API-Key": market_data["seller_token"]},
+            )
+            assert r_list.status_code == 200, r_list.text
+
+            r_search = client.get(
+                "/api/v1/maas/marketplace/search?currency=X0T&max_price=12&region=us-east"
+            )
+            assert r_search.status_code == 200, r_search.text
+            assert all(item["node_id"] != node_id for item in r_search.json())
+        finally:
+            _clear_global_multiplier()
+
+    def test_rent_x0t_amount_uses_global_multiplier(self, client, market_data):
+        node_id = _unique_node()
+        _set_global_multiplier(1.5)
+        try:
+            r_list = client.post(
+                "/api/v1/maas/marketplace/list",
+                json={
+                    "node_id": node_id,
+                    "region": "us-west",
+                    "price_token_per_hour": 5.0,
+                    "currency": "X0T",
+                    "bandwidth_mbps": 100,
+                },
+                headers={"X-API-Key": market_data["seller_token"]},
+            )
+            assert r_list.status_code == 200, r_list.text
+            listing_id = r_list.json()["listing_id"]
+
+            r_rent = client.post(
+                f"/api/v1/maas/marketplace/rent/{listing_id}?mesh_id=mesh-token-global&hours=2",
+                headers={"X-API-Key": market_data["buyer_token"]},
+            )
+            assert r_rent.status_code == 200, r_rent.text
+            data = r_rent.json()
+            assert data["currency"] == "X0T"
+            assert data["amount_held_token"] == pytest.approx(15.0)
+        finally:
+            _clear_global_multiplier()
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +1096,7 @@ class TestMarketplaceUtilityFunctions:
             "node_id": "node-xyz",
             "region": "us-east",
             "price_per_hour": 0.75,
+            "currency": "USD",
             "bandwidth_mbps": 100,
             "status": "available",
             "created_at": datetime.datetime.utcnow().isoformat(),
@@ -607,8 +1107,10 @@ class TestMarketplaceUtilityFunctions:
         assert result["node_id"] == "node-xyz"
         assert result["region"] == "us-east"
         assert result["price_per_hour"] == 0.75
+        assert result["currency"] == "USD"
         assert result["bandwidth_mbps"] == 100
         assert result["status"] == "available"
+        assert result["trust_score"] == 0.5
         assert "created_at" in result
 
     def test_as_listing_response_preserves_status(self):
@@ -622,3 +1124,21 @@ class TestMarketplaceUtilityFunctions:
         }
         result = _as_listing_response(data)
         assert result["status"] == "in_escrow"
+
+    def test_as_listing_response_applies_global_multiplier_for_x0t(self):
+        """X0T listing response must apply the passed global multiplier."""
+        from src.api.maas_marketplace import _as_listing_response
+        data = {
+            "listing_id": "lst-token-1",
+            "owner_id": "owner-1",
+            "node_id": "node-token-1",
+            "region": "global",
+            "price_token_per_hour": 8.0,
+            "currency": "X0T",
+            "bandwidth_mbps": 100,
+            "status": "available",
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        result = _as_listing_response(data, multiplier=1.25)
+        assert result["price_per_hour"] is None
+        assert result["price_token_per_hour"] == 10.0

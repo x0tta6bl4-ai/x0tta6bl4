@@ -37,7 +37,6 @@ class ShadowsocksSocket(socket.socket):
 
     def send(self, data: bytes, flags=0) -> int:
         # If this is the first write, we need to prepend the salt
-        prefix = b""
         if not self._salt_sent:
             # We should generate a salt for this session if not already done?
             # The transport.obfuscate method handles stateless packet encryption.
@@ -56,19 +55,18 @@ class ShadowsocksSocket(socket.socket):
             # For MVP, let's just generate a salt for this connection.
             self._session_salt = secrets.token_bytes(32)  # ChaCha20 salt size
             self._salt_sent = True
-            prefix = self._session_salt
 
         # Encrypt payload using session salt
         # We need a derived key for this session
         key = self._transport.derive_key(self._session_salt)
-        cipher = ChaCha20Poly1305(key)
+        ChaCha20Poly1305(key)
 
         # Max chunk size for Shadowsocks is usually 0x3FFF (16KB)
         # We'll just encrypt the whole data as one chunk for simplicity if it's small
         # Real SS splits large data.
 
         payload_len = len(data)
-        len_bytes = struct.pack("!H", payload_len)
+        struct.pack("!H", payload_len)
 
         # Encrypt length (AEAD)
         # Nonce is usually sequence number?

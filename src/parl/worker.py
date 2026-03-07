@@ -8,9 +8,8 @@ tasks asynchronously, collecting experience for policy updates.
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
-from datetime import datetime, timezone
 
 from src.parl.types import (
     Task, TaskId, Experience, Policy, StepResult,
@@ -372,6 +371,7 @@ class AgentWorker:
             "policy_evaluation": self._handle_policy_evaluation,
             "data_processing": self._handle_data_processing,
             "health_check": self._handle_health_check,
+            "optimization": self._handle_optimization,  # Added optimization handler for MAPEK Plan phase
         }
         
         handler = handlers.get(task_type, self._handle_generic)
@@ -384,6 +384,32 @@ class AgentWorker:
             return result
         except asyncio.TimeoutError:
             raise
+    
+    async def _handle_optimization(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle optimization/planning task using LLM Agent."""
+        await asyncio.sleep(0.05)  # Simulated processing
+        
+        anomaly = payload.get("analysis", {})
+        target_node = anomaly.get("result", {}).get("anomaly_id", "unknown_target")
+        
+        actions = []
+        try:
+            from src.agents.kimi_healing_agent import kimi_agent
+            llm_actions = kimi_agent.analyze_and_heal(anomaly, target_node)
+            if llm_actions:
+                actions = [{"type": a.action, "target": target_node, "params": a.params} for a in llm_actions]
+        except ImportError:
+            logger.warning("KimiHealingAgent not available for worker")
+            
+        if not actions:
+            actions = [{"type": "fallback_restart", "target": target_node}]
+            
+        return {
+            "strategy": "llm_healing" if actions and actions[0]["type"] != "fallback_restart" else "auto_recovery",
+            "actions": actions,
+            "estimated_recovery_time": 30.0,
+            "status": "completed"
+        }
     
     async def _handle_mesh_analysis(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle mesh analysis task."""

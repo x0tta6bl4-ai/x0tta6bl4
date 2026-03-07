@@ -24,7 +24,9 @@ def check_production_dependencies() -> None:
 
     Raises ProductionDependencyError if any critical dependency is missing.
     """
-    if not PRODUCTION_MODE:
+    # Re-read env var at call time so monkeypatch/setenv works in tests
+    production_mode = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
+    if not production_mode:
         return
 
     errors = []
@@ -38,7 +40,7 @@ def check_production_dependencies() -> None:
                 "liboqs-python not available - REQUIRED for post-quantum cryptography"
             )
     except ImportError:
-        errors.append("Post-quantum cryptography module not available")
+        errors.append("liboqs-python not available - post-quantum cryptography module not found")
 
     # ML Components - Critical for anomaly detection
     try:

@@ -178,18 +178,26 @@ def test_ebpf_decrypt_too_short_returns_none():
 # ---------------------------------------------------------------------------
 # ZeroTrustValidator tests (mock WorkloadAPIClient)
 # ---------------------------------------------------------------------------
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestZeroTrustValidator:
-    @patch("src.security.zero_trust.validator.WorkloadAPIClient")
+    @pytest.fixture(autouse=True)
+    def reset_policy_engine(self):
+        """Patch get_policy_engine to return a fresh DENY-by-default engine for unit tests."""
+        from src.security.zero_trust.policy_engine import PolicyEngine
+        fresh = PolicyEngine()  # No seeded allow rules — pure zero-trust DENY default
+        with patch("src.security.zero_trust.policy_engine.get_policy_engine", return_value=fresh):
+            yield
+
+    @patch("src.security.zero_trust.WorkloadAPIClient")
     def test_init_default_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
 
         ztv = ZeroTrustValidator()
         assert ztv.trust_domain == "x0tta6bl4.mesh"
 
-    @patch("src.security.zero_trust.validator.WorkloadAPIClient")
+    @patch("src.security.zero_trust.WorkloadAPIClient")
     def test_validates_same_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
 
@@ -198,7 +206,7 @@ class TestZeroTrustValidator:
         # Default policy engine action is DENY when no explicit allow rules exist.
         assert result is False
 
-    @patch("src.security.zero_trust.validator.WorkloadAPIClient")
+    @patch("src.security.zero_trust.WorkloadAPIClient")
     def test_rejects_different_trust_domain(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
 
@@ -206,7 +214,7 @@ class TestZeroTrustValidator:
         result = ztv.validate_connection("spiffe://evil.domain/svc")
         assert result is False
 
-    @patch("src.security.zero_trust.validator.WorkloadAPIClient")
+    @patch("src.security.zero_trust.WorkloadAPIClient")
     def test_stats_tracking(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
 
@@ -218,7 +226,7 @@ class TestZeroTrustValidator:
         assert stats["successes"] == 0
         assert stats["failures"] == 2
 
-    @patch("src.security.zero_trust.validator.WorkloadAPIClient")
+    @patch("src.security.zero_trust.WorkloadAPIClient")
     def test_stats_zero_attempts(self, mock_client):
         from src.security.zero_trust import ZeroTrustValidator
 

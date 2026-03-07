@@ -18,14 +18,13 @@ Usage:
   report = result.generate_report()
 """
 
-import asyncio
 import json
 import logging
 import random
 import statistics
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -200,12 +199,12 @@ class TrafficPattern:
 
     @staticmethod
     def high_churn() -> "TrafficPattern":
-        """High identity churn"""
+        """High identity churn (rotate every 5s vs steady-state 600s)"""
         return TrafficPattern(
             "high_churn",
             beacon_rate=1.0,
             pqc_ops_rate=100,
-            identity_rotation_interval=60,
+            identity_rotation_interval=5,
         )
 
 
@@ -361,6 +360,8 @@ class VirtualMeshNode:
         """Inject failure into this node"""
         if failure_pattern.failure_type == "node_crash":
             self.is_failed = True
+        elif failure_pattern.failure_type == "network_partition":
+            self.is_failed = True  # treat partition as temporary failure
         elif failure_pattern.failure_type == "byzantine":
             self.is_byzantine = True
 
@@ -611,7 +612,7 @@ class DistributedLoadGenerator:
         self.spawn_mesh_nodes()
 
         self.result = LoadTestResult(
-            test_name=f"failure_injection",
+            test_name="failure_injection",
             node_count=self.node_count,
             duration_seconds=self.duration_seconds,
             start_time=datetime.utcnow().isoformat(),
@@ -705,14 +706,13 @@ class DistributedLoadGenerator:
         for node in self.nodes:
             self.result.node_metrics[node.node_id] = node.metrics
 
-        logger.info(f"✅ Failure injection test complete")
+        logger.info("✅ Failure injection test complete")
 
         return self.result
 
 
 def main():
     """Example usage"""
-    import sys
 
     # Test configurations
     test_configs = [

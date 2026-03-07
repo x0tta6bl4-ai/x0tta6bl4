@@ -5,15 +5,13 @@ Tests for Mesh-FL Integration Layer
 Tests topology-aware aggregation and Batman-adv integration.
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
 
 from src.federated_learning.topology_aware_aggregator import (
-    AggregationResult,
     BatmanAdvMetricsProvider,
     ModelUpdate,
     NodeConnectivity,
@@ -611,7 +609,8 @@ class TestMeshFLIntegrationFactory:
         
         await integration.stop()
 
-    def test_integrate_with_fl_coordinator(self):
+    @pytest.mark.asyncio
+    async def test_integrate_with_fl_coordinator(self):
         """Test integration with existing FL coordinator."""
         # Mock FL coordinator
         mock_coordinator = MagicMock()
@@ -620,11 +619,16 @@ class TestMeshFLIntegrationFactory:
             "node-2": MagicMock(),
         }
         
-        integration = MeshFLIntegration()
+        integration = await create_mesh_fl_integration()
         integrate_with_fl_coordinator(integration, mock_coordinator)
         
         # Nodes should be registered (checked via aggregator)
-        # Note: This requires the integration to be started first
+        status = integration.get_node_status()
+        assert len(status) == 2
+        assert "node-1" in status
+        assert "node-2" in status
+        
+        await integration.stop()
 
 
 class TestTrainingRound:

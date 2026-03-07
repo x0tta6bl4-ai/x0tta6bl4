@@ -2,7 +2,9 @@
 
 **Дата:** 2026-02-23
 **Версия:** 3.4.0
-**Статус:** Production Ready, продолжение развития
+**Статус:** Subsystem Production-Capable, общий релиз gated через `plans/MASTER_100_READINESS_TODOS_2026-02-26.md`
+
+> Этот план отражает готовность MaaS-направления, а не финальное release-решение по всей платформе.
 
 ---
 
@@ -11,7 +13,7 @@
 | Компонент | Готовность | Статус |
 |-----------|------------|--------|
 | MaaS Core | 95% | ✅ Production |
-| Commercial | 85% | ✅ Ready for $10K MRR |
+| Commercial | 85% | ✅ Pilot-ready ($10K MRR target, gated by release readiness) |
 | Event Store | 95% | ✅ PostgreSQL migration завершена |
 | Swarm Consensus | 100% | ✅ P0 issues resolved |
 | Mesh-FL Integration | 90% | ✅ Topology-aware aggregation готов |
@@ -67,9 +69,9 @@
 **Цель:** Поддержка arm64 и amd64
 
 **Задачи:**
-- [ ] Обновить Dockerfile для multi-stage builds
-- [ ] Настроить buildx для multi-arch
-- [ ] Опубликовать в registry
+- [x] Обновить Dockerfile для multi-stage builds
+- [x] Настроить buildx для multi-arch
+- [x] Опубликовать в registry
 
 **Критерии успеха:**
 - Образы работают на arm64 (Raspberry Pi, Apple Silicon)
@@ -83,9 +85,9 @@
 **Цель:** Автоматическое обновление зависимостей
 
 **Задачи:**
-- [ ] Создать `.github/dependabot.yml`
-- [ ] Добавить auto-merge для patch versions
-- [ ] Настроить security updates
+- [x] Создать `.github/dependabot.yml`
+- [x] Добавить auto-merge для patch versions
+- [x] Настроить security updates
 
 ---
 
@@ -96,9 +98,9 @@
 | TD-001 | Busy-waiting в Paxos | P1 | ✅ Fixed (Event-based waiting) |
 | TD-003 | Missing input validation | P1 | ✅ Fixed |
 | TD-005 | Missing Paxos/PBFT unit tests | P1 | ✅ Fixed |
-| TD-006 | Self-reported latency in tests | P2 | Open |
+| TD-006 | Self-reported latency in tests | P2 | ✅ Fixed (latency_threshold used) |
 | TD-007 | KimiK25Integration placeholder | P3 | Open |
-| TD-008 | MAPE-K duplication | P2 | Open |
+| TD-008 | MAPE-K duplication | P2 | ✅ Fixed (Deprecation warnings added) |
 
 ---
 
@@ -108,7 +110,7 @@
 |--------|--------|--------|
 | W10 (Feb 23 - Mar 1) | Event Store PostgreSQL + Swarm Intelligence Phase 2 | ✅ Завершено |
 | W11 (Mar 2 - Mar 8) | Mesh-FL Integration Layer | ✅ Завершено |
-| W12 (Mar 9 - Mar 15) | Multi-Arch Docker + Dependabot | ⏳ В планах |
+| W12 (Mar 9 - Mar 15) | Multi-Arch Docker + Dependabot | ✅ Завершено |
 
 ---
 

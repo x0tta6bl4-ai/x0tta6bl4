@@ -1,8 +1,7 @@
 import logging
-import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class ProductionSystem:
     def get_system_health(self) -> Dict[str, Any]:
         uptime = (datetime.utcnow() - self.start_time).total_seconds()
 
-        perf_stats = self.performance_tuner.analyze_performance()
+        self.performance_tuner.analyze_performance()
         cardinality_report = self.cardinality_optimizer.get_cardinality_report()
         security_status = self.hardening_manager.get_security_status()
         executor_stats = self.resilient_executor.get_stats()

@@ -1,0 +1,139 @@
+# x0tta6bl4 Fix Report (Post-Gemini)
+
+_Дата: 2026-03-01_
+
+## 1) Что исправлено
+
+### Security и API-контракты
+- `src/api/maas_agent_mesh.py`
+  - Добавлена обязательная аутентификация (`Depends(get_current_user_from_maas)`) для endpoint-ов mesh API.
+- `src/api/maas_security.py`
+  - Убрана обрезка PQC-подписи: теперь хранится/возвращается полный `ML-DSA` signature hex.
+  - Усилена верификация подписи токена (нормализация signature + безопасный fallback).
+- `src/api/maas_playbooks.py`
+  - Убрана fail-open логика: неизвестные алгоритмы подписи теперь отклоняются.
+  - Валидация подписи разделена по алгоритмам:
+    - `HMAC*` -> HMAC verify path.
+    - `ML-DSA*` -> strict PQC verify path (без fallback на HMAC).
+  - Усилен ack-контракт: проверка существования playbook, expiry, target node и статуса ack.
+- `src/api/maas_auth.py`
+  - Исправлен OIDC client secret wiring: используется `OIDC_CLIENT_SECRET`, а не `audience`.
+  - `require_permission`/`require_mesh_access` унифицированы под `str | MeshPermission`.
+  - Добавлен compatibility слой для legacy scopes (policy/audit и др.) без ломки старых маршрутов.
+- `src/core/rbac.py`
+  - Добавлены VPN-permissions (`vpn:config`, `vpn:status`, `vpn:admin`) в enum и role defaults.
+- `src/api/vpn.py`
+  - Убран `sys.path` hack и хрупкие прямые импорты `from database import ...`.
+  - Введён безопасный adapter к legacy `database.py` для ZKP-path.
+- `src/api/maas_marketplace.py`
+  - Закрыт TOCTOU в аренде: повторная проверка `owner/status` по DB перед переходом в escrow.
+  - Усилен контроль release/refund: повторная проверка `renter_id` по DB (не доверяем cache-only).
+  - Добавлен best-effort row lock (`FOR UPDATE`) для state transition в `rent/release/refund/cancel`.
+  - Устранён fail-open в release/refund: при отсутствии `held` escrow теперь `409 Escrow state mismatch` вместо молчаливого перевода listing в другой статус.
+  - Усилена валидация `Idempotency-Key` (длина, допустимые символы).
+  - Запрещён cancel listing в активном rental state (`escrow`/`rented`).
+  - Добавлен DB re-check в `cancel_listing` для защиты от stale/подменённого cache.
+- `src/api/maas_nodes.py`
+  - Усилена валидация enroll token:
+    - проверка наличия `join_token`,
+    - проверка expiry (`join_token_expires_at`),
+    - compare через `hmac.compare_digest`.
+  - Усилен approve-path: проверка существования mesh и валидности join token до перевода node в `approved` (без преждевременного commit).
+  - Добавлен state-contract в approve-path: разрешено только из `pending/pending_approval`; для `approved` — идемпотентный ответ, для остальных статусов (`revoked` и т.д.) — `409`.
+  - Исправлена модель прав mesh owner (добавлены node/acl/telemetry management scopes).
+  - Добавлено расширение alias-permissions (`view<->read`, `update<->write`) для корректной проверки RBAC.
+- `src/api/maas_billing.py`
+  - Добавлен idempotency guard в `stripe_webhook` для `checkout.session.completed` по `stripe_session_id` (replay-safe без повторных side-effects).
+  - Добавлена валидация `payment_status` + безопасная обработка отсутствующего `session_id`.
+  - Исправлена импортная ошибка `timedelta` в subscription invoice path.
+  - Убрано fail-open minting поведение: fiat→X0T bridge теперь выполняется только при явном metadata-флаге `bridge_x0t`.
+  - Добавлен fallback lookup пользователя по `stripe_customer_id`, если `metadata.user_id` отсутствует.
+
+### Кодовая стабильность
+- `src/agents/kimi_healing_agent.py`
+  - Невалидное действие playbook `isolate_node` заменено на `ban_peer`.
+  - Добавлен allowlist/безопасный fallback для неизвестных действий.
+- `src/core/parl_mapek_integration.py`
+  - Исправлена генерация healing plan и fallback при ошибках агента.
+- `src/network/obfuscation/http_steganography.py`
+  - Переписан encode/decode путь: URL-safe base64, лимиты payload, безопасные decode-fail сценарии.
+- `scripts/mesh_client.py`, `scripts/mesh_exit_node.py`, `scripts/mesh_server.py`
+  - Убраны хардкоды путей, добавлена строгая валидация `MESH_SHARED_KEY`.
+  - Усилен SOCKS5 parsing (readexactly + timeouts), добавлена защита от private/loopback target по умолчанию.
+  - Параметры перенесены в env (`*_PORT`, `*_TIMEOUT`, `EXIT_ALLOW_PRIVATE_TARGETS` и др.) для предсказуемого прод-конфига.
+- `src/network/tun_socks_bridge.py`
+  - Восстановлен стабильный контракт класса (`get_stats`, полноценный `main/CLI`, корректный lifecycle start/stop).
+  - Восстановлена корректная SOCKS5 handshake/connect проверка (валидация ответов proxy).
+  - Сохранена поддержка опциональной обфускации без деградации базового пути.
+
+### Документы и позиционирование
+- `STATUS_REALITY.md`
+  - Переписан в evidence-based формате.
+- `docs/GTM_LAUNCH_READY_REPORT_2026.md`
+  - Смягчены/нормализованы неподтверждаемые технические утверждения.
+- `docs/TRUST_AND_SECURITY_WHITEPAPER.md`
+  - Синхронизированы claims с фактическим состоянием кода.
+
+## 2) Добавленные/обновлённые тесты
+
+- `tests/unit/api/test_maas_agent_mesh_unit.py`
+  - Обновлены auth overrides, добавлен явный 401-path.
+- `tests/unit/agents/test_kimi_healing_agent_unit.py`
+  - Проверки action allowlist/fallback.
+- `tests/unit/network/obfuscation/test_http_steganography_unit.py`
+  - Проверки safe encode/decode и invalid input handling.
+- `tests/api/test_maas_playbooks.py`
+  - Добавлены регрессионные проверки на неизвестный/подменённый алгоритм подписи.
+- `tests/api/test_maas_marketplace.py`
+  - Добавлены проверки:
+    - stale-cache rent protection,
+    - DB renter re-check на release/refund,
+    - stale-cache cancel protection,
+    - validation `Idempotency-Key`.
+  - Добавлены контрактные проверки:
+    - `release` требует существования `held` escrow-записи,
+    - `refund` требует существования `held` escrow-записи.
+- `tests/api/test_maas_nodes.py`
+  - Добавлены проверки alias expansion и owner node-management permissions.
+  - Добавлен safety-тест на `approve_node`: при истёкшем token статус node не коммитится в `approved`.
+  - Добавлен safety-тест: `approve_node` отклоняет `revoked` node статусом `409`.
+- `tests/unit/api/test_maas_billing_webhook_unit.py`
+  - Добавлены unit-регрессии:
+    - replay `checkout.session.completed` не создаёт дубликаты invoice и корректно отдаёт idempotent ответ;
+    - fiat→X0T minting работает только при явном `bridge_x0t=true`.
+
+## 3) Проверка результатов
+
+Ключевые прогоны, выполненные после правок:
+
+1. `pytest --no-cov -q tests/unit/api/test_maas_security_unit.py tests/api/test_maas_playbooks.py tests/api/test_maas_auth.py tests/api/test_vpn_api.py`
+   - Результат: `156 passed`
+
+2. `pytest --no-cov -q tests/api/test_maas_auth.py tests/api/test_maas_playbooks.py tests/api/test_maas_policies.py tests/api/test_maas_billing.py tests/api/test_maas_marketplace.py tests/api/test_vpn_api.py`
+   - Результат: `316 passed`
+
+3. `pytest --no-cov -q tests/api/test_maas_marketplace.py tests/api/test_maas_nodes.py`
+   - Результат: `160 passed`
+
+4. `python3 -m py_compile` для всех затронутых модулей
+   - Результат: без ошибок.
+
+5. `pytest --no-cov -q tests/api/test_maas_auth.py tests/api/test_maas_playbooks.py tests/api/test_maas_policies.py tests/api/test_maas_billing.py tests/api/test_maas_marketplace.py tests/api/test_vpn_api.py tests/api/test_maas_nodes.py`
+   - Результат: `420 passed`
+
+6. `pytest -q tests/api/test_maas_marketplace.py tests/api/test_maas_nodes.py`
+   - Результат тестов: `163 passed`
+   - Примечание: команда завершилась `exit 1` только из-за глобального coverage gate (`fail-under=75`, фактическое покрытие репозитория ~13% в этом окружении), не из-за падений тестов.
+
+7. `pytest --no-cov -q tests/api/test_maas_marketplace.py::TestMarketplaceContractSafety::test_release_requires_held_escrow_row tests/api/test_maas_marketplace.py::TestMarketplaceContractSafety::test_refund_requires_held_escrow_row tests/api/test_maas_nodes.py::TestApproveNodeSafety::test_approve_node_rejects_revoked_status`
+   - Результат: `3 passed`
+
+8. `pytest --no-cov -q tests/unit/network/test_tun_socks_bridge_unit.py tests/unit/api/test_maas_billing_webhook_unit.py`
+   - Результат: `7 passed`
+
+9. `pytest --no-cov -q tests/api/test_maas_billing.py`
+   - Результат: blocked на этапе collection из-за несвязанного импорта в `src/core/app.py` -> `ImportError: cannot import name 'AgentCapabilities' from src.swarm.agent`.
+
+## 4) Итог
+
+После блока правок post-Gemini устранены критичные security-contract несоответствия в `maas_security`, `maas_playbooks`, `maas_auth`, `maas_marketplace`, `maas_nodes` и `vpn`, синхронизированы claims в документах и добавлены регрессионные тесты для предотвращения повторного появления этих классов ошибок.

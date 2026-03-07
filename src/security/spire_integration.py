@@ -6,7 +6,6 @@ Supports local testing with Docker and production deployment with SPIRE agent.
 """
 
 import logging
-import os
 import socket
 import time
 from typing import Any, Dict, Optional

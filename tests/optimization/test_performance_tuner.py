@@ -8,8 +8,7 @@ from src.optimization.performance_tuner import (AsyncBottleneckDetector,
                                                 EdgeCaseHandler,
                                                 LatencyTracker,
                                                 MemoryOptimizer,
-                                                PerformanceTuner,
-                                                get_performance_tuner)
+                                                PerformanceTuner)
 
 
 class TestLatencyTracker:
@@ -121,7 +120,7 @@ class TestMemoryOptimizer:
         def compute_large():
             return "x" * 10000
 
-        result = optimizer.get_cached("big", compute_large, ttl_seconds=60)
+        optimizer.get_cached("big", compute_large, ttl_seconds=60)
         stats = optimizer.get_stats()
         assert stats["cache_entries"] <= 1
 
@@ -280,6 +279,8 @@ class TestIntegration:
             db_query()
             time.sleep(0.001)
 
+        # Reset any timing-induced alerts from the profiled runs (VM latency variance)
+        tuner.bottleneck_detector.clear_alerts()
         tuner.bottleneck_detector.record_current("db_query", 15.0)
 
         analysis = tuner.analyze_performance()

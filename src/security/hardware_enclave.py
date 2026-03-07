@@ -9,7 +9,7 @@ and Intel SGX. Ensures root-of-trust originates from hardware.
 import logging
 import os
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class HardwareSecurityModule:
         try:
             with open("/sys/class/dmi/id/product_uuid", "r") as f:
                 return f.read().strip()
-        except:
+        except Exception:
             return "mock-hardware-id-0000-ffff"
 
     def sign_with_hardware(self, data: bytes) -> bytes:

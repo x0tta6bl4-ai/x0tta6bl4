@@ -19,7 +19,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Dict
 import tempfile
 import shutil
 import pytest
@@ -34,7 +34,9 @@ def _multiprocessing_semaphore_available() -> bool:
         queue.close()
         queue.join_thread()
         return True
-    except (PermissionError, OSError):
+    except (PermissionError, OSError, RuntimeError, ValueError, Exception):
+        # Exception covers queue.Empty (_queue.Empty) raised when put_nowait
+        # silently fails in restricted sandbox environments (no /dev/shm semaphores).
         return False
 
 
@@ -49,7 +51,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.coordination.consensus_transport import (
     ConsensusMessage,
     ConsensusTransport,
-    DistributedConsensusNode,
 )
 
 
@@ -119,7 +120,7 @@ def run_node_process(
                         })
                     elif msg.get("action") == "stop":
                         break
-                except:
+                except Exception:
                     pass
                 
                 await asyncio.sleep(0.01)
@@ -180,7 +181,7 @@ class DistributedTestCluster:
                     result = queue.get_nowait()
                     if result.get("event") == "started":
                         started_nodes.add(node_id)
-                except:
+                except Exception:
                     pass
             time.sleep(0.1)
         
@@ -227,7 +228,7 @@ class DistributedTestCluster:
                 result = self._result_queues[from_node].get_nowait()
                 if result.get("event") == "sent":
                     return result.get("message_id")
-            except:
+            except Exception:
                 pass
             time.sleep(0.01)
         
@@ -256,7 +257,7 @@ class DistributedTestCluster:
             try:
                 result = self._result_queues[node_id].get_nowait()
                 results.append(result)
-            except:
+            except Exception:
                 pass
             time.sleep(0.01)
         

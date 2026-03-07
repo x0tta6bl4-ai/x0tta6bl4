@@ -9,12 +9,9 @@ Tests cover:
 - Multi-node federated training
 """
 
-import asyncio
 import json
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -30,7 +27,7 @@ from src.federated_learning.lora_fl_integration import (
     create_lora_update,
     run_federated_lora_training,
 )
-from src.federated_learning.protocol import ModelUpdate, ModelWeights
+from src.federated_learning.protocol import ModelUpdate
 from src.ml.lora.config import LoRAConfig
 
 
@@ -926,12 +923,7 @@ class TestIntegration:
             FederatedLoRATrainer,
             FederatedLoRAConfig,
             LoRAFLRound,
-            LoRAFLRoundStatus,
             LoRAWeightUpdate,
-            LoRAWeightAggregator,
-            aggregate_lora_weights,
-            create_lora_update,
-            run_federated_lora_training,
         )
 
         # Verify classes are available

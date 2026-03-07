@@ -6,13 +6,11 @@ Enhanced version with peer health monitoring and route recalculation.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import logging
 import random
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -21,7 +19,7 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("x0tta6bl4")
 
-app = FastAPI(title="x0tta6bl4-minimal-failover", version="3.2.1", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal-failover", version="3.4.0", docs_url="/docs")
 
 # --- Configuration ---
 PEER_TIMEOUT = 30.0  # Seconds without beacon = dead peer
@@ -212,7 +210,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "3.2.1",
+        "version": "3.4.0",
         "node_id": node_id,
         "peers_count": len(peers),
         "dead_peers_count": len(dead_peers),
@@ -379,7 +377,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     current_time = time.time()

@@ -174,7 +174,7 @@ jobs:
         run: |
           set -euo pipefail
           safety check -r requirements.txt --json > safety-report.json
-          pip-audit -r requirements.txt --format json > pip-audit-report.json
+          pip-audit -r requirements.lock --no-deps --disable-pip --format json > pip-audit-report.json
       
       - name: Scan C code with cppcheck
         run: |

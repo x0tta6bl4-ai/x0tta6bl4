@@ -13,9 +13,10 @@ Key features:
 """
 
 import logging
+import os
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Tuple
 
 import bcrypt
@@ -112,7 +113,7 @@ class PasswordHasher:
             return False, "Password cannot contain repeated characters (e.g., 'aaa')"
 
         if re.search(r"(012|123|234|345|456|567|678|789|890)", password):
-            return False, "Password cannot contain sequential numbers"
+            return False, "Password cannot contain sequential numbers (3+ digits)"
 
         return True, "Password meets security requirements"
 

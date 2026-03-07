@@ -12,7 +12,6 @@ import asyncio
 import logging
 import os
 import time
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, Optional
 
@@ -31,6 +30,8 @@ class RateLimitConfig:
     requests_per_minute: int = 1000
     burst_size: int = 50
     block_duration: int = 60  # seconds to block after exceeding limits
+    # Path specific overrides
+    path_overrides: Optional[Dict[str, "RateLimitConfig"]] = None
 
 
 class TokenBucket:
@@ -113,41 +114,45 @@ class InMemoryRateLimiter:
             for ip in inactive:
                 del self._buckets[ip]
 
-    async def is_allowed(self, client_ip: str) -> tuple[bool, Optional[int]]:
+    async def is_allowed(self, client_id: str, config_override: Optional[RateLimitConfig] = None) -> tuple[bool, Optional[int]]:
         """
-        Check if request is allowed.
+        Check if request is allowed for a specific client (IP or API Key).
 
         Returns:
             (allowed, retry_after) - retry_after is seconds to wait if blocked
         """
+        config = config_override or self.config
+        
         async with self._lock:
             now = time.time()
 
-            # Check if IP is blocked
-            if client_ip in self._blocked:
-                if self._blocked[client_ip] > now:
-                    retry_after = int(self._blocked[client_ip] - now)
+            # Check if client ID is blocked
+            if client_id in self._blocked:
+                if self._blocked[client_id] > now:
+                    retry_after = int(self._blocked[client_id] - now)
                     return False, retry_after
                 else:
-                    del self._blocked[client_ip]
+                    del self._blocked[client_id]
 
-            # Get or create token bucket for this IP
-            if client_ip not in self._buckets:
-                self._buckets[client_ip] = TokenBucket(
-                    rate=self.config.requests_per_second,
-                    capacity=self.config.burst_size,
+            # Get or create token bucket for this client ID
+            # We include rate in key to handle different paths for the same user
+            bucket_key = f"{client_id}:{config.requests_per_second}"
+            if bucket_key not in self._buckets:
+                self._buckets[bucket_key] = TokenBucket(
+                    rate=config.requests_per_second,
+                    capacity=config.burst_size,
                 )
 
-            bucket = self._buckets[client_ip]
+            bucket = self._buckets[bucket_key]
             if await bucket.consume():
                 return True, None
 
-            # Rate limit exceeded - block IP temporarily
-            self._blocked[client_ip] = now + self.config.block_duration
+            # Rate limit exceeded - block client temporarily
+            self._blocked[client_id] = now + config.block_duration
             logger.warning(
-                f"Rate limit exceeded for {client_ip}, blocked for {self.config.block_duration}s"
+                f"Rate limit exceeded for {client_id}, blocked for {config.block_duration}s"
             )
-            return False, self.config.block_duration
+            return False, config.block_duration
 
     def get_stats(self) -> Dict:
         """Get rate limiter statistics."""
@@ -205,13 +210,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(excluded) for excluded in self.excluded_paths):
             return await call_next(request)
 
-        # Get client IP (handle proxies)
-        client_ip = self._get_client_ip(request)
+        # 1) Resolve client identity (API Key takes priority over IP)
+        api_key = request.headers.get("X-API-Key")
+        client_id = api_key if api_key else self._get_client_ip(request)
+
+        # 2) Resolve config (Check for path overrides)
+        current_config = self.config
+        if self.config.path_overrides:
+            for pattern, override in self.config.path_overrides.items():
+                if path.startswith(pattern):
+                    current_config = override
+                    break
 
         # Check rate limit
-        allowed, retry_after = await self.limiter.is_allowed(client_ip)
+        allowed, retry_after = await self.limiter.is_allowed(client_id, current_config)
 
         if not allowed:
+            try:
+                from src.monitoring.maas_metrics import record_rate_limit_rejection
+                record_rate_limit_rejection(path)
+            except Exception:
+                pass
             return JSONResponse(
                 status_code=429,
                 content={
@@ -224,12 +243,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Add rate limit headers to response
         response = await call_next(request)
-        response.headers["X-RateLimit-Limit"] = str(self.config.requests_per_second)
-        response.headers["X-RateLimit-Remaining"] = str(
-            int(
-                self.limiter._buckets.get(client_ip, TokenBucket(1, 1)).available_tokens
-            )
-        )
+        response.headers["X-RateLimit-Limit"] = str(current_config.requests_per_second)
+        # Use available tokens from the bucket used
+        bucket_key = f"{client_id}:{current_config.requests_per_second}"
+        available = int(self.limiter._buckets.get(bucket_key, TokenBucket(1, 1)).available_tokens)
+        response.headers["X-RateLimit-Remaining"] = str(available)
 
         return response
 

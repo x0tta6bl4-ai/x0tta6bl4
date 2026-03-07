@@ -3,10 +3,9 @@ Unit tests for src/core/cache.py
 Tests RedisCache singleton, InMemoryCacheBackend, CacheWarming, and @cached decorator.
 """
 
-import asyncio
 import os
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 

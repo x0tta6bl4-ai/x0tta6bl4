@@ -98,6 +98,13 @@ Test Coverage: >90%
         assert "error_rate" in key_metrics or "response_time" in key_metrics
 
 
+_CONTINUITY_FILE = PROJECT_ROOT / "CONTINUITY.md"
+
+
+@pytest.mark.skipif(
+    not _CONTINUITY_FILE.exists(),
+    reason="CONTINUITY.md not present at project root",
+)
 class TestLedgerFile:
     """Тесты для работы с файлом CONTINUITY.md"""
 

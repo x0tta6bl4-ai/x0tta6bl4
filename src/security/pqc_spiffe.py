@@ -6,13 +6,12 @@ Bridges SPIRE (X.509 SVIDs) with Post-Quantum Cryptography (ML-DSA/Dilithium).
 Provides a way to attest PQC public keys using SPIFFE identities.
 """
 
-import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 from src.security.pqc_identity import PQCNodeIdentity
 from src.security.spire_integration import SPIREClient, SPIREConfig
-from src.security.zkp_attestor import NIZKPAttestor, FirmwareAttestor
+from src.security.zkp_attestor import NIZKPAttestor
 from src.security.zkp_auth import SchnorrZKP
 
 logger = logging.getLogger(__name__)
@@ -92,43 +91,19 @@ class PQCSpiffeBridge:
     def verify_pqc_svid_full(self, bundle: Dict[str, Any], verify_x509: bool = False) -> bool:
         """
         Full cryptographic verification of PQC-SVID bundle.
-        
-        This method performs complete verification including:
-        1. Structural validation
-        2. ZKP attestation verification
-        3. X.509 signature verification (if verify_x509=True)
-        
-        Args:
-            bundle: PQC-SVID bundle
-            verify_x509: WARNING - X.509 signature verification is NOT YET IMPLEMENTED.
-                When True, raises NotImplementedError. Use verify_pqc_svid() for basic
-                validation or keep this parameter False (default).
-                Full X.509 verification requires SPIRE integration and is planned for
-                a future release.
-            
-        Returns:
-            True if all implemented verifications pass
-            
-        Raises:
-            NotImplementedError: If verify_x509=True (X.509 verification not yet implemented)
-            
-        Note:
-            For production use, verify_pqc_svid() provides sufficient security through
-            ZKP attestation. X.509 binding adds an additional layer of assurance but
-            is not strictly required for mesh operation.
         """
-        # Basic validation first
+        # 1. Basic validation
         if not self.verify_pqc_svid(bundle):
             return False
         
         if verify_x509:
-            # TODO: Implement X.509 signature verification
-            # This requires integration with SPIRE's X.509 SVID verification
-            # Tracked in: https://github.com/x0tta6bl4/x0tta6bl4/issues/XXX
+            # P3: X.509 signature verification not yet implemented (planned for v4.0)
             raise NotImplementedError(
-                "X.509 signature verification for PQC-SVID is not yet implemented. "
-                "Use verify_pqc_svid() for basic validation or set verify_x509=False (default)."
+                "X.509 signature verification is not yet implemented. "
+                "Use verify_pqc_svid() for PQC-only validation."
             )
+        
+        return True
         
         return True
 

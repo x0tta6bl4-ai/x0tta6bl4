@@ -118,7 +118,7 @@ class TestPQCMeshIntegration:
         node_a = pqc_nodes["node-pqc-0"]
         node_c = pqc_nodes["node-pqc-2"]
 
-        kem_pk_a = node_a["pqc"].pq_backend.generate_kem_keypair()
+        node_a["pqc"].pq_backend.generate_kem_keypair()
         kem_pk_c = node_c["pqc"].pq_backend.generate_kem_keypair()
 
         shared_secret, ciphertext = node_a["pqc"].pq_backend.kem_encapsulate(

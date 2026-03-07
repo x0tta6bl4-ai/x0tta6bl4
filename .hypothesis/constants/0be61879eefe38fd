@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/zkp_auth.py
+# hypothesis_version: 6.151.9
+
+[b'x0tta6bl4_pedersen_h_generator_v1_secure', 300, 115792089237316195423570985008687907852837564279074904382605163141518161494337, 'Auth not started', 'big', 'challenge', 'challenge_id', 'chaum', 'commitment', 'for_node', 'node_id', 'pedersen', 'proof_id', 'public_key', 'response', 'schnorr', 'type', 'zkp_auth_start', 'zkp_challenge', 'zkp_proof']

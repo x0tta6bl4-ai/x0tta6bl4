@@ -16,8 +16,6 @@ References:
 """
 
 import logging
-import os
-import struct
 import subprocess
 import time
 from enum import Enum
@@ -174,7 +172,7 @@ class EBPFLoader:
                                 sections[section_name]["text"] = (
                                     section.data().decode("utf-8").strip("\x00")
                                 )
-                            except:
+                            except Exception:
                                 pass
 
                 logger.debug(
@@ -265,8 +263,8 @@ class EBPFLoader:
 
         # Extract metadata
         text_section = sections.get(".text", {})
-        maps_section = sections.get(".maps", {})
-        btf_section = sections.get(".BTF", {})
+        sections.get(".maps", {})
+        sections.get(".BTF", {})
         license = sections.get("license", {}).get("text", "GPL")
 
         # Validate license (kernel requires GPL-compatible)
@@ -411,7 +409,7 @@ class EBPFLoader:
         # Actual attachment via ip link or bpftool
         program_info = self.loaded_programs[program_id]
         program_file = program_info["path"]
-        pinned_path = program_info.get("pinned_path")
+        program_info.get("pinned_path")
 
         # Attach based on program type
         if program_type == EBPFProgramType.XDP:
@@ -477,7 +475,7 @@ class EBPFLoader:
                 if xdp_mode != "skb":
                     cmd.extend(["mode", xdp_mode])
 
-                result = subprocess.run(
+                subprocess.run(
                     cmd, check=True, capture_output=True, text=True, timeout=10
                 )
 
@@ -523,7 +521,7 @@ class EBPFLoader:
                 ".text",
             ]
 
-            result = subprocess.run(
+            subprocess.run(
                 cmd, check=True, capture_output=True, text=True, timeout=10
             )
 
@@ -768,7 +766,7 @@ class EBPFLoader:
     def _detach_xdp(self, interface: str) -> bool:
         """Detach XDP program from interface."""
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["ip", "link", "set", "dev", interface, "xdp", "off"],
                 check=True,
                 capture_output=True,
@@ -790,7 +788,7 @@ class EBPFLoader:
         """Detach TC program from interface."""
         try:
             # Remove TC filter
-            result = subprocess.run(
+            subprocess.run(
                 ["tc", "filter", "del", "dev", interface, "ingress"],
                 check=True,
                 capture_output=True,

@@ -4,7 +4,13 @@ MaaS Auth Endpoints - Authentication endpoints.
 Provides REST API endpoints for user registration, login, and API key management.
 """
 
+import hashlib
+import hmac
 import logging
+import secrets
+import threading
+import time
+from collections import deque
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,7 +19,6 @@ from ..auth import (
     UserContext,
     get_auth_service,
     get_current_user,
-    get_optional_user,
 )
 from ..models import (
     ApiKeyRotateRequest,
@@ -32,6 +37,87 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # In-memory user store (replace with database in production)
 _user_store: Dict[str, Dict[str, Any]] = {}
+_PASSWORD_HASH_SCHEME = "pbkdf2_sha256"
+_PASSWORD_HASH_ITERATIONS = 60_000
+_LOGIN_ATTEMPT_WINDOW_SECONDS = 300.0
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_ATTEMPTS: Dict[str, deque[float]] = {}
+_LOGIN_ATTEMPT_LOCK = threading.Lock()
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _prune_login_attempts(bucket: deque[float], now: float) -> None:
+    cutoff = now - _LOGIN_ATTEMPT_WINDOW_SECONDS
+    while bucket and bucket[0] <= cutoff:
+        bucket.popleft()
+
+
+def _check_login_throttle(normalized_email: str) -> None:
+    now = time.monotonic()
+    with _LOGIN_ATTEMPT_LOCK:
+        bucket = _LOGIN_ATTEMPTS.setdefault(normalized_email, deque())
+        _prune_login_attempts(bucket, now)
+        if len(bucket) >= _LOGIN_MAX_ATTEMPTS:
+            retry_after = max(
+                1,
+                int(bucket[0] + _LOGIN_ATTEMPT_WINDOW_SECONDS - now),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed login attempts. Please retry later.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+def _record_failed_login(normalized_email: str) -> None:
+    now = time.monotonic()
+    with _LOGIN_ATTEMPT_LOCK:
+        bucket = _LOGIN_ATTEMPTS.setdefault(normalized_email, deque())
+        _prune_login_attempts(bucket, now)
+        bucket.append(now)
+
+
+def _clear_failed_logins(normalized_email: str) -> None:
+    with _LOGIN_ATTEMPT_LOCK:
+        _LOGIN_ATTEMPTS.pop(normalized_email, None)
+
+
+def _hash_password(password: str, *, salt_hex: Optional[str] = None) -> str:
+    """Hash password with PBKDF2-HMAC-SHA256 for in-memory auth store."""
+    salt_hex = salt_hex or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        bytes.fromhex(salt_hex),
+        _PASSWORD_HASH_ITERATIONS,
+    )
+    return (
+        f"{_PASSWORD_HASH_SCHEME}$"
+        f"{_PASSWORD_HASH_ITERATIONS}$"
+        f"{salt_hex}$"
+        f"{digest.hex()}"
+    )
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    """Verify plaintext password against PBKDF2 hash."""
+    try:
+        scheme, iterations_raw, salt_hex, expected_hex = password_hash.split("$", 3)
+        if scheme != _PASSWORD_HASH_SCHEME:
+            return False
+        iterations = int(iterations_raw)
+        digest = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt_hex),
+            iterations,
+        )
+        return hmac.compare_digest(digest.hex(), expected_hex)
+    except Exception:
+        return False
 
 
 @router.post(
@@ -51,9 +137,11 @@ async def register(
     """
     import secrets
 
+    normalized_email = _normalize_email(request.email)
+
     # Check if email already exists
     for user_id, user_data in _user_store.items():
-        if user_data.get("email") == request.email:
+        if user_data.get("email") == normalized_email:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already registered",
@@ -64,9 +152,10 @@ async def register(
 
     # Create user
     _user_store[user_id] = {
-        "email": request.email,
+        "email": normalized_email,
         "name": request.name,
         "plan": "free",
+        "password_hash": _hash_password(request.password),
         "created_at": __import__("datetime").datetime.utcnow().isoformat(),
     }
 
@@ -76,7 +165,7 @@ async def register(
 
     return RegisterResponse(
         user_id=user_id,
-        email=request.email,
+        email=normalized_email,
         api_key=api_key,
         message="Registration successful",
     )
@@ -96,24 +185,35 @@ async def login(
 
     Returns a session token for subsequent requests.
     """
+    normalized_email = _normalize_email(request.email)
+    _check_login_throttle(normalized_email)
+
     # Find user by email
     user_id = None
     user_data = None
 
     for uid, data in _user_store.items():
-        if data.get("email") == request.email:
+        if data.get("email") == normalized_email:
             user_id = uid
             user_data = data
             break
 
     if not user_id:
+        _record_failed_login(normalized_email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
-    # In production, verify password hash
-    # For now, accept any password for demo
+    password_hash = str(user_data.get("password_hash", ""))
+    if not _verify_password(request.password, password_hash):
+        _record_failed_login(normalized_email)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+
+    _clear_failed_logins(normalized_email)
 
     # Create session
     auth = get_auth_service()

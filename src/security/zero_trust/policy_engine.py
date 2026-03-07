@@ -5,13 +5,11 @@ Provides fine-grained policy enforcement using rule-based engine.
 Now includes OPA/Rego integration, dynamic policy updates, and versioning.
 """
 
-import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +52,7 @@ class PolicyRule:
     spiffe_id_pattern: Optional[str] = (
         None  # Pattern matching (e.g., "spiffe://domain/workload/*")
     )
+    mesh_id: Optional[str] = None  # Specific mesh isolation requirement
     allowed_resources: Optional[List[str]] = None
     time_window: Optional[Dict[str, str]] = None  # {"start": "09:00", "end": "17:00"}
     rate_limit: Optional[Dict[str, int]] = None  # {"requests_per_minute": 100}
@@ -247,6 +246,12 @@ class PolicyEngine:
         workload_type: Optional[str],
     ) -> bool:
         """Check if a rule matches the request."""
+        # Check Mesh ID isolation if required
+        if rule.mesh_id:
+            # Expected format: spiffe://<mesh_id>.x0tta6bl4.mesh/...
+            if not peer_spiffe_id.startswith(f"spiffe://{rule.mesh_id}."):
+                return False
+
         # Check SPIFFE ID pattern
         if rule.spiffe_id_pattern:
             if not self._match_pattern(peer_spiffe_id, rule.spiffe_id_pattern):
@@ -659,10 +664,19 @@ _policy_engine: Optional[PolicyEngine] = None
 
 
 def get_policy_engine() -> PolicyEngine:
-    """Get global PolicyEngine instance."""
+    """Get global PolicyEngine instance, seeded with a default trust-domain allow rule."""
     global _policy_engine
     if _policy_engine is None:
         _policy_engine = PolicyEngine()
+        # Seed a default allow rule for all workloads in the x0tta6bl4.mesh trust domain.
+        # This is the baseline policy; administrators can add more restrictive rules on top.
+        _policy_engine.add_rule(PolicyRule(
+            rule_id="default-trust-domain-allow",
+            name="Allow x0tta6bl4.mesh workloads (default)",
+            action=PolicyAction.ALLOW,
+            spiffe_id_pattern="spiffe://x0tta6bl4.mesh/*",
+            priority=10,
+        ))
     return _policy_engine
 
 

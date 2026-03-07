@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: ai [--profile verification|validation] {gemini|claude|claude-code|codex} [args...]" >&2
+  exit 1
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+profile="${AI_PROFILE:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "${1}" in
+    --profile)
+      profile="${2:-}"
+      [[ -n "${profile}" ]] || { echo "missing value for --profile" >&2; exit 2; }
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+tool="${1:-}"
+shift || true
+
+if [[ -z "${AI_HEAP_MB:-}" ]]; then
+  case "${profile}" in
+    validation) export AI_HEAP_MB=6144 ;;
+    *) export AI_HEAP_MB=4096 ;;
+  esac
+fi
+
+case "${tool}" in
+  gemini)
+    exec "${ROOT_DIR}/gemini" "$@"
+    ;;
+  claude|claude-code)
+    exec "${ROOT_DIR}/claude-code" "$@"
+    ;;
+  codex)
+    exec "${ROOT_DIR}/codex" "$@"
+    ;;
+  *)
+    echo "unknown tool: ${tool}" >&2
+    exit 2
+    ;;
+esac

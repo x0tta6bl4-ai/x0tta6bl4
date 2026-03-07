@@ -1,0 +1,113 @@
+# ── Prometheus ─────────────────────────────────────────────────────────────────
+prometheus:
+  prometheus:
+    prometheusSpec:
+      retention: 30d
+      retentionSize: 50GB
+      scrapeInterval: 15s
+      evaluationInterval: 15s
+      additionalScrapeConfigs:
+        - job_name: mesh-nodes
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names: [x0tta-production, x0tta-staging]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              target_label: __address__
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+
+  grafana:
+    adminPassword: changeme
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: x0tta-mesh
+            orgId: 1
+            folder: x0tta Mesh
+            type: file
+            disableDeletion: false
+            options:
+              path: /var/lib/grafana/dashboards/x0tta-mesh
+    dashboardsConfigMaps:
+      x0tta-mesh: grafana-dashboards
+
+  alertmanager:
+    config:
+      global:
+        resolve_timeout: 5m
+        slack_api_url: "https://hooks.slack.com/services/PLACEHOLDER"
+      route:
+        receiver: default
+        group_by: [alertname, namespace]
+        group_wait: 10s
+        group_interval: 5m
+        repeat_interval: 2h
+        routes:
+          - matchers:
+              - severity = critical
+            receiver: pagerduty-critical
+            continue: true
+          - matchers:
+              - alertname =~ "MeshNode.*"
+            receiver: mesh-ops-slack
+      receivers:
+        - name: default
+          slack_configs:
+            - channel: "#x0tta-alerts"
+              title: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+              text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        - name: pagerduty-critical
+          pagerduty_configs:
+            - routing_key: "PLACEHOLDER_PD_KEY"
+        - name: mesh-ops-slack
+          slack_configs:
+            - channel: "#mesh-ops"
+              title: "Mesh Alert: {{ .CommonLabels.alertname }}"
+
+# ── Loki ───────────────────────────────────────────────────────────────────────
+loki:
+  loki:
+    storage:
+      type: filesystem
+    compactor:
+      retention_enabled: true
+      retention_delete_delay: 2h
+    limits_config:
+      retention_period: 720h    # 30 days
+
+  promtail:
+    config:
+      clients:
+        - url: http://loki:3100/loki/api/v1/push
+      scrape_configs:
+        - job_name: mesh-nodes
+          kubernetes_sd_configs:
+            - role: pod
+          pipeline_stages:
+            - json:
+                expressions:
+                  level: level
+                  node_id: node_id
+                  msg: message
+            - labels:
+                level:
+                node_id:
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              action: keep
+              regex: mesh-node
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod

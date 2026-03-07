@@ -2,7 +2,6 @@
 Tests for Ledger RAG Search Integration
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -12,6 +11,12 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from ledger.rag_search import LedgerRAGSearch, LedgerSearchResult
+
+_CONTINUITY_FILE = PROJECT_ROOT / "CONTINUITY.md"
+pytestmark = pytest.mark.skipif(
+    not _CONTINUITY_FILE.exists(),
+    reason="CONTINUITY.md not present at project root — ledger RAG tests require it",
+)
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,10 @@
+replicaCount: 1
+
+image:
+  repository: registry.gitlab.com/x0tta/mcp-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+meshApiUrl: http://mesh-api.x0tta-production.svc/mesh
+lokiUrl: http://loki.monitoring.svc:3100
+serviceToken: ""   # override via --set serviceToken=... or Secret injection

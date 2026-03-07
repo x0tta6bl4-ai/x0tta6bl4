@@ -4,7 +4,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const powerIcon = document.getElementById('power-icon');
     const statusGlow = document.getElementById('status-glow');
     
+    const zkpContainer = document.getElementById('zkp-container');
+    const zkpStepText = document.getElementById('zkp-step-text');
+    const zkpBar = document.getElementById('zkp-bar');
+    const zkpPercent = document.getElementById('zkp-percent');
+    
     let isConnected = false;
+    let currentLang = 'EN';
+
+    const langBtn = document.getElementById('lang-btn');
+    langBtn.addEventListener('click', () => {
+        currentLang = currentLang === 'EN' ? 'RU' : 'EN';
+        langBtn.innerText = currentLang === 'EN' ? 'RU' : 'EN';
+        
+        // Update all translatable elements
+        document.querySelectorAll('[data-en]').forEach(el => {
+            el.innerText = el.getAttribute(`data-${currentLang.toLowerCase()}`);
+        });
+    });
+
+    async function showZKPFlow() {
+        zkpContainer.classList.remove('hidden');
+        const steps = [
+            { text: 'Generating Commitment', p: 33, dot: 'step-1' },
+            { text: 'Solving Challenge', p: 66, dot: 'step-2' },
+            { text: 'Finalizing Attestation', p: 100, dot: 'step-3' }
+        ];
+
+        for (const step of steps) {
+            zkpStepText.innerText = step.text;
+            zkpBar.style.width = `${step.p}%`;
+            zkpPercent.innerText = `${step.p}%`;
+            document.getElementById(step.dot).classList.replace('bg-zinc-700', 'bg-emerald-500');
+            await new Promise(r => setTimeout(r, 800)); // Simulate work
+        }
+        
+        await new Promise(r => setTimeout(r, 400));
+        zkpContainer.classList.add('hidden');
+        // Reset dots for next time
+        ['step-1', 'step-2', 'step-3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('bg-emerald-500');
+            if (el) el.classList.add('bg-zinc-700');
+        });
+    }
 
     const planCard = document.getElementById('plan-card');
     const upgradeModal = document.getElementById('upgrade-modal');
@@ -37,15 +80,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     connectBtn.addEventListener('click', async () => {
-        const { invoke } = window.__TAURI__.event; // Standard Tauri check
-        
         if (!isConnected) {
-            statusText.innerText = 'ZKP Authenticating...';
+            statusText.innerText = 'Initializing...';
             connectBtn.classList.add('border-emerald-500/50');
             
             try {
-                // Call Rust backend which handles Python Ghost engine
-                const response = await window.__TAURI__.invoke('toggle_vpn', { active: true });
+                // 1. Show ZKP Animation
+                await showZKPFlow();
+
+                // 2. Call Backend
+                let response = "Connected";
+                if (window.__TAURI__) {
+                    response = await window.__TAURI__.invoke('toggle_vpn', { active: true });
+                } else {
+                    // Simulation mode for web browser
+                    await new Promise(r => setTimeout(r, 500));
+                }
                 
                 if (response === "Connected") {
                     isConnected = true;
@@ -68,7 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Disconnecting
-            await window.__TAURI__.invoke('toggle_vpn', { active: false });
+            if (window.__TAURI__) {
+                await window.__TAURI__.invoke('toggle_vpn', { active: false });
+            }
             isConnected = false;
             statusText.innerText = 'Disconnected';
             statusText.classList.remove('text-emerald-400');

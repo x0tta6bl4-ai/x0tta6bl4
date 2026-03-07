@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import types
-from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
 
 from src.services.provisioning_service import (
-    ProvisioningResult,
     ProvisioningService,
     _SimulatedXUI,
 )

@@ -251,7 +251,7 @@ class RouteRecovery:
         Returns list of destinations that failed recovery.
         """
         failed: List[str] = []
-        now = time.time()
+        time.time()
         
         for dest, attempt in list(self._recovery_attempts.items()):
             if attempt.elapsed > self.RECOVERY_TIMEOUT:

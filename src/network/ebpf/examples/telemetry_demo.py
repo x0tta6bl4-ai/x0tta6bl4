@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from telemetry_module import (EBPFTelemetryCollector, EventSeverity,
                               MetricDefinition, MetricType, TelemetryConfig,
-                              TelemetryEvent, create_collector, quick_start)
+                              TelemetryEvent)
 
 # Configure logging
 logging.basicConfig(
@@ -141,67 +141,8 @@ class TelemetryDemo:
         bpf_program_path = Path(__file__).parent.parent / "performance_monitor.bpf.c"
 
         if not bpf_program_path.exists():
-            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}")
-            logger.info("Using stub mode for demo...")
-
-            # Create collector without eBPF program
-            config = TelemetryConfig(prometheus_port=9090, collection_interval=1.0)
-            self.collector = EBPFTelemetryCollector(config)
-
-            # Register performance metrics
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="cpu_usage_percent",
-                    type=MetricType.GAUGE,
-                    description="CPU usage percentage",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="memory_usage_percent",
-                    type=MetricType.GAUGE,
-                    description="Memory usage percentage",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="context_switches_per_sec",
-                    type=MetricType.GAUGE,
-                    description="Context switches per second",
-                )
-            )
-
-            self.collector.start()
-
-            logger.info("✅ Collector started (stub mode)")
-            logger.info(
-                "📊 Prometheus metrics available at http://localhost:9090/metrics"
-            )
-
-            # Simulate performance metrics
-            import random
-
-            self.running = True
-            while self.running:
-                cpu = random.uniform(10, 80)
-                memory = random.uniform(30, 70)
-                ctx_switches = random.uniform(1000, 10000)
-
-                self.collector.prometheus.set_metric("cpu_usage_percent", cpu)
-                self.collector.prometheus.set_metric("memory_usage_percent", memory)
-                self.collector.prometheus.set_metric(
-                    "context_switches_per_sec", ctx_switches
-                )
-
-                logger.info(
-                    f"📊 CPU: {cpu:.1f}%, "
-                    f"Memory: {memory:.1f}%, "
-                    f"CtxSwitch: {ctx_switches:.0f}/s"
-                )
-
-                time.sleep(1)
+            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}, using stub mode")
+            self.demo_performance_stub()
         else:
             # Load real eBPF program
             logger.info(f"Loading eBPF program from {bpf_program_path}")
@@ -241,23 +182,7 @@ class TelemetryDemo:
 
             except Exception as e:
                 logger.error(f"❌ Error loading eBPF program: {e}")
-                logger.info("Falling back to stub mode...")
                 self.demo_performance_stub()
-
-    def demo_performance_stub(self):
-        """Stub mode for performance demo."""
-        config = TelemetryConfig(prometheus_port=9090)
-        self.collector = EBPFTelemetryCollector(config)
-        self.collector.start()
-
-        import random
-
-        self.running = True
-        while self.running:
-            cpu = random.uniform(10, 80)
-            self.collector.prometheus.set_metric("cpu_usage_percent", cpu)
-            logger.info(f"📊 CPU: {cpu:.1f}%")
-            time.sleep(1)
 
     def demo_network(self):
         """Network monitoring demo."""
@@ -277,101 +202,8 @@ class TelemetryDemo:
         bpf_program_path = Path(__file__).parent.parent / "network_monitor.bpf.c"
 
         if not bpf_program_path.exists():
-            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}")
-            logger.info("Using stub mode for demo...")
-
-            # Create collector without eBPF program
-            config = TelemetryConfig(prometheus_port=9090, collection_interval=1.0)
-            self.collector = EBPFTelemetryCollector(config)
-
-            # Register network metrics
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="packets_ingress_total",
-                    type=MetricType.COUNTER,
-                    description="Total ingress packets",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="packets_egress_total",
-                    type=MetricType.COUNTER,
-                    description="Total egress packets",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="bytes_ingress_total",
-                    type=MetricType.COUNTER,
-                    description="Total ingress bytes",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="bytes_egress_total",
-                    type=MetricType.COUNTER,
-                    description="Total egress bytes",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="active_connections",
-                    type=MetricType.GAUGE,
-                    description="Active network connections",
-                )
-            )
-
-            self.collector.start()
-
-            logger.info("✅ Collector started (stub mode)")
-            logger.info(
-                "📊 Prometheus metrics available at http://localhost:9090/metrics"
-            )
-
-            # Simulate network metrics
-            import random
-
-            packets_in = 0
-            packets_out = 0
-            bytes_in = 0
-            bytes_out = 0
-
-            self.running = True
-            while self.running:
-                # Simulate network traffic
-                new_packets_in = random.randint(10, 100)
-                new_packets_out = random.randint(5, 50)
-                new_bytes_in = new_packets_in * random.randint(64, 1500)
-                new_bytes_out = new_packets_out * random.randint(64, 1500)
-
-                packets_in += new_packets_in
-                packets_out += new_packets_out
-                bytes_in += new_bytes_in
-                bytes_out += new_bytes_out
-
-                self.collector.prometheus.set_metric(
-                    "packets_ingress_total", packets_in
-                )
-                self.collector.prometheus.set_metric(
-                    "packets_egress_total", packets_out
-                )
-                self.collector.prometheus.set_metric("bytes_ingress_total", bytes_in)
-                self.collector.prometheus.set_metric("bytes_egress_total", bytes_out)
-                self.collector.prometheus.set_metric(
-                    "active_connections", random.randint(10, 100)
-                )
-
-                logger.info(
-                    f"🌐 In: {new_packets_in} pkts/{new_bytes_in/1024:.1f}KB, "
-                    f"Out: {new_packets_out} pkts/{new_bytes_out/1024:.1f}KB, "
-                    f"Conn: {random.randint(10, 100)}"
-                )
-
-                time.sleep(1)
+            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}, using stub mode")
+            self.demo_network_stub()
         else:
             # Load real eBPF program
             logger.info(f"Loading eBPF program from {bpf_program_path}")
@@ -409,23 +241,7 @@ class TelemetryDemo:
 
             except Exception as e:
                 logger.error(f"❌ Error loading eBPF program: {e}")
-                logger.info("Falling back to stub mode...")
                 self.demo_network_stub()
-
-    def demo_network_stub(self):
-        """Stub mode for network demo."""
-        config = TelemetryConfig(prometheus_port=9090)
-        self.collector = EBPFTelemetryCollector(config)
-        self.collector.start()
-
-        import random
-
-        self.running = True
-        while self.running:
-            packets = random.randint(10, 100)
-            self.collector.prometheus.set_metric("packets_ingress_total", packets)
-            logger.info(f"🌐 Packets: {packets}")
-            time.sleep(1)
 
     def demo_security(self):
         """Security monitoring demo."""
@@ -445,108 +261,8 @@ class TelemetryDemo:
         bpf_program_path = Path(__file__).parent.parent / "security_monitor.bpf.c"
 
         if not bpf_program_path.exists():
-            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}")
-            logger.info("Using stub mode for demo...")
-
-            # Create collector without eBPF program
-            config = TelemetryConfig(
-                prometheus_port=9090, collection_interval=1.0, log_events=True
-            )
-            self.collector = EBPFTelemetryCollector(config)
-
-            # Register security metrics
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="connection_attempts_total",
-                    type=MetricType.COUNTER,
-                    description="Total connection attempts",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="failed_auth_attempts_total",
-                    type=MetricType.COUNTER,
-                    description="Total failed authentication attempts",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="suspicious_file_access_total",
-                    type=MetricType.COUNTER,
-                    description="Total suspicious file access attempts",
-                )
-            )
-
-            self.collector.prometheus.register_metric(
-                MetricDefinition(
-                    name="privilege_escalation_attempts_total",
-                    type=MetricType.COUNTER,
-                    description="Total privilege escalation attempts",
-                )
-            )
-
-            # Register event handler
-            def handle_security_event(event: TelemetryEvent):
-                if event.severity >= EventSeverity.HIGH:
-                    logger.warning(
-                        f"🚨 SECURITY EVENT: {event.event_type}, "
-                        f"PID: {event.pid}, "
-                        f"Severity: {event.severity.name}"
-                    )
-
-            self.collector.perf_reader.register_handler(
-                "security_event", handle_security_event
-            )
-
-            self.collector.start()
-
-            logger.info("✅ Collector started (stub mode)")
-            logger.info(
-                "📊 Prometheus metrics available at http://localhost:9090/metrics"
-            )
-
-            # Simulate security events
-            import random
-
-            connection_attempts = 0
-            failed_auth = 0
-            suspicious_access = 0
-            priv_esc = 0
-
-            self.running = True
-            while self.running:
-                # Simulate security events
-                connection_attempts += random.randint(1, 10)
-                if random.random() < 0.1:
-                    failed_auth += random.randint(1, 5)
-                if random.random() < 0.05:
-                    suspicious_access += 1
-                if random.random() < 0.01:
-                    priv_esc += 1
-
-                self.collector.prometheus.set_metric(
-                    "connection_attempts_total", connection_attempts
-                )
-                self.collector.prometheus.set_metric(
-                    "failed_auth_attempts_total", failed_auth
-                )
-                self.collector.prometheus.set_metric(
-                    "suspicious_file_access_total", suspicious_access
-                )
-                self.collector.prometheus.set_metric(
-                    "privilege_escalation_attempts_total", priv_esc
-                )
-
-                logger.info(
-                    f"🔒 Conn: {connection_attempts}, "
-                    f"AuthFail: {failed_auth}, "
-                    f"Suspicious: {suspicious_access}, "
-                    f"PrivEsc: {priv_esc}"
-                )
-
-                time.sleep(1)
+            logger.warning(f"⚠️ eBPF program not found at {bpf_program_path}, using stub mode")
+            self.demo_security_stub()
         else:
             # Load real eBPF program
             logger.info(f"Loading eBPF program from {bpf_program_path}")
@@ -602,23 +318,7 @@ class TelemetryDemo:
 
             except Exception as e:
                 logger.error(f"❌ Error loading eBPF program: {e}")
-                logger.info("Falling back to stub mode...")
                 self.demo_security_stub()
-
-    def demo_security_stub(self):
-        """Stub mode for security demo."""
-        config = TelemetryConfig(prometheus_port=9090)
-        self.collector = EBPFTelemetryCollector(config)
-        self.collector.start()
-
-        import random
-
-        self.running = True
-        while self.running:
-            attempts = random.randint(1, 10)
-            self.collector.prometheus.set_metric("connection_attempts_total", attempts)
-            logger.info(f"🔒 Connection attempts: {attempts}")
-            time.sleep(1)
 
     def demo_all(self):
         """Combined demo with all monitors."""
@@ -695,6 +395,96 @@ class TelemetryDemo:
                 f"Packets: {new_packets}, "
                 f"Security: {security_events}"
             )
+
+            time.sleep(1)
+
+    def demo_performance_stub(self):
+        """Performance monitoring stub demo (no kernel eBPF access required)."""
+        import random
+
+        config = TelemetryConfig(prometheus_port=9090, collection_interval=1.0)
+        self.collector = EBPFTelemetryCollector(config)
+
+        for name, desc in [
+            ("cpu_usage_percent", "CPU usage percentage"),
+            ("memory_usage_percent", "Memory usage percentage"),
+            ("context_switches_per_sec", "Context switches per second"),
+        ]:
+            self.collector.prometheus.register_metric(
+                MetricDefinition(name=name, type=MetricType.GAUGE, description=desc)
+            )
+
+        self.collector.start()
+        self.running = True
+        while self.running:
+            self.collector.prometheus.set_metric("cpu_usage_percent", random.uniform(10, 80))
+            self.collector.prometheus.set_metric("memory_usage_percent", random.uniform(30, 70))
+            self.collector.prometheus.set_metric(
+                "context_switches_per_sec", random.randint(1000, 10000)
+            )
+            time.sleep(1)
+
+    def demo_network_stub(self):
+        """Network monitoring stub demo (no kernel eBPF access required)."""
+        import random
+
+        config = TelemetryConfig(prometheus_port=9090, collection_interval=1.0)
+        self.collector = EBPFTelemetryCollector(config)
+
+        for name, desc in [
+            ("packets_ingress_total", "Total ingress packets"),
+            ("active_connections", "Active connections"),
+        ]:
+            self.collector.prometheus.register_metric(
+                MetricDefinition(name=name, type=MetricType.COUNTER, description=desc)
+            )
+
+        self.collector.start()
+        self.running = True
+        while self.running:
+            self.collector.prometheus.increment_metric(
+                "packets_ingress_total", random.randint(100, 1000)
+            )
+            self.collector.prometheus.set_metric("active_connections", random.randint(10, 100))
+            time.sleep(1)
+
+    def demo_security_stub(self):
+        """Security monitoring stub demo (no kernel eBPF access required)."""
+        import random
+
+        config = TelemetryConfig(
+            prometheus_port=9090, collection_interval=1.0, log_events=True
+        )
+        self.collector = EBPFTelemetryCollector(config)
+
+        def handle_security_event(event: TelemetryEvent):
+            if event.severity >= EventSeverity.HIGH:
+                logger.warning(
+                    f"🚨 SECURITY EVENT: {event.event_type}, PID: {event.pid}"
+                )
+
+        self.collector.perf_reader.register_handler("security_event", handle_security_event)
+
+        self.collector.start()
+        self.running = True
+        while self.running:
+            connection_attempts = random.randint(1, 10)
+            self.collector.prometheus.increment_metric(
+                "connection_attempts_total", connection_attempts
+            )
+
+            failed_auth = random.randint(1, 5)
+            self.collector.prometheus.increment_metric(
+                "failed_auth_attempts_total", failed_auth
+            )
+
+            if random.random() < 0.1:
+                self.collector.prometheus.increment_metric("suspicious_file_access_total")
+
+            if random.random() < 0.05:
+                self.collector.prometheus.increment_metric(
+                    "privilege_escalation_attempts_total"
+                )
 
             time.sleep(1)
 

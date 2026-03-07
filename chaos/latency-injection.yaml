@@ -1,0 +1,23 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mesh-latency-injection
+  namespace: default
+spec:
+  engineState: 'active'
+  appinfo:
+    appns: 'default'
+    applabel: 'app=mesh-node'
+    appkind: 'deployment'
+  chaosServiceAccount: network-chaos-sa
+  experiments:
+    - name: pod-network-latency
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: NETWORK_LATENCY
+              value: '500' # ms
+            - name: JITTER
+              value: '100'

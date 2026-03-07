@@ -2,7 +2,6 @@
 Полная интеграция всех компонентов
 """
 
-import asyncio
 
 import pytest
 
@@ -26,7 +25,8 @@ def test_integrated_cycle_initialization(integrated_cycle):
     assert integrated_cycle.ebpf_explainer is not None
 
 
-def test_integrated_anomaly_detection(integrated_cycle):
+@pytest.mark.asyncio
+async def test_integrated_anomaly_detection(integrated_cycle):
     """Test обнаружение аномалии через интегрированный цикл"""
     metrics = {
         "node_id": "node-001",
@@ -36,9 +36,9 @@ def test_integrated_anomaly_detection(integrated_cycle):
         "latency_ms": 150.0,
     }
 
-    result = integrated_cycle.run_cycle(metrics)
+    result = await integrated_cycle.run_cycle(metrics)
 
-    assert result["anomaly_detected"] == True
+    assert result["anomaly_detected"]
     assert "analyzer_results" in result
     assert "planner_results" in result
     assert "executor_results" in result

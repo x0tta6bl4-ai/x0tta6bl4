@@ -16,7 +16,6 @@ import fcntl
 import hashlib
 import logging
 import os
-import secrets
 import socket
 import struct
 import subprocess
@@ -95,7 +94,7 @@ def _run_command_safely(cmd_args: list, timeout: int = 30) -> bool:
     """
     Run a command safely using subprocess with argument list.
     
-    This prevents shell injection attacks by avoiding shell=True.
+    This prevents shell-injection attacks by avoiding shell command parsing.
     
     Args:
         cmd_args: List of command arguments (e.g., ["ip", "addr", "add", ...])
@@ -124,7 +123,7 @@ def _run_command_safely(cmd_args: list, timeout: int = 30) -> bool:
     except FileNotFoundError:
         logger.error(f"Command not found: {cmd_args[0]}")
         return False
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError) as e:
         logger.error(f"Command error: {e}")
         return False
 

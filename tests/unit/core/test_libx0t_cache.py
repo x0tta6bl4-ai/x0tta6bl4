@@ -1,8 +1,8 @@
 import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from libx0t.core.cache import (
-    RedisCache, InMemoryCacheBackend, cached, get_or_warm, CacheWarming, reset_cache
+    RedisCache, InMemoryCacheBackend, cached, CacheWarming, reset_cache
 )
 
 class TestInMemoryCacheBackend:

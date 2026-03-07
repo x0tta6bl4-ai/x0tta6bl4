@@ -14,8 +14,6 @@ High-Impact Modules (fix these first):
 5. src/core/error_handler.py - Error handling
 """
 
-import logging
-from typing import Any, Dict
 from unittest import mock
 
 import pytest

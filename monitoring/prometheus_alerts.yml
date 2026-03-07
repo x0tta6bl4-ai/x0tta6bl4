@@ -1,0 +1,42 @@
+groups:
+- name: x0tta6bl4_api_slo
+  rules:
+  # 1. Availability SLO
+  - alert: LowAvailability
+    expr: sum(rate(x0tta6bl4_requests_total{status=~"2.."}[5m])) / sum(rate(x0tta6bl4_requests_total[5m])) < 0.99
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "API Availability is low"
+      description: "Current availability is below 99% for the last 5 minutes."
+
+  # 2. Latency SLO (P95)
+  - alert: HighLatencyP95
+    expr: histogram_quantile(0.95, sum by (le, endpoint) (rate(x0tta6bl4_request_duration_seconds_bucket[5m]))) > 1.0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "API Latency P95 is high"
+      description: "Endpoint {{ $labels.endpoint }} P95 latency is > 1s."
+
+  # 3. Error Rate SLO
+  - alert: HighErrorRate
+    expr: sum(rate(x0tta6bl4_requests_total{status=~"5.."}[5m])) / sum(rate(x0tta6bl4_requests_total[5m])) > 0.02
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High API Error Rate"
+      description: "5xx errors are above 2%."
+
+  # 4. Database Circuit Breaker Alert
+  - alert: DatabaseCircuitBreakerOpen
+    expr: x0tta6bl4_db_circuit_breaker_state == 1
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Database Circuit Breaker is OPEN"
+      description: "Database is unavailable, failing fast to protect system resources."

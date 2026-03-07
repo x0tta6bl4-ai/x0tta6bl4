@@ -1,8 +1,7 @@
 """Tests for Mesh mTLS Enforcer (TLS 1.3 enforcement)."""
 
 import ssl
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,7 +11,7 @@ try:
                                                  TLS13EnforcementError)
 
     MTLS_AVAILABLE = True
-except (ImportError, FileNotFoundError) as e:
+except (ImportError, FileNotFoundError):
     MTLS_AVAILABLE = False
     MeshMTLSEnforcer = None
     TLS13EnforcementError = Exception

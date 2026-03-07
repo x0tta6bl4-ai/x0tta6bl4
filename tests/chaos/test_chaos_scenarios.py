@@ -13,14 +13,12 @@ Test Categories:
 
 import logging
 import time
-from typing import List
 
 import numpy as np
 import pytest
 
 from tests.chaos.chaos_orchestrator import (ChaosOrchestrator,
-                                            ChaosScenarioType, ChaosTestResult,
-                                            RecoveryMetrics)
+                                            ChaosScenarioType, ChaosTestResult)
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +134,6 @@ class TestNetworkChaos:
 
     def test_message_reordering_detection(self, chaos_orchestrator):
         """Test message reordering handling"""
-        orchestrator = chaos_orchestrator
 
         # Simulate reordered messages
         timestamps = [1.0, 3.0, 2.0, 5.0, 4.0]
@@ -149,8 +146,8 @@ class TestNetworkChaos:
         """Test network recovery time after partition"""
         orchestrator = chaos_orchestrator
 
-        scenario = orchestrator.inject_network_partition(percentage=0.25)
-        partitioned_count = len(orchestrator.network_injector.partitioned_nodes)
+        orchestrator.inject_network_partition(percentage=0.25)
+        len(orchestrator.network_injector.partitioned_nodes)
 
         start = time.time()
         orchestrator.clear_all_chaos()
@@ -327,7 +324,7 @@ class TestByzantineChaos:
         corrupted = orchestrator.byzantine_injector.corrupt_beacon(beacon, node)
 
         assert corrupted["signature"] == b"invalid_signature_xyz"
-        assert corrupted["is_byzantine"] == True
+        assert corrupted["is_byzantine"]
 
     def test_bad_gradient_filtering(self, chaos_orchestrator):
         """Test filtering of corrupted gradients"""
@@ -678,7 +675,6 @@ class TestChaosMetrics:
 
     def test_chaos_test_result_generation(self, chaos_orchestrator):
         """Test generating chaos test results"""
-        orchestrator = chaos_orchestrator
 
         result = ChaosTestResult(
             test_name="comprehensive_chaos_test",

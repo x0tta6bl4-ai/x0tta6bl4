@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
-from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer, String,
-                        Text, create_engine, inspect as sqlalchemy_inspect)
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
+                        Text, create_engine, inspect as sqlalchemy_inspect, event, exc as sa_exc)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,16 @@ load_dotenv(override=False)
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./x0tta6bl4.db")
+
+# Setup DB Circuit Breaker
+db_circuit_breaker = CircuitBreaker(
+    config=CircuitBreakerConfig(
+        failure_threshold=int(os.getenv("DB_CB_FAILURE_THRESHOLD", "5")),
+        recovery_timeout_seconds=int(os.getenv("DB_CB_RECOVERY_TIMEOUT", "30")),
+        success_threshold=int(os.getenv("DB_CB_SUCCESS_THRESHOLD", "2"))
+    ),
+    name="database_circuit_breaker"
+)
 
 # Create engine
 if "sqlite" in DATABASE_URL:
@@ -36,6 +47,56 @@ elif "postgresql" in DATABASE_URL:
     )
 else:
     raise ValueError(f"Unsupported database type: {DATABASE_URL}")
+# Bind Circuit Breaker to Engine Events
+@event.listens_for(engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    # Update metrics with current state
+    from src.monitoring.metrics import MetricsRegistry
+
+    state_map = {CircuitState.CLOSED: 0, CircuitState.OPEN: 1, CircuitState.HALF_OPEN: 2}
+    MetricsRegistry.db_circuit_breaker_state.set(state_map.get(db_circuit_breaker.state, 0))
+
+    with db_circuit_breaker.lock:
+        if db_circuit_breaker.state == CircuitState.OPEN:
+            # P2 Reliability: Auto-Healing logic
+            # If CB is open for more than 5 minutes, try disposing the engine pool
+            from datetime import datetime
+            _lft = db_circuit_breaker.last_failure_time
+            if _lft is None:
+                open_duration = 0
+            elif isinstance(_lft, datetime):
+                open_duration = (datetime.utcnow() - _lft).total_seconds()
+            else:
+                import time
+                open_duration = time.time() - _lft
+            if open_duration > 300: # 5 minutes
+                logger.warning("🕒 Database Circuit Breaker has been OPEN for >5m. Triggering Auto-Healing: disposing engine pool.")
+                engine.dispose()
+
+            if db_circuit_breaker._should_attempt_recovery():
+                db_circuit_breaker.state = CircuitState.HALF_OPEN
+            else:
+                raise sa_exc.OperationalError(
+                    statement, parameters, 
+                    Exception("Database Circuit Breaker is OPEN. Failing fast to prevent cascade failure.")
+                )
+
+@event.listens_for(engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    db_circuit_breaker._on_success()
+
+@event.listens_for(engine, "handle_error")
+def handle_error(exception_context):
+    # Only react to connection, operational, or timeout errors (ignore logic/data errors)
+    if isinstance(exception_context.original_exception, (
+        sa_exc.OperationalError, 
+        sa_exc.TimeoutError, 
+        sa_exc.InternalError,
+        ConnectionError,
+        TimeoutError
+    )):
+        db_circuit_breaker._on_failure()
+        logger.error(f"DB Error caught by Circuit Breaker: {exception_context.original_exception}. CB State: {db_circuit_breaker.state.value}")
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -65,6 +126,7 @@ class User(Base):
     vpn_uuid = Column(String, unique=True, index=True, nullable=True)
     requests_count = Column(Integer, default=0)
     requests_limit = Column(Integer, default=10000)
+    expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -76,14 +138,17 @@ class MeshInstance(Base):
     __tablename__ = "mesh_instances"
     id = Column(String, primary_key=True) # mesh_id
     name = Column(String)
-    owner_id = Column(String, ForeignKey("users.id"))
+    owner_id = Column(String, ForeignKey("users.id"), index=True)
     plan = Column(String)
+    region = Column(String, default="global")
+    nodes = Column(Integer, default=5)
+    pqc_profile = Column(String, default="edge")
     pqc_enabled = Column(Boolean, default=True)
     obfuscation = Column(String, default="none")
     traffic_profile = Column(String, default="none")
     join_token = Column(String)
     join_token_expires_at = Column(DateTime)
-    status = Column(String, default="active")
+    status = Column(String, default="active", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -105,6 +170,7 @@ class MeshNode(Base):
     mesh_id = Column(String, index=True)
     device_class = Column(String)
     status = Column(String, default="healthy")
+    ip_address = Column(String, index=True, nullable=True)
     acl_profile = Column(String, default="default")
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)
@@ -116,13 +182,15 @@ class MarketplaceListing(Base):
     """P2P infrastructure listings."""
     __tablename__ = "marketplace_listings"
     id = Column(String, primary_key=True)
-    owner_id = Column(String, ForeignKey("users.id"))
+    owner_id = Column(String, ForeignKey("users.id"), index=True)
     node_id = Column(String, unique=True)
     region = Column(String, index=True)
     price_per_hour = Column(Integer)  # In cents
+    price_token_per_hour = Column(Float, nullable=True)  # In X0T
+    currency = Column(String, default="USD")  # USD or X0T
     bandwidth_mbps = Column(Integer)
-    status = Column(String, default="available")  # available, escrow, rented
-    renter_id = Column(String, ForeignKey("users.id"), nullable=True)
+    status = Column(String, default="available", index=True)  # available, escrow, rented
+    renter_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     mesh_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -134,10 +202,14 @@ class MarketplaceEscrow(Base):
     __tablename__ = "marketplace_escrows"
     id = Column(String, primary_key=True)
     listing_id = Column(String, ForeignKey("marketplace_listings.id"), index=True)
-    renter_id = Column(String, ForeignKey("users.id"), nullable=False)
-    amount_cents = Column(Integer, nullable=False)  # 1-hour deposit
-    status = Column(String, default="held")  # held, released, refunded
+    renter_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    amount_cents = Column(Integer, nullable=True)  # 1-hour deposit in USD cents
+    amount_token = Column(Float, nullable=True)  # 1-hour deposit in X0T
+    currency = Column(String, default="USD")  # USD or X0T
+    status = Column(String, default="held", index=True)  # held, released, refunded, expired
+    auto_renew = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True, index=True)
     released_at = Column(DateTime, nullable=True)
 
     listing = relationship("MarketplaceListing", back_populates="escrows")
@@ -148,11 +220,11 @@ class Invoice(Base):
 
     __tablename__ = "invoices"
     id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"))
-    mesh_id = Column(String)
+    user_id = Column(String, ForeignKey("users.id"), index=True)
+    mesh_id = Column(String, index=True)
     total_amount = Column(Integer)  # In cents
     currency = Column(String, default="USD")
-    status = Column(String, default="issued")  # issued, paid, overdue
+    status = Column(String, default="issued", index=True)  # issued, paid, overdue
     stripe_session_id = Column(String, unique=True, index=True, nullable=True)
     period_start = Column(DateTime)
     period_end = Column(DateTime)
@@ -178,9 +250,9 @@ class Session(Base):
     __tablename__ = "sessions"
 
     token = Column(String, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     email = Column(String, index=True, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="sessions")
@@ -199,7 +271,7 @@ class Payment(Base):
     payment_method = Column(String, nullable=False)  # "USDT", "TON", "STRIPE"
     transaction_hash = Column(String, nullable=True)
     status = Column(
-        String, default="pending"
+        String, default="pending", index=True
     )  # "pending", "verified", "failed", "refunded"
     verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -264,7 +336,7 @@ class NodeBinaryAttestation(Base):
     sbom_id = Column(String, ForeignKey("sbom_entries.id"), nullable=False)
     agent_version = Column(String, nullable=False)
     checksum_sha256 = Column(String, nullable=False)
-    status = Column(String, default="verified")  # verified, mismatch, unknown
+    status = Column(String, default="verified", index=True)  # verified, mismatch, unknown
     verified_at = Column(DateTime, default=datetime.utcnow)
 
     sbom = relationship("SBOMEntry", back_populates="node_attestations")
@@ -280,15 +352,25 @@ class PlaybookAck(Base):
     acknowledged_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GlobalConfig(Base):
+    """Store global configuration parameters, such as DAO-governed settings."""
+    __tablename__ = "global_config"
+
+    key = Column(String, primary_key=True, index=True)
+    value_json = Column(String, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String, ForeignKey("users.id"), nullable=True)
+
+
 class GovernanceProposal(Base):
     """DAO governance proposals with DB-backed persistence."""
     __tablename__ = "governance_proposals"
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    state = Column(String, default="active")  # active, passed, rejected, executed
+    state = Column(String, default="active", index=True)  # active, passed, rejected, executed
     actions_json = Column(Text, nullable=True)   # JSON of action list
-    end_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False, index=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=False)
     execution_hash = Column(String, nullable=True)  # Finality hash on execution
     executed_at = Column(DateTime, nullable=True)
@@ -322,6 +404,8 @@ class AuditLog(Base):
     payload = Column(Text, nullable=True)  # Request body (filtered)
     status_code = Column(Integer, nullable=True)
     ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    correlation_id = Column(String, index=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -350,6 +434,54 @@ def get_required_schema_gaps() -> List[str]:
     return missing
 
 
+def validate_required_secrets() -> None:
+    """
+    Validate that critical environment secrets are set.
+    Raises RuntimeError if any required secret is missing or empty.
+    """
+    
+    # Critical secrets that MUST be set in production
+    REQUIRED_SECRETS = [
+        "FLASK_SECRET_KEY",
+        "JWT_SECRET_KEY",
+        "CSRF_SECRET_KEY",
+    ]
+    
+    # Optional secrets (can be empty but should be documented)
+    OPTIONAL_SECRETS = [
+        "OPERATOR_PRIVATE_KEY",
+        "VPN_SERVER",
+        "VPN_PORT",
+        "VPN_SESSION_TOKEN",
+        "GENEVA_MASTER_KEY",
+    ]
+    
+    missing_critical = []
+    empty_optional = []
+    
+    for secret in REQUIRED_SECRETS:
+        value = os.getenv(secret, "")
+        if not value:
+            missing_critical.append(secret)
+    
+    for secret in OPTIONAL_SECRETS:
+        value = os.getenv(secret, "")
+        if not value:
+            empty_optional.append(secret)
+    
+    if missing_critical:
+        raise RuntimeError(
+            f"CRITICAL: Missing required secrets: {', '.join(missing_critical)}. "
+            f"Set via environment variables, Kubernetes secrets, or secret manager before deployment."
+        )
+    
+    if empty_optional:
+        logger.warning(
+            f"WARNING: Optional secrets not set: {', '.join(empty_optional)}. "
+            f"Some features may be disabled."
+        )
+
+
 def run_alembic_upgrade(target: str = "head") -> None:
     """
     Run Alembic migrations for the configured DATABASE_URL.
@@ -375,7 +507,11 @@ def run_alembic_upgrade(target: str = "head") -> None:
 def ensure_schema_compatible(auto_migrate: bool = False) -> None:
     """
     Fail fast on known schema drift. Optionally try auto-migration first.
+    Also validates required secrets are set.
     """
+    # Validate secrets first - fail fast before any DB operations
+    validate_required_secrets()
+    
     missing = get_required_schema_gaps()
     if not missing:
         return

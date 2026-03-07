@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
 from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal
 from src.utils.audit import record_audit_log
 
