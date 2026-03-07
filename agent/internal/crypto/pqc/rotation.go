@@ -104,6 +104,9 @@ func NewRotationManager(ctx context.Context, policy RotationPolicy, kemBackend K
 	if policy.OverlapPeriod <= 0 {
 		policy.OverlapPeriod = DefaultOverlapPeriod
 	}
+	if policy.BackupAlgorithm == "" {
+		policy.BackupAlgorithm = "NTRU-HRSS-701"
+	}
 
 	m := &RotationManager{
 		policy:        policy,
