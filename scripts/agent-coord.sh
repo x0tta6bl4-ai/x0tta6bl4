@@ -422,7 +422,9 @@ for bucket_name in ("verification-ready", "live-validation-only", "blocked-horiz
     if not bucket:
         continue
     task_ids = bucket.get("task_ids", [])
-    print(f"  {bucket_name}: {len(task_ids)}")
+    bucket_tasks = [tasks.get(task_id, {}) for task_id in task_ids]
+    ready_count = sum(1 for task in bucket_tasks if task.get("status") == "ready")
+    print(f"  {bucket_name}: {ready_count} ready / {len(task_ids)} total")
     for task_id in task_ids[:3]:
         task = tasks.get(task_id, {})
         agent = task.get("agent", "?")
@@ -453,8 +455,87 @@ ready = [task for task in tasks if task.get("status") == "ready"]
 current = ready[0] if ready else tasks[0]
 bucket = current.get("bucket", "unclassified")
 print(f"[coord] current bucket: {bucket}")
-print(f"[coord] bucket task: {current.get('id')} — {current.get('summary')}")
+if ready:
+    print(f"[coord] bucket task: {current.get('id')} — {current.get('summary')}")
+else:
+    print(f"[coord] no ready tasks in bucket; top non-ready item: {current.get('id')} [{current.get('status')}] — {current.get('summary')}")
 PY
+}
+
+check_session_summary_scope() {
+  local agent="${1:-}"
+  local mode="${2:-}"
+  local summary="${3:-}"
+  local allow_blocked="${4:-0}"
+  [[ -n "${agent}" && -n "${summary}" && -f "${ROADMAP_QUEUE}" ]] || return 0
+
+  local output status
+  set +e
+  output="$(python3 - "${ROADMAP_QUEUE}" "${agent}" "${mode}" "${summary}" <<'PY'
+import json, sys
+
+queue_path, agent, mode, summary = sys.argv[1:5]
+summary_l = summary.strip().lower()
+if not summary_l:
+    raise SystemExit(0)
+
+with open(queue_path, encoding="utf-8") as fh:
+    data = json.load(fh)
+
+guard_keywords = {
+    "k6": "k6/load test remains NOT VERIFIED YET and is not an active queued lane",
+    "load test": "k6/load test remains NOT VERIFIED YET and is not an active queued lane",
+    "load-test": "k6/load test remains NOT VERIFIED YET and is not an active queued lane",
+    "loadtest": "k6/load test remains NOT VERIFIED YET and is not an active queued lane",
+    "maas load": "k6/load test remains NOT VERIFIED YET and is not an active queued lane",
+}
+matched = [(key, msg) for key, msg in guard_keywords.items() if key in summary_l]
+if not matched:
+    raise SystemExit(0)
+
+relevant_tasks = []
+for task in data.get("tasks", []):
+    if task.get("agent") != agent:
+        continue
+    if mode and task.get("mode") != mode:
+        continue
+    relevant_tasks.append(task)
+
+queue_text = " ".join(
+    " ".join(
+        str(task.get(field, "")).lower()
+        for field in ("id", "summary", "exact_next_command", "evidence_target")
+    )
+    for task in relevant_tasks
+)
+
+for keyword, message in matched:
+    if keyword in queue_text:
+        raise SystemExit(0)
+
+print(f"[coord] summary '{summary}' is outside the active queue for {agent}: {matched[0][1]}")
+raise SystemExit(42)
+PY
+)" 2>&1
+  status=$?
+  set -e
+
+  if [[ ${status} -eq 0 ]]; then
+    return 0
+  fi
+
+  if [[ ${status} -eq 42 ]]; then
+    echo "${output}"
+    if [[ "${allow_blocked}" == "1" ]]; then
+      echo "[coord] continuing because --allow-blocked was set. Treat this as standby/handoff only."
+      return 0
+    fi
+    echo "[coord] session_start blocked: use a queued task summary or explicitly pass --allow-blocked."
+    return 2
+  fi
+
+  [[ -n "${output}" ]] && echo "${output}" >&2
+  return "${status}"
 }
 
 # ── status ────────────────────────────────────────────────────────────────────
@@ -658,6 +739,7 @@ cmd_session_start() {
   echo "=== Agent session start: ${agent} ==="
   cmd_status
   cmd_inbox "${agent}"
+  check_session_summary_scope "${agent}" "${mode}" "${summary}" "${allow_blocked}"
   if [[ "${mode}" == "validation" ]]; then
     run_validation_preflight "${agent}" "${allow_blocked}"
   fi

@@ -1111,6 +1111,8 @@ def cmd_roadmap_next(args: argparse.Namespace) -> int:
         return 0
 
     print(f"[swarm] roadmap next for {args.agent}{suffix}:")
+    if not any(task.get("status") == "ready" for task in next_tasks):
+        print("  [info] no ready tasks; showing non-ready backlog for visibility")
     for task in next_tasks:
         blocker = f" blocker={task['blocker']}" if task.get("blocker") else ""
         print(

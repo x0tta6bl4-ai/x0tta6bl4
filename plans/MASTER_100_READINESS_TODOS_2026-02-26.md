@@ -6,7 +6,7 @@
 
 ## 0) Definition of Done (DoD) для уровня “готово”
 
-- [ ] `main/develop` без незавершённых конфликтов и без schema drift.
+- [x] `main/develop` без незавершённых конфликтов и без schema drift. develop строго опережает main, 2 новые миграции (a1b2c3d4e5f6, c8adf0b52d1e) в легитимной цепочке — 2026-03-06.
 - [x] `alembic upgrade head` проходит на чистой БД без ручных правок.
 - [x] `alembic upgrade head --sql` (offline mode) EXIT 0 — 17/17 migrations 2026-03-06.
 - [x] P0/P1 unit suite: 8629 pass, 0 fail (10 failures fixed 2026-03-06: zero_trust, auto_renew, graphsage, udp_shaped).
@@ -14,7 +14,7 @@
 - [x] Секреты/политики безопасности валидируются на старте (settings.py model_validator — FLASK/JWT/CSRF/OPERATOR_PRIVATE_KEY required in production).
 - [x] Наблюдаемость: метрики (maas_metrics.py), логи (StructuredJsonFormatter), трейсы (OTel) — критический путь покрыт (P1 observability sprint 2026-03-04).
 - [x] Rollback/runbook: docs/runbooks/ + docs/operations/db-migration-rollback-runbook.md + docs/operations/MESH_OPERATOR_RELEASE_DRY_RUN_RUNBOOK.md.
-- [ ] Выполнен dry-run релиза + smoke в окружении pre-prod.
+- [x] Выполнен dry-run релиза + smoke в окружении pre-prod — PASS (CP-01..CP-10) 2026-03-06.
 
 ## 1) P0 — критические задачи (блокеры релизной готовности)
 

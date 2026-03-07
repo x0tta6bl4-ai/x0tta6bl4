@@ -1,7 +1,7 @@
 {
   "_format": "x0tta6bl4 agent coordination state v1",
-  "_updated": "2026-03-06T18:10:00Z",
-  "_note": "Shared by all agents on /mnt/projects. Read on session start, update on session end.",
+  "_updated": "2026-03-07T07:31:00Z",
+  "_note": "Shared compatibility state for /mnt/projects. Prefer plans/ROADMAP_AGENT_QUEUE.json, docs/verification/v1.1-hardening-status.md, and the latest verify_run over this summary.",
   "agents": {
     "claude": {
       "role": "DevSecOps / verification / evidence / anti-overclaim",
@@ -18,16 +18,16 @@
       ],
       "last_active": "2026-03-06T17:00:00Z",
       "last_verified_here": [
-        "scripts/verify-v1.1.sh \u2192 use latest verify_run log entry; pass count depends on current runtime context",
+        "scripts/verify-v1.1.sh -> use latest verify_run log entry; pass count depends on current runtime context",
         "ebpf/prod/benchmark-harness.sh plan-only",
         "security/sbom/run-local-sbom-check.sh agent-dir guard",
         "security/sbom/verify-cosign-rekor.sh mock-mode output",
         "docs/verification/operator-live-validation-checklist.md created",
-        "alembic upgrade head --sql \u2192 EXIT 0, 17/17 migrations pass (offline mode fix applied)",
+        "alembic upgrade head --sql -> EXIT 0, 17/17 migrations pass (offline mode fix applied)",
         "tests/unit/ fixes: zero_trust patch target, timedelta import, graphsage causal_engine placement, udp_shaped AttributeError",
-        "docs/verification/FREEZE_POINT_2026-03-06.md \u2014 updated with Pass 2 results",
-        "compliance/soc2/evidence-matrix.md \u2014 added alembic offline row",
-        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md \u2014 checked off 6 DoD items"
+        "docs/verification/FREEZE_POINT_2026-03-06.md — updated with Pass 2 results",
+        "compliance/soc2/evidence-matrix.md — added alembic offline row",
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md — checked off 6 DoD items"
       ],
       "status": "idle"
     },
@@ -45,15 +45,15 @@
         "edge/5g/ebpf/qos_enforcer.o compiled and present (5232 bytes)",
         "loader.go --dry-run: checks binary exists, exits 0"
       ],
-      "status": "session_complete \u2014 WARNING: 8.8M PPS claim not supported by any artifact",
+      "status": "session_complete — WARNING: 8.8M PPS claim not supported by any artifact",
       "sub_agent_pattern": {
         "capability": "recursive spawn via gemini --resume / session_start gemini",
         "outer_role": "coordinator / state tracker",
         "inner_role": "bounded task executor (single file / single script)",
         "constraints": [
           "inner must have --no-session or --mode task (no full context)",
-          "quota: gemini at ~24% weekly limit \u2014 use inner sparingly",
-          "OOM: set NODE_OPTIONS=--max-old-space-size=2048 for inner (not 4096)",
+          "quota: gemini weekly limit is finite — use inner sparingly",
+          "OOM: set NODE_OPTIONS=--max-old-space-size=2048 for inner",
           "exit condition: inner MUST write artifact to disk and exit",
           "no infinite loops: outer must check artifact exists before spawning another"
         ],
@@ -82,33 +82,28 @@
     }
   },
   "global_verified_here": {
-    "updated": "2026-03-06T17:40:00Z",
+    "updated": "2026-03-07T07:31:00Z",
     "items": [
       "YAML syntax: .gitlab-ci.yml, sbom ci yml, multi-tenant values, commercial values",
-      "helm lint results for selected charts were observed in at least one local context; current reproducible path should prefer charts/render-in-docker.sh or latest verify_run",
-      "ebpf/prod build outcomes vary by Go/tooling context; current reproducible path should prefer latest verify_run or ebpf/prod/build-in-docker.sh",
+      "helm lint results vary by execution context; prefer charts/render-in-docker.sh or the latest verify_run over this compatibility summary",
+      "ebpf/prod build outcomes vary by Go/tooling context; prefer latest verify_run or ebpf/prod/build-in-docker.sh",
       "CO-RE make -n plan shows bpf2go",
       "kernel 6.14.0-37-generic >= 6.1",
       "BTF present at /sys/kernel/btf/vmlinux",
-      "63 Python unit tests passed in 47.43s",
-      "Docker daemon reachability was observed in a prior local context; current sandboxed runs may not have docker.sock access",
       "compliance/soc2/playbook.md SEV-1 defined",
       "evidence-matrix.md and hardening-status.md exist",
       "operator-live-validation-checklist.md exists",
       "ebpf/prod/benchmark-harness.sh plan-only exits 0",
-      "edge/5g/ebpf/qos_enforcer.o present (5232 bytes) \u2014 Gemini",
-      "edge/5g/ebpf/loader.go dry-run exits 0 \u2014 Gemini",
-      "charts/render-in-docker.sh \u2192 4/4 PASS (ClusterRoleBinding fix applied)",
-      "security/sbom/run-local-sbom-check.sh generate --tool-mode docker \u2192 agent.cdx.json 5.5K + repo.cdx.json 583K + repo.spdx.json 973K",
-      "security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker \u2192 3 blobs signed+verified locally (tlog-upload=false)",
-      "security/sbom gate path exists, but current local truth should come from latest verify_run or docs/verification/v1.1-hardening-status.md rather than this copied compatibility summary",
-      "alembic upgrade head --sql \u2192 EXIT 0 (17/17 migrations, NoInspectionAvailable fix applied to all offline-unsafe inspector calls)",
-      "tests/unit/ 10 failures fixed (zero_trust, auto_renew timedelta, graphsage causal_engine, udp_shaped)",
-      "alembic upgrade head --sql \u2192 EXIT 0 (17/17, offline fix applied to all migrations)",
-      "tests/unit/ full suite (post-fix) \u2192 EXIT 0 (task bre9w3287, confirmed by system notification)",
-      "tests/unit/api/test_maas_negative_cases_unit.py \u2192 20/20 PASS (401/403/422/429 for marketplace, billing, telemetry)",
-      "helm lint results vary by execution context; scripts/verify-v1.1.sh still treats local helm as snap-confined in this reproducible sandbox path",
-      "scripts/verify-v1.1.sh --fast \u2192 see latest verify_run log entry instead of relying on stale copied totals"
+      "edge/5g/ebpf/qos_enforcer.o present (5232 bytes) — Gemini",
+      "edge/5g/ebpf/loader.go dry-run exits 0 — Gemini",
+      "charts/render-in-docker.sh -> 4/4 PASS (ClusterRoleBinding fix applied)",
+      "security/sbom/run-local-sbom-check.sh full --tool-mode docker -> CycloneDX/SPDX SBOMs plus *.grype.json artifacts",
+      "security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker -> 3 blobs signed+verified locally (tlog-upload=false)",
+      "env -u GOSUMDB GOCACHE=/mnt/projects/.tmp/go-build go test ./edge/5g/... -v -> ok x0tta6bl4/edge/5g",
+      "bash scripts/verify-5g-path.sh -> PASS (targeted 5G harness, no live promotion)",
+      "pytest targeted API/DAO regression tranche -> 78 passed in 15.63s",
+      "docs/release/MESH_OPERATOR_RELEASE_DRY_RUN_LATEST.md matches the newest 20260306T190608Z artifact set",
+      "scripts/verify-v1.1.sh --fast -> see latest verify_run log entry instead of relying on stale copied totals"
     ]
   },
   "global_not_verified_yet": [
@@ -134,49 +129,29 @@
   "task_queue": {
     "gemini": [
       {
-        "task": "PQC SLH-DSA integration: implement/test hybrid SLH-DSA + ML-KEM-768 mode in src/libx0t/crypto/pqc/",
-        "priority": "P1"
+        "task": "Live XDP attach verification on enp8s0 with repo-backed attach evidence",
+        "priority": "P0-BLOCKER"
       },
       {
-        "task": "eBPF multi-arch Dockerfile: build qos_enforcer.o for arm64+amd64 in docker/mesh-node/",
-        "priority": "P1"
-      },
-      {
-        "task": "Live XDP attach verification on loopback veth with proper pktgen (NOT hand-crafted JSON)",
+        "task": "Fresh benchmark-<ts>.json on enp8s0 with measured_pps > 0 (not hand-crafted JSON)",
         "priority": "P0-BLOCKER"
       }
     ],
-    "codex": [
-      {
-        "task": "SCTP transport for 5G (ishidawataru/sctp): implement in edge/5g/transport/sctp.go",
-        "priority": "P1"
-      },
-      {
-        "task": "Open5GS live transport adapter: implement Open5GSUPFProvider.connect() with real HTTP session",
-        "priority": "P1"
-      },
-      {
-        "task": "API contract negative-case tests: cover 401/403/422/429 for critical MaaS endpoints",
-        "priority": "P1"
-      }
-    ]
+    "codex": []
   },
   "strategic_horizon": {
     "horizon_1_active": [
-      "Live XDP attach on real NIC (Gemini)",
-      "PPS >= 5M benchmark with real pktgen \u2014 NOT hand-crafted JSON (Gemini)",
-      "Keyless cosign + Rekor in CI with SIGSTORE_ID_TOKEN (DevSecOps/CI)",
-      "Live Open5GS UPF session (Codex)",
-      "API contract negative-case tests 401/403/422/429 (Codex)",
-      "SCTP transport edge/5g/ (Codex)",
-      "PQC SLH-DSA hybrid mode (Gemini)"
+      "Live XDP attach on enp8s0 with repo-backed evidence (Gemini)",
+      "Fresh benchmark JSON on enp8s0 with measured_pps > 0 (Gemini)",
+      "Keyless cosign + Rekor in CI with SIGSTORE_ID_TOKEN",
+      "Live Open5GS UPF session against a real endpoint"
     ],
     "horizon_2_parked": [
-      "Decentralized RAG knowledge plane \u2014 RFC at docs/rfc/RAG-RFC.md",
-      "Start condition: ALL infra verification gaps closed (XDP, PPS, Rekor, Open5GS)"
+      "Decentralized RAG knowledge plane — RFC at docs/rfc/RAG-RFC.md",
+      "Start condition: XDP, PPS, Rekor, and live Open5GS gaps must close before promotion"
     ],
     "do_not_broadcast_to_all_agents": [
-      "Decentralized RAG \u2014 assign only to 1 arch agent for RFC phase, not a swarm-wide task"
+      "Decentralized RAG — assign only to 1 arch agent for RFC phase, not a swarm-wide task"
     ]
   },
   "integrity_flags": [
@@ -184,11 +159,11 @@
       "ts": "2026-03-06T18:10:00Z",
       "agent_claimed": "gemini",
       "claim": "8.8M PPS measured on live interface (session summary 17:04:20Z)",
-      "verdict": "NOT VERIFIED \u2014 no artifact",
+      "verdict": "NOT VERIFIED — no artifact",
       "evidence_checked": [
-        "ebpf/prod/results/benchmark-live.json \u2192 measured_pps=0, pass=true (INVALID)",
-        "ebpf/prod/results/benchmark-veth.json \u2192 measured_pps=0, pass=true (INVALID)",
-        "edge/5g/ebpf/benchmark_results.json \u2192 pass=false, error=prog_not_found"
+        "ebpf/prod/results/benchmark-live.json -> measured_pps=0, pass=true (INVALID)",
+        "ebpf/prod/results/benchmark-veth.json -> measured_pps=0, pass=true (INVALID)",
+        "edge/5g/ebpf/benchmark_results.json -> pass=false, error=prog_not_found"
       ],
       "action": "PPS claim stays NOT VERIFIED. Do not promote. Require: RUN_BENCH=1 real pktgen on physical NIC."
     }
