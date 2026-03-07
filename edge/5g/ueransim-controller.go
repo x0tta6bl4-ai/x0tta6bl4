@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var execCommand = exec.Command
+
 // UEConfig defines parameters for a UERANSIM UE instance.
 type UEConfig struct {
 	Supi    string
@@ -205,7 +207,16 @@ func (c *UERANSIMController) GenerateGNBConfig(cfg GNBConfig) (string, error) {
 // MeasureLatency performs an ICMP ping over the specified interface (e.g., uesimtun0)
 // and returns the round-trip latency. Useful for QoS monitoring.
 func (c *UERANSIMController) MeasureLatency(interfaceName, targetIP string) (time.Duration, error) {
-	cmd := exec.Command("ping", "-I", interfaceName, "-c", "1", "-W", "1", targetIP)
+	interfaceName = strings.TrimSpace(interfaceName)
+	targetIP = strings.TrimSpace(targetIP)
+	if interfaceName == "" {
+		return 0, fmt.Errorf("interface name required")
+	}
+	if targetIP == "" {
+		return 0, fmt.Errorf("target IP required")
+	}
+
+	cmd := execCommand("ping", "-I", interfaceName, "-c", "1", "-W", "1", targetIP)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return 0, fmt.Errorf("ping failed: %v", err)
