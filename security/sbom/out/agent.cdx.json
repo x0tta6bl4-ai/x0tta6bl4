@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-  "serialNumber": "urn:uuid:c235f900-a2e0-4e0d-b6e8-2d9fd10af636",
+  "serialNumber": "urn:uuid:ffa76b9a-2599-40bd-befe-9a448e59ce90",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-03-06T16:41:48Z",
+    "timestamp": "2026-03-06T19:37:56Z",
     "tools": [
       {
         "vendor": "CycloneDX",
@@ -46,11 +46,11 @@
       }
     ],
     "component": {
-      "bom-ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module",
+      "bom-ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module",
       "type": "application",
       "name": "github.com/x0tta6bl4/agent",
-      "version": "v1.0.0",
-      "purl": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module\u0026goos=linux\u0026goarch=amd64",
+      "version": "v1.0.1-0.20260305223130-7fb757410841",
+      "purl": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module\u0026goos=linux\u0026goarch=amd64",
       "externalReferences": [
         {
           "url": "https://github.com/x0tta6bl4/agent",
@@ -167,7 +167,7 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.0?type=module",
+      "ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module",
       "dependsOn": [
         "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module",
         "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
