@@ -252,7 +252,9 @@
         "docs/rfc/RAG-RFC.md",
         "docs/v1.1/RAG-RFC.md",
         "COORDINATION.md",
-        ".agent-coord/"
+        ".agent-coord/",
+        "go.mod",
+        "go.sum"
       ]
     }
   }
