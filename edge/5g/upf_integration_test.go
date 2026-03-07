@@ -150,6 +150,50 @@ func TestOpen5GSProviderRejectsDeniedOrInvalidTransportResponses(t *testing.T) {
 	}
 }
 
+type staticMockQoSMonitor struct {
+	latency int64
+}
+
+func (m *staticMockQoSMonitor) GetPacketStats() (edge5g.BPFStats, error) {
+	return edge5g.BPFStats{}, nil
+}
+
+func (m *staticMockQoSMonitor) GetEstimatedLatencyMs(ueID string) int64 {
+	return m.latency
+}
+
+func TestOpen5GSProviderEBPFMonitorOverrideLatency(t *testing.T) {
+	cfg := edge5g.UPFConfig{
+		Endpoints: edge5g.EndpointConfig{
+			AMF: "http://amf.local",
+			UPF: "http://upf.local",
+		},
+	}
+
+	provider := &edge5g.Open5GSUPFProvider{
+		Config:    cfg,
+		Transport: &stubSessionTransport{response: edge5g.SessionResponse{Accepted: true, LatencyMs: 15}},
+		Monitor:   &staticMockQoSMonitor{latency: 45},
+	}
+
+	latency, err := provider.EstablishSession("ue1", "premium")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if latency != 45 {
+		t.Fatalf("expected eBPF monitor to override latency to 45ms, got %dms", latency)
+	}
+
+	provider.Monitor = &staticMockQoSMonitor{latency: 10}
+	latency, err = provider.EstablishSession("ue1", "premium")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if latency != 15 {
+		t.Fatalf("expected base transport latency 15ms when eBPF monitor is lower, got %dms", latency)
+	}
+}
+
 func TestOpen5GSProviderPropagatesTransportFailure(t *testing.T) {
 	provider := &edge5g.Open5GSUPFProvider{
 		Config: edge5g.UPFConfig{
