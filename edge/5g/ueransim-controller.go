@@ -3,8 +3,12 @@ package edge5g
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"text/template"
+	"time"
 )
 
 // UEConfig defines parameters for a UERANSIM UE instance.
@@ -117,4 +121,28 @@ func (c *UERANSIMController) GenerateGNBConfig(cfg GNBConfig) (string, error) {
 	}
 
 	return fullPath, nil
+}
+
+// MeasureLatency performs an ICMP ping over the specified interface (e.g., uesimtun0)
+// and returns the round-trip latency. Useful for QoS monitoring.
+func (c *UERANSIMController) MeasureLatency(interfaceName, targetIP string) (time.Duration, error) {
+	cmd := exec.Command("ping", "-I", interfaceName, "-c", "1", "-W", "1", targetIP)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("ping failed: %v", err)
+	}
+
+	// Extract latency (time=X.XX ms)
+	re := regexp.MustCompile(`time=([0-9.]+) ms`)
+	matches := re.FindStringSubmatch(string(output))
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("could not parse latency from ping output")
+	}
+
+	latencyMs, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse latency float: %v", err)
+	}
+
+	return time.Duration(latencyMs * float64(time.Millisecond)), nil
 }
