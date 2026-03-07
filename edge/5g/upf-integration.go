@@ -449,13 +449,13 @@ func (c UPFConfig) effectiveEndpoints() EndpointConfig {
 		AMF: strings.TrimSpace(c.Endpoints.AMF),
 		UPF: strings.TrimSpace(c.Endpoints.UPF),
 	}
-	if trimmed.AMF != "" || trimmed.UPF != "" {
-		return trimmed
+	if trimmed.AMF == "" {
+		trimmed.AMF = strings.TrimSpace(c.AMFEndpoint)
 	}
-	return EndpointConfig{
-		AMF: strings.TrimSpace(c.AMFEndpoint),
-		UPF: strings.TrimSpace(c.UPFEndpoint),
+	if trimmed.UPF == "" {
+		trimmed.UPF = strings.TrimSpace(c.UPFEndpoint)
 	}
+	return trimmed
 }
 
 func (c UPFConfig) sessionTimeout() time.Duration {

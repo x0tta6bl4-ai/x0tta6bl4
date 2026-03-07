@@ -109,6 +109,21 @@ func TestOpen5GSProviderBuildSessionRequestTrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestOpen5GSProviderBuildSessionRequestMergesPartialEndpointOverrides(t *testing.T) {
+	provider := edge5g.NewOpen5GSUPFProvider(edge5g.UPFConfig{
+		Endpoints:   edge5g.EndpointConfig{AMF: " 127.0.0.1:38412 "},
+		UPFEndpoint: " 127.0.0.1:8805 ",
+	})
+
+	request, err := provider.BuildSessionRequest("ue1", "premium")
+	if err != nil {
+		t.Fatalf("expected mixed endpoint sources to succeed, got %v", err)
+	}
+	if request.AMFEndpoint != "127.0.0.1:38412" || request.UPFEndpoint != "127.0.0.1:8805" {
+		t.Fatalf("expected merged endpoint config, got %+v", request)
+	}
+}
+
 func TestOpen5GSProviderErrorSemantics(t *testing.T) {
 	provider := edge5g.NewOpen5GSUPFProvider(edge5g.UPFConfig{})
 	if _, err := provider.BuildSessionRequest("ue1", "premium"); err == nil || !strings.Contains(err.Error(), "NOT VERIFIED") {
@@ -260,6 +275,21 @@ func TestOpen5GSRealUPFConstructorTrimsEndpoints(t *testing.T) {
 	}
 	if signaling.AMFAddr != "127.0.0.1:38412" || signaling.UPFAddr != "127.0.0.1:8805" {
 		t.Fatalf("unexpected trimmed signaling endpoints: %+v", signaling)
+	}
+}
+
+func TestOpen5GSRealUPFConstructorMergesPartialEndpointOverrides(t *testing.T) {
+	provider := edge5g.NewRealOpen5GSUPF(edge5g.UPFConfig{
+		Endpoints:   edge5g.EndpointConfig{UPF: " 127.0.0.1:8805 "},
+		AMFEndpoint: " 127.0.0.1:38412 ",
+	})
+
+	signaling, ok := provider.Transport.(*edge5g.Open5GSSignaling)
+	if !ok {
+		t.Fatalf("expected signaling bridge transport, got %T", provider.Transport)
+	}
+	if signaling.AMFAddr != "127.0.0.1:38412" || signaling.UPFAddr != "127.0.0.1:8805" {
+		t.Fatalf("expected merged signaling endpoints, got %+v", signaling)
 	}
 }
 
