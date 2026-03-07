@@ -84,26 +84,38 @@ func run(ctx context.Context, cfg loaderConfig) error {
 	if !shouldMutate {
 		fmt.Printf("verification-only mode: kernel/BTF/tools validated for %s; no XDP attach performed\n", cfg.iface)
 	} else {
+		pinnedProgramPath := filepath.Join(cfg.bpffsDir, "meshcore", "xdp_mesh_filter_prog")
+
 		if err := os.MkdirAll(cfg.bpffsDir, 0o755); err != nil {
 			return fmt.Errorf("create bpffs dir: %w", err)
 		}
-		if err := ensureFile(cfg.objectFile); err != nil {
-			return fmt.Errorf("missing generated CO-RE object %s: %w", cfg.objectFile, err)
+
+		pinnedExists, err := pinnedProgramExists(ctx, pinnedProgramPath)
+		if err != nil {
+			return fmt.Errorf("inspect pinned XDP program: %w", err)
 		}
 
-		loadArgs := []string{
-			"prog", "loadall",
-			cfg.objectFile,
-			filepath.Join(cfg.bpffsDir, "meshcore"),
-			"pinmaps", filepath.Join(cfg.bpffsDir, "maps"),
-		}
-		if err := runCommand(ctx, "bpftool", loadArgs...); err != nil {
-			return fmt.Errorf("load CO-RE objects: %w", err)
+		if pinnedExists {
+			fmt.Printf("reusing pinned XDP program at %s\n", pinnedProgramPath)
+		} else {
+			if err := ensureFile(cfg.objectFile); err != nil {
+				return fmt.Errorf("missing generated CO-RE object %s: %w", cfg.objectFile, err)
+			}
+
+			loadArgs := []string{
+				"prog", "loadall",
+				cfg.objectFile,
+				filepath.Join(cfg.bpffsDir, "meshcore"),
+				"pinmaps", filepath.Join(cfg.bpffsDir, "maps"),
+			}
+			if err := runCommand(ctx, "bpftool", loadArgs...); err != nil {
+				return fmt.Errorf("load CO-RE objects: %w", err)
+			}
 		}
 
 		attachArgs := []string{
 			"link", "set", "dev", cfg.iface,
-			"xdp", "pinned", filepath.Join(cfg.bpffsDir, "meshcore", "xdp_mesh_filter_prog"),
+			"xdp", "pinned", pinnedProgramPath,
 		}
 		if err := runCommand(ctx, "ip", attachArgs...); err != nil {
 			return fmt.Errorf("attach xdp program: %w", err)
@@ -250,11 +262,37 @@ func ensureFile(path string) error {
 	return nil
 }
 
+func pinnedProgramExists(ctx context.Context, path string) (bool, error) {
+	if err := ensureFile(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	if err := runCommandCapture(ctx, "bpftool", "prog", "show", "pinned", path); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func runCommand(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func runCommandCapture(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	output, err := cmd.CombinedOutput()
+	if len(output) > 0 {
+		fmt.Print(string(output))
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func dumpStatus(ctx context.Context, iface string) error {
