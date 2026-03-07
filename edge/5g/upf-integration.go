@@ -123,14 +123,16 @@ func (m *SliceManager) HandleRequest(ueID string, sliceID string, priority int) 
 	if m.enforcer == nil {
 		return fmt.Errorf("QoS enforcer required")
 	}
-	if strings.TrimSpace(ueID) == "" {
+	trimmedUEID := strings.TrimSpace(ueID)
+	if trimmedUEID == "" {
 		return fmt.Errorf("UE ID required")
 	}
-	if err := m.config.validate(sliceID, priority, m.provider); err != nil {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if err := m.config.validate(trimmedSliceID, priority, m.provider); err != nil {
 		return err
 	}
 
-	latency, err := m.provider.EstablishSession(ueID, sliceID)
+	latency, err := m.provider.EstablishSession(trimmedUEID, trimmedSliceID)
 	if err != nil {
 		return fmt.Errorf("UPF session failure: %w", err)
 	}
@@ -138,7 +140,7 @@ func (m *SliceManager) HandleRequest(ueID string, sliceID string, priority int) 
 		UPFHandoffLatencySimulated.Observe(float64(latency))
 	}
 
-	if err := m.enforcer.EnforceSlicePolicy(sliceID, priority); err != nil {
+	if err := m.enforcer.EnforceSlicePolicy(trimmedSliceID, priority); err != nil {
 		return fmt.Errorf("QoS enforcement failure: %w", err)
 	}
 	SliceIsolationEventsTotal.Inc()
