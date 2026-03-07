@@ -147,12 +147,24 @@ agent, using either the explicitly requested mode or the queue's
 It also prints the task's current execution bucket, so operators can distinguish
 `verification-ready` work from `live-validation-only` work without opening the
 queue JSON manually.
+Bucket summaries print `ready / total`, and `next_task` now explicitly warns
+when it is only showing non-ready backlog because no ready task remains for that
+lane.
 
 The queue now exposes three machine-readable execution buckets:
 
 1. `verification-ready`
 2. `live-validation-only`
 3. `blocked-horizon-2`
+
+Autonomous agents must only execute tasks that are present in
+`plans/ROADMAP_AGENT_QUEUE.json`. Mentions in archive docs, historical plans, or
+ad-hoc exploration do not create an active lane by themselves.
+This matters for side-paths like `k6` or other load-test tooling: until such
+work is explicitly queued, it stays outside the current execution cycle.
+`session_start` now hard-blocks summaries that explicitly target `k6/load test`
+work when no queued lane for that agent covers it, unless the operator uses
+`--allow-blocked` for a standby/handoff-only session.
 
 Session automation:
 
