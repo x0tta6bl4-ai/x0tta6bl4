@@ -90,6 +90,25 @@ func TestOpen5GSProviderBuildsRequestAndPropagatesTransport(t *testing.T) {
 	}
 }
 
+func TestOpen5GSProviderBuildSessionRequestTrimsWhitespace(t *testing.T) {
+	provider := edge5g.NewOpen5GSUPFProvider(edge5g.UPFConfig{
+		AMFEndpoint: " 127.0.0.1:38412 ",
+		UPFEndpoint: " 127.0.0.1:8805 ",
+	})
+
+	request, err := provider.BuildSessionRequest("  ue1  ", "  premium  ")
+	if err != nil {
+		t.Fatalf("expected trimmed request to succeed, got %v", err)
+	}
+
+	if request.UEID != "ue1" || request.SliceID != "premium" {
+		t.Fatalf("unexpected trimmed identifiers: %+v", request)
+	}
+	if request.AMFEndpoint != "127.0.0.1:38412" || request.UPFEndpoint != "127.0.0.1:8805" {
+		t.Fatalf("unexpected trimmed endpoints: %+v", request)
+	}
+}
+
 func TestOpen5GSProviderErrorSemantics(t *testing.T) {
 	provider := edge5g.NewOpen5GSUPFProvider(edge5g.UPFConfig{})
 	if _, err := provider.BuildSessionRequest("ue1", "premium"); err == nil || !strings.Contains(err.Error(), "NOT VERIFIED") {
@@ -154,6 +173,21 @@ func TestOpen5GSRealUPFConstructorWiresSignalingBridge(t *testing.T) {
 
 	if provider.Transport == nil {
 		t.Fatal("expected real Open5GS scaffold to wire a transport bridge")
+	}
+}
+
+func TestOpen5GSRealUPFConstructorTrimsEndpoints(t *testing.T) {
+	provider := edge5g.NewRealOpen5GSUPF(edge5g.UPFConfig{
+		AMFEndpoint: " 127.0.0.1:38412 ",
+		UPFEndpoint: " 127.0.0.1:8805 ",
+	})
+
+	signaling, ok := provider.Transport.(*edge5g.Open5GSSignaling)
+	if !ok {
+		t.Fatalf("expected signaling bridge transport, got %T", provider.Transport)
+	}
+	if signaling.AMFAddr != "127.0.0.1:38412" || signaling.UPFAddr != "127.0.0.1:8805" {
+		t.Fatalf("unexpected trimmed signaling endpoints: %+v", signaling)
 	}
 }
 
@@ -289,6 +323,30 @@ func TestOpen5GSHTTPTransportUsesCustomPath(t *testing.T) {
 	}
 }
 
+func TestOpen5GSHTTPTransportTrimsBaseURLWhitespace(t *testing.T) {
+	client := &stubHTTPDoer{
+		statusCode: http.StatusOK,
+		body:       `{"accepted":true,"latency_ms":12}`,
+	}
+	transport := &edge5g.Open5GSHTTPTransport{
+		BaseURL: "  http://open5gs.local/  ",
+		Client:  client,
+	}
+
+	if _, err := transport.EstablishSession(edge5g.SessionRequest{
+		UEID:        "ue1",
+		SliceID:     "premium",
+		AMFEndpoint: "http://amf.local",
+		UPFEndpoint: "http://upf.local",
+		Timeout:     5 * time.Second,
+	}); err != nil {
+		t.Fatalf("expected whitespace-trimmed BaseURL success, got %v", err)
+	}
+	if client.url != "http://open5gs.local/sessions" {
+		t.Fatalf("unexpected trimmed BaseURL URL: %s", client.url)
+	}
+}
+
 func TestRealEBPFQoSEnforcerDryRunContract(t *testing.T) {
 	programmer := &stubPolicyProgrammer{}
 	enforcer := &edge5g.RealEBPFQoSEnforcer{Programmer: programmer}
@@ -404,9 +462,9 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 	if latency == 0 && err == nil {
 		t.Fatal("expected non-zero latency or error")
 	}
-	}
+}
 
-	func TestUERANSIMConfigGeneration(t *testing.T) {
+func TestUERANSIMConfigGeneration(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp("", "ueransim-test")
 	if err != nil {
@@ -420,9 +478,9 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 
 	// Test UE Config
 	ueCfg := edge5g.UEConfig{
-		Supi: "imsi-208930000000001",
-		Mcc:  "208",
-		Mnc:  "93",
+		Supi:    "imsi-208930000000001",
+		Mcc:     "208",
+		Mnc:     "93",
 		AmfAddr: "127.0.0.1",
 		GnbAddr: "127.0.0.1",
 	}
@@ -436,12 +494,12 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 
 	// Test gNB Config
 	gnbCfg := edge5g.GNBConfig{
-		Mcc: "208",
-		Mnc: "93",
-		Nci: "0x00000001",
+		Mcc:      "208",
+		Mnc:      "93",
+		Nci:      "0x00000001",
 		IdLength: 32,
-		AmfAddr: "127.0.0.1",
-		GnbAddr: "127.0.0.1",
+		AmfAddr:  "127.0.0.1",
+		GnbAddr:  "127.0.0.1",
 		NgapPort: 38412,
 	}
 	gnbPath, err := controller.GenerateGNBConfig(gnbCfg)
@@ -455,7 +513,7 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 
 func TestMeasureLatency(t *testing.T) {
 	controller := &edge5g.UERANSIMController{}
-	
+
 	// We cannot reliably ping a real interface in a CI/unit test environment without privileges or a real uesimtun0.
 	// So we will just test the error handling path for an invalid interface to ensure the method is wired correctly.
 	_, err := controller.MeasureLatency("invalid_iface_999", "8.8.8.8")
