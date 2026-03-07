@@ -7,14 +7,16 @@ v1.1 introduces Federated Learning and Edge 5G capabilities. This POC is designe
 - **Deterministic FedAvg**: Aggregation logic is validated against peer authorization, malformed updates, privacy-engine failures, and the successful aggregation path.
 - **Privacy adapters**: `PrivacyEngine` now has explicit `SimulatedDPNoiseEngine`, `NoPrivacyEngine`, and `FutureRealDPEngine` paths. `SimulatedDPNoiseEngine` remains explicitly simulated, and `FutureRealDPEngine` is only a locally tested backend contract.
 - **UPF Provider Interface**: The 5G path keeps `UPFProvider`, uses `SimulatedUPF` for local validation, and exposes `Open5GSUPFProvider` plus `Open5GSHTTPTransport` as locally tested transport scaffolds. Live Open5GS wiring is still NOT VERIFIED.
+- **Open5GS boundary normalization**: `Open5GSUPFProvider`, `Open5GSHTTPTransport`, and `Open5GSSignaling` now normalize whitespace on UE IDs, slice IDs, endpoint addresses, and direct `SessionRequest` callers before transport or QoS logic executes.
 - **5G verification harness**: `scripts/verify-5g-path.sh` runs only the package-local `edge/5g` adapter tests and static eBPF source checks. It does not claim live Open5GS or live XDP enforcement.
+- **UERANSIM controller contract**: local config generation now trims and validates UE/gNB inputs, creates the config directory on demand, and exposes deterministic latency checks through mocked `ping` execution paths. This remains a local contract, not live radio verification.
 - **Decision Handoff**: Backhaul routing remains deterministic and now separates simulated telemetry from future live SX1303 integration. The reader contract is locally testable, but hardware binding is still NOT VERIFIED.
 - **QoS contract semantics**: `dao/qos/stake-multiplier.sol` uses X0T wallet balance as a stake proxy. Dedicated staking-contract integration is still NOT VERIFIED.
 - **QoS test mirror**: `src/dao/contracts/contracts/QoSManager.sol` mirrors the root QoS contract for Hardhat, because Hardhat 2.x doesn't compile sources outside the project root.
 - **QoS mirror guard**: `src/dao/contracts/scripts/check_qos_mirror_sync.sh` rejects drift between the root QoS contract and the Hardhat mirror before test results are treated as representative.
 - **Metrics wiring**: Metric names are preserved for the POC, but this validation slice uses `internal/metrics/metricspoc.go` as an in-process recorder instead of claiming live Prometheus export.
 - **eBPF control-plane path**: `RealEBPFQoSEnforcer` now has a dry-run programmer contract that is locally testable. Kernel/datapath attachment remains NOT VERIFIED.
-- **Input/response guards**: adapter paths now reject empty UE IDs, negative simulated DP config, non-finite SX1303 samples, and invalid scaffold responses before those states can look like successful integration.
+- **Input/response guards**: adapter paths now reject empty UE IDs, invalid or partial endpoint configs, malformed direct Open5GS requests, negative simulated DP config, non-finite SX1303 samples, and invalid scaffold responses before those states can look like successful integration.
 
 ### Verification Matrix
 See [VERIFICATION-MATRIX.md](./docs/v1.1/VERIFICATION-MATRIX.md) for a detailed breakdown of what is real vs. simulated.
