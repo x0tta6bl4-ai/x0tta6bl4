@@ -247,9 +247,9 @@ func (s *Open5GSUPFProvider) EstablishSession(ueID string, sliceID string) (int6
 
 	// Apply eBPF QoS heuristic logic to base transport latency
 	if s.Monitor != nil {
-		ebpfLatency := s.Monitor.GetEstimatedLatencyMs(ueID)
+		ebpfLatency := s.Monitor.GetEstimatedLatencyMs(request.UEID)
 		if ebpfLatency > response.LatencyMs {
-			log.Printf("[5G-CORE][QoS] eBPF override latency for UE %s: %d ms", ueID, ebpfLatency)
+			log.Printf("[5G-CORE][QoS] eBPF override latency for UE %s: %d ms", request.UEID, ebpfLatency)
 			return ebpfLatency, nil
 		}
 	}
