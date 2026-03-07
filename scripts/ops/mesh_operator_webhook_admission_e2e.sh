@@ -101,11 +101,7 @@ metadata:
   name: ${INVALID_NAME}
   namespace: ${K8S_NAMESPACE}
 spec:
-  replicas: 0
-  trustDomain: bad/domain
-  image:
-    repository: ""
-    pullPolicy: Sometimes
+  replicas: 2000
 EOF
 
 if kubectl apply -f "$TMP_DIR/invalid.yaml" >"$TMP_DIR/invalid.out" 2>"$TMP_DIR/invalid.err"; then
@@ -113,7 +109,7 @@ if kubectl apply -f "$TMP_DIR/invalid.yaml" >"$TMP_DIR/invalid.out" 2>"$TMP_DIR/
   error "invalid MeshCluster was accepted, expected reject from validating webhook"
 fi
 
-if ! rg -q "invalid|Unsupported value|spec" "$TMP_DIR/invalid.err"; then
+if ! grep -Ei "invalid|Unsupported value|spec|must be between" "$TMP_DIR/invalid.err" >/dev/null; then
   cat "$TMP_DIR/invalid.err" >&2
   error "invalid MeshCluster was rejected, but error message did not contain validation details"
 fi

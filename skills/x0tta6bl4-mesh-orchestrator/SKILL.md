@@ -65,14 +65,18 @@ If metrics exceed warning thresholds, run anomaly detection:
 from src.ml.graphsage_anomaly_detector import GraphSAGEAnomalyDetector
 
 detector = GraphSAGEAnomalyDetector(anomaly_threshold=0.6)
-prediction = detector.predict(node_id="node-1", features={
-    "rssi": metrics['network'].latency_ms,
-    "snr": 15.0,
-    "loss_rate": metrics['network'].packet_loss_percent / 100,
-    "latency": metrics['network'].latency_ms,
-    "cpu": metrics['performance'].cpu_percent / 100,
-    "memory": metrics['performance'].memory_percent / 100,
-})
+prediction = detector.predict(
+    node_id="node-1",
+    node_features={
+        "rssi": metrics['network'].latency_ms,
+        "snr": 15.0,
+        "loss_rate": metrics['network'].packet_loss_percent / 100,
+        "latency": metrics['network'].latency_ms,
+        "cpu": metrics['performance'].cpu_percent / 100,
+        "memory": metrics['performance'].memory_percent / 100,
+    },
+    neighbors=[],  # list of (peer_id, {feature_dict}) tuples from mesh topology
+)
 # prediction.is_anomaly, prediction.anomaly_score, prediction.confidence
 ```
 
