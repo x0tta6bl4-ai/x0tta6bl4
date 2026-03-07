@@ -254,7 +254,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   ci  "Cosign mock signing (security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker)"
   ci  "Helm render containerised (charts/render-in-docker.sh)"
 else
-  skip "Docker daemon not reachable — containerised paths unavailable"
+  skip "Docker daemon not reachable in this execution context — containerised paths unavailable here"
 fi
 
 # ── 9. Environment-blocked checks ─────────────────────────────────────────────
