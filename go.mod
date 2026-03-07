@@ -3,10 +3,12 @@ module x0tta6bl4
 go 1.24.0
 
 require (
+	github.com/cilium/ebpf v0.12.3
+	github.com/ishidawataru/sctp v0.0.0-20251114114122-19ddcbc6aae2
+)
+
+require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/cilium/ebpf v0.12.3 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
@@ -25,7 +27,6 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
-	github.com/ishidawataru/sctp v0.0.0-20251114114122-19ddcbc6aae2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
