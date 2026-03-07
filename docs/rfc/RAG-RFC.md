@@ -24,8 +24,8 @@
 - [ ] PPS benchmark >= 5M — `RUN_BENCH=1` harness, `benchmark-<ts>.json` с `"pass": true` (не hand-crafted)
 - [ ] Keyless cosign + Rekor — `SIGSTORE_ID_TOKEN` в CI, `rekor-cli get` подтверждает hash
 - [ ] Live Open5GS UPF session — HTTP log от реального UPF endpoint
-- [ ] Алгоритм: `alembic upgrade head --sql` EXIT 0 — **DONE 2026-03-06**
-- [ ] Unit suite < 5 failures — **DONE 2026-03-06** (10→0)
+- [x] Алгоритм: `alembic upgrade head --sql` EXIT 0 — **DONE 2026-03-06**
+- [x] Unit suite < 5 failures — **DONE 2026-03-06** (10→0)
 
 Пока хотя бы один пункт инфраструктурного уровня открыт — тема RAG остаётся в Horizon-2.
 
