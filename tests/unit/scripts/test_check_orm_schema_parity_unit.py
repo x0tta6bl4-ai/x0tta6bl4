@@ -7,6 +7,11 @@ from sqlalchemy import Column, Integer, MetaData, String, Table, UniqueConstrain
 
 
 def _load_module():
+    # Return cached module to avoid re-executing the script (which would
+    # attempt to re-register SQLAlchemy ORM internals, causing AssertionError).
+    if "check_orm_schema_parity" in sys.modules:
+        return sys.modules["check_orm_schema_parity"]
+
     import pathlib
 
     repo_root = pathlib.Path(__file__).resolve().parents[3]
