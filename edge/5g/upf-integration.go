@@ -170,12 +170,13 @@ func (s *SimulatedUPF) IsSimulated() bool { return true }
 type Open5GSUPFProvider struct {
 	Config    UPFConfig
 	Transport SessionTransport
+	Monitor   QoSMonitor
 }
 
 type RealOpen5GSUPF = Open5GSUPFProvider
 
 func NewOpen5GSUPFProvider(cfg UPFConfig) *Open5GSUPFProvider {
-	return &Open5GSUPFProvider{Config: cfg}
+	return &Open5GSUPFProvider{Config: cfg, Monitor: &MockQoSMonitor{}}
 }
 
 func NewRealOpen5GSUPF(cfg UPFConfig) *RealOpen5GSUPF {
@@ -188,6 +189,7 @@ func NewRealOpen5GSUPF(cfg UPFConfig) *RealOpen5GSUPF {
 			UPFAddr: endpoints.UPF,
 			Timeout: timeout,
 		},
+		Monitor: &MockQoSMonitor{},
 	}
 }
 
@@ -242,6 +244,16 @@ func (s *Open5GSUPFProvider) EstablishSession(ueID string, sliceID string) (int6
 		}
 		return 0, fmt.Errorf("Open5GSUPFProvider rejected session: %s", cause)
 	}
+
+	// Apply eBPF QoS heuristic logic to base transport latency
+	if s.Monitor != nil {
+		ebpfLatency := s.Monitor.GetEstimatedLatencyMs(ueID)
+		if ebpfLatency > response.LatencyMs {
+			log.Printf("[5G-CORE][QoS] eBPF override latency for UE %s: %d ms", ueID, ebpfLatency)
+			return ebpfLatency, nil
+		}
+	}
+
 	return response.LatencyMs, nil
 }
 
