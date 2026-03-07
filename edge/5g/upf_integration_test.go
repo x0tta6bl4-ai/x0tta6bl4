@@ -449,6 +449,33 @@ func TestOpen5GSHTTPTransportTrimsBaseURLWhitespace(t *testing.T) {
 	}
 }
 
+func TestOpen5GSHTTPTransportTrimsDirectRequestPayloadFields(t *testing.T) {
+	client := &stubHTTPDoer{
+		statusCode: http.StatusOK,
+		body:       `{"accepted":true,"latency_ms":17}`,
+	}
+	transport := &edge5g.Open5GSHTTPTransport{
+		BaseURL: "http://open5gs.local",
+		Client:  client,
+	}
+
+	if _, err := transport.EstablishSession(edge5g.SessionRequest{
+		UEID:        " ue1 ",
+		SliceID:     " premium ",
+		AMFEndpoint: " http://amf.local ",
+		UPFEndpoint: " http://upf.local ",
+		Timeout:     5 * time.Second,
+	}); err != nil {
+		t.Fatalf("expected direct request success, got %v", err)
+	}
+	if strings.Contains(client.bodySeen, "\"ue_id\":\" ue1 \"") || strings.Contains(client.bodySeen, "\"slice_id\":\" premium \"") {
+		t.Fatalf("expected trimmed request payload, got %s", client.bodySeen)
+	}
+	if !strings.Contains(client.bodySeen, "\"ue_id\":\"ue1\"") || !strings.Contains(client.bodySeen, "\"slice_id\":\"premium\"") {
+		t.Fatalf("expected trimmed identifiers in payload, got %s", client.bodySeen)
+	}
+}
+
 func TestRealEBPFQoSEnforcerDryRunContract(t *testing.T) {
 	programmer := &stubPolicyProgrammer{}
 	enforcer := &edge5g.RealEBPFQoSEnforcer{Programmer: programmer}
@@ -563,6 +590,27 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 	latency, err := signaling.CreatePFCPSSession("premium")
 	if latency == 0 && err == nil {
 		t.Fatal("expected non-zero latency or error")
+	}
+}
+
+func TestOpen5GSSignalingEstablishSessionTrimsDirectRequestFields(t *testing.T) {
+	signaling := &edge5g.Open5GSSignaling{}
+
+	_, err := signaling.EstablishSession(edge5g.SessionRequest{
+		UEID:        " ue1 ",
+		SliceID:     " premium ",
+		AMFEndpoint: " 127.0.0.1:38412 ",
+		UPFEndpoint: " 127.0.0.1:8805 ",
+		Timeout:     100 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected transport failure against localhost")
+	}
+	if signaling.AMFAddr != "127.0.0.1:38412" || signaling.UPFAddr != "127.0.0.1:8805" {
+		t.Fatalf("expected trimmed signaling endpoints after request propagation, got %+v", signaling)
+	}
+	if !strings.Contains(err.Error(), "transport failure") {
+		t.Fatalf("expected transport failure semantics, got %v", err)
 	}
 }
 
