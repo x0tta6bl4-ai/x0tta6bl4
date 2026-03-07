@@ -1,0 +1,429 @@
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-acme-industrial
+  labels:
+    x0tta.io/tenant: "acme-industrial"
+    x0tta.io/tier: "enterprise"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-acme-industrial-pqc
+  labels:
+    x0tta.io/tenant: "acme-industrial"
+    x0tta.io/purpose: pqc-keys
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-bluebird-health
+  labels:
+    x0tta.io/tenant: "bluebird-health"
+    x0tta.io/tier: "enterprise"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-bluebird-health-pqc
+  labels:
+    x0tta.io/tenant: "bluebird-health"
+    x0tta.io/purpose: pqc-keys
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-northstar-logistics
+  labels:
+    x0tta.io/tenant: "northstar-logistics"
+    x0tta.io/tier: "enterprise"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-northstar-logistics-pqc
+  labels:
+    x0tta.io/tenant: "northstar-logistics"
+    x0tta.io/purpose: pqc-keys
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: tenant-acme-industrial
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: tenant-bluebird-health
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: tenant-northstar-logistics
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: acme-industrial-quota
+  namespace: tenant-acme-industrial
+spec:
+  hard:
+    pods: "500"
+    requests.cpu: "64"
+    requests.memory: "128Gi"
+    limits.cpu: "128"
+    limits.memory: "256Gi"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: bluebird-health-quota
+  namespace: tenant-bluebird-health
+spec:
+  hard:
+    pods: "300"
+    requests.cpu: "48"
+    requests.memory: "96Gi"
+    limits.cpu: "96"
+    limits.memory: "192Gi"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: northstar-logistics-quota
+  namespace: tenant-northstar-logistics
+spec:
+  hard:
+    pods: "250"
+    requests.cpu: "32"
+    requests.memory: "64Gi"
+    limits.cpu: "64"
+    limits.memory: "128Gi"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-node-acme-industrial
+  namespace: tenant-acme-industrial
+  labels:
+    x0tta.io/tenant: "acme-industrial"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-node-bluebird-health
+  namespace: tenant-bluebird-health
+  labels:
+    x0tta.io/tenant: "bluebird-health"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-node-northstar-logistics
+  namespace: tenant-northstar-logistics
+  labels:
+    x0tta.io/tenant: "northstar-logistics"
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-acme-industrial
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["meshclusters"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-acme-industrial-pqc
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - mesh-pqc-keys
+    verbs: ["get", "watch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-bluebird-health
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["meshclusters"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-bluebird-health-pqc
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - mesh-pqc-keys
+    verbs: ["get", "watch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-northstar-logistics
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["meshclusters"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-northstar-logistics-pqc
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - mesh-pqc-keys
+    verbs: ["get", "watch"]
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-acme-industrial
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mesh-node-runtime
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-acme-industrial
+    namespace: tenant-acme-industrial
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-acme-industrial-pqc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pqc-key-reader
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-acme-industrial
+    namespace: tenant-acme-industrial
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-bluebird-health
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mesh-node-runtime
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-bluebird-health
+    namespace: tenant-bluebird-health
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-bluebird-health-pqc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pqc-key-reader
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-bluebird-health
+    namespace: tenant-bluebird-health
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-node-runtime
+  namespace: tenant-northstar-logistics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mesh-node-runtime
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-northstar-logistics
+    namespace: tenant-northstar-logistics
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pqc-key-reader
+  namespace: tenant-northstar-logistics-pqc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pqc-key-reader
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-northstar-logistics
+    namespace: tenant-northstar-logistics
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tenant-zero-lateral-movement
+  namespace: tenant-acme-industrial
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-acme-industrial
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-acme-industrial
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+    - toEntities:
+        - kube-apiserver
+        - kube-dns
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tenant-zero-lateral-movement
+  namespace: tenant-bluebird-health
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-bluebird-health
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-bluebird-health
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+    - toEntities:
+        - kube-apiserver
+        - kube-dns
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+---
+# Source: multi-tenant/templates/tenant-isolation.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tenant-zero-lateral-movement
+  namespace: tenant-northstar-logistics
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-northstar-logistics
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tenant-northstar-logistics
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: x0tta6bl4-control
+    - toEntities:
+        - kube-apiserver
+        - kube-dns
+  enableDefaultDeny:
+    ingress: true
+    egress: true
