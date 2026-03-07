@@ -60,7 +60,9 @@
         "scripts/build_client.sh",
         "scripts/spire/",
         "docker-compose.spire.yml",
-        "src/services/maas_auth_service.py"
+        "src/services/maas_auth_service.py",
+        ".github/",
+        ".gitlab-ci.yml.ebpf"
       ]
     },
     "claude-maas-reviewer": {
@@ -198,7 +200,8 @@
         "utrecht-deploy-manifest.yaml",
         "values-utrecht.yaml",
         "config.yml",
-        ".gitlab-ci.yml.ebpf"
+        ".gitlab-ci.yml.ebpf",
+        "agent/"
       ]
     },
     "codex": {
@@ -216,7 +219,10 @@
       "description": "Gemini lane for eBPF datapath and live attach follow-up",
       "allow": [
         "ebpf/prod/",
-        "edge/5g/ebpf/"
+        "edge/5g/ebpf/",
+        "scripts/ebpf_prometheus_exporter.py",
+        "scripts/generate_validation_bundle.py",
+        "scripts/ebpf_cleanup_safe.sh"
       ]
     },
     "lead-coordinator": {
