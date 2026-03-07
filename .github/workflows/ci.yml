@@ -130,6 +130,26 @@ jobs:
       run: |
         pytest -q tests/unit/agents/test_maas_health_bot_unit.py tests/unit/api/test_maas_agent_mesh_unit.py --no-cov
 
+    - name: MaaS API negative-case contract tests (401/403/422/429)
+      env:
+        GENEVA_MASTER_KEY: "ci_test_key_do_not_use_in_production_32b"
+        VPN_SERVER: "127.0.0.1"
+        VPN_PORT: "39829"
+        PQC_FAIL_CLOSED: "false"
+        X0TTA6BL4_FAIL_OPEN_STARTUP: "true"
+      run: |
+        pytest -q tests/unit/api/test_maas_negative_cases_unit.py --no-cov
+
+    - name: MaaS modular endpoint tests (auth/mesh/nodes/billing/batman)
+      env:
+        GENEVA_MASTER_KEY: "ci_test_key_do_not_use_in_production_32b"
+        VPN_SERVER: "127.0.0.1"
+        VPN_PORT: "39829"
+        PQC_FAIL_CLOSED: "false"
+        X0TTA6BL4_FAIL_OPEN_STARTUP: "true"
+      run: |
+        pytest -q tests/unit/api/endpoints/ --no-cov
+
     - name: Validate version contract
       run: |
         python scripts/validate_version_contract.py
