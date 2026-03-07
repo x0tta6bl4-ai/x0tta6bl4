@@ -1,15 +1,16 @@
 package pqc
 
 import (
+	"context"
 	"testing"
 	"time"
 )
 
 func TestRotationManagerRotatesKEMAndPreservesOverlap(t *testing.T) {
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
-	manager, err := NewRotationManager(RotationPolicy{
+	manager, err := NewRotationManager(context.Background(), RotationPolicy{
 		Clock: func() time.Time { return now },
-	}, nil, nil)
+	}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRotationManager: %v", err)
 	}
@@ -47,9 +48,9 @@ func TestRotationManagerRotatesKEMAndPreservesOverlap(t *testing.T) {
 
 func TestRotationManagerRotatesSignatureAndStoresNTRUBackup(t *testing.T) {
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
-	manager, err := NewRotationManager(RotationPolicy{
+	manager, err := NewRotationManager(context.Background(), RotationPolicy{
 		Clock: func() time.Time { return now },
-	}, nil, nil)
+	}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRotationManager: %v", err)
 	}
