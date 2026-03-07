@@ -29,6 +29,31 @@ func TestSliceManagerAcceptsSimulatedProvider(t *testing.T) {
 	}
 }
 
+func TestSliceManagerTrimsIdentifiersBeforeValidationAndDispatch(t *testing.T) {
+	cfg := edge5g.UPFConfig{
+		Endpoints: edge5g.EndpointConfig{
+			AMF: "http://amf.local",
+			UPF: "http://upf.local",
+		},
+		AllowedSlices: map[string]edge5g.SliceProfile{
+			"premium": {ID: "premium", PriorityFloor: 10, PriorityCeiling: 100},
+		},
+	}
+	provider := &capturingUPFProvider{latency: 33}
+	enforcer := &capturingQoSEnforcer{}
+	manager := edge5g.NewSliceManager(cfg, provider, enforcer)
+
+	if err := manager.HandleRequest("  ue1  ", "  premium  ", 50); err != nil {
+		t.Fatalf("expected trimmed identifiers to succeed, got %v", err)
+	}
+	if provider.lastUEID != "ue1" || provider.lastSliceID != "premium" {
+		t.Fatalf("expected trimmed provider dispatch, got ue=%q slice=%q", provider.lastUEID, provider.lastSliceID)
+	}
+	if enforcer.lastSliceID != "premium" || enforcer.lastPriority != 50 {
+		t.Fatalf("expected trimmed QoS dispatch, got slice=%q priority=%d", enforcer.lastSliceID, enforcer.lastPriority)
+	}
+}
+
 func TestSliceManagerRejectsPriorityOutsideBounds(t *testing.T) {
 	cfg := edge5g.UPFConfig{
 		AllowedSlices: map[string]edge5g.SliceProfile{
@@ -515,6 +540,33 @@ func (e *countingQoSEnforcer) EnforceSlicePolicy(string, int) error {
 }
 
 func (e *countingQoSEnforcer) IsSimulated() bool { return false }
+
+type capturingUPFProvider struct {
+	latency     int64
+	lastUEID    string
+	lastSliceID string
+}
+
+func (p *capturingUPFProvider) EstablishSession(ueID string, sliceID string) (int64, error) {
+	p.lastUEID = ueID
+	p.lastSliceID = sliceID
+	return p.latency, nil
+}
+
+func (p *capturingUPFProvider) IsSimulated() bool { return false }
+
+type capturingQoSEnforcer struct {
+	lastSliceID  string
+	lastPriority int
+}
+
+func (e *capturingQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) error {
+	e.lastSliceID = sliceID
+	e.lastPriority = priority
+	return nil
+}
+
+func (e *capturingQoSEnforcer) IsSimulated() bool { return false }
 
 type stubSessionTransport struct {
 	response edge5g.SessionResponse
