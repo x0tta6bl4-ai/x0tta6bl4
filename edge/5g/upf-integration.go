@@ -269,6 +269,7 @@ func (t *Open5GSHTTPTransport) EstablishSession(request SessionRequest) (Session
 	if err := validateSessionRequest(request); err != nil {
 		return SessionResponse{}, err
 	}
+	request = normalizeSessionRequest(request)
 	baseURL := strings.TrimSpace(t.BaseURL)
 	if baseURL == "" || t.Client == nil {
 		return SessionResponse{}, fmt.Errorf("Open5GSHTTPTransport not configured (NOT VERIFIED)")
@@ -380,6 +381,7 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 }
 
 func (s *Open5GSSignaling) EstablishSession(request SessionRequest) (SessionResponse, error) {
+	request = normalizeSessionRequest(request)
 	if strings.TrimSpace(s.AMFAddr) == "" {
 		s.AMFAddr = strings.TrimSpace(request.AMFEndpoint)
 	}
@@ -507,4 +509,12 @@ func validateSessionRequest(request SessionRequest) error {
 		return fmt.Errorf("invalid session request: timeout must be positive")
 	}
 	return nil
+}
+
+func normalizeSessionRequest(request SessionRequest) SessionRequest {
+	request.UEID = strings.TrimSpace(request.UEID)
+	request.SliceID = strings.TrimSpace(request.SliceID)
+	request.AMFEndpoint = strings.TrimSpace(request.AMFEndpoint)
+	request.UPFEndpoint = strings.TrimSpace(request.UPFEndpoint)
+	return request
 }
