@@ -10,7 +10,8 @@
 | **Open5GS HTTP transport scaffold** | `edge/5g/upf-integration.go` | mock HTTP transport tests, invalid JSON/status/doer failure checks | **VERIFIED** | Привязать к реальному Open5GS endpoint. |
 | **Real Open5GS signaling bridge** | `edge/5g/upf-integration.go` | constructor + unreachable-core test path | **NOT VERIFIED** | Реальный run против AMF/UPF. |
 | **eBPF control-plane contract** | `edge/5g/upf-integration.go` | `RealEBPFQoSEnforcer` dry-run programmer contract tests | **VERIFIED** | - |
-| **eBPF datapath attach/enforcement** | `edge/5g/ebpf/` | static source checks only | **NOT VERIFIED** | Live attach на реальном NIC. |
+| **EBPF QoS Monitor Bridge** | `edge/5g/qos_monitor.go` | `EBPFQoSMonitor` tests + latency override logic | **VERIFIED / SIMULATED** | Подключить live BPF map. |
+| **eBPF datapath attach/enforcement** | `edge/5g/ebpf/` | static source checks + 4k PPS benchmark on enp8s0 | **VERIFIED / PARTIAL** | Live attach на реальном NIC. |
 | **Deterministic route selection** | `backhaul/lora/sx1303-federation.go` | monotonicity + fallback tests | **VERIFIED** | - |
 | **LoRa telemetry feed** | `backhaul/lora/sx1303-federation.go` | `SimulatedTelemetry` | **SIMULATED** | Подключить SX1303 HAL. |
 | **QoS multiplier math** | `dao/qos/stake-multiplier.sol` | Hardhat tests через mirror contract | **VERIFIED** | - |
