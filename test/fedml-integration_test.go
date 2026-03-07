@@ -29,20 +29,23 @@ func TestFedAvgIntegration(t *testing.T) {
 
 func TestRealOpen5GSSignaling(t *testing.T) {
 	cfg := edge5g.UPFConfig{
-		AMFEndpoint: "127.0.0.1:38412", // Стандартный порт NGAP
-		UPFEndpoint: "127.0.0.1:8805",  // Стандартный порт PFCP
+		AMFEndpoint: " 127.0.0.1:38412 ", // Стандартный порт NGAP
+		UPFEndpoint: " 127.0.0.1:8805 ",  // Стандартный порт PFCP
 		Timeout:     100 * time.Millisecond,
 	}
 
 	provider := edge5g.NewRealOpen5GSUPF(cfg)
 
 	// Ожидаем transport failure, так как Open5GS не запущен.
-	_, err := provider.EstablishSession("UE-TEST", "slice-premium")
+	_, err := provider.EstablishSession(" UE-TEST ", " slice-premium ")
 	if err == nil {
 		t.Error("Expected error for unreachable AMF, but got success")
-	} else {
-		t.Logf("Correctly detected unreachable core: %v", err)
+		return
 	}
+	if !strings.Contains(err.Error(), "transport failure") {
+		t.Fatalf("expected transport failure semantics, got: %v", err)
+	}
+	t.Logf("Correctly detected unreachable core: %v", err)
 }
 
 func TestEBPFPolicyUpdate(t *testing.T) {
