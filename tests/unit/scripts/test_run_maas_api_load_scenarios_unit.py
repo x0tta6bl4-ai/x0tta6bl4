@@ -98,6 +98,10 @@ def test_load_runner_generates_reports_and_latest_artifacts(tmp_path: Path, load
             "CONCURRENCY": "1",
             "REQUEST_TIMEOUT_SECONDS": "1",
             "SCENARIOS_CSV": "marketplace_search,telemetry_heartbeat,node_heartbeat",
+            # Pin NODE_ID to match the mock server handler path; load_dotenv() in src.database
+            # may inject NODE_ID=node-001 from .env into the parent process environment, which
+            # would otherwise override the script's default (node-load-profile-001).
+            "NODE_ID": "node-load-profile-001",
         }
     )
 

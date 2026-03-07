@@ -225,6 +225,18 @@ try:
 except Exception:
     pass
 
+# Pre-import sqlalchemy.orm so its module-level inspection registry survives
+# mock_dependencies rollback.  sqlalchemy.orm.base registers 'object' with
+# SQLAlchemy's inspection system at import time; if the module is removed from
+# sys.modules and reimported, the registration runs again and raises
+# "Type <class 'object'> is already registered".
+try:
+    import sqlalchemy.orm  # noqa: F401
+    import sqlalchemy.orm.base  # noqa: F401
+    import sqlalchemy.ext.declarative  # noqa: F401
+except Exception:
+    pass
+
 # Keep cryptography ciphers loaded in baseline sys.modules.
 # The autouse patch.dict fixture can otherwise remove lazily imported
 # submodules between tests, causing inconsistent crypto backend state.
