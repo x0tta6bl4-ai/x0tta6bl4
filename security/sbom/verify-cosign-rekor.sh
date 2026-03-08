@@ -130,6 +130,17 @@ case "${MODE}" in
         --signature "$(cpath "${artifact}.sig")" \
         "$(cpath "${artifact}")"
     done
+    
+    # Create local provenance bundle for developer parity
+    prov_dir="${ROOT_DIR}/docs/release/provenance"
+    mkdir -p "${prov_dir}"
+    for artifact in "${artifacts[@]}"; do
+      cp "${artifact}.sig" "${prov_dir}/" 2>/dev/null || true
+    done
+    if [[ -f "${key_prefix}.pub" ]]; then
+      cp "${key_prefix}.pub" "${prov_dir}/mock-cosign.pub"
+    fi
+
     cat > "${OUTPUT_DIR}/mock-signing-status.txt" <<EOF
 mode=mock
 rekor=skipped
