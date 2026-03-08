@@ -5,7 +5,7 @@
 # Final image: ~45MB (distroless/static-debian12 base).
 
 # ── Stage 1: Build (Go gRPC proxy) ────────────────────────────────────────────
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS go-builder
 
 ARG TARGETOS
 ARG TARGETARCH
