@@ -89,21 +89,21 @@
 - `Fixed` — исправление ошибок
 - `Security` — исправления безопасности
 
-## [RC1] - 2026-03-07
+## [RC1] - 2026-03-08
 ### Added
-- **5G↔eBPF Bridge**: Real-time QoS monitoring for Open5GS tunnels using kernel maps.
-- **eBPF Prometheus Exporter**: Live telemetry from XDP datapath to Grafana.
-- **Validation Bundles**: Automated Markdown reporting for hardware-grounded evidence.
-- **Safe Cleanup**: Root-safe scripts for eBPF structures to prevent kernel panics.
+- **5G Signaling Bridge**: Real SCTP transport for AMF/UPF signaling and PFCP session establishment (simplified) implemented.
+- **eBPF Datapath**: Live XDP attach on physical NIC (`enp8s0`) with ID 613 confirmed.
+- **Observability**: eBPF Prometheus Exporter with live telemetry and stub mode for CI validation.
+- **Validation Bundle**: Empirical evidence collected for physical hardware performance.
 
 ### Fixed
-- **SEV-1 Security Alert**: Mitigated 10 Python package vulnerabilities at the repository level.
-- **Benchmark Lock**: Resolved blocking I/O in pktgen harness.
-- **Swarm Governance**: Fixed ownership matrix gaps for root-level config files (go.mod).
+- **Integrity**: Historical 8.8M PPS claim **PURGED** as unsubstantiated/simulated.
+- **Baseline**: Adopted empirical baseline of **142k TX / 49 RX PPS** on physical NIC as current production-beta state.
+- **Security**: Mitigated SEV-1 Python package vulnerabilities at repo level.
 
 ### Verified
 - **10,008 Unit Tests passed** (MaaS Core, Security, 5G Adapters).
-- **Physical NIC signal** (enp8s0): 3996 PPS RX confirmed.
+- **Physical NIC signal** (enp8s0): Baseline throughput recorded.
 
 ## [RC1.1] - 2026-03-08
 ### Added
