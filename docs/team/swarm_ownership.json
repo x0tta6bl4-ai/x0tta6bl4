@@ -238,7 +238,8 @@
         "edge/5g/ebpf/",
         "scripts/ebpf_prometheus_exporter.py",
         "scripts/generate_validation_bundle.py",
-        "scripts/ebpf_cleanup_safe.sh"
+        "scripts/ebpf_cleanup_safe.sh",
+        "scripts/cleanup_root.sh"
       ]
     },
     "lead-coordinator": {
@@ -262,6 +263,7 @@
         "docs/rfc/RAG-RFC.md",
         "docs/v1.1/RAG-RFC.md",
         "COORDINATION.md",
+        "AGENTS.md",
         ".agent-coord/",
         "go.mod",
         "go.sum"
