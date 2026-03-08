@@ -39,6 +39,7 @@ jobs:
           cp security/sbom/out/*.crt docs/release/provenance/ 2>/dev/null || true
 
       - name: Commit Provenance Artifacts
+        if: github.ref_name != 'main'
         run: |
           git config --global user.name "x0tta6bl4-bot"
           git config --global user.email "bot@x0tta6bl4.net"
