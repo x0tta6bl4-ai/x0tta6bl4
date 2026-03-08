@@ -41,9 +41,9 @@ bash scripts/agent-coord.sh send gemini claude "handoff" "see request thread for
 
 | Agent | Primary scope | Current status |
 |-------|--------------|----------------|
-| **claude** | `scripts/verify-v1.1.sh`, `docs/verification/`, `compliance/soc2/`, `security/sbom/`, `docs/commercial/`, `docs/STATUS.md` | idle — last session 2026-03-06 |
-| **gemini** | `ebpf/prod/`, `edge/5g/ebpf/` | awaiting live attach |
-| **codex** | `edge/5g/`, `integration/`, `test/` | awaiting Open5GS transport |
+| **claude** | `scripts/verify-v1.1.sh`, `docs/verification/`, `compliance/soc2/`, `security/sbom/` | **RC1-GUARD** — integrity monitoring |
+| **gemini** | `ebpf/prod/`, `edge/5g/ebpf/` | **RC1-GUARD** — empirical baseline maintenance |
+| **codex** | `edge/5g/`, `integration/`, `test/` | **RC1-GUARD** — signaling contract stability |
 
 ---
 
@@ -95,12 +95,11 @@ NOT VERIFIED YET      = blocked by hardware/credentials/cluster
 
 ## What must NOT be said publicly yet
 
-- Any PPS throughput figure — no benchmark JSON exists yet
+- High PPS throughput (>1M) — current RC1 baseline is 142k TX / 49 RX PPS
 - 98.5% uptime / 1.8s MTTR — simulated, not from production traffic
 - 94% GNN accuracy as production metric — training-set figure
-- "Rekor-attested" / "transparency-log verified" — no CI-keyless run
-- "Production-deployed" for any module
-- Field-validated 5G or LoRa performance
+- "Rekor-attested" — requires CI-keyless OIDC run
+- Field-validated 5G or LoRa performance — partial signaling only
 
 ---
 
