@@ -14,13 +14,31 @@ type EBPFPolicyProgrammer struct {
 	ebpfMap *ebpf.Map
 }
 
+func parseSliceIDPort(sliceID string) (uint32, error) {
+	trimmed := strings.TrimSpace(sliceID)
+	if trimmed == "" {
+		return 0, fmt.Errorf("invalid slice ID %q: must be a numeric UDP port for real eBPF enforcer", sliceID)
+	}
+
+	port64, err := strconv.ParseUint(trimmed, 10, 16)
+	if err != nil || port64 == 0 {
+		return 0, fmt.Errorf("invalid slice ID %q: must be a numeric UDP port for real eBPF enforcer", sliceID)
+	}
+	return uint32(port64), nil
+}
+
 // NewEBPFPolicyProgrammer loads a pinned eBPF map for policy programming.
 func NewEBPFPolicyProgrammer(mapPath string) (*EBPFPolicyProgrammer, error) {
-	m, err := ebpf.LoadPinnedMap(mapPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load pinned slice_policy_map at %s: %w", mapPath, err)
+	trimmedPath := strings.TrimSpace(mapPath)
+	if trimmedPath == "" {
+		return nil, fmt.Errorf("ebpf map path required")
 	}
-	return &EBPFPolicyProgrammer{MapPath: mapPath, ebpfMap: m}, nil
+
+	m, err := ebpf.LoadPinnedMap(trimmedPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pinned slice_policy_map at %s: %w", trimmedPath, err)
+	}
+	return &EBPFPolicyProgrammer{MapPath: trimmedPath, ebpfMap: m}, nil
 }
 
 // Apply updates the eBPF map with the new policy.
@@ -31,14 +49,10 @@ func (p *EBPFPolicyProgrammer) Apply(update PolicyUpdate) error {
 	}
 
 	// The current eBPF enforcer uses UDP port as a proxy for Slice ID.
-	port64, err := strconv.ParseUint(strings.TrimSpace(update.SliceID), 10, 32)
+	port, err := parseSliceIDPort(update.SliceID)
 	if err != nil {
-		// Fallback for non-numeric SliceIDs in tests/simulations if needed,
-		// but for real hardware enforcer, we require a port.
-		return fmt.Errorf("invalid slice ID %q: must be a numeric UDP port for real eBPF enforcer", update.SliceID)
+		return err
 	}
-
-	port := uint32(port64)
 	priority := uint32(update.Priority)
 
 	if err := p.ebpfMap.Put(&port, &priority); err != nil {
