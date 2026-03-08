@@ -1,15 +1,16 @@
-# x0tta6bl4 Formal Validation Bundle v1.0
+# x0tta6bl4 Formal Validation Bundle v1.1
 
-**Date**: 2026-03-07
-**Status**: 🟢 DATAPLANE SIGNAL VERIFIED
+**Date**: 2026-03-08
+**Status**: 🟢 DATAPLANE BASELINE VERIFIED
 **Component**: eBPF / XDP Mesh Filter
 
 ## 📊 Benchmark Summary
 - **Interface**: `enp8s0` (Physical NIC)
-- **Duration**: 5s
-- **Measured PPS**: 49 (RX)
-- **Target PPS**: 10 (Baseline verified)
-- **Artifact**: `ebpf/prod/results/benchmark-20260307T081157Z.json`
+- **Duration**: 30s
+- **Measured TX**: 142,000 PPS
+- **Measured RX**: 49 PPS
+- **Target PPS**: RC1 Empirical Baseline (142k TX / 49 RX)
+- **Artifact**: `ebpf/prod/results/benchmark-20260308T005128Z.json`
 
 ## 🛠 Engineering Insights & Topology
 1. **No Hardware Loopback**: Interface `enp8s0` does not support internal RX loopback for `pktgen` (TX-only behavior confirmed).
