@@ -153,10 +153,12 @@ type SimulatedUPF struct {
 }
 
 func (s *SimulatedUPF) EstablishSession(ueID string, sliceID string) (int64, error) {
-	if strings.TrimSpace(ueID) == "" {
+	trimmedUEID := strings.TrimSpace(ueID)
+	if trimmedUEID == "" {
 		return 0, fmt.Errorf("invalid UE ID")
 	}
-	if strings.TrimSpace(sliceID) == "" || sliceID == "invalid" {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if trimmedSliceID == "" || trimmedSliceID == "invalid" {
 		return 0, fmt.Errorf("invalid slice ID")
 	}
 	if s.LatencyMs < 0 {
@@ -452,13 +454,14 @@ func (s *Open5GSSignaling) EstablishSession(request SessionRequest) (SessionResp
 type SimulatedQoSEnforcer struct{}
 
 func (s *SimulatedQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) error {
-	if strings.TrimSpace(sliceID) == "" {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if trimmedSliceID == "" {
 		return fmt.Errorf("invalid slice policy: slice ID required")
 	}
 	if priority < 0 {
 		return fmt.Errorf("invalid slice policy: priority must be non-negative")
 	}
-	log.Printf("[5G][SIMULATED] slice policy staged: slice=%s priority=%d", sliceID, priority)
+	log.Printf("[5G][SIMULATED] slice policy staged: slice=%s priority=%d", trimmedSliceID, priority)
 	return nil
 }
 
@@ -469,7 +472,8 @@ type RealEBPFQoSEnforcer struct {
 }
 
 func (s *RealEBPFQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) error {
-	if strings.TrimSpace(sliceID) == "" {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if trimmedSliceID == "" {
 		return fmt.Errorf("invalid slice policy: slice ID required")
 	}
 	if priority < 0 {
@@ -483,7 +487,7 @@ func (s *RealEBPFQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) e
 	}
 
 	update := PolicyUpdate{
-		SliceID:   sliceID,
+		SliceID:   trimmedSliceID,
 		Priority:  priority,
 		UpdatedAt: time.Now().UTC(),
 	}
@@ -491,7 +495,7 @@ func (s *RealEBPFQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) e
 		return fmt.Errorf("RealEBPFQoSEnforcer programmer failure: %w", err)
 	}
 
-	log.Printf("[5G][EBPF-DRYRUN] prepared policy update for slice %s priority %d", sliceID, priority)
+	log.Printf("[5G][EBPF-DRYRUN] prepared policy update for slice %s priority %d", trimmedSliceID, priority)
 	return nil
 }
 
