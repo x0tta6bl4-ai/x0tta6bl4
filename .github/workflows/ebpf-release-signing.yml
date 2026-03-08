@@ -44,4 +44,4 @@ jobs:
           git config --global user.email "bot@x0tta6bl4.net"
           git add docs/release/provenance/ *.sig
           git commit -m "chore(release): attach keyless provenance bundle for RC1" || echo "No changes to commit"
-          git push
+          git push origin HEAD:${{ github.ref_name }}
