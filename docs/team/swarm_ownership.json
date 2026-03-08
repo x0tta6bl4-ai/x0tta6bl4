@@ -114,6 +114,7 @@
       "description": "Codex implementation lane for MaaS 80/20 delivery",
       "allow": [
         "RC1_RELEASE_NOTES.md",
+        "README.md",
         "docs/release/",
         "docs/05-operations/",
         "src/",
