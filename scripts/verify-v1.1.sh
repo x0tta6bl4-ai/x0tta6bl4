@@ -312,11 +312,11 @@ if [[ ${#FAILED[@]} -gt 0 ]]; then
 fi
 echo ""
 echo -e "${RED}Do not claim as publicly verified:${RST}"
-echo "  - PPS throughput: design target, not benchmarked"
+echo "  - High PPS throughput (>1M): RC1 empirical baseline is 142k TX / 49 RX PPS"
 echo "  - MTTR / uptime: derived from simulated self-healing, not production traffic"
 echo "  - GNN accuracy: 94% is a training-set figure, not production measurement"
 echo "  - Rekor inclusion: requires SIGSTORE_ID_TOKEN; CI only"
-echo "  - 5G / LoRa / DP-SGD: simulated or hardware-blocked; not field-validated"
+echo "  - 5G / LoRa / DP-SGD: simulated or partial (SCTP/PFCP only); not field-validated"
 echo ""
 
 # ── optional JSON output ──────────────────────────────────────────────────────
