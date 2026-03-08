@@ -31,6 +31,9 @@
     "agent4-devops-ci": {
       "description": "CI/CD and containerization",
       "allow": [
+        "CHANGELOG.md",
+        "RC1_MANIFEST.json",
+        "infra/",
         ".gitlab-ci.yml",
         "docker/",
         "docker-compose.production.yml",
