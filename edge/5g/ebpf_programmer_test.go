@@ -2,6 +2,22 @@ package edge5g
 
 import "testing"
 
+func TestValidateEBPFPriorityAcceptsRange(t *testing.T) {
+	for _, priority := range []int{0, 1, 255} {
+		if err := validateEBPFPriority(priority); err != nil {
+			t.Fatalf("expected priority %d to be valid, got %v", priority, err)
+		}
+	}
+}
+
+func TestValidateEBPFPriorityRejectsOutOfRangeValues(t *testing.T) {
+	for _, priority := range []int{-1, 256, 1000} {
+		if err := validateEBPFPriority(priority); err == nil {
+			t.Fatalf("expected priority %d to fail", priority)
+		}
+	}
+}
+
 func TestParseSliceIDPortTrimsAndValidatesUDPPortRange(t *testing.T) {
 	port, err := parseSliceIDPort(" 8805 ")
 	if err != nil {
