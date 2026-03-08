@@ -10,18 +10,16 @@ Requirements:
 - cryptography >= 45.0.3
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict
 
 import pytest
 
 # Import PQC components
 from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
-                                              PQKeyPair, PQMeshSecurityLibOQS)
-from src.security.pqc_hybrid import HybridKeyPair, HybridPQEncryption
+                                              PQMeshSecurityLibOQS)
+from src.security.pqc_hybrid import HybridPQEncryption
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +91,7 @@ class TestPQCLibOQSIntegration:
         assert keypair.public_key is not None
         assert keypair.private_key is not None
 
-        logger.info(f"✅ Signature keypair generated")
+        logger.info("✅ Signature keypair generated")
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
@@ -224,7 +222,7 @@ class TestHybridEncryption:
 
         assert decrypted == plaintext, "Decryption failed"
 
-        logger.info(f"✅ Hybrid encryption/decryption test passed")
+        logger.info("✅ Hybrid encryption/decryption test passed")
 
 
 class TestPQCMeshIntegration:
@@ -265,7 +263,7 @@ class TestPQCMeshIntegration:
         assert secret_1to2 is not None
         assert secret_2to1 is not None
 
-        logger.info(f"✅ PQ mesh key exchange successful")
+        logger.info("✅ PQ mesh key exchange successful")
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -273,7 +271,7 @@ class TestPQCMeshIntegration:
     async def test_pq_secured_mesh_communication(self, pq_mesh_security):
         """Test PQ-secured mesh communication."""
         # Setup mesh nodes
-        node1_keypair = pq_mesh_security.hybrid_cipher.generate_hybrid_keypair()
+        pq_mesh_security.hybrid_cipher.generate_hybrid_keypair()
         node2_keypair = pq_mesh_security.hybrid_cipher.generate_hybrid_keypair()
 
         # Establish shared secret

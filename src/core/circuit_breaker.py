@@ -12,7 +12,7 @@ Provides fault tolerance for external API calls with:
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, TypeVar
@@ -252,7 +252,7 @@ class CircuitBreaker:
                 ).inc()
                 CIRCUIT_CALL_DURATION.labels(circuit_name=self.name).observe(duration)
             return result
-        except Exception as e:
+        except Exception:
             duration = time.time() - start_time
             await self._on_failure()
 

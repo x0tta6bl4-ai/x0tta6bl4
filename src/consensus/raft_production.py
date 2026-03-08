@@ -11,11 +11,10 @@ Improves Raft consensus for production use:
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

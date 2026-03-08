@@ -4,7 +4,6 @@ Configuration settings for Geo-Leak Detector
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import List, Optional, Set
-import os
 
 
 class DatabaseSettings(BaseSettings):

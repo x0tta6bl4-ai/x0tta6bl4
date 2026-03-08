@@ -9,15 +9,12 @@ Tests cover:
 
 import asyncio
 import pytest
-import time
 from typing import List
 
 from src.parl import (
-    PARLController, PARLConfig, PARLStats,
-    AgentWorker, WorkerState,
+    PARLController, PARLConfig, AgentWorker, WorkerState,
     TaskScheduler, QueueStats,
-    Task, TaskPriority, TaskStatus,
-    Experience, Policy, StepResult, PARLMetrics,
+    Task, TaskPriority, Experience, Policy, StepResult, PARLMetrics,
 )
 
 
@@ -446,7 +443,7 @@ class TestTask:
     
     def test_task_dependencies(self):
         """Test task dependencies."""
-        task1 = Task(task_type="test", task_id="task_1")
+        Task(task_type="test", task_id="task_1")
         task2 = Task(
             task_type="test",
             task_id="task_2",

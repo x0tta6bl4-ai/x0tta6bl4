@@ -12,7 +12,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class DigitalTwinsSimulator:
 
         # Запускаем self-healing (симуляция)
         recovery_start = datetime.now()
-        recovery_time = await self._simulate_self_healing(scenario, affected_nodes)
+        await self._simulate_self_healing(scenario, affected_nodes)
         recovery_end = datetime.now()
 
         actual_recovery_time = (recovery_end - recovery_start).total_seconds()

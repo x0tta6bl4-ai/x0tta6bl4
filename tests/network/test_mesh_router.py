@@ -2,9 +2,8 @@
 Tests for Mesh Router module.
 """
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

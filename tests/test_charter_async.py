@@ -3,7 +3,7 @@ Async tests for MetricEnforcer and Charter operations (WEST-0104)
 Tests for async metric validation, error handling, and edge cases
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pytest

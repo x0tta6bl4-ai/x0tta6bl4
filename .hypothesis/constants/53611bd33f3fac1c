@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/ml/lora/__init__.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.001, 0.01, 0.1, 32.0, 'LoRAAdapter', 'LoRAComposer', 'LoRAConfig', 'LoRALayer', 'LoRAQuantizer', 'LoRATargetModules', 'LoRATrainer', 'LoRATrainingResult', 'PeftLoRAAdapter', 'PeftLoRAConfig', 'adaptation_steps', 'alpha', 'analyzer', 'apply_lora_adapter', 'component', 'epochs', 'error', 'final_loss', 'layers_count', 'load_lora_adapter', 'planner', 'rank', 'reward', 'save_lora_adapter', 'timestamp']

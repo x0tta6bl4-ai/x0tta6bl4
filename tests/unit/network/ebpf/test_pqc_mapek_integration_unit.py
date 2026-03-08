@@ -2,8 +2,7 @@
 import os
 import time
 import threading
-import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

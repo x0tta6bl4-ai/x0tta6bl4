@@ -4,8 +4,7 @@ Tests for refactored MAPE-K module.
 Tests the decomposed MAPE-K components.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
-import asyncio
+from unittest.mock import Mock, AsyncMock
 
 
 class TestMAPEKModels:
@@ -353,17 +352,7 @@ class TestMAPEKModuleAPI:
         from src.core.mape_k import (
             ReasoningApproach,
             SolutionSpace,
-            ReasoningPath,
-            ReasoningMetrics,
-            ReasoningAnalytics,
-            ExecutionLogEntry,
-            MAPEKCycleResult,
             MetaPlanner,
-            MonitoringPhase,
-            AnalysisPhase,
-            PlanningPhase,
-            ExecutionPhase,
-            KnowledgePhase,
             MAPEKCoordinator,
         )
 

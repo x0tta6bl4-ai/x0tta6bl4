@@ -8,16 +8,12 @@ Integration Tests for Scenario 2: Telegram Bot → Node Launch → Status
 3. Пользователь закрывает соединение через /close
 """
 
-import asyncio
 import socket
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 
-from src.network.mesh_node_complete import CompleteMeshNode, MeshConfig
-from src.services.node_manager_service import NodeManagerService, UserNode
+from src.services.node_manager_service import NodeManagerService
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -46,7 +42,7 @@ async def node_manager():
         for user_node in list(manager.user_nodes.values()):
             try:
                 await user_node.mesh_node.stop()
-            except:
+            except Exception:
                 pass
 
 

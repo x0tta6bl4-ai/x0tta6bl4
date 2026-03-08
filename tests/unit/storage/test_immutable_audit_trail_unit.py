@@ -4,10 +4,9 @@ Unit tests for ImmutableAuditTrail and MerkleTree.
 
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import MagicMock
 
-import pytest
 
 from src.storage.immutable_audit_trail import ImmutableAuditTrail, MerkleTree
 

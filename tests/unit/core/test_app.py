@@ -430,7 +430,7 @@ class TestAppStartupShutdown:
                 await startup_event()
                 # If we get here, startup didn't crash
                 assert True
-            except Exception as e:
+            except Exception:
                 # Some components may fail to initialize in test environment
                 # That's acceptable for unit tests
                 pass
@@ -449,7 +449,7 @@ class TestAppStartupShutdown:
                 await shutdown_event()
                 # If we get here, shutdown didn't crash
                 assert True
-            except Exception as e:
+            except Exception:
                 # Some components may fail to shutdown in test environment
                 # That's acceptable for unit tests
                 pass

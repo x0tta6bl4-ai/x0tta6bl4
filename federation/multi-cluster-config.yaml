@@ -1,0 +1,18 @@
+federation:
+  clusters:
+    - name: "control-plane"
+      bootstrap_relays:
+        - "/ip4/10.100.0.1/udp/9000/quic-v1/p2p/QmControlPlane..."
+      kademlia_namespace: "x0tta-global"
+    - name: "edge-1"
+      bootstrap_relays:
+        - "/ip4/10.200.0.1/udp/9000/quic-v1/p2p/QmEdge1..."
+      kademlia_namespace: "x0tta-edge1"
+    - name: "edge-2"
+      bootstrap_relays:
+        - "/ip4/10.300.0.1/udp/9000/quic-v1/p2p/QmEdge2..."
+      kademlia_namespace: "x0tta-edge2"
+  quic:
+    congestion_control: "BBR"
+    wan_optimization: true
+    target_p99_latency_ms: 200

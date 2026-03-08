@@ -1,0 +1,47 @@
+name: x0tta6bl4 RC1 Release Signing (Keyless)
+
+on:
+  push:
+    branches: [ "main", "release/rc1" ]
+  workflow_dispatch:
+
+jobs:
+  sign-and-attest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # Required for Keyless OIDC signing
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Run Consistency Gate
+        run: python3 scripts/ops/check_release_consistency.py
+
+      - name: Sign Release Artifacts (Keyless via Rekor)
+        env:
+          COSIGN_YES: "true"
+        run: |
+          bash security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native
+
+      - name: Create Release Provenance Bundle
+        run: |
+          mkdir -p docs/release/provenance
+          cp docs/release/*.sig docs/release/provenance/ 2>/dev/null || true
+          cp docs/release/*.crt docs/release/provenance/ 2>/dev/null || true
+          cp RC1_MANIFEST.json.sig docs/release/provenance/ 2>/dev/null || true
+          cp RC1_MANIFEST.json.crt docs/release/provenance/ 2>/dev/null || true
+          cp security/sbom/out/*.sig docs/release/provenance/ 2>/dev/null || true
+          cp security/sbom/out/*.crt docs/release/provenance/ 2>/dev/null || true
+
+      - name: Commit Provenance Artifacts
+        run: |
+          git config --global user.name "x0tta6bl4-bot"
+          git config --global user.email "bot@x0tta6bl4.net"
+          git add docs/release/provenance/ *.sig
+          git commit -m "chore(release): attach keyless provenance bundle for RC1" || echo "No changes to commit"
+          git push

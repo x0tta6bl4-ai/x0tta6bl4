@@ -6,7 +6,6 @@ Tests adaptive parameter tuning, query rewriting, caching, and batch operations.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -253,8 +252,8 @@ class TestBatchRetrievalManager:
     async def test_batch_processing(self):
         manager = BatchRetrievalManager(batch_size=2)
 
-        future1 = asyncio.create_task(manager.add_query("query1"))
-        future2 = asyncio.create_task(manager.add_query("query2"))
+        asyncio.create_task(manager.add_query("query1"))
+        asyncio.create_task(manager.add_query("query2"))
 
         await asyncio.sleep(0.1)
 

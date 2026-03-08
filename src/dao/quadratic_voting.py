@@ -10,7 +10,7 @@ Implements quadratic voting algorithm:
 import logging
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 

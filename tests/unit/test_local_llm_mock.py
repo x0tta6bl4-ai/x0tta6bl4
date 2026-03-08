@@ -1,9 +1,8 @@
-import os
 import runpy
 import sys
 import types
 from pathlib import Path
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

@@ -53,7 +53,7 @@ class GhostL3Server:
                     if self.client_addr:
                         wrapped = self.transport.wrap_packet(packet)
                         sock.sendto(wrapped, self.client_addr)
-                except: break
+                except Exception: break
 
         asyncio.create_task(tun_to_client())
 

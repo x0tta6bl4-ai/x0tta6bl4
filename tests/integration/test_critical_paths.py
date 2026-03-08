@@ -2,7 +2,6 @@
 Integration test for critical paths
 """
 
-import time
 from unittest.mock import Mock, patch
 
 import pytest
@@ -69,7 +68,7 @@ def test_pqc_integration():
 
         if not LIBOQS_AVAILABLE:
             pytest.skip("liboqs not available in staging")
-    except:
+    except Exception:
         pytest.skip("liboqs not available")
 
     backend = PQMeshSecurityLibOQS(node_id="test_node", kem_algorithm="ML-KEM-768")
@@ -133,7 +132,6 @@ def test_database_integration():
     # Skip if DATABASE_URL is not set
     import os
 
-    from sqlalchemy.orm import sessionmaker
 
     from src.database import Session, User
 

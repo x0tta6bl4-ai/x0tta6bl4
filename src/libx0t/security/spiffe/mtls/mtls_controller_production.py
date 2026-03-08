@@ -9,8 +9,7 @@ import os
 import ssl
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import List, Optional
 
 try:

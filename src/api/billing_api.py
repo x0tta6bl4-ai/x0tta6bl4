@@ -8,11 +8,15 @@ subscription management and ZKP access.
 
 import os
 import logging
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+import asyncio
+from typing import Optional
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from src.billing.stripe_client import StripeClient, StripeConfig
+from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
+                                         call_with_reliability,
+                                         mark_degraded_dependency)
 from database import get_user, update_user, record_payment
 from datetime import datetime, timedelta
 
@@ -28,8 +32,37 @@ class CheckoutRequest(BaseModel):
     user_id: int
     plan: str # "pro" or "enterprise"
 
+
+async def _execute_stripe_call(operation, *, request: Optional[Request] = None):
+    try:
+        return await call_with_reliability(operation, dependency="stripe")
+    except CircuitBreakerOpen:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment service temporarily unavailable. Please try again later.",
+        )
+    except RetryExhausted:
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment gateway timeout. Please try again later.",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Stripe checkout operation failed: %s", exc)
+        if request is not None:
+            mark_degraded_dependency(request, "stripe")
+        raise HTTPException(
+            status_code=503,
+            detail="Payment service unavailable. Please try again later.",
+        )
+
 @router.post("/checkout")
-async def create_checkout_session(req: CheckoutRequest):
+async def create_checkout_session(req: CheckoutRequest, request: Request):
     """
     Creates a Stripe Checkout session for the user.
     """
@@ -39,48 +72,41 @@ async def create_checkout_session(req: CheckoutRequest):
     
     price_id = stripe_config.get_price_id(req.plan)
     if not price_id:
-        # Fallback for mock/test if price_id not in env
-        price_id = "price_mock_123"
+        logger.error(f"Price ID missing for plan: {req.plan}")
+        raise HTTPException(status_code=500, detail="Billing configuration error")
 
-    environment = os.getenv("ENVIRONMENT", "development").lower()
-    
     try:
         import stripe
+
         stripe.api_key = stripe_config.api_key
-        
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price': price_id,
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url=f"{os.getenv('APP_URL')}/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{os.getenv('APP_URL')}/cancel",
-            client_reference_id=str(req.user_id),
-            metadata={"plan": req.plan}
-        )
+
+        async def _create_checkout():
+            return await asyncio.to_thread(
+                stripe.checkout.Session.create,
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price": price_id,
+                        "quantity": 1,
+                    }
+                ],
+                mode="subscription",
+                success_url=f"{os.getenv('APP_URL')}/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{os.getenv('APP_URL')}/cancel",
+                client_reference_id=str(req.user_id),
+                metadata={"plan": req.plan},
+            )
+
+        session = await _execute_stripe_call(_create_checkout, request=request)
         return {"checkout_url": session.url, "is_mock": False}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create checkout session: {e}")
-        
-        # In production, fail loudly instead of returning mock URL
-        if environment == "production":
-            raise HTTPException(
-                status_code=503,
-                detail=f"Payment service unavailable. Please try again later. Error: {str(e)}"
-            )
-        
-        # Return a mock URL for development/staging with explicit indicator
-        logger.warning(
-            f"Returning mock checkout URL for user {req.user_id} in {environment} mode. "
-            "This should never happen in production!"
+        raise HTTPException(
+            status_code=503,
+            detail="Payment service unavailable. Please try again later."
         )
-        return {
-            "checkout_url": f"https://checkout.stripe.com/pay/mock_{req.user_id}",
-            "is_mock": True,
-            "warning": "Mock checkout - Stripe unavailable in development mode"
-        }
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, stripe_signature: str = Header(None)):

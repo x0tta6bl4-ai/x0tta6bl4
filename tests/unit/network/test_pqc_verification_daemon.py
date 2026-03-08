@@ -7,7 +7,6 @@ Tests the userspace ML-DSA-65 verification offload component.
 import hashlib
 import secrets
 import time
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 

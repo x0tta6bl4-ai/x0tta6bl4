@@ -10,10 +10,8 @@ Production-ready network layer for Raft consensus:
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)

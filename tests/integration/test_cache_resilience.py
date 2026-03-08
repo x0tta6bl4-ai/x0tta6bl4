@@ -4,11 +4,9 @@ Cache (Redis) Resilience Tests
 Tests cache failure scenarios and fallback mechanisms
 """
 
-import json
 import shutil
 import subprocess
 import time
-from datetime import datetime
 from typing import Dict, Tuple
 
 import pytest
@@ -45,7 +43,7 @@ class CacheResilienceTests:
         try:
             resp = requests.get(self.HEALTH_ENDPOINT, timeout=3)
             return resp.status_code == 200, resp.status_code
-        except:
+        except Exception:
             return False, 0
 
     def check_redis_metrics(self) -> Dict:
@@ -56,7 +54,7 @@ class CacheResilienceTests:
             if data.get("status") == "success":
                 return {"connected": True, "data": data.get("data", {})}
             return {"connected": False}
-        except:
+        except Exception:
             return {"connected": False}
 
     def measure_recovery_time(self, timeout: int = 60) -> float:
@@ -203,7 +201,7 @@ class CacheResilienceTests:
                 * 100
             )
             print(f"\n{'='*60}")
-            print(f"Cache Performance Impact:")
+            print("Cache Performance Impact:")
             print(f"  Cache benefit: {cache_benefit:.1f}% faster with cache")
             print(f"{'='*60}")
 
@@ -265,7 +263,7 @@ class CacheResilienceTests:
         for i in range(10):
             try:
                 requests.get(self.HEALTH_ENDPOINT, timeout=3)
-            except:
+            except Exception:
                 pass
             time.sleep(0.1)
 
@@ -276,10 +274,10 @@ class CacheResilienceTests:
         for i in range(20):
             try:
                 start = time.time()
-                resp = requests.get(self.HEALTH_ENDPOINT, timeout=3)
+                requests.get(self.HEALTH_ENDPOINT, timeout=3)
                 elapsed = (time.time() - start) * 1000
                 times.append(elapsed)
-            except:
+            except Exception:
                 pass
             time.sleep(0.1)
 
@@ -288,7 +286,7 @@ class CacheResilienceTests:
             min_time = min(times)
             max_time = max(times)
 
-            print(f"Cache performance metrics:")
+            print("Cache performance metrics:")
             print(f"  Avg response: {avg_time:.2f}ms")
             print(f"  Min response: {min_time:.2f}ms")
             print(f"  Max response: {max_time:.2f}ms")

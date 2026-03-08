@@ -16,14 +16,13 @@ import logging
 import secrets
 import string
 import time
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
-from .vault_client import VaultClient, VaultSecretError
-from .vault_secrets import (ApiCredentials, DatabaseCredentials,
+from .vault_client import VaultClient
+from .vault_secrets import (DatabaseCredentials,
                             VaultSecretManager)
 
 logger = logging.getLogger(__name__)
@@ -141,7 +140,7 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             await self._on_failure()
             raise
 
@@ -446,7 +445,7 @@ class EnhancedDatabaseCredentialRotator:
 
                 # Step 3: Pre-validate (if using shadow strategy)
                 if self.strategy == RotationStrategy.SHADOW:
-                    logger.info(f"[Rotation] Shadow mode - validating new credentials")
+                    logger.info("[Rotation] Shadow mode - validating new credentials")
                     result.status = RotationStatus.VALIDATING
 
                     # Create temporary user for validation
@@ -494,7 +493,7 @@ class EnhancedDatabaseCredentialRotator:
                             )
 
                 # Step 5: Validate new credentials
-                logger.info(f"[Rotation] Validating new credentials")
+                logger.info("[Rotation] Validating new credentials")
                 validation_results = await self._validator.validate(
                     new_creds.to_dict(), custom_validators
                 )
@@ -505,7 +504,7 @@ class EnhancedDatabaseCredentialRotator:
                     raise Exception(f"Post-creation validation failed: {failed}")
 
                 # Step 6: Store in Vault (atomic operation)
-                logger.info(f"[Rotation] Storing new credentials in Vault")
+                logger.info("[Rotation] Storing new credentials in Vault")
                 await manager.store_database_credentials(db_name, new_creds)
                 result.new_creds_hash = self._hash_creds(new_creds.to_dict())
 
@@ -589,7 +588,7 @@ class EnhancedDatabaseCredentialRotator:
                     manager = VaultSecretManager(self.vault_client)
                     old_creds_obj = DatabaseCredentials(**old_creds)
                     await manager.store_database_credentials(db_name, old_creds_obj)
-                    logger.info(f"[Rollback] Restored old credentials in Vault")
+                    logger.info("[Rollback] Restored old credentials in Vault")
                 except Exception as e:
                     logger.error(f"[Rollback] Failed to restore old credentials: {e}")
 

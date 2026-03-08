@@ -1,0 +1,329 @@
+name: Go Dataplane Benchmark Gate
+
+# Purpose
+# --------
+# Track x0tta6bl4 Go-level dataplane throughput over time with a reproducible
+# CI gate.  These benchmarks run without root or a real NIC; they measure the
+# Go control-plane and decision-logic layers (policy rendering, XDP decision
+# simulator, kernel version parsing).
+#
+# Road to 1 M PPS
+# ----------------
+# The actual XDP/pktgen hardware benchmark (ebpf/prod/benchmark-pps.sh) is a
+# separate hardware gate.  These Go benchmarks establish a reproducible CI
+# regression signal and document progress toward production targets.
+#
+# Regression threshold: 10% slowdown on any benchmark fails the PR gate.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ebpf/prod/**'
+      - 'edge/5g/**'
+      - '.github/workflows/go-dataplane-bench.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'ebpf/prod/**'
+      - 'edge/5g/**'
+  schedule:
+    - cron: '0 3 * * 1'   # Every Monday 03:00 UTC — weekly snapshot
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Benchmark count (runs per bench, for benchstat)'
+        required: false
+        default: '5'
+
+env:
+  GOTOOLCHAIN: go1.24.0
+  GOCACHE: /tmp/go-build-bench
+
+jobs:
+  # --------------------------------------------------------------------------
+  # ebpf/prod Go dataplane benchmarks
+  # --------------------------------------------------------------------------
+  bench-ebpf-prod:
+    name: ebpf/prod dataplane bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ebpf/prod
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # need history for baseline comparison
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false            # manual cache below for reproducibility
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            /tmp/go-build-bench
+          key: go-bench-ebpf-${{ hashFiles('ebpf/prod/go.sum') }}
+          restore-keys: go-bench-ebpf-
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmarks (current branch)
+        id: bench_current
+        run: |
+          go test \
+            -run='^$' \
+            -bench=. \
+            -benchmem \
+            -benchtime=5s \
+            -count=${{ github.event.inputs.count || '5' }} \
+            . | tee /tmp/bench-current.txt
+          echo "bench_file=/tmp/bench-current.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch main-branch benchmark baseline
+        if: github.event_name == 'pull_request'
+        id: bench_baseline
+        run: |
+          git stash --include-untracked 2>/dev/null || true
+          git fetch origin main --depth=1
+          git checkout origin/main -- . 2>/dev/null || true
+          go test \
+            -run='^$' \
+            -bench=. \
+            -benchmem \
+            -benchtime=5s \
+            -count=${{ github.event.inputs.count || '5' }} \
+            . | tee /tmp/bench-baseline.txt || true
+          git checkout HEAD -- . 2>/dev/null || true
+          git stash pop 2>/dev/null || true
+          echo "baseline_file=/tmp/bench-baseline.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Compare with baseline (benchstat)
+        if: github.event_name == 'pull_request'
+        id: benchstat
+        run: |
+          if [ -s /tmp/bench-baseline.txt ]; then
+            benchstat /tmp/bench-baseline.txt /tmp/bench-current.txt \
+              | tee /tmp/benchstat-report.txt
+            # Fail if any benchmark regressed by >10% (geomean delta threshold)
+            if grep -E '\+[0-9]{2,}\..*%' /tmp/benchstat-report.txt | grep -v '~'; then
+              echo "REGRESSION_FOUND=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "REGRESSION_FOUND=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "No baseline found (first run on main); skipping comparison."
+            echo "REGRESSION_FOUND=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate JSON benchmark report
+        run: |
+          python3 - <<'PYEOF'
+          import json, re, sys, datetime, os, subprocess
+
+          raw = open("/tmp/bench-current.txt").read()
+          results = []
+          for line in raw.splitlines():
+              # Match: BenchmarkFoo-N   123456   789 ns/op   ...
+              m = re.match(
+                  r'^(Benchmark\S+)\s+(\d+)\s+([\d.]+)\s+ns/op'
+                  r'(?:\s+([\d.]+)\s+B/op)?'
+                  r'(?:\s+(\d+)\s+allocs/op)?'
+                  r'(.*)?$',
+                  line.strip()
+              )
+              if not m:
+                  continue
+              name, iterations, ns_op = m.group(1), int(m.group(2)), float(m.group(3))
+              extra_fields = {}
+              # Parse extra metrics (e.g. "decisions/sec")
+              for extra in re.finditer(r'([\d.]+)\s+([\w/]+)', m.group(6) or ""):
+                  key = extra.group(2).replace("/", "_per_")
+                  extra_fields[key] = float(extra.group(1))
+              results.append({
+                  "benchmark": name,
+                  "iterations": iterations,
+                  "ns_op": ns_op,
+                  "ops_per_sec": round(1e9 / ns_op, 0) if ns_op > 0 else 0,
+                  "b_op": float(m.group(4) or 0),
+                  "allocs_op": int(m.group(5) or 0),
+                  **extra_fields,
+              })
+
+          report = {
+              "schema_version": "1",
+              "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "commit": os.environ.get("GITHUB_SHA", "local")[:12],
+              "branch": os.environ.get("GITHUB_REF_NAME", "local"),
+              "runner": os.environ.get("RUNNER_NAME", "local"),
+              "go_version": "1.24",
+              "package": "x0tta6bl4/ebpf/prod",
+              "benchmarks": results,
+              "summary": {
+                  "xdp_decision_simulator_decisions_per_sec": next(
+                      (b.get("decisions_per_sec", 0)
+                       for b in results if "XDPDecisionSimulator" in b["benchmark"]
+                       and "Parallel" not in b["benchmark"]), 0
+                  ),
+                  "policy_render_ns_op": next(
+                      (b["ns_op"] for b in results
+                       if b["benchmark"].startswith("BenchmarkPolicyRender-")), 0
+                  ),
+                  "roadmap_target_decisions_per_sec": 5_000_000,
+                  "roadmap_target_pps_hardware": 1_000_000,
+                  "note": (
+                      "decisions/sec is Go-level; hardware PPS requires "
+                      "root+pktgen via ebpf/prod/benchmark-pps.sh"
+                  ),
+              },
+          }
+
+          out = "/tmp/bench-report.json"
+          with open(out, "w") as f:
+              json.dump(report, f, indent=2)
+
+          # Print summary to step log
+          s = report["summary"]
+          print(f"XDP decisions/sec (Go): {s['xdp_decision_simulator_decisions_per_sec']:,.0f}")
+          print(f"Policy render ns/op:    {s['policy_render_ns_op']:.1f}")
+          print(f"Roadmap target (Go):    {s['roadmap_target_decisions_per_sec']:,} decisions/sec")
+          print(f"Roadmap target (HW):    {s['roadmap_target_pps_hardware']:,} PPS (hardware gate)")
+          PYEOF
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataplane-bench-ebpf-prod-${{ github.sha }}
+          path: |
+            /tmp/bench-current.txt
+            /tmp/bench-baseline.txt
+            /tmp/benchstat-report.txt
+            /tmp/bench-report.json
+          retention-days: 90
+
+      - name: Post PR comment with benchmark summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = {};
+            try { report = JSON.parse(fs.readFileSync('/tmp/bench-report.json', 'utf8')); }
+            catch(e) { return; }
+
+            const s = report.summary || {};
+            const decisionsM = (s.xdp_decision_simulator_decisions_per_sec / 1e6).toFixed(1);
+            const policyNs = s.policy_render_ns_op ? s.policy_render_ns_op.toFixed(0) : 'n/a';
+            const regressionFound = '${{ steps.benchstat.outputs.REGRESSION_FOUND }}' === 'true';
+            const statusIcon = regressionFound ? '⚠️' : '✅';
+
+            let benchstatSection = '';
+            try {
+              const bsRaw = fs.readFileSync('/tmp/benchstat-report.txt', 'utf8');
+              if (bsRaw.trim()) {
+                benchstatSection = `\n<details><summary>benchstat comparison</summary>\n\n\`\`\`\n${bsRaw}\n\`\`\`\n</details>`;
+              }
+            } catch(e) {}
+
+            const body = [
+              `## ${statusIcon} Go Dataplane Benchmark — \`${report.commit}\``,
+              '',
+              `| Metric | Value | Roadmap Target |`,
+              `|--------|-------|----------------|`,
+              `| XDP decisions/sec (Go) | **${decisionsM} M/s** | 5 M/s Go-level |`,
+              `| Policy render | **${policyNs} ns/op** | — |`,
+              `| Hardware PPS (CI-blocked) | _requires root+pktgen_ | **1 M PPS** |`,
+              '',
+              regressionFound
+                ? '> **⚠️ Benchmark regression detected** — review benchstat output below.'
+                : '> No regressions detected.',
+              benchstatSection,
+              '',
+              `_[Full artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Fail on regression
+        if: steps.benchstat.outputs.REGRESSION_FOUND == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "Benchmark regression >10% detected — see benchstat report in artifacts."
+          exit 1
+
+      - name: Step summary
+        if: always()
+        run: |
+          python3 - <<'PYEOF'
+          import json, os
+          try:
+              r = json.load(open("/tmp/bench-report.json"))
+              s = r["summary"]
+              print(f"## Go Dataplane Benchmark Results\n")
+              print(f"| Benchmark | ns/op | ops/s |")
+              print(f"|-----------|-------|-------|")
+              for b in r["benchmarks"]:
+                  if "Parallel" not in b["benchmark"] and b["ns_op"] > 0:
+                      ops = f"{1e9/b['ns_op']:,.0f}"
+                      print(f"| {b['benchmark']} | {b['ns_op']:.1f} | {ops} |")
+              print(f"\n**XDP Decision Simulator:** {s['xdp_decision_simulator_decisions_per_sec']:,.0f} decisions/sec")
+              print(f"\n_Hardware target: {s['roadmap_target_pps_hardware']:,} PPS (gate: ebpf/prod/benchmark-pps.sh)_")
+          except Exception as e:
+              print(f"Could not parse report: {e}")
+          PYEOF
+
+  # --------------------------------------------------------------------------
+  # edge/5g Go benchmarks (QoS monitor, slice manager)
+  # --------------------------------------------------------------------------
+  bench-edge-5g:
+    name: edge/5g QoS bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-bench-5g-${{ hashFiles('go.sum') }}
+          restore-keys: go-bench-5g-
+
+      - name: Run edge/5g benchmarks
+        id: bench_5g
+        run: |
+          env GOCACHE=/tmp/go-build-5g \
+          go test \
+            -run='^$' \
+            -bench=. \
+            -benchmem \
+            -benchtime=3s \
+            -count=3 \
+            ./edge/5g/... 2>&1 | tee /tmp/bench-5g.txt || true
+          echo "bench_file=/tmp/bench-5g.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Upload 5G bench artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataplane-bench-5g-${{ github.sha }}
+          path: /tmp/bench-5g.txt
+          retention-days: 90

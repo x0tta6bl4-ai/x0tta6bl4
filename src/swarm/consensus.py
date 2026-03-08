@@ -6,7 +6,6 @@ decision making for swarm coordination.
 """
 
 import asyncio
-import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -354,7 +353,7 @@ class ConsensusEngine:
     def _evaluate_consensus(self, decision: Decision) -> ConsensusResult:
         """Evaluate consensus based on algorithm."""
         counts = decision.get_vote_counts()
-        participation = decision.get_participation()
+        decision.get_participation()
         quorum_met = decision.is_quorum_met()
         
         if decision.algorithm == ConsensusAlgorithm.SIMPLE_MAJORITY:

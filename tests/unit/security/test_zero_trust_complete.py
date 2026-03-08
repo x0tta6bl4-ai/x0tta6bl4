@@ -17,8 +17,7 @@ from src.security.continuous_verification import (ContinuousVerificationEngine,
                                                   VerificationType)
 from src.security.decentralized_identity import (DIDGenerator, DIDManager,
                                                  DIDResolver,
-                                                 MeshCredentialTypes,
-                                                 VerifiableCredential)
+                                                 MeshCredentialTypes)
 from src.security.policy_engine import (AttributeType, Policy, PolicyCondition,
                                         PolicyEffect, PolicyEngine,
                                         PolicyPriority, PolicyRule)
@@ -335,7 +334,7 @@ class TestPolicyEngine:
         engine = PolicyEngine("node-1")
 
         # High trust node accessing sensitive resource
-        decision = engine.evaluate(
+        engine.evaluate(
             subject={"node_id": "trusted-node", "trust_level": 80},
             resource="/api/sensitive",
             action="read",
@@ -498,8 +497,8 @@ class TestIntegration:
         did_manager = DIDManager("node-1")
 
         # 2. Initialize all components
-        threat_intel = ThreatIntelligenceEngine("node-1")
-        isolation_mgr = AutoIsolationManager("node-1")
+        ThreatIntelligenceEngine("node-1")
+        AutoIsolationManager("node-1")
         policy_engine = PolicyEngine("node-1")
         verification_engine = ContinuousVerificationEngine("node-1")
 
@@ -557,7 +556,7 @@ class TestIntegration:
         assert threat_intel.is_blocked("attacker-node")
 
         # Manual isolation
-        record = isolation_mgr.isolate(
+        isolation_mgr.isolate(
             node_id="attacker-node",
             reason=IsolationReason.THREAT_DETECTED,
             details=f"Indicator: {indicator.id}",

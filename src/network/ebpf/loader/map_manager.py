@@ -10,7 +10,7 @@ Handles:
 import json
 import logging
 import subprocess
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ class EBPFMapManager:
                 return False
                 
         except subprocess.TimeoutExpired:
-            logger.error(f"bpftool map update timed out")
+            logger.error("bpftool map update timed out")
             return False
         except Exception as e:
             logger.error(f"Error updating map {map_name}: {e}")

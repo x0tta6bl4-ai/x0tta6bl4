@@ -5,8 +5,6 @@ eBPF Map Manager - Write and update eBPF maps from userspace
 import logging
 import subprocess
 import socket
-import struct
-from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +42,6 @@ class EBPFMapManager:
             return False
 
         try:
-            cmd = ["bpftool", "map", "update", "name", map_name, "key", key_hex, "value", value_hex]
             # Use shell=True if needed for complex hex strings, but list is safer
             # We need to split the key_hex string into individual arguments for subprocess
             full_cmd = ["bpftool", "map", "update", "name", map_name, "key"] + key_hex.split() + ["value", value_hex]

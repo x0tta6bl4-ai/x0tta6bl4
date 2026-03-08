@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/storage/knowledge_storage_v2.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.7, '/var/lib/x0tta6bl4', 'UNKNOWN', 'anomaly_type', 'default', 'duration', 'embedding', 'execution_result', 'hnsw_index', 'id', 'incident_id', 'incidents.db', 'ipfs_available', 'ipfs_cid', 'metrics', 'node_id', 'recovery_plan', 'root_cause', 'signature', 'similarity', 'success', 'sync', 'timestamp', 'tolist', 'total_incidents', 'vector_index_stats', '💾 Vector index saved']

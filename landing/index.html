@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>x0tta6bl4 MaaS — Self-Healing Quantum-Safe Mesh Network</title>
+  <meta name="description" content="Post-quantum mesh network with AI self-healing. 1.8s MTTR, 98.5% uptime, FIPS 203/204 PQC. Deploy in one command." />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --border: #334155;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; }
+
+    /* ── Nav ── */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 48px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: rgba(15,23,42,0.95);
+      backdrop-filter: blur(8px); z-index: 100;
+    }
+    .logo { font-weight: 700; font-size: 18px; color: var(--green); font-family: var(--mono); }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-primary {
+      background: var(--green); color: #000; border: none; border-radius: 6px;
+      padding: 8px 20px; font-weight: 600; font-size: 14px; cursor: pointer;
+      text-decoration: none; transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .85; }
+    .btn-secondary {
+      background: transparent; color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 20px; font-weight: 500; font-size: 14px;
+      cursor: pointer; text-decoration: none; transition: border-color .15s;
+    }
+    .btn-secondary:hover { border-color: var(--muted); }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: 900px; margin: 0 auto; text-align: center;
+      padding: 96px 24px 64px;
+    }
+    .badge {
+      display: inline-block; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--green);
+      margin-bottom: 24px; font-family: var(--mono);
+    }
+    h1 { font-size: clamp(36px, 5vw, 64px); font-weight: 800; line-height: 1.1; margin-bottom: 20px; }
+    h1 span { color: var(--green); }
+    .hero-sub { font-size: 18px; color: var(--muted); max-width: 600px; margin: 0 auto 40px; }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+
+    /* ── Metrics bar ── */
+    .metrics {
+      display: flex; gap: 0; justify-content: center;
+      border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; max-width: 700px; margin: 0 auto;
+      background: var(--surface);
+    }
+    .metric { flex: 1; padding: 20px 24px; text-align: center; border-right: 1px solid var(--border); }
+    .metric:last-child { border-right: none; }
+    .metric-value { font-size: 28px; font-weight: 700; color: var(--green); font-family: var(--mono); }
+    .metric-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Demo video placeholder ── */
+    .demo-section { padding: 80px 24px; max-width: 900px; margin: 0 auto; }
+    .demo-section h2 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+    .demo-section p { color: var(--muted); text-align: center; margin-bottom: 32px; }
+    .video-frame {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .play-btn {
+      width: 72px; height: 72px; background: var(--green); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform .15s; position: relative; z-index: 2;
+    }
+    .play-btn:hover { transform: scale(1.1); }
+    .play-btn svg { margin-left: 4px; }
+    .video-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+
+    /* ── Features ── */
+    .features { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+    .features h2 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+    .features-sub { color: var(--muted); text-align: center; margin-bottom: 48px; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px; transition: border-color .15s;
+    }
+    .feature-card:hover { border-color: var(--green); }
+    .feature-icon { font-size: 24px; margin-bottom: 12px; }
+    .feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--muted); }
+    .feature-tag {
+      display: inline-block; margin-top: 12px; font-size: 11px; font-family: var(--mono);
+      background: rgba(34,197,94,.1); color: var(--green); border-radius: 4px; padding: 2px 8px;
+    }
+
+    /* ── Install ── */
+    .install { padding: 80px 24px; max-width: 700px; margin: 0 auto; text-align: center; }
+    .install h2 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    .install p { color: var(--muted); margin-bottom: 32px; }
+    .code-block {
+      background: #0a0f1a; border: 1px solid var(--border); border-radius: 8px;
+      padding: 20px 24px; text-align: left; position: relative;
+      font-family: var(--mono); font-size: 13px; color: #a5f3fc;
+      margin-bottom: 16px; overflow-x: auto;
+    }
+    .code-block .comment { color: var(--muted); }
+    .code-block .cmd { color: var(--green); }
+    .copy-btn {
+      position: absolute; top: 12px; right: 12px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px;
+      font-size: 11px; color: var(--muted); cursor: pointer;
+    }
+
+    /* ── CTA ── */
+    .cta-section {
+      padding: 96px 24px; text-align: center;
+      background: linear-gradient(180deg, transparent 0%, rgba(34,197,94,.04) 100%);
+    }
+    .cta-section h2 { font-size: 40px; font-weight: 800; margin-bottom: 16px; }
+    .cta-section p { color: var(--muted); font-size: 18px; margin-bottom: 40px; }
+    .cta-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border); padding: 32px 48px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--muted); font-size: 13px; flex-wrap: wrap; gap: 12px;
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    .footer-links { display: flex; gap: 20px; }
+
+    @media (max-width: 600px) {
+      nav { padding: 12px 20px; }
+      .metrics { flex-direction: column; }
+      .metric { border-right: none; border-bottom: 1px solid var(--border); }
+      .metric:last-child { border-bottom: none; }
+      footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="logo">x0tta6bl4</div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#install">Install</a>
+    <a href="docs/commercial/INSTALL.html">Docs</a>
+    <a href="https://gitlab.com/x0tta/x0tta6bl4">GitHub</a>
+    <a href="mailto:enterprise@x0tta6bl4.io" class="btn-secondary">Enterprise</a>
+    <a href="#install" class="btn-primary">Get Started</a>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="badge">v1.0.0 — Production Release</div>
+  <h1>The Mesh Network That<br/><span>Heals Itself</span></h1>
+  <p class="hero-sub">
+    Post-quantum secure, AI-powered mesh networking with 1.8-second mean time to recovery.
+    Deploy on Kubernetes in one command.
+  </p>
+  <div class="hero-ctas">
+    <a href="#install" class="btn-primary">Deploy in 5 minutes</a>
+    <a href="#demo" class="btn-secondary">Watch 2-min demo</a>
+    <a href="mailto:enterprise@x0tta6bl4.io" class="btn-secondary">Enterprise trial</a>
+  </div>
+
+  <!-- Metrics bar -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-value">1.8s</div>
+      <div class="metric-label">MTTR (target: 2.5s)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">98.5%</div>
+      <div class="metric-label">Uptime (100-node test)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">12.4</div>
+      <div class="metric-label">Mbps throughput</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">94%</div>
+      <div class="metric-label">GNN accuracy</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Demo video ── -->
+<section class="demo-section" id="demo">
+  <h2>See It Recover in Real Time</h2>
+  <p>30% of nodes killed. Back online in 1.8 seconds. Zero manual intervention.</p>
+  <div class="video-frame" onclick="this.innerHTML='<iframe width=100% height=100% src=https://www.youtube.com/embed/PLACEHOLDER?autoplay=1 frameborder=0 allowfullscreen></iframe>'">
+    <div class="video-overlay"></div>
+    <div class="play-btn">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#000">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ── -->
+<section class="features" id="features">
+  <h2>Built for Production From Day One</h2>
+  <p class="features-sub">Every feature chaos-tested on 100-node testnet</p>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">&#9889;</div>
+      <h3>AI Self-Healing (MAPE-K)</h3>
+      <p>GraphSAGE GNN detects anomalies with 94% accuracy. MAPE-K loop triggers remediation automatically — no pager wake-ups at 3am.</p>
+      <span class="feature-tag">MTTR 1.8s</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128274;</div>
+      <h3>Post-Quantum Security</h3>
+      <p>Kyber-768 key encapsulation + Dilithium3 signatures. FIPS 203/204 compliant. Ready for the quantum threat today.</p>
+      <span class="feature-tag">NIST FIPS 203/204</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#127760;</div>
+      <h3>Global Mesh Topology</h3>
+      <p>libp2p + batman-adv layer-2 routing. Works over WiFi, 5G, Ethernet, and satellite. D3.js real-time topology dashboard.</p>
+      <span class="feature-tag">amd64 + arm64</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128202;</div>
+      <h3>8 Grafana Dashboards</h3>
+      <p>Topology overview, SLA metrics, PQC handshake heatmap, self-healing events — all pre-configured with Prometheus.</p>
+      <span class="feature-tag">30-day retention</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#127970;</div>
+      <h3>Multi-Tenant Enterprise</h3>
+      <p>Namespace isolation, RBAC roles, per-tenant ResourceQuotas, NetworkPolicies. Onboard new tenants with one Helm value.</p>
+      <span class="feature-tag">SOC 2 ready</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#129302;</div>
+      <h3>AI-Powered Operations</h3>
+      <p>MCP server exposes AI tools: log analysis, chaos testing, routing optimisation. Gemini/Claude → mesh API integration.</p>
+      <span class="feature-tag">MCP Protocol</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Install ── -->
+<section class="install" id="install">
+  <h2>Deploy in One Command</h2>
+  <p>Kubernetes 1.28+ required. Helm 3.14+.</p>
+
+  <div class="code-block">
+    <button class="copy-btn" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">copy</button>
+    <pre><span class="comment"># Add Helm OCI registry</span>
+<span class="cmd">helm</span> registry login registry.gitlab.com \
+  -u &lt;user&gt; -p &lt;token&gt;
+
+<span class="comment"># Deploy enterprise release</span>
+<span class="cmd">helm</span> upgrade --install x0tta \
+  oci://registry.gitlab.com/x0tta/charts/x0tta6bl4-commercial \
+  --version 1.0.0 \
+  --namespace x0tta-production \
+  --create-namespace \
+  --values values-enterprise.yaml \
+  --wait --timeout=15m</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:14px;margin-top:8px">
+    Or <a href="production/all-in-one.yaml" style="color:var(--blue)">kubectl apply -f production/all-in-one.yaml</a>
+    &nbsp;|&nbsp;
+    <a href="docs/commercial/INSTALL.html" style="color:var(--blue)">Full install guide (AWS/GCP/Azure/bare metal)</a>
+  </p>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <h2>Ready to Ship Quantum-Safe?</h2>
+  <p>Join 3 design partners already running x0tta6bl4 in production.</p>
+  <div class="cta-group">
+    <a href="mailto:enterprise@x0tta6bl4.io" class="btn-primary" style="font-size:16px;padding:12px 32px;">
+      Start Enterprise Trial
+    </a>
+    <a href="https://gitlab.com/x0tta/x0tta6bl4" class="btn-secondary" style="font-size:16px;padding:12px 32px;">
+      View on GitLab
+    </a>
+  </div>
+  <p style="margin-top:24px;font-size:13px;color:var(--muted)">
+    No credit card required. 30-day trial. Dedicated onboarding engineer.
+  </p>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="logo">x0tta6bl4</div>
+  <div class="footer-links">
+    <a href="docs/commercial/INSTALL.html">Docs</a>
+    <a href="docs/commercial/SECURITY.html">Security</a>
+    <a href="docs/commercial/ROADMAP.html">Roadmap</a>
+    <a href="https://gitlab.com/x0tta/x0tta6bl4/-/issues">Issues</a>
+    <a href="mailto:enterprise@x0tta6bl4.io">Contact</a>
+  </div>
+  <div>&#169; 2026 x0tta6bl4. All rights reserved.</div>
+</footer>
+
+<script>
+  // Live metric animation on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.metric-value').forEach(el => {
+          el.style.transform = 'translateY(0)';
+          el.style.opacity = '1';
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+
+  document.querySelector('.metrics') && observer.observe(document.querySelector('.metrics'));
+</script>
+
+</body>
+</html>

@@ -64,7 +64,7 @@ RUN grep -iv '^torch' requirements.txt > /tmp/requirements-no-torch.txt && \
 FROM python:3.12-slim AS runtime
 
 LABEL maintainer="x0tta6bl4 Team" \
-    version="3.2.1" \
+    version="3.4.0" \
     description="Self-healing mesh node with post-quantum cryptography"
 
 # Runtime system deps (curl for healthcheck, libssl for crypto)

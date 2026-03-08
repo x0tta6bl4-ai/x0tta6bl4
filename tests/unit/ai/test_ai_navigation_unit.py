@@ -1,7 +1,6 @@
 """Unit tests for AI Navigation modules."""
 import os
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

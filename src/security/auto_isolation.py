@@ -281,8 +281,47 @@ class AutoIsolationManager:
         )
         self._lock = threading.RLock()
         self._callbacks: List[Callable[[str, IsolationLevel], None]] = []
+        
+        # Zero-Trust XDP Enforcement
+        try:
+            from src.network.ebpf.quarantine_manager import QuarantineManager
+            self._quarantine = QuarantineManager()
+            self.register_callback(self._enforce_network_isolation)
+        except Exception as e:
+            logger.error(f"XDP Quarantine enforcement not available: {e}")
+            self._quarantine = None
 
         logger.info(f"AutoIsolationManager initialized for {node_id}")
+
+    def _enforce_network_isolation(self, node_id: str, level: IsolationLevel) -> None:
+        """Bridge between logic and kernel-level enforcement."""
+        if not self._quarantine:
+            return
+
+        # We need the IP address of the node.
+        # In a real system, we'd resolve node_id to IP via discovery service.
+        # For this implementation, we assume node_id is the IP for simplicity
+        # or it can be resolved.
+        # 
+        # NOTE: This assumes node_id format is IP address. For UUID/hostname formats,
+        # a proper resolution service should be implemented.
+        ip_address = node_id
+        
+        # Validate IP format for logging/warning purposes
+        import ipaddress
+        try:
+            ipaddress.ip_address(ip_address)
+        except ValueError:
+            logger.warning(
+                f"Node ID '{node_id}' does not appear to be a valid IP address. "
+                f"Using as-is for quarantine. Consider implementing node-to-IP resolution."
+            )
+        
+        if level in [IsolationLevel.QUARANTINE, IsolationLevel.BLOCKED]:
+            self._quarantine.block_node(ip_address, level=level.value)
+        elif level == IsolationLevel.NONE:
+            self._quarantine.unblock_node(ip_address)
+
 
     def register_callback(
         self, callback: Callable[[str, IsolationLevel], None]

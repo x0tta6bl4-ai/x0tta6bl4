@@ -17,12 +17,10 @@ Reference: NIST Post-Quantum Cryptography Standardization
 import asyncio
 import hashlib
 import logging
-import os
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 import secrets
 
 logger = logging.getLogger(__name__)
@@ -381,7 +379,7 @@ class WANOverlayPQC:
             local_keys = self._local_keys.get(config.local_node_id)
             
             if not remote_keys or not local_keys:
-                raise ValueError(f"Missing keys for handshake")
+                raise ValueError("Missing keys for handshake")
             
             shared_secrets = []
             
@@ -476,7 +474,7 @@ class WANOverlayPQC:
             return False
         
         # Encrypt data
-        encrypted = self._encrypt_packet(session, data)
+        self._encrypt_packet(session, data)
         
         # Update session
         session.tx_counter += 1
@@ -511,7 +509,7 @@ class WANOverlayPQC:
         
         # Parse header
         counter = int.from_bytes(packet[:8], 'big')
-        nonce = packet[8:20]
+        packet[8:20]
         ciphertext = packet[20:]
         
         # Replay protection

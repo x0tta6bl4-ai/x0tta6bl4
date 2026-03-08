@@ -3,9 +3,8 @@ Comprehensive unit tests for src/sales/telegram_bot.py
 """
 
 import os
-import secrets
 import time
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -757,7 +756,7 @@ class TestConfirmPayment:
         mock_ton = MagicMock()
         mock_ton.verify_payment.return_value = {"verified": False}
 
-        with patch("src.sales.telegram_bot.TronScanVerifier", return_value=mock_tron) as tron_cls, \
+        with patch("src.sales.telegram_bot.TronScanVerifier", return_value=mock_tron), \
              patch("src.sales.telegram_bot.TONVerifier", return_value=mock_ton):
             await confirm_payment(update, ctx)
 

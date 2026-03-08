@@ -312,7 +312,7 @@ class TestNetworkPartition:
         twin.simulate_network_partition(nodes[:2], nodes[2:])
 
         # All links should be back up
-        up_links = sum(1 for l in twin.links.values() if l.state == LinkState.UP)
+        up_links = sum(1 for link in twin.links.values() if link.state == LinkState.UP)
         assert up_links == len(twin.links)
 
 

@@ -1,0 +1,25 @@
+# Default values — override with values-enterprise.yaml for production.
+global:
+  imageTag: "1.0.0"
+  imageRegistry: registry.gitlab.com/x0tta
+  slot: blue
+  domain: x0tta6bl4.io
+  environment: production
+  tenants: []
+  federation:
+    enabled: false
+    relays: []
+  rbac:
+    sreGroup: "x0tta-sre"
+    auditGroup: "x0tta-auditors"
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+monitoring:
+  pagerduty:
+    enabled: false
+    integrationKey: ""

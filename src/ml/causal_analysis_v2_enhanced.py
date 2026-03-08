@@ -23,11 +23,11 @@ Target Metrics:
 
 import hashlib
 import logging
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -600,7 +600,7 @@ class EnhancedCausalAnalysisEngine:
                     explanation=f"Cascading failure from dependent service {failed_dep.service_id}",
                     contributing_factors=[
                         f"Service {failed_dep.service_id} failed first",
-                        f"This service depends on it",
+                        "This service depends on it",
                     ],
                     remediation_suggestions=[
                         f"Restart service {failed_dep.service_id}",

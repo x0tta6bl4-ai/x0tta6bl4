@@ -14,13 +14,12 @@ Implements real recovery actions with advanced features:
 - Retry logic
 """
 
-import asyncio
 import logging
 import shutil
 import subprocess
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
@@ -114,7 +113,7 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -335,7 +334,6 @@ class RecoveryActionExecutor:
         action_type = self._parse_action_type(action)
 
         # Execute with retry logic
-        last_exception = None
         for attempt in range(self.max_retries):
             try:
                 # Execute through circuit breaker if enabled
@@ -368,7 +366,6 @@ class RecoveryActionExecutor:
                 return result.success
 
             except Exception as e:
-                last_exception = e
                 logger.warning(
                     f"Recovery action attempt {attempt + 1}/{self.max_retries} failed: {e}"
                 )

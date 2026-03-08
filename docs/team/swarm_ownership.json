@@ -31,6 +31,11 @@
     "agent4-devops-ci": {
       "description": "CI/CD and containerization",
       "allow": [
+        "RC1_STATUS_PAGE.md",
+        "RC1_MANIFEST.json.sig",
+        "CHANGELOG.md",
+        "RC1_MANIFEST.json",
+        "infra/",
         ".gitlab-ci.yml",
         "docker/",
         "docker-compose.production.yml",
@@ -60,7 +65,9 @@
         "scripts/build_client.sh",
         "scripts/spire/",
         "docker-compose.spire.yml",
-        "src/services/maas_auth_service.py"
+        "src/services/maas_auth_service.py",
+        ".github/",
+        ".gitlab-ci.yml.ebpf"
       ]
     },
     "claude-maas-reviewer": {
@@ -90,9 +97,29 @@
         "tests/unit/services/test_maas_auth_service_unit.py"
       ]
     },
+    "claude": {
+      "description": "Claude Code \u2014 verification, SBOM, compliance, release-gate docs",
+      "allow": [
+        "scripts/verify-v1.1.sh",
+        "docs/verification/",
+        "compliance/soc2/",
+        "security/sbom/",
+        "docs/commercial/",
+        "docs/STATUS.md",
+        "version.txt",
+        "version.txt.hash",
+        "model.hash",
+        "config.hmac"
+      ]
+    },
     "codex-implementer": {
       "description": "Codex implementation lane for MaaS 80/20 delivery",
       "allow": [
+        "RC1_RELEASE_NOTES.md.sig",
+        "RC1_RELEASE_NOTES.md",
+        "README.md",
+        "docs/release/",
+        "docs/05-operations/",
         "src/",
         "tests/",
         "libx0t/",
@@ -167,6 +194,7 @@
         "scripts/mesh_exit_node.py",
         "scripts/mesh_server.py",
         "scripts/apply_vpn_mobile_fix.sh",
+        "scripts/setup_k8s_staging.sh",
         "scripts/ops/",
         "scripts/agents/agent_cycle_profiles.json",
         "scripts/agents/run_agent_cycle.py",
@@ -186,16 +214,45 @@
         "utrecht-deploy-manifest.yaml",
         "values-utrecht.yaml",
         "config.yml",
-        ".gitlab-ci.yml.ebpf"
+        ".gitlab-ci.yml.ebpf",
+        "agent/",
+        "go.mod",
+        "go.sum"
+      ]
+    },
+    "codex": {
+      "description": "Codex implementation lane for 5G/Open5GS and integration tests",
+      "allow": [
+        "edge/5g/",
+        "integration/",
+        "test/",
+        "scripts/verify-5g-path.sh",
+        "README.v1.1.md",
+        "docs/v1.1/VERIFICATION-MATRIX.md"
+      ]
+    },
+    "gemini": {
+      "description": "Gemini lane for eBPF datapath and live attach follow-up",
+      "allow": [
+        "ebpf/prod/",
+        "edge/5g/ebpf/",
+        "scripts/ebpf_prometheus_exporter.py",
+        "scripts/generate_validation_bundle.py",
+        "scripts/ebpf_cleanup_safe.sh",
+        "scripts/cleanup_root.sh"
       ]
     },
     "lead-coordinator": {
       "description": "Swarm governance and guardrails",
       "allow": [
+        "AGENT_SYNC_INSTRUCTIONS.md",
         "docs/TEAM_RESPONSIBILITIES.md",
         "docs/team/SWARM_OPERATING_MODEL.md",
         "docs/team/swarm_ownership.json",
+        "docs/verification/v1.1-hardening-status.md",
+        "scripts/agent-coord.sh",
         "scripts/agents/check_swarm_ownership.py",
+        "scripts/agents/request_channel.sh",
         "scripts/agents/swarm_coord.py",
         "scripts/agents/install_swarm_hook.sh",
         "scripts/agents/start_swarm_session.sh",
@@ -203,7 +260,13 @@
         ".githooks/pre-commit",
         ".githooks/post-commit",
         "plans/",
-        "COORDINATION.md"
+        "docs/rfc/RAG-RFC.md",
+        "docs/v1.1/RAG-RFC.md",
+        "COORDINATION.md",
+        "AGENTS.md",
+        ".agent-coord/",
+        "go.mod",
+        "go.sum"
       ]
     }
   }

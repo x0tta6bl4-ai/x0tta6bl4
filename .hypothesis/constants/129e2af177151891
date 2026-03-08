@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/spiffe/controller/__init__.py
+# hypothesis_version: 6.151.9
+
+['SPIFFEController']

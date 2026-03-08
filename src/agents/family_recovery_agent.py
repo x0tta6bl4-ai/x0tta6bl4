@@ -2,7 +2,6 @@ import os
 import subprocess
 import json
 import time
-from pathlib import Path
 
 # Конфигурация
 SOURCE_BASE = "/mnt/projects/recovered_photos"
@@ -13,8 +12,7 @@ LOG_FILE = "/mnt/projects/FAMILY_RECOVERY_LIVE.log"
 def log(message):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with open(LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {message}
-")
+        f.write(f"[{timestamp}] {message}\n")
     print(message)
 
 def organize_directory(dir_path):
@@ -48,7 +46,7 @@ def main():
         try:
             with open(STATE_FILE, "r") as f:
                 processed_dirs = set(json.load(f))
-        except:
+        except Exception:
             pass
 
     # Поиск всех папок PhotoRec

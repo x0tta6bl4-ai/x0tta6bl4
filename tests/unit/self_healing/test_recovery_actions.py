@@ -4,8 +4,7 @@ Unit tests for Recovery Actions.
 Tests production-ready recovery actions.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

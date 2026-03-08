@@ -39,12 +39,13 @@
 |-----------|----------|--------|---------------|
 | 🧠 **MAPE-K Loop** | Self-healing архитектура: Monitor → Analyze → Plan → Execute → Knowledge | ✅ Production | 90% |
 | 🔐 **PQC Crypto** | ML-KEM-768 + ML-DSA-65 (NIST FIPS 203/204) + AES-256-GCM | ✅ Production | 92% |
-| ⚡ **eBPF XDP** | Kernel-space packet processing, SipHash-2-4 MAC verification | ✅ Production | 95% |
+| ⚡ **eBPF XDP** | Physical NIC attach (enp8s0), measured baseline: 142k TX / 49 RX PPS | ✅ RC1 Baseline | 95% |
 | 🆔 **SPIFFE/SPIRE** | Zero Trust идентификация workloads, mTLS | ✅ Production | 90% |
 | 🔄 **CRDT** | Conflict-free Replicated Data Types: LWWRegister, ORSet, LWWMap, GCounter, PNCounter | ✅ Production | 95% |
 | 🤖 **ConsciousnessEngine** | GraphSAGE anomaly detection + LocalLLM decision making | ✅ Active | 85% |
 | 🌐 **Mesh Network** | Yggdrasil-based децентрализованная сеть | ✅ Production | 80% |
 | 🏛️ **DAO Governance** | Quadratic voting, децентрализованное управление | ✅ Production | 85% |
+| 📶 **5G Adapter** | SCTP Signaling verified, PFCP session logic implemented | ✅ RC1 Partial | 75% |
 | 🤖 **Agent Swarm** | Kimi K2.5 Agent Swarm с PARL (100 workers, 4.5x speedup) | ✅ Production | 90% |
 | 🛡️ **AntiMeaveOracle** | Capability-based access control, threat detection для агентов | ✅ Complete | 100% |
 | 🧠 **PARL Module** | Parallel-Agent Reinforcement Learning: Controller, Worker, Scheduler | ✅ Complete | 100% |
@@ -77,7 +78,8 @@
 ### Требования
 
 - Python 3.12+
-- Linux kernel 5.10+ (для eBPF XDP)
+- **Go 1.24+** (обязательно для eBPF и 5G модулей)
+- Linux kernel 6.1+ (рекомендуется для CO-RE eBPF и XDP)
 - Docker & Docker Compose (опционально)
 - liboqs (для PQC)
 

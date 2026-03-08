@@ -1,5 +1,4 @@
 """Smoke tests for PQCCertificateAuthority and PQCIdentityManager."""
-import pytest
 from src.security.pqc_ca import PQCCertificateAuthority, PQCIdentityManager, PQCSVID
 
 

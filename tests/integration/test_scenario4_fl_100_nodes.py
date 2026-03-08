@@ -15,8 +15,7 @@ Integration Tests for Scenario 4: FL Coordinator на 100 узлах
 import asyncio
 import random
 import time
-from typing import Dict, List
-from unittest.mock import AsyncMock, MagicMock
+from typing import Dict
 
 import pytest
 import pytest_asyncio

@@ -16,17 +16,13 @@ Features:
 """
 
 import ast
-import json
 import logging
-import os
 import re
-import subprocess
-import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,6 @@ Comprehensive unit tests for src/simulation/digital_twin.py.
 """
 
 import json
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -7,9 +7,7 @@ All external eBPF/bcc dependencies are mocked.
 """
 
 import asyncio
-import time
-from dataclasses import asdict
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

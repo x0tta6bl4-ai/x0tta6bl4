@@ -7,10 +7,9 @@ Manages ML lifecycle in production.
 
 import asyncio
 import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -97,7 +96,7 @@ class ModelRegistry:
         try:
             obj_str = str(obj)
             return hashlib.sha256(obj_str.encode()).hexdigest()[:16]
-        except:
+        except Exception:
             return "unknown"
 
     def get_model(self, name: str, version: Optional[str] = None) -> Optional[Any]:
@@ -459,7 +458,7 @@ async def example_mlops_workflow():
         {"score": 0.85},
     ]
 
-    alert = await manager.monitor.update_metrics(
+    await manager.monitor.update_metrics(
         "anomaly_detector", "1.0.0", predictions
     )
 

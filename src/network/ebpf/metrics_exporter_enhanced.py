@@ -11,12 +11,10 @@ This module builds upon the existing EBPFMetricsExporter to provide:
 
 import json
 import logging
-import struct
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.network.ebpf.metrics_exporter import EBPFMetricsExporter

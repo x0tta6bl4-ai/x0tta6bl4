@@ -1,12 +1,10 @@
 """Unit tests for run_janitor.py entrypoint."""
-import sys
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 
 class TestJanitorMain:
     def test_main_runs_janitor_loop(self):
-        with patch("src.services.run_janitor.marketplace_janitor_loop", new_callable=AsyncMock) as mock_loop:
+        with patch("src.services.run_janitor.marketplace_janitor_loop", new_callable=AsyncMock):
             with patch("asyncio.run") as mock_run:
                 from src.services.run_janitor import main
                 main()

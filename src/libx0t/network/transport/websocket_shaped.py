@@ -4,10 +4,8 @@ WebSocket транспорт с интегрированным Traffic Shaping.
 """
 
 import asyncio
-import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
@@ -24,9 +22,9 @@ except ImportError:
     WebSocketClientProtocol = None
     WebSocketServerProtocol = None
 
-from src.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
-                                     TrafficProfile, TrafficShaper,
-                                     TransportManager)
+from libx0t.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
+                                        TrafficProfile, TrafficShaper,
+                                        TransportManager)
 
 logger = logging.getLogger(__name__)
 

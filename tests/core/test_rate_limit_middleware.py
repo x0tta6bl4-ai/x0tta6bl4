@@ -2,8 +2,6 @@
 Tests for Rate Limit Middleware.
 """
 
-import asyncio
-from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import FastAPI

@@ -8,7 +8,6 @@ Compatible with Ubuntu 24.04+
 from bcc import BPF
 import time
 import sys
-import os
 
 # Minimal BPF program - just count packets
 bpf_text = """
@@ -34,7 +33,8 @@ def main(interface="singbox_tun"):
     import subprocess
     res = subprocess.run(["ip", "addr", "show", interface], capture_output=True)
     if res.returncode != 0:
-        print(f"[!] Interface {interface} not found. Waiting...")        return
+        print(f"[!] Interface {interface} not found. Waiting...")
+        return
 
     try:
         b = BPF(text=bpf_text)

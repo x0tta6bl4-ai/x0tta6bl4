@@ -1,8 +1,6 @@
 """Unit tests for src/dao/token_bridge.py."""
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -160,7 +158,7 @@ class TestInitWeb3:
 
         with patch("src.dao.token_bridge.Web3", mock_web3_cls):
             # We need to mock the import inside _init_web3
-            mock_account_mod = MagicMock()
+            MagicMock()
             with patch.object(bridge, '_initialized', False):
                 # _init_web3 does `from web3 import Web3` and `from eth_account import Account`
                 # We mock at the import level

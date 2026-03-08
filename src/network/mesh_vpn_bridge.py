@@ -11,7 +11,6 @@ import random
 import socket
 import time
 from decimal import Decimal
-from typing import Optional
 
 from src.crypto.pqc_crypto import PQCCrypto
 from src.dao.token_rewards import TokenRewards
@@ -167,9 +166,9 @@ class MeshVPNBridge:
         logger.info(f"🌉 Mesh-VPN Bridge: {self.node_id}")
         logger.info(f"   SOCKS5: 0.0.0.0:{self.socks_port}")
         if self.is_exit_node:
-            logger.info(f"   Mode: EXIT NODE (direct to internet)")
+            logger.info("   Mode: EXIT NODE (direct to internet)")
         else:
-            logger.info(f"   Mode: ENTRY NODE (mesh routing enabled)")
+            logger.info("   Mode: ENTRY NODE (mesh routing enabled)")
             logger.info(f"   Peers: {len(self.router.peers)}")
             for peer_id, peer in self.router.peers.items():
                 logger.info(f"      → {peer_id}: {peer.address}")
@@ -286,7 +285,7 @@ class MeshVPNBridge:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
 
     def _select_exit_node(self):

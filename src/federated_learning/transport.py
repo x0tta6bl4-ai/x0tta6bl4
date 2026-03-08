@@ -5,7 +5,6 @@ FLTransportServer: Runs on coordinator node, exposes FL API endpoints.
 FLTransportClient: Runs on worker nodes, communicates with coordinator.
 """
 
-import json
 import logging
 from typing import Any, Dict, Optional
 

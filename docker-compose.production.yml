@@ -94,6 +94,26 @@ services:
     networks:
       - maas-network
 
+  # --- eBPF Observability (RC1) ---
+  ebpf-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    command: ["python", "scripts/ebpf_prometheus_exporter.py"]
+    privileged: true # Required for BPF syscalls
+    network_mode: "host" # Needs host network to see all interfaces
+    restart: unless-stopped
+
+  # --- Metrics Aggregator ---
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - maas-network
+
 networks:
   maas-network:
     driver: bridge

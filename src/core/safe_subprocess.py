@@ -255,7 +255,7 @@ class SafeSubprocess:
                 command=cmd,
             )
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             logger.error(f"Command timeout after {timeout}s: {' '.join(cmd)}")
             raise
         except Exception as e:

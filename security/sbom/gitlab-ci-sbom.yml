@@ -1,0 +1,73 @@
+.sbom:rules:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+variables:
+  SBOM_OUTPUT_DIR: security/sbom/out
+  SBOM_CYCLONEDX_GO: "${SBOM_OUTPUT_DIR}/agent.cdx.json"
+  SBOM_CYCLONEDX_REPO: "${SBOM_OUTPUT_DIR}/repo.cdx.json"
+  SBOM_SPDX_REPO: "${SBOM_OUTPUT_DIR}/repo.spdx.json"
+  SBOM_GRYPE_DB_CACHE: .cache/grype/db
+
+security:sbom:generate:
+  stage: security
+  image: golang:1.24-bookworm
+  extends: .sbom:rules
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends ca-certificates curl git
+    - mkdir -p "${SBOM_OUTPUT_DIR}" "${SBOM_GRYPE_DB_CACHE}" /tmp/sbom-tools
+    - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /tmp/sbom-tools
+    - GOBIN=/tmp/sbom-tools go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.8.0
+    - export PATH="/tmp/sbom-tools:${PATH}"
+  script:
+    - bash security/sbom/run-local-sbom-check.sh generate --tool-mode native
+  artifacts:
+    paths:
+      - ${SBOM_OUTPUT_DIR}/
+    expire_in: 90 days
+
+security:sbom:gate:
+  stage: security
+  image: debian:bookworm-slim
+  extends: .sbom:rules
+  needs:
+    - security:sbom:generate
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends ca-certificates curl python3
+    - mkdir -p /tmp/sbom-tools "${SBOM_GRYPE_DB_CACHE}"
+    - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /tmp/sbom-tools
+    - export PATH="/tmp/sbom-tools:${PATH}"
+  script:
+    - bash security/sbom/run-local-sbom-check.sh gate --tool-mode native
+  artifacts:
+    paths:
+      - ${SBOM_OUTPUT_DIR}/
+      - ${SBOM_OUTPUT_DIR}/*.grype.json
+    expire_in: 30 days
+
+security:sbom:sign:
+  stage: security
+  image: cgr.dev/chainguard/wolfi-base:latest
+  extends: .sbom:rules
+  needs:
+    - security:sbom:generate
+    - security:sbom:gate
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  before_script:
+    - apk add --no-cache bash ca-certificates curl jq
+    - mkdir -p /tmp/sbom-tools
+    - curl -sSfL https://raw.githubusercontent.com/sigstore/cosign/main/install.sh | sh -s -- -b /tmp/sbom-tools
+    - curl -sSfL https://raw.githubusercontent.com/sigstore/rekor/main/scripts/getLatest.sh | bash -s -- -b /tmp/sbom-tools
+    - export PATH="/tmp/sbom-tools:${PATH}"
+  script:
+    - bash security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native
+  artifacts:
+    paths:
+      - ${SBOM_OUTPUT_DIR}/
+    expire_in: 90 days

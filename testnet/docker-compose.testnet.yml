@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  bootstrap-1:
+    image: x0tta6bl4/mesh-node:latest
+    command: ["--bootstrap", "/ip4/0.0.0.0/tcp/9000"]
+    networks:
+      - mesh-net
+
+  bootstrap-2:
+    image: x0tta6bl4/mesh-node:latest
+    command: ["--bootstrap", "/ip4/0.0.0.0/tcp/9000"]
+    networks:
+      - mesh-net
+
+  bootstrap-3:
+    image: x0tta6bl4/mesh-node:latest
+    command: ["--bootstrap", "/ip4/0.0.0.0/tcp/9000"]
+    networks:
+      - mesh-net
+
+  mesh-worker:
+    image: x0tta6bl4/mesh-node:latest
+    deploy:
+      replicas: 97
+    command: ["--peer", "bootstrap-1", "--peer", "bootstrap-2", "--peer", "bootstrap-3"]
+    networks:
+      - mesh-net
+
+networks:
+  mesh-net:
+    driver: bridge

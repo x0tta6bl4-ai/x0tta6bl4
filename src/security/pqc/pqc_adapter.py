@@ -73,7 +73,7 @@ class PQCAdapter:
                         raise RuntimeError(
                             f"Алгоритм подписи {sig_alg} не поддерживается библиотекой OQS."
                         )
-        except (AttributeError, RuntimeError) as e:
+        except (AttributeError, RuntimeError):
             # If validation fails, try to use algorithms anyway
             # They will fail at runtime if not supported
             pass

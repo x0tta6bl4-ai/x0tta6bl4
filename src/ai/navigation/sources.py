@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Any
+from typing import List, Dict
 import logging
 
 logger = logging.getLogger("AI-Navigator-Ingestor")

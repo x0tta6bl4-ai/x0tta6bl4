@@ -5,9 +5,9 @@ Provides abstraction layer for database operations.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Generic, List, Optional, Type, TypeVar
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 # Import models
@@ -140,7 +140,7 @@ class UserRepository(BaseRepository[User]):
         """Get all active users."""
         return (
             self.db.query(User)
-            .filter(User.is_active == True)
+            .filter(User.is_active)
             .offset(skip)
             .limit(limit)
             .all()
@@ -150,7 +150,7 @@ class UserRepository(BaseRepository[User]):
         """Get all admin users."""
         return (
             self.db.query(User)
-            .filter(User.is_admin == True)
+            .filter(User.is_admin)
             .offset(skip)
             .limit(limit)
             .all()
@@ -190,7 +190,7 @@ class UserRepository(BaseRepository[User]):
     def count_active(self) -> int:
         """Count active users."""
         return (
-            self.db.query(func.count(User.id)).filter(User.is_active == True).scalar()
+            self.db.query(func.count(User.id)).filter(User.is_active).scalar()
         )
 
 
@@ -209,7 +209,7 @@ class SessionRepository(BaseRepository[Session]):
         """Get all sessions for a user."""
         query = self.db.query(Session).filter(Session.user_id == user_id)
         if active_only:
-            query = query.filter(Session.is_active == True)
+            query = query.filter(Session.is_active)
         return query.all()
 
     def get_all(self, skip: int = 0, limit: int = 100) -> List[Session]:
@@ -266,7 +266,7 @@ class SessionRepository(BaseRepository[Session]):
         """Count active sessions."""
         return (
             self.db.query(func.count(Session.id))
-            .filter(Session.is_active == True)
+            .filter(Session.is_active)
             .scalar()
         )
 
@@ -371,7 +371,7 @@ class LicenseRepository(BaseRepository[License]):
         """Get all licenses for a user."""
         query = self.db.query(License).filter(License.user_id == user_id)
         if active_only:
-            query = query.filter(License.is_active == True)
+            query = query.filter(License.is_active)
         return query.all()
 
     def get_all(self, skip: int = 0, limit: int = 100) -> List[License]:
@@ -413,7 +413,7 @@ class LicenseRepository(BaseRepository[License]):
         """Count active licenses."""
         return (
             self.db.query(func.count(License.id))
-            .filter(License.is_active == True)
+            .filter(License.is_active)
             .scalar()
         )
 
@@ -427,12 +427,12 @@ class LicenseRepository(BaseRepository[License]):
         now = datetime.utcnow()
         count = (
             self.db.query(License)
-            .filter(License.expires_at < now, License.is_active == True)
+            .filter(License.expires_at < now, License.is_active)
             .count()
         )
 
         self.db.query(License).filter(
-            License.expires_at < now, License.is_active == True
+            License.expires_at < now, License.is_active
         ).update({"is_active": False})
 
         self.db.commit()

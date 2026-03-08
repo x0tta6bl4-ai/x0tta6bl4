@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.core.app import app
 from src.database import db_circuit_breaker

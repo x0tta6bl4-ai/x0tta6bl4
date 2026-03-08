@@ -16,10 +16,9 @@ Metrics Categories:
 """
 
 import logging
-import time
 from typing import Dict, Optional
 
-from prometheus_client import Counter, Gauge, Histogram, Summary, CollectorRegistry
+from prometheus_client import Counter, Gauge, Histogram, CollectorRegistry
 
 logger = logging.getLogger(__name__)
 

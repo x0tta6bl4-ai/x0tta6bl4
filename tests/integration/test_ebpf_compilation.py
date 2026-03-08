@@ -142,7 +142,7 @@ class TesteBPFObjectFormat:
                 header = f.read(4)
                 # ELF magic number: 0x7f 0x45 0x4c 0x46 (\x7f ELF)
                 return header == b"\x7fELF"
-        except:
+        except Exception:
             return False
 
     def is_bpf_object(self, filepath: Path) -> bool:
@@ -157,7 +157,7 @@ class TesteBPFObjectFormat:
                 e_machine = struct.unpack("<H", f.read(2))[0]
                 # EM_BPF = 247 (0xF7)
                 return e_machine == 247
-        except:
+        except Exception:
             return False
 
     def test_compile_xdp_counter(self):
@@ -278,7 +278,7 @@ class TesteBPFKernelCompatibility:
                         if "CONFIG_BPF_SYSCALL=y" in content:
                             bpf_syscall_available = True
                             break
-                except:
+                except Exception:
                     pass
 
         if not bpf_syscall_available:

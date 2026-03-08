@@ -2,7 +2,6 @@
 import os
 import secrets
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

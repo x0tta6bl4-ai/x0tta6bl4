@@ -5,7 +5,6 @@ Tests optimized CRDT sync with delta-based synchronization.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 

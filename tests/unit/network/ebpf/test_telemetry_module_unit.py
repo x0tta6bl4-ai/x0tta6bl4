@@ -13,11 +13,9 @@ Tests cover:
 
 import json
 import os
-import struct
-import threading
 import time
 from collections import deque
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -797,7 +795,7 @@ class TestPrometheusExporter:
 
     def test_export_metrics_auto_register_gauge(self, exporter):
         with patch.object(exporter, "register_metric") as mock_reg:
-            with patch.object(exporter, "set_metric") as mock_set:
+            with patch.object(exporter, "set_metric"):
                 exporter.export_metrics({"my_metric": 10})
                 mock_reg.assert_called_once()
                 defn = mock_reg.call_args[0][0]
@@ -805,7 +803,7 @@ class TestPrometheusExporter:
 
     def test_export_metrics_auto_register_counter(self, exporter):
         with patch.object(exporter, "register_metric") as mock_reg:
-            with patch.object(exporter, "set_metric") as mock_set:
+            with patch.object(exporter, "set_metric"):
                 exporter.export_metrics({"request_total": 10})
                 defn = mock_reg.call_args[0][0]
                 assert defn.type == MetricType.COUNTER
@@ -971,7 +969,7 @@ class TestEBPFTelemetryCollector:
             "read_multiple_maps",
             side_effect=RuntimeError("err"),
         ):
-            result = collector.collect_all_metrics()
+            collector.collect_all_metrics()
         assert collector.stats.failed_collections == 1
 
     @patch("src.network.ebpf.telemetry_module.BCC_AVAILABLE", True)
@@ -986,7 +984,7 @@ class TestEBPFTelemetryCollector:
             collector.map_reader,
             "read_multiple_maps",
             return_value={},
-        ) as mock_read:
+        ):
             collector.collect_all_metrics()
 
     # -- export_to_prometheus --

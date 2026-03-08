@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/ml/lora/advanced.py
+# hypothesis_version: 6.151.9
+
+[1.0, 'additional_epochs', 'checkpoint', 'checkpoint_name', 'epochs', 'error', 'fp16', 'inference_latency_ms', 'int8', 'linear', 'memory_usage_mb', 'merge_and_unload', 'previous_epochs', 'r', 'success', 'timestamp', 'training_stats', 'w', '❌ PEFT not available']

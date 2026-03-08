@@ -10,18 +10,15 @@
 - Byzantine detection и бан
 """
 
-import threading
 import time
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from src.federated_learning.coordinator import (CoordinatorConfig,
-                                                FederatedCoordinator, NodeInfo,
+                                                NodeInfo,
                                                 NodeStatus, RoundStatus,
                                                 TrainingRound)
-from src.federated_learning.protocol import (GlobalModel, ModelUpdate,
-                                             ModelWeights)
 
 
 class TestNodeInfo:
@@ -456,8 +453,7 @@ class TestByzantineHandling:
 
         # Имитируем Byzantine detection через aggregation result
         with patch.object(coordinator_with_nodes.aggregator, "aggregate") as mock_agg:
-            from src.federated_learning.protocol import (AggregationResult,
-                                                         GlobalModel)
+            from src.federated_learning.protocol import (AggregationResult)
 
             mock_result = AggregationResult(
                 success=True,

@@ -4,12 +4,10 @@ Unit tests for src/ledger/drift_detector.py
 Covers: LedgerDriftDetector, DriftResult, get_drift_detector singleton
 """
 
-import logging
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
+from typing import Optional
+from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
@@ -608,7 +606,7 @@ class TestDetectDrift:
         detector._initialized = False
         with patch.object(detector, "_init_components") as mock_init:
             with patch("src.ledger.drift_detector.PROJECT_ROOT", tmp_path):
-                result = await detector.detect_drift()
+                await detector.detect_drift()
             mock_init.assert_called_once()
 
     @pytest.mark.asyncio
@@ -622,7 +620,7 @@ class TestDetectDrift:
         detector._initialized = True
         with patch.object(detector, "_init_components") as mock_init:
             with patch("src.ledger.drift_detector.PROJECT_ROOT", tmp_path):
-                result = await detector.detect_drift()
+                await detector.detect_drift()
             mock_init.assert_not_called()
 
     @pytest.mark.asyncio
@@ -881,12 +879,11 @@ class TestDetectDrift:
         detector.anomaly_detector = mock_ad
 
         with patch("src.ledger.drift_detector.PROJECT_ROOT", tmp_path):
-            result = await detector.detect_drift()
+            await detector.detect_drift()
 
         # predict was called for each node; State node has a neighbor (Done)
         assert mock_ad.predict.call_count == 2
         # Check second call has neighbors
-        calls = mock_ad.predict.call_args_list
         # The State node (id=1) has an edge from Done (id=0)
         # In the code, neighbors are built from outgoing edges (source == node_id)
         # The edge is source=0 (Done) -> target=1 (State)

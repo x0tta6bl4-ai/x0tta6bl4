@@ -11,12 +11,10 @@ Requirements:
 - BPF capable hardware (not all CI environments support this)
 """
 
-import json
 import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 import pytest
 
@@ -303,7 +301,7 @@ class TestEBPFPerformance:
             def load_program():
                 try:
                     return loader.load_program(obj_path)
-                except:
+                except Exception:
                     return None
 
             result = benchmark(load_program)

@@ -8,7 +8,7 @@ os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -66,7 +66,7 @@ class _FakeNodeIdentity:
         self.did = f"did:mesh:pqc:{node_id}:key-0000"
 
     def sign_manifest(self, manifest_data: dict) -> dict:
-        payload = json.dumps(manifest_data, sort_keys=True).encode()
+        json.dumps(manifest_data, sort_keys=True).encode()
         return {
             "manifest": manifest_data,
             "proof": {
@@ -322,7 +322,7 @@ class TestPQCIdentityManager:
     def test_multiple_rotate_calls_update_current_svid(self):
         manager = mod.PQCIdentityManager("node-multi")
         ca = mod.PQCCertificateAuthority("ca-root")
-        svid1 = manager.rotate_identity(ca)
+        manager.rotate_identity(ca)
         svid2 = manager.rotate_identity(ca)
         # Both are valid SVIDs and current_svid is the last one returned
         assert manager.current_svid is svid2

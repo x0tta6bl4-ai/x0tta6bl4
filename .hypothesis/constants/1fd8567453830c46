@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/services/maas_analytics_service.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.7, 1.0, 1.4, 2.0, 25.0, 45.0, 100.0, 100, 168, '%Y-%m-%dT%H:00:00', '+00:00', '1h', '24h', '6h', '7d', 'Z', 'approved', 'available', 'cost_aws_estimate', 'cost_maas_total', 'count', 'data', 'escrow', 'health', 'health_score', 'healthy', 'hour', 'hourly_cents', 'hourly_usd', 'ignore', 'in_escrow', 'last_seen', 'latency', 'latency_ms', 'latency_ms_avg', 'listings', 'lrange', 'mesh_id', 'mget', 'monthly_estimate_usd', 'nodes_online', 'nodes_total', 'pipeline', 'pqc_status', 'range', 'rented', 'revenue', 'savings_pct', 'timestamp', 'total', 'traffic', 'traffic_mbps', 'traffic_mbps_total', 'utf-8']

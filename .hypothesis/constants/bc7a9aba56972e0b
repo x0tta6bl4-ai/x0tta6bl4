@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/coordination/consensus_transport.py
+# hypothesis_version: 6.151.9
+
+[0.01, 0.1, 5.0, 1000, '*.json', '.', '.tmp', 'ConsensusMessage', 'ConsensusTransport', 'accept', 'accepted', 'commit', 'inbox', 'known_nodes', 'message_id', 'message_type', 'messages_received', 'messages_sent', 'node_id', 'outbox', 'payload', 'prepare', 'promise', 'proposal_id', 'r', 'running', 'source_node', 'target_node', 'term', 'timestamp', 'topic', 'ttl_seconds', 'value', 'vote_granted', 'vote_request', 'vote_response', 'w']

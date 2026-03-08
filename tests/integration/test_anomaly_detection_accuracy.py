@@ -8,7 +8,6 @@ Tests for:
 4. Ensemble method accuracy improvements
 """
 
-from datetime import datetime
 
 import numpy as np
 import pytest
@@ -22,7 +21,7 @@ from src.ml.ensemble_anomaly_detector import (EnsembleVotingStrategy,
 from src.ml.hybrid_anomaly_system import (HybridAnomalySystem,
                                           HybridDetectionMode)
 from src.ml.production_anomaly_detector import (
-    AnomalySeverity, get_production_anomaly_detector)
+    get_production_anomaly_detector)
 
 
 class TestAnomalyDetectionAccuracy:
@@ -199,7 +198,6 @@ class TestFalsePositiveRates:
 
         normal_data = np.random.normal(100, 5, 500).tolist()
 
-        anomaly_count = 0
         for value in normal_data:
             detector.record_metric("baseline", "metric", value)
 
@@ -261,7 +259,7 @@ class TestConfidenceScoring:
         for i in range(100):
             detector.record_metric("service", "status", 100.0)
 
-        anomaly_event = detector.record_metric("service", "status", 1000.0)
+        detector.record_metric("service", "status", 1000.0)
 
         summary = detector.get_anomaly_summary()
         assert isinstance(summary, dict)

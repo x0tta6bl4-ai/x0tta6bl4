@@ -8,7 +8,6 @@ Tests the core eBPF program lifecycle:
 - Error handling
 """
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest

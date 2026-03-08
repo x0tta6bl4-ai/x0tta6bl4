@@ -2,7 +2,6 @@
 Unit tests for Cilium-like eBPF Integration
 """
 
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -31,8 +30,8 @@ class TestCiliumIntegration:
         )
 
         assert integration.interface == "eth0"
-        assert integration.enable_flow_observability == True
-        assert integration.enable_policy_enforcement == True
+        assert integration.enable_flow_observability
+        assert integration.enable_policy_enforcement
 
     def test_record_flow(self):
         """Test recording flow event"""
@@ -124,7 +123,7 @@ class TestCiliumIntegration:
         )
 
         success = integration.add_network_policy(policy)
-        assert success == True
+        assert success
         assert "test-policy" in integration.network_policies
 
     def test_evaluate_policy(self):

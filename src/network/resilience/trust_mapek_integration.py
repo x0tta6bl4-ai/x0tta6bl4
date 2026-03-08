@@ -16,16 +16,12 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .make_never_break import (
     MakeNeverBreakEngine,
     NetworkPath,
-    PathMetrics,
-    PathState,
     PathType,
-    ResilienceConfig,
 )
 
 logger = logging.getLogger(__name__)

@@ -1,0 +1,4 @@
+# file: /mnt/projects/new_vpn_config_generator.py
+# hypothesis_version: 6.151.9
+
+[1001, '/api/v1/health', '/api/v1/status', '/cdn-cgi/trace', '/favicon.ico', '/robots.txt', '/sitemap.xml', '/static/css/main.css', '/static/js/app.js', '39830', '7a', '89.125.1.107', 'VPN_SERVER', '__main__', 'android', 'edge', 'firefox', 'ios', 'open.spotify.com', 'safari', 'www.apple.com', 'www.bitbucket.org', 'www.cloudflare.com', 'www.github.com', 'www.gitlab.com', 'www.microsoft.com', 'www.netflix.com', 'www.scdn.co', 'www.spotify.com']

@@ -1,11 +1,9 @@
 """Tests for CRDT Sync module (crdt.py + crdt_sync.py)."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.data_sync.crdt import (GCounter, GSet, LWWMap, LWWRegister, ORSet,
+from src.data_sync.crdt import (GCounter, GSet, LWWRegister, ORSet,
                                 PNCounter)
 from src.data_sync.crdt_sync import CRDTSync
 

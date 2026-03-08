@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export AI_HEAP_MB="${AI_HEAP_MB:-6144}"
+export GEMINI_AUTO_RESUME="${GEMINI_AUTO_RESUME:-1}"
+
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gemini" "$@"

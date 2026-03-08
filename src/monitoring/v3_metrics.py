@@ -6,7 +6,6 @@ Prometheus метрики для мониторинга компонентов v
 """
 
 import logging
-from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram, Info
 

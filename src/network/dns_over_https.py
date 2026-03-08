@@ -6,7 +6,6 @@ to privacy-focused DNS servers.
 """
 
 import asyncio
-import json
 import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode

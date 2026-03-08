@@ -4,7 +4,7 @@ Unit tests for VaultClient.
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 from hvac.exceptions import InvalidPath, VaultError

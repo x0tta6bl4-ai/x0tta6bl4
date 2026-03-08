@@ -11,12 +11,12 @@ import logging
 import os
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import hvac
 import httpx
 import jwt
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 

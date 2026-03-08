@@ -7,7 +7,6 @@ for various load patterns and scenarios.
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -815,7 +814,7 @@ class TestLoadTestingIntegration:
     @pytest.mark.asyncio
     async def test_benchmark_and_slo_validation(self):
         benchmark = SystemPerformanceBenchmark()
-        validator = SLOValidator()
+        SLOValidator()
 
         async def operation():
             await asyncio.sleep(0.001)

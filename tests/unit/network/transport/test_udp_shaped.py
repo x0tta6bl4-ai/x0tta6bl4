@@ -3,7 +3,6 @@
 """
 
 import asyncio
-import struct
 import sys
 
 import pytest
@@ -235,7 +234,7 @@ async def test_udp_transport_start_stop():
 
     try:
         await transport.start()
-    except (PermissionError, OSError) as exc:
+    except (PermissionError, OSError):
         # Sandbox environments may not permit UDP sockets.
         # Fallback keeps lifecycle assertions deterministic.
         transport._running = True
@@ -274,7 +273,7 @@ async def test_udp_loopback_communication():
 
     try:
         await transport.start()
-    except (PermissionError, OSError) as exc:
+    except (PermissionError, OSError):
         # Fallback mode: emulate loopback delivery without real UDP sockets.
         transport._running = True
         transport._socket = _FallbackSocket()

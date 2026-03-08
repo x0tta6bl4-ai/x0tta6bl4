@@ -9,15 +9,12 @@ Tests:
 - Domain profile optimization
 """
 
-import asyncio
-import statistics
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
 from src.network.proxy_selection_algorithm import (AdaptiveLoadBalancer,
-                                                   DomainProfile, ProxyMetrics,
+                                                   ProxyMetrics,
                                                    ProxySelectionAlgorithm,
                                                    SelectionStrategy)
 from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus

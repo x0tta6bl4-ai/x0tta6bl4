@@ -4,8 +4,6 @@ Integration tests for GraphSAGE Federated Learning.
 Tests complete FL flow with GraphSAGE model.
 """
 
-from typing import Dict, List
-from unittest.mock import Mock, patch
 
 import pytest
 

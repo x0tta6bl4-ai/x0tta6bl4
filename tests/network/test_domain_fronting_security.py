@@ -5,7 +5,6 @@
 сертификатов сервера и никогда не принимает ssl.CERT_NONE.
 """
 import ssl
-import pytest
 from src.network.obfuscation.domain_fronting import DomainFrontingTransport
 
 

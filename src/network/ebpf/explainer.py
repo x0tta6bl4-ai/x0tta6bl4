@@ -6,7 +6,7 @@ eBPF Event Explainer
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class EBPFExplainer:
         # Добавить troubleshooting tips если есть
         if event.event_type in self.troubleshooting_tips:
             tips = self.troubleshooting_tips[event.event_type]
-            explanation += f"\n\nРекомендации:\n"
+            explanation += "\n\nРекомендации:\n"
             for tip in tips:
                 explanation += f"  - {tip}\n"
 
@@ -204,7 +204,7 @@ class EBPFExplainer:
         severity = analysis.get("severity", "medium")
         location = analysis.get("location", "unknown")
 
-        explanation = f"Bottleneck обнаружен:\n\n"
+        explanation = "Bottleneck обнаружен:\n\n"
         explanation += f"Тип: {bottleneck_type}\n"
         explanation += f"Местоположение: {location}\n"
         explanation += f"Серьезность: {severity}\n\n"

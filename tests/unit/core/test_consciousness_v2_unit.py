@@ -2,7 +2,6 @@
 Unit tests for ConsciousnessEngineV2 multi-objective decision scoring.
 """
 
-import pytest
 
 from src.core.consciousness_v2 import (ConsciousnessEngineV2, ModalityType,
                                        MultiModalInput)

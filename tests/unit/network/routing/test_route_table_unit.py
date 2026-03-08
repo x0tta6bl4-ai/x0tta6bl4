@@ -23,7 +23,6 @@ Tests cover:
 import os
 import time
 
-import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

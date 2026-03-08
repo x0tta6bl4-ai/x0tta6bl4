@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+import json
 from typing import Callable, Dict, Generator, Optional, Tuple
 
 from fastapi import Request, Response
@@ -31,22 +32,65 @@ class MeteringMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = time.time()
         
-        # Process request
-        response = await call_next(request)
-        
         # Check if it's a MaaS API call
-        if request.url.path.startswith("/api/v1/maas") and request.url.path not in ["/api/v1/maas/register", "/api/v1/maas/login"]:
+        is_maas_api = (
+            request.url.path.startswith("/api/v1/maas") 
+            and request.url.path not in ["/api/v1/maas/register", "/api/v1/maas/login", "/api/v1/maas/auth/token"]
+        )
+
+        if is_maas_api:
             # Extract API Key from header
             api_key = request.headers.get("X-API-Key")
             if api_key:
                 try:
+                    # Enforce Quota BEFORE processing request
+                    if not self._check_quota(request, api_key):
+                        return Response(
+                            content=json.dumps({"detail": "Quota exceeded for your current plan. Please upgrade."}),
+                            status_code=429,
+                            media_type="application/json"
+                        )
+                    
+                    # Update usage (asynchronous/batch)
                     self._update_usage(request, api_key)
                 except Exception as e:
-                    logger.error(f"Failed to update usage stats: {e}")
+                    logger.error(f"Failed to check/update usage stats: {e}")
 
+        # Process request
+        response = await call_next(request)
+        
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
         return response
+
+    def _check_quota(self, request: Request, api_key: str) -> bool:
+        """Check if user has exceeded their request quota."""
+        db, generator = self._resolve_db(request)
+        try:
+            user = db.query(User).filter(User.api_key == api_key).first()
+            if not user:
+                # No user found with this API key - let auth middleware handle it
+                # Don't consume quota for invalid keys
+                return True
+            
+            # Check if user has a valid subscription (not expired)
+            from datetime import datetime
+            if user.expires_at and user.expires_at < datetime.utcnow():
+                # Expired subscription - don't consume quota
+                return True
+            
+            # Get plan limits from user record (allows per-user override)
+            limit = user.requests_limit if user.requests_limit else 1000
+            
+            current_usage = user.requests_count or 0
+            if current_usage >= limit:
+                logger.warning(f"🚫 Quota exceeded for user {user.id} (plan: {user.plan}): {current_usage}/{limit}")
+                return False
+            
+            return True
+        finally:
+            self._close_db(db, generator)
+
 
     def _resolve_db(self, request: Request) -> Tuple[object, Optional[Generator]]:
         """

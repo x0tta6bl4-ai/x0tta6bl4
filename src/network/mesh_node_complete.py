@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from src.network.discovery import MeshDiscovery, PeerInfo
 from src.network.routing import MeshRouter, RouteEntry

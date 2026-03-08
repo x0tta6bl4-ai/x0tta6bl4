@@ -1,8 +1,6 @@
 """Unit tests for Byzantine detection module."""
 
-import time
 from datetime import datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 
@@ -271,7 +269,7 @@ class TestDetectByzantineBehavior:
         # Node is already isolated after first alert, so detect_byzantine_behavior
         # may return None. Instead, check that the node was isolated and the
         # first alert had appropriate confidence.
-        alert2 = detector.detect_byzantine_behavior(
+        detector.detect_byzantine_behavior(
             node_id="node-1",
             behavior_type=ByzantineBehavior.DOUBLE_SPEND,
             evidence={"direct_proof": True},

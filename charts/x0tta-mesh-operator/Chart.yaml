@@ -5,8 +5,8 @@ description: |
   Manages MeshCluster lifecycle with PQC eBPF security, adaptive fallback,
   SPIFFE/SPIRE identity, and DAO governance + Base Sepolia token bridge.
 type: application
-version: 3.3.2
-appVersion: "3.3.2"
+version: 3.4.0
+appVersion: "3.4.0"
 keywords:
   - mesh
   - pqc

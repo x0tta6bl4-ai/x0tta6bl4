@@ -53,6 +53,27 @@ make utrecht-manifest-apply
 2. `make agent-cycle` completes with `agent-1..4 rc=0`.
 3. `make utrecht-plan` shows expected node count/plan/region.
 
+## Daily Observation Loop (7-14 days)
+Run once per day during the pilot observation window:
+```bash
+make utrecht-observation
+```
+
+Review recent entries:
+```bash
+make utrecht-observation-tail
+```
+
+Artifacts are stored in:
+- `docs/governance/proposals/UTRECHT_PILOT_OBSERVATION_LOG.md`
+- `docs/governance/proposals/utrecht-observations/*.log`
+
+Generate governance artifacts from accumulated observations:
+```bash
+make utrecht-kpi-summary
+make utrecht-funding-draft
+```
+
 ## Rollback
 1. Stop pilot resources:
 ```bash

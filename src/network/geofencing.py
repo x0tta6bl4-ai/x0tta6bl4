@@ -7,7 +7,6 @@ Prevents traffic from transiting through restricted countries.
 """
 
 import logging
-import json
 from typing import List, Dict, Optional, Set
 
 logger = logging.getLogger(__name__)

@@ -2,13 +2,11 @@
 Tests for Redis Sentinel support in cache module.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.core.cache import (InMemoryCacheBackend, RedisCache, get_cache,
-                            reset_cache)
+from src.core.cache import (InMemoryCacheBackend, RedisCache, reset_cache)
 
 
 class TestRedisSentinelConfig:
