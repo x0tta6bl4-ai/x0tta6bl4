@@ -6,8 +6,8 @@
 
 ## Stream 1: Trust & Provenance (RC1.1)
 **Owner:** Claude (DevSecOps)
-- [ ] **CI Keyless Attestation:** Trigger the `.github/workflows/ebpf-release-signing.yml` workflow on a `release/rc1` branch.
-  - *Blocked: requires SIGSTORE_ID_TOKEN (GitHub Actions OIDC only)*
+- [x] **CI Keyless Attestation:** Trigger the `.github/workflows/ebpf-release-signing.yml` workflow on a `release/rc1` branch.
+  - *Done: Keyless OIDC signing via Sigstore completed on release/rc1 (2026-03-08). Run ID 22822503867. 7 `.crt` provenance certificates + updated `.sig` files committed to `docs/release/provenance/`. Fixes applied: removed explicit SIGSTORE_ID_TOKEN check (ambient OIDC), corrected --certificate-identity to use GITHUB_WORKFLOW_REF, skip provenance push on protected main branch.*
 - [x] **Rekor Log Verification:** Document the process of verifying the GitHub Actions OIDC signature against the public Rekor transparency log.
   - *Done: docs/v1.1/PROVENANCE-VERIFICATION.md updated with rekor-cli lookup instructions (2026-03-08)*
 - [x] **Provenance Bundle Freeze:** Update the official release artifact bundle to include the exact Rekor indices and OIDC certificates.
