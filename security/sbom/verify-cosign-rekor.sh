@@ -46,7 +46,8 @@ artifacts=(
   "${OUTPUT_DIR}/repo.cdx.json"
   "${OUTPUT_DIR}/repo.spdx.json"
   "${ROOT_DIR}/RC1_MANIFEST.json"
-  "${ROOT_DIR}/RC1_RELEASE_NOTES.md"
+  "${ROOT_DIR}/docs/release/RC1_RELEASE_NOTES.md"
+  "${ROOT_DIR}/docs/release/RC1_STATUS_PAGE.md"
   "${ROOT_DIR}/docs/release/RC1_INTEGRITY_NOTE.md"
 )
 
