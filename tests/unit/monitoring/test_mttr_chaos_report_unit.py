@@ -169,9 +169,11 @@ class TestSyntheticRunner:
         assert len(results) == len(rmod._CI_SCENARIOS)
 
     def test_seed_deterministic(self):
+        # Load m1, compute r1 first — then load m2 so its random.seed(7)
+        # call resets the global RNG back to the same starting state for r2.
         m1 = _load_report_module({"MTTR_SEED": "7"})
-        m2 = _load_report_module({"MTTR_SEED": "7"})
         r1 = [m1._run_synthetic(d) for d in m1._CI_SCENARIOS]
+        m2 = _load_report_module({"MTTR_SEED": "7"})
         r2 = [m2._run_synthetic(d) for d in m2._CI_SCENARIOS]
         assert [x.ttd_s for x in r1] == [x.ttd_s for x in r2]
 
