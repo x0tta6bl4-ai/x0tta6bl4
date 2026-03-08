@@ -1,6 +1,6 @@
 # SOC2 Evidence Matrix
 
-Last updated: 2026-03-06 (v1.1 hardening pass 2)
+Last updated: 2026-03-08 (v1.1 GA hardening pass)
 
 Every control maps to: command, artifact path, owner, and evidence state.
 
@@ -41,8 +41,9 @@ Evidence states:
 | Local mock cosign signing | `security/sbom/verify-cosign-rekor.sh` | `verify-cosign-rekor.sh --mode mock --tool-mode docker` → 3 blobs signed+verified locally; tlog-upload=false confirmed 2026-03-06 | DevSecOps | VERIFIED HERE |
 | Containerized Helm render (all charts) | `charts/render-in-docker.sh` | `charts/render-in-docker.sh` → 4/4 PASS 2026-03-06; fix: added ClusterRoleBinding to x0tta6bl4-commercial | Platform Engineering | VERIFIED HERE |
 | Local eBPF verification harness | `ebpf/prod/verify-local.sh` | `ebpf/prod/verify-local.sh --iface eth0` | Platform Engineering | VERIFIED VIA SCRIPT/CI |
-| Keyless cosign + Rekor upload | `security/sbom/verify-cosign-rekor.sh` | `security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native` | Release Engineering | NOT VERIFIED YET |
-| Live XDP attach (real NIC) | `ebpf/prod/verify-local.sh` | `sudo -E ebpf/prod/verify-local.sh --iface eth0 --live-attach` | Platform Engineering | NOT VERIFIED YET |
+| Keyless cosign + Rekor upload | `docs/release/provenance/*.crt` | GitHub Actions CI run `22822503867` on `release/rc1` (2026-03-08); OIDC issuer `token.actions.githubusercontent.com`; 7 certs committed to `docs/release/provenance/` | Release Engineering | VERIFIED VIA SCRIPT/CI |
+| Live XDP attach (real NIC) | `ebpf/prod/results/benchmark-live.json` | Verified XDP prog `id 613` attached to `enp8s0`; `bpftool prog show` confirmed; 142k TX PPS baseline on 2026-03-07 | Platform Engineering | VERIFIED HERE |
+| Live Open5GS UPF session (5G data plane) | VPS `89.125.1.107` | `nr-binder 10.45.0.4 ping -c4 8.8.8.8` → 4/4, RTT ~0.8 ms; `curl --interface uesimtun0 ifconfig.me` → `89.125.1.107` on 2026-03-08 | Platform Engineering | VERIFIED HERE |
 | PPS benchmark >= 5M (live, with pktgen) | `ebpf/prod/benchmark-harness.sh` | `RUN_BENCH=1 sudo -E IFACE=eth0 ebpf/prod/benchmark-harness.sh` | Platform Engineering | NOT VERIFIED YET |
 | Multi-tenant namespace isolation (live cluster) | `charts/x0tta6bl4-commercial/`, `charts/multi-tenant/` | `kubectl get networkpolicy,resourcequota -A` | Platform Engineering | NOT VERIFIED YET |
 | Blue-green deploy slot switch | `release/v1.0.0.sh` | `release/v1.0.0.sh` (requires cluster) | Release Engineering | NOT VERIFIED YET |
