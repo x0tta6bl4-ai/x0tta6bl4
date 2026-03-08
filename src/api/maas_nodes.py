@@ -491,7 +491,7 @@ def _normalize_external_telemetry_payload(payload: Dict[str, Any]) -> Dict[str, 
         neighbors = normalized.get("neighbors")
         if isinstance(neighbors, int) and not isinstance(neighbors, bool):
             normalized["neighbors_count"] = neighbors
-        else:
+        elif not isinstance(neighbors, bool):
             converted = _to_optional_float(neighbors)
             if converted is not None and converted >= 0 and float(converted).is_integer():
                 normalized["neighbors_count"] = int(converted)
