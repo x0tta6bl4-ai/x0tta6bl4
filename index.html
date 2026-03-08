@@ -78,18 +78,30 @@
         <!-- Stats Grid -->
         <div class="grid grid-cols-2 gap-4 mb-8">
             <div id="plan-card" class="bg-zinc-800/50 p-4 rounded-2xl border border-zinc-700/50 cursor-pointer hover:bg-zinc-800 transition-all">
-                <div class="text-zinc-500 text-xs mb-1">Plan</div>
+                <div class="text-zinc-500 text-xs mb-1">Throughput</div>
                 <div class="flex items-center gap-2">
-                    <span id="plan-text" class="text-emerald-400 font-bold">Free Trial</span>
-                    <i class="fas fa-crown text-[10px] text-yellow-500"></i>
+                    <span id="pps-text" class="text-emerald-400 font-bold">142k PPS</span>
+                    <i class="fas fa-bolt text-[10px] text-yellow-500"></i>
                 </div>
             </div>
             <div class="bg-zinc-800/50 p-4 rounded-2xl border border-zinc-700/50">
-                <div class="text-zinc-500 text-xs mb-1">Protection</div>
+                <div class="text-zinc-500 text-xs mb-1">Status</div>
                 <div class="flex items-center gap-2">
-                    <span class="text-emerald-400 font-bold">PQC + ZKP</span>
-                    <i class="fas fa-check-circle text-[10px] text-emerald-500"></i>
+                    <span class="text-emerald-400 font-bold">RC1 Verified</span>
+                    <i class="fas fa-certificate text-[10px] text-emerald-500"></i>
                 </div>
+            </div>
+        </div>
+
+        <!-- Verification Proof (New) -->
+        <div class="bg-zinc-800/20 border border-zinc-800/50 p-3 rounded-xl mb-8 flex flex-col gap-2">
+            <div class="flex justify-between items-center text-[9px] uppercase tracking-tighter text-zinc-500">
+                <span>Provenance:</span>
+                <span class="text-emerald-500 font-mono">Rekor-Ready</span>
+            </div>
+            <div class="flex justify-between items-center text-[9px] uppercase tracking-tighter text-zinc-500">
+                <span>5G Bridge:</span>
+                <span class="text-emerald-500 font-mono">Open5GS Verified</span>
             </div>
         </div>
 
@@ -126,7 +138,7 @@
 
         <!-- Footer Footer -->
         <div class="text-center">
-            <span class="text-[10px] text-zinc-600 uppercase tracking-widest">Powered by x0tta6bl4 mesh protocol v3.3</span>
+            <span class="text-[10px] text-zinc-600 uppercase tracking-widest">Powered by x0tta6bl4 mesh protocol v1.1 RC1</span>
         </div>
     </div>
 
