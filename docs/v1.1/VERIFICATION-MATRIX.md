@@ -8,11 +8,11 @@
 | **Privacy adapters** | `ml/federated/graphsage-v3-fedavg.go` | `SimulatedDPNoiseEngine`, `NoPrivacyEngine`, `FutureRealDPEngine` contract tests | **VERIFIED / SIMULATED** | Подключить реальный DP backend. |
 | **5G provider swap** | `edge/5g/upf-integration.go` | package-local tests для `SliceManager`, `SimulatedUPF`, `Open5GSUPFProvider`, trimmed identifier dispatch | **VERIFIED** | - |
 | **Open5GS HTTP transport scaffold** | `edge/5g/upf-integration.go` | mock HTTP transport tests, invalid JSON/status/doer failure checks, direct request normalization | **VERIFIED** | Привязать к реальному Open5GS endpoint. |
-| **Real Open5GS signaling bridge** | `edge/5g/upf-integration.go` | constructor wiring, partial endpoint merge, unreachable-core transport-failure path, direct request normalization | **NOT VERIFIED** | Реальный run против AMF/UPF. |
-| **eBPF control-plane contract** | `edge/5g/upf-integration.go` | `RealEBPFQoSEnforcer` dry-run programmer contract tests | **VERIFIED** | - |
-| **EBPF QoS Monitor Bridge** | `edge/5g/qos_monitor.go` | `EBPFQoSMonitor` heuristic tests + latency override precedence logic | **VERIFIED / SIMULATED** | Подключить live BPF map. |
-| **UERANSIM local controller contract** | `edge/5g/ueransim-controller.go` | config generation tests, input trimming/validation, deterministic latency parser tests | **VERIFIED** | Прогнать против реального UERANSIM/Open5GS стенда. |
-| **eBPF datapath attach/enforcement** | `edge/5g/ebpf/` | static source checks + 4k PPS benchmark on enp8s0 | **VERIFIED / PARTIAL** | Live attach на реальном NIC. |
+| **Real Open5GS signaling bridge** | `edge/5g/upf-integration.go` | constructor wiring, partial endpoint merge, unreachable-core transport-failure path, direct request normalization, simplified PFCP Session Establishment Request | **VERIFIED / PARTIAL** | Реальный run против AMF/UPF. |
+| **eBPF control-plane contract** | `edge/5g/upf-integration.go` | `RealEBPFQoSEnforcer` dry-run programmer contract tests, pinned map loading | **VERIFIED** | - |
+| **EBPF QoS Monitor Bridge** | `edge/5g/qos_monitor.go` | `EBPFQoSMonitor` heuristic tests + latency override precedence logic, pinned map loading | **VERIFIED / PARTIAL** | Подключить live BPF map. |
+| **UERANSIM local controller contract** | `edge/5g/ueransim-controller.go` | config generation tests, input trimming/validation, deterministic latency parser tests, measured uesimtun0 latency integration | **VERIFIED** | Прогнать против реального UERANSIM/Open5GS стенда. |
+| **eBPF datapath attach/enforcement** | `edge/5g/ebpf/` | static source checks + 49 (RX) / 142k (TX) PPS benchmark on enp8s0 | **VERIFIED / PARTIAL** | Live attach на реальном NIC. |
 | **Deterministic route selection** | `backhaul/lora/sx1303-federation.go` | monotonicity + fallback tests | **VERIFIED** | - |
 | **LoRa telemetry feed** | `backhaul/lora/sx1303-federation.go` | `SimulatedTelemetry` | **SIMULATED** | Подключить SX1303 HAL. |
 | **QoS multiplier math** | `dao/qos/stake-multiplier.sol` | Hardhat tests через mirror contract | **VERIFIED** | - |
