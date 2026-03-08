@@ -88,3 +88,29 @@
 - `Removed` — удалённая функциональность
 - `Fixed` — исправление ошибок
 - `Security` — исправления безопасности
+
+## [RC1] - 2026-03-07
+### Added
+- **5G↔eBPF Bridge**: Real-time QoS monitoring for Open5GS tunnels using kernel maps.
+- **eBPF Prometheus Exporter**: Live telemetry from XDP datapath to Grafana.
+- **Validation Bundles**: Automated Markdown reporting for hardware-grounded evidence.
+- **Safe Cleanup**: Root-safe scripts for eBPF structures to prevent kernel panics.
+
+### Fixed
+- **SEV-1 Security Alert**: Mitigated 10 Python package vulnerabilities at the repository level.
+- **Benchmark Lock**: Resolved blocking I/O in pktgen harness.
+- **Swarm Governance**: Fixed ownership matrix gaps for root-level config files (go.mod).
+
+### Verified
+- **10,008 Unit Tests passed** (MaaS Core, Security, 5G Adapters).
+- **Physical NIC signal** (enp8s0): 3996 PPS RX confirmed.
+
+## [RC1.1] - 2026-03-08
+### Added
+- **eBPF Exporter Stub Mode**: `BPF_STUB_MODE=1` lets the exporter run without root or bpftool — enables CI metric validation.
+- **Exporter Unit Tests**: 37 tests covering `compute_pps`, stub/live collection paths, env-config, and multi-cycle simulation (`tests/unit/monitoring/test_ebpf_exporter_unit.py`).
+- **CI Smoke Gate** (`exporter-smoke` job in `ebpf-ci.yml`): starts exporter in stub mode, curls `/metrics`, asserts `x0tta6bl4_xdp_runs_total` and `x0tta6bl4_xdp_pps` are present with `iface="stub0"` label.
+- **Prometheus scrape config** (`infra/prometheus.yml`): minimal config for `x0tta6bl4-ebpf` job on `localhost:9101`.
+
+### Changed
+- `scripts/ebpf_prometheus_exporter.py` refactored: extracted `collect_stats()`, `compute_pps()`, `_reset_stub_state()` as public API for testing; live bpftool calls isolated in `_live_get_run_cnt()` / `_live_get_iface()`.
