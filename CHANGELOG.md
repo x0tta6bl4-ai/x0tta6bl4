@@ -114,3 +114,14 @@
 
 ### Changed
 - `scripts/ebpf_prometheus_exporter.py` refactored: extracted `collect_stats()`, `compute_pps()`, `_reset_stub_state()` as public API for testing; live bpftool calls isolated in `_live_get_run_cnt()` / `_live_get_iface()`.
+
+## [RC1.2] - 2026-03-08
+### Added
+- **Mesh API Full Coverage**: `tests/unit/api/endpoints/test_mesh_unit.py` expanded 2 → 37 tests covering all 8 endpoints: `list_meshes`, `get_mesh_status`, `get_mesh_metrics`, `scale_mesh`, `terminate_mesh`, `get_mesh_audit`, `get_mesh_mapek`, plus `_build_mesh_status_response` helper.
+- **MTTR Chaos Report**: `scripts/ops/mttr_chaos_report.py` — 10 synthetic chaos scenarios with SLO gate (MTTR ≤ 300s), JSON + Markdown output. CI-safe (no cluster required). 29 unit tests in `tests/unit/monitoring/test_mttr_chaos_report_unit.py`.
+- **OpenMetrics Validator**: `scripts/ops/validate_metrics_endpoint.py` — stdlib-only endpoint validator for Prometheus text format, checks required metrics/labels/ranges. Integrated into `exporter-smoke` CI job.
+- **RC1 Release Artifacts**: Evidence bundle, sign-off, status page and consistency gate (`scripts/ops/check_release_consistency.py`) committed to `docs/release/`.
+- **Go Dataplane Bench CI**: 7 Go benchmarks (`ebpf/prod/bench_test.go`) + `benchstat` regression gate in `.github/workflows/go-dataplane-bench.yml`.
+
+### Fixed
+- `test_seed_deterministic` RNG ordering: load m2 after computing r1 so both runs start from the same seed state.
