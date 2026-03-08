@@ -270,8 +270,12 @@ skip "DP-SGD real noise validation — requires lab setup"
 skip "Playwright E2E — requires running stack"
 skip "k6 load test — requires running API endpoint"
 
-# =============================================================================
-# FINAL SUMMARY
+# ── 10. RC1 Consistency Gate ─────────────────────────────────────────────
+echo ""
+echo -e "${CYN}[10/10] RC1 Consistency Gate${RST}"
+
+run_check "release documents are synchronized" \
+  python3 scripts/ops/check_release_consistency.py
 # =============================================================================
 echo ""
 echo "========================================================="
