@@ -185,10 +185,14 @@ EOF
       echo "Keyless signature and certificate created for: ${artifact}"
       
       # Verification through Rekor (Public Sigstore instance)
+      # GITHUB_WORKFLOW_REF is set automatically by GitHub Actions and contains
+      # the exact identity embedded in the keyless certificate, e.g.:
+      # x0tta6bl4-ai/x0tta6bl4/.github/workflows/ebpf-release-signing.yml@refs/heads/release/rc1
+      _cert_identity="https://github.com/${GITHUB_WORKFLOW_REF:-x0tta6bl4-ai/x0tta6bl4/.github/workflows/ebpf-release-signing.yml@refs/heads/release/rc1}"
       run_cosign verify-blob \
         --certificate "$(cpath "${artifact}.crt")" \
         --signature "$(cpath "${artifact}.sig")" \
-        --certificate-identity "https://github.com/x0tta6bl4/x0tta6bl4/.github/workflows/ci.yml@refs/heads/main" \
+        --certificate-identity "${_cert_identity}" \
         --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
         "$(cpath "${artifact}")"
     done
