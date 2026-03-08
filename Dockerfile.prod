@@ -1,5 +1,5 @@
 # Builder stage
-FROM python:3.12-slim as builder
+FROM python:3.14-slim as builder
 WORKDIR /tmp
 
 # Install build dependencies for C extensions
@@ -17,7 +17,7 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 # ---
 
 # Runtime stage
-FROM python:3.12-slim
+FROM python:3.14-slim
 WORKDIR /app
 
 # Install runtime requirements
