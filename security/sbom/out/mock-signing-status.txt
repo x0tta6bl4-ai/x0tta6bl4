@@ -1,6 +1,6 @@
 mode=mock
 rekor=skipped
-timestamp=2026-03-08T09:59:52Z
+timestamp=2026-03-08T16:01:35Z
 artifacts_signed=7
 proves=local key pair generation, blob signing, local signature verification
 does_not_prove=keyless OIDC signing, Rekor transparency-log upload, supply-chain attestation
