@@ -31,6 +31,7 @@
     "agent4-devops-ci": {
       "description": "CI/CD and containerization",
       "allow": [
+        "RC1_STATUS_PAGE.md",
         "RC1_MANIFEST.json.sig",
         "CHANGELOG.md",
         "RC1_MANIFEST.json",
