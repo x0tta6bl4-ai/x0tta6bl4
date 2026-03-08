@@ -5,7 +5,7 @@ import json
 import re
 
 # Expected baseline data for RC1
-EXPECTED_COMMIT = "b9896312d7d84a6b5398bdc142cd125465432f09"
+EXPECTED_COMMIT = "47a135b00efef4474907b1ffd09699c1bebbc488"
 EXPECTED_PPS_RX = "49"
 EXPECTED_PPS_TX = "142k"
 

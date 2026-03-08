@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-  "serialNumber": "urn:uuid:ffa76b9a-2599-40bd-befe-9a448e59ce90",
+  "serialNumber": "urn:uuid:5911f375-8adc-4dce-b0d0-2bb1fa9a20bd",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-03-06T19:37:56Z",
+    "timestamp": "2026-03-08T21:16:38Z",
     "tools": [
       {
         "vendor": "CycloneDX",
@@ -46,11 +46,11 @@
       }
     ],
     "component": {
-      "bom-ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module",
+      "bom-ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.1.1-0.20260308191742-3c3a081f6f81?type=module",
       "type": "application",
       "name": "github.com/x0tta6bl4/agent",
-      "version": "v1.0.1-0.20260305223130-7fb757410841",
-      "purl": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module\u0026goos=linux\u0026goarch=amd64",
+      "version": "v1.1.1-0.20260308191742-3c3a081f6f81",
+      "purl": "pkg:golang/github.com/x0tta6bl4/agent@v1.1.1-0.20260308191742-3c3a081f6f81?type=module\u0026goos=linux\u0026goarch=amd64",
       "externalReferences": [
         {
           "url": "https://github.com/x0tta6bl4/agent",
@@ -84,6 +84,35 @@
           {
             "license": {
               "id": "BSD-3-Clause"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/mattn/go-sqlite3@v1.14.34?type=module",
+      "type": "library",
+      "name": "github.com/mattn/go-sqlite3",
+      "version": "v1.14.34",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dcdb5cbdc5271413ecb91727a3ca54b6ea6ca46fc633ef6767cf33809729e999"
+        }
+      ],
+      "purl": "pkg:golang/github.com/mattn/go-sqlite3@v1.14.34?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/mattn/go-sqlite3",
+          "type": "vcs"
+        }
+      ],
+      "evidence": {
+        "licenses": [
+          {
+            "license": {
+              "id": "MIT"
             }
           }
         ]
@@ -167,7 +196,7 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.0.1-0.20260305223130-7fb757410841?type=module",
+      "ref": "pkg:golang/github.com/x0tta6bl4/agent@v1.1.1-0.20260308191742-3c3a081f6f81?type=module",
       "dependsOn": [
         "pkg:golang/github.com/cloudflare/circl@v1.6.3?type=module",
         "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
@@ -180,6 +209,9 @@
         "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
         "pkg:golang/golang.org/x/sys@v0.41.0?type=module"
       ]
+    },
+    {
+      "ref": "pkg:golang/github.com/mattn/go-sqlite3@v1.14.34?type=module"
     },
     {
       "ref": "pkg:golang/golang.org/x/crypto@v0.48.0?type=module",
