@@ -350,11 +350,22 @@ func (s *Open5GSSignaling) EstablishNGAP(ueID string) error {
 	return nil
 }
 
+// PFCPSessionEstablishmentRequest represents a simplified PFCP session request.
+type PFCPSessionEstablishmentRequest struct {
+	NodeID        string `json:"node_id"`
+	CPSEID        uint64 `json:"cp_seid"`
+	CreatePDR     bool   `json:"create_pdr"`
+	CreateFAR     bool   `json:"create_far"`
+	PDNType       string `json:"pdn_type"`
+	SliceID       string `json:"slice_id"`
+}
+
 func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	if strings.TrimSpace(s.UPFAddr) == "" {
 		return 0, fmt.Errorf("Open5GSSignaling missing UPF endpoint (NOT VERIFIED)")
 	}
-	if strings.TrimSpace(sliceID) == "" {
+	trimmedSliceID := strings.TrimSpace(sliceID)
+	if trimmedSliceID == "" {
 		return 0, fmt.Errorf("invalid PFCP request: slice ID required")
 	}
 
@@ -364,21 +375,35 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	}
 
 	// PFCP uses UDP port 8805
-	log.Printf("[5G-CORE][PFCP] Dialing UPF at %s for slice %s", s.UPFAddr, sliceID)
+	log.Printf("[5G-CORE][PFCP] Dialing UPF at %s for slice %s", s.UPFAddr, trimmedSliceID)
 	conn, err := net.DialTimeout("udp", s.UPFAddr, timeout)
 	if err != nil {
 		return 0, fmt.Errorf("PFCP transport failure to UPF (%s): %w", s.UPFAddr, err)
 	}
 	defer conn.Close()
 
-	// PFCP Heartbeat Request (Simplified Header: Version=1, MP=0, S=0, Type=1, Length=0, Seq=1)
-	heartbeat := []byte{0x20, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00}
-	_, err = conn.Write(heartbeat)
-	if err != nil {
-		return 0, fmt.Errorf("failed to send PFCP heartbeat: %w", err)
+	// PFCP Session Establishment Request (Simplified Header)
+	// Version=1, MP=0, S=1, Type=50 (Session Establishment Request), Length=TBD, SEID=0, Seq=1
+	header := []byte{
+		0x21, // Version=1, MP=0, S=1
+		50,   // Message Type: Session Establishment Request
+		0x00, 0x08, // Length (simplified)
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SEID (0 for new session)
+		0x00, 0x00, 0x01, // Sequence Number
+		0x00, // Spare
 	}
 
-	log.Printf("[5G-CORE][PFCP] Heartbeat sent to %s", s.UPFAddr)
+	// Add a dummy Node ID IE for the request (Type=60, Length=5, Value=127.0.0.1)
+	nodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
+	payload := append(header, nodeIDIE...)
+
+	_, err = conn.Write(payload)
+	if err != nil {
+		return 0, fmt.Errorf("failed to send PFCP session establishment: %w", err)
+	}
+
+	log.Printf("[5G-CORE][PFCP] Session Establishment Request sent to %s for slice %s", s.UPFAddr, trimmedSliceID)
+	// Return a baseline latency (simulated response wait)
 	return 25, nil
 }
 
