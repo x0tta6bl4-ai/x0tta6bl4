@@ -74,6 +74,20 @@ func TestRunDialUsesInjectedDependencies(t *testing.T) {
 	}
 }
 
+func TestRunPropagatesResolveFailure(t *testing.T) {
+	originalResolve := resolveSCTPAddr
+	defer func() { resolveSCTPAddr = originalResolve }()
+
+	resolveSCTPAddr = func(network, address string) (*sctp.SCTPAddr, error) {
+		return nil, errors.New("resolve blocked in test")
+	}
+
+	err := run(runConfig{mode: "dial", target: "127.0.0.1:38412"})
+	if err == nil || !strings.Contains(err.Error(), "failed to resolve addr") {
+		t.Fatalf("expected resolve failure semantics, got %v", err)
+	}
+}
+
 func TestRunListenUsesInjectedDependencies(t *testing.T) {
 	originalResolve := resolveSCTPAddr
 	originalListen := listenSCTP
@@ -98,6 +112,27 @@ func TestRunListenUsesInjectedDependencies(t *testing.T) {
 	}
 	if gotListenNetwork != "sctp" || gotListenAddr == nil || gotListenAddr.Port != 38412 {
 		t.Fatalf("unexpected listen call: network=%q addr=%+v", gotListenNetwork, gotListenAddr)
+	}
+}
+
+func TestRunListenPropagatesListenFailure(t *testing.T) {
+	originalResolve := resolveSCTPAddr
+	originalListen := listenSCTP
+	defer func() {
+		resolveSCTPAddr = originalResolve
+		listenSCTP = originalListen
+	}()
+
+	resolveSCTPAddr = func(network, address string) (*sctp.SCTPAddr, error) {
+		return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 38412}, nil
+	}
+	listenSCTP = func(network string, addr *sctp.SCTPAddr) (sctpListener, error) {
+		return nil, errors.New("listen blocked in test")
+	}
+
+	err := run(runConfig{mode: "listen", target: "127.0.0.1:38412"})
+	if err == nil || !strings.Contains(err.Error(), "failed to listen") {
+		t.Fatalf("expected listen failure semantics, got %v", err)
 	}
 }
 
