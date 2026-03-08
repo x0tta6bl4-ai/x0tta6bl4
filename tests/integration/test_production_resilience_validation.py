@@ -15,7 +15,7 @@ from src.ml.ensemble_anomaly_detector import (EnsembleVotingStrategy,
 from src.ml.hybrid_anomaly_system import (HybridAnomalySystem,
                                           HybridDetectionMode)
 from src.ml.production_anomaly_detector import (
-    AnomalySeverity, get_production_anomaly_detector)
+    get_production_anomaly_detector)
 from src.monitoring.advanced_sla_metrics import AdvancedSLAManager, MetricType
 from src.monitoring.tracing_optimizer import Span, get_tracing_optimizer
 from src.resilience.advanced_patterns import (BulkheadIsolation,
@@ -269,7 +269,7 @@ class TestCircuitBreakerPatterns:
         for i in range(2):
             try:
                 breaker.call(lambda: 1 / 0)
-            except:
+            except Exception:
                 pass
 
         assert breaker.state == CircuitState.OPEN
@@ -281,7 +281,7 @@ class TestCircuitBreakerPatterns:
 
         try:
             breaker.call(lambda: 1 / 0)
-        except:
+        except Exception:
             pass
 
         try:
@@ -349,10 +349,10 @@ class TestProductionSystemIntegration:
     def test_all_systems_baseline_operation(self):
         """All systems should operate normally in baseline conditions"""
         anomaly = get_production_anomaly_detector()
-        ensemble = get_ensemble_detector()
+        get_ensemble_detector()
         sla_manager = AdvancedSLAManager()
         tracing = get_tracing_optimizer()
-        edge_validator = EdgeCaseValidator()
+        EdgeCaseValidator()
 
         base_time = datetime.utcnow()
 
@@ -394,7 +394,7 @@ class TestProductionSystemIntegration:
             anomaly.record_metric("system", "health", value)
             sla_manager.record_metric("health", value)
 
-            violations = edge_validator.check_numeric_bounds(value, min_val=80.0)
+            edge_validator.check_numeric_bounds(value, min_val=80.0)
 
         anomaly_summary = anomaly.get_anomaly_summary()
         sla_compliance = sla_manager.get_overall_compliance()

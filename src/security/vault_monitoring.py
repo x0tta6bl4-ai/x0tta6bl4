@@ -8,7 +8,7 @@ monitors Vault availability and token status.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 import prometheus_client as prom

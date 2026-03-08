@@ -5,14 +5,11 @@ Extends base aggregators with differential privacy and secure aggregation.
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 
 from .aggregators import (AggregationResult, Aggregator, FedAvgAggregator,
-                          KrumAggregator, MedianAggregator,
-                          TrimmedMeanAggregator)
+                          KrumAggregator)
 from .privacy import (DifferentialPrivacy, DPConfig, GradientClipper,
                       PrivacyBudget)
 from .protocol import GlobalModel, ModelUpdate

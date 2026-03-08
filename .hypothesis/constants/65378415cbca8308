@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/dao/token.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.0001, 0.001, 0.01, 50.0, 100.0, 10000.0, 1000000000.0, 3600, 86400, 'X0T', 'active_stakers', 'bandwidth', 'compute', 'distributed_x0t', 'fee', 'initial_deployment', 'relay', 'reward', 'storage', 'total_nodes', 'total_referrals', 'total_staked']

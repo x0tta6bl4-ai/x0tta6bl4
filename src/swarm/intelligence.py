@@ -29,27 +29,13 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import uuid
 
-from .consensus import (
-    ConsensusAlgorithm,
-    ConsensusEngine,
-    ConsensusResult,
-    Decision,
-    DecisionStatus,
-    Vote,
-    VoteType,
-    RaftNode,
-    RaftState,
-)
-from .paxos import PaxosNode, MultiPaxos, PaxosPhase
-from .pbft import PBFTNode, PBFTPhase
 from .consensus_integration import (
     SwarmConsensusManager,
     ConsensusMode,
     AgentInfo,
-    SwarmDecision,
 )
 
 logger = logging.getLogger(__name__)

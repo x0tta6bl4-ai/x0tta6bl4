@@ -2,10 +2,7 @@
 Unit tests for RAG with HNSW vector index
 """
 
-import asyncio
 import tempfile
-from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -146,7 +143,7 @@ class TestRAGAnalyzerHNSW:
         """Test RAG analyzer initialization with HNSW"""
         rag = RAGAnalyzer(use_hnsw=True, use_langchain=False)
 
-        assert rag.use_hnsw == True
+        assert rag.use_hnsw
         assert isinstance(rag.vector_store, HNSWVectorStore)
         assert rag.embedding_dim == 384
 
@@ -155,7 +152,7 @@ class TestRAGAnalyzerHNSW:
         """Test RAG analyzer fallback to simple store"""
         rag = RAGAnalyzer(use_hnsw=False, use_langchain=False)
 
-        assert rag.use_hnsw == False
+        assert not rag.use_hnsw
         assert isinstance(rag.vector_store, VectorStore)
 
     @pytest.mark.asyncio
@@ -234,7 +231,7 @@ class TestRAGAnalyzerHNSW:
 
         stats = rag.get_stats()
 
-        assert stats["hnsw_enabled"] == True
+        assert stats["hnsw_enabled"]
         assert stats["vector_store_type"] == "HNSW"
 
     @pytest.mark.asyncio

@@ -1,0 +1,15 @@
+{
+  "title": "DAO Governance",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Proposals Approved",
+      "targets": [{"expr": "dao_proposal_approved_total"}]
+    },
+    {
+      "type": "stat",
+      "title": "Topology Attestations",
+      "targets": [{"expr": "topology_attestations_total"}]
+    }
+  ]
+}

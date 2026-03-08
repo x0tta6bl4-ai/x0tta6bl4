@@ -10,14 +10,11 @@ import pytest
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
-from src.federated_learning.blockchain import ModelBlockchain
-from src.federated_learning.coordinator import (CoordinatorConfig,
-                                                FederatedCoordinator)
 from src.federated_learning.integrations.twin_integration import (
     FederatedTrainingOrchestrator, TrainingConfig, TwinBackedRoutingEnv,
     TwinMetricsCollector)
 from src.federated_learning.ppo_agent import PPOAgent, train_episode
-from src.simulation.digital_twin import (LinkState, MeshDigitalTwin, NodeState,
+from src.simulation.digital_twin import (MeshDigitalTwin, NodeState,
                                          TwinLink, TwinNode)
 
 # ==================== Fixtures ====================
@@ -118,7 +115,7 @@ class TestTwinBackedRoutingEnv:
 
     def test_step_uses_twin_topology(self, small_twin):
         env = TwinBackedRoutingEnv(small_twin, source_node="node-0")
-        state = env.reset()
+        env.reset()
 
         # Step should use actual neighbors
         result = env.step(0)

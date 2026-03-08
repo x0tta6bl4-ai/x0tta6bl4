@@ -10,17 +10,14 @@ Provides REST API for:
 """
 
 import asyncio
-import json
 import logging
-from dataclasses import asdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 import aiohttp_cors
 from aiohttp import web
 
 from src.network.residential_proxy_manager import (
-    ProxyEndpoint, ProxyStatus, ResidentialProxyManager,
+    ProxyStatus, ResidentialProxyManager,
     create_proxy_pool_from_provider)
 
 logger = logging.getLogger(__name__)

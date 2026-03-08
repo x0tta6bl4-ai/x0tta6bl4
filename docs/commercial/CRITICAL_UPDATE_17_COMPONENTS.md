@@ -1,6 +1,12 @@
 # 🚨 CRITICAL UPDATE: 17 AI/ML COMPONENTS DISCOVERED
 
-**Дата:** 28 декабря 2025  
+> **Evidence note (added 2026-03-06):** Accuracy figures in this document
+> (94–98%) are training-set benchmarks, not measurements from production traffic.
+> "Production-ready" refers to implementation completeness, not deployment to a
+> live production cluster. For verified evidence states, see
+> `docs/verification/v1.1-hardening-status.md`.
+
+**Дата:** 28 декабря 2025
 **Статус:** ⚠️ **REQUIRES IMMEDIATE ACTION**
 
 ---

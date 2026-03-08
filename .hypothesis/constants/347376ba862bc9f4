@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/blockchain.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1e-05, '0', 'Block', 'ConsensusProof', 'ModelMetadata', 'aggregation', 'aggregation_method', 'avg_training_loss', 'avg_validation_loss', 'block_hash', 'block_index', 'block_type', 'blocks', 'chain_id', 'chain_length', 'checkpoint', 'checkpoints', 'consensus_proof', 'contributors', 'created', 'data', 'delta', 'description', 'epsilon_spent', 'genesis', 'hash', 'index', 'initial', 'initializer', 'latest_version', 'length', 'metadata', 'model_update', 'model_updates', 'num_commits', 'num_prepares', 'participants', 'previous_hash', 'quorum_reached', 'reason', 'rollback', 'rollbacks', 'round', 'round_number', 'sequence', 'stored_weights', 'suspected_byzantine', 'target_block', 'target_version', 'timestamp', 'total_samples', 'type', 'version', 'versions', 'view', 'weights_hash', 'x0tta6bl4-fl']

@@ -16,14 +16,13 @@ import os
 import socket
 import struct
 import time
-from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
-from src.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
-                                     TrafficProfile, TrafficShaper,
-                                     TransportManager)
+from libx0t.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
+                                        TrafficProfile, TrafficShaper,
+                                        TransportManager)
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +257,8 @@ class ShapedUDPTransport:
         raw = packet.to_bytes()
 
         if packet.requires_ack:
-            self._pending_acks[packet.sequence] = (packet, address)
+            # Store packet for retransmission if needed
+            self._pending_acks[packet.sequence] = (packet, self.peer_address)
 
         # Обфускация
         if self._transport:
@@ -636,8 +636,8 @@ async def example_gaming_transport():
     await transport.start()
 
     print(f"Gaming UDP транспорт запущен на порту {transport.local_port}")
-    print(f"Профиль: gaming (10-33ms интервал, 50-300 байт)")
-    print(f"Обфускация: XOR")
+    print("Профиль: gaming (10-33ms интервал, 50-300 байт)")
+    print("Обфускация: XOR")
 
     # Симуляция отправки игровых пакетов
     target = ("127.0.0.1", 5001)

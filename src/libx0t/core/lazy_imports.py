@@ -10,7 +10,6 @@ Example:
 """
 
 import logging
-import sys
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)

@@ -16,9 +16,6 @@ Tests cover:
 import asyncio
 import pytest
 import time
-from datetime import datetime
-from typing import Dict, List, Set
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.swarm.intelligence import (
     SwarmIntelligence,
@@ -29,7 +26,6 @@ from src.swarm.intelligence import (
     DecisionType,
     ConsensusStatus,
     SwarmNodeInfo,
-    MAPEKIntegration,
     KimiK25Integration,
     create_swarm_intelligence,
 )
@@ -753,7 +749,7 @@ class TestIntegration:
         
         # Make a decision
         context = DecisionContext(topic="integration_test")
-        result = await swarm.make_decision(context)
+        await swarm.make_decision(context)
         
         # Check that consensus engine was used
         stats = swarm.get_stats()

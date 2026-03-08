@@ -10,7 +10,6 @@ SECURITY: Uses ChaCha20-Poly1305 AEAD for authenticated encryption.
 This provides both confidentiality and integrity verification.
 """
 
-import json
 import logging
 import os
 import secrets
@@ -212,7 +211,6 @@ class GhostTransport:
 
 def test_ghost_transport():
     """Test GhostTransport encryption/decryption cycle."""
-    import os
     
     # Generate a secure random key
     key = os.urandom(32)

@@ -4,7 +4,7 @@ Unit tests for Token Bridge (off-chain ↔ on-chain sync).
 
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from src.dao.token import MeshToken
 from src.dao.token_bridge import (BridgeConfig, BridgeDirection,

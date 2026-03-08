@@ -2,16 +2,13 @@
 Тесты для Mesh Discovery.
 """
 
-import asyncio
 import sys
-import time
 
 import pytest
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
-from src.network.discovery.protocol import (BootstrapDiscovery,
-                                            DiscoveryMessage, KademliaNode,
+from src.network.discovery.protocol import (DiscoveryMessage, KademliaNode,
                                             MeshDiscovery, MessageType,
                                             MulticastDiscovery, PeerInfo)
 

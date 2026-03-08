@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Callable, Optional, ParamSpec, Protocol, TypeVar
 
@@ -158,8 +157,6 @@ class RedisCache:
             return
 
         try:
-            import redis.asyncio as redis
-            from redis.asyncio.connection import ConnectionPool
 
             # Check if Sentinel mode is enabled
             sentinel_hosts = os.getenv("REDIS_SENTINEL_HOSTS", "")
@@ -188,7 +185,6 @@ class RedisCache:
 
     async def _initialize_sentinel(self, sentinel_hosts: str, master_name: str):
         """Initialize Redis with Sentinel for HA."""
-        import redis.asyncio as redis
         from redis.asyncio.sentinel import Sentinel
 
         # Parse sentinel hosts: "host1:port1,host2:port2,host3:port3"

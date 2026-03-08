@@ -211,7 +211,7 @@ class StatusData:
 
         return {
             "status": status,
-            "version": "3.1.0",
+            "version": "3.4.0",
             "timestamp": datetime.utcnow().isoformat(),
             "uptime_seconds": self.system_metrics.get_uptime_seconds(),
             # Система

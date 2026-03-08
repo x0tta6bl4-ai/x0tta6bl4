@@ -13,14 +13,14 @@ import logging
 import math
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from .aggregators import (Aggregator, FedAvgAggregator, KrumAggregator,
-                          MedianAggregator, TrimmedMeanAggregator)
-from .protocol import AggregationResult, GlobalModel, ModelUpdate, ModelWeights
+                          TrimmedMeanAggregator)
+from .protocol import AggregationResult, GlobalModel, ModelUpdate
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,11 @@
+# Default values for multi-tenant chart.
+# Override with values-enterprise.yaml for production deployments.
+
+global:
+  controlNamespace: x0tta6bl4-control
+  tenantLabelKey: x0tta.io/tenant
+  pagerDutyService: ""
+  auditRunbookURL: ""
+  keyCompromiseRunbookURL: ""
+
+tenants: []

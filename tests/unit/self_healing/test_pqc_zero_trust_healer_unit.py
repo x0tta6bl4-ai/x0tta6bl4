@@ -10,7 +10,6 @@ Tests cover:
 - PQCSessionAnomaly / PQCHealthMetrics dataclasses
 """
 
-import asyncio
 import time
 from datetime import datetime, timedelta
 from types import SimpleNamespace

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.api.maas_auth import get_current_user_from_maas, require_permission
+from src.api.maas_auth import require_permission
 from src.api.maas_security import token_signer
 from src.database import PlaybookAck, SignedPlaybook, User, get_db
 from src.utils.audit import record_audit_log

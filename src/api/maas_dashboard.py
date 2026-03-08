@@ -8,12 +8,12 @@ Uses DB-backed data for all statistics including hardware attestation.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Dict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, MarketplaceEscrow, get_db
+from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
 
 logger = logging.getLogger(__name__)
@@ -115,16 +115,31 @@ async def get_dashboard_summary(
         .all()
     )
 
-    # 6. Simulated Timeseries for Charts (Live Demo support)
+    # 6. Real Metrics for Charts
     now = datetime.utcnow()
     timeseries = []
-    import random
+    
+    # Calculate real health percentage over the last 24 hours in 1-hour buckets
     for i in range(24):
-        ts = now - timedelta(hours=23-i)
+        bucket_end = now - timedelta(hours=23-i)
+        bucket_start = bucket_end - timedelta(hours=1)
+        
+        if total_nodes > 0:
+            # Count nodes that were seen at least once within or after this bucket
+            # (Simplification: a node is 'healthy' for the bucket if its last_seen is within threshold of bucket_end)
+            healthy_in_bucket = db.query(MeshNode).filter(
+                MeshNode.mesh_id.in_(mesh_ids),
+                MeshNode.status == "healthy",
+                MeshNode.last_seen >= (bucket_end - timedelta(minutes=_STALE_THRESHOLD_MINUTES))
+            ).count()
+            health_pct = (healthy_in_bucket / total_nodes) * 100
+        else:
+            health_pct = 0
+            
         timeseries.append({
-            "timestamp": ts.isoformat(),
-            "health": 95 + random.uniform(-5, 5) if total_nodes > 0 else 0,
-            "traffic_mbps": random.uniform(10, 85) if total_nodes > 0 else 0
+            "timestamp": bucket_end.isoformat(),
+            "health": round(health_pct, 2),
+            "traffic_mbps": 0.0 # Placeholder until Telemetry table is fully integrated
         })
 
     # 7. Resilience Status (P2 Observability)

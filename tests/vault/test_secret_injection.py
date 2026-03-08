@@ -6,9 +6,7 @@ using the Vault Agent Injector.
 """
 
 import asyncio
-import json
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -198,7 +196,6 @@ class TestKubernetesAuthInjection:
         # This test verifies the K8s auth flow
 
         # Mock service account token
-        sa_token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ..."
 
         # Mock Vault Kubernetes auth response
         auth_response = {

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/monitoring/prometheus_extended.py
+# hypothesis_version: 6.151.9
+
+[0.1, 100, 250, 500, 1000, 2000, 5000, 10000, 'active_connections', 'adapter_name', 'anomaly_type', 'dao_active_proposals', 'dao_proposals_total', 'dao_votes_cast_total', 'dataset', 'dataset_name', 'decision_type', 'dest_node', 'detection_method', 'ebpf_memory_usage_kb', 'error_reason', 'error_type', 'event_type', 'fl_convergence_loss', 'kernel_version', 'lora_adapter_rank', 'lora_training_loss', 'mape_k', 'mesh_latency_ms', 'mesh_routing_hops', 'model_name', 'model_version', 'network_topology', 'node_id', 'outcome', 'program_type', 'proposal_type', 'quantization_type', 'query_type', 'rag_index_size_mb', 'record_dao_vote', 'record_ebpf_event', 'record_rag_retrieval', 'round', 'severity', 'source_node', 'vote_type']

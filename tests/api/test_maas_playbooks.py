@@ -9,7 +9,6 @@ Integration tests for MaaS Signed Playbooks:
 """
 
 import os
-import time
 import uuid
 import pytest
 from fastapi.testclient import TestClient

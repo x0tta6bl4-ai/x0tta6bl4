@@ -20,7 +20,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "x0tta6bl4_users.db"
+DB_PATH = "x0tta6bl4.db"
 
 # Connection pool settings
 _pool: Queue = Queue(maxsize=10)

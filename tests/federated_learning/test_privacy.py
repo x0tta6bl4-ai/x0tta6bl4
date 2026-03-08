@@ -10,14 +10,11 @@
 """
 
 import math
-from typing import List
 
 import pytest
 
-from src.federated_learning.privacy import (DifferentialPrivacy, DPConfig,
-                                            GaussianNoiseGenerator,
-                                            GradientClipper, PrivacyBudget,
-                                            SecureAggregation,
+from src.federated_learning.privacy import (DifferentialPrivacy, GaussianNoiseGenerator,
+                                            PrivacyBudget,
                                             compute_dp_sgd_privacy)
 
 

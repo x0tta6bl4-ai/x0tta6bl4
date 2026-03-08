@@ -332,7 +332,8 @@ class AStarAlgorithm:
             raise ValueError(f"End node not found: {end_id}")
 
         if heuristic is None:
-            heuristic = lambda a, b: a.distance_to(b)
+            def heuristic(a, b):
+                return a.distance_to(b)
 
         start_node = graph.nodes[start_id]
         end_node = graph.nodes[end_id]
@@ -468,7 +469,6 @@ class VisionCodingEngine:
         self, image_data: bytes, start_pos: Tuple[int, int], end_pos: Tuple[int, int]
     ) -> Dict[str, Any]:
         """Анализирует лабиринт и находит путь"""
-        import io
 
         # Проверяем кэш
         cached = await self.cache.get(image_data, f"maze_{start_pos}_{end_pos}")

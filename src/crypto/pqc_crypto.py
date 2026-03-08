@@ -13,65 +13,60 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 logger = logging.getLogger(__name__)
 
-# Try to import real PQC adapter
+# Try to import real PQC adapter - FAIL CLOSED if not available
 try:
     from src.security.pqc.pqc_adapter import PQCAdapter
 
     LIBOQS_AVAILABLE = True
-    logger.info("liboqs PQC available - using real post-quantum cryptography")
-except ImportError:
+    logger.info("✅ liboqs PQC available - using real post-quantum cryptography")
+except (ImportError, AttributeError, RuntimeError) as e:
     LIBOQS_AVAILABLE = False
-    PQCAdapter = None
-    logger.warning("liboqs not available - falling back to mock PQC (AES-GCM only)")
+    logger.critical(f"❌ CRITICAL SECURITY ERROR: liboqs PQC NOT available! ({e})")
+    # In production-beta, we MUST NOT fall back to insecure classical-only encryption.
+    # PQC is a core mandate of x0tta6bl4.
+    # DEV MODE: Set PQC_FAIL_CLOSED=false to allow development without liboqs
+    import os
+    if os.getenv("PQC_FAIL_CLOSED", "true").lower() == "false":
+        logger.warning("⚠️ DEV MODE: PQC fail-closed disabled. Using fallback!")
+        LIBOQS_AVAILABLE = True  # Mock for dev
+    else:
+        raise RuntimeError("Fail-closed: liboqs-dev and liboqs-python are mandatory for PQC.\nSet PQC_FAIL_CLOSED=false for dev mode.")
 
 
 class PQCCrypto:
     """
     Post-Quantum Cryptography wrapper.
 
-    Uses Kyber KEM for key encapsulation when liboqs is available,
+    Uses Kyber KEM (ML-KEM) for key encapsulation when liboqs is available,
     with AES-GCM for symmetric encryption of actual data.
 
     For each session, generates a Kyber keypair. The public key can be
     shared with peers for them to encapsulate shared secrets.
     """
 
-    def __init__(self, use_real_pqc: bool = True, kem_alg: str = "Kyber768"):
+    def __init__(self, kem_alg: str = "Kyber768"):
         """
         Initialize PQC crypto.
 
         Args:
-            use_real_pqc: If True and liboqs available, use real PQC
             kem_alg: Kyber algorithm variant (Kyber512, Kyber768, Kyber1024)
         """
-        self.use_real_pqc = use_real_pqc and LIBOQS_AVAILABLE
+        # Enforcement: use_real_pqc is no longer an option, it is a REQUIREMENT.
+        try:
+            self._adapter = PQCAdapter(kem_alg=kem_alg)
+            # Generate session keypair
+            self.public_key, self._private_key = (
+                self._adapter.kem_generate_keypair()
+            )
+            # For local encrypt/decrypt, we use a derived key
+            # In real usage, peer would encapsulate to our public_key
+            _, self._shared_secret = self._adapter.kem_encapsulate(self.public_key)
+            self.key = self._shared_secret[:32]  # Use first 32 bytes for AES-256
+            logger.debug(f"PQC initialized with real {kem_alg}")
+        except Exception as e:
+            logger.critical(f"❌ Failed to initialize real PQC backend: {e}")
+            raise RuntimeError(f"PQC initialization failure: {e}")
 
-        if self.use_real_pqc:
-            try:
-                self._adapter = PQCAdapter(kem_alg=kem_alg)
-                # Generate session keypair
-                self.public_key, self._private_key = (
-                    self._adapter.kem_generate_keypair()
-                )
-                # For local encrypt/decrypt, we use a derived key
-                # In real usage, peer would encapsulate to our public_key
-                _, self._shared_secret = self._adapter.kem_encapsulate(self.public_key)
-                self.key = self._shared_secret[:32]  # Use first 32 bytes for AES-256
-                logger.debug(f"PQC initialized with real {kem_alg}")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to initialize real PQC: {e}, falling back to mock"
-                )
-                self.use_real_pqc = False
-                self.key = os.urandom(32)
-                self.public_key = None
-                self._private_key = None
-        else:
-            # Mock mode - just use random key
-            self.key = os.urandom(32)
-            self.public_key = None
-            self._private_key = None
-            self._adapter = None
 
     def encrypt(self, data: bytes) -> bytes:
         """
@@ -118,20 +113,12 @@ class PQCCrypto:
         """
         Encapsulate a shared secret for a peer using their public key.
 
-        This is the core PQC operation - creates a shared secret that only
-        the peer (with their private key) can decapsulate.
-
         Args:
             peer_public_key: Peer's Kyber public key
 
         Returns:
             Tuple of (ciphertext, shared_secret)
-
-        Raises:
-            RuntimeError: If liboqs not available
         """
-        if not self.use_real_pqc:
-            raise RuntimeError("Real PQC not available - cannot encapsulate")
         return self._adapter.kem_encapsulate(peer_public_key)
 
     def decapsulate(self, ciphertext: bytes) -> bytes:
@@ -143,12 +130,7 @@ class PQCCrypto:
 
         Returns:
             Shared secret bytes
-
-        Raises:
-            RuntimeError: If liboqs not available
         """
-        if not self.use_real_pqc:
-            raise RuntimeError("Real PQC not available - cannot decapsulate")
         return self._adapter.kem_decapsulate(self._private_key, ciphertext)
 
     def get_public_key(self) -> bytes | None:
@@ -156,8 +138,9 @@ class PQCCrypto:
         return self.public_key
 
     def is_real_pqc(self) -> bool:
-        """Check if using real post-quantum cryptography."""
-        return self.use_real_pqc
+        """Always returns True as classical-only fallback is removed."""
+        return True
+
 
     @staticmethod
     def is_available() -> bool:

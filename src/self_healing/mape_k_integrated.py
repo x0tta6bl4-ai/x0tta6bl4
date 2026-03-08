@@ -7,7 +7,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.self_healing.mape_k import (MAPEKAnalyzer, MAPEKExecutor,
                                      MAPEKKnowledge, MAPEKMonitor,
@@ -145,7 +145,7 @@ class IntegratedMAPEKCycle:
                 check_result = self.monitor.check(metrics)
                 anomaly_detected = check_result["anomaly_detected"]
                 scaling_recommended = check_result["scaling_recommended"]
-                issue_type = check_result["issue"]
+                check_result["issue"]
 
             result = {
                 "timestamp": datetime.now().isoformat(),
@@ -248,7 +248,7 @@ class IntegratedMAPEKCycle:
                 plan_trace = nullcontext()
 
             with plan_trace:
-                plan_start_time = time.time()
+                time.time()
                 strategy = self.planner.plan(analysis_issue)
 
         # Estimate recovery time based on strategy type and historical data

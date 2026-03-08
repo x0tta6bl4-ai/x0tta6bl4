@@ -3,10 +3,10 @@ import hmac
 import json
 import logging
 import os
-import sys
 import time
 import uuid
 import datetime
+import threading
 from typing import Any, Dict, Optional
 
 import httpx
@@ -17,7 +17,6 @@ from slowapi.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.services.xray_manager import XrayManager
 
 # Simplified import
 try:
@@ -27,12 +26,58 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
-from src.database import BillingWebhookEvent, License, Payment, User, get_db
+from src.database import BillingWebhookEvent, License, User, get_db
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 limiter = Limiter(key_func=get_remote_address)
+
+_stripe_event_fallback_lock = threading.Lock()
+_stripe_event_fallback: Dict[str, Dict[str, Any]] = {}
+
+# Configuration for in-memory fallback limits
+_FALLBACK_MAX_SIZE = int(os.getenv("STRIPE_FALLBACK_MAX_SIZE", "1000"))
+_FALLBACK_TTL_SECONDS = int(os.getenv("STRIPE_FALLBACK_TTL_SECONDS", "3600"))
+
+
+def _cleanup_stripe_fallback() -> None:
+    """Remove expired entries from in-memory fallback cache."""
+    global _stripe_event_fallback
+    current_time = time.time()
+    cutoff = current_time - _FALLBACK_TTL_SECONDS
+    
+    # Find expired entries
+    expired_keys = [
+        k for k, v in _stripe_event_fallback.items()
+        if v.get("timestamp", 0) < cutoff
+    ]
+    
+    for k in expired_keys:
+        del _stripe_event_fallback[k]
+    
+    if expired_keys:
+        logger.info(f"Cleaned up {len(expired_keys)} expired Stripe fallback entries")
+
+
+def _evict_oldest_fallback_entries() -> None:
+    """Evict oldest entries when max size is reached (LRU-style)."""
+    global _stripe_event_fallback
+    
+    if len(_stripe_event_fallback) <= _FALLBACK_MAX_SIZE:
+        return
+    
+    # Sort by timestamp and remove oldest 20%
+    sorted_items = sorted(
+        _stripe_event_fallback.items(),
+        key=lambda x: x[1].get("timestamp", 0)
+    )
+    
+    evict_count = max(1, len(sorted_items) // 5)
+    for k, _ in sorted_items[:evict_count]:
+        del _stripe_event_fallback[k]
+    
+    logger.info(f"Evicted {evict_count} oldest Stripe fallback entries (LRU)")
 
 
 def _is_circuit_breaker_open_error(exc: Exception) -> bool:
@@ -197,6 +242,71 @@ def _stripe_event_storage_id(event_id: str) -> str:
     return f"stripe:{event_id}"
 
 
+def _start_local_stripe_event_processing(
+    event_id: Optional[str], payload_hash: str
+) -> Optional[Dict[str, Any]]:
+    """In-memory idempotency fallback when DB idempotency table is unavailable."""
+    if not event_id:
+        return None
+    with _stripe_event_fallback_lock:
+        # Periodic cleanup on every 10th call to avoid overhead
+        if len(_stripe_event_fallback) > 0 and len(_stripe_event_fallback) % 10 == 0:
+            _cleanup_stripe_fallback()
+        
+        # Evict if at capacity
+        if len(_stripe_event_fallback) >= _FALLBACK_MAX_SIZE:
+            _evict_oldest_fallback_entries()
+        
+        current_time = time.time()
+        record = _stripe_event_fallback.get(event_id)
+        if record is None:
+            _stripe_event_fallback[event_id] = {
+                "payload_hash": payload_hash,
+                "status": "processing",
+                "response": None,
+                "timestamp": current_time,
+            }
+            return None
+
+        if record.get("payload_hash") != payload_hash:
+            raise HTTPException(status_code=409, detail="Stripe event_id payload mismatch")
+
+        if record.get("status") == "done":
+            cached = record.get("response")
+            if isinstance(cached, dict):
+                return dict(cached)
+            return {"received": True}
+
+        raise HTTPException(status_code=409, detail="Stripe event is already being processed")
+
+
+def _finalize_local_stripe_event_processing(
+    event_id: Optional[str], response_payload: Dict[str, Any]
+) -> None:
+    if not event_id:
+        return
+    with _stripe_event_fallback_lock:
+        record = _stripe_event_fallback.get(event_id)
+        if record is None:
+            _stripe_event_fallback[event_id] = {
+                "payload_hash": "",
+                "status": "done",
+                "response": dict(response_payload),
+                "timestamp": time.time(),
+            }
+            return
+        record["status"] = "done"
+        record["response"] = dict(response_payload)
+        record["timestamp"] = time.time()
+
+
+def _fail_local_stripe_event_processing(event_id: Optional[str]) -> None:
+    if not event_id:
+        return
+    with _stripe_event_fallback_lock:
+        _stripe_event_fallback.pop(event_id, None)
+
+
 def _stripe_event_ttl_seconds() -> int:
     raw = os.getenv("STRIPE_WEBHOOK_EVENT_TTL_SEC", "86400").strip()
     try:
@@ -242,6 +352,10 @@ def _start_stripe_event_processing(
 ) -> Optional[Dict[str, Any]]:
     if not event_id:
         return None
+
+    cached_local = _start_local_stripe_event_processing(event_id, payload_hash)
+    if cached_local is not None:
+        return cached_local
 
     _cleanup_expired_stripe_events(db)
     storage_id = _stripe_event_storage_id(event_id)
@@ -301,6 +415,7 @@ def _start_stripe_event_processing(
 def _finalize_stripe_event_processing(
     db: Session, event_id: Optional[str], response_payload: Dict[str, Any]
 ) -> None:
+    _finalize_local_stripe_event_processing(event_id, response_payload)
     if not event_id:
         return
     storage_id = _stripe_event_storage_id(event_id)
@@ -325,6 +440,7 @@ def _finalize_stripe_event_processing(
 def _fail_stripe_event_processing(
     db: Session, event_id: Optional[str], error: str
 ) -> None:
+    _fail_local_stripe_event_processing(event_id)
     if not event_id:
         return
     storage_id = _stripe_event_storage_id(event_id)

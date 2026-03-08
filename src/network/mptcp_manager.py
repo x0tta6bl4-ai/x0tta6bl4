@@ -9,7 +9,7 @@ mesh links into a single logical high-speed connection.
 import logging
 import subprocess
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class MPTCPManager:
             try:
                 with open("/proc/sys/net/mptcp/enabled", "r") as f:
                     enabled = f.read().strip() == "1"
-            except: pass
+            except Exception: pass
             
         return {
             "supported": supported,

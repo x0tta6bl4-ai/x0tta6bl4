@@ -66,3 +66,39 @@ Leader election namespace.
 {{- define "x0tta-mesh-operator.leaderElectionNamespace" -}}
 {{- default .Release.Namespace .Values.leaderElection.namespace }}
 {{- end }}
+
+{{/*
+Webhook service name.
+*/}}
+{{- define "x0tta-mesh-operator.webhookServiceName" -}}
+{{- printf "%s-webhook-service" (include "x0tta-mesh-operator.fullname" .) -}}
+{{- end }}
+
+{{/*
+Webhook certificate secret name.
+*/}}
+{{- define "x0tta-mesh-operator.webhookSecretName" -}}
+{{- if .Values.operator.webhook.tls.secretName -}}
+{{- .Values.operator.webhook.tls.secretName -}}
+{{- else -}}
+{{- printf "%s-webhook-server-cert" (include "x0tta-mesh-operator.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Webhook certificate resource name.
+*/}}
+{{- define "x0tta-mesh-operator.webhookCertificateName" -}}
+{{- printf "%s-webhook-cert" (include "x0tta-mesh-operator.fullname" .) -}}
+{{- end }}
+
+{{/*
+Webhook issuer name.
+*/}}
+{{- define "x0tta-mesh-operator.webhookIssuerName" -}}
+{{- if .Values.operator.webhook.certManager.issuerRef.name -}}
+{{- .Values.operator.webhook.certManager.issuerRef.name -}}
+{{- else -}}
+{{- printf "%s-webhook-selfsigned" (include "x0tta-mesh-operator.fullname" .) -}}
+{{- end -}}
+{{- end }}

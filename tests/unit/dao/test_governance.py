@@ -1,7 +1,12 @@
+import os
 import time
 import unittest
 
 from src.dao.governance import GovernanceEngine, ProposalState, VoteType
+
+# Governance hardened в prod: unsigned votes отклоняются.
+# Тесты — unit-тесты без PQC-ключей, поэтому включаем test mode.
+os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 
 
 class TestGovernance(unittest.TestCase):
@@ -225,6 +230,121 @@ class TestGovernance(unittest.TestCase):
         self.assertEqual(counts[VoteType.YES], 1)
         self.assertEqual(counts[VoteType.NO], 1)
         self.assertEqual(counts[VoteType.ABSTAIN], 1)
+
+
+class TestGovernanceInputValidation(unittest.TestCase):
+    """Tests for input validation added to fix audit findings."""
+
+    def setUp(self):
+        self.gov = GovernanceEngine(node_id="node-1")
+
+    # --- create_proposal() validation ---
+
+    def test_empty_title_raises(self):
+        with self.assertRaises(ValueError, msg="empty title"):
+            self.gov.create_proposal("", "Desc")
+
+    def test_blank_title_raises(self):
+        with self.assertRaises(ValueError, msg="whitespace-only title"):
+            self.gov.create_proposal("   ", "Desc")
+
+    def test_title_too_long_raises(self):
+        with self.assertRaises(ValueError, msg="title >200 chars"):
+            self.gov.create_proposal("x" * 201, "Desc")
+
+    def test_title_exactly_200_accepted(self):
+        prop = self.gov.create_proposal("x" * 200, "Desc")
+        self.assertEqual(len(prop.title), 200)
+
+    def test_zero_duration_raises(self):
+        with self.assertRaises(ValueError, msg="duration=0"):
+            self.gov.create_proposal("T", "D", duration_seconds=0)
+
+    def test_negative_duration_raises(self):
+        with self.assertRaises(ValueError, msg="duration=-1"):
+            self.gov.create_proposal("T", "D", duration_seconds=-1)
+
+    def test_quorum_zero_raises(self):
+        with self.assertRaises(ValueError):
+            self.gov.create_proposal("T", "D", quorum=0.0)
+
+    def test_quorum_above_one_raises(self):
+        with self.assertRaises(ValueError):
+            self.gov.create_proposal("T", "D", quorum=1.1)
+
+    def test_threshold_zero_raises(self):
+        with self.assertRaises(ValueError):
+            self.gov.create_proposal("T", "D", threshold=0.0)
+
+    def test_threshold_above_one_raises(self):
+        with self.assertRaises(ValueError):
+            self.gov.create_proposal("T", "D", threshold=1.5)
+
+    def test_valid_boundary_quorum_one_accepted(self):
+        prop = self.gov.create_proposal("T", "D", quorum=1.0)
+        self.assertIsNotNone(prop.id)
+
+    # --- cast_vote() validation ---
+
+    def test_empty_voter_id_rejected(self):
+        prop = self.gov.create_proposal("T", "D")
+        result = self.gov.cast_vote(prop.id, "", VoteType.YES, tokens=10.0)
+        self.assertFalse(result)
+
+    def test_whitespace_voter_id_rejected(self):
+        prop = self.gov.create_proposal("T", "D")
+        result = self.gov.cast_vote(prop.id, "  ", VoteType.YES, tokens=10.0)
+        self.assertFalse(result)
+
+    def test_negative_tokens_rejected(self):
+        prop = self.gov.create_proposal("T", "D")
+        result = self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=-100.0)
+        self.assertFalse(result)
+
+    def test_zero_tokens_accepted(self):
+        prop = self.gov.create_proposal("T", "D")
+        result = self.gov.cast_vote(prop.id, "node-2", VoteType.YES, tokens=0.0)
+        self.assertTrue(result)
+
+
+class TestActionDispatcherPathTraversal(unittest.TestCase):
+    """Path traversal protection for node_id in action dispatcher."""
+
+    def setUp(self):
+        from src.dao.governance import ActionDispatcher
+        self.dispatcher = ActionDispatcher()
+
+    def test_path_traversal_in_restart_node_rejected(self):
+        result = self.dispatcher.dispatch(
+            {"type": "restart_node", "node_id": "../../etc/passwd"}
+        )
+        self.assertFalse(result.success)
+        self.assertIn("invalid", result.detail)
+
+    def test_path_traversal_in_ban_node_rejected(self):
+        result = self.dispatcher.dispatch(
+            {"type": "ban_node", "node_id": "../attack"}
+        )
+        self.assertFalse(result.success)
+        self.assertIn("invalid", result.detail)
+
+    def test_valid_node_id_restart_accepted(self):
+        result = self.dispatcher.dispatch(
+            {"type": "restart_node", "node_id": "node-42.mesh"}
+        )
+        self.assertTrue(result.success)
+
+    def test_valid_node_id_ban_accepted(self):
+        result = self.dispatcher.dispatch(
+            {"type": "ban_node", "node_id": "rogue_node_1"}
+        )
+        self.assertTrue(result.success)
+
+    def test_shell_injection_in_node_id_rejected(self):
+        result = self.dispatcher.dispatch(
+            {"type": "restart_node", "node_id": "node; rm -rf /"}
+        )
+        self.assertFalse(result.success)
 
 
 if __name__ == "__main__":

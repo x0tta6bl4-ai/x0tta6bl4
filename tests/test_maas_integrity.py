@@ -5,11 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
 
 from src.core.app import app
 from src.database import Base, User, AuditLog, get_db, Invoice
-from src.api.maas_auth import ApiKeyManager
 
 # Setup Test DB — unique file per process to avoid SQLite locking in concurrent runs
 _DB_PATH = f"./test_maas_integrity_{uuid.uuid4().hex}.db"

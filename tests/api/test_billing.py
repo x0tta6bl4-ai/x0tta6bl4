@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -21,7 +21,6 @@ with patch("slowapi.Limiter") as MockLimiter:
     from src.api.billing import stripe_webhook
     from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
     from src.database import Base, License
-    from src.database import Session as DB_Session
     from src.database import User, get_db
 
 # Create a minimal FastAPI app for testing purposes
@@ -317,7 +316,7 @@ async def test_stripe_webhook_success(
     assert license is not None
     assert license.token == "mock_license_token"
     assert license.tier == "pro"
-    assert license.is_active == True
+    assert license.is_active
 
 
 @pytest.mark.asyncio
@@ -514,7 +513,7 @@ async def test_stripe_webhook_malformed_signature_header(
     assert "Invalid Stripe-Signature header" in exc_info.value.detail
 
     # Missing t
-    malformed_signature = f"t=abc,v1=abc"  # Invalid timestamp format
+    malformed_signature = "t=abc,v1=abc"  # Invalid timestamp format
     with pytest.raises(HTTPException) as exc_info:
         await call_webhook(payload_bytes, db_session, malformed_signature)
     assert exc_info.value.status_code == 400

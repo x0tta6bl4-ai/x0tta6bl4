@@ -332,6 +332,30 @@ curl -X POST http://localhost:8080/api/v1/recovery/switch-route \
 - [ ] RPO в пределах целевых значений
 - [ ] Документация актуальна
 
+### Reliability Drill Automation
+
+Быстрый reliability drill для staging:
+
+```bash
+scripts/ops/run_reliability_drill.sh
+```
+
+Опциональные параметры:
+
+```bash
+COMPOSE_FILE=staging/docker-compose.quick.yml \
+API_BASE_URL=http://localhost:8000 \
+REPORT_DIR=/tmp \
+scripts/ops/run_reliability_drill.sh
+```
+
+Критерии успеха:
+
+- `docker compose ps` отрабатывает без ошибок.
+- `/health` отвечает `200`.
+- `/metrics` отвечает `200` и отдает payload.
+- При деградации зависимостей API может вернуть `X-Degraded-Dependencies`.
+
 ---
 
 ## 📞 Контакты и эскалация
@@ -357,7 +381,6 @@ curl -X POST http://localhost:8080/api/v1/recovery/switch-route \
 
 ---
 
-**Последнее обновление:** 2026-01-XX  
+**Последнее обновление:** 2026-03-04  
 **Версия:** 1.0  
 **Статус:** ✅ Production-ready
-

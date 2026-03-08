@@ -2,12 +2,11 @@
 Tests для Chaos Controller
 """
 
-import asyncio
 
 import pytest
 
 from src.chaos.controller import (ChaosController, ChaosExperiment,
-                                  ExperimentType, RecoveryMetrics)
+                                  ExperimentType)
 
 
 @pytest.fixture

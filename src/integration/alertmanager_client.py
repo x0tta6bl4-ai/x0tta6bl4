@@ -7,12 +7,11 @@ Purpose: Subscribe to AlertManager alerts for reactive MAPE-K triggering
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 try:
     import aiohttp

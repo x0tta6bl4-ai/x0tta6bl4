@@ -1,4 +1,3 @@
-import socket
 import unittest
 
 from src.network.obfuscation.simple import SimpleXORTransport

@@ -15,14 +15,11 @@ import logging
 import random
 import statistics
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from src.network.residential_proxy_manager import (DomainReputation,
-                                                   ProxyEndpoint, ProxyStatus,
-                                                   ResidentialProxyManager,
+from src.network.residential_proxy_manager import (ProxyEndpoint, ProxyStatus,
                                                    TLSFingerprintRandomizer)
 
 logger = logging.getLogger(__name__)
@@ -531,30 +528,30 @@ class GeoProxyShardManager:
         lines = []
 
         # Global metrics
-        lines.append(f"# HELP geo_proxy_total_requests Total proxy requests")
-        lines.append(f"# TYPE geo_proxy_total_requests counter")
+        lines.append("# HELP geo_proxy_total_requests Total proxy requests")
+        lines.append("# TYPE geo_proxy_total_requests counter")
         lines.append(f"geo_proxy_total_requests {self.total_requests}")
 
-        lines.append(f"# HELP geo_proxy_successful_requests Successful proxy requests")
-        lines.append(f"# TYPE geo_proxy_successful_requests counter")
+        lines.append("# HELP geo_proxy_successful_requests Successful proxy requests")
+        lines.append("# TYPE geo_proxy_successful_requests counter")
         lines.append(f"geo_proxy_successful_requests {self.successful_requests}")
 
-        lines.append(f"# HELP geo_proxy_failover_count Regional failover count")
-        lines.append(f"# TYPE geo_proxy_failover_count counter")
+        lines.append("# HELP geo_proxy_failover_count Regional failover count")
+        lines.append("# TYPE geo_proxy_failover_count counter")
         lines.append(f"geo_proxy_failover_count {self.failover_count}")
 
         # Regional metrics
-        lines.append(f"# HELP geo_proxy_pool_health_score Regional pool health score")
-        lines.append(f"# TYPE geo_proxy_pool_health_score gauge")
+        lines.append("# HELP geo_proxy_pool_health_score Regional pool health score")
+        lines.append("# TYPE geo_proxy_pool_health_score gauge")
 
-        lines.append(f"# HELP geo_proxy_pool_proxies_total Total proxies in pool")
-        lines.append(f"# TYPE geo_proxy_pool_proxies_total gauge")
+        lines.append("# HELP geo_proxy_pool_proxies_total Total proxies in pool")
+        lines.append("# TYPE geo_proxy_pool_proxies_total gauge")
 
-        lines.append(f"# HELP geo_proxy_pool_proxies_healthy Healthy proxies in pool")
-        lines.append(f"# TYPE geo_proxy_pool_proxies_healthy gauge")
+        lines.append("# HELP geo_proxy_pool_proxies_healthy Healthy proxies in pool")
+        lines.append("# TYPE geo_proxy_pool_proxies_healthy gauge")
 
-        lines.append(f"# HELP geo_proxy_pool_latency_avg Average latency in pool")
-        lines.append(f"# TYPE geo_proxy_pool_latency_avg gauge")
+        lines.append("# HELP geo_proxy_pool_latency_avg Average latency in pool")
+        lines.append("# TYPE geo_proxy_pool_latency_avg gauge")
 
         for region, pool in self.pools.items():
             region_label = f'region="{region.value}"'

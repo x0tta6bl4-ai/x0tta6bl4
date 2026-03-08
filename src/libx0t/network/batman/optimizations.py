@@ -11,7 +11,6 @@ Integrates production-ready optimizations:
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -172,7 +171,7 @@ class AODVFallback:
 
         # Check if route exists in cache
         if destination in self.route_cache:
-            route = self.route_cache[destination]
+            self.route_cache[destination]
             # Check if route is still valid
             # Route validation implementation
             # Validates route by checking connectivity

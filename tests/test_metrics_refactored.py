@@ -4,8 +4,6 @@ Tests for refactored eBPF Metrics Exporter.
 Tests the decomposed metrics components.
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-import time
 
 
 class TestMetricsModels:
@@ -341,26 +339,7 @@ class TestMetricsModuleAPI:
         from src.network.ebpf.metrics import (
             # Models
             MetricValidationStatus,
-            MetricValidationResult,
-            ErrorCount,
-            RetryConfig,
-            DegradationLevel,
-            DegradationState,
-            # Exceptions
             EBPFMetricsError,
-            MapReadError,
-            BpftoolError,
-            PrometheusExportError,
-            MetricRegistrationError,
-            ParseError,
-            MetricsTimeoutError,
-            # Components
-            MetricSanitizer,
-            with_retry,
-            GracefulShutdown,
-            PrometheusExporter,
-            PROMETHEUS_AVAILABLE,
-            # Main exporter
             EBPFMetricsExporter,
         )
 

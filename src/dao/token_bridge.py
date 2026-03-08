@@ -19,13 +19,11 @@ Architecture:
 """
 
 import asyncio
-import json
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 # Optional web3 import
@@ -742,7 +740,7 @@ class TokenBridge:
             return self.rpc_breaker.call(func, *args, **kwargs)
         except Exception as e:
             if "Circuit breaker is OPEN" in str(e):
-                logger.warning(f"Blockchain RPC Breaker is OPEN. Skipping external call.")
+                logger.warning("Blockchain RPC Breaker is OPEN. Skipping external call.")
                 raise ConnectionError("Blockchain RPC currently unavailable (Circuit Breaker OPEN)")
             # Other exceptions are handled and recorded by Circuit Breaker inside .call()
             raise

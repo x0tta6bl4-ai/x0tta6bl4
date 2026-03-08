@@ -18,7 +18,6 @@ Features:
 import asyncio
 import ipaddress
 import logging
-import time
 from dataclasses import dataclass
 from typing import Dict, Optional
 
@@ -153,7 +152,7 @@ class EBPFTopologyIntegrator:
             if tq_scores:
                 avg_tq = sum(tq_scores) / len(tq_scores)
                 self.metrics.set_gauge("mesh_average_tq_score", avg_tq)
-        except:
+        except Exception:
             pass
 
     def _get_local_ip(self) -> str:
@@ -166,7 +165,7 @@ class EBPFTopologyIntegrator:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
+        except Exception:
             return "127.0.0.1"
 
     def _get_ifindex(self, interface: str) -> int:
@@ -175,7 +174,7 @@ class EBPFTopologyIntegrator:
 
         try:
             return socket.if_nametoindex(interface)
-        except:
+        except Exception:
             return 1  # Default
 
     async def shutdown(self):

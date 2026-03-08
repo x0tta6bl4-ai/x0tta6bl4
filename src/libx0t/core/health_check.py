@@ -74,14 +74,14 @@ class HealthChecker:
     Health checker with configurable dependency checks.
 
     Usage:
-        checker = HealthChecker(version="3.1.0")
+        checker = HealthChecker(version="3.4.0")
         checker.add_check("database", check_database)
         checker.add_check("redis", check_redis)
 
         result = await checker.run_all_checks()
     """
 
-    def __init__(self, version: str = "3.1.0"):
+    def __init__(self, version: str = "3.4.0"):
         self.version = version
         self.start_time = time.time()
         self._checks: Dict[str, Callable] = {}
@@ -184,7 +184,8 @@ async def check_database() -> CheckResult:
         db = SessionLocal()
         try:
             # Simple query to test connection
-            db.execute("SELECT 1")
+            from sqlalchemy import text as _sa_text
+            db.execute(_sa_text("SELECT 1"))
             latency = (time.time() - start) * 1000
 
             return CheckResult(
@@ -241,7 +242,17 @@ async def check_redis() -> CheckResult:
 async def check_vpn_server() -> CheckResult:
     """Check VPN server connectivity."""
     server = os.getenv("VPN_SERVER", "")
-    port = int(os.getenv("VPN_PORT", "0")) or 0
+    _port_str = os.getenv("VPN_PORT", "").strip()
+    port = int(_port_str) if _port_str else 0
+
+    if not server or not port:
+        return CheckResult(
+            name="vpn_server",
+            status=HealthStatus.DEGRADED,
+            latency_ms=0,
+            message="Not configured",
+            details={"server": server, "port": port},
+        )
 
     try:
         start = time.time()
@@ -337,7 +348,7 @@ async def check_disk() -> CheckResult:
 
 
 # Global health checker instance
-health_checker = HealthChecker(version="3.1.0")
+health_checker = HealthChecker(version="3.4.0")
 
 # Register default checks
 health_checker.add_check("database", check_database)

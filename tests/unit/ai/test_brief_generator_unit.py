@@ -1,7 +1,5 @@
 """Alias tests for brief_generator module — see test_ai_navigation_unit.py for full suite."""
 import os
-import pytest
-from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")

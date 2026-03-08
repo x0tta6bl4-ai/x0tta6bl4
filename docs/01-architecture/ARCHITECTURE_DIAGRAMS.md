@@ -1,211 +1,84 @@
-# 🏗️ Architecture Diagrams for x0tta6bl4
+# x0tta6bl4 Architecture Diagrams (As-Built)
 
-**Версия:** 1.0  
-**Дата:** 2025-12-28  
-**Статус:** ✅ **PRODUCTION-READY**
+**Version:** `v3.4.0`  
+**Updated:** `2026-03-05`  
+**Status:** `aligned with repository code`
 
----
+## Source of truth
 
-## 📋 Обзор
+This document is aligned to:
 
-Архитектурные диаграммы и описания системы x0tta6bl4.
+- `src/core/app.py` (FastAPI composition, middleware chain, router registration)
+- `src/database/__init__.py` (SQLAlchemy models, DB circuit-breaker wiring)
+- `src/monitoring/maas_metrics.py` and `src/monitoring/metrics.py` (business + platform metrics)
+- `mesh-operator/cmd/manager/main.go` (operator manager bootstrapping)
+- `mesh-operator/controllers/meshcluster_controller.go` (reconcile logic)
+- `charts/x0tta-mesh-operator/templates/operator/deployment.yaml` (runtime args and probes)
+- `scripts/ops/mesh_operator_release_dry_run.sh` (release control checkpoints)
 
----
-
-## 🎯 Системная Архитектура
-
-### Высокоуровневая Архитектура
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    x0tta6bl4 Mesh Network                    │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │   Node 1     │  │   Node 2     │  │   Node N     │       │
-│  │              │  │              │  │              │       │
-│  │ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │       │
-│  │ │ MAPE-K   │ │  │ │ MAPE-K   │ │  │ │ MAPE-K   │ │       │
-│  │ │  Cycle   │ │  │ │  Cycle   │ │  │ │  Cycle   │ │       │
-│  │ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │       │
-│  │              │  │              │  │              │       │
-│  │ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │       │
-│  │ │GraphSAGE │ │  │ │GraphSAGE │ │  │ │GraphSAGE │ │       │
-│  │ │Detector  │ │  │ │Detector  │ │  │ │Detector  │ │       │
-│  │ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-│         │                  │                  │               │
-│         └──────────────────┴──────────────────┘               │
-│                    Batman-adv Mesh                             │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### MAPE-K Цикл
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      MAPE-K Self-Healing Cycle               │
-│                                                              │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐  │
-│  │ Monitor │───▶│ Analyze │───▶│  Plan   │───▶│ Execute │  │
-│  └────┬────┘    └────┬────┘    └────┬────┘    └────┬────┘  │
-│       │              │               │              │       │
-│       └──────────────┴───────────────┴──────────────┘       │
-│                          │                                   │
-│                          ▼                                   │
-│                    ┌─────────┐                              │
-│                    │Knowledge│                              │
-│                    │  Base   │                              │
-│                    └─────────┘                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Security Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Security Layer                           │
-│                                                              │
-│  ┌──────────────┐      ┌──────────────┐                    │
-│  │   SPIFFE/    │      │   Zero Trust │                    │
-│  │   SPIRE      │─────▶│   Policy     │                    │
-│  │              │      │   Engine     │                    │
-│  └──────────────┘      └──────────────┘                    │
-│         │                      │                             │
-│         ▼                      ▼                             │
-│  ┌──────────────┐      ┌──────────────┐                    │
-│  │   mTLS       │      │   PQC        │                    │
-│  │   Context    │      │   Handshake  │                    │
-│  └──────────────┘      └──────────────┘                    │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Network Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Mesh Network Layer                       │
-│                                                              │
-│  ┌──────────────┐      ┌──────────────┐                    │
-│  │  Batman-adv  │      │   eBPF       │                    │
-│  │   Routing    │─────▶│   Monitoring │                    │
-│  └──────────────┘      └──────────────┘                    │
-│         │                      │                             │
-│         ▼                      ▼                             │
-│  ┌──────────────┐      ┌──────────────┐                    │
-│  │   Multi-path │      │   AODV       │                    │
-│  │   Routing    │      │   Fallback   │                    │
-│  └──────────────┘      └──────────────┘                    │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔄 Data Flow
-
-### Anomaly Detection Flow
-
-```
-Metrics → GraphSAGE → Anomaly Score → MAPE-K Monitor → 
-Analyze → Plan → Execute → Knowledge Base
-```
-
-### Recovery Action Flow
-
-```
-Anomaly Detected → Root Cause Analysis → Recovery Strategy → 
-Action Execution (with Circuit Breaker, Rate Limiter, Retry) → 
-Rollback if needed → Knowledge Update
-```
-
----
-
-## 🏛️ Component Layers
-
-### Layer 1: Anomaly Detection
-- GraphSAGE Detector
-- Isolation Forest
-- Ensemble Detector
-- Causal Analysis
-- eBPF Monitoring
-
-### Layer 2: Federated Learning
-- FL Coordinator
-- PPO Agent
-- Byzantine Aggregator
-- Differential Privacy
-
-### Layer 3: Self-Healing
-- MAPE-K Cycle
-- Recovery Actions
-- Knowledge Base
-
-### Layer 4: Security
-- SPIFFE/SPIRE
-- Zero Trust Policy
-- PQC Handshake
-- mTLS
-
-### Layer 5: Network
-- Batman-adv Mesh
-- eBPF Monitoring
-- Multi-path Routing
-
----
-
-## 📊 Deployment Architecture
-
-### Multi-Region Deployment
-
-```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│  us-east-1   │      │  eu-west-1   │      │  asia-pac-1  │
-│              │      │              │      │              │
-│  ┌────────┐  │      │  ┌────────┐  │      │  ┌────────┐  │
-│  │Primary │  │      │  │Backup  │  │      │  │Backup  │  │
-│  │Region  │  │      │  │Region  │  │      │  │Region  │  │
-│  └────────┘  │      │  └────────┘  │      │  └────────┘  │
-└──────┬───────┘      └──────┬───────┘      └──────┬───────┘
-       │                      │                      │
-       └──────────────────────┴──────────────────────┘
-                    Cross-Region Mesh
-```
-
----
-
-## 🔗 Integration Points
-
-### External Integrations
-
-- **Prometheus:** Metrics collection
-- **Grafana:** Visualization
-- **Jaeger/Zipkin:** Distributed tracing
-- **OPA:** Policy evaluation
-- **SPIRE Server:** Identity management
-- **Alertmanager:** Alert routing
-
----
-
-## 📝 Диаграммы в формате Mermaid
-
-Для визуализации в Markdown-редакторах, поддерживающих Mermaid:
+## 1) Runtime Architecture (MaaS API + Services)
 
 ```mermaid
-graph TB
-    A[Metrics] --> B[GraphSAGE]
-    B --> C[Anomaly Score]
-    C --> D[MAPE-K Monitor]
-    D --> E[Analyze]
-    E --> F[Plan]
-    F --> G[Execute]
-    G --> H[Knowledge Base]
-    H --> D
+flowchart LR
+    A[Client / CLI / Integrations] --> B[FastAPI Gateway\nsrc/core/app.py]
+    B --> C[Security + Reliability Middleware\nCORS, mTLS, RateLimit, Validation,\nTracing, Shutdown, Security Headers]
+    C --> D[API Routers]
+
+    D --> D1[MaaS Core Routers\nmarketplace, billing, governance,\nplaybooks, auth, analytics, dashboard]
+    D --> D2[Full-mode Routers\nnodes, telemetry, vpn, users,\nswarm, ledger, vision]
+    D --> D3[Edge + Event Sourcing Routers]
+
+    D1 --> E[Domain/Resilience Layer\nMAPE-K, Circuit Breaker,\nRetry, Policy, Health Bot]
+    D2 --> E
+    D3 --> E
+
+    E --> F[(SQLAlchemy DB\nsrc/database/__init__.py)]
+    E --> G[(Prometheus Metrics\n/metrics)]
+    E --> H[Logs + Tracing]
 ```
 
----
+### Router loading contract
 
-**Mesh обновлён. Архитектура документирована.**  
-**Проснись. Обновись. Сохранись.**  
-**x0tta6bl4 вечен.**
+- Always loaded: `maas_legacy`, `maas_compat`, `maas_auth`, `maas_playbooks`, `maas_supply_chain`, `maas_marketplace`, `maas_governance`, `maas_analytics`, `maas_billing`, `billing`, `maas_agent_mesh`, `maas_dashboard`, `edge.api`, `event_sourcing.api`.
+- Full mode only (`MAAS_LIGHT_MODE=false`): `maas_nodes`, `maas_policies`, `maas_telemetry`, `vpn`, `users`, `swarm`, `ledger_endpoints`, `swarm_endpoints`, `vision_endpoints`.
+
+## 2) Kubernetes Control Plane (mesh-operator)
+
+```mermaid
+flowchart LR
+    U[User / CI] --> H[Helm Chart\ncharts/x0tta-mesh-operator]
+    H --> O[mesh-operator Deployment\ncontroller-runtime manager]
+    O --> R[MeshClusterReconciler]
+
+    CR[MeshCluster CR] --> R
+    R --> CM[ConfigMap\nmeshcluster.json]
+    R --> SVC[Service\nmesh TCP 8080]
+    R --> DEP[Deployment\nmesh-node replicas]
+    R --> ST[Status / Conditions\nReady, Progressing, Degraded]
+
+    DEL[CR deletion] --> FIN[Finalizer cleanup]
+    FIN --> X[Delete owned resources]
+```
+
+### Reconcile contract
+
+- Reconcile loop: `ConfigMap` -> `Service` -> `Deployment` -> `status patch`.
+- Finalizer enforces cleanup on delete.
+- Status reflects `ObservedGeneration`, `ReadyReplicas`, and phase transitions.
+- Default requeue behavior is active even in steady state (heartbeat reconciliation).
+
+## 3) Release Control Architecture
+
+```mermaid
+flowchart LR
+    PR[Push / PR] --> CI[mesh-operator-kind-e2e.yml]
+    CI --> G1[Image reproducibility gate]
+    CI --> G2[Kind smoke + webhook + lifecycle e2e]
+    CI --> G3[Canary rollout + rollback e2e]
+
+    REL[Release dry-run script] --> CP[CP-01..CP-10 checkpoints]
+    CP --> EV[Evidence artifacts\n/docs/release/*.json *.md *.log]
+```
+
+Current dry-run control points include canary rollback validation (`CP-10`), so release evidence and CI gates use the same control model.
 

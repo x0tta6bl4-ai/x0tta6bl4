@@ -390,7 +390,7 @@ class TestResourceUtilization:
             manager.record_metric("metric", 50.0 + (i % 100))
 
         start = time.time()
-        report = manager.get_compliance_report()
+        manager.get_compliance_report()
         report_duration = time.time() - start
 
         assert report_duration < 1.0
@@ -447,7 +447,7 @@ class TestBenchmarkSummary:
 
         assert total_duration < 30
         print(f"Total system throughput: {5000/total_duration:.0f} ops/sec")
-        print(f"All systems operational and performant ✓")
+        print("All systems operational and performant ✓")
 
 
 if __name__ == "__main__":

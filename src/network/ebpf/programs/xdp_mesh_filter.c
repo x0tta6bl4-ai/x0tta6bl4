@@ -108,8 +108,15 @@ int xdp_mesh_filter_prog(struct xdp_md *ctx) {
     }
 
     void *data = (void *)(long)ctx->data;
+    void *data_end = (void *)(long)ctx->data_end;
     struct ethhdr *eth = data;
+    
+    if ((void *)(eth + 1) > data_end) return XDP_PASS;
+    if (eth->h_proto != bpf_htons(0x0800)) return XDP_PASS; // ETH_P_IP
+
     struct iphdr *ip = (void *)eth + sizeof(*eth);
+    if ((void *)(ip + 1) > data_end) return XDP_PASS;
+
     __u32 dest_ip = ip->daddr;
     __u32 *next_hop_if = bpf_map_lookup_elem(&mesh_routes, &dest_ip);
 

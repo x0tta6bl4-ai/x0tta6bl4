@@ -4,8 +4,7 @@ Evolution of Swarm Intelligence (Q2 P4).
 """
 
 import logging
-import random
-from typing import Any, Dict, List
+from typing import Any, Dict
 from src.swarm.agent import Agent, AgentCapabilities
 
 logger = logging.getLogger(__name__)

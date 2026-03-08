@@ -13,8 +13,6 @@ Integration Tests for Scenario 5: Chaos Resilience
 """
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio

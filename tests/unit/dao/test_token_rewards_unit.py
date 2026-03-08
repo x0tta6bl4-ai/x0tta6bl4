@@ -9,9 +9,7 @@ private_key guard to keep self.web3 = None for non-blockchain tests.
 """
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.dao.token_rewards import TokenRewards
 

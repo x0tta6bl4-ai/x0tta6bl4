@@ -25,6 +25,7 @@ contract MeshGovernance is Ownable, ReentrancyGuard {
     uint256 public constant MAX_PROPOSAL_DURATION = 30 days;
     uint256 public constant QUORUM_BASIS_POINTS = 5000;  // 50%
     uint256 public constant THRESHOLD_BASIS_POINTS = 5000;  // 50% + 1
+    uint256 public constant MIN_PROPOSER_POWER = 100 * 10**18;  // 100 X0T minimum to create proposal
     
     // ==================== СОСТОЯНИЕ ====================
     
@@ -111,12 +112,14 @@ contract MeshGovernance is Ownable, ReentrancyGuard {
         uint256 duration
     ) external returns (uint256) {
         require(bytes(title).length > 0, "Title required");
+        require(bytes(title).length <= 200, "Title too long");
+        require(bytes(description).length <= 2000, "Description too long");
         require(duration >= MIN_PROPOSAL_DURATION, "Duration too short");
         require(duration <= MAX_PROPOSAL_DURATION, "Duration too long");
         
         // Check proposer has minimum voting power
         uint256 proposerPower = getVotingPower(msg.sender);
-        require(proposerPower > 0, "No voting power");
+        require(proposerPower >= MIN_PROPOSER_POWER, "Insufficient proposer weight");
         
         proposalCount++;
         uint256 proposalId = proposalCount;
@@ -149,7 +152,7 @@ contract MeshGovernance is Ownable, ReentrancyGuard {
      * @param proposalId Proposal ID
      * @param support 0 = against, 1 = for, 2 = abstain
      */
-    function castVote(uint256 proposalId, uint8 support) external {
+    function castVote(uint256 proposalId, uint8 support) external nonReentrant {
         require(support <= 2, "Invalid vote");
         require(proposalId > 0 && proposalId <= proposalCount, "Invalid proposal");
         
@@ -163,25 +166,22 @@ contract MeshGovernance is Ownable, ReentrancyGuard {
         uint256 votingPower = getVotingPower(msg.sender);
         require(votingPower > 0, "No voting power");
         
-        // Quadratic voting: power = sqrt(tokens)
-        // Using Babylonian method for sqrt calculation
-        uint256 quadraticPower = sqrt(votingPower);
-        
+        // votingPower already returns quadratic (sqrt of staked amount)
         votes[proposalId][msg.sender] = Vote({
             hasVoted: true,
             support: support,
-            votingPower: quadraticPower
+            votingPower: votingPower
         });
         
         if (support == 1) {
-            proposal.yesVotes += quadraticPower;
+            proposal.yesVotes += votingPower;
         } else if (support == 0) {
-            proposal.noVotes += quadraticPower;
+            proposal.noVotes += votingPower;
         } else {
-            proposal.abstainVotes += quadraticPower;
+            proposal.abstainVotes += votingPower;
         }
         
-        proposal.totalVotingPower += quadraticPower;
+        proposal.totalVotingPower += votingPower;
         
         // Update state if voting started
         if (proposal.state == ProposalState.Pending && block.timestamp >= proposal.startTime) {
@@ -189,15 +189,18 @@ contract MeshGovernance is Ownable, ReentrancyGuard {
             emit ProposalStateChanged(proposalId, ProposalState.Active);
         }
         
-        emit VoteCast(proposalId, msg.sender, support, quadraticPower);
+        emit VoteCast(proposalId, msg.sender, support, votingPower);
     }
     
     /**
      * @notice Execute a proposal (if passed)
      * @param proposalId Proposal ID
      */
-    function executeProposal(uint256 proposalId) external {
+    function executeProposal(uint256 proposalId) external nonReentrant {
         require(proposalId > 0 && proposalId <= proposalCount, "Invalid proposal");
+        
+        // SECURITY: Only authorized executors or owner can execute proposals
+        require(authorizedExecutors[msg.sender] || msg.sender == owner(), "Not authorized executor");
         
         Proposal storage proposal = proposals[proposalId];
         require(block.timestamp >= proposal.endTime, "Voting not ended");

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/coordination/__init__.py
+# hypothesis_version: 6.151.9
+
+['1.0.0', 'AgentCoordinator', 'AgentState', 'ConflictDetector', 'ConflictResolution', 'CoordinationLock', 'Event', 'EventBus', 'EventType', 'Task', 'TaskPriority', 'TaskQueue', 'TaskStatus']

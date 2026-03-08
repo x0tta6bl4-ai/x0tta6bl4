@@ -4,11 +4,9 @@ Implements validation logic for Zero Trust architecture using SPIFFE/SPIRE.
 """
 
 import logging
-from dataclasses import asdict
-from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from src.security.spiffe.workload.api_client import X509SVID, WorkloadAPIClient
+from src.security.spiffe.workload.api_client import X509SVID
 
 logger = logging.getLogger(__name__)
 

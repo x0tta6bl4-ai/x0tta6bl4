@@ -4,10 +4,7 @@ Tests for Privacy-Preserving Aggregators.
 Tests secure aggregation, differential privacy, and GraphSAGE integration.
 """
 
-from typing import List
-from unittest.mock import Mock, patch
 
-import numpy as np
 import pytest
 
 try:
@@ -58,7 +55,7 @@ class TestSecureFedAvgAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
         # Privacy budget should be tracked
@@ -81,7 +78,7 @@ class TestSecureFedAvgAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
         # Privacy budget should not be tracked
@@ -153,7 +150,7 @@ class TestSecureKrumAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
     def test_byzantine_detection_with_privacy(self):
@@ -183,7 +180,7 @@ class TestSecureKrumAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed and detect Byzantine
-        assert result.success == True
+        assert result.success
         if hasattr(result, "suspected_byzantine"):
             assert len(result.suspected_byzantine) > 0
 
@@ -211,7 +208,7 @@ class TestGraphSAGEAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
         assert result.global_model is not None
 
         # Should have GraphSAGE metadata
@@ -238,7 +235,7 @@ class TestGraphSAGEAggregator:
         result = aggregator.aggregate(updates)
 
         # Should succeed
-        assert result.success == True
+        assert result.success
 
 
 @pytest.mark.skipif(
@@ -252,14 +249,14 @@ class TestSecureAggregatorFactory:
         aggregator = get_secure_aggregator("secure_fedavg", enable_dp=True)
 
         assert isinstance(aggregator, SecureFedAvgAggregator)
-        assert aggregator.enable_dp == True
+        assert aggregator.enable_dp
 
     def test_get_secure_krum(self):
         """Test getting secure Krum aggregator"""
         aggregator = get_secure_aggregator("secure_krum", f=1, enable_dp=True)
 
         assert isinstance(aggregator, SecureKrumAggregator)
-        assert aggregator.enable_dp == True
+        assert aggregator.enable_dp
 
     def test_get_graphsage_aggregator(self):
         """Test getting GraphSAGE aggregator"""

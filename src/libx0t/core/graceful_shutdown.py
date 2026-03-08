@@ -16,7 +16,7 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, Set
+from typing import Callable, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -388,7 +388,6 @@ async def close_redis_connections():
 async def close_http_clients():
     """Close HTTP client connections."""
     try:
-        import httpx
 
         # httpx clients should be closed by their context managers
         logger.info("HTTP clients cleanup completed")

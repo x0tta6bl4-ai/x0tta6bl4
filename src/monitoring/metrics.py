@@ -13,10 +13,9 @@ Prometheus метрики для x0tta6bl4
 
 import hashlib
 import re
-from typing import Any, Dict
 
 import prometheus_client
-from prometheus_client import Counter, Gauge, Histogram, Summary
+from prometheus_client import Counter, Gauge, Histogram
 
 # Создаем собственный реестр для избежания конфликтов
 _metrics_registry = prometheus_client.CollectorRegistry()

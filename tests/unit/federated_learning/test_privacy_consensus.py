@@ -10,9 +10,8 @@ import pytest
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
 from src.federated_learning.consensus import (ConsensusMessage,
-                                              ConsensusNetwork, ConsensusPhase,
-                                              ConsensusProposal, MessageType,
-                                              PBFTConfig, PBFTConsensus)
+                                              ConsensusNetwork, ConsensusProposal, MessageType,
+                                              PBFTConsensus)
 from src.federated_learning.privacy import (DifferentialPrivacy, DPConfig,
                                             GaussianNoiseGenerator,
                                             GradientClipper, PrivacyBudget,
@@ -404,7 +403,7 @@ class TestByzantineTolerance:
 
         # Verify proposal was created
         assert proposal is not None
-        assert proposal.content["critical"] == True
+        assert proposal.content["critical"]
 
         # Verify quorum requirements
         assert network.nodes["n1"].quorum == 3
@@ -417,7 +416,6 @@ class TestViewChange:
         nodes = ["n1", "n2", "n3", "n4"]
         pbft = PBFTConsensus("n1", nodes)
 
-        initial_view = pbft.view
 
         # Start view change - the node broadcasts VIEW_CHANGE
         # Other nodes would increment their view_changes counter

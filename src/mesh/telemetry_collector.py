@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from datetime import datetime
 from src.network.yggdrasil_client import get_yggdrasil_peers, get_yggdrasil_status
 from src.mesh.yggdrasil_optimizer import get_optimizer, RouteMetrics
 

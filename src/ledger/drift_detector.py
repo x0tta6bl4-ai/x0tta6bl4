@@ -165,7 +165,6 @@ class LedgerDriftDetector:
 
         try:
             import ast
-            from pathlib import Path
 
             # 1. Парсинг кода (AST analysis) - анализ основных компонентов
             src_path = PROJECT_ROOT / "src"
@@ -298,7 +297,7 @@ class LedgerDriftDetector:
             content = self.continuity_file.read_text(encoding="utf-8")
 
             # Парсинг метрик из ledger
-            metrics = find_metrics(content)
+            find_metrics(content)
 
             # Поиск метрик с числовыми значениями для сравнения
             metric_patterns = {
@@ -340,7 +339,7 @@ class LedgerDriftDetector:
                                     detected_at=datetime.utcnow().isoformat() + "Z",
                                     recommendations=[
                                         f"Verify actual {metric_name} value",
-                                        f"Update CONTINUITY.md if value is correct",
+                                        "Update CONTINUITY.md if value is correct",
                                         "Check monitoring system for real-time values",
                                     ],
                                     metadata={
@@ -374,7 +373,7 @@ class LedgerDriftDetector:
 
         try:
             import re
-            from datetime import datetime, timedelta
+            from datetime import datetime
 
             if not self.continuity_file.exists():
                 return drifts

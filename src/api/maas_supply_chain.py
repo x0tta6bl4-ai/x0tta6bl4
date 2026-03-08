@@ -25,20 +25,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/maas/supply-chain", tags=["MaaS Supply Chain"])
 
 _sbom_registry: Dict[str, Dict[str, Any]] = {
-    "v3.4.0-alpha": {
+    "v3.4.0": {
         "id": "sbom-v340a",
-        "version": "3.4.0-alpha",
+        "version": "3.4.0",
         "format": "CycloneDX-JSON",
         "checksum_sha256": "sha256:abc123",
         "components": [
-            {"name": "x0tta6bl4-agent", "version": "3.4.0-alpha", "type": "application"},
+            {"name": "x0tta6bl4-agent", "version": "3.4.0", "type": "application"},
             {"name": "liboqs", "version": "0.10.1", "type": "library"},
         ],
         "attestation": {
             "type": "Sigstore-Bundle",
             "signer": "ci@x0tta6bl4.net",
             "signed_at": "2026-02-20T00:00:00Z",
-            "bundle_url": "https://example.local/sigstore/bundle/v3.4.0-alpha",
+            "bundle_url": "https://example.local/sigstore/bundle/v3.4.0",
         },
         "created_at": "2026-02-20T00:00:00Z",
     }

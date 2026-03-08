@@ -6,8 +6,7 @@ Covers temporal correlation, dependency tracking, metric similarity, and root ca
 import unittest
 from datetime import datetime, timedelta
 from src.ml.causal_analysis import (
-    CausalAnalysisEngine, IncidentEvent, IncidentSeverity, 
-    CausalAnalysisResult, RootCause
+    CausalAnalysisEngine, IncidentEvent, IncidentSeverity
 )
 
 class TestCausalAnalysis(unittest.TestCase):

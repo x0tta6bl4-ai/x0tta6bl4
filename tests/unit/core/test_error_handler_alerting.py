@@ -8,7 +8,6 @@ Tests the full alerting integration for error handler including:
 - Sync and async versions
 """
 
-import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

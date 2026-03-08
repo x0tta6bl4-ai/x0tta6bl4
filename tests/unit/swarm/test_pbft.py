@@ -8,13 +8,8 @@ Tests the PBFT implementation including:
 - Byzantine fault tolerance
 """
 
-import asyncio
 import pytest
 from datetime import datetime
-from typing import Dict, Any, List
-from unittest.mock import AsyncMock, MagicMock, patch
-import hashlib
-import json
 
 from src.swarm.pbft import (
     PBFTPhase,

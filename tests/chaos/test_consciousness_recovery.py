@@ -4,7 +4,6 @@ Chaos Engineering тесты для проверки self-healing и consciousne
 
 import asyncio
 import os
-import random
 import sys
 import time
 from typing import List
@@ -17,7 +16,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 
 # These imports might need mocks if running outside container environment
 # but for integration tests we expect the environment to be running
-from src.core.consciousness import ConsciousnessEngine, ConsciousnessState
 
 
 class ChaosScenario:
@@ -80,7 +78,6 @@ class NodeFailureChaos(ChaosScenario):
         while time.time() - start_wait < timeout:
             # Проверяем метрики других узлов
             async with aiohttp.ClientSession() as session:
-                recovered_nodes = 0
                 for node in ["node-1", "node-2", "node-3"]:
                     if node == self.target_node:
                         # Check if node is back up? Or if others recovered?
@@ -119,13 +116,13 @@ class NodeFailureChaos(ChaosScenario):
                                             f"✅ Recovery successful in {recovery_time/60:.2f} minutes (Node {node} is HARMONIC+)"
                                         )
                                         return True
-                    except Exception as e:
+                    except Exception:
                         # print(f"Debug: failed to connect to {node}: {e}")
                         continue
 
             await asyncio.sleep(5)
 
-        print(f"❌ Recovery failed - system still in degraded state after timeout")
+        print("❌ Recovery failed - system still in degraded state after timeout")
         return False
 
 
@@ -144,7 +141,7 @@ class NetworkPartitionChaos(ChaosScenario):
 
     async def inject_chaos(self):
         """Создаем network partition через iptables"""
-        print(f"🔪 Injecting chaos: Network partition")
+        print("🔪 Injecting chaos: Network partition")
 
         import subprocess
 
@@ -373,7 +370,7 @@ class LatencySpikeChaos(ChaosScenario):
                                     print(
                                         f"⚠️ High latency detected on {node}: {latency}ms (checking others...)"
                                     )
-                except:
+                except Exception:
                     continue
 
         # Cleanup even if failed
@@ -515,7 +512,7 @@ class ResourceExhaustionChaos(ChaosScenario):
 
                                                             if state3 >= 3.0:
                                                                 print(
-                                                                    f"✅ Phase 3: Full recovery to HARMONIC/EUPHORIC"
+                                                                    "✅ Phase 3: Full recovery to HARMONIC/EUPHORIC"
                                                                 )
                                                                 return True
                                                             else:
@@ -558,7 +555,7 @@ class ResourceExhaustionChaos(ChaosScenario):
                                                                                 >= 3.0
                                                                             ):
                                                                                 print(
-                                                                                    f"✅ Phase 4: Extended recovery successful"
+                                                                                    "✅ Phase 4: Extended recovery successful"
                                                                                 )
                                                                                 return (
                                                                                     True

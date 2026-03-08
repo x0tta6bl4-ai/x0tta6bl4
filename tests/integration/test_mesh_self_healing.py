@@ -13,7 +13,6 @@ Tests verify:
 
 import subprocess
 import time
-from typing import Dict, List
 
 import pytest
 import requests
@@ -218,9 +217,8 @@ def test_network_partition(mesh_running, wait_for_convergence):
 def test_distributed_kvstore_persistence(mesh_running):
     """Test: Data written to KV store persists across node failures."""
     # Write data to node-a
-    node_a_url = NODES["node-a"]
-    test_key = "integration_test_key"
-    test_value = {"data": "test_value", "timestamp": time.time()}
+    NODES["node-a"]
+    {"data": "test_value", "timestamp": time.time()}
 
     # Assuming KV store endpoint exists: POST /kv/{key}
     # (This is a placeholder - adjust based on actual API)

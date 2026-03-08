@@ -12,7 +12,6 @@ Implements:
 import asyncio
 import base64
 import hashlib
-import json
 import logging
 import os
 from dataclasses import asdict, dataclass, field
@@ -25,7 +24,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from src.network.residential_proxy_manager import ProxyEndpoint, ProxyStatus
+from src.network.residential_proxy_manager import ProxyEndpoint
 
 logger = logging.getLogger(__name__)
 

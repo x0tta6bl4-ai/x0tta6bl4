@@ -14,12 +14,12 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig, get_db
-from src.api.maas_auth import get_current_user_from_maas, require_role
+from src.api.maas_auth import get_current_user_from_maas
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)

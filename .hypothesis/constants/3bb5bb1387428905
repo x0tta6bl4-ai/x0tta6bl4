@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/federated_learning/consensus.py
+# hypothesis_version: 6.151.9
+
+[0.0, 5.0, 30.0, 100, 'ConsensusMessage', 'checkpoint', 'commit', 'digest', 'f', 'finalized', 'idle', 'is_primary', 'messages_received', 'messages_sent', 'msg_type', 'n', 'network', 'new_view', 'payload', 'pending_instances', 'pre_prepare', 'prepare', 'proposal', 'proposals_committed', 'proposals_started', 'quorum', 'sender', 'sequence', 'timestamp', 'view', 'view_change', 'view_changes']

@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Set
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.extensions import CRLDistributionPoints
 from cryptography.x509.oid import AuthorityInformationAccessOID, ExtensionOID
 
 try:
@@ -140,7 +139,7 @@ class CertificateValidator:
                         MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="not_yet_valid"
                         ).inc()
-                    except:
+                    except Exception:
                         pass
                 return (
                     False,
@@ -156,7 +155,7 @@ class CertificateValidator:
                         MetricsRegistry.mtls_certificate_validation_failures_total.labels(
                             failure_type="expired"
                         ).inc()
-                    except:
+                    except Exception:
                         pass
                 return (
                     False,
@@ -559,7 +558,7 @@ class CertificateValidator:
         """
         # 1. Check key usage extensions
         try:
-            key_usage_ext = cert.extensions.get_extension_for_oid(
+            cert.extensions.get_extension_for_oid(
                 ExtensionOID.KEY_USAGE
             )
             # In production, verify key usage matches expected usage
@@ -568,7 +567,7 @@ class CertificateValidator:
 
         # 2. Check extended key usage
         try:
-            ext_key_usage_ext = cert.extensions.get_extension_for_oid(
+            cert.extensions.get_extension_for_oid(
                 ExtensionOID.EXTENDED_KEY_USAGE
             )
             # Verify extended key usage if needed
@@ -577,7 +576,7 @@ class CertificateValidator:
 
         # 3. Check certificate policies
         try:
-            cert_policies_ext = cert.extensions.get_extension_for_oid(
+            cert.extensions.get_extension_for_oid(
                 ExtensionOID.CERTIFICATE_POLICIES
             )
             # Verify certificate policies if needed
@@ -586,7 +585,7 @@ class CertificateValidator:
 
         # 4. Check basic constraints
         try:
-            basic_constraints_ext = cert.extensions.get_extension_for_oid(
+            cert.extensions.get_extension_for_oid(
                 ExtensionOID.BASIC_CONSTRAINTS
             )
             # Verify basic constraints (CA flag, path length)

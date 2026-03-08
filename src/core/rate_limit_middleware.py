@@ -12,7 +12,6 @@ import asyncio
 import logging
 import os
 import time
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, Optional
 
@@ -227,6 +226,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         allowed, retry_after = await self.limiter.is_allowed(client_id, current_config)
 
         if not allowed:
+            try:
+                from src.monitoring.maas_metrics import record_rate_limit_rejection
+                record_rate_limit_rejection(path)
+            except Exception:
+                pass
             return JSONResponse(
                 status_code=429,
                 content={

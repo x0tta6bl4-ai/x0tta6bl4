@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.network.ebpf.telemetry.models import (
-    EventSeverity,
     TelemetryConfig,
     TelemetryEvent,
 )

@@ -16,9 +16,9 @@ import os
 import ssl
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -204,7 +204,7 @@ class SVIDRotationPolicy:
             # Rotate if threshold reached
             if ttl_percent < self.config.renewal_threshold:
                 logger.info(f"🔄 Rotating SVID (TTL {ttl_percent*100:.1f}%)")
-                new_svid = await self.workload_api.fetch_x509_svid()
+                await self.workload_api.fetch_x509_svid()
 
                 self.rotation_count += 1
                 self.last_rotation = datetime.utcnow()

@@ -7,7 +7,7 @@ for network topology optimization and resource allocation.
 import logging
 import math
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import numpy as np
 

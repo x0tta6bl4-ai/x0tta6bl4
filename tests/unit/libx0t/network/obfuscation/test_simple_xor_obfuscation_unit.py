@@ -1,8 +1,8 @@
 import socket
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 import pytest
 from libx0t.network.obfuscation.simple import XORSocket, SimpleXORTransport
-from libx0t.network.obfuscation.base import ObfuscationTransport, TransportManager
+from libx0t.network.obfuscation.base import TransportManager
 
 # Fixture for a mock socket
 @pytest.fixture

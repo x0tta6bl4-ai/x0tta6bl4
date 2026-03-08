@@ -2,11 +2,9 @@
 Tests for TUN Interface Handler
 """
 
-import asyncio
 import os
-import struct
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -160,7 +158,7 @@ class TestTUNInterface:
     def test_context_manager(self):
         """Test context manager protocol."""
         with patch.object(TUNInterface, 'close') as mock_close:
-            with TUNInterface("tun0") as tun:
+            with TUNInterface("tun0"):
                 pass
             mock_close.assert_called_once()
 
@@ -198,7 +196,7 @@ class TestTUNSOCKSBridge:
     
     def test_stats(self):
         """Test bridge statistics."""
-        from src.network.tun_socks_bridge import TUNSOCKSBridge, BridgeStats
+        from src.network.tun_socks_bridge import TUNSOCKSBridge
         
         bridge = TUNSOCKSBridge()
         

@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/vault_auth.py
+# hypothesis_version: 6.151.9
+
+[', ', 'Loaded namespace: %s', 'ca_cert_available', 'in_kubernetes', 'jwt_available', 'namespace', 'r']

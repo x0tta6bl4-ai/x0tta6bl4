@@ -8,7 +8,6 @@ Run with: pytest tests/helm/test_maas_chart.py -v
 
 import os
 import subprocess
-import json
 import pytest
 from pathlib import Path
 

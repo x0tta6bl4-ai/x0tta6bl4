@@ -138,7 +138,7 @@ async def test_three_nodes_multihop():
         node_c._router.add_neighbor("bob")
 
         # A отправляет C (через B)
-        success = await node_a.send_message("charlie", b"Hello Charlie via Bob!")
+        await node_a.send_message("charlie", b"Hello Charlie via Bob!")
 
         await asyncio.sleep(1.0)
 
@@ -173,7 +173,7 @@ async def test_routing_stats():
         stats = node.get_stats()
 
         assert stats["node_id"] == "stats-test"
-        assert stats["running"] == True
+        assert stats["running"]
         assert "routing" in stats
         # sequence_number tracks packets emitted (starts at 0 before any are sent)
         assert stats["routing"]["packet_handler"]["sequence_number"] == 0

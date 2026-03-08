@@ -5,7 +5,7 @@ os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
 """Unit tests for src/security/web_security_hardening.py"""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

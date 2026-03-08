@@ -1,7 +1,6 @@
 """Unit tests for MeshShield quarantine engine."""
 
 import unittest
-from datetime import datetime, timedelta
 
 from src.security.mesh_shield import (MeshShield, QuarantineReason,
                                       ThreatIndicator, ThreatLevel)

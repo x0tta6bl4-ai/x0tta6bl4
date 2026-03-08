@@ -11,9 +11,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 import logging
-import difflib
 
-from .state import AgentRole, AgentCoordinator, FileZone
+from .state import AgentRole, AgentCoordinator
 
 logger = logging.getLogger(__name__)
 

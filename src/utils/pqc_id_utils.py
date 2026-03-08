@@ -2,7 +2,6 @@
 Utility functions for PQC Identity and DID integration in x0tta6bl4.
 """
 
-import json
 import logging
 from typing import Any, Dict, Optional
 

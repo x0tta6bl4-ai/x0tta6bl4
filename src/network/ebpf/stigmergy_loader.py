@@ -3,7 +3,6 @@ eBPF Loader for Stigmergy Routing.
 Manages the lifecycle of the BPF program and performs 'pheromone evaporation'.
 """
 
-import time
 import asyncio
 import logging
 import os
@@ -70,7 +69,7 @@ class StigmergyBPF:
                     # Prune dead paths to save map space
                     try:
                         del pheromone_map[key]
-                    except:
+                    except Exception:
                         pass
                 else:
                     pheromone_map[key] = new_score

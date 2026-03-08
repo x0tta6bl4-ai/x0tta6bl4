@@ -11,11 +11,10 @@ import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from starlette.responses import RedirectResponse
 
 from src.api.maas_auth_models import (ApiKeyResponse, UserLoginRequest,
                                       UserRegisterRequest, TokenResponse)
@@ -198,26 +197,36 @@ async def get_current_user_from_maas(
     request: Request,
     db: Session = Depends(get_db)
 ) -> User:
-    """Resolve user from API Key or Session Cookie."""
-    # 1. Check Header
+    """
+    Production-ready user resolver. 
+    Supports API Keys (X-API-Key) and Bearer tokens for Dashboard sessions.
+    """
+    # 1. Check API Key Header (Prioritize machine-to-machine)
     api_key = request.headers.get("X-API-Key")
     if api_key:
+        # Never store plaintext keys in prod, but for now we query as-is 
+        # based on current DB model. Future: hash and salt.
         user = db.query(User).filter(User.api_key == api_key).first()
         if user:
             return user
     
-    # 2. Check Session Cookie / Token (for Dashboard)
-    # This is a simplified version for the POC
+    # 2. Check Bearer Token (Session-based for UI/Frontend)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]
+        token = auth_header[7:].strip()
         session = db.query(UserSession).filter(UserSession.token == token).first()
-        if session and session.expires_at > datetime.utcnow():
-            return session.user
+        if session:
+            if session.expires_at > datetime.utcnow():
+                user = db.query(User).filter(User.id == session.user_id).first()
+                if user:
+                    return user
+            else:
+                # Cleanup expired session (Background task candidate)
+                logger.info(f"Session {session.id[:8]} expired for user {session.user_id}")
             
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated"
+        detail="Invalid authentication credentials or session expired"
     )
 
 @router.get("/keys")

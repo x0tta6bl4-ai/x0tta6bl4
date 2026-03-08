@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
-from src.database import Base, get_db, User, MeshInstance, Invoice, AuditLog
+from src.database import Base, get_db, User, Invoice
 
 _TEST_DB_PATH = f"./test_dashboard_{uuid.uuid4().hex}.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_TEST_DB_PATH}"

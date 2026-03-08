@@ -17,11 +17,9 @@ Target Metrics Validation:
 - Integration: <100ms total pipeline latency
 """
 
-import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
 
 import pytest
 

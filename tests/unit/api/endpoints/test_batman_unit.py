@@ -118,7 +118,6 @@ class TestGetOrCreateInstances:
     def test_health_monitor_different_interfaces_separate_instances(self, monkeypatch):
         import libx0t.network.batman.health_monitor as hm_mod
 
-        created = []
         original_cls = MagicMock(side_effect=lambda **_kw: MagicMock())
         monkeypatch.setattr(hm_mod, "BatmanHealthMonitor", original_cls)
         with patch.dict("sys.modules", {"libx0t.network.batman.health_monitor": hm_mod}):

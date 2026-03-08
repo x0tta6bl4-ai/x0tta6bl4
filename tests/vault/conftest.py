@@ -4,8 +4,7 @@ Pytest fixtures for Vault integration tests.
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Generator
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -13,13 +12,10 @@ from src.config.vault_config import (VaultClientConfig, VaultIntegrationConfig,
                                      VaultMonitorConfig)
 from src.security.vault_auth import K8sAuthConfig, K8sAuthHandler
 # Import the modules under test
-from src.security.vault_client import (VaultAuthError, VaultClient,
-                                       VaultSecretError)
+from src.security.vault_client import (VaultClient)
 from src.security.vault_monitoring import (VaultHealthMonitor,
                                            VaultMetricsReporter)
-from src.security.vault_secrets import (ApiCredentials, DatabaseCredentials,
-                                        SecretInjector, SecretType,
-                                        TLSCertificate, VaultSecretManager)
+from src.security.vault_secrets import (SecretInjector, VaultSecretManager)
 
 
 @pytest.fixture

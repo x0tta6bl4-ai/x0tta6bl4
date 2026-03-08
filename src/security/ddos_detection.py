@@ -135,7 +135,7 @@ class DDoSDetector:
             DDoSAlert if attack detected, None otherwise
         """
         now = time.time()
-        timestamp = datetime.utcnow()
+        datetime.utcnow()
 
         # Record traffic
         self.traffic_history.append(

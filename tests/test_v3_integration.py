@@ -2,7 +2,6 @@
 Tests for V3.0 Integration
 """
 
-import asyncio
 
 import pytest
 

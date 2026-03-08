@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/event_sourcing/aggregate.py
+# hypothesis_version: 6.151.9
+
+['Aggregate', 'AggregateDeleted', 'TAggregate', 'UserActivated', 'UserAggregate', 'UserCreated', 'UserDeactivated', 'UserEmailUpdated', 'UserNameUpdated', '_event_type', 'email', 'is_active', 'is_deleted', 'name', 'new_email', 'new_name', 'old_email', 'old_name', 'reason', 'version']

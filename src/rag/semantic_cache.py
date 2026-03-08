@@ -7,13 +7,12 @@ Deduplicates similar queries and caches retrieval results for performance.
 
 import concurrent.futures
 import hashlib
-import json
 import logging
 import os
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -205,7 +204,7 @@ class SemanticCache:
             self.cache.move_to_end(query_hash)
             self.stats["hits"] += 1
 
-            logger.debug(f"Cache HIT for exact query match")
+            logger.debug("Cache HIT for exact query match")
             return (cached.results, cached.scores)
 
         query_embedding = self._get_query_embedding(query)
@@ -347,13 +346,11 @@ class CachedRAGPipeline:
             Retrieval result with cache info
         """
         start_time = time.time()
-        cache_hit = False
 
         if use_cache:
             cached = self.cache.get(query)
             if cached:
                 results, scores = cached
-                cache_hit = True
                 cache_latency_ms = (time.time() - start_time) * 1000
 
                 return {

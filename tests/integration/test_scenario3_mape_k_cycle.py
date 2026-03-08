@@ -11,9 +11,8 @@ Integration Tests for Scenario 3: MAPE-K Cycle Integration
 """
 
 import asyncio
-import time
-from typing import Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock
+from typing import Dict
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -229,7 +228,7 @@ async def test_knowledge_stores_experience(mapek_loop):
     """Test that Knowledge phase stores experience."""
     loop = mapek_loop["loop"]
     prometheus = mapek_loop["prometheus"]
-    dao_logger = mapek_loop["dao_logger"]
+    mapek_loop["dao_logger"]
     consciousness = mapek_loop["consciousness"]
 
     # Create test data
@@ -265,9 +264,9 @@ async def test_knowledge_stores_experience(mapek_loop):
 async def test_full_cycle_execution(mapek_loop):
     """Test complete MAPE-K cycle execution."""
     loop = mapek_loop["loop"]
-    mesh = mapek_loop["mesh"]
+    mapek_loop["mesh"]
     prometheus = mapek_loop["prometheus"]
-    dao_logger = mapek_loop["dao_logger"]
+    mapek_loop["dao_logger"]
 
     # Execute one complete cycle
     await loop._execute_cycle()
@@ -343,7 +342,6 @@ async def test_cycle_interval_adjustment(mapek_loop):
     """Test that cycle interval is adjusted based on directives."""
     loop = mapek_loop["loop"]
 
-    initial_interval = loop.loop_interval
 
     # Execute cycle
     await loop._execute_cycle()

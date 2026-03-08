@@ -3,7 +3,7 @@ FROM python:3.14-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    X0TTA6BL4_VERSION=3.2.1
+    X0TTA6BL4_VERSION=3.4.0
 
 # Установить только инструменты сборки
 RUN apt-get update && apt-get install -y --no-install-recommends \

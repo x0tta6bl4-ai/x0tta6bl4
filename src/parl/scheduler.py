@@ -11,9 +11,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
-from datetime import datetime, timezone
 
-from src.parl.types import Task, TaskId, TaskStatus, TaskPriority
+from src.parl.types import Task, TaskId, TaskStatus
 from src.parl.worker import AgentWorker, WorkerState
 from src.parl.types import WorkerId, Schedule, QueueStats
 

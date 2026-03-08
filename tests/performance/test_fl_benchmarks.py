@@ -62,7 +62,7 @@ class TestFLAggregatorBenchmarks:
             result = aggregator.aggregate(updates)
             elapsed = time.time() - start
 
-            assert result.success == True
+            assert result.success
             print(f"FedAvg: {num_updates} updates, {elapsed:.4f}s")
 
     def test_secure_fedavg_performance(self):
@@ -75,7 +75,7 @@ class TestFLAggregatorBenchmarks:
         result = aggregator.aggregate(updates)
         elapsed = time.time() - start
 
-        assert result.success == True
+        assert result.success
         print(f"SecureFedAvg: 10 updates, {elapsed:.4f}s")
 
     def test_krum_performance(self):
@@ -90,7 +90,7 @@ class TestFLAggregatorBenchmarks:
             result = aggregator.aggregate(updates)
             elapsed = time.time() - start
 
-            assert result.success == True
+            assert result.success
             print(f"Krum: {num_updates} updates, {elapsed:.4f}s")
 
     def test_enhanced_krum_performance(self):
@@ -103,7 +103,7 @@ class TestFLAggregatorBenchmarks:
         result = aggregator.aggregate(updates)
         elapsed = time.time() - start
 
-        assert result.success == True
+        assert result.success
         print(f"EnhancedKrum: 10 updates, {elapsed:.4f}s")
 
     def test_trimmed_mean_performance(self):
@@ -116,7 +116,7 @@ class TestFLAggregatorBenchmarks:
         result = aggregator.aggregate(updates)
         elapsed = time.time() - start
 
-        assert result.success == True
+        assert result.success
         print(f"TrimmedMean: 10 updates, {elapsed:.4f}s")
 
     def test_adaptive_trimmed_mean_performance(self):
@@ -129,7 +129,7 @@ class TestFLAggregatorBenchmarks:
         result = aggregator.aggregate(updates)
         elapsed = time.time() - start
 
-        assert result.success == True
+        assert result.success
         print(f"AdaptiveTrimmedMean: 10 updates, {elapsed:.4f}s")
 
     def test_scalability(self):
@@ -144,7 +144,7 @@ class TestFLAggregatorBenchmarks:
             result = aggregator.aggregate(updates)
             elapsed = time.time() - start
 
-            assert result.success == True
+            assert result.success
             print(f"Scalability: {vector_size} dims, {elapsed:.4f}s")
 
     def test_privacy_overhead(self):
@@ -164,8 +164,8 @@ class TestFLAggregatorBenchmarks:
         secure_result = secure_aggregator.aggregate(updates)
         secure_time = time.time() - start
 
-        assert base_result.success == True
-        assert secure_result.success == True
+        assert base_result.success
+        assert secure_result.success
 
         overhead = (secure_time - base_time) / base_time * 100
         print(f"Privacy overhead: {overhead:.2f}%")

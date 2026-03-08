@@ -7,13 +7,12 @@ self-healing mesh network using LLM-powered analysis.
 """
 
 import logging
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from src.llm.gateway import LLMGateway, LLMConfig, LLMProvider
-from src.llm.providers.base import ChatMessage, GenerationResult
+from src.llm.gateway import LLMGateway, LLMConfig
+from src.llm.providers.base import ChatMessage
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,10 @@ Demo API для sales presentations
 """
 
 import logging
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.self_healing.mape_k_integrated import IntegratedMAPEKCycle
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse

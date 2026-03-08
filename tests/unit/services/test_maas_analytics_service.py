@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 from sqlalchemy import func
 
-from src.services.maas_analytics_service import MaaSAnalyticsService, HEALTHY_THRESHOLD
+from src.services.maas_analytics_service import MaaSAnalyticsService
 from src.database import MeshNode, MeshInstance, Invoice, MarketplaceListing
 
 class TestMaaSAnalyticsService(unittest.TestCase):
@@ -459,7 +459,6 @@ class TestGetRedisTelemetryEdgeCases(unittest.TestCase):
 
     def test_redis_get_raises_returns_empty(self):
         """redis.get() raises an exception → logger.warning → return {}."""
-        import json
         redis_client = MagicMock()
         redis_client.get.side_effect = Exception("connection refused")
         service = MaaSAnalyticsService(MagicMock(), redis_client)
@@ -487,7 +486,6 @@ class TestGetRedisTelemetryHistoryEdgeCases(unittest.TestCase):
 
     def test_lrange_dict_payload_included(self):
         """Dict item in lrange result → parsed and included."""
-        import json as _json
         redis_client = MagicMock()
         redis_client.lrange.return_value = [{"traffic_mbps": 10.0, "latency_ms": 5.0}]
         service = MaaSAnalyticsService(MagicMock(), redis_client)

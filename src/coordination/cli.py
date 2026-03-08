@@ -8,14 +8,11 @@ Command-line interface for managing agent coordination.
 import argparse
 import json
 import sys
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional
 
-from .state import AgentCoordinator, AgentRole, AgentStatus
-from .events import EventBus, EventType, get_event_bus
-from .tasks import TaskQueue, TaskStatus, TaskPriority, TaskType, get_task_queue
-from .conflicts import ConflictDetector, ConflictSeverity
+from .state import AgentCoordinator, AgentRole
+from .events import EventBus
+from .tasks import TaskQueue, TaskPriority, TaskType
+from .conflicts import ConflictDetector
 
 
 def cmd_register(args):
@@ -308,7 +305,7 @@ def cmd_next(args):
         print(f"  Priority: {task.priority.name}")
         if task.target_files:
             print(f"  Files: {', '.join(task.target_files)}")
-        print(f"\n  Description:")
+        print("\n  Description:")
         print(f"  {task.description[:200]}")
     else:
         print(f"\n✅ No tasks available for {args.agent_id}")

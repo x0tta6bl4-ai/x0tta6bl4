@@ -2,13 +2,13 @@
 Integration tests: GraphSAGE + MeshTelemetry + MAPE-K wiring.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.ml.graphsage_anomaly_detector import (
     GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
-from src.ml.mesh_telemetry import (FEATURE_NAMES, MeshTelemetryGenerator,
+from src.ml.mesh_telemetry import (MeshTelemetryGenerator,
                                    ScenarioType, generate_training_data)
 
 
@@ -31,8 +31,8 @@ class TestTrainFromTelemetry:
             num_snapshots=20, nodes_per_snapshot=10, anomaly_ratio=0.3, seed=42
         )
         # Labels come from telemetry generator, should have some anomalies
-        assert any(l > 0.5 for l in labels)
-        assert any(l <= 0.5 for l in labels)
+        assert any(label > 0.5 for label in labels)
+        assert any(label <= 0.5 for label in labels)
         assert len(features) == 200
         assert len(labels) == 200
 
@@ -79,7 +79,7 @@ class TestGenerateLabelsQuality:
             )
             if pred > 0.5 and actual <= 0.5
         )
-        total_normal = sum(1 for snap in snapshots for l in snap.labels if l <= 0.5)
+        total_normal = sum(1 for snap in snapshots for label in snap.labels if label <= 0.5)
         fpr = fp / total_normal if total_normal > 0 else 0.0
         assert fpr < 0.10, f"Normal FPR too high: {fpr:.1%}"
 
@@ -142,7 +142,7 @@ class TestMapekDispatcherWiring:
 
     @pytest.mark.asyncio
     async def test_execute_dispatches_dao_actions(self):
-        from src.dao.governance import ActionDispatcher, ActionResult
+        from src.dao.governance import ActionDispatcher
 
         dispatcher = ActionDispatcher()
         # Mock a minimal MAPEKLoop-like execute

@@ -11,8 +11,6 @@ Tests the complete eBPF program lifecycle:
 
 import os
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 

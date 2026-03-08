@@ -10,8 +10,9 @@ import signal
 import logging
 
 sys.path.insert(0, '/app')
+sys.path.insert(0, '/app/src')
 
-from src.network.mesh_node import MeshNode, MeshNodeConfig
+from libx0t.network.mesh_node import MeshNode, MeshNodeConfig
 
 # Настройка логирования
 logging.basicConfig(

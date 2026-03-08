@@ -9,12 +9,11 @@ import pytest
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
 from src.federated_learning.blockchain import (Block, BlockType,
-                                               ConsensusProof, ModelBlockchain,
+                                               ModelBlockchain,
                                                ModelMetadata, WeightStorage,
                                                create_genesis_blockchain)
 from src.federated_learning.ppo_agent import (MLP, Layer, MeshRoutingEnv,
-                                              MeshState, PPOAgent, PPOConfig,
-                                              RoutingAction, TrajectoryBuffer,
+                                              MeshState, PPOAgent, TrajectoryBuffer,
                                               train_episode, train_ppo)
 
 # ==================== PPO Agent Tests ====================
@@ -73,7 +72,7 @@ class TestMeshRoutingEnv:
 
     def test_step_valid_action(self):
         env = MeshRoutingEnv()
-        state = env.reset()
+        env.reset()
 
         result = env.step(0)  # First neighbor
 
@@ -531,7 +530,7 @@ class TestIntegration:
             total_samples=0,
         )
 
-        block = bc.add_model_update(weights, metadata)
+        bc.add_model_update(weights, metadata)
 
         # Retrieve and verify
         retrieved = bc.get_model_weights(1)

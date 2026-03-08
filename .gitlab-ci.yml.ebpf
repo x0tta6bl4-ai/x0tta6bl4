@@ -229,19 +229,23 @@ test:ebpf:integration:
 # ============================================================================
 
 benchmark:ebpf:performance:
-  image: python:3.10
+  extends: .ebpf_base
   stage: benchmark
   needs: ["build:ebpf:programs"]
   script:
-    - pip install -r requirements.txt
     - |
-      echo "⏱️  Running eBPF performance benchmarks..."
-      python benchmarks/benchmark_ebpf_performance.py | tee benchmark-results.txt
+      echo "⏱️  Running x0tta6bl4 eBPF performance pre-flight (PLAN-ONLY)..."
+      # RUN_BENCH is 0 by default, ensuring CI safety
+      bash ebpf/prod/benchmark-harness.sh --iface lo --target-pps 10
+      
+      echo "📝 Generating Validation Bundle from last run..."
+      python3 scripts/generate_validation_bundle.py
   artifacts:
     paths:
-      - benchmark-results.txt
+      - ebpf/prod/results/*.json
+      - docs/verification/validation_bundle_*.md
     expire_in: 30 days
-  allow_failure: true
+  allow_failure: false
 
 benchmark:ebpf:size:
   extends: .ebpf_base

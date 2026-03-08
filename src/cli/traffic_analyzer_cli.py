@@ -4,10 +4,7 @@ CLI для анализа и тестирования Traffic Shaping.
 Позволяет проверить как выглядит трафик после шейпинга.
 """
 import argparse
-import json
 import sys
-import time
-from typing import Optional
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
@@ -25,7 +22,7 @@ def cmd_list_profiles(args):
     for profile in TrafficProfile:
         if profile == TrafficProfile.NONE:
             print(f"\n  {profile.value}")
-            print(f"    Описание: Без шейпинга (passthrough)")
+            print("    Описание: Без шейпинга (passthrough)")
             continue
 
         params = TRAFFIC_PROFILES[profile]
@@ -55,7 +52,7 @@ def cmd_simulate(args):
     shaper = TrafficShaper(profile)
     analyzer = TrafficAnalyzer()
 
-    print(f"\n🔄 СИМУЛЯЦИЯ TRAFFIC SHAPING")
+    print("\n🔄 СИМУЛЯЦИЯ TRAFFIC SHAPING")
     print(f"   Профиль: {profile.value}")
     print(f"   Пакетов: {args.packets}")
     print(f"   Размер данных: {args.size} байт")

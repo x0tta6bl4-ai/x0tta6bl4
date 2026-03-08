@@ -2,7 +2,6 @@
 import unittest
 import sys
 import os
-import time
 
 # Add project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
@@ -13,7 +12,7 @@ try:
     from libx0t.security.post_quantum import LIBOQS_AVAILABLE
 except ImportError:
     # Fallback
-    from src.dao.governance import GovernanceEngine, VoteType, ProposalState
+    from src.dao.governance import GovernanceEngine, VoteType
     from src.security.pqc_identity import PQCNodeIdentity
     from src.libx0t.security.post_quantum import LIBOQS_AVAILABLE
 

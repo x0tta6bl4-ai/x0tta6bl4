@@ -20,8 +20,7 @@ from typing import Any, Callable, Dict, Optional
 import httpx
 
 from src.security.spiffe import SPIFFEController
-from src.security.spiffe.mtls import (MTLSContext, MTLSControllerProduction,
-                                      TLSRole)
+from src.security.spiffe.mtls import (MTLSContext, MTLSControllerProduction)
 
 logger = logging.getLogger(__name__)
 
