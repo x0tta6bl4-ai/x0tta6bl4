@@ -74,6 +74,7 @@ def get_pqc_profile(device_class: str) -> Dict[str, Any]:
 PLAN_ALIASES = {
     "free": "starter",
     "starter": "starter",
+    "pilot": "pilot",
     "pro": "pro",
     "enterprise": "enterprise",
 }
@@ -96,6 +97,7 @@ BILLING_WEBHOOK_EVENTS = {
 
 PLAN_REQUEST_LIMITS = {
     "starter": 10_000,
+    "pilot": 50_000,
     "pro": 100_000,
     "enterprise": 10_000_000,
 }
@@ -103,8 +105,17 @@ PLAN_REQUEST_LIMITS = {
 # Bandwidth limits in bytes (1TB = 10^12)
 PLAN_BANDWIDTH_LIMITS = {
     "starter": 100 * 1024 * 1024 * 1024,      # 100 GB
+    "pilot": 500 * 1024 * 1024 * 1024,        # 500 GB
     "pro": 1024 * 1024 * 1024 * 1024,          # 1 TB
     "enterprise": 10 * 1024 * 1024 * 1024 * 1024, # 10 TB
+}
+
+# Monthly pricing in RUB
+PLAN_PRICING = {
+    "starter": 0,
+    "pilot": 5000,
+    "pro": 10000,
+    "enterprise": 50000,
 }
 
 
