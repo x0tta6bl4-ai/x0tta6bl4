@@ -321,17 +321,7 @@ jobs:
       - name: Validate metrics endpoint
         run: |
           curl -sf http://localhost:19101/metrics | tee /tmp/metrics.txt
-          echo "--- Checking required metric names ---"
-          grep -q "x0tta6bl4_xdp_runs_total" /tmp/metrics.txt \
-            && echo "PASS: x0tta6bl4_xdp_runs_total present" \
-            || (echo "FAIL: x0tta6bl4_xdp_runs_total missing" && exit 1)
-          grep -q "x0tta6bl4_xdp_pps" /tmp/metrics.txt \
-            && echo "PASS: x0tta6bl4_xdp_pps present" \
-            || (echo "FAIL: x0tta6bl4_xdp_pps missing" && exit 1)
-          grep -q 'iface="stub0"' /tmp/metrics.txt \
-            && echo "PASS: stub0 interface label present" \
-            || (echo "FAIL: stub0 label missing" && exit 1)
-          echo "All metric checks passed"
+          python scripts/ops/validate_metrics_endpoint.py --snapshot /tmp/metrics.txt
 
       - name: Stop exporter
         if: always()
