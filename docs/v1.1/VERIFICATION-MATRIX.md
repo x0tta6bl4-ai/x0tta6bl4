@@ -20,6 +20,7 @@
 | **Quadratic pricing** | `dao/qos/stake-multiplier.sol` | `quotePremiumSliceCost()` monotonicity tests | **VERIFIED** | - |
 | **Dedicated stake source** | `dao/qos/stake-multiplier.sol` | wallet balance proxy only | **NOT VERIFIED** | Заменить proxy на staking source при необходимости. |
 | **Multi-tenant isolation** | `infra/k8s/` | template verified + **Live enforced on VPS (Docker/iptables bridge isolation verified)** | **VERIFIED** | Применить в K8s/Cilium для финального GA. |
+| **Ghost Protocol Stealth** | `src/network/transport/ghost_proto.py` | ChaCha20-Poly1305 + WebRTC Mimicry, **Live verified on VPS (encryption/decryption/tampering)** | **VERIFIED** | Добавить L3-routing интеграцию. |
 
 ## Status Definitions
 
