@@ -1,0 +1,33 @@
+{
+  "release_candidate": "RC1",
+  "project": "x0tta6bl4",
+  "date": "2026-03-07",
+  "head_commit": "774875e8484c88adf8fad223c944a0bd04398606",
+  "verification_status": "🟢 PASSED",
+  "security_status": "🛡️ MITIGATED (Repo-safe)",
+  "subsystems": {
+    "ebpf_datapath": {
+      "status": "VERIFIED",
+      "measured_pps": 3996,
+      "evidence": "docs/verification/validation_bundle_v1.md"
+    },
+    "5g_open5gs_bridge": {
+      "status": "VERIFIED",
+      "tests": "39 PASS",
+      "logic": "EBPFQoSMonitor + Open5GSUPFProvider"
+    },
+    "maas_core": {
+      "status": "STABLE",
+      "tests": "117 PASS",
+      "total_tests": 10008
+    },
+    "governance": {
+      "status": "ACTIVE",
+      "mechanism": "Swarm Ownership Matrix v2"
+    }
+  },
+  "known_issues": [
+    "9 research-grade unit test failures (known debt)",
+    "System-wide python package update pending next Docker build"
+  ]
+}
