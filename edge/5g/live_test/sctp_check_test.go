@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ishidawataru/sctp"
 )
@@ -72,3 +73,83 @@ func TestRunDialUsesInjectedDependencies(t *testing.T) {
 		t.Fatalf("unexpected dial call: network=%q addr=%+v", gotDialNetwork, gotDialAddr)
 	}
 }
+
+func TestRunListenUsesInjectedDependencies(t *testing.T) {
+	originalResolve := resolveSCTPAddr
+	originalListen := listenSCTP
+	defer func() {
+		resolveSCTPAddr = originalResolve
+		listenSCTP = originalListen
+	}()
+
+	var gotListenNetwork string
+	var gotListenAddr *sctp.SCTPAddr
+	resolveSCTPAddr = func(network, address string) (*sctp.SCTPAddr, error) {
+		return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 38412}, nil
+	}
+	listenSCTP = func(network string, addr *sctp.SCTPAddr) (sctpListener, error) {
+		gotListenNetwork = network
+		gotListenAddr = addr
+		return &stubSCTPListener{conn: stubConn{remote: "127.0.0.1:49999"}}, nil
+	}
+
+	if err := run(runConfig{mode: "listen", target: "127.0.0.1:38412"}); err != nil {
+		t.Fatalf("expected listen success, got %v", err)
+	}
+	if gotListenNetwork != "sctp" || gotListenAddr == nil || gotListenAddr.Port != 38412 {
+		t.Fatalf("unexpected listen call: network=%q addr=%+v", gotListenNetwork, gotListenAddr)
+	}
+}
+
+func TestRunListenPropagatesAcceptFailure(t *testing.T) {
+	originalResolve := resolveSCTPAddr
+	originalListen := listenSCTP
+	defer func() {
+		resolveSCTPAddr = originalResolve
+		listenSCTP = originalListen
+	}()
+
+	resolveSCTPAddr = func(network, address string) (*sctp.SCTPAddr, error) {
+		return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 38412}, nil
+	}
+	listenSCTP = func(network string, addr *sctp.SCTPAddr) (sctpListener, error) {
+		return &stubSCTPListener{err: errors.New("accept blocked in test")}, nil
+	}
+
+	err := run(runConfig{mode: "listen", target: "127.0.0.1:38412"})
+	if err == nil || !strings.Contains(err.Error(), "accept error") {
+		t.Fatalf("expected accept failure semantics, got %v", err)
+	}
+}
+
+type stubSCTPListener struct {
+	conn net.Conn
+	err  error
+}
+
+func (s *stubSCTPListener) Accept() (net.Conn, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.conn, nil
+}
+
+func (s *stubSCTPListener) Close() error { return nil }
+
+type stubConn struct {
+	remote string
+}
+
+func (c stubConn) Read([]byte) (int, error)         { return 0, nil }
+func (c stubConn) Write([]byte) (int, error)        { return 0, nil }
+func (c stubConn) Close() error                     { return nil }
+func (c stubConn) LocalAddr() net.Addr              { return stubAddr("127.0.0.1:38412") }
+func (c stubConn) RemoteAddr() net.Addr             { return stubAddr(c.remote) }
+func (c stubConn) SetDeadline(time.Time) error      { return nil }
+func (c stubConn) SetReadDeadline(time.Time) error  { return nil }
+func (c stubConn) SetWriteDeadline(time.Time) error { return nil }
+
+type stubAddr string
+
+func (a stubAddr) Network() string { return "sctp" }
+func (a stubAddr) String() string  { return string(a) }
