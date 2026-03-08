@@ -1,8 +1,10 @@
 package edge5g_test
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -675,6 +677,66 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 	latency, err := signaling.CreatePFCPSSession("premium")
 	if latency == 0 && err == nil {
 		t.Fatal("expected non-zero latency or error")
+	}
+}
+
+func TestOpen5GSSignalingPFCPRequestShape(t *testing.T) {
+	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") {
+			t.Skipf("udp listener unavailable in this environment: %v", err)
+		}
+		t.Fatalf("failed to create UDP listener: %v", err)
+	}
+	defer listener.Close()
+
+	payloadCh := make(chan []byte, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 256)
+		if err := listener.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			errCh <- err
+			return
+		}
+		n, _, err := listener.ReadFrom(buf)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		payloadCh <- append([]byte(nil), buf[:n]...)
+	}()
+
+	signaling := &edge5g.Open5GSSignaling{
+		UPFAddr: listener.LocalAddr().String(),
+		Timeout: 250 * time.Millisecond,
+	}
+
+	latency, err := signaling.CreatePFCPSSession(" premium ")
+	if err != nil {
+		t.Fatalf("expected local PFCP send success, got %v", err)
+	}
+	if latency != 25 {
+		t.Fatalf("expected baseline latency 25, got %d", latency)
+	}
+
+	var payload []byte
+	select {
+	case payload = <-payloadCh:
+	case err := <-errCh:
+		t.Fatalf("failed to read PFCP payload: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for PFCP payload")
+	}
+
+	if len(payload) < 16 {
+		t.Fatalf("expected PFCP payload length >= 16, got %d", len(payload))
+	}
+	if payload[0] != 0x21 || payload[1] != 50 {
+		t.Fatalf("unexpected PFCP header: %v", payload[:2])
+	}
+	expectedNodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
+	if !bytes.Contains(payload, expectedNodeIDIE) {
+		t.Fatalf("expected PFCP payload to contain Node ID IE, got %v", payload)
 	}
 }
 
