@@ -232,10 +232,12 @@
       ]
     },
     "gemini": {
-      "description": "Gemini lane for eBPF datapath and live attach follow-up",
+      "description": "Gemini lane for eBPF datapath, live attach, and Horizon-2 research",
       "allow": [
         "ebpf/prod/",
         "edge/5g/ebpf/",
+        "src/network/ebpf/experimental/",
+        "docs/research/",
         "scripts/ebpf_prometheus_exporter.py",
         "scripts/generate_validation_bundle.py",
         "scripts/ebpf_cleanup_safe.sh",
