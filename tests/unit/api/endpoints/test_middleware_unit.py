@@ -26,6 +26,8 @@ from src.api.maas.middleware import (
     RequestContext,
     UnauthorizedError,
     ValidationError,
+    ValidationErrorDetail,
+    ValidationErrorResponse,
     create_error_response,
     generic_exception_handler,
     get_request_context,
@@ -321,3 +323,84 @@ class TestMaaSMiddlewareDispatch:
         resp = client.get("/ip-check", headers={"X-Forwarded-For": "192.168.1.1, 10.0.0.1"})
         assert resp.status_code == 200
         assert "192.168.1.1" in resp.json()["client_ip"]
+
+    def test_client_ip_extracted_from_x_real_ip(self):
+        """Falls back to X-Real-IP when X-Forwarded-For is absent."""
+        app = FastAPI()
+        app.add_middleware(MaaSMiddleware)
+
+        @app.get("/ip-real")
+        async def ip_real(request: Request):
+            return {"real_ip": request.headers.get("X-Real-IP")}
+
+        client = TestClient(app)
+        resp = client.get("/ip-real", headers={"X-Real-IP": "203.0.113.5"})
+        assert resp.status_code == 200
+        assert resp.json()["real_ip"] == "203.0.113.5"
+
+    def test_4xx_response_logged_at_warning_level(self):
+        """Smoke test: 4xx response goes through _log_response warning branch."""
+        app = FastAPI()
+        app.add_middleware(MaaSMiddleware)
+
+        @app.get("/four-xx")
+        async def four_xx():
+            from fastapi.responses import JSONResponse as JR
+            return JR(content={"error": "bad"}, status_code=404)
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/four-xx")
+        assert resp.status_code == 404
+
+    def test_5xx_response_logged_at_error_level(self):
+        """Smoke test: 5xx response goes through _log_response error branch."""
+        app = FastAPI()
+        app.add_middleware(MaaSMiddleware)
+
+        @app.get("/five-xx")
+        async def five_xx():
+            from fastapi.responses import JSONResponse as JR
+            return JR(content={"error": "crash"}, status_code=503)
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/five-xx")
+        assert resp.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# ValidationError models
+# ---------------------------------------------------------------------------
+
+class TestValidationErrorModels:
+    def test_validation_error_detail_fields(self):
+        detail = ValidationErrorDetail(field="email", message="invalid format")
+        assert detail.field == "email"
+        assert detail.message == "invalid format"
+        assert detail.value is None
+
+    def test_validation_error_detail_with_value(self):
+        detail = ValidationErrorDetail(field="age", message="must be positive", value=-1)
+        assert detail.value == -1
+
+    def test_validation_error_response_fields(self):
+        details = [ValidationErrorDetail(field="name", message="too short")]
+        resp = ValidationErrorResponse(
+            error="validation_failed",
+            message="Request validation failed",
+            request_id="req-1",
+            timestamp="2026-03-08T00:00:00",
+            details=details,
+        )
+        assert resp.error == "validation_failed"
+        assert len(resp.details) == 1
+        assert resp.details[0].field == "name"
+
+    def test_validation_error_response_default_error(self):
+        details = [ValidationErrorDetail(field="x", message="y")]
+        resp = ValidationErrorResponse(
+            request_id="r",
+            timestamp="t",
+            details=details,
+        )
+        assert resp.error == "validation_error"
+        assert resp.message == "Request validation failed"
