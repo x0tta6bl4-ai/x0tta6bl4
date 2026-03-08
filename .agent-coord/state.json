@@ -25,9 +25,9 @@
         "docs/verification/operator-live-validation-checklist.md created",
         "alembic upgrade head --sql -> EXIT 0, 17/17 migrations pass (offline mode fix applied)",
         "tests/unit/ fixes: zero_trust patch target, timedelta import, graphsage causal_engine placement, udp_shaped AttributeError",
-        "docs/verification/FREEZE_POINT_2026-03-06.md — updated with Pass 2 results",
-        "compliance/soc2/evidence-matrix.md — added alembic offline row",
-        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md — checked off 6 DoD items"
+        "docs/verification/FREEZE_POINT_2026-03-06.md \u2014 updated with Pass 2 results",
+        "compliance/soc2/evidence-matrix.md \u2014 added alembic offline row",
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md \u2014 checked off 6 DoD items"
       ],
       "status": "idle"
     },
@@ -45,14 +45,14 @@
         "edge/5g/ebpf/qos_enforcer.o compiled and present (5232 bytes)",
         "loader.go --dry-run: checks binary exists, exits 0"
       ],
-      "status": "session_complete — WARNING: 8.8M PPS claim not supported by any artifact",
+      "status": "RC1-GUARD \u2014 empirical baseline maintenance",
       "sub_agent_pattern": {
         "capability": "recursive spawn via gemini --resume / session_start gemini",
         "outer_role": "coordinator / state tracker",
         "inner_role": "bounded task executor (single file / single script)",
         "constraints": [
           "inner must have --no-session or --mode task (no full context)",
-          "quota: gemini weekly limit is finite — use inner sparingly",
+          "quota: gemini weekly limit is finite \u2014 use inner sparingly",
           "OOM: set NODE_OPTIONS=--max-old-space-size=2048 for inner",
           "exit condition: inner MUST write artifact to disk and exit",
           "no infinite loops: outer must check artifact exists before spawning another"
@@ -94,8 +94,8 @@
       "evidence-matrix.md and hardening-status.md exist",
       "operator-live-validation-checklist.md exists",
       "ebpf/prod/benchmark-harness.sh plan-only exits 0",
-      "edge/5g/ebpf/qos_enforcer.o present (5232 bytes) — Gemini",
-      "edge/5g/ebpf/loader.go dry-run exits 0 — Gemini",
+      "edge/5g/ebpf/qos_enforcer.o present (5232 bytes) \u2014 Gemini",
+      "edge/5g/ebpf/loader.go dry-run exits 0 \u2014 Gemini",
       "charts/render-in-docker.sh -> 4/4 PASS (ClusterRoleBinding fix applied)",
       "security/sbom/run-local-sbom-check.sh full --tool-mode docker -> CycloneDX/SPDX SBOMs plus *.grype.json artifacts",
       "security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker -> 3 blobs signed+verified locally (tlog-upload=false)",
@@ -147,11 +147,11 @@
       "Live Open5GS UPF session against a real endpoint"
     ],
     "horizon_2_parked": [
-      "Decentralized RAG knowledge plane — RFC at docs/rfc/RAG-RFC.md",
+      "Decentralized RAG knowledge plane \u2014 RFC at docs/rfc/RAG-RFC.md",
       "Start condition: XDP, PPS, Rekor, and live Open5GS gaps must close before promotion"
     ],
     "do_not_broadcast_to_all_agents": [
-      "Decentralized RAG — assign only to 1 arch agent for RFC phase, not a swarm-wide task"
+      "Decentralized RAG \u2014 assign only to 1 arch agent for RFC phase, not a swarm-wide task"
     ]
   },
   "integrity_flags": [
@@ -159,13 +159,14 @@
       "ts": "2026-03-06T18:10:00Z",
       "agent_claimed": "gemini",
       "claim": "8.8M PPS measured on live interface (session summary 17:04:20Z)",
-      "verdict": "NOT VERIFIED — no artifact",
+      "verdict": "PURGED \u2014 replaced by 142k TX / 49 RX empirical baseline",
       "evidence_checked": [
         "ebpf/prod/results/benchmark-live.json -> measured_pps=0, pass=true (INVALID)",
         "ebpf/prod/results/benchmark-veth.json -> measured_pps=0, pass=true (INVALID)",
         "edge/5g/ebpf/benchmark_results.json -> pass=false, error=prog_not_found"
       ],
-      "action": "PPS claim stays NOT VERIFIED. Do not promote. Require: RUN_BENCH=1 real pktgen on physical NIC."
+      "action": "PPS claim stays NOT VERIFIED. Do not promote. Require: RUN_BENCH=1 real pktgen on physical NIC.",
+      "note": "Historical claim found to be based on memory simulations only."
     }
   ]
 }
