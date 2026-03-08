@@ -14,6 +14,13 @@ type EBPFPolicyProgrammer struct {
 	ebpfMap *ebpf.Map
 }
 
+func validateEBPFPriority(priority int) error {
+	if priority < 0 || priority > 255 {
+		return fmt.Errorf("invalid priority %d: must be within eBPF range 0-255", priority)
+	}
+	return nil
+}
+
 func parseSliceIDPort(sliceID string) (uint32, error) {
 	trimmed := strings.TrimSpace(sliceID)
 	if trimmed == "" {
@@ -51,6 +58,9 @@ func (p *EBPFPolicyProgrammer) Apply(update PolicyUpdate) error {
 	// The current eBPF enforcer uses UDP port as a proxy for Slice ID.
 	port, err := parseSliceIDPort(update.SliceID)
 	if err != nil {
+		return err
+	}
+	if err := validateEBPFPriority(update.Priority); err != nil {
 		return err
 	}
 	priority := uint32(update.Priority)

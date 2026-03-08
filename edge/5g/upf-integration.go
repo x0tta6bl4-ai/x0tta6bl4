@@ -475,6 +475,9 @@ func (s *RealEBPFQoSEnforcer) EnforceSlicePolicy(sliceID string, priority int) e
 	if priority < 0 {
 		return fmt.Errorf("invalid slice policy: priority must be non-negative")
 	}
+	if err := validateEBPFPriority(priority); err != nil {
+		return err
+	}
 	if s.Programmer == nil {
 		return fmt.Errorf("RealEBPFQoSEnforcer programmer not configured (NOT VERIFIED)")
 	}
