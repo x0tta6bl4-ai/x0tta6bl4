@@ -45,6 +45,9 @@ artifacts=(
   "${OUTPUT_DIR}/agent.cdx.json"
   "${OUTPUT_DIR}/repo.cdx.json"
   "${OUTPUT_DIR}/repo.spdx.json"
+  "${ROOT_DIR}/RC1_MANIFEST.json"
+  "${ROOT_DIR}/RC1_RELEASE_NOTES.md"
+  "${ROOT_DIR}/docs/release/RC1_INTEGRITY_NOTE.md"
 )
 
 for artifact in "${artifacts[@]}"; do
@@ -147,23 +150,45 @@ EOF
     echo "  security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native"
     ;;
   ci-keyless)
-    require_native cosign rekor-cli
+    if [[ "${TOOL_MODE}" == "docker" ]]; then
+      command -v docker >/dev/null 2>&1 || {
+        echo "docker is required for ci-keyless docker mode" >&2
+        exit 1
+      }
+    else
+      require_native cosign
+    fi
+
     : "${SIGSTORE_ID_TOKEN:?SIGSTORE_ID_TOKEN is required for ci-keyless mode}"
+
     for artifact in "${artifacts[@]}"; do
-      cosign sign-blob \
+      # Sign keylessly using the identity token (OIDC-based)
+      run_cosign sign-blob \
         --yes \
         --identity-token "${SIGSTORE_ID_TOKEN}" \
-        --output-signature "${artifact}.sig" \
-        --output-certificate "${artifact}.crt" \
-        "${artifact}"
+        --output-signature "$(cpath "${artifact}.sig")" \
+        --output-certificate "$(cpath "${artifact}.crt")" \
+        "$(cpath "${artifact}")"
 
-      rekor-cli upload \
-        --rekor_server https://rekor.sigstore.dev \
-        --artifact "${artifact}" \
-        --signature "${artifact}.sig" \
-        --public-key "${artifact}.crt" \
-        --pki-format x509
+      echo "Keyless signature and certificate created for: ${artifact}"
+      
+      # Verification through Rekor (Public Sigstore instance)
+      run_cosign verify-blob \
+        --certificate "$(cpath "${artifact}.crt")" \
+        --signature "$(cpath "${artifact}.sig")" \
+        --certificate-identity "https://github.com/x0tta6bl4/x0tta6bl4/.github/workflows/ci.yml@refs/heads/main" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        "$(cpath "${artifact}")"
     done
+
+    cat > "${OUTPUT_DIR}/keyless-signing-status.txt" <<EOF
+mode=ci-keyless
+rekor=uploaded
+timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+artifacts_signed=${#artifacts[@]}
+proves=keyless OIDC signing, Rekor transparency-log upload, supply-chain attestation
+OIDC_ISSUER=https://token.actions.githubusercontent.com
+EOF
     ;;
   *)
     echo "unsupported mode: ${MODE}" >&2
