@@ -35,6 +35,7 @@
         "RC1_MANIFEST.json.sig",
         "CHANGELOG.md",
         "RC1_MANIFEST.json",
+        "docs/release/provenance/",
         "infra/",
         ".gitlab-ci.yml",
         "docker/",
