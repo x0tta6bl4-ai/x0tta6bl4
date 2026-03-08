@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 
@@ -17,9 +18,16 @@ type runConfig struct {
 
 var (
 	resolveSCTPAddr = sctp.ResolveSCTPAddr
-	listenSCTP      = sctp.ListenSCTP
-	dialSCTP        = sctp.DialSCTP
+	listenSCTP      = func(network string, addr *sctp.SCTPAddr) (sctpListener, error) {
+		return sctp.ListenSCTP(network, addr)
+	}
+	dialSCTP = sctp.DialSCTP
 )
+
+type sctpListener interface {
+	Accept() (net.Conn, error)
+	Close() error
+}
 
 func parseConfig(args []string) (runConfig, error) {
 	fs := flag.NewFlagSet("sctp_check", flag.ContinueOnError)
