@@ -521,6 +521,9 @@ func TestRealEBPFQoSEnforcerErrorSemantics(t *testing.T) {
 	if err := enforcer.EnforceSlicePolicy("premium", 75); err == nil || !strings.Contains(err.Error(), "NOT VERIFIED") {
 		t.Fatalf("expected missing programmer to stay NOT VERIFIED, got %v", err)
 	}
+	if err := enforcer.EnforceSlicePolicy("premium", 256); err == nil || !strings.Contains(err.Error(), "0-255") {
+		t.Fatalf("expected invalid priority rejection before programmer checks, got %v", err)
+	}
 
 	enforcer = &edge5g.RealEBPFQoSEnforcer{
 		Programmer: &stubPolicyProgrammer{err: errors.New("programmer write failed")},
