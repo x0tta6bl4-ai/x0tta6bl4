@@ -125,3 +125,9 @@
 
 ### Fixed
 - `test_seed_deterministic` RNG ordering: load m2 after computing r1 so both runs start from the same seed state.
+
+## [RC1.3] - 2026-03-08
+### Added
+- **MaaS Services Coverage**: `tests/unit/api/test_maas_services_mesh_provisioner_unit.py` — 46 tests for `MeshProvisioner` (provision/scale/terminate/approve_node/revoke_node), `UsageMeteringService` (request/bandwidth/storage/limits), and `_SharedStateStore` (disabled/enabled/error-suppression paths).
+- **Pydantic Models Coverage**: `tests/unit/api/test_maas_models_unit.py` — 60 tests for all 13 MaaS request models validating required fields, regex patterns, min/max bounds, and defaults.
+- **Auth Endpoint Full Coverage**: `tests/unit/api/endpoints/test_auth_unit.py` expanded 8 → 23 tests; adds internal helpers (`_hash_password`, `_verify_password`, `_normalize_email`) and all authenticated endpoints (`GET /me`, `POST /api-key`, `POST /logout`, `DELETE /account`).
