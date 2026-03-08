@@ -1,0 +1,42 @@
+{
+  "release": "RC1",
+  "timestamp": "2026-03-08T02:00:00Z",
+  "head_commit": "32d9509c77bf68b570c5eb1f620cb3092b79b9ce",
+  "artifacts": {
+    "benchmarks": [
+      "ebpf/prod/results/benchmark-20260306.json",
+      "ebpf/prod/results/benchmark-20260307T081157Z.json",
+      "ebpf/prod/results/benchmark-20260308T005128Z.json",
+      "ebpf/prod/results/benchmark-live.json",
+      "ebpf/prod/results/benchmark-veth.json"
+    ],
+    "sboms": [
+      "security/sbom/out/agent.cdx.json",
+      "security/sbom/out/agent.cdx.json.grype.json",
+      "security/sbom/out/repo.cdx.json",
+      "security/sbom/out/repo.cdx.json.grype.json",
+      "security/sbom/out/repo.spdx.json",
+      "security/sbom/out/repo.spdx.json.grype.json"
+    ],
+    "scans": [
+      "security/sbom/out/agent.cdx.json.grype.json",
+      "security/sbom/out/repo.cdx.json.grype.json",
+      "security/sbom/out/repo.spdx.json.grype.json"
+    ],
+    "release_docs": [
+      "docs/release/RC1_INTEGRITY_NOTE.md",
+      "docs/release/RC1_RELEASE_NOTES.md",
+      "docs/release/RC1_STATUS_PAGE.md"
+    ],
+    "signatures": [
+      "RC1_MANIFEST.json.sig",
+      "RC1_RELEASE_NOTES.md.sig",
+      "security/sbom/out/agent.cdx.json.sig",
+      "security/sbom/out/repo.cdx.json.sig",
+      "security/sbom/out/repo.spdx.json.sig",
+      "docs/release/RC1_INTEGRITY_NOTE.md.sig"
+    ]
+  },
+  "status_matrix": "docs/release/RC1_STATUS_PAGE.md",
+  "integrity_note": "docs/release/RC1_INTEGRITY_NOTE.md"
+}
