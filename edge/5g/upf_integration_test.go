@@ -88,6 +88,22 @@ func TestSimulatedUPFRejectsNegativeLatency(t *testing.T) {
 	}
 }
 
+func TestSimulatedUPFTrimsIdentifiersForDirectCalls(t *testing.T) {
+	provider := &edge5g.SimulatedUPF{LatencyMs: 11}
+
+	latency, err := provider.EstablishSession("  ue1  ", "  premium  ")
+	if err != nil {
+		t.Fatalf("expected trimmed direct call success, got %v", err)
+	}
+	if latency != 11 {
+		t.Fatalf("expected latency 11, got %d", latency)
+	}
+
+	if _, err := provider.EstablishSession("ue1", " invalid "); err == nil || !strings.Contains(err.Error(), "invalid slice ID") {
+		t.Fatalf("expected trimmed invalid slice rejection, got %v", err)
+	}
+}
+
 func TestOpen5GSProviderBuildsRequestAndPropagatesTransport(t *testing.T) {
 	cfg := edge5g.UPFConfig{
 		Endpoints: edge5g.EndpointConfig{
@@ -514,6 +530,13 @@ func TestRealEBPFQoSEnforcerDryRunContract(t *testing.T) {
 	if programmer.lastUpdate.UpdatedAt.IsZero() {
 		t.Fatal("expected update timestamp to be set")
 	}
+
+	if err := enforcer.EnforceSlicePolicy("  premium  ", 80); err != nil {
+		t.Fatalf("expected trimmed slice success, got %v", err)
+	}
+	if programmer.lastUpdate.SliceID != "premium" || programmer.lastUpdate.Priority != 80 {
+		t.Fatalf("expected trimmed policy update, got %+v", programmer.lastUpdate)
+	}
 }
 
 func TestRealEBPFQoSEnforcerErrorSemantics(t *testing.T) {
@@ -530,6 +553,13 @@ func TestRealEBPFQoSEnforcerErrorSemantics(t *testing.T) {
 	}
 	if err := enforcer.EnforceSlicePolicy("premium", 75); err == nil || !strings.Contains(err.Error(), "programmer failure") {
 		t.Fatalf("expected programmer failure, got %v", err)
+	}
+}
+
+func TestSimulatedQoSEnforcerTrimsSliceID(t *testing.T) {
+	enforcer := &edge5g.SimulatedQoSEnforcer{}
+	if err := enforcer.EnforceSlicePolicy("  premium  ", 10); err != nil {
+		t.Fatalf("expected trimmed simulated QoS success, got %v", err)
 	}
 }
 
