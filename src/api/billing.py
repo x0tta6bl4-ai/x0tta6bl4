@@ -26,7 +26,8 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
-from src.database import BillingWebhookEvent, License, User, get_db
+from src.database import Payment, Invoice
+from src.services.xray_manager import XrayManager
 
 logger = logging.getLogger(__name__)
 
@@ -654,3 +655,30 @@ async def get_order_status(session_id: str, db: Session = Depends(get_db)):
             }
     else:
         return {"status": payment_status}
+
+
+@router.get("/revenue-metrics")
+async def get_revenue_metrics(db: Session = Depends(get_db)):
+    """Get revenue metrics for dashboard."""
+    # Calculate total revenue from verified payments
+    total_payments = db.query(Payment).filter(Payment.status == "verified").all()
+    total_revenue = sum(payment.amount for payment in total_payments)
+    
+    # Calculate paid invoices
+    paid_invoices = db.query(Invoice).filter(Invoice.status == "paid").all()
+    total_invoice_revenue = sum(invoice.total_amount for invoice in paid_invoices)
+    
+    # Simple MRR calculation (assuming monthly subscriptions)
+    # This is a placeholder - in reality, calculate based on active subscriptions
+    active_users = db.query(User).filter(User.plan.in_(["pro", "enterprise"])).count()
+    estimated_mrr = active_users * 1000  # Assume 1000 RUB per month per user
+    
+    return {
+        "total_revenue_rub": total_revenue,
+        "invoice_revenue_rub": total_invoice_revenue,
+        "estimated_monthly_recurring_revenue_rub": estimated_mrr,
+        "total_verified_payments": len(total_payments),
+        "total_paid_invoices": len(paid_invoices),
+        "active_paying_users": active_users,
+        "currency": "RUB",
+    }

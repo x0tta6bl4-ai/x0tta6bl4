@@ -48,6 +48,22 @@ struct {
 #define STATS_PASSED 2
 #define STATS_DROPPED 3
 
+// Map for next-hop MAC addresses (IP -> MAC)
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, __u32);
+    __type(value, unsigned char[6]);
+} neigh_mac_table SEC(".maps");
+
+// Map for egress interface source MACs (Ifindex -> MAC)
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 64);
+    __type(key, __u32);
+    __type(value, unsigned char[6]);
+} src_mac_table SEC(".maps");
+
 #define MESH_PORT 26969
 
 static __always_inline void update_stat(__u32 idx) {
@@ -96,9 +112,17 @@ int xdp_redirect_router(struct xdp_md *ctx) {
         __u32 *tx_port = bpf_map_lookup_elem(&mesh_forwarding_routes, &dest_ip);
 
         if (tx_port) {
-            // Note: MAC address rewriting must happen here in a real implementation
-            // before redirecting, otherwise the next hop switch will drop it.
-            // eth->h_source = ...; eth->h_dest = ...;
+            // 1. Rewrite Destination MAC (Next hop)
+            unsigned char *dst_mac = bpf_map_lookup_elem(&neigh_mac_table, &dest_ip);
+            if (dst_mac) {
+                __builtin_memcpy(eth->h_dest, dst_mac, 6);
+            }
+
+            // 2. Rewrite Source MAC (Egress interface MAC)
+            unsigned char *src_mac = bpf_map_lookup_elem(&src_mac_table, tx_port);
+            if (src_mac) {
+                __builtin_memcpy(eth->h_source, src_mac, 6);
+            }
             
             update_stat(STATS_REDIRECTED);
             // Bypass kernel stack and send directly out of the matched interface
