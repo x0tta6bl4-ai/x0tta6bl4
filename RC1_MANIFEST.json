@@ -2,7 +2,7 @@
   "release_candidate": "RC1",
   "project": "x0tta6bl4",
   "date": "2026-03-08",
-  "head_commit": "32d9509c77bf68b570c5eb1f620cb3092b79b9ce",
+  "head_commit": "b9896312d7d84a6b5398bdc142cd125465432f09",
   "verification_status": "🟢 PASSED (Empirical)",
   "security_status": "🛡️ MITIGATED (Repo-safe)",
   "integrity_note": "Hallucinated 8.8M PPS claim PURGED. Empirical physical NIC baseline adopted.",
@@ -15,7 +15,7 @@
     "5g_open5gs_bridge": {
       "status": "VERIFIED (Live)",
       "tests": "39 PASS",
-      "logic": "PFCP Session Establishment implemented, Live SCTP transport verified on VPS"
+      "logic": "PFCP Session Establishment implemented, Live SCTP transport + User Plane (Ping) verified on VPS"
     },
     "ghost_stealth_transport": {
       "status": "VERIFIED (Live)",
