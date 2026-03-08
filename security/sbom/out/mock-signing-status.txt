@@ -1,7 +1,7 @@
 mode=mock
 rekor=skipped
-timestamp=2026-03-06T19:35:46Z
-artifacts_signed=3
+timestamp=2026-03-08T01:44:13Z
+artifacts_signed=6
 proves=local key pair generation, blob signing, local signature verification
 does_not_prove=keyless OIDC signing, Rekor transparency-log upload, supply-chain attestation
 to_claim_rekor=run in CI with: security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native
