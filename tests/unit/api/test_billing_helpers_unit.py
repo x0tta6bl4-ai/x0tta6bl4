@@ -8,18 +8,24 @@ All tests are pure computation — no I/O, no network, no DB.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
 from src.api.maas.billing_helpers import (
+    HMACConfig,
     IdempotencyRecord,
     IdempotencyStore,
     calculate_mesh_cost,
     calculate_node_cost,
+    compute_hmac_signature,
     estimate_monthly_cost,
     format_currency,
+    get_idempotency_store,
+    with_idempotency,
 )
 
 
@@ -239,3 +245,118 @@ class TestFormatCurrency:
     def test_large_amount(self):
         result = format_currency(Decimal("10000.00"))
         assert "10000.00" in result
+
+
+# ---------------------------------------------------------------------------
+# HMACConfig
+# ---------------------------------------------------------------------------
+
+class TestHMACConfig:
+    def test_from_env_uses_env_vars(self):
+        with patch.dict("os.environ", {
+            "MAAS_WEBHOOK_SECRET": "my-secret",
+            "MAAS_HMAC_ALGORITHM": "sha512",
+            "MAAS_MAX_TIMESTAMP_SKEW": "600",
+        }):
+            config = HMACConfig.from_env()
+            assert config.secret == "my-secret"
+            assert config.algorithm == "sha512"
+            assert config.max_timestamp_skew == 600
+
+    def test_from_env_defaults_when_vars_absent(self):
+        with patch.dict("os.environ", {}, clear=True):
+            # Remove relevant env vars if present
+            import os
+            for key in ("MAAS_WEBHOOK_SECRET", "MAAS_HMAC_ALGORITHM", "MAAS_MAX_TIMESTAMP_SKEW"):
+                os.environ.pop(key, None)
+            config = HMACConfig.from_env()
+            assert config.algorithm == "sha256"
+            assert config.max_timestamp_skew == 300
+            # secret should be non-empty token
+            assert config.secret
+
+    def test_compute_hmac_sha384(self):
+        sig = compute_hmac_signature(b"payload", "secret", algorithm="sha384")
+        assert sig.startswith("sha384=")
+        # SHA-384 hex digest = 96 chars
+        assert len(sig) == len("sha384=") + 96
+
+    def test_compute_hmac_sha512(self):
+        sig = compute_hmac_signature(b"payload", "secret", algorithm="sha512")
+        assert sig.startswith("sha512=")
+        # SHA-512 hex digest = 128 chars
+        assert len(sig) == len("sha512=") + 128
+
+
+# ---------------------------------------------------------------------------
+# with_idempotency
+# ---------------------------------------------------------------------------
+
+class TestWithIdempotency:
+    def test_successful_operation_returns_result(self):
+        store = IdempotencyStore()
+
+        async def _op():
+            return {"charge": "ok"}
+
+        result = asyncio.run(with_idempotency("key-1", _op, store=store))
+        assert result["charge"] == "ok"
+        assert result["_idempotent"] is False
+
+    def test_second_call_returns_cached_result(self):
+        store = IdempotencyStore()
+
+        async def _op():
+            return {"charge": "first"}
+
+        asyncio.run(with_idempotency("key-2", _op, store=store))
+        result2 = asyncio.run(with_idempotency("key-2", _op, store=store))
+        assert result2["charge"] == "first"
+        assert result2["_idempotent"] is True
+
+    def test_pending_operation_returns_in_progress(self):
+        store = IdempotencyStore()
+        store.set_pending("key-3")  # Simulate stuck operation
+
+        async def _op():
+            return {}
+
+        result = asyncio.run(with_idempotency("key-3", _op, store=store))
+        assert result["error"] == "operation_in_progress"
+
+    def test_failed_operation_sets_failed_status(self):
+        store = IdempotencyStore()
+
+        async def _op():
+            raise RuntimeError("payment declined")
+
+        with pytest.raises(RuntimeError, match="payment declined"):
+            asyncio.run(with_idempotency("key-4", _op, store=store))
+
+        rec = store.get("key-4")
+        assert rec.status == "failed"
+        assert "payment declined" in rec.result["error"]
+
+    def test_sync_callable_also_works(self):
+        store = IdempotencyStore()
+
+        def _sync_op():
+            return {"sync": True}
+
+        result = asyncio.run(with_idempotency("key-5", _sync_op, store=store))
+        assert result["sync"] is True
+
+    def test_non_dict_result_wrapped_in_data(self):
+        store = IdempotencyStore()
+
+        async def _op():
+            return "just a string"
+
+        result = asyncio.run(with_idempotency("key-6", _op, store=store))
+        assert result["data"] == "just a string"
+
+    def test_global_store_is_idempotent(self):
+        """get_idempotency_store returns the same instance on repeated calls."""
+        store_a = get_idempotency_store()
+        store_b = get_idempotency_store()
+        assert store_a is store_b
