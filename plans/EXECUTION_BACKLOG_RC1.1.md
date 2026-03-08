@@ -21,7 +21,8 @@
 
 ## Stream 3: v1.1 GA Transition
 **Owner:** Codex / Lead-Coordinator
-- [ ] **Live Open5GS End-to-End:** Move the 5G adapter from `PARTIAL` to `VERIFIED` by running against a live UERANSIM/Open5GS cluster.
+- [x] **Live Open5GS End-to-End:** Move the 5G adapter from `PARTIAL` to `VERIFIED` by running against a live UERANSIM/Open5GS cluster.
+  - *Done: Full 5G E2E verified on VPS 89.125.1.107 (2026-03-08). Root causes fixed: UDR crash (missing session.name in MongoDB), SCP→NRF routing, NRF address (127.0.0.200→127.0.0.10), TUN device permissions, conntrack dual-path, NAT masquerade. Final test: nr-binder ping 8.8.8.8: 4/4 received, RTT ~1ms. HTTP via 5G: curl ifconfig.me = 89.125.1.107.*
 - [ ] **Multi-Tenant NetworkPolicy Validation:** Verify the isolated namespace CNI rules in a live K3s/K8s cluster.
 - [ ] **Final GA Freeze:** Draft the `v1.1_GA_MANIFEST.json` and release notes, ensuring all baseline metrics hold under sustained load (24h soak test).
 
