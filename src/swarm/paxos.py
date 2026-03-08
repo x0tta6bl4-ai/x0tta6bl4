@@ -132,6 +132,8 @@ class PaxosNode:
     - Commit: Notify learners
     """
     
+    DECISION_TTL_SECONDS = 3600  # 1 hour
+    
     def __init__(
         self,
         node_id: str,
@@ -288,7 +290,31 @@ class PaxosNode:
         if self._on_value_committed:
             self._on_value_committed(instance_id, accept_value)
         
+        # Prune old instances to prevent memory leak
+        if len(self._instances) % 100 == 0:
+            self._cleanup_instances()
+        
         return (True, accept_value)
+    
+    def _cleanup_instances(self, max_age_seconds: Optional[int] = None) -> int:
+        """
+        Remove instances older than max_age_seconds from memory.
+
+        Prevents unbounded growth of the _instances dict.
+        Returns the number of entries removed.
+        """
+        cutoff = datetime.utcnow() - timedelta(
+            seconds=max_age_seconds if max_age_seconds is not None else self.DECISION_TTL_SECONDS
+        )
+        stale = [
+            iid for iid, instance in self._instances.items()
+            if instance.committed_at and instance.committed_at < cutoff
+        ]
+        for iid in stale:
+            del self._instances[iid]
+        if stale:
+            logger.debug(f"Pruned {len(stale)} stale Paxos instances from {self.node_id}")
+        return len(stale)
     
     async def _wait_for_quorum(self, instance: PaxosInstance, msg_type: str) -> None:
         """
