@@ -2,7 +2,7 @@
 
 **Release Candidate:** RC1  
 **Snapshot Date:** 2026-03-08T01:45:00Z  
-**Commit ID:** `b9896312d7d84a6b5398bdc142cd125465432f09`  
+**Commit ID:** `47a135b00efef4474907b1ffd09699c1bebbc488`  
 **Provenance:** 🟢 [PROVENANCE READY] (Signed via Sigstore/Cosign)
 
 ---
