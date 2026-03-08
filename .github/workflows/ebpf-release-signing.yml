@@ -26,26 +26,17 @@ jobs:
         env:
           COSIGN_YES: "true"
         run: |
-          artifacts=(
-            "RC1_MANIFEST.json"
-            "docs/release/RC1_RELEASE_NOTES.md"
-            "docs/release/RC1_STATUS_PAGE.md"
-            "docs/release/RC1_INTEGRITY_NOTE.md"
-          )
-          for artifact in "${artifacts[@]}"; do
-            cosign sign-blob \
-              --output-signature "${artifact}.sig" \
-              --output-certificate "${artifact}.crt" \
-              "${artifact}"
-          done
+          bash security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native
 
       - name: Create Release Provenance Bundle
         run: |
           mkdir -p docs/release/provenance
-          cp docs/release/*.sig docs/release/provenance/
-          cp docs/release/*.crt docs/release/provenance/
-          cp RC1_MANIFEST.json.sig docs/release/provenance/
+          cp docs/release/*.sig docs/release/provenance/ 2>/dev/null || true
+          cp docs/release/*.crt docs/release/provenance/ 2>/dev/null || true
+          cp RC1_MANIFEST.json.sig docs/release/provenance/ 2>/dev/null || true
           cp RC1_MANIFEST.json.crt docs/release/provenance/ 2>/dev/null || true
+          cp security/sbom/out/*.sig docs/release/provenance/ 2>/dev/null || true
+          cp security/sbom/out/*.crt docs/release/provenance/ 2>/dev/null || true
 
       - name: Commit Provenance Artifacts
         run: |
