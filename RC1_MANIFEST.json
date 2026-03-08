@@ -1,20 +1,21 @@
 {
   "release_candidate": "RC1",
   "project": "x0tta6bl4",
-  "date": "2026-03-07",
-  "head_commit": "774875e8484c88adf8fad223c944a0bd04398606",
-  "verification_status": "🟢 PASSED",
+  "date": "2026-03-08",
+  "head_commit": "32d9509c77bf68b570c5eb1f620cb3092b79b9ce",
+  "verification_status": "🟢 PASSED (Empirical)",
   "security_status": "🛡️ MITIGATED (Repo-safe)",
+  "integrity_note": "Hallucinated 8.8M PPS claim PURGED. Empirical physical NIC baseline adopted.",
   "subsystems": {
     "ebpf_datapath": {
-      "status": "VERIFIED",
-      "measured_pps": 3996,
-      "evidence": "docs/verification/validation_bundle_v1.md"
+      "status": "VERIFIED (Physical NIC)",
+      "measured_pps": "49 RX / 142k TX (enp8s0)",
+      "evidence": "ebpf/prod/results/benchmark-20260308T005128Z.json"
     },
     "5g_open5gs_bridge": {
-      "status": "VERIFIED",
+      "status": "PARTIAL (SCTP Verified)",
       "tests": "39 PASS",
-      "logic": "EBPFQoSMonitor + Open5GSUPFProvider"
+      "logic": "PFCP Session Establishment implemented, SCTP transport verified"
     },
     "maas_core": {
       "status": "STABLE",
