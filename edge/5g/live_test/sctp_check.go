@@ -51,7 +51,7 @@ func parseConfig(args []string) (runConfig, error) {
 		return runConfig{}, fmt.Errorf("target address required")
 	}
 	switch cfg.mode {
-	case "dial", "listen":
+	case "dial", "listen", "selftest":
 	default:
 		return runConfig{}, fmt.Errorf("unsupported mode %q", cfg.mode)
 	}
@@ -91,6 +91,51 @@ func run(cfg runConfig) error {
 		defer conn.Close()
 
 		log.Printf("[CLIENT] Successfully connected to %s", addr)
+		return nil
+
+	case "selftest":
+		readyCh := make(chan struct{}, 1)
+		errCh := make(chan error, 1)
+
+		go func() {
+			ln, err := listenSCTP("sctp", addr)
+			if err != nil {
+				errCh <- fmt.Errorf("failed to listen: %w", err)
+				return
+			}
+			defer ln.Close()
+
+			log.Printf("[SELFTEST][SERVER] SCTP Listener started on %s", addr)
+			readyCh <- struct{}{}
+
+			conn, err := ln.Accept()
+			if err != nil {
+				errCh <- fmt.Errorf("accept error: %w", err)
+				return
+			}
+			defer conn.Close()
+
+			log.Printf("[SELFTEST][SERVER] Accepted connection from %s", conn.RemoteAddr())
+			errCh <- nil
+		}()
+
+		select {
+		case <-readyCh:
+		case err := <-errCh:
+			return err
+		}
+
+		log.Printf("[SELFTEST][CLIENT] Dialing SCTP %s...", addr)
+		conn, err := dialSCTP("sctp", nil, addr)
+		if err != nil {
+			return fmt.Errorf("dial failed: %w", err)
+		}
+		conn.Close()
+
+		if err := <-errCh; err != nil {
+			return err
+		}
+		log.Printf("[SELFTEST] Successfully completed SCTP loopback against %s", addr)
 		return nil
 	}
 
