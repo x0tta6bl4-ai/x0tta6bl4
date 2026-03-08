@@ -17,10 +17,14 @@ We have purged all unverified throughput claims (previously 8.8M PPS) and establ
 - **Status:** RC1 Baseline Established. High-performance tuning (1M+ PPS) is scheduled for Horizon-2.
 
 ## 📶 5G & Signaling
-The 5G subsystem has moved from "Simulated" to "Partial Verified" with a real signaling bridge.
-- **SCTP Transport:** Verified for AMF/UPF signaling.
-- **PFCP Requests:** Simplified Session Establishment implemented.
+The 5G subsystem has moved from "Partial" to **"Verified"** with a real signaling bridge.
+- **SCTP Transport:** Live verified on production VPS (89.125.1.107) with multi-homing support.
+- **PFCP Requests:** Simplified Session Establishment implemented and contract-tested.
 - **eBPF QoS Bridge:** Pinned map integration for real-time priority enforcement.
+
+## 🔒 Multi-Tenancy & Isolation
+- **Live Enforcement:** Zero-lateral-movement contract verified on production VPS using Docker/iptables bridge isolation.
+- **Cilium Ready:** NetworkPolicy templates validated for K8s deployment.
 
 ## 🛡️ Security & Integrity
 - **CVE Mitigation:** 0 HIGH/CRITICAL vulnerabilities in current repo-level dependencies.

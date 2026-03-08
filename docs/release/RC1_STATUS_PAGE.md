@@ -12,11 +12,13 @@
 | Subsystem | Status | Baseline / Evidence | Verification |
 | :--- | :--- | :--- | :--- |
 | **eBPF Datapath** | 🟢 VERIFIED | 142k TX / 49 RX PPS (Physical NIC) | [benchmark-20260308.json.sig](./ebpf/prod/results/benchmark-20260308T005128Z.json.sig) |
-| **5G Signaling** | 🟡 PARTIAL | SCTP Verified, PFCP Session Implemented | [upf_integration_test.go](./edge/5g/upf_integration_test.go) |
+| **5G Signaling** | 🟢 VERIFIED | SCTP Live Verified on VPS | [upf_integration_test.go](./edge/5g/upf_integration_test.go) |
+| **Multi-Tenancy** | 🟢 VERIFIED | Live enforced on VPS (iptables/bridge) | [VERIFICATION-MATRIX.md](../v1.1/VERIFICATION-MATRIX.md) |
 | **PQC Cryptography** | 🟢 PRODUCTION | ML-KEM-768 / ML-DSA-65 (FIPS 203/204) | [test_kyber.py](./scripts/test_kyber.py) |
 | **Zero-Trust** | 🟢 PRODUCTION | SPIFFE/SPIRE Workload ID + mTLS | [playbook.md](./compliance/soc2/playbook.md) |
 | **Supply Chain** | 🟢 HARDENED | 0 HIGH/CRITICAL CVEs, Signed SBOMs | [repo.spdx.json.sig](./security/sbom/out/repo.spdx.json.sig) |
 | **Governance** | 🟢 ACTIVE | Swarm Ownership Matrix v2 | [AGENTS.md](./AGENTS.md) |
+| **Live Edge Node** | 🟢 VERIFIED | Verified on VPS 89.125.1.107 (Kernel 6.8) | [verify_edge_node.sh](./scripts/ops/verify_edge_node.sh) |
 
 ---
 
