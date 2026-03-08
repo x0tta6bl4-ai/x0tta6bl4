@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     -o grpc-proxy ./grpc-proxy.go
 
 # ── Stage 2: Build (Python mesh-node) ─────────────────────────────────────────
-FROM --platform=$BUILDPLATFORM python:3.11-slim AS py-builder
+FROM --platform=$BUILDPLATFORM python:3.14-slim AS py-builder
 
 WORKDIR /app
 COPY requirements.txt .
