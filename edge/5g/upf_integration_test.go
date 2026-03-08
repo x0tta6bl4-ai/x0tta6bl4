@@ -680,6 +680,21 @@ func TestOpen5GSSignalingPFCPContract(t *testing.T) {
 	}
 }
 
+func TestBuildPFCPSessionEstablishmentPayloadShape(t *testing.T) {
+	payload := edge5g.BuildPFCPSessionEstablishmentPayloadForTest()
+
+	if len(payload) < 16 {
+		t.Fatalf("expected PFCP payload length >= 16, got %d", len(payload))
+	}
+	if payload[0] != 0x21 || payload[1] != 50 {
+		t.Fatalf("unexpected PFCP header: %v", payload[:2])
+	}
+	expectedNodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
+	if !bytes.Contains(payload, expectedNodeIDIE) {
+		t.Fatalf("expected PFCP payload to contain Node ID IE, got %v", payload)
+	}
+}
+
 func TestOpen5GSSignalingPFCPRequestShape(t *testing.T) {
 	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
@@ -728,15 +743,9 @@ func TestOpen5GSSignalingPFCPRequestShape(t *testing.T) {
 		t.Fatal("timed out waiting for PFCP payload")
 	}
 
-	if len(payload) < 16 {
-		t.Fatalf("expected PFCP payload length >= 16, got %d", len(payload))
-	}
-	if payload[0] != 0x21 || payload[1] != 50 {
-		t.Fatalf("unexpected PFCP header: %v", payload[:2])
-	}
-	expectedNodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
-	if !bytes.Contains(payload, expectedNodeIDIE) {
-		t.Fatalf("expected PFCP payload to contain Node ID IE, got %v", payload)
+	expectedPayload := edge5g.BuildPFCPSessionEstablishmentPayloadForTest()
+	if !bytes.Equal(payload, expectedPayload) {
+		t.Fatalf("unexpected PFCP payload: got %v want %v", payload, expectedPayload)
 	}
 }
 

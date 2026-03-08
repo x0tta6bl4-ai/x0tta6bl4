@@ -383,6 +383,28 @@ type PFCPSessionEstablishmentRequest struct {
 	SliceID   string `json:"slice_id"`
 }
 
+func buildPFCPSessionEstablishmentPayload() []byte {
+	// Version=1, MP=0, S=1, Type=50 (Session Establishment Request), Length=TBD, SEID=0, Seq=1.
+	header := []byte{
+		0x21,
+		50,
+		0x00, 0x08,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x01,
+		0x00,
+	}
+
+	// Dummy Node ID IE for the request (Type=60, Length=5, Value=127.0.0.1).
+	nodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
+	return append(header, nodeIDIE...)
+}
+
+// BuildPFCPSessionEstablishmentPayloadForTest exposes the simplified PFCP payload shape
+// to external package tests without requiring a live UDP socket.
+func BuildPFCPSessionEstablishmentPayloadForTest() []byte {
+	return buildPFCPSessionEstablishmentPayload()
+}
+
 func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	if strings.TrimSpace(s.UPFAddr) == "" {
 		return 0, fmt.Errorf("Open5GSSignaling missing UPF endpoint (NOT VERIFIED)")
@@ -405,20 +427,7 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	}
 	defer conn.Close()
 
-	// PFCP Session Establishment Request (Simplified Header)
-	// Version=1, MP=0, S=1, Type=50 (Session Establishment Request), Length=TBD, SEID=0, Seq=1
-	header := []byte{
-		0x21,       // Version=1, MP=0, S=1
-		50,         // Message Type: Session Establishment Request
-		0x00, 0x08, // Length (simplified)
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SEID (0 for new session)
-		0x00, 0x00, 0x01, // Sequence Number
-		0x00, // Spare
-	}
-
-	// Add a dummy Node ID IE for the request (Type=60, Length=5, Value=127.0.0.1)
-	nodeIDIE := []byte{60, 0x00, 0x05, 0x00, 0x7f, 0x00, 0x00, 0x01}
-	payload := append(header, nodeIDIE...)
+	payload := buildPFCPSessionEstablishmentPayload()
 
 	_, err = conn.Write(payload)
 	if err != nil {
