@@ -14,7 +14,6 @@ Integration Tests for Scenario 4: FL-Mesh Integration
 
 import asyncio
 from typing import Dict
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -22,7 +21,7 @@ import pytest_asyncio
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator)
 from src.federated_learning.mesh_integration import (
-    FLMeshIntegration, MeshNodeInfo, create_integration_from_mesh_nodes)
+    FLMeshIntegration, MeshNodeInfo)
 from src.federated_learning.mesh_worker import FLMeshWorker
 
 

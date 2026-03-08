@@ -4,7 +4,7 @@ Unit tests for Advanced LoRA Features
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -107,7 +107,7 @@ class TestLoRAQuantizer:
         """Test quantizer with default config"""
         quantizer = LoRAQuantizer()
 
-        assert quantizer.config.enabled == False
+        assert not quantizer.config.enabled
         assert quantizer.config.quantization_type == "int8"
 
     def test_quantize_adapter_pytorch_unavailable(self):
@@ -154,7 +154,7 @@ class TestLoRAIncrementalTrainer:
                 "test_checkpoint", {"model_state": "dummy"}, {"loss": 0.5, "epochs": 1}
             )
 
-            assert success == True
+            assert success
             assert (
                 Path(tmpdir) / "test_checkpoint" / "checkpoint_metadata.json"
             ).exists()
@@ -204,7 +204,7 @@ class TestLoRAIncrementalTrainer:
             checkpoint_path = Path(tmpdir) / "test_checkpoint"
             result = trainer.resume_training(checkpoint_path, additional_epochs=2)
 
-            assert result["success"] == True
+            assert result["success"]
             assert result["additional_epochs"] == 2
             assert result["previous_epochs"] == 3
 
@@ -281,7 +281,7 @@ class TestLoRACompositionConfig:
         assert config.adapters == ["adapter_001", "adapter_002"]
         assert config.weights is None
         assert config.fusion_method == "linear"
-        assert config.normalize_weights == True
+        assert config.normalize_weights
 
     def test_composition_config_with_weights(self):
         """Test composition config with weights"""
@@ -300,10 +300,10 @@ class TestLoRAQuantizationConfig:
         """Test quantization config with defaults"""
         config = LoRAQuantizationConfig()
 
-        assert config.enabled == False
+        assert not config.enabled
         assert config.quantization_type == "int8"
-        assert config.dynamic == True
-        assert config.optimize_memory == True
+        assert config.dynamic
+        assert config.optimize_memory
 
     def test_quantization_config_custom(self):
         """Test quantization config with custom values"""
@@ -311,9 +311,9 @@ class TestLoRAQuantizationConfig:
             enabled=True, quantization_type="fp16", dynamic=False
         )
 
-        assert config.enabled == True
+        assert config.enabled
         assert config.quantization_type == "fp16"
-        assert config.dynamic == False
+        assert not config.dynamic
 
 
 if __name__ == "__main__":

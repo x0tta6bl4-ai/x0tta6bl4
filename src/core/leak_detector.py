@@ -4,13 +4,11 @@ Multi-vector detection for IP, DNS, WebRTC, and other geolocation leaks
 """
 import asyncio
 import json
-import logging
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Set, Callable, Any
-from urllib.parse import urlparse
 
 import aiohttp
 import structlog
@@ -336,7 +334,6 @@ class WebRTCLeakDetector:
         ]
         
         for config_path in firefox_config_paths:
-            prefs_file = f"{config_path}/**/prefs.js"
             try:
                 result = subprocess.run(
                     ["find", config_path, "-name", "prefs.js"],

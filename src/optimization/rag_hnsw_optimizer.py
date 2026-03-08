@@ -9,11 +9,10 @@ import asyncio
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +219,7 @@ class BatchRetrievalManager:
         self.pending_queries = self.pending_queries[self.batch_size :]
         self.batch_count += 1
 
-        queries = [q for q, _ in batch]
+        [q for q, _ in batch]
         futures = [f for _, f in batch]
 
         await asyncio.sleep(0.001)

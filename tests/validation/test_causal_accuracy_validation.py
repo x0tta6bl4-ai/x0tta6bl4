@@ -6,7 +6,6 @@ Validates that root cause identification accuracy meets >90% target.
 
 import time
 from datetime import datetime
-from typing import Dict, List
 
 import pytest
 

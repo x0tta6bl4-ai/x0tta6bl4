@@ -1,0 +1,177 @@
+{{/* Multi-tenant namespace isolation + RBAC for x0tta6bl4 commercial */}}
+
+{{- range (default list .Values.global.tenants) }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .namespace }}
+  labels:
+    x0tta.io/tenant: {{ .name }}
+    x0tta.io/tier: {{ .tier }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+
+---
+# Tenant-scoped ResourceQuota — prevents noisy-neighbour issues
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .name }}-quota
+  namespace: {{ .namespace }}
+spec:
+  hard:
+    pods: "{{ .maxNodes | default 100 }}"
+    requests.cpu: "{{ mul (.maxNodes | default 100) 2 }}"
+    requests.memory: "{{ mul (.maxNodes | default 100) 512 }}Mi"
+    limits.cpu: "{{ mul (.maxNodes | default 100) 4 }}"
+    limits.memory: "{{ mul (.maxNodes | default 100) 1024 }}Mi"
+
+---
+# NetworkPolicy: tenant isolation (deny cross-tenant traffic)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+  namespace: {{ .namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              x0tta.io/tenant: {{ .name }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: x0tta-production  # allow API gateway
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              x0tta.io/tenant: {{ .name }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: x0tta-production
+    - ports:
+        - port: 53   # DNS
+          protocol: UDP
+        - port: 443  # external HTTPS
+
+---
+# ServiceAccount per tenant
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-node-{{ .name }}
+  namespace: {{ .namespace }}
+  labels:
+    x0tta.io/tenant: {{ .name }}
+
+---
+# Role: mesh-node permissions within tenant namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-node-role
+  namespace: {{ .namespace }}
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["meshclusters", "pqckeypairs"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-node-rolebinding
+  namespace: {{ .namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mesh-node-role
+subjects:
+  - kind: ServiceAccount
+    name: mesh-node-{{ .name }}
+    namespace: {{ .namespace }}
+
+{{- end }}
+
+---
+# ClusterRole: admin for SRE team (cross-namespace read)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x0tta-sre-admin
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "endpoints", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+
+---
+# ClusterRole: read-only for auditors / support
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: x0tta-readonly
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+rules:
+  - apiGroups: ["x0tta6bl4.io"]
+    resources: ["meshclusters", "pqckeypairs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding: bind SRE admin role to SRE group
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x0tta-sre-admin-binding
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x0tta-sre-admin
+subjects:
+  - kind: Group
+    name: {{ .Values.global.rbac.sreGroup | default "x0tta-sre" }}
+    apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRoleBinding: bind readonly role to auditor group
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: x0tta-readonly-binding
+  labels:
+    app.kubernetes.io/part-of: x0tta-mesh
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: x0tta-readonly
+subjects:
+  - kind: Group
+    name: {{ .Values.global.rbac.auditGroup | default "x0tta-auditors" }}
+    apiGroup: rbac.authorization.k8s.io

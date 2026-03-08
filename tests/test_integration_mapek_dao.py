@@ -8,7 +8,6 @@ End-to-end tests for:
 - Threshold Manager → IPFS distribution
 """
 
-import asyncio
 import tempfile
 from pathlib import Path
 

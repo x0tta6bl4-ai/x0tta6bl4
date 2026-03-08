@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/security/pqc/hybrid.py
+# hypothesis_version: 6.151.9
+
+[b'hybrid-x25519-mlkem768', 365, 1088, 'Ed25519', 'Ed25519-ML-DSA-65', 'INVALID', 'VALID', 'X25519', 'X25519-ML-KEM-768']

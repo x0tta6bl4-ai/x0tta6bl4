@@ -209,8 +209,31 @@ try:
 except Exception:
     pass
 
+# Pre-import governance_script so its module dict stays stable across tests.
+# mock_dependencies uses sys.modules.clear() on each teardown; if governance_script
+# is first imported inside a test, subsequent re-imports share the same pyc code
+# object but with a fresh dict, which corrupts CPython's LOAD_GLOBAL inline cache
+# for DEPLOYMENT_FILE (heisenbug: monkeypatch.setattr works on the dict but
+# LOAD_GLOBAL returns the cached stale value from the previous module dict).
+try:
+    import src.dao.governance_script  # noqa: F401
+except Exception:
+    pass
+
 try:
     import prometheus_client  # noqa: F401
+except Exception:
+    pass
+
+# Pre-import sqlalchemy.orm so its module-level inspection registry survives
+# mock_dependencies rollback.  sqlalchemy.orm.base registers 'object' with
+# SQLAlchemy's inspection system at import time; if the module is removed from
+# sys.modules and reimported, the registration runs again and raises
+# "Type <class 'object'> is already registered".
+try:
+    import sqlalchemy.orm  # noqa: F401
+    import sqlalchemy.orm.base  # noqa: F401
+    import sqlalchemy.ext.declarative  # noqa: F401
 except Exception:
     pass
 
@@ -257,7 +280,12 @@ mocked_modules = {
 def mock_dependencies():
     """Automatically mock optional dependencies for all tests."""
     with mock.patch.dict("sys.modules", mocked_modules):
-        yield
+        # governance_script is pre-imported with real web3; patch its Web3 class
+        # reference back to the mock so class-level calls (Web3.to_checksum_address)
+        # use the mock, exactly as when governance_script is freshly imported inside
+        # the mock_dependencies context.
+        with mock.patch("src.dao.governance_script.Web3", mocked_modules["web3"].Web3, create=True):
+            yield
 
 
 @pytest.fixture
@@ -318,7 +346,6 @@ def db_session():
         def test_something(db_session):
             result = db_session.query(Model).first()
     """
-    import contextlib
 
     try:
         # Attempt to import SQLAlchemy - fallback to mock if not available

@@ -220,7 +220,7 @@ class WorkloadAPIClientProduction:
 
             # Extract the trust domain from the token's SPIFFE ID
             # Assuming the token's subject (sub) contains the SPIFFE ID
-            unverified_headers = jwt.get_unverified_header(token)
+            jwt.get_unverified_header(token)
             unverified_claims = jwt.get_unverified_claims(token)
 
             token_spiffe_id = unverified_claims.get("sub")
@@ -272,7 +272,7 @@ class WorkloadAPIClientProduction:
                 # jose.jwt.decode can take a list of public keys
                 jwt.decode(token, public_keys, algorithms=["RS256"], audience=audience)
                 is_valid = True
-                logger.info(f"✅ JWT-SVID valid")
+                logger.info("✅ JWT-SVID valid")
             except JWTError as e:
                 logger.warning(f"⚠️ JWT-SVID invalid: {e}")
                 is_valid = False

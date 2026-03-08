@@ -17,10 +17,8 @@ Covers:
 
 import json
 import math
-import os
 import random
-import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -185,7 +183,7 @@ class TestMeshRoutingEnv:
 
     def test_reset_with_source_and_destination(self):
         env = MeshRoutingEnv()
-        state = env.reset(source="src_node", destination="dst_node")
+        env.reset(source="src_node", destination="dst_node")
         assert env.current_node == "src_node"
         assert env.destination == "dst_node"
 
@@ -726,7 +724,7 @@ class TestEdgeCases:
         state.packet_loss = [0.0, 0.0, 0.0]
         env.current_state = state
         env.destination = "far_away"
-        result = env.step(0)
+        env.step(0)
         assert env.episode_reward != 0.0
 
     def test_mlp_single_layer(self):

@@ -27,7 +27,7 @@ def get_stats():
         try:
             with open(STATS_FILE, "r") as f:
                 stats.update(json.load(f))
-        except:
+        except Exception:
             pass
     
     # Precise Uptime

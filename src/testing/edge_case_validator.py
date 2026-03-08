@@ -12,9 +12,9 @@ Comprehensive edge case handling with:
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class BoundaryValidator:
             violations.append(
                 EdgeCaseViolation(
                     case_type=EdgeCaseType.BOUNDARY,
-                    description=f"Value below minimum",
+                    description="Value below minimum",
                     value=float_val,
                     limit=float(min_val),
                     severity="high",
@@ -78,7 +78,7 @@ class BoundaryValidator:
             violations.append(
                 EdgeCaseViolation(
                     case_type=EdgeCaseType.BOUNDARY,
-                    description=f"Value exceeds maximum",
+                    description="Value exceeds maximum",
                     value=float_val,
                     limit=float(max_val),
                     severity="high",
@@ -209,7 +209,7 @@ class StateTransitionValidator:
         if next_state not in allowed:
             violation = EdgeCaseViolation(
                 case_type=EdgeCaseType.STATE,
-                description=f"Invalid state transition",
+                description="Invalid state transition",
                 value=f"{current_state} -> {next_state}",
                 limit=f"allowed: {allowed}",
                 severity="critical",
@@ -248,7 +248,7 @@ class ResourceLimitValidator:
             violations.append(
                 EdgeCaseViolation(
                     case_type=EdgeCaseType.RESOURCE,
-                    description=f"Resource exceeds maximum",
+                    description="Resource exceeds maximum",
                     value=usage,
                     limit=limits["max"],
                     severity="critical",
@@ -259,7 +259,7 @@ class ResourceLimitValidator:
             violations.append(
                 EdgeCaseViolation(
                     case_type=EdgeCaseType.RESOURCE,
-                    description=f"Resource exceeds warning threshold",
+                    description="Resource exceeds warning threshold",
                     value=usage,
                     limit=limits["warning"],
                     severity="high",
@@ -288,7 +288,7 @@ class ConcurrencyValidator:
             if count > max_concurrent:
                 violation = EdgeCaseViolation(
                     case_type=EdgeCaseType.CONCURRENCY,
-                    description=f"Concurrent operation limit exceeded",
+                    description="Concurrent operation limit exceeded",
                     value=count,
                     limit=max_concurrent,
                     severity="critical",

@@ -6,12 +6,11 @@ Allows DAO to change MAPE-K thresholds through governance.
 """
 
 import logging
-import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from src.dao.governance import GovernanceEngine, Proposal, ProposalState
-from src.dao.quadratic_voting import QuadraticVoting, Vote
+from src.dao.quadratic_voting import QuadraticVoting
 
 logger = logging.getLogger(__name__)
 

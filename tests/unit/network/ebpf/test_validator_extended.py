@@ -8,12 +8,10 @@ Tests the enhanced loop detection and register analysis:
 - Read-only register protection
 """
 
-from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 
-from src.network.ebpf.validator import EBPFValidator, ValidationResult
+from src.network.ebpf.validator import EBPFValidator
 
 
 class TestEBPFValidatorExtended:

@@ -12,21 +12,17 @@ Validates all production systems under failure scenarios:
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock
 
 import numpy as np
 import pytest
 
-from src.chaos.chaos_engine import ChaosEngine, ChaosEventType
-from src.ml.ensemble_anomaly_detector import (EnsembleVotingStrategy,
-                                              get_ensemble_detector)
+from src.chaos.chaos_engine import ChaosEngine
 from src.ml.hybrid_anomaly_system import (HybridAnomalySystem,
                                           HybridDetectionMode)
 from src.ml.production_anomaly_detector import (
-    AnomalySeverity, get_production_anomaly_detector)
+    get_production_anomaly_detector)
 from src.monitoring.advanced_sla_metrics import AdvancedSLAManager, MetricType
-from src.monitoring.tracing_optimizer import (SamplingStrategy, Span, Trace,
-                                              get_tracing_optimizer)
+from src.monitoring.tracing_optimizer import (Span, get_tracing_optimizer)
 from src.testing.chaos_engineering import (ChaosInjector, ChaosScenario,
                                            ChaosType)
 from src.testing.edge_case_validator import EdgeCaseValidator
@@ -370,7 +366,7 @@ class TestCircuitBreakerResilience:
         for i in range(3):
             try:
                 breaker.call(lambda: 1 / 0)
-            except:
+            except Exception:
                 pass
 
         assert breaker.is_open()
@@ -387,7 +383,7 @@ class TestCircuitBreakerResilience:
         for i in range(2):
             try:
                 breaker.call(lambda: 1 / 0)
-            except:
+            except Exception:
                 pass
 
         assert breaker.is_open()
@@ -507,7 +503,7 @@ class TestProductionReadinessValidation:
             anomaly_detector.record_metric("system", "cpu", 95.0)
             sla_manager.record_metric("system_health", 30.0)
 
-            violations = edge_validator.check_numeric_bounds(value=95.0, max_val=80.0)
+            edge_validator.check_numeric_bounds(value=95.0, max_val=80.0)
 
             span = Span(
                 trace_id=f"trace-{i}",

@@ -19,10 +19,9 @@ import hashlib
 import logging
 import os
 import secrets
-import struct
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -327,7 +326,7 @@ class HybridEncryption:
 
     def _classical_decrypt(self, ciphertext: bytes, private_key: bytes) -> bytes:
         """Классическое расшифрование."""
-        nonce = ciphertext[:16]
+        ciphertext[:16]
         encrypted = ciphertext[16:]
         public_key = hashlib.sha256(private_key).digest()
         key = hashlib.sha256(public_key).digest()

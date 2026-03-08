@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="x0tta6bl4", version="3.1.0", description="Minimal API for bootstrap testing"
+    title="x0tta6bl4", version="3.4.0", description="Minimal API for bootstrap testing"
 )
 
 logger.info("✓ App created")
@@ -17,13 +17,13 @@ logger.info("✓ App created")
 @app.get("/health")
 async def health():
     """Health check"""
-    return {"status": "ok", "version": "3.1.0"}
+    return {"status": "ok", "version": "3.4.0"}
 
 
 @app.get("/status")
 async def status():
     """Status endpoint"""
-    return {"status": "healthy", "version": "3.1.0", "loop_running": True}
+    return {"status": "healthy", "version": "3.4.0", "loop_running": True}
 
 
 @app.get("/")

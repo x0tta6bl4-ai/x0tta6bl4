@@ -4,8 +4,8 @@ API Endpoints for Swarm Orchestration
 """
 
 import logging
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, Dict
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)

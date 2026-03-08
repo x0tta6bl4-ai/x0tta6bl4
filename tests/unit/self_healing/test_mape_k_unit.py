@@ -5,8 +5,7 @@ Tests cover: MAPEKMonitor, MAPEKAnalyzer, MAPEKPlanner,
 MAPEKExecutor, MAPEKKnowledge, SelfHealingManager.
 """
 
-import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -49,14 +48,17 @@ class TestMAPEKMonitor:
 
     def test_register_detector(self):
         monitor = MAPEKMonitor()
-        fn = lambda m: True
+        def fn(m):
+            return True
         monitor.register_detector(fn)
         assert fn in monitor.anomaly_detectors
 
     def test_register_multiple_detectors(self):
         monitor = MAPEKMonitor()
-        fn1 = lambda m: False
-        fn2 = lambda m: True
+        def fn1(m):
+            return False
+        def fn2(m):
+            return True
         monitor.register_detector(fn1)
         monitor.register_detector(fn2)
         assert len(monitor.anomaly_detectors) == 2

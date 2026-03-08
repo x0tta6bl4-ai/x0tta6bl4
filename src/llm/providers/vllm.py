@@ -8,7 +8,7 @@ Supports OpenAI-compatible API with enhanced throughput.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import requests
@@ -16,7 +16,6 @@ import requests
 from src.llm.providers.base import (
     BaseLLMProvider,
     ChatMessage,
-    EmbeddingResult,
     GenerationResult,
     ProviderConfig,
     ProviderStatus,

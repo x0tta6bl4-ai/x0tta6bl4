@@ -14,7 +14,6 @@ import asyncio
 import os
 import time
 from typing import Any, Dict, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from tests.conftest import latency_threshold
@@ -223,7 +222,7 @@ class TestMTLSHandshake:
     @pytest.mark.performance
     async def test_mtls_handshake_latency(self, workload_client):
         """Test mTLS handshake latency is under 50ms."""
-        svid = await workload_client.fetch_x509_svid()
+        await workload_client.fetch_x509_svid()
 
         start = time.time()
         # Simulate handshake
@@ -287,10 +286,9 @@ class TestAutoRenewal:
         
         # Check if renewal needed (at 50% TTL)
         time_to_expiry = svid.expiry - time.time()
-        ttl_fraction = time_to_expiry / 60
+        time_to_expiry / 60
         
         # Should trigger renewal when below threshold
-        needs_renewal = ttl_fraction < 0.5
         
         # For short TTL, should need renewal soon
         assert time_to_expiry < 60
@@ -336,7 +334,7 @@ class TestFailoverRecovery:
     async def test_service_continues_when_agent_restarts(self, workload_client):
         """Test service continues when SPIRE Agent restarts."""
         # Fetch SVID before "restart"
-        svid_before = await workload_client.fetch_x509_svid()
+        await workload_client.fetch_x509_svid()
         
         # Simulate agent restart (disconnect/reconnect)
         await workload_client.close()
@@ -386,7 +384,7 @@ class TestSPIREIntegration:
     @pytest.mark.asyncio
     async def test_mtls_middleware_with_spire(self, workload_client):
         """Test mTLS middleware integration with SPIRE."""
-        svid = await workload_client.fetch_x509_svid()
+        await workload_client.fetch_x509_svid()
         
         # Mock middleware configuration
         middleware_config = {

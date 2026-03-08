@@ -5,7 +5,6 @@ Intelligent policy selection and action optimization based on learned patterns.
 Integrates with MAPE-K planner and executor.
 """
 
-import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -136,7 +135,7 @@ class PolicyRanker:
                 last_time = datetime.fromisoformat(policy.last_used)
                 age_hours = (datetime.now() - last_time).total_seconds() / 3600
                 recency_score = max(0.0, 1.0 - (age_hours / 24.0))  # Decay over 24h
-            except:
+            except Exception:
                 pass
 
         # Composite score

@@ -7,16 +7,11 @@ rate limiter, and consciousness integration.
 """
 
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, AsyncMock
 import time
 
 from src.llm.gateway import (
     LLMGateway,
     LLMConfig,
-    LLMProvider,
-    ProviderMetrics,
-    create_gateway,
 )
 from src.llm.semantic_cache import SemanticCache, CacheEntry
 from src.llm.rate_limiter import (
@@ -28,14 +23,11 @@ from src.llm.rate_limiter import (
 from src.llm.providers.base import (
     BaseLLMProvider,
     ProviderConfig,
-    ProviderStatus,
     GenerationResult,
     ChatMessage,
 )
 from src.llm.consciousness_integration import (
     ConsciousnessLLMIntegration,
-    SystemAnalysis,
-    HealingDecision,
 )
 
 

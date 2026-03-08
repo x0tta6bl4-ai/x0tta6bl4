@@ -1,7 +1,6 @@
 """Unit tests for src/security/pqc/dsa.py"""
 import os
 import hashlib
-from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
@@ -80,7 +79,7 @@ class TestPQCDigitalSignatureOperations:
         mock_handle = MagicMock()
         mock_store.store_key.return_value = mock_handle
 
-        keypair = dsa.generate_keypair(key_id="test-key", validity_days=30)
+        dsa.generate_keypair(key_id="test-key", validity_days=30)
         mock_store.store_key.assert_called_once_with(
             key_id="test-key",
             secret_key=b"sec",

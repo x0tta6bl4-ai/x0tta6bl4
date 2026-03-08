@@ -4,8 +4,7 @@ Unit tests for Node Manager Service.
 Tests node management, health checks, and service lifecycle.
 """
 
-from typing import Dict, List
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -118,7 +117,7 @@ class TestNodeManagerService:
 
         # Invalid port (should be handled)
         with pytest.raises((ValueError, TypeError)) or pytest.raises(Exception):
-            invalid_config = ServiceConfig(node_id="test-node", port=-1)
+            ServiceConfig(node_id="test-node", port=-1)
 
 
 @pytest.mark.skipif(not SERVICE_AVAILABLE, reason="Node Manager Service not available")

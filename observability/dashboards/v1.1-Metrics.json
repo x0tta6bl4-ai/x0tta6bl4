@@ -1,0 +1,36 @@
+{
+  "title": "x0tta6bl4 v1.1 Validation POC",
+  "panels": [
+    {
+      "title": "FedML Accuracy (Simulated)",
+      "type": "gauge",
+      "targets": [{"expr": "federated_global_accuracy_simulated"}],
+      "fieldConfig": {"min": 0, "max": 1}
+    },
+    {
+      "title": "5G Handoff Latency (Simulated ms)",
+      "type": "timeseries",
+      "targets": [{"expr": "histogram_quantile(0.95, rate(upf_handoff_latency_ms_simulated_bucket[5m]))"}]
+    },
+    {
+      "title": "Privacy Budget Consumed (Simulated Epsilon)",
+      "type": "gauge",
+      "targets": [{"expr": "federated_dp_privacy_budget_consumed_simulated"}]
+    },
+    {
+      "title": "FedML Failed Rounds",
+      "type": "stat",
+      "targets": [{"expr": "federated_failed_rounds_total"}]
+    },
+    {
+      "title": "Backhaul Route Decisions (Total)",
+      "type": "stat",
+      "targets": [{"expr": "backhaul_route_decisions_total"}]
+    },
+    {
+      "title": "5G Slice Session Requests",
+      "type": "stat",
+      "targets": [{"expr": "5g_slice_session_requests_total"}]
+    }
+  ]
+}

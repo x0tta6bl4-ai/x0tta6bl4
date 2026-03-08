@@ -7,12 +7,10 @@ for distributed decision making in the swarm.
 
 import asyncio
 import logging
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-import random
 
 logger = logging.getLogger(__name__)
 
@@ -424,7 +422,7 @@ class PaxosNode:
         """Handle an Accepted message (Phase 2b)."""
         instance_id = message["instance_id"]
         sender_id = message["sender_id"]
-        value = message.get("value")
+        message.get("value")
         
         instance = self._get_or_create_instance(instance_id)
         instance.accepts_received.add(sender_id)

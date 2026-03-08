@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
 from src.api.billing import router
 from src.database import get_db, User
-import json
 
 app = FastAPI()
 app.include_router(router)

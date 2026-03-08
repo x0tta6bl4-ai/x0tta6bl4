@@ -12,8 +12,6 @@ Tests:
 """
 
 import json
-import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -851,7 +849,7 @@ class TestPolicyEngine:
             action="read",
             environment=None,
         )
-        attrs2 = engine._build_attributes(
+        engine._build_attributes(
             subject={"node_id": "n2"},
             resource="/api",
             action="read",

@@ -14,7 +14,7 @@ from src.security.device_attestation import (AdaptiveTrustManager,
                                              AttestationType, DeviceAttestor,
                                              MeshDeviceAttestor, TrustLevel)
 from src.security.zkp_auth import (PedersenCommitment, SchnorrZKP,
-                                   ZKPAuthenticator, verify_zkp_proof_simple)
+                                   ZKPAuthenticator)
 
 try:
     from src.security.post_quantum import (HybridPQEncryption, PQAlgorithm,

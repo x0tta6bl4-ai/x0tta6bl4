@@ -253,6 +253,40 @@ spec:
                         proposalExpiry:
                           type: integer
                           default: 86400
+                        onChain:
+                          type: object
+                          description: On-chain DAO governance execution settings.
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: true
+                            chainId:
+                              type: integer
+                              default: 84532
+                            rpc:
+                              type: string
+                              default: "https://sepolia.base.org"
+                            governanceAddress:
+                              type: string
+                              default: ""
+                            tokenAddress:
+                              type: string
+                              default: ""
+                            eip1559:
+                              type: object
+                              properties:
+                                maxPriorityFeeGwei:
+                                  type: number
+                                  default: 1.5
+                                maxFeeGwei:
+                                  type: number
+                                  default: 10.0
+                            audit:
+                              type: object
+                              properties:
+                                ledgerPath:
+                                  type: string
+                                  default: "/data/dao/audit.jsonl"
                     bridge:
                       type: object
                       description: Base Sepolia token bridge configuration.

@@ -1,7 +1,6 @@
 import ssl
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.security.spiffe.controller.spiffe_controller import SPIFFEController
 from src.security.spiffe.mtls.tls_context import MTLSContext, TLSRole

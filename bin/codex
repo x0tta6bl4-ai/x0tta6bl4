@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${AI_HEAP_MB:=4096}"
+: "${CODEX_BIN:=codex}"
+: "${CODEX_USE_PROXY:=0}"
+: "${CODEX_NO_EXEC:=0}"
+: "${CODEX_PRINT_ENV:=0}"
+: "${AI_HTTP_PROXY:=http://127.0.0.1:7890}"
+: "${AI_HTTPS_PROXY:=http://127.0.0.1:7890}"
+: "${AI_NO_PROXY:=localhost,127.0.0.1,::1}"
+
+export NODE_OPTIONS="$(python3 - "${NODE_OPTIONS:-}" "${AI_HEAP_MB}" <<'PY'
+import sys
+current = sys.argv[1].split()
+heap = sys.argv[2]
+filtered = [item for item in current if not item.startswith("--max-old-space-size=")]
+filtered.append(f"--max-old-space-size={heap}")
+print(" ".join(filtered).strip())
+PY
+)"
+
+if [[ "${CODEX_USE_PROXY}" == "1" ]]; then
+  export HTTP_PROXY="${AI_HTTP_PROXY}"
+  export HTTPS_PROXY="${AI_HTTPS_PROXY}"
+  export NO_PROXY="${AI_NO_PROXY}"
+else
+  unset HTTP_PROXY HTTPS_PROXY
+  export NO_PROXY="${AI_NO_PROXY}"
+fi
+
+if [[ "${CODEX_PRINT_ENV}" == "1" || "${CODEX_NO_EXEC}" == "1" ]]; then
+  echo "NODE_OPTIONS=${NODE_OPTIONS:-}"
+  echo "HTTP_PROXY=${HTTP_PROXY:-}"
+  echo "HTTPS_PROXY=${HTTPS_PROXY:-}"
+  echo "NO_PROXY=${NO_PROXY:-}"
+  printf 'COMMAND='
+  printf '%q ' "${CODEX_BIN}" "$@"
+  printf '\n'
+fi
+
+if [[ "${CODEX_NO_EXEC}" == "1" ]]; then
+  exit 0
+fi
+
+exec "${CODEX_BIN}" "$@"

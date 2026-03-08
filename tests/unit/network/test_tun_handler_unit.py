@@ -1,8 +1,6 @@
 """Unit tests for TUN Handler — IPPacketParser and constants."""
 import os
 import socket
-import struct
-import pytest
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -17,7 +15,6 @@ from src.network.tun_handler import (
     IFF_TUN,
     IFF_TAP,
     IFF_NO_PI,
-    TUNSETIFF,
     TUNInterface,
 )
 

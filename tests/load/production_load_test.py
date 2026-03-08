@@ -83,7 +83,7 @@ class ProductionLoadTester:
         Returns:
             LoadTestMetrics with collected metrics
         """
-        logger.info(f"🚀 Starting production load test")
+        logger.info("🚀 Starting production load test")
         logger.info(f"   Concurrent users: {self.config.concurrent_users}")
         logger.info(f"   Total requests: {self.config.total_requests}")
         logger.info(f"   Duration: {self.config.duration_seconds}s")
@@ -353,7 +353,7 @@ async def main():
     )
 
     tester = ProductionLoadTester(config)
-    metrics = await tester.run_test()
+    await tester.run_test()
 
     summary = tester.get_summary()
 

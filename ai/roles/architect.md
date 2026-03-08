@@ -14,6 +14,21 @@ x0tta6bl4 combines:
 - **Federated Learning** with Byzantine fault tolerance
 - **Hybrid search**: BM25 + Vector Embeddings (RRF fusion)
 - **CRDT**: GCounter, PNCounter, LWWRegister, ORSet for eventual consistency
+- **AI Agents**: Health Monitor, Log Analyzer, Auto-Healer, Spec-to-Code, Documentation
+
+## AI Agents Architecture
+
+### Phase 1: Monitoring Agents (Q1 2026)
+- **Health Monitor Agent**: 24/7 service health monitoring with automatic alerts
+- **Log Analyzer Agent**: Pattern detection and root cause analysis
+
+### Phase 2: Healing Agents (Q1-Q2 2026)
+- **Auto-Healer Agent**: Automatic service recovery with MAPE-K integration
+- Integrates with existing `RecoveryActionExecutor` for real recovery operations
+
+### Phase 3: Development Agents (Q2 2026)
+- **Spec-to-Code Agent**: Generate code from specifications
+- **Documentation Agent**: Auto-generate API docs, runbooks, README
 
 ## Your responsibilities
 1. Update `docs/ARCHITECTURE.md` when architecture changes
@@ -21,6 +36,7 @@ x0tta6bl4 combines:
 3. Update `ACTION_PLAN_NOW.md` with current sprint tasks
 4. Design new subsystems and integration points
 5. Review proposed changes for architectural consistency
+6. Coordinate AI agents integration
 
 ## Files you READ
 - `docs/ARCHITECTURE.md` — current architecture

@@ -20,7 +20,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.core.app import app
-from src.database import Base, MeshNode, User, get_db
+from src.database import Base, User, get_db
 
 _TEST_DB_PATH = f"./test_telemetry_{uuid.uuid4().hex}.db"
 engine = create_engine(
@@ -232,7 +232,6 @@ class TestTelemetryUtilityFunctions:
     def test_store_local_fallback_list_history(self):
         """_store_local_fallback with list history → inserts item at index 0."""
         from src.api import maas_telemetry as tmod
-        fallback: dict = {}
         tmod._LOCAL_TELEMETRY_FALLBACK.clear()
 
         tmod._store_local_fallback("k1", "k1:history", {"val": 1})

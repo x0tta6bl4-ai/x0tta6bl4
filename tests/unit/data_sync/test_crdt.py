@@ -2,7 +2,6 @@
 Unit tests for CRDT implementations
 """
 
-import time
 
 import pytest
 

@@ -11,15 +11,15 @@ Based on Tor Project's Pluggable Transport specification.
 """
 
 import asyncio
+import aiohttp
 import hashlib
 import logging
 import secrets
 import struct
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

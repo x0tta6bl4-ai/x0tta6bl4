@@ -6,13 +6,10 @@ Covers all public methods, error paths, and edge cases not covered
 by the existing test file.
 """
 
-import asyncio
 import json
-import shutil
-import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -250,7 +247,6 @@ class TestGetRepositoryStats:
         assert stats["active_branches"] == 1
 
     def test_git_successful(self, monitor, temp_repo):
-        import subprocess as sp
         import time
 
         commit_time = int(time.time()) - 3600  # 1 hour ago
@@ -653,7 +649,6 @@ class TestStartMonitoring:
 
         call_count = 0
 
-        original_sleep = asyncio.sleep
 
         async def fake_sleep(seconds):
             nonlocal call_count

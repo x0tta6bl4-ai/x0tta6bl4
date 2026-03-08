@@ -5,7 +5,6 @@ Tests ChaCha20-Poly1305 AEAD obfuscation with real crypto round-trips.
 
 import os
 import socket
-from unittest.mock import MagicMock
 
 import pytest
 

@@ -9,7 +9,7 @@ import hmac
 import json
 import os
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

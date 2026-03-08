@@ -9,7 +9,6 @@ Tests the full alerting integration for PQC metrics including:
 """
 
 import asyncio
-import time
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

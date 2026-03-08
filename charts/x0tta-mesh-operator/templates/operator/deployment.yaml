@@ -40,6 +40,9 @@ spec:
             - --leader-elect-namespace={{ include "x0tta-mesh-operator.leaderElectionNamespace" . }}
             - --metrics-bind-address=:{{ .Values.service.metricsPort }}
             - --health-probe-bind-address=:8081
+            - --enable-webhooks={{ .Values.operator.webhook.enabled }}
+            - --webhook-port={{ .Values.operator.webhook.port }}
+            - --webhook-cert-dir={{ .Values.operator.webhook.certDir }}
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
@@ -47,6 +50,11 @@ spec:
             - name: health
               containerPort: 8081
               protocol: TCP
+            {{- if .Values.operator.webhook.enabled }}
+            - name: webhook
+              containerPort: {{ .Values.operator.webhook.port }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: OPERATOR_NAMESPACE
               valueFrom:
@@ -57,6 +65,12 @@ spec:
             {{- with .Values.operator.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.operator.webhook.enabled }}
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: {{ .Values.operator.webhook.certDir }}
+              readOnly: true
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -76,6 +90,12 @@ spec:
             readOnlyRootFilesystem: true
           resources:
             {{- toYaml .Values.operator.resources | nindent 12 }}
+      {{- if .Values.operator.webhook.enabled }}
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "x0tta-mesh-operator.webhookSecretName" . }}
+      {{- end }}
       {{- with .Values.operator.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

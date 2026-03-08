@@ -16,7 +16,7 @@ import ssl
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -130,7 +130,7 @@ class DomainFrontingAdapter(HTTPAdapter):
     def send(self, request, **kwargs):
         """Modify request for domain fronting."""
         # Store original host
-        original_host = urlparse(request.url).netloc
+        urlparse(request.url).netloc
         
         # Set Host header to target
         if self.target_host:

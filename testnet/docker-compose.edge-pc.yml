@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  x0tta-edge-worker:
+    image: x0tta6bl4/mesh-node:v1.1-pilot
+    container_name: x0tta-edge-pc
+    environment:
+      - CONTROL_PLANE_URL=http://89.125.1.107:8010
+      - NODE_ROLE=edge-worker
+      - PQC_MODE=hybrid-ml-kem-768
+      - DP_SIGMA=0.1
+      - SENSITIVITY=1.0
+    volumes:
+      - ./ml/local_data:/data/training
+    network_mode: bridge
+    restart: unless-stopped

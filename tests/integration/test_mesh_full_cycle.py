@@ -9,9 +9,6 @@ Tests complete scenarios:
 - Security (PQC + SPIFFE)
 """
 
-import asyncio
-from typing import Dict, List
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -162,8 +159,8 @@ class TestMeshFullCycle:
         """Test node participation in consensus"""
         # Create Raft nodes
         node1 = RaftNode(node_id="node-1", peers=["node-2", "node-3"])
-        node2 = RaftNode(node_id="node-2", peers=["node-1", "node-3"])
-        node3 = RaftNode(node_id="node-3", peers=["node-1", "node-2"])
+        RaftNode(node_id="node-2", peers=["node-1", "node-3"])
+        RaftNode(node_id="node-3", peers=["node-1", "node-2"])
 
         # Node 1 proposes value
         result = node1.propose("key1", "value1")
@@ -216,13 +213,13 @@ class TestMeshFailureRecovery:
 
         # Remaining nodes should detect failure
         # (In real scenario, this would be detected via health checks)
-        assert nodes["node-2"].is_running() == False
+        assert not nodes["node-2"].is_running()
 
         # Node 2 recovers
         nodes["node-2"].start()
 
         # Should rejoin mesh
-        assert nodes["node-2"].is_running() == True
+        assert nodes["node-2"].is_running()
 
     @pytest.mark.asyncio
     async def test_network_partition_recovery(self):
@@ -239,7 +236,7 @@ class TestMeshFailureRecovery:
         # Partition heals
         # All nodes should reconnect
         for node_id in nodes.keys():
-            assert nodes[node_id].is_running() == True
+            assert nodes[node_id].is_running()
 
 
 @pytest.mark.skipif(

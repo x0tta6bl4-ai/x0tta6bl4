@@ -6,10 +6,9 @@ Tests for VPN server/port configuration with production safety checks.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 
 class TestVPNServerConfiguration:

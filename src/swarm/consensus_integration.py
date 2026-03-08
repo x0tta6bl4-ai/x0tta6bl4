@@ -10,19 +10,15 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set
 import uuid
 
 from .consensus import (
     ConsensusEngine,
-    ConsensusAlgorithm,
-    ConsensusResult,
-    Decision,
-    Vote,
-    VoteType,
+    RaftNode,
 )
-from .paxos import PaxosNode, MultiPaxos, ProposalNumber
-from .pbft import PBFTNode, PBFTPhase
+from .paxos import PaxosNode, MultiPaxos
+from .pbft import PBFTNode
 
 try:
     from src.coordination.consensus_transport import (

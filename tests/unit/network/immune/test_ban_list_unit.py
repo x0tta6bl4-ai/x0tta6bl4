@@ -8,7 +8,6 @@ No network, no kernel, no oqs required.
 import json
 import threading
 import time
-import pytest
 
 from src.network.immune.ban_list import (
     BanEntry,

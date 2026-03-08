@@ -131,7 +131,7 @@ def print_metrics(metrics: Dict[str, float]):
     print(f"Failed:             {metrics['failed']}")
     print(f"Total Time:          {metrics['total_time']:.2f}s")
     print(f"Throughput:          {metrics['throughput']:.2f} req/sec")
-    print(f"\nLatency (ms):")
+    print("\nLatency (ms):")
     print(f"  Average:           {metrics['latency_avg']:.2f}ms")
     print(f"  P50 (median):      {metrics['latency_p50']:.2f}ms")
     print(f"  P95:               {metrics['latency_p95']:.2f}ms")

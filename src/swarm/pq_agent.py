@@ -8,10 +8,9 @@ An agent that implements NIST FIPS 203/204 Post-Quantum Cryptography
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
+from typing import Any, Dict, Optional
 
-from src.swarm.agent import Agent, AgentCapability, AgentMessage, TaskResult, SpecializedAgent
+from src.swarm.agent import AgentMessage, TaskResult, SpecializedAgent
 from src.security.pqc_spiffe import PQCSpiffeBridge
 
 logger = logging.getLogger(__name__)

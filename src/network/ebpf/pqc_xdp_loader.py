@@ -7,12 +7,9 @@ Integrates with EBPFPQCGateway for cryptographic session management.
 """
 
 import logging
-import os
-import struct  # Added for eBPF map packing
-import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 try:
     from bcc import BPF
@@ -21,10 +18,39 @@ try:
 except ImportError:
     BCC_AVAILABLE = False
 
-from ...security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway
+from ...security.ebpf_pqc_gateway import get_pqc_gateway
 from .loader import EBPFLoader
 
 logger = logging.getLogger(__name__)
+
+try:
+    from prometheus_client import Counter
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    Counter = None  # type: ignore
+
+
+class _NoopCounter:
+    def inc(self, amount: float = 1.0) -> None:
+        return
+
+
+def _build_counter(name: str, description: str):
+    if not PROMETHEUS_AVAILABLE or Counter is None:
+        return _NoopCounter()
+    try:
+        return Counter(name, description)
+    except Exception as exc:
+        logger.debug("Prometheus counter %s unavailable: %s", name, exc)
+        return _NoopCounter()
+
+
+PQC_EBPF_SESSION_MAP_WRITES_TOTAL = _build_counter(
+    "pqc_ebpf_session_map_writes_total",
+    "Total pqc_sessions map writes performed by PQCXDPLoader",
+)
 
 
 class PQCXDPLoader(EBPFLoader):
@@ -67,7 +93,8 @@ class PQCXDPLoader(EBPFLoader):
             bpf_text = f.read()
 
         # Compile and load BPF program
-        self.bpf = BPF(text=bpf_text)
+        include_path = str(self.programs_dir)
+        self.bpf = BPF(text=bpf_text, cflags=[f"-I{include_path}"])
 
         # Get PQC-specific maps
         self.pqc_sessions_map = self.bpf.get_table("pqc_sessions")
@@ -96,6 +123,7 @@ class PQCXDPLoader(EBPFLoader):
 
         logger.debug(f"update_pqc_sessions called with {len(sessions_data)} sessions.")
         # Add current sessions
+        write_count = 0
         for session_id_bytes, session_info in sessions_data.items():
             logger.debug(
                 f"Processing session ID: {session_id_bytes.hex()}, Info: {session_info}"
@@ -104,8 +132,11 @@ class PQCXDPLoader(EBPFLoader):
             # For now, we pass the dict/value relying on BCC or mock behavior.
             try:
                 self.pqc_sessions_map[session_id_bytes] = session_info
+                write_count += 1
             except Exception as e:
                 logger.error(f"Failed to update PQC session map: {e}")
+        if write_count:
+            PQC_EBPF_SESSION_MAP_WRITES_TOTAL.inc(write_count)
 
     def get_pqc_stats(self) -> Dict[str, int]:
         """Get PQC verification statistics"""

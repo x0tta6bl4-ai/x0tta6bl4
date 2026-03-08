@@ -10,7 +10,7 @@ Tests the modular eBPF loader architecture:
 
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import patch
 
 
 class TestEBPFProgramLoader:
@@ -223,11 +223,8 @@ class TestBackwardCompatibility:
         """Test that imports from old path still work."""
         # This tests that the module structure is compatible
         from src.network.ebpf.loader import (
-            EBPFLoaderOrchestrator,
             EBPFProgramType,
             EBPFAttachMode,
-            EBPFLoadError,
-            EBPFAttachError,
         )
         
         assert EBPFProgramType.XDP.value == "xdp"

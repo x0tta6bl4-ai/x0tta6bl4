@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'x0tta6bl4-ebpf'
+    static_configs:
+      - targets: ['localhost:9101']

@@ -6,30 +6,26 @@ Central gateway for managing multiple LLM providers with
 automatic failover, load balancing, and intelligent routing.
 """
 
-import asyncio
 import logging
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional
 
 from src.llm.providers.base import (
     BaseLLMProvider,
     ChatMessage,
-    EmbeddingResult,
     GenerationResult,
     ProviderConfig,
-    ProviderStatus,
 )
 from src.llm.rate_limiter import (
     MultiProviderRateLimiter,
     RateLimitConfig,
-    RateLimiter,
 )
-from src.llm.semantic_cache import CacheEntry, SemanticCache
+from src.llm.semantic_cache import SemanticCache
 
 logger = logging.getLogger(__name__)
 

@@ -8,11 +8,11 @@ Tests the enhanced attachment verification:
 """
 
 import subprocess
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from src.network.ebpf.loader import EBPFAttachMode, EBPFLoader, EBPFProgramType
+from src.network.ebpf.loader import EBPFLoader, EBPFProgramType
 
 
 class TestEBPFLoaderExtended:

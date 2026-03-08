@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/parl/types.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.0003, 0.01, 0.2, 0.5, 0.95, 0.99, 1.0, 30.0, 10000, 'Policy', 'Task', 'active_workers', 'avg_task_latency_ms', 'busy', 'cancelled', 'completed', 'completed_tasks', 'error', 'failed', 'failed_tasks', 'idle', 'idle_workers', 'parallelism_ratio', 'paused', 'pending', 'queued', 'queued_tasks', 'running', 'running_tasks', 'speedup_factor', 'terminated', 'throughput_tps', 'timeout', 'timestamp', 'worker_utilization']

@@ -1,4 +1,3 @@
-import asyncio
 import os
 import time
 from types import SimpleNamespace

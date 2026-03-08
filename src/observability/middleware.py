@@ -7,8 +7,7 @@ Provides automatic request tracing for FastAPI applications.
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set
 import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -17,10 +16,8 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send, Message
 
 from .tracing import (
-    Span,
     SpanKind,
     SpanStatusCode,
-    TracerProvider,
     get_tracer,
     extract_trace_context,
     inject_trace_context,
@@ -138,7 +135,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         
         # Extract trace context from headers
         headers = dict(request.headers)
-        parent_context = RequestTracer.extract_context(headers)
+        RequestTracer.extract_context(headers)
         
         # Create span name from request
         span_name = self._get_span_name(request)
@@ -316,7 +313,7 @@ class AsyncTracingMiddleware:
         # Extract trace context
         headers = dict(scope.get("headers", []))
         headers = {k.decode(): v.decode() for k, v in headers}
-        parent_context = RequestTracer.extract_context(headers)
+        RequestTracer.extract_context(headers)
         
         # Create span
         method = scope.get("method", "UNKNOWN")

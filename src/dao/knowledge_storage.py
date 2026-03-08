@@ -13,7 +13,6 @@ DAO Knowledge Storage
 
 import json
 import logging
-import os
 import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
@@ -170,12 +169,12 @@ class DAOKnowledgeStorage:
 
         try:
             # Extract directive from state
-            directives = entry.data.get("directives", {})
+            entry.data.get("directives", {})
 
             # Create proposal
             proposal_id = self.dao_engine.create_proposal(
                 title=f"Directive from {entry.node_id}",
-                description=f"Auto-generated directive from MAPE-K state",
+                description="Auto-generated directive from MAPE-K state",
                 duration_seconds=86400,  # 24 hours
             )
 

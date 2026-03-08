@@ -6,10 +6,9 @@ Date: February 2, 2026
 Version: 1.0
 """
 
-import hashlib
 import logging
+import os
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -117,6 +116,9 @@ class EBPFMetricsCollector:
             PerformanceMetrics object
         """
         if not BCC_AVAILABLE or not self.perf_monitor:
+            # Strict mode for production - fail closed
+            if os.getenv("EBPF_STRICT_MODE", "false").lower() == "true":
+                raise RuntimeError("Performance monitor not available")
             logger.warning(
                 "⚠️ Performance monitor not available - returning stub metrics"
             )
@@ -144,7 +146,7 @@ class EBPFMetricsCollector:
 
             # Read system metrics map
             sys_metrics_map = self.perf_monitor["system_metrics_map"]
-            sys_metrics = sys_metrics_map[0]
+            sys_metrics_map[0]
 
             # Calculate rates (per second)
             current_time = time.time()
@@ -218,6 +220,9 @@ class EBPFMetricsCollector:
             NetworkMetrics object
         """
         if not BCC_AVAILABLE or not self.net_monitor:
+            # Strict mode for production - fail closed
+            if os.getenv("EBPF_STRICT_MODE", "false").lower() == "true":
+                raise RuntimeError("Network monitor not available")
             logger.warning("⚠️ Network monitor not available - returning stub metrics")
             return NetworkMetrics(timestamp=time.time())
 
@@ -310,6 +315,9 @@ class EBPFMetricsCollector:
             SecurityMetrics object
         """
         if not BCC_AVAILABLE or not self.sec_monitor:
+            # Strict mode for production - fail closed
+            if os.getenv("EBPF_STRICT_MODE", "false").lower() == "true":
+                raise RuntimeError("Security monitor not available")
             logger.warning("⚠️ Security monitor not available - returning stub metrics")
             return SecurityMetrics(timestamp=time.time())
 

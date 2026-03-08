@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from src.network.ebpf.loader import EBPFAttachMode, EBPFProgramType
-from src.network.ebpf.orchestrator import EBPFOrchestrator, OrchestratorConfig
+from src.network.ebpf.orchestrator import OrchestratorConfig
 
 
 # Example 1: Basic Network Monitoring

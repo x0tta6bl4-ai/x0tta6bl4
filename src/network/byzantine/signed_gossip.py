@@ -5,7 +5,6 @@ Signed Gossip Protocol for Control-Plane Messages.
 для защиты от Byzantine attacks.
 """
 
-import hashlib
 import json
 import logging
 import time
@@ -76,7 +75,7 @@ class SignedMessage:
                 message_data = self.serialize()
                 if sig.verify(message_data, self.signature, self.public_key):
                     return True
-            except Exception as e:
+            except Exception:
                 continue
 
         return False

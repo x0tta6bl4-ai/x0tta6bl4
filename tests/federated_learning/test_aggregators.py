@@ -9,18 +9,15 @@
 - Byzantine-robustness всех агрегаторов
 """
 
-import math
-from typing import List
 
 import pytest
 
-from src.federated_learning.aggregators import (Aggregator, FedAvgAggregator,
+from src.federated_learning.aggregators import (FedAvgAggregator,
                                                 KrumAggregator,
                                                 MedianAggregator,
                                                 TrimmedMeanAggregator,
                                                 get_aggregator)
-from src.federated_learning.protocol import (AggregationResult, GlobalModel,
-                                             ModelUpdate, ModelWeights)
+from src.federated_learning.protocol import (ModelUpdate)
 
 
 class TestAggregatorBase:
@@ -146,7 +143,6 @@ class TestKrumAggregator:
         """Krum обнаруживает Byzantine ноду."""
         # byzantine_updates содержит 4 честных + 1 Byzantine
         # Нужно добавить ещё честную ноду для минимума
-        from tests.federated_learning.conftest import model_update_factory
 
         # Добавляем фикстуру вручную
         extra = ModelUpdate(

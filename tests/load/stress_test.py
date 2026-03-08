@@ -16,7 +16,7 @@ import logging
 import random
 import statistics
 import time
-from typing import Dict, List
+from typing import List
 
 import aiohttp
 

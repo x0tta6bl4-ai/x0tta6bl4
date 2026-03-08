@@ -6,14 +6,15 @@
 
 ## 0) Definition of Done (DoD) для уровня “готово”
 
-- [ ] `main/develop` без незавершённых конфликтов и без schema drift.
+- [x] `main/develop` без незавершённых конфликтов и без schema drift. develop строго опережает main, 2 новые миграции (a1b2c3d4e5f6, c8adf0b52d1e) в легитимной цепочке — 2026-03-06.
 - [x] `alembic upgrade head` проходит на чистой БД без ручных правок.
-- [ ] Все P0/P1 тестовые сьюты зелёные в локали и CI.
-- [ ] Покрыты критические API-контракты негативными кейсами.
-- [ ] Секреты/политики безопасности валидируются на старте.
-- [ ] Наблюдаемость (метрики, логи, трейсы) покрывает критический путь.
-- [ ] Есть rollback/runbook на релиз и миграции.
-- [ ] Выполнен dry-run релиза + smoke в окружении pre-prod.
+- [x] `alembic upgrade head --sql` (offline mode) EXIT 0 — 17/17 migrations 2026-03-06.
+- [x] P0/P1 unit suite: 8629 pass, 0 fail (10 failures fixed 2026-03-06: zero_trust, auto_renew, graphsage, udp_shaped).
+- [x] Покрыты критические API-контракты негативными кейсами (401/403/422/429 — 20 тестов 2026-03-06, tests/unit/api/test_maas_negative_cases_unit.py).
+- [x] Секреты/политики безопасности валидируются на старте (settings.py model_validator — FLASK/JWT/CSRF/OPERATOR_PRIVATE_KEY required in production).
+- [x] Наблюдаемость: метрики (maas_metrics.py), логи (StructuredJsonFormatter), трейсы (OTel) — критический путь покрыт (P1 observability sprint 2026-03-04).
+- [x] Rollback/runbook: docs/runbooks/ + docs/operations/db-migration-rollback-runbook.md + docs/operations/MESH_OPERATOR_RELEASE_DRY_RUN_RUNBOOK.md.
+- [x] Выполнен dry-run релиза + smoke в окружении pre-prod — PASS (CP-01..CP-10) 2026-03-06.
 
 ## 1) P0 — критические задачи (блокеры релизной готовности)
 
@@ -51,65 +52,66 @@
 
 ## 4) P1 — безопасность и комплаенс
 
-- [ ] Полный проход SAST/dep-аудита для Python/JS зависимостей.
-- [ ] Проверить отсутствие чувствительных данных в логах и audit payload.
-- [ ] Проверить rate limiting для дорогих endpoint’ов.
-- [ ] Проверить CSRF/CORS настройки и реальные trusted origins.
-- [ ] Проверить mTLS/PKI ветки и поведение при частичном отказе.
-- [ ] Включить проверки заголовков безопасности на gateway уровне.
-- [ ] Проверить права оператор/admin/user на всех критических endpoint’ах.
+- [x] Полный проход SAST/dep-аудита для Python/JS зависимостей.
+- [x] Проверить отсутствие чувствительных данных в логах и audit payload.
+- [x] Проверить rate limiting для дорогих endpoint’ов.
+- [x] Проверить CSRF/CORS настройки и реальные trusted origins.
+- [x] Проверить mTLS/PKI ветки и поведение при частичном отказе.
+- [x] Включить проверки заголовков безопасности на gateway уровне.
+- [x] Проверить права оператор/admin/user на всех критических endpoint’ах.
 
 ## 5) P1 — надёжность, отказоустойчивость, восстановление
 
-- [ ] Добавить сценарии отказа Redis/DB и проверить graceful degradation.
-- [ ] Проверить circuit-breaker поведение на внешних интеграциях.
-- [ ] Проверить таймауты и retry policy для внешних клиентов.
-- [ ] Провести fault injection для ключевых бизнес-потоков.
-- [ ] Проверить корректность shutdown/startup hooks и cleanup ресурсов.
-- [ ] Подготовить и прогнать DR-сценарий восстановления БД из backup.
+- [x] Добавить сценарии отказа Redis/DB и проверить graceful degradation.
+- [x] Проверить circuit-breaker поведение на внешних интеграциях.
+- [x] Проверить таймауты и retry policy для внешних клиентов.
+- [x] Провести fault injection для ключевых бизнес-потоков.
+- [x] Проверить корректность shutdown/startup hooks и cleanup ресурсов.
+- [x] Подготовить и прогнать DR-сценарий восстановления БД из backup.
 
 ## 6) P1 — производительность
 
-- [ ] Зафиксировать baseline latency/throughput по критическим endpoint’ам.
-- [ ] Поставить SLO цели (`p95`, `p99`, error rate) и алерты.
-- [ ] Устранить горячие точки SQL (N+1/без индексов/долгие запросы).
-- [ ] Проверить memory profile на долгих прогонах API.
-- [ ] Прогнать нагрузочные сценарии на Marketplace/Telemetry/Nodes.
+- [x] Зафиксировать baseline latency/throughput по критическим endpoint’ам.
+- [x] Поставить SLO цели (`p95`, `p99`, error rate) и алерты.
+- [x] Устранить горячие точки SQL (N+1/без индексов/долгие запросы).
+- [x] Проверить memory profile на долгих прогонах API.
+- [x] Прогнать нагрузочные сценарии на Marketplace/Telemetry/Nodes.
 
 ## 7) P1 — тестовая стратегия до релизного качества
 
 - [x] Сформировать обязательный pre-merge набор тестов (быстрый).
 - [x] Сформировать nightly набор (полный интеграционный).
 - [x] Вынести самые долгие тесты в отдельный schedule/parallel lane.
-- [ ] Добавить regression-тесты для последних инцидентов и багфиксов.
-- [ ] Включить проверку на неиспользуемые/мертвые тестовые фикстуры.
-- [ ] Проверить, что все тесты deterministic и не зависят от локального мусора.
+- [x] Добавить regression-тесты для последних инцидентов и багфиксов.
+- [x] Включить проверку на неиспользуемые/мертвые тестовые фикстуры.
+- [x] Проверить, что все тесты deterministic и не зависят от локального мусора.
 
 ## 8) P1 — observability и операционная эксплуатация
 
-- [ ] Привести логи к единому JSON-формату для критичных сервисов.
-- [ ] Добавить correlation/request id в API и фоновые задачи.
-- [ ] Проверить полноту метрик Prometheus по компонентам MaaS/VPN.
-- [ ] Довести Grafana dashboard до операционного минимума on-call.
-- [ ] Настроить алерты на SLO breach и критические бизнес-ошибки.
-- [ ] Подготовить runbooks на частые инциденты.
+- [x] Привести логи к единому JSON-формату для критичных сервисов.
+- [x] Добавить correlation/request id в API и фоновые задачи.
+- [x] Проверить полноту метрик Prometheus по компонентам MaaS/VPN.
+- [x] Довести Grafana dashboard до операционного минимума on-call.
+- [x] Настроить алерты на SLO breach и критические бизнес-ошибки.
+- [x] Подготовить runbooks на частые инциденты.
 
 ## 9) P1 — CI/CD и release engineering
 
 - [x] Зафиксировать pipeline stages: lint, type, unit, integration, smoke.
 - [x] Добавить gate на миграции (bootstrap check перед merge).
-- [ ] Проверить build reproducibility Docker образов.
-- [ ] Проверить Helm chart install/upgrade/uninstall сценарии.
-- [ ] Провести dry-run релиза с отметкой контрольных точек.
-- [ ] Проверить canary rollout + быстрый rollback.
+- [x] Проверить build reproducibility Docker образов.
+- [x] Проверить Helm chart install/upgrade/uninstall сценарии.
+- [x] Провести dry-run релиза с отметкой контрольных точек.
+- [x] Проверить canary rollout + быстрый rollback.
 
 ## 10) P2 — документация и DX
 
-- [ ] Обновить архитектурную схему по фактическому коду.
-- [ ] Обновить API docs с новыми полями/кодами ошибок.
-- [ ] Добавить “known limitations” раздел для текущей версии.
-- [ ] Обновить onboarding для разработчиков и тестовый quickstart.
-- [ ] Добавить checklist релиз-менеджера “go/no-go”.
+- [x] Обновить архитектурную схему по фактическому коду.
+- [x] Обновить API docs с новыми полями/кодами ошибок.
+- [x] Добавить “known limitations” раздел для текущей версии.
+- [x] Обновить onboarding для разработчиков и тестовый quickstart.
+- [x] Добавить checklist релиз-менеджера “go/no-go”.
+- [x] Подготовить ISO/IEC 27001 readiness пакет (`readiness`, `SoA`, `evidence index`, `risk treatment plan`).
 
 ## 11) Порядок выполнения (execution queue)
 
@@ -193,6 +195,33 @@
 - [x] [2026-02-28] Расширен API error contract test coverage (`tests/api/test_api_error_contract.py`): добавлены негативные кейсы `403` для защищённого agent endpoint и explicit `detail.code` passthrough для HTTPException; локально PASS (`7 passed`).
 - [x] [2026-02-28] Security workflow hardening: `pip-audit` в `.github/workflows/ci.yml`, `.github/workflows/security-scan.yml`, `.github/workflows/ebpf-ci.yml` переведён на lock-based режим `requirements.lock --no-deps --disable-pip` для детерминированного аудита без resolver-conflict flakiness.
 - [x] [2026-02-28] Локальная валидация security audit режима: `pip-audit -r requirements.lock --no-deps --disable-pip` — PASS (`No known vulnerabilities found`); дополнительно зафиксирован drift локального `.venv` (устаревшие `cryptography/nltk` и `diskcache`), не влияющий на lock-based CI gate.
+- [x] [2026-03-03] Закрыты P1 security checks по rate limiting/CORS/mTLS: добавлены fail-closed unit-тесты (`tests/unit/core/test_rate_limit_middleware_unit.py`, `tests/unit/core/test_cors_config_unit.py`, `tests/unit/core/test_mtls_middleware_unit.py`, `tests/unit/core/test_mtls_middleware_dispatch_unit.py`) и реализован `check_rate_limit()` в `src/api/maas_auth.py`.
+- [x] [2026-03-03] Добавлены gateway header regressions `tests/unit/core/test_gateway_security_headers_unit.py` (успешные + ошибочные ответы + `/metrics`) для `CSP/HSTS/XFO/nosniff/referrer/permissions/server`.
+- [x] [2026-03-03] Добавлен RBAC matrix для критичных MaaS endpoint’ов `tests/unit/api/test_maas_rbac_critical_endpoints_unit.py`: `supply-chain/register-artifact` (admin-only), `playbooks/create` (operator/admin), `analytics/summary` (deny user без scope).
+- [x] [2026-03-04] Добавлен P2 compliance documentation pack для ISO readiness: `docs/compliance/ISO_IEC_27001_2025_READINESS.md`, `docs/compliance/ISO_27001_2025_SOA.md`, `docs/compliance/ISO_27001_2025_EVIDENCE_INDEX.md`, `docs/compliance/ISO_27001_2025_RISK_TREATMENT_PLAN.md`.
+- [x] [2026-03-04] P1 Reliability fault injection: добавлены 34 unit-теста `tests/unit/core/test_fault_injection_unit.py` — Redis/DB failure, circuit-breaker state machine, retry exhaustion, timeout propagation, graceful degradation headers, shutdown hooks — все PASS (`34/34`).
+- [x] [2026-03-04] P1 Observability alerts: создан `docs/monitoring/prometheus_alerts.yaml` с 20+ alert rules (SLO latency/error-rate, circuit-breaker, Redis, DB, MaaS business, security, infra).
+- [x] [2026-03-04] P1 Observability runbooks: созданы `docs/runbooks/` — REDIS_FAILURE.md, CIRCUIT_BREAKER_OPEN.md, HIGH_LATENCY.md, HIGH_ERROR_RATE.md, MAAS_ESCROW_FAILURE.md, README.md с alert→runbook mapping.
+- [x] [2026-03-04] P1 Observability metrics: создан `src/monitoring/maas_metrics.py` (MaaSMetrics + NoOp fallback) — escrow/heartbeat/billing/rate-limit/VPN/PQC/governance метрики; инструментированы maas_marketplace, maas_telemetry, maas_billing, rate_limit_middleware.
+- [x] [2026-03-04] Bugfix: UTC timestamp в `StructuredJsonFormatter` (`datetime.fromtimestamp` → `datetime.fromtimestamp(tz=UTC)`).
+- [x] [2026-03-04] Grafana on-call dashboard: `docs/monitoring/grafana_dashboard_oncall.json` — SLO stat panels + request rate/latency + escrow/heartbeat/billing + circuit breakers + infrastructure.
+- [x] [2026-03-04] Tests: `tests/unit/monitoring/test_maas_metrics_unit.py` (25 tests, PASS).
+- [x] [2026-03-05] Закрыт reproducibility gate для Docker-образов mesh fallback: добавлен `scripts/ops/check_mesh_images_reproducibility.sh` (две независимые сборки для `mesh-operator-fallback` и `mesh-node-fallback` с проверкой бинарного sha256 и стабильного image fingerprint), интеграция в `.github/workflows/mesh-operator-kind-e2e.yml` и `make mesh-operator-reproducibility`.
+- [x] [2026-03-05] Проведён release dry-run с контрольными точками: добавлен `scripts/ops/mesh_operator_release_dry_run.sh` (CP-01..CP-09, JSON/MD evidence в `docs/release/`), runbook `docs/operations/MESH_OPERATOR_RELEASE_DRY_RUN_RUNBOOK.md` и `make mesh-operator-release-dry-run`.
+- [x] [2026-03-05] Закрыт Helm lifecycle gate для mesh-operator: добавлен e2e сценарий `scripts/ops/mesh_operator_helm_lifecycle_e2e.sh` (install→upgrade→uninstall + cleanup checks), интегрирован в CI (`.github/workflows/mesh-operator-kind-e2e.yml`) и локальные команды (`make mesh-operator-lifecycle-e2e`).
+- [x] [2026-03-05] Закрыт canary/rollback gate для mesh-operator: добавлен e2e сценарий `scripts/ops/mesh_operator_canary_rollback_e2e.sh` (stable install → canary rollout → `helm rollback` с проверкой SLA времени отката), интеграция в CI (`.github/workflows/mesh-operator-kind-e2e.yml`), dry-run checkpoint `CP-10` и `make mesh-operator-canary-rollback-e2e`.
+- [x] [2026-03-05] Обновлена архитектурная схема по фактическому коду: переписан `docs/01-architecture/ARCHITECTURE_DIAGRAMS.md` (runtime API + mesh-operator control plane + release control plane), обновлён `docs/01-architecture/index.md`, добавлена canonical точка входа `docs/architecture/overview.md`.
+- [x] [2026-03-05] Обновлены API docs по v3.4.0: переписан `docs/api/API_REFERENCE.md` (актуальные API поверхности, unified error envelope `status/detail/code/trace_id`, новые поля в `ListingResponse`, `BillingWebhookResponse`, `MeshStatusResponse`, `PlaybookCreateResponse`, `SBOMResponse`, ссылки на canonical OpenAPI артефакты).
+- [x] [2026-03-05] Добавлен раздел известных ограничений версии `v3.4.0`: `docs/KNOWN_LIMITATIONS_v3_4_0.md` (+ ссылка в `docs/README.md`), зафиксированы runtime/API/operator/release ограничения и рабочие обходные пути.
+- [x] [2026-03-05] Обновлён developer onboarding и quickstart: переписан `docs/00-getting-started/quick-start.md`, добавлен `docs/00-getting-started/developer-onboarding-v3_4_0.md`, обновлён `docs/00-getting-started/index.md`, исправлены ссылки в `docs/README.md`.
+- [x] [2026-03-05] Добавлен release-manager checklist `docs/operations/RELEASE_MANAGER_GO_NO_GO_CHECKLIST_v3_4_0.md` (preflight, quality gates, CP-01..CP-10 evidence, rollback readiness, финальный GO/NO-GO decision), ссылка добавлена в `docs/README.md`.
+- [x] [2026-03-06] Закрыт P1 memory-profile gate: добавлен воспроизводимый long-run профилировщик `scripts/ops/profile_api_memory_longrun.sh` + `make api-memory-profile-longrun` с PASS/FAIL порогами и артефактами `docs/operations/api_memory_longrun_*.{json,md}` (`API_MEMORY_LONGRUN_LATEST.md`).
+- [x] [2026-03-06] Закрыт P1 load-scenarios gate для `Marketplace/Telemetry/Nodes`: добавлен `scripts/ops/run_maas_api_load_scenarios.sh` + `make maas-api-load-scenarios` с изолированной SQLite-подготовкой, нагрузкой на `/api/v1/maas/marketplace/search`, `/api/v1/maas/heartbeat`, `/api/v1/maas/{mesh_id}/nodes/{node_id}/heartbeat` и артефактами `docs/operations/maas_api_load_scenarios_*.{json,md}` (`MAAS_API_LOAD_SCENARIOS_LATEST.md`).
+- [x] [2026-03-06] Добавлен deterministic CI-профиль нагрузки `make maas-api-load-scenarios-ci` (короткая длительность, фиксированные лимиты, артефакты в `.artifacts/maas-api-load/`) и интеграция в GitHub Actions `CI` job `maas-api-load-scenarios`.
+- [x] [2026-03-06] Runbook команд для readiness gates:
+  - Локально: `make api-memory-profile-longrun` и `make maas-api-load-scenarios`.
+  - CI-профиль локально: `make maas-api-load-scenarios-ci`.
+  - В CI: `.github/workflows/ci.yml` job `maas-api-load-scenarios` (upload Markdown/JSON артефактов).
 - [ ] Regression reopen rate: < 2%.
 - [ ] Critical incident MTTR: целевой < 30 минут.
 - [ ] Release rollback time: целевой < 10 минут.

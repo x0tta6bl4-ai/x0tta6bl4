@@ -458,11 +458,11 @@ class GraphSAGEAnomalyDetectorV3:
 
         # Average neighbor RSSI
         neighbor_rssis = [f.get("rssi", -70.0) for f in neighbor_features]
-        avg_neighbor_rssi = np.mean(neighbor_rssis)
+        np.mean(neighbor_rssis)
 
         # Average neighbor loss rate
         neighbor_losses = [f.get("loss_rate", 0.01) for f in neighbor_features]
-        avg_neighbor_loss = np.mean(neighbor_losses)
+        np.mean(neighbor_losses)
 
         # Compare node to neighbor baseline
         node_rssi = normalized_features.get("rssi_z", 0)

@@ -110,7 +110,7 @@ class BenchmarkRunner:
 
                 # Decryption
                 start = time.perf_counter()
-                decrypted = security.decrypt(encrypted, "peer-node")
+                security.decrypt(encrypted, "peer-node")
                 decrypt_time = (time.perf_counter() - start) * 1000  # ms
                 decrypt_times.append(decrypt_time)
 
@@ -162,7 +162,7 @@ class BenchmarkRunner:
 
             for _ in range(iterations):
                 start = time.perf_counter()
-                prediction = detector.predict(
+                detector.predict(
                     node_id="test-node", node_features=test_features, neighbors=[]
                 )
                 inference_time = (time.perf_counter() - start) * 1000  # ms

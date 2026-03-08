@@ -7,13 +7,11 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from libx0t.network.batman.node_manager import NodeManager
 from libx0t.network.discovery import MeshDiscovery, PeerInfo
-from libx0t.network.obfuscation import (TrafficProfile, TrafficShaper,
-                                     TransportManager)
+from libx0t.network.obfuscation import (TransportManager)
 from libx0t.network.transport.udp_shaped import ShapedUDPTransport
 
 logger = logging.getLogger(__name__)

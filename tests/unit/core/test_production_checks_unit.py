@@ -13,7 +13,7 @@ Tests cover:
 import os
 import sys
 from io import StringIO
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -331,7 +331,6 @@ class TestProductionModeDetection:
         """Test production mode defaults to false when env var not set."""
         monkeypatch.delenv("X0TTA6BL4_PRODUCTION", raising=False)
         # PRODUCTION_MODE is evaluated at import time, so we test the logic directly
-        import os
 
         assert os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() != "true"
 
@@ -341,7 +340,7 @@ class TestDependencyCheckErrorHandling:
 
     def test_missing_pqc_module(self):
         """Test handling of missing PQC module."""
-        with patch("sys.stderr", new=StringIO()) as fake_err:
+        with patch("sys.stderr", new=StringIO()):
             status = get_dependency_status()
 
             pqc_status = next(

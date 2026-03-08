@@ -13,7 +13,7 @@ Follows Linux kernel eBPF verifier principles.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ class EBPFValidator:
                             warnings.append(
                                 f"License '{license_text}' may not be GPL-compatible"
                             )
-                    except:
+                    except Exception:
                         pass
                 else:
                     warnings.append("No license section found")

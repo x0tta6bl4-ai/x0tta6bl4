@@ -97,8 +97,16 @@ BILLING_WEBHOOK_EVENTS = {
 PLAN_REQUEST_LIMITS = {
     "starter": 10_000,
     "pro": 100_000,
-    "enterprise": 1_000_000,
+    "enterprise": 10_000_000,
 }
+
+# Bandwidth limits in bytes (1TB = 10^12)
+PLAN_BANDWIDTH_LIMITS = {
+    "starter": 100 * 1024 * 1024 * 1024,      # 100 GB
+    "pro": 1024 * 1024 * 1024 * 1024,          # 1 TB
+    "enterprise": 10 * 1024 * 1024 * 1024 * 1024, # 10 TB
+}
+
 
 
 __all__ = [

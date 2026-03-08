@@ -4,7 +4,7 @@ Tests для GraphSAGE Observe Mode
 
 import pytest
 
-from src.ml.graphsage_observe_mode import (AnomalyEvent, DetectorMode,
+from src.ml.graphsage_observe_mode import (DetectorMode,
                                            GraphSAGEObserveMode)
 
 

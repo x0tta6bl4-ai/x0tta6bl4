@@ -3,10 +3,8 @@ Comprehensive unit tests for src.network.batman.node_manager
 Covers: NodeMetrics, NodeManager, HealthMonitor, create_incident_workflow_for_node_manager
 """
 
-import asyncio
-import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

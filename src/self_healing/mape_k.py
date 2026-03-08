@@ -52,7 +52,7 @@ class MAPEKMonitor:
             detector: Optional GraphSAGE detector instance (created if None)
         """
         from src.ml.graphsage_anomaly_detector import (
-            GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
+            create_graphsage_detector_for_mapek)
 
         if detector is None:
             self.graphsage_detector = create_graphsage_detector_for_mapek()
@@ -172,9 +172,7 @@ class MAPEKAnalyzer:
         Args:
             analyzer: Optional CausalAnalysisEngine instance (created if None)
         """
-        from src.ml.causal_analysis import (CausalAnalysisEngine,
-                                            IncidentEvent, IncidentSeverity,
-                                            create_causal_analyzer_for_mapek)
+        from src.ml.causal_analysis import (create_causal_analyzer_for_mapek)
 
         if analyzer is None:
             self.causal_analyzer = create_causal_analyzer_for_mapek()
@@ -192,7 +190,7 @@ class MAPEKAnalyzer:
             detector: Optional GraphSAGE detector instance (created if None)
         """
         from src.ml.graphsage_anomaly_detector import (
-            GraphSAGEAnomalyDetector, create_graphsage_detector_for_mapek)
+            create_graphsage_detector_for_mapek)
 
         if detector is None:
             self.graphsage_detector = create_graphsage_detector_for_mapek()
@@ -948,7 +946,7 @@ class SelfHealingManager:
 
     def run_cycle(self, metrics: Dict):
         """Run MAPE-K cycle with MTTR tracking."""
-        cycle_start = time.time()
+        time.time()
 
         # MONITOR phase
         monitor_start = time.time()

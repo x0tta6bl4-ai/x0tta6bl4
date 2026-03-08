@@ -10,7 +10,6 @@ Run with: pytest tests/test_performance_task2.py -v
 
 import sys
 import time
-from unittest import mock
 
 import pytest
 
@@ -279,7 +278,6 @@ def test_import_comparison():
         Lazy imports:  38ms  (only creating proxies)
         Speedup:       6.5x  ✓
     """
-    import sys
     import time
 
     # Remove test modules if cached
@@ -294,14 +292,14 @@ def test_import_comparison():
     from src.core.lazy_imports import lazy_import_group
 
     start = time.time()
-    ml_group = lazy_import_group("ml")
+    lazy_import_group("ml")
     lazy_time = (time.time() - start) * 1000
 
     print(f"\n{'='*60}")
-    print(f"PERFORMANCE BENCHMARK: Lazy vs Eager Imports")
+    print("PERFORMANCE BENCHMARK: Lazy vs Eager Imports")
     print(f"{'='*60}")
     print(f"Lazy import group creation:  {lazy_time:.1f}ms ✓")
-    print(f"Expected speedup:            6.5x over eager loading")
+    print("Expected speedup:            6.5x over eager loading")
     print(f"{'='*60}\n")
 
     # Lazy import should be very fast

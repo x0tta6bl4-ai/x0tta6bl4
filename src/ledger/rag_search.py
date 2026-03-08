@@ -10,8 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.rag.chunker import ChunkingStrategy, DocumentChunker
-from src.rag.pipeline import RAGPipeline, RAGResult
+from src.rag.pipeline import RAGPipeline
 from src.storage.vector_index import VectorIndex
 
 logger = logging.getLogger(__name__)
@@ -123,7 +122,7 @@ class LedgerRAGSearch:
                 logger.info(f"     ✅ Индексировано chunks: {len(chunk_ids)}")
 
             self._indexed = True
-            logger.info(f"✅ CONTINUITY.md успешно проиндексирован")
+            logger.info("✅ CONTINUITY.md успешно проиндексирован")
             logger.info(f"📊 Всего разделов: {len(sections)}, chunks: {total_chunks}")
 
             return True

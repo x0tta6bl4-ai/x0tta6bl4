@@ -3,7 +3,6 @@ Unit tests for Agent Integrity Verification.
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from src.network.mesh_node_complete import CompleteMeshNode, MeshConfig
 from src.network.integrity import calculate_binary_hash, verify_integrity

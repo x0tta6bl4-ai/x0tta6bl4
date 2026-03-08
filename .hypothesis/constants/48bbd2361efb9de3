@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/network/transport/websocket_shaped.py
+# hypothesis_version: 6.151.9
+
+[b'ECHO: ', 0.0, 1.0, 5.0, 1000, 8765, '0.0.0.0', 'OBFUSCATION_KEY', '__main__', 'bytes_received', 'bytes_sent', 'clients_connected', 'closed', 'connected', 'connecting', 'demo-key', 'disconnected', 'faketls', 'gaming', 'messages_received', 'messages_sent', 'none', 'obfuscation', 'reconnecting', 'server', 'shadowsocks', 'state', 'total_bytes', 'total_messages', 'traffic_analysis', 'traffic_profile', 'ws://localhost:8765', 'www.cloudflare.com', 'x0tta6bl4', 'xor', 'Сервер остановлен', 'Соединение закрыто']

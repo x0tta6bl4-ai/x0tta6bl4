@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 
-from .types import PQCKeyPair, PQCEncapsulationResult, PQCAlgorithm
+from .types import PQCKeyPair
 from .adapter import PQCAdapter, is_liboqs_available
 from .secure_storage import get_secure_storage, SecureKeyHandle
 

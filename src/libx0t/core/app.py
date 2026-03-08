@@ -7,8 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from libx0t.core.graceful_shutdown import (ShutdownMiddleware, create_lifespan,
-                                        shutdown_manager)
+from libx0t.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
 from libx0t.core.mtls_middleware import MTLSMiddleware
 from libx0t.core.production_lifespan import production_lifespan
 from libx0t.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="x0tta6bl4",
-    version="3.2.1",
+    version="3.4.0",
     description="Self-healing mesh network node with MAPE-K autonomic loop and Kimi K2.5 Agent Swarm",
     lifespan=production_lifespan,
 )
@@ -364,7 +363,7 @@ async def prometheus_metrics():
 @app.get("/health")
 async def health():
     """Simple health check endpoint - returns 200 if alive"""
-    return {"status": "ok", "version": "3.2.0"}
+    return {"status": "ok", "version": "3.4.0"}
 
 
 @app.get("/health/live")
@@ -419,7 +418,7 @@ async def status():
         # Fallback to minimal status if error
         return JSONResponse(
             status_code=200,
-            content={"status": "healthy", "version": "3.2.0", "error": str(e)},
+            content={"status": "healthy", "version": "3.4.0", "error": str(e)},
         )
 
 
@@ -428,7 +427,7 @@ async def root():
     """API root with documentation links"""
     return {
         "name": "x0tta6bl4",
-        "version": "3.2.0",
+        "version": "3.4.0",
         "docs": "/docs",
         "endpoints": {
             "health": "/health",
@@ -448,7 +447,6 @@ async def root():
     }
 
 
-import math
 import random
 
 

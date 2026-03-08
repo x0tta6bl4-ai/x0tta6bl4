@@ -107,16 +107,44 @@ if [ $RETRIES -eq $MAX_RETRIES ]; then
     exit 1
 fi
 
-# Register workload entries for both local user and root (used by some CI/sandbox runners).
+# Get the agent's actual SPIFFE ID after attestation.
+# With join_token attestation the ID is spiffe://<domain>/spire/agent/join_token/<uuid>,
+# NOT the hardcoded SERVER_SPIFFE_ID. Using wrong parentID causes PERMISSION_DENIED.
+echo "Retrieving agent SPIFFE ID after attestation..."
+AGENT_SPIFFE_ID=""
+RETRIES=0
+while [ $RETRIES -lt $MAX_RETRIES ]; do
+  AGENT_SPIFFE_ID=$(
+    DOCKER_HOST="$DOCKER_HOST" "${COMPOSE_CMD[@]}" -f docker-compose.spire.yml exec -T spire-server \
+      /opt/spire/bin/spire-server agent list \
+        -socketPath /tmp/spire-server/private/api.sock \
+      2>/dev/null | grep -oE "spiffe://[^[:space:]]+" | head -1 || true
+  )
+  if [ -n "$AGENT_SPIFFE_ID" ]; then
+    echo "Agent SPIFFE ID: $AGENT_SPIFFE_ID"
+    break
+  fi
+  RETRIES=$((RETRIES + 1))
+  echo "Waiting for agent attestation... (attempt $RETRIES/$MAX_RETRIES)"
+  sleep $RETRY_INTERVAL
+done
+
+if [ -z "$AGENT_SPIFFE_ID" ]; then
+  echo "Warning: could not determine agent SPIFFE ID; falling back to SERVER_SPIFFE_ID"
+  AGENT_SPIFFE_ID="$SERVER_SPIFFE_ID"
+fi
+
+# Register workload entries for local user, root, and common CI UIDs.
 echo "Registering workload entries..."
 CURRENT_UID="$(id -u)"
-for UID_SELECTOR in "$CURRENT_UID" "0"; do
+for UID_SELECTOR in "$CURRENT_UID" "0" "1001"; do
   DOCKER_HOST="$DOCKER_HOST" "${COMPOSE_CMD[@]}" -f docker-compose.spire.yml exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
-      -parentID "$SERVER_SPIFFE_ID" \
+      -parentID "$AGENT_SPIFFE_ID" \
       -spiffeID "${WORKLOAD_SPIFFE_ID}-${UID_SELECTOR}" \
       -selector "unix:uid:${UID_SELECTOR}" \
-    > /dev/null || true
+      -socketPath /tmp/spire-server/private/api.sock \
+    > /dev/null 2>&1 || true
 done
 
 echo "SPIRE infrastructure is ready!"

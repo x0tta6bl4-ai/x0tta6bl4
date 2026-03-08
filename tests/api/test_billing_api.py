@@ -8,9 +8,8 @@ import json
 import os
 import time
 import uuid
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.core.app import app
@@ -342,7 +341,6 @@ class TestBillingRateLimiting:
     )
     def test_checkout_rate_limit(self):
         """Test checkout session rate limiting (10/minute)."""
-        from src.core.circuit_breaker import CircuitBreakerOpen
 
         responses = []
         for i in range(15):

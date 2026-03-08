@@ -12,7 +12,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +384,7 @@ class MeshRouter:
         payload, tag = data[:-32], data[-32:]
         expected = hmac.new(self._shared_secret, payload, hashlib.sha256).digest()
         if not hmac.compare_digest(tag, expected):
-            logger.warning(f"Packet HMAC verification failed — dropping")
+            logger.warning("Packet HMAC verification failed — dropping")
             return None
         return payload
 
@@ -578,7 +578,7 @@ class MeshRouter:
         """Переслать пакет к следующему hop."""
         # Проверяем TTL
         if packet.ttl <= 1:
-            logger.debug(f"Packet dropped: TTL expired")
+            logger.debug("Packet dropped: TTL expired")
             async with self._stats_lock:
                 self._stats["packets_dropped"] += 1
             return

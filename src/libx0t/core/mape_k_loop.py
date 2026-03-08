@@ -4,7 +4,7 @@ import logging
 import time
 import warnings
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Dict, List
 
 # TD-008: MAPE-K duplication resolution
 warnings.warn(

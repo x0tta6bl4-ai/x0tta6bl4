@@ -2,7 +2,6 @@
 Tests for VPN API endpoints.
 """
 
-import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import codecs
 import itertools
-import io
 import types
 
 import chardet

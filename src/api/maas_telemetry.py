@@ -19,8 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.database import MeshNode, MeshInstance, get_db
+from src.database import MeshNode, get_db
 from src.api.maas_auth import get_current_user_from_maas
+from src.core.reliability_policy import mark_degraded_dependency
+from src.monitoring.maas_metrics import record_heartbeat as _record_heartbeat_metric
 from src.network.reputation_scoring import ReputationScoringSystem
 
 logger = logging.getLogger(__name__)
@@ -38,11 +40,12 @@ TELEMETRY_HISTORY_TTL_SECONDS = 7 * 24 * 60 * 60
 MAX_FALLBACK_ENTRIES = 10000  # Prevent unbounded memory growth
 FALLBACK_EVICTION_BATCH = 1000  # Evict this many entries when over limit
 try:
-    r_client = redis.from_url(REDIS_URL, decode_responses=True)
+    r_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+    r_client.ping()
     REDIS_AVAILABLE = True
 except Exception as e:
     logger.warning(f"⚠️ Redis connection failed: {e}. Falling back to memory.")
-    r_client = {}
+    r_client = None
     REDIS_AVAILABLE = False
 
 
@@ -157,6 +160,39 @@ class NodeHeartbeatRequest(BaseModel):
     pheromones: Optional[Dict[str, Dict[str, float]]] = None
 
 
+def _extract_pheromone_score(raw: Any) -> float:
+    """Accept legacy numeric weights and richer score-bearing payloads."""
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw)
+    if isinstance(raw, dict):
+        for key in ("score", "weight", "latency_score"):
+            value = raw.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+    return 0.0
+
+
+def _derive_topology_status(
+    telemetry: Optional[Dict[str, Any]],
+    db_status: Optional[str],
+) -> str:
+    """Normalize node status for topology consumers across mixed payload shapes."""
+    raw_status = None
+    if isinstance(telemetry, dict):
+        value = telemetry.get("status")
+        if isinstance(value, str):
+            raw_status = value.strip().lower()
+
+    if not raw_status and isinstance(db_status, str):
+        raw_status = db_status.strip().lower()
+
+    if raw_status in {"degraded", "unhealthy"}:
+        return "degraded"
+    if telemetry:
+        return "healthy"
+    return "offline"
+
+
 def _store_local_fallback(key: str, history_key: str, data: Dict) -> None:
     """Store telemetry data in LRU cache fallback.
     
@@ -181,7 +217,11 @@ def _store_local_fallback(key: str, history_key: str, data: Dict) -> None:
     _LOCAL_TELEMETRY_FALLBACK.set(history_key, history)
 
 
-def _set_telemetry(node_id: str, data: Dict):
+def _set_telemetry(
+    node_id: str,
+    data: Dict,
+    degraded_dependencies: Optional[set[str]] = None,
+):
     key = f"maas:telemetry:{node_id}"
     history_key = f"{key}:history"
     if REDIS_AVAILABLE:
@@ -195,13 +235,20 @@ def _set_telemetry(node_id: str, data: Dict):
             pipeline.execute()
         except Exception as e:
             logger.warning(f"⚠️ Failed to persist telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             _store_local_fallback(key, history_key, data)
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         _store_local_fallback(key, history_key, data)
 
 
-def _get_telemetry(node_id: str) -> Dict:
+def _get_telemetry(
+    node_id: str,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> Dict:
     key = f"maas:telemetry:{node_id}"
     if REDIS_AVAILABLE:
         try:
@@ -209,15 +256,23 @@ def _get_telemetry(node_id: str) -> Dict:
             return json.loads(raw) if raw else {}
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry snapshot for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
             return fallback if isinstance(fallback, dict) else {}
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
         return fallback if isinstance(fallback, dict) else {}
 
 
-def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
+def _get_telemetry_history(
+    node_id: str,
+    limit: int = 100,
+    degraded_dependencies: Optional[set[str]] = None,
+) -> List[Dict]:
     if limit <= 0:
         return []
     key = f"maas:telemetry:{node_id}:history"
@@ -226,6 +281,8 @@ def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
             raw_items = r_client.lrange(key, 0, limit - 1)
         except Exception as e:
             logger.warning(f"⚠️ Failed to read telemetry history for {node_id}: {e}")
+            if degraded_dependencies is not None:
+                degraded_dependencies.add("redis")
             fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
             if isinstance(fallback, list):
                 return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
@@ -241,6 +298,8 @@ def _get_telemetry_history(node_id: str, limit: int = 100) -> List[Dict]:
         return results
     else:
         # Use local fallback when Redis is not available
+        if degraded_dependencies is not None:
+            degraded_dependencies.add("redis")
         fallback = _LOCAL_TELEMETRY_FALLBACK.get(key)
         if isinstance(fallback, list):
             return [entry for entry in fallback[:limit] if isinstance(entry, dict)]
@@ -318,6 +377,7 @@ async def heartbeat(
 
     # Track long-term uptime for settlement
     uptime_tracker.record_heartbeat(req.node_id)
+    _record_heartbeat_metric(req.node_id)
 
     
     # Update Reputation based on heartbeat data
@@ -338,21 +398,28 @@ async def heartbeat(
         trust_score = proxy_trust.trust_score
 
     telemetry_data = {
+        "status": node.status,
         "cpu": req.cpu_usage,
         "mem": req.memory_usage,
         "neighbors": req.neighbors_count,
         "uptime": req.uptime,
         "latency": req.latency_ms,
         "last_seen": node.last_seen.isoformat(),
-        "reputation": trust_score
+        "reputation": trust_score,
     }
-    _set_telemetry(req.node_id, telemetry_data)
+    if req.pheromones:
+        telemetry_data["pheromones"] = req.pheromones
+    degraded_dependencies: set[str] = set()
+    _set_telemetry(req.node_id, telemetry_data, degraded_dependencies=degraded_dependencies)
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
     
     return {"status": "ack", "mesh_id": node.mesh_id, "trust_score": trust_score}
 
 @router.get("/{mesh_id}/topology")
 async def get_topology(
     mesh_id: str, 
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_from_maas)
 ):
@@ -362,35 +429,41 @@ async def get_topology(
     result_nodes = []
     links = []
     seen_links = set()
+    degraded_dependencies: set[str] = set()
     
     for n in nodes:
-        telemetry = _get_telemetry(n.id)
+        telemetry = _get_telemetry(n.id, degraded_dependencies=degraded_dependencies)
         result_nodes.append({
             "id": n.id,
             "class": n.device_class,
-            "status": "healthy" if telemetry else "offline",
+            "status": _derive_topology_status(telemetry, n.status),
             "telemetry": telemetry,
             "pqc_enabled": True # All MaaS nodes have PQC by default
         })
         
         # Extract links from pheromones
         if telemetry and "pheromones" in telemetry:
-            for neighbor_id, paths in telemetry["pheromones"].items():
-                # Link ID: sorted pair to avoid duplicates
-                link_key = tuple(sorted([n.id, neighbor_id]))
-                if link_key not in seen_links:
-                    # Get best score/latency if available
-                    score = 0.0
-                    if paths:
-                        score = max(p.get("score", 0.0) for p in paths.values())
-                    
-                    links.append({
-                        "source": n.id,
-                        "target": neighbor_id,
-                        "quality": score,
-                        "secure": True, # PQC Tunnel
-                        "type": "pqc-mesh"
-                    })
-                    seen_links.add(link_key)
-        
+            pheromones = telemetry["pheromones"]
+            if isinstance(pheromones, dict):
+                for _destination_id, paths in pheromones.items():
+                    if not isinstance(paths, dict):
+                        continue
+                    for neighbor_id, raw_score in paths.items():
+                        if not isinstance(neighbor_id, str) or not neighbor_id:
+                            continue
+                        link_key = tuple(sorted([n.id, neighbor_id]))
+                        if link_key in seen_links:
+                            continue
+
+                        links.append({
+                            "source": n.id,
+                            "target": neighbor_id,
+                            "quality": _extract_pheromone_score(raw_score),
+                            "secure": True, # PQC Tunnel
+                            "type": "pqc-mesh"
+                        })
+                        seen_links.add(link_key)
+    for dependency in degraded_dependencies:
+        mark_degraded_dependency(request, dependency)
+
     return {"nodes": result_nodes, "links": links}

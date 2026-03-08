@@ -10,7 +10,6 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +25,16 @@ try:
 except ImportError:
     FLOWER_AVAILABLE = False
     logger.warning("Flower or torch_geometric not available, Federated Learning disabled")
+
+# Opacus для Differential Privacy
+try:
+    from opacus import PrivacyEngine
+
+    OPACUS_AVAILABLE = True
+except ImportError:
+    OPACUS_AVAILABLE = False
+    PrivacyEngine = None
+    logger.debug("Opacus not available, Differential Privacy disabled")
 
 class FederatedGraphSAGE(nn.Module):
     """

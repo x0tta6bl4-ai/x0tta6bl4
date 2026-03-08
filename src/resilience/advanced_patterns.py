@@ -66,7 +66,7 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -197,7 +197,7 @@ class FallbackHandler:
             for fallback_fn in fallbacks:
                 try:
                     return fallback_fn(*args, **kwargs)
-                except:
+                except Exception:
                     continue
 
             raise

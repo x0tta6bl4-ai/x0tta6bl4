@@ -10,9 +10,8 @@ from datetime import datetime
 import pytest
 
 from src.monitoring.opentelemetry_integration import (
-    ConsoleSpanExporter, Counter, Gauge, Histogram, InstrumentationHelper,
-    MemorySpanExporter, MeterProvider, ObservabilityCollector, Span, SpanEvent,
-    SpanKind, SpanStatus, TraceContext, TracingProvider,
+    ConsoleSpanExporter, InstrumentationHelper,
+    MemorySpanExporter, MeterProvider, ObservabilityCollector, Span, SpanKind, SpanStatus, TraceContext, TracingProvider,
     get_observability_collector, initialize_observability)
 
 

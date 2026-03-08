@@ -2,7 +2,6 @@
 Tests for Ledger RAG Search Integration
 """
 
-import asyncio
 import sys
 from pathlib import Path
 

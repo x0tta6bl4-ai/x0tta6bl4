@@ -1,8 +1,7 @@
 """Unit tests for NodeManager traffic shaping integration."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from src.network.batman.node_manager import NodeManager
 

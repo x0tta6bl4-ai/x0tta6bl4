@@ -1,11 +1,9 @@
 """Unit tests for Prometheus metrics exporter."""
 
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.monitoring.metrics import (MetricsMiddleware, get_metrics,
-                                    http_request_duration_seconds,
                                     http_requests_total,
                                     mape_k_cycle_duration_seconds,
                                     mesh_latency_seconds, mesh_peers_count,

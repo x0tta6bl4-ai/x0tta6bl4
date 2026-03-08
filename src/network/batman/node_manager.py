@@ -301,7 +301,7 @@ class NodeManager:
             "timestamp": datetime.now().isoformat(),
         }
         data = json.dumps(payload).encode("utf-8")
-        original_len = len(data)
+        len(data)
 
         # Apply Hybrid TLS encryption (PQC) before obfuscation
         if HYBRID_TLS_AVAILABLE and self._hybrid_tls_session_key is not None:
@@ -728,7 +728,7 @@ class HealthMonitor:
                     else check_fn()
                 )
                 if not result:
-                    await self._handle_alert(f"check_failed", {"check": check_name})
+                    await self._handle_alert("check_failed", {"check": check_name})
             except Exception as e:
                 logger.error(f"Check {check_name} failed: {e}")
 
@@ -793,7 +793,7 @@ class HealthMonitor:
 
         for handler in self.alert_handlers:
             try:
-                result = (
+                (
                     await handler(alert_type, data)
                     if asyncio.iscoroutinefunction(handler)
                     else handler(alert_type, data)

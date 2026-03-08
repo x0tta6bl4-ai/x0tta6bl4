@@ -10,9 +10,8 @@ mTLS middleware for FastAPI with TLS 1.3 enforcement
 
 import logging
 import ipaddress
-import ssl
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 from urllib.parse import unquote
 
 from cryptography import x509

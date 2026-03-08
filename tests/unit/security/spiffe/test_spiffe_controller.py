@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.security.spiffe.agent.manager import AttestationStrategy
 from src.security.spiffe.controller.spiffe_controller import SPIFFEController

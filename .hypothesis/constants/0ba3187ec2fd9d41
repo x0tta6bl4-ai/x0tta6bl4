@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/anti_censorship/stego_mesh.py
+# hypothesis_version: 6.151.9
+
+[b'\x00', b'\x05stego\x08x0tta6bl4\x04mesh\x00', b'\x08\x00', b'\r\n\r\n', b'GET ', b'HTTP/1.1', b'X-Stego-Mesh: 1', b'X0TTA6BL4_STEGO', b'_t', b'hmac_key_derivation', b'ping_padding', b'x0tta6bl4.stego', 0.1, 1000.0, 256, 1000, 65535, '!BBHHH', '!HH', '!HHHHHH', '!Q', 'DNA', 'count', 'dns', 'http', 'icmp', 'index', 'probability']

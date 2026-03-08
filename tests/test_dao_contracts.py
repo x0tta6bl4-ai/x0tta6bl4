@@ -4,7 +4,6 @@ Testing suite for GovernanceToken, Governor, Timelock, Treasury contracts
 """
 
 import time
-from datetime import datetime, timedelta
 
 import pytest
 
@@ -495,7 +494,6 @@ class TestDAOIntegration:
 
     def test_full_governance_flow(self):
         """Test: Create proposal -> Vote -> Queue -> Execute -> Treasury"""
-        from collections import defaultdict
 
         # Setup
         class SimpleDAO:

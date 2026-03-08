@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.network.batman.node_manager import NodeManager, NodeMetrics
 

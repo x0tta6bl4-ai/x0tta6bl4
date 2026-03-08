@@ -985,7 +985,6 @@ class TestNodeUtilityFunctions:
         from unittest.mock import patch
         import src.api.maas_nodes as nmod
         with patch.object(nmod, "_set_external_telemetry", None):
-            from src.api.maas_nodes import _export_analytics_telemetry
             result = nmod._export_analytics_telemetry("n1", {"k": "v"})
         assert result is False
 
@@ -1027,6 +1026,17 @@ class TestNodeUtilityFunctions:
             result = nmod._read_external_telemetry("n-err")
         assert result == {}
 
+    def test_read_external_telemetry_normalizes_maas_telemetry_shape(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        payload = {"status": "Degraded", "latency": 14.2, "neighbors": "3"}
+        with patch.object(nmod, "_get_external_telemetry", MagicMock(return_value=payload)):
+            result = nmod._read_external_telemetry("n1")
+        assert result["status"] == "degraded"
+        assert result["latency"] == 14.2
+        assert result["latency_ms"] == 14.2
+        assert result["neighbors_count"] == 3
+
     def test_read_external_telemetry_history_none_getter_returns_empty_list(self):
         from unittest.mock import patch
         import src.api.maas_nodes as nmod
@@ -1048,6 +1058,21 @@ class TestNodeUtilityFunctions:
                           MagicMock(return_value=[{"ok": True}, "bad", 42, {"also": "ok"}])):
             result = nmod._read_external_telemetry_history("n1", 10)
         assert result == [{"ok": True}, {"also": "ok"}]
+
+    def test_read_external_telemetry_history_normalizes_entries(self):
+        from unittest.mock import MagicMock, patch
+        import src.api.maas_nodes as nmod
+        payload = [
+            {"status": "HEALTHY", "latency": 9.5, "neighbors": 2},
+            {"status": "degraded", "latency_ms": 17.0},
+        ]
+        with patch.object(nmod, "_get_external_telemetry_history", MagicMock(return_value=payload)):
+            result = nmod._read_external_telemetry_history("n1", 10)
+        assert result[0]["status"] == "healthy"
+        assert result[0]["latency_ms"] == 9.5
+        assert result[0]["neighbors_count"] == 2
+        assert result[1]["status"] == "degraded"
+        assert result[1]["latency_ms"] == 17.0
 
     def test_read_external_telemetry_history_exception_returns_empty_list(self):
         from unittest.mock import MagicMock, patch
@@ -1249,6 +1274,21 @@ class TestExternalTelemetryHelpers:
             result = _read_external_telemetry_history("node-x", limit=10)
         assert result == [{"cpu": 1}, {"mem": 2}]
 
+    def test_read_history_normalizes_maas_telemetry_aliases(self):
+        from unittest.mock import patch, MagicMock
+        from src.api import maas_nodes as mod
+        from src.api.maas_nodes import _read_external_telemetry_history
+        mock_getter = MagicMock(return_value=[{"latency": 11.0, "neighbors": "4", "status": "HEALTHY"}])
+        with patch.object(mod, "_get_external_telemetry_history", mock_getter):
+            result = _read_external_telemetry_history("node-x", limit=10)
+        assert result == [{
+            "latency": 11.0,
+            "latency_ms": 11.0,
+            "neighbors": "4",
+            "neighbors_count": 4,
+            "status": "healthy",
+        }]
+
 
 # ---------------------------------------------------------------------------
 # Unit-style tests for MeshOperator methods
@@ -1264,7 +1304,7 @@ class TestMeshOperatorMethods:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from src.database import Base, User
-        from src.api.maas_nodes import MeshOperator, MeshPermission
+        from src.api.maas_nodes import MeshOperator
 
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
         Base.metadata.create_all(bind=engine)

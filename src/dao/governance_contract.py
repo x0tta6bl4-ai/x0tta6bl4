@@ -8,7 +8,7 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -88,31 +88,42 @@ class GovernanceContract:
         self.private_key = private_key or os.getenv("OPERATOR_PRIVATE_KEY")
 
         # Initialize Web3
-        self.web3 = Web3(Web3.HTTPProvider(rpc_url))
+        self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
         if not self.web3.is_connected():
-            raise ConnectionError(f"Could not connect to {rpc_url}")
+            raise ConnectionError(f"Could not connect to {self.rpc_url}")
 
         # Load contract ABI
         import json
 
-        abi_path = os.path.join(
-            os.path.dirname(__file__),
-            "contracts/artifacts/contracts/MeshGovernance.sol/MeshGovernance.json",
-        )
-
-        if not os.path.exists(abi_path):
-            # Try alternative path
-            abi_path = os.path.join(
-                os.path.dirname(__file__),
-                "../dao/contracts/artifacts/contracts/MeshGovernance.sol/MeshGovernance.json",
-            )
-
-        if os.path.exists(abi_path):
-            with open(abi_path) as f:
-                abi = json.load(f)["abi"]
-        else:
-            logger.warning("Governance ABI not found, using minimal ABI")
-            abi = self._get_minimal_abi()
+        base_dir = os.path.dirname(__file__)
+        # Try multiple possible artifact locations
+        possible_paths = [
+            os.path.join(base_dir, "contracts/artifacts/contracts/MeshGovernance.sol/MeshGovernance.json"),
+            os.path.join(base_dir, "artifacts/contracts/MeshGovernance.sol/MeshGovernance.json"),
+        ]
+        
+        abi_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                abi_path = path
+                break
+        
+        if abi_path is None:
+            # Try Governor artifact if available (new contract name)
+            governor_path = os.path.join(base_dir, "contracts/artifacts/contracts/Governor.sol/X0TTA6BL4Governor.json")
+            if os.path.exists(governor_path):
+                abi_path = governor_path
+            else:
+                logger.warning("Governance ABI not found in any location, using minimal ABI")
+                abi = self._get_minimal_abi()
+                self.contract = self.web3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=abi
+                )
+                return
+        
+        # Load ABI from found path
+        with open(abi_path) as f:
+            abi = json.load(f)["abi"]
 
         self.contract = self.web3.eth.contract(
             address=Web3.to_checksum_address(contract_address), abi=abi
@@ -209,7 +220,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             # Get proposal ID from event or contract state
             proposal_count = self.contract.functions.proposalCount().call()
@@ -256,7 +267,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             logger.info(
                 f"✅ Vote cast: {support} on proposal {proposal_id} (tx: {tx_hash.hex()})"
@@ -359,7 +370,7 @@ class GovernanceContract:
 
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
             logger.info(f"✅ Proposal executed: {proposal_id} (tx: {tx_hash.hex()})")
             return tx_hash.hex()

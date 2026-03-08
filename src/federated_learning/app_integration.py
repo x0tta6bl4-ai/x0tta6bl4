@@ -5,20 +5,14 @@ Integrates FL components into app.py startup and lifecycle.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-try:
-    from src.federated_learning.graphsage_integration import (
-        GraphSAGEFLConfig, GraphSAGEFLCoordinator)
+if TYPE_CHECKING:
+    from src.federated_learning.graphsage_integration import GraphSAGEFLCoordinator
     from src.federated_learning.model_sync import ModelSynchronizer
-    from src.federated_learning.privacy import DPConfig
-    from src.federated_learning.secure_aggregators import get_secure_aggregator
 
-    FL_AVAILABLE = True
-except ImportError:
-    FL_AVAILABLE = False
-    GraphSAGEFLCoordinator = None
-    GraphSAGEFLConfig = None
+# Constants moved inside to speed up top-level import
+FL_AVAILABLE = True 
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +36,24 @@ class FLAppIntegration:
         self.coordinator: Optional[GraphSAGEFLCoordinator] = None
         self.model_sync: Optional[ModelSynchronizer] = None
 
-        if self.enable_fl:
-            self._initialize_fl()
+        # Eager initialization removed to speed up imports/tests.
+        # FL will be initialized on first startup() call.
+        pass
 
     def _initialize_fl(self) -> None:
         """Initialize Federated Learning components."""
-        if not FL_AVAILABLE:
-            logger.warning("Federated Learning not available")
+        if self.coordinator is not None:
+            return
+
+        try:
+            from src.federated_learning.graphsage_integration import (
+                GraphSAGEFLConfig, GraphSAGEFLCoordinator)
+            from src.federated_learning.model_sync import ModelSynchronizer
+            # Privacy and aggregators used but not directly here, ensuring they are available
+            from src.federated_learning.privacy import DPConfig
+            from src.federated_learning.secure_aggregators import get_secure_aggregator
+        except ImportError:
+            logger.warning("Federated Learning dependencies not available")
             return
 
         try:
@@ -83,7 +88,13 @@ class FLAppIntegration:
 
     async def startup(self) -> None:
         """Startup FL components."""
-        if not self.enable_fl or not self.coordinator:
+        if not self.enable_fl:
+            return
+
+        # Lazy initialize if not already done
+        self._initialize_fl()
+
+        if not self.coordinator:
             return
 
         try:

@@ -15,14 +15,9 @@ class TEEAttestation:
 class TEEValidator:
     """Validates hardware-rooted attestation reports."""
     
-    def __init__(self, *, allow_mock: bool = False, allow_insecure_stub: bool = False):
+    def __init__(self, *, allow_mock: bool = False):
         self.allow_mock = allow_mock
-        self.allow_insecure_stub = allow_insecure_stub
-        logger.info(
-            "TEE Validator initialized (allow_mock=%s, allow_insecure_stub=%s)",
-            allow_mock,
-            allow_insecure_stub,
-        )
+        logger.info("TEE Validator initialized (allow_mock=%s)", allow_mock)
 
     def verify_report(self, attestation: TEEAttestation) -> bool:
         """
@@ -56,10 +51,5 @@ class TEEValidator:
             logger.warning("SGX attestation missing quote/signature")
             return False
 
-        if not self.allow_insecure_stub:
-            logger.error("SGX attestation backend is not configured; rejecting attestation")
-            return False
-
-        # Insecure compatibility mode for local dev only.
-        logger.warning("Using insecure SGX stub verification path")
-        return len(attestation.quote) >= 16 and len(attestation.signature) >= 16
+        logger.error("SGX attestation backend is not configured; rejecting attestation")
+        return False

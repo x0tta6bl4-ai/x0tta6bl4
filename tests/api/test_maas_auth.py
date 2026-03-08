@@ -434,7 +434,6 @@ class TestBootstrapAdmin:
     def test_bootstrap_wrong_token_403(self, client, monkeypatch):
         """Correct BOOTSTRAP_TOKEN set but wrong token provided → 403."""
         monkeypatch.setenv("BOOTSTRAP_TOKEN", "super-secret-bootstrap")
-        import src.api.maas_auth as auth_mod
         # Update the live module reference (module-level read happens at request time)
         r = client.post(
             "/api/v1/maas/auth/bootstrap-admin",

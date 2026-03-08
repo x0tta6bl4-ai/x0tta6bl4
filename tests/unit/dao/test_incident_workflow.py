@@ -1,4 +1,7 @@
+import os
 import time
+
+os.environ.setdefault("_X0TTA_TEST_MODE_", "true")
 
 from src.dao.governance import GovernanceEngine, ProposalState, VoteType
 from src.dao.incident_workflow import (Incident, IncidentDAOWorkflow,

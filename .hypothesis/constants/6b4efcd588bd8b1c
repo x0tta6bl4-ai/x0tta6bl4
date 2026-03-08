@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/core/cache.py
+# hypothesis_version: 6.151.9
+
+[5.0, 26379, 10000000, ',', '1', ':', 'N/A', 'Not initialized', 'P', 'PYTEST_CURRENT_TEST', 'REDIS_SENTINEL_HOSTS', 'REDIS_URL', 'RedisCache', 'T', '_sentinel', 'connected_clients', 'connected_slaves', 'error', 'false', 'healthy', 'keyspace_hits', 'keyspace_misses', 'master', 'mode', 'mymaster', 'none', 'on', 'replica_addresses', 'replicas', 'replication', 'role', 'sentinel', 'sentinel_error', 'standalone', 'status', 'true', 'unhealthy', 'unknown', 'uptime_in_seconds', 'used_memory_human', 'utf-8', 'yes']

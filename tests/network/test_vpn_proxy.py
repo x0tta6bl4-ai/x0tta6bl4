@@ -2,8 +2,6 @@
 Tests for VPN Proxy (SOCKS5 Server) module.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -160,19 +158,13 @@ class TestSOCKS5Protocol:
         # General failure
         REP_FAILURE = 0x01
         # Connection not allowed
-        REP_NOT_ALLOWED = 0x02
         # Network unreachable
-        REP_NETWORK_UNREACHABLE = 0x03
         # Host unreachable
-        REP_HOST_UNREACHABLE = 0x04
         # Connection refused
         REP_REFUSED = 0x05
         # TTL expired
-        REP_TTL_EXPIRED = 0x06
         # Command not supported
-        REP_CMD_NOT_SUPPORTED = 0x07
         # Address type not supported
-        REP_ADDR_NOT_SUPPORTED = 0x08
 
         assert REP_SUCCESS == 0
         assert REP_FAILURE == 1
