@@ -6,14 +6,12 @@ cache invalidation strategies, and distributed cache synchronization.
 """
 
 import asyncio
-import hashlib
-import json
 import logging
 import pickle
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, Set, Tuple, TypeVar
 

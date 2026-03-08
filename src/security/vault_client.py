@@ -14,7 +14,6 @@ Compatible with hvac >= 2.0
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 

@@ -3,11 +3,9 @@ FakeTLS Transport for x0tta6bl4 Mesh.
 Wraps traffic in realistic TLS 1.3 records to bypass DPI.
 """
 
-import os
 import secrets
 import socket
 import struct
-from typing import Optional
 
 from .base import ObfuscationTransport
 

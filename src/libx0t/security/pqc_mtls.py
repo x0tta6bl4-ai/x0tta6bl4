@@ -6,7 +6,6 @@ secure communication.
 """
 
 import logging
-import ssl
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
@@ -17,7 +16,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from .pqc_core import PQCHybridScheme, PQCKeyPair, PQCSignature, get_pqc_hybrid
+from .pqc_core import PQCKeyPair, PQCSignature, get_pqc_hybrid
 
 logger = logging.getLogger(__name__)
 

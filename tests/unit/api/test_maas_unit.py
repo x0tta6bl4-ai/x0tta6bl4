@@ -653,7 +653,6 @@ class TestJoinTokenExpiration:
         user = _mock_user(plan="pro")
         instance = await provisioner.create(user=user, name="exp-mesh", nodes=1, join_token_ttl_sec=7200)
         assert hasattr(instance, "join_token_expires_at")
-        from datetime import datetime
         delta = (instance.join_token_expires_at - instance.created_at).total_seconds()
         assert abs(delta - 7200) < 2
 
@@ -756,7 +755,7 @@ class TestUsageMetering:
 
 class TestPQCSegmentProfiles:
     def test_profiles_exported(self):
-        from src.api.maas import PQC_SEGMENT_PROFILES, _PQC_DEFAULT_PROFILE
+        from src.api.maas import PQC_SEGMENT_PROFILES
         assert "sensor" in PQC_SEGMENT_PROFILES
         assert "robot" in PQC_SEGMENT_PROFILES
         assert "gateway" in PQC_SEGMENT_PROFILES

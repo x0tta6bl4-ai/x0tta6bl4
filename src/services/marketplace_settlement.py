@@ -1,9 +1,7 @@
 import asyncio
 import logging
-import time
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal, User
+from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal
 from src.api.maas_telemetry import uptime_tracker
 from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken

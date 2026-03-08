@@ -9,6 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAMESPACE="x0tta6bl4"
 RUNTIME="k3s"  # Default: k3s (fastest for staging)
 CLEANUP=false
+KUBECTL_BIN="${KUBECTL_BIN:-$SCRIPT_DIR/scripts/ops/kubectl_safe.sh}"
+HELM_BIN="${HELM_BIN:-$SCRIPT_DIR/scripts/ops/helm_safe.sh}"
+KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-x0tta6bl4}"
 
 # Colors
 RED='\033[0;31m'
@@ -28,6 +31,14 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+run_kubectl() {
+    "$KUBECTL_BIN" "$@"
+}
+
+run_helm() {
+    "$HELM_BIN" "$@"
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -37,9 +48,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check kubectl
-if ! command -v kubectl &> /dev/null; then
-    log_error "kubectl not found. Please install kubectl first."
+# Check kubectl wrapper
+if [[ ! -x "$KUBECTL_BIN" ]]; then
+    log_error "KUBECTL_BIN is not executable: $KUBECTL_BIN"
+    exit 1
+fi
+
+if [[ ! -x "$HELM_BIN" ]]; then
+    log_error "HELM_BIN is not executable: $HELM_BIN"
     exit 1
 fi
 
@@ -69,10 +85,8 @@ case $RUNTIME in
         fi
         
         log_info "Starting minikube..."
-        minikube start --cpus=4 --memory=8192 --driver=docker \
-            --extra-config=apiserver.audit-policy-file=/etc/kubernetes/audit/audit-policy.yaml \
-            --extra-config=apiserver.audit-log-path=/var/log/kubernetes/audit/audit.log || true
-        
+        minikube start --cpus=2 --memory=4096 --driver=docker --container-runtime=containerd --preload=false
+
         log_info "Enabling metrics-server..."
         minikube addons enable metrics-server || true
         
@@ -88,11 +102,14 @@ case $RUNTIME in
         
         if $CLEANUP; then
             log_warn "Cleaning up kind cluster..."
-            kind delete cluster --name x0tta6bl4 || true
+            kind delete cluster --name "$KIND_CLUSTER_NAME" || true
         fi
-        
+
         log_info "Creating kind cluster..."
-        kind create cluster --name x0tta6bl4 || true
+        if ! timeout 420 kind create cluster --name "$KIND_CLUSTER_NAME"; then
+            log_error "kind cluster bootstrap failed (likely host cgroup restrictions)"
+            exit 1
+        fi
         ;;
     *)
         log_error "Unknown runtime: $RUNTIME"
@@ -101,32 +118,35 @@ case $RUNTIME in
 esac
 
 # Get current context
-CONTEXT=$(kubectl config current-context)
+if ! CONTEXT="$(run_kubectl config current-context 2>/dev/null)"; then
+    log_error "No active Kubernetes context. Set KUBECONFIG or bootstrap a cluster first."
+    exit 1
+fi
 log_info "Current kubectl context: $CONTEXT"
 
 # Create namespace
 log_info "Creating namespace: $NAMESPACE"
-kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+run_kubectl create namespace $NAMESPACE --dry-run=client -o yaml | run_kubectl apply -f -
 
 # Create SPIRE namespace for identity
 log_info "Creating namespace: spire"
-kubectl create namespace spire --dry-run=client -o yaml | kubectl apply -f -
+run_kubectl create namespace spire --dry-run=client -o yaml | run_kubectl apply -f -
 
 # Deploy SPIRE for identity (if SPIRE K8s manifests exist)
 if [ -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-server.yaml" ]; then
     log_info "Deploying SPIRE Server..."
-    kubectl apply -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-server.yaml"
-    
+    run_kubectl apply -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-server.yaml"
+
     log_info "Waiting for SPIRE Server to be ready..."
-    kubectl wait --for=condition=ready pod -l app=spire-server -n spire --timeout=300s || true
+    run_kubectl wait --for=condition=ready pod -l app=spire-server -n spire --timeout=300s || true
 fi
 
 if [ -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-agent.yaml" ]; then
     log_info "Deploying SPIRE Agent..."
-    kubectl apply -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-agent.yaml"
-    
+    run_kubectl apply -f "$SCRIPT_DIR/infra/k8s/kind-local/spire-agent.yaml"
+
     log_info "Waiting for SPIRE Agent to be ready..."
-    kubectl wait --for=condition=ready pod -l app=spire-agent -n spire --timeout=300s || true
+    run_kubectl wait --for=condition=ready pod -l app=spire-agent -n spire --timeout=300s || true
 fi
 
 # Deploy x0tta6bl4 using Helm
@@ -175,7 +195,7 @@ spiffe:
   trustDomain: x0tta6bl4.mesh
 EOF
     
-    helm install x0tta6bl4 "$SCRIPT_DIR/infra/helm/x0tta6bl4" \
+    run_helm upgrade --install x0tta6bl4 "$SCRIPT_DIR/infra/helm/x0tta6bl4" \
         --namespace $NAMESPACE \
         -f /tmp/x0tta6bl4-staging-values.yaml \
         --wait || log_warn "Helm install completed with warnings"
@@ -183,8 +203,8 @@ fi
 
 # Verify deployment
 log_info "Verifying deployment..."
-kubectl get pods -n $NAMESPACE
-kubectl get svc -n $NAMESPACE
+run_kubectl get pods -n $NAMESPACE
+run_kubectl get svc -n $NAMESPACE
 
 # Show access information
 log_info "🎉 x0tta6bl4 staging environment deployed!"

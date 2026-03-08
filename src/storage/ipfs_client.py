@@ -5,11 +5,8 @@ IPFS Client for x0tta6bl4 Knowledge Storage
 Provides IPFS integration for distributed knowledge storage.
 """
 
-import asyncio
-import json
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 

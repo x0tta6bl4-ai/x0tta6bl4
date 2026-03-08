@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/swarm/pbft.py
+# hypothesis_version: 6.151.9
+
+[0.1, 30.0, 100, 1000, 'PBFTLogEntry', 'PBFTMessage', 'PBFTNode', 'PBFTPhase', 'PBFTRequest', 'client_id', 'commit', 'digest', 'error', 'executed', 'idle', 'new_view', 'operation', 'pre_prepare', 'prepare', 'request', 'sender_id', 'sequence', 'signature', 'timestamp', 'to_dict', 'type', 'view', 'view_change']

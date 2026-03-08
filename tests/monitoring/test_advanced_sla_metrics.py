@@ -1,4 +1,3 @@
-from datetime import datetime
 
 import pytest
 
@@ -6,7 +5,6 @@ from src.monitoring.advanced_sla_metrics import (AdvancedSLAManager,
                                                  CustomMetricsRegistry,
                                                  MetricType,
                                                  SLAComplianceMonitor,
-                                                 SLAStatus,
                                                  get_advanced_sla_manager)
 
 
@@ -86,7 +84,7 @@ class TestSLAComplianceMonitor:
 
         for i in range(100):
             registry.record_value("latency", 100.0)
-            point = monitor.check_compliance("api_sla")
+            monitor.check_compliance("api_sla")
 
         report = monitor.get_sla_compliance_report("api_sla", hours=1)
         assert "compliance_percentage" in report

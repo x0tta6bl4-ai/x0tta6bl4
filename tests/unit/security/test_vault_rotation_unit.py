@@ -13,13 +13,11 @@ Covers:
 """
 
 import asyncio
-import hashlib
-import json
 import sys
 import time
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -30,7 +28,6 @@ from src.security.vault_rotation import (CircuitBreaker, CircuitBreakerConfig,
                                          RotationResult, RotationScheduler,
                                          RotationStatus, RotationStrategy,
                                          RotationValidator)
-from src.security.vault_secrets import DatabaseCredentials
 
 # ---------------------------------------------------------------------------
 # Fixtures

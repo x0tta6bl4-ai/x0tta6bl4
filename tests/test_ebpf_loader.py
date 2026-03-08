@@ -13,16 +13,14 @@ Tests the core functionality of the eBPF program loader including:
 import os
 # Import the module under test
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.network.ebpf.loader import (EBPFAttachError, EBPFAttachMode,
-                                     EBPFLoader, EBPFLoadError,
+from src.network.ebpf.loader import (EBPFAttachError, EBPFLoader, EBPFLoadError,
                                      EBPFProgramType)
 
 
@@ -206,7 +204,7 @@ class TestEBPFLoaderCleanup:
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=1, stderr="")
-            program_id = loader.load_program("test.o")
+            loader.load_program("test.o")
 
         assert len(loader.loaded_programs) == 1
 

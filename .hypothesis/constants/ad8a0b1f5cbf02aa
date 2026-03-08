@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/anti_censorship/transports.py
+# hypothesis_version: 6.151.9
+
+[b'public', b'receive', b'send', 30.0, 200, 256, 4096, 65536, '*/*', '>H', 'Accept', 'Host', 'MeekTransport', 'OBFS4Transport', 'PluggableTransport', 'SnowflakeTransport', 'TransportConfig', 'TransportType', 'User-Agent', 'action', 'bytes_received', 'bytes_sent', 'connected', 'connections', 'create_transport', 'custom', 'data', 'errors', 'get_proxy', 'id', 'meek', 'obfs4', 'snowflake', 'type', 'websocket']

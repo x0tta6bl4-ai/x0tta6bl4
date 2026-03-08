@@ -97,7 +97,7 @@ class IdentityCertificate:
         try:
             with open(path, "r") as f:
                 return cls.from_dict(json.load(f))
-        except:
+        except Exception:
             return None
 
 
@@ -123,7 +123,7 @@ class HardwareFingerprinter:
                     timeout=5,
                 )
                 return hashlib.sha256(result.stdout.encode()).hexdigest()[:16]
-        except:
+        except Exception:
             pass
         return hashlib.sha256(platform.processor().encode()).hexdigest()[:16]
 
@@ -152,7 +152,7 @@ class HardwareFingerprinter:
                 for line in result.stdout.split("\n"):
                     if "IOPlatformUUID" in line:
                         return line.split('"')[-2][:32]
-        except:
+        except Exception:
             pass
         return hashlib.sha256(str(uuid.getnode()).encode()).hexdigest()[:32]
 

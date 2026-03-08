@@ -9,12 +9,11 @@ Provides:
 - Time manipulation helpers
 """
 
-import asyncio
 import sys
 import time
-from datetime import datetime, timedelta
-from typing import Any, Generator
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import timedelta
+from typing import Generator
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -32,23 +31,16 @@ for mod_name, mock_obj in _mocked_modules.items():
         sys.modules[mod_name] = mock_obj
 
 # Import modules under test
-from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerMetrics,
-                                      CircuitBreakerOpen, CircuitState,
-                                      _circuit_breakers,
-                                      create_circuit_breaker,
-                                      get_circuit_breaker)
+from src.core.circuit_breaker import (CircuitBreaker, _circuit_breakers)
 from src.security.auto_isolation import AutoIsolationManager
 from src.security.auto_isolation import \
     CircuitBreaker as IsolationCircuitBreaker
 from src.security.auto_isolation import (IsolationLevel, IsolationPolicy,
-                                         IsolationReason, IsolationRecord,
-                                         QuarantineZone)
+                                         IsolationReason, QuarantineZone)
 from src.self_healing.recovery_actions import \
     CircuitBreaker as RecoveryCircuitBreaker
 from src.self_healing.recovery_actions import (RateLimiter,
-                                               RecoveryActionExecutor,
-                                               RecoveryActionType,
-                                               RecoveryResult)
+                                               RecoveryActionExecutor)
 
 # ============================================================================
 # CIRCUIT BREAKER FIXTURES

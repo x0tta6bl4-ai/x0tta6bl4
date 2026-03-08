@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/llm/gateway.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 30.0, 100, 1000, 3600, 100000, 'LLMConfig', 'LLMGateway', 'LLMProvider', 'ProviderMetrics', 'actual_model', 'api_key', 'avg_latency_ms', 'azure', 'base_url', 'cache', 'cached', 'close', 'config', 'create_gateway', 'custom', 'default', 'default_provider', 'failover_enabled', 'least_latency', 'local', 'mock', 'model', 'name', 'ollama', 'openai', 'providers', 'rate_limits', 'round_robin', 'status', 'success_rate', 'type', 'vllm', '|']

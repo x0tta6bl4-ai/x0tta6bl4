@@ -10,9 +10,7 @@ Tests cover:
 - Error handling and edge cases
 """
 
-from unittest.mock import MagicMock, Mock, patch
 
-import pytest
 
 from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, PQAlgorithm,
                                               PQKeyPair)

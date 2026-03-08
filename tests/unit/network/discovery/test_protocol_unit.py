@@ -8,10 +8,8 @@ Covers: PeerInfo, DiscoveryMessage, MessageType, MulticastDiscovery,
 import asyncio
 import json
 import socket
-import struct
-import time
 from collections import defaultdict
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -93,7 +91,7 @@ class TestPeerInfo:
             node_id="n3",
             addresses=[("1.2.3.4", 9999)],
             services=["exit"],
-            version="3.0.0",
+            version="3.4.0",
             last_seen=999,
             rtt_ms=5,
         )
@@ -101,7 +99,7 @@ class TestPeerInfo:
         assert d["node_id"] == "n3"
         assert d["addresses"] == [("1.2.3.4", 9999)]
         assert d["services"] == ["exit"]
-        assert d["version"] == "3.0.0"
+        assert d["version"] == "3.4.0"
         # to_dict should NOT include transient fields
         assert "last_seen" not in d
         assert "rtt_ms" not in d

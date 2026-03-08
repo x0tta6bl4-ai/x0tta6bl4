@@ -2,11 +2,9 @@
 Tests for core feature flags module.
 """
 
-import logging
 import os
 from unittest.mock import patch
 
-import pytest
 
 from src.core.feature_flags import FeatureFlags
 

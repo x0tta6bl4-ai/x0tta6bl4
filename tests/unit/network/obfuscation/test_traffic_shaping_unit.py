@@ -376,7 +376,7 @@ class TestTrafficShaperSendShaped:
         with patch(
             "src.network.obfuscation.traffic_shaping.asyncio.sleep",
             new_callable=AsyncMock,
-        ) as mock_sleep:
+        ):
             await shaper.send_shaped(data, send_func)
 
         send_func.assert_called_once()

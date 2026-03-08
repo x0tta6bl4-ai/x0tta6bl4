@@ -6,10 +6,9 @@ Provides automatic instrumentation for FastAPI, SQLAlchemy, Redis, HTTPX, etc.
 
 import functools
 import logging
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 from .tracing import (
-    Span,
     SpanKind,
     SpanStatusCode,
     get_tracer,

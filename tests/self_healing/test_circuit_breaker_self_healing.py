@@ -16,12 +16,10 @@ Also tests:
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerMetrics,
-                                      CircuitBreakerOpen, CircuitState,
+from src.core.circuit_breaker import (CircuitBreaker, CircuitBreakerOpen, CircuitState,
                                       _circuit_breakers)
 from src.core.circuit_breaker import \
     circuit_breaker as circuit_breaker_decorator

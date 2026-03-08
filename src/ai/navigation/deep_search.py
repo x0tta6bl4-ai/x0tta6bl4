@@ -1,5 +1,4 @@
-import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict
 import logging
 from src.ai.navigation.config import PROJECT_CONTEXT
 

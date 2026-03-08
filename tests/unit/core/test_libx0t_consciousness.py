@@ -30,7 +30,7 @@ class TestConsciousnessEngine:
     @pytest.fixture
     def engine(self):
         with patch("libx0t.core.consciousness.create_graphsage_detector_for_mapek") as mock_gs, \
-             patch("libx0t.core.consciousness.LocalLLM") as mock_llm:
+             patch("libx0t.core.consciousness.LocalLLM"):
             
             mock_detector = MagicMock()
             mock_gs.return_value = mock_detector

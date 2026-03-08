@@ -5,13 +5,10 @@ Stripped of SPIFFE dependencies for basic mesh testing.
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import json
 import logging
 import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -21,7 +18,9 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("x0tta6bl4")
 
-app = FastAPI(title="x0tta6bl4-minimal", version="3.2.1", docs_url="/docs")
+from src.version import __version__
+
+app = FastAPI(title="x0tta6bl4-minimal", version=__version__, docs_url="/docs")
 
 # --- In-Memory State for Testing ---
 node_id = "node-01"
@@ -48,7 +47,7 @@ class RouteRequest(BaseModel):
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "version": "3.2.1", "node_id": node_id}
+    return {"status": "ok", "version": __version__, "node_id": node_id}
 
 
 @app.post("/mesh/beacon")
@@ -144,7 +143,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     metrics_str = f"""# HELP mesh_peers_count Number of known peers

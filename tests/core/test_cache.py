@@ -10,12 +10,11 @@ Covers:
 """
 
 import asyncio
-from typing import Any
 
 import pytest
 
 from src.core.cache import (CacheWarming, InMemoryCacheBackend, RedisCache,
-                            cached, get_or_warm, reset_cache)
+                            cached, reset_cache)
 
 
 @pytest.fixture(autouse=True)

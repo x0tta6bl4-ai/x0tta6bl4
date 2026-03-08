@@ -16,7 +16,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +257,6 @@ class CRDTSyncOptimizer:
         start_time = datetime.now()
 
         local_deltas: Dict[str, List[CRDTDelta]] = {}
-        received_deltas: Dict[str, List[CRDTDelta]] = {}
 
         # Generate local deltas
         for key in self.sync_manager.crdts.keys():

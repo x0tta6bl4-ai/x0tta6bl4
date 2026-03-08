@@ -7,7 +7,6 @@ Supports both ring buffer and perf event output.
 
 import logging
 import struct
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ Tests the extended CI/CD integration for canary deployment including:
 """
 
 import os
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest

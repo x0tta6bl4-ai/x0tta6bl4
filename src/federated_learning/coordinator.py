@@ -11,19 +11,16 @@ Features:
 - Prometheus metrics integration
 """
 
-import asyncio
 import logging
 import random
 import threading
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .aggregators import Aggregator, get_aggregator
-from .protocol import (AggregationResult, FLMessage, FLMessageType,
-                       GlobalModel, ModelUpdate, ModelWeights)
+from .protocol import (AggregationResult, GlobalModel, ModelUpdate, ModelWeights)
 
 logger = logging.getLogger(__name__)
 

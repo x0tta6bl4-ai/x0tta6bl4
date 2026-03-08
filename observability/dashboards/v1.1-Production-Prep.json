@@ -1,0 +1,25 @@
+{
+  "title": "x0tta6bl4 v1.1 Production Preparation",
+  "panels": [
+    {
+      "title": "5G Signaling State (Real)",
+      "type": "stat",
+      "targets": [{"expr": "upf_handoff_latency_ms_real"}]
+    },
+    {
+      "title": "eBPF Policy Map Updates",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(5g_slice_isolation_events_total[1m])"}]
+    },
+    {
+      "title": "FedML Convergence (Simulated)",
+      "type": "gauge",
+      "targets": [{"expr": "federated_global_accuracy_simulated"}]
+    },
+    {
+      "title": "Privacy Budget Consumed",
+      "type": "gauge",
+      "targets": [{"expr": "federated_dp_privacy_budget_consumed_simulated"}]
+    }
+  ]
+}

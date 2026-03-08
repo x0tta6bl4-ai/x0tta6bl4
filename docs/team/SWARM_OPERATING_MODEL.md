@@ -1,19 +1,19 @@
-# Swarm Operating Model (4 Local Agents + Coordinator)
+# Swarm Operating Model (Current Local Agents + Coordinator)
 
-Last updated: 2026-02-21
+Last updated: 2026-03-06
 
 ## Purpose
 
-This document defines a strict workflow for parallel AI agents so they do not
-touch overlapping files and do not block each other in `develop`.
+This document defines the strict workflow for parallel AI agents so they do not
+touch overlapping files, and so they share one offline request channel in
+`develop`.
 
 ## Roles
 
-1. `gemini-architect`: architecture, contracts, acceptance criteria, TODO plans.
-2. `codex-implementer`: direct code implementation in assigned paths.
-3. `claude-reviewer`: review/refactor inside already changed files.
-4. `glm-rnd`: alternatives, stress cases, performance hypotheses in isolated scope.
-5. `lead-coordinator`: merge order, ownership matrix updates, release notes.
+1. `gemini`: eBPF datapath and live-attach follow-up.
+2. `codex`: 5G/Open5GS transport and integration tests.
+3. `claude`: verification/evidence/compliance lane.
+4. `lead-coordinator`: roadmap sync, ownership updates, release notes.
 
 ## Fixed path ownership (current sprint)
 
@@ -21,11 +21,45 @@ See machine-readable matrix in `docs/team/swarm_ownership.json`.
 
 ## Pipeline
 
-1. Design in plan/notes (`gemini-architect`).
-2. Draft implementation (`codex-implementer`).
-3. Alternative ideas and stress scenarios (`glm-rnd`).
-4. Review and targeted fixes (`claude-reviewer`).
-5. Merge and status sync (`lead-coordinator`).
+1. Refresh roadmap-derived next tasks (`lead-coordinator` or any agent on demand).
+2. Execute lane-specific tranche in owned paths (`gemini`, `codex`, `claude`).
+3. Post blockers, evidence status, and handoffs into the shared request thread.
+4. Sync the roadmap queue again when priorities or blockers change.
+
+## Execution Contours
+
+All work runs in one of two strict contours:
+
+1. `verification`: reproducible checks, tests, renders, plan-only harnesses,
+   evidence snapshots, and documentation alignment.
+2. `validation`: live-path checks that depend on real NICs, root, CI identity,
+   clusters, hardware, or external endpoints.
+
+Rules:
+
+1. Do not mix `verification` and `validation` in one session.
+2. Every roadmap task must declare a `mode`.
+3. `bash scripts/agent-coord.sh next_task <agent>` uses the agent's
+   `preferred_mode` from `plans/ROADMAP_AGENT_QUEUE.json`.
+4. Use `--mode verification|validation` on `session_start` or `next_task` when
+   you need to override the default.
+5. `session_start --mode validation` runs a lightweight preflight derived from
+   validation-task prerequisites in `plans/ROADMAP_AGENT_QUEUE.json`.
+6. If preflight is blocked, the session does not open unless the operator
+   explicitly passes `--allow-blocked`.
+
+## Authoritative Coordination Channel
+
+Use one shared state only:
+
+- lease and heartbeat state: `.git/swarm/coordination_state.json`
+- stable agent front door: `scripts/agent-coord.sh`
+- request thread lifecycle: `scripts/agents/swarm_coord.py`
+- stable agent entrypoint: `scripts/agents/request_channel.sh`
+- mandatory startup instructions: `AGENT_SYNC_INSTRUCTIONS.md`
+
+`COORDINATION.md` is a human-facing landing page only. It is not the
+authoritative mutable request state.
 
 ## Hard rules
 
@@ -71,6 +105,66 @@ scripts/agents/swarm_coord.py heartbeat --agent agent1-ml-core
 scripts/agents/swarm_coord.py release --agent agent1-ml-core
 scripts/agents/swarm_coord.py status
 ```
+
+Per-request sync:
+
+```bash
+bash scripts/agent-coord.sh session_start codex "short request summary"
+bash scripts/agent-coord.sh next_task codex
+bash scripts/agent-coord.sh roadmap_sync lead-coordinator
+bash scripts/agent-coord.sh log codex intent '{"message":"what changed"}'
+bash scripts/agent-coord.sh session_end codex '{"result":"done or handoff"}'
+```
+
+Rules:
+
+1. Before each new request, run `bash scripts/agent-coord.sh session_start <agent> "summary"`.
+2. During work, post short notes for intent, blockers, decisions, and handoffs.
+3. Close the request with an explicit result or next action.
+4. Do not create a parallel request state in `.paradox` or `.paradox.log`.
+5. Use `plans/ROADMAP_AGENT_QUEUE.json` as the machine-readable dispatch layer derived from canonical roadmap sources.
+
+## Roadmap Dispatch
+
+Canonical planning precedence remains:
+
+1. `plans/MASTER_100_READINESS_TODOS_2026-02-26.md`
+2. `plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md`
+3. `ROADMAP.md` and `plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md`
+
+Operational next-task distribution uses:
+
+- `plans/ROADMAP_AGENT_QUEUE.json` as the curated machine-readable queue
+- `scripts/agents/swarm_coord.py roadmap-sync` to sync it into shared swarm state
+- `bash scripts/agent-coord.sh next_task <agent>` to show the next roadmap-derived task for that lane
+- `bash scripts/agent-coord.sh dispatch_ready lead-coordinator --bucket verification-ready`
+  to fan out ready tasks into agent inboxes with mode, bucket, command, and
+  evidence target attached
+
+`session_start` now prints the next roadmap task automatically for the current
+agent, using either the explicitly requested mode or the queue's
+`preferred_mode`.
+It also prints the task's current execution bucket, so operators can distinguish
+`verification-ready` work from `live-validation-only` work without opening the
+queue JSON manually.
+Bucket summaries print `ready / total`, and `next_task` now explicitly warns
+when it is only showing non-ready backlog because no ready task remains for that
+lane.
+
+The queue now exposes three machine-readable execution buckets:
+
+1. `verification-ready`
+2. `live-validation-only`
+3. `blocked-horizon-2`
+
+Autonomous agents must only execute tasks that are present in
+`plans/ROADMAP_AGENT_QUEUE.json`. Mentions in archive docs, historical plans, or
+ad-hoc exploration do not create an active lane by themselves.
+This matters for side-paths like `k6` or other load-test tooling: until such
+work is explicitly queued, it stays outside the current execution cycle.
+`session_start` now hard-blocks summaries that explicitly target `k6/load test`
+work when no queued lane for that agent covers it, unless the operator uses
+`--allow-blocked` for a standby/handoff-only session.
 
 Session automation:
 

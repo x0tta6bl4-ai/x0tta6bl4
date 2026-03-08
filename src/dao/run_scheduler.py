@@ -52,7 +52,7 @@ def get_real_uptimes() -> Dict[str, float]:
 
         for node_id, node_info in nodes.items():
             # Get node registration time
-            registration_time = getattr(node_info, "registration_time", current_time)
+            getattr(node_info, "registration_time", current_time)
 
             # Calculate uptime as percentage (0.0 to 1.0)
             # In a real scenario, this would check node health/heartbeat

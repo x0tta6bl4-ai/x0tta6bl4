@@ -6,7 +6,7 @@ Integrates GraphSAGE model with FL coordinator for distributed training.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 try:
     from src.ml.graphsage_anomaly_detector import (AnomalyPrediction,
@@ -163,7 +163,7 @@ class GraphSAGEFLCoordinator:
 
         try:
             # Get current global model
-            global_model = self.get_global_model()
+            self.get_global_model()
 
             # Train locally
             # (In real implementation, would use local_data)

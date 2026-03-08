@@ -12,7 +12,7 @@ import secrets
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -652,7 +652,7 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
     try:
         with open('/proc/uptime', 'r') as f:
             uptime_seconds = float(f.readline().split()[0])
-    except:
+    except Exception:
         uptime_seconds = 0.0
 
     return {
@@ -695,7 +695,6 @@ async def _fetch_vpn_users_from_xui() -> Dict[str, Any]:
         return {"total": len(users), "users": users}
 
     import sqlite3
-    import json
     try:
         conn = sqlite3.connect(xui.db_path)
         conn.row_factory = sqlite3.Row

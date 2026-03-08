@@ -8,10 +8,9 @@ import json
 import logging
 import socket
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-import struct
 import threading
 from queue import Queue
 import time
@@ -465,7 +464,7 @@ class BatchSpanProcessor:
                 try:
                     span = self._queue.get(timeout=0.1)
                     batch.append(span)
-                except:
+                except Exception:
                     pass
                 
                 # Check if we should export
@@ -491,7 +490,7 @@ class BatchSpanProcessor:
         if not self._shutdown:
             try:
                 self._queue.put_nowait(span)
-            except:
+            except Exception:
                 logger.warning("Span queue full, dropping span")
     
     def shutdown(self) -> None:

@@ -18,30 +18,36 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _table_exists(inspector: sa.Inspector, name: str) -> bool:
+def _table_exists(inspector, name: str) -> bool:
+    if inspector is None:
+        return True
     return name in inspector.get_table_names()
 
 
-def _column_exists(inspector: sa.Inspector, table: str, col: str) -> bool:
+def _column_exists(inspector, table: str, col: str) -> bool:
+    if inspector is None:
+        return False
     if not _table_exists(inspector, table):
         return False
     return col in {c["name"] for c in inspector.get_columns(table)}
 
 
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     # Step 1: Add columns (guarded — marketplace_listings may not exist in SQLite/test envs)
     if _table_exists(inspector, 'marketplace_listings'):
-        with op.batch_alter_table('marketplace_listings', schema=None) as batch_op:
-            if not _column_exists(inspector, 'marketplace_listings', 'renter_id'):
-                batch_op.add_column(sa.Column('renter_id', sa.String(), nullable=True))
-            if not _column_exists(inspector, 'marketplace_listings', 'mesh_id'):
-                batch_op.add_column(sa.Column('mesh_id', sa.String(), nullable=True))
-
-        # Step 2: Add foreign key (separate block to avoid SQLite circular dep issues)
+        # Step 2: Add foreign key
         with op.batch_alter_table('marketplace_listings', schema=None) as batch_op:
             batch_op.create_foreign_key('fk_listing_renter', 'users', ['renter_id'], ['id'])
 
@@ -49,7 +55,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     if _table_exists(inspector, 'marketplace_listings'):
         with op.batch_alter_table('marketplace_listings', schema=None) as batch_op:

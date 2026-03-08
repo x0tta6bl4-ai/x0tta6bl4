@@ -7,16 +7,12 @@ All values are derived from real DB state (MeshNode.last_seen, invoices).
 Redis telemetry is used for real-time traffic/latency when available.
 """
 
-import json
 import logging
 import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.database import User, get_db

@@ -9,8 +9,6 @@ Tests for:
 - DAO → MAPE-K integration
 """
 
-import tempfile
-from pathlib import Path
 
 import pytest
 

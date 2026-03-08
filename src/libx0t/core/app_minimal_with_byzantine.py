@@ -6,11 +6,9 @@ Enhanced version with Signed Gossip and Quorum Validation.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import random
 import time
-from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, HTTPException
@@ -31,7 +29,7 @@ except ImportError as e:
     BYZANTINE_AVAILABLE = False
     logger.warning(f"⚠️ Byzantine protection not available: {e}")
 
-app = FastAPI(title="x0tta6bl4-minimal-byzantine", version="3.2.1", docs_url="/docs")
+app = FastAPI(title="x0tta6bl4-minimal-byzantine", version="3.4.0", docs_url="/docs")
 
 # --- Configuration ---
 PEER_TIMEOUT = 30.0
@@ -120,7 +118,7 @@ async def health_check_loop():
                                 "last_seen": last_seen,
                                 "elapsed": elapsed,
                             }
-                            event = byzantine_protection.report_node_failure(
+                            byzantine_protection.report_node_failure(
                                 peer_id, evidence
                             )
                             logger.info(
@@ -149,7 +147,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "version": "3.2.1",
+        "version": "3.4.0",
         "node_id": node_id,
         "byzantine_protection": BYZANTINE_AVAILABLE,
         "peers_count": len(peers),
@@ -385,7 +383,7 @@ async def metrics():
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
         memory_bytes = mem_info.rss
-    except:
+    except Exception:
         memory_bytes = 0
 
     current_time = time.time()

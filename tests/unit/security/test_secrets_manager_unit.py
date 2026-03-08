@@ -1,14 +1,12 @@
 """Unit tests for SecretsManager (secrets_manager.py)."""
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
 
 class TestSecretsManagerInit:
     def test_disabled_when_no_vault_env(self):
         with patch.dict(os.environ, {}, clear=True):
-            with patch("hvac.Client") as mock_hvac:
-                from importlib import import_module
+            with patch("hvac.Client"):
                 import src.security.secrets_manager as sm_mod
                 manager = sm_mod.SecretsManager()
                 assert manager._enabled is False

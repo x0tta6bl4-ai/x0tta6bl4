@@ -17,15 +17,19 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _table_exists(inspector: sa.Inspector, table_name: str) -> bool:
+def _table_exists(inspector, table_name: str) -> bool:
+    if inspector is None:
+        return True
     return table_name in inspector.get_table_names()
 
 
 def _column_info(
-    inspector: sa.Inspector,
+    inspector,
     table_name: str,
     column_name: str,
-) -> Optional[dict[str, Any]]:
+) -> "Optional[dict[str, Any]]":
+    if inspector is None:
+        return None  # offline mode: assume column missing
     if not _table_exists(inspector, table_name):
         return None
     for col in inspector.get_columns(table_name):
@@ -34,10 +38,18 @@ def _column_info(
     return None
 
 
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     # marketplace_listings: add token pricing columns if they are still missing.
     listing_price_token_col = _column_info(inspector, "marketplace_listings", "price_token_per_hour")
@@ -79,7 +91,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     # Keep amount_cents nullable on downgrade to avoid destructive failures if X0T rows exist.
     if _table_exists(inspector, "marketplace_escrows"):

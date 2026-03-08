@@ -9,9 +9,8 @@ for maximum security and compatibility.
 import hashlib
 import json
 import logging
-import secrets
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,7 @@ except ImportError:
         "⚠️ cryptography library not available. Install with: pip install cryptography"
     )
 
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
-                                              PQKeyPair)
+from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend)
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +229,7 @@ class HybridPQEncryption:
         Hybrid key encapsulation.
 
         Combines X25519 and ML-KEM-768 for maximum security.
+        Uses HKDF for secure secret combination.
 
         Args:
             peer_classical_public: Peer's X25519 public key
@@ -239,27 +238,32 @@ class HybridPQEncryption:
         Returns:
             (combined_secret, hybrid_ciphertext)
         """
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
         # Post-Quantum encapsulation (ML-KEM-768)
         pq_secret, pq_ciphertext = self.pq_backend.kem_encapsulate(peer_pq_public)
 
         # Classical encapsulation (X25519)
-        # Generate ephemeral keypair
         ephemeral_private = X25519PrivateKey.generate()
         ephemeral_public = ephemeral_private.public_key()
-
-        # Perform X25519 key exchange
         peer_public_key = X25519PublicKey.from_public_bytes(peer_classical_public)
         classical_secret = ephemeral_private.exchange(peer_public_key)
 
-        # Serialize ephemeral public key (for transmission)
         ephemeral_public_bytes = ephemeral_public.public_bytes(
             encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
         )
 
-        # Combine secrets: SHA-256(pq_secret || classical_secret)
-        combined_secret = hashlib.sha256(pq_secret + classical_secret).digest()
+        # SECURITY: Combine secrets using HKDF (NIST SP 800-56C compliant)
+        # Combined secret = HKDF(pq_secret || classical_secret)
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"x0tta6bl4-hybrid-combined-secret",
+        )
+        combined_secret = hkdf.derive(pq_secret + classical_secret)
 
-        # Create hybrid ciphertext
         hybrid_ciphertext = HybridCiphertext(
             classical_ciphertext=ephemeral_public_bytes,
             pq_ciphertext=pq_ciphertext,
@@ -285,6 +289,9 @@ class HybridPQEncryption:
         Returns:
             combined_secret
         """
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
         # Post-Quantum decapsulation
         pq_secret = self.pq_backend.kem_decapsulate(
             pq_private, hybrid_ciphertext.pq_ciphertext
@@ -297,8 +304,14 @@ class HybridPQEncryption:
         )
         classical_secret = our_private_key.exchange(peer_ephemeral_public)
 
-        # Combine secrets
-        combined_secret = hashlib.sha256(pq_secret + classical_secret).digest()
+        # SECURITY: Combine secrets using HKDF (must match encapsulate)
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=b"x0tta6bl4-hybrid-combined-secret",
+        )
+        combined_secret = hkdf.derive(pq_secret + classical_secret)
 
         return combined_secret
 

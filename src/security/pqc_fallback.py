@@ -3,8 +3,6 @@ PQC Fallback Handler with Alerting
 """
 
 import logging
-import time
-from typing import Optional
 
 from src.monitoring.pqc_metrics import (check_fallback_ttl, disable_fallback,
                                         enable_fallback, is_fallback_enabled,

@@ -8,8 +8,7 @@ import os
 os.environ.setdefault("RAG_DISABLE_EMBEDDING_MODEL", "true")
 os.environ.setdefault("RAG_DISABLE_RERANKER", "true")
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -88,7 +87,6 @@ class TestRAGPipeline:
         pipeline = RAGPipeline()
 
         # Avoid calling the real add_document (may trigger embedding/model loads)
-        from unittest.mock import patch
 
         with (
             patch.object(RAGPipeline, "add_document", return_value=["doc_001_chunk_0"]),

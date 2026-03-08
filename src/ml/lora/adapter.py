@@ -145,7 +145,7 @@ def load_lora_adapter(
             try:
                 from peft import PeftModel
 
-                peft_model = PeftModel.from_pretrained(base_model, str(load_path))
+                PeftModel.from_pretrained(base_model, str(load_path))
                 logger.info(f"📂 Loaded PEFT model from {load_path}")
                 # Store model reference in adapter metadata
                 adapter.metadata["_peft_model_loaded"] = True

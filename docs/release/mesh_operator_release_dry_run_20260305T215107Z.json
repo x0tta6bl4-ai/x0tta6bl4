@@ -1,0 +1,81 @@
+{
+  "scope": "mesh-operator release dry-run",
+  "start_utc": "2026-03-05T21:51:07Z",
+  "end_utc": "2026-03-05T21:55:02Z",
+  "duration_seconds": 235,
+  "overall_status": "PASS",
+  "checkpoints": [
+    {
+      "id": "CP-01",
+      "name": "Toolchain preflight",
+      "status": "PASS",
+      "duration_seconds": 1,
+      "rc": 0,
+      "command": "command -v kind >/dev/null && command -v kubectl >/dev/null && command -v helm >/dev/null && command -v docker >/dev/null && command -v go >/dev/null && docker info >/dev/null && kubectl config current-context >/dev/null"
+    },
+    {
+      "id": "CP-02",
+      "name": "Version contract validation",
+      "status": "PASS",
+      "duration_seconds": 2,
+      "rc": 0,
+      "command": "python3 scripts/validate_version_contract.py"
+    },
+    {
+      "id": "CP-03",
+      "name": "Mesh operator unit tests",
+      "status": "PASS",
+      "duration_seconds": 8,
+      "rc": 0,
+      "command": "cd mesh-operator && go test ./..."
+    },
+    {
+      "id": "CP-04",
+      "name": "Fallback image reproducibility",
+      "status": "PASS",
+      "duration_seconds": 14,
+      "rc": 0,
+      "command": "bash scripts/ops/check_mesh_images_reproducibility.sh"
+    },
+    {
+      "id": "CP-05",
+      "name": "Helm lint and webhook render",
+      "status": "PASS",
+      "duration_seconds": 8,
+      "rc": 0,
+      "command": "helm lint charts/x0tta-mesh-operator && helm template mesh-op charts/x0tta-mesh-operator --namespace x0tta-system --set operator.webhook.enabled=true --set operator.webhook.certManager.enabled=true >/tmp/mesh-operator-webhook-render.yaml"
+    },
+    {
+      "id": "CP-06",
+      "name": "Git release promotion dry-run",
+      "status": "PASS",
+      "duration_seconds": 3,
+      "rc": 0,
+      "command": "bash scripts/release_to_main.sh --dry-run"
+    },
+    {
+      "id": "CP-07",
+      "name": "Kind smoke e2e",
+      "status": "PASS",
+      "duration_seconds": 58,
+      "rc": 0,
+      "command": "bash scripts/ops/mesh_operator_kind_e2e.sh"
+    },
+    {
+      "id": "CP-08",
+      "name": "Webhook admission e2e",
+      "status": "PASS",
+      "duration_seconds": 61,
+      "rc": 0,
+      "command": "bash scripts/ops/mesh_operator_webhook_admission_e2e.sh"
+    },
+    {
+      "id": "CP-09",
+      "name": "Helm lifecycle e2e",
+      "status": "PASS",
+      "duration_seconds": 78,
+      "rc": 0,
+      "command": "bash scripts/ops/mesh_operator_helm_lifecycle_e2e.sh"
+    }
+  ]
+}

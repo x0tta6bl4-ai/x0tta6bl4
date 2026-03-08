@@ -6,7 +6,7 @@ All external dependencies (DB, vpn_config_generator, cache) are mocked.
 """
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

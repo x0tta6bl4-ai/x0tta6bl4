@@ -302,6 +302,12 @@ def test_metric_helpers_reuse_existing_collectors(monkeypatch):
 
 def test_import_fallback_when_prometheus_missing(monkeypatch):
     import src.core.circuit_breaker as cb_mod
+    import src.core.connection_retry as cr_mod
+
+    # Capture original class identity BEFORE any reload so we can restore it.
+    # Reloads create new class objects; restoring the originals keeps already-
+    # imported references in other test files valid.
+    orig_cbo = cb_mod.CircuitBreakerOpen
 
     original_import = builtins.__import__
 
@@ -316,6 +322,10 @@ def test_import_fallback_when_prometheus_missing(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", original_import)
     importlib.reload(cb_mod)
+    # Restore original class identity so that already-imported references in
+    # other test files still match what connection_retry.py will catch.
+    cb_mod.CircuitBreakerOpen = orig_cbo
+    cr_mod.CircuitBreakerOpen = orig_cbo
 
 
 def test_create_circuit_breaker_returns_existing_instance():

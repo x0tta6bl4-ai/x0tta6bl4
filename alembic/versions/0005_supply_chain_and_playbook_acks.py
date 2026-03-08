@@ -15,12 +15,22 @@ depends_on = None
 
 
 def _table_exists(inspector, name):
+    if inspector is None:
+        return True
     return name in inspector.get_table_names()
+
+
+def _get_inspector(bind) -> "sa.Inspector | None":
+    """Return a live Inspector, or None in offline (--sql) mode."""
+    try:
+        return sa.inspect(bind)
+    except sa.exc.NoInspectionAvailable:
+        return None
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
 
     if not _table_exists(inspector, "sbom_entries"):
         op.create_table(
@@ -64,7 +74,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    inspector = _get_inspector(bind)
     for t in ("playbook_acks", "node_binary_attestations", "sbom_entries"):
         if _table_exists(inspector, t):
             op.drop_table(t)

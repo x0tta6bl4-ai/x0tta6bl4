@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import pytest
 
 from src.testing.edge_case_validator import (BoundaryValidator,
-                                             ConcurrencyValidator,
                                              EdgeCaseType, EdgeCaseValidator,
                                              ResourceLimitValidator,
                                              StateTransitionValidator,

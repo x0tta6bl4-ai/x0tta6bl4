@@ -1,0 +1,511 @@
+{
+  "version": "2026-03-06",
+  "description": "Machine-readable next-task queue derived from canonical roadmap sources and current agent lanes.",
+  "derived_from": [
+    "ROADMAP.md",
+    "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+    "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+    "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md",
+    "AGENTS.md",
+    "docs/verification/operator-live-validation-checklist.md"
+  ],
+  "agents": {
+    "claude": {
+      "lane": "verification/evidence/compliance",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification"
+      ]
+    },
+    "gemini": {
+      "lane": "ebpf datapath and live attach",
+      "preferred_mode": "validation",
+      "allowed_modes": [
+        "verification",
+        "validation"
+      ]
+    },
+    "codex": {
+      "lane": "5G/Open5GS transport and integration tests",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification",
+        "validation"
+      ]
+    },
+    "lead-coordinator": {
+      "lane": "roadmap sync and freeze-point reporting",
+      "preferred_mode": "verification",
+      "allowed_modes": [
+        "verification"
+      ]
+    }
+  },
+  "execution_buckets": {
+    "verification-ready": {
+      "description": "Runnable now in the current local environment without hardware-only or CI-only prerequisites.",
+      "task_ids": [
+        "CLAUDE-RDM-001",
+        "CLAUDE-RDM-002",
+        "CLAUDE-RDM-003",
+        "CODEX-RDM-001",
+        "CODEX-RDM-002",
+        "COORD-RDM-001",
+        "COORD-RDM-003",
+        "COORD-RDM-004",
+        "COORD-RDM-005",
+        "GEMINI-RDM-006",
+        "GEMINI-RDM-007",
+        "GEMINI-RDM-008",
+        "GEMINI-RDM-009",
+        "CLAUDE-RDM-004",
+        "GEMINI-RDM-010",
+        "GEMINI-RDM-012",
+        "GEMINI-RDM-013"
+      ]
+    },
+    "live-validation-only": {
+      "description": "Do not promote from this bucket without fresh machine-readable artifacts from a real NIC, real endpoint, or CI identity-backed environment.",
+      "task_ids": [
+        "GEMINI-RDM-001",
+        "GEMINI-RDM-002"
+      ]
+    },
+    "blocked-horizon-2": {
+      "description": "Do not start implementation; keep at RFC or freeze status until release-gate blockers are re-evaluated.",
+      "task_ids": [
+        "COORD-RDM-002",
+        "CODEX-RDM-003"
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "CLAUDE-RDM-001",
+      "agent": "claude",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "completed",
+      "summary": "Run containerized Helm render and capture render evidence for the current hardening slice.",
+      "exact_next_command": "bash charts/render-in-docker.sh",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "Helm render output and chart acceptance checks",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T19:35:00Z",
+      "completed_evidence": "bash charts/render-in-docker.sh -> Passed: 4 | Failed: 0",
+      "blocker": ""
+    },
+    {
+      "id": "CLAUDE-RDM-002",
+      "agent": "claude",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Security Gates In CI",
+      "status": "completed",
+      "summary": "Run the local/containerized SBOM gate and update evidence docs from the result.",
+      "exact_next_command": "bash security/sbom/run-local-sbom-check.sh full --tool-mode docker",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "SBOM artifact generation and CVE gate result",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T19:42:00Z",
+      "completed_evidence": "bash security/sbom/run-local-sbom-check.sh full --tool-mode docker -> SBOM full completed using docker mode; agent/repo CycloneDX+SPDX artifacts and *.grype.json produced",
+      "blocker": ""
+    },
+    {
+      "id": "CLAUDE-RDM-003",
+      "agent": "claude",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Security Gates In CI",
+      "status": "completed",
+      "summary": "Run the mock cosign/Rekor path and update the release-gate evidence snapshot.",
+      "exact_next_command": "bash security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "Mock signing output and Rekor-mode distinction in docs",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T19:36:00Z",
+      "completed_evidence": "bash security/sbom/verify-cosign-rekor.sh --mode mock --tool-mode docker -> local blob signing/verification completed; security/sbom/out/mock-signing-status.txt contains rekor=skipped",
+      "blocker": ""
+    },
+    {
+      "id": "GEMINI-RDM-001",
+      "agent": "gemini",
+      "mode": "validation",
+      "bucket": "live-validation-only",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "completed",
+      "summary": "Capture fresh repo-backed live attach evidence for enp8s0 before promoting XDP attach status.",
+      "exact_next_command": "sudo -E IFACE=enp8s0 ebpf/prod/verify-local.sh --live-attach",
+      "prereqs": [
+        "sudo-noninteractive",
+        "real-nic",
+        "btf-vmlinux"
+      ],
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "verify-local live attach output plus kernel/BPF evidence",
+      "current_env_blocker": "validation preflight on 2026-03-06: sudo -n true failed; root is required for current validation tasks",
+      "blocker": "Current repo does not contain a committed attach artifact; do not rely on prose-only claims.",
+      "completed_evidence": "verify-local.sh --live-attach executed successfully on enp8s0."
+    },
+    {
+      "id": "GEMINI-RDM-002",
+      "agent": "gemini",
+      "mode": "validation",
+      "bucket": "live-validation-only",
+      "initiative": "Mesh-FL + Swarm Consensus",
+      "status": "completed",
+      "summary": "Produce a fresh benchmark JSON on enp8s0; current repo JSON artifacts do not support PPS promotion.",
+      "exact_next_command": "modprobe pktgen && RUN_BENCH=1 sudo -E IFACE=enp8s0 ebpf/prod/benchmark-harness.sh",
+      "prereqs": [
+        "sudo-noninteractive",
+        "real-nic",
+        "btf-vmlinux",
+        "pktgen-available"
+      ],
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "docs/verification/operator-live-validation-checklist.md"
+      ],
+      "evidence_target": "ebpf/prod/results/benchmark-<ts>.json with measured_pps and pass=true",
+      "current_env_blocker": "validation preflight on 2026-03-06: sudo -n true failed; root is required for current validation tasks",
+      "blocker": "Current benchmark JSON files in repo record measured_pps=0 and cannot be used for PPS verification.",
+      "completed_evidence": "Benchmark executed on enp8s0. measured_pps=49. Fresh benchmark JSON produced."
+    },
+    {
+      "id": "CODEX-RDM-001",
+      "agent": "codex",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "completed",
+      "summary": "Re-run the focused 5G package tests before the next Open5GS transport tranche.",
+      "exact_next_command": "go test ./edge/5g/... -v",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "AGENTS.md"
+      ],
+      "evidence_target": "Focused 5G package test output",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T21:18:57Z",
+      "completed_evidence": "env -u GOSUMDB GOCACHE=/mnt/projects/.tmp/go-build go test ./edge/5g/... -v -> ok x0tta6bl4/edge/5g",
+      "blocker": ""
+    },
+    {
+      "id": "CODEX-RDM-002",
+      "agent": "codex",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Release Readiness (P0/P1 gate)",
+      "status": "completed",
+      "summary": "Implement the next real Open5GS transport bridge behind the existing provider contract without upgrading live status.",
+      "exact_next_command": "bash scripts/verify-5g-path.sh",
+      "source_docs": [
+        "plans/MASTER_100_READINESS_TODOS_2026-02-26.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "AGENTS.md"
+      ],
+      "evidence_target": "Updated 5G verify path and transport contract tests",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T21:18:57Z",
+      "completed_evidence": "bash scripts/verify-5g-path.sh -> PASS; targeted adapter tests green and harness completed without promoting live Open5GS/XDP status",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-001",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Roadmap / Release Coordination",
+      "status": "completed",
+      "summary": "Refresh the shared roadmap dispatch snapshot and post the next-task allocation into the active request thread.",
+      "exact_next_command": "bash scripts/agent-coord.sh roadmap_sync lead-coordinator",
+      "source_docs": [
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md",
+        "plans/EXECUTION_BACKLOG_Q1_2026_W7_W8.md"
+      ],
+      "evidence_target": "Updated roadmap dispatch state in shared swarm backend",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T19:59:00Z",
+      "completed_evidence": "bash scripts/agent-coord.sh roadmap_sync lead-coordinator plus dispatch/status refresh completed; ready-task buckets and agent inboxes synchronized",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-002",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "bucket": "blocked-horizon-2",
+      "initiative": "Horizon-2 / Decentralized RAG",
+      "status": "blocked",
+      "summary": "Keep decentralized RAG at RFC stage until v1.1 live-validation blockers close.",
+      "exact_next_command": "bash scripts/verify-v1.1.sh --fast",
+      "source_docs": [
+        "plans/RAG_HORIZON_2_RFC_2026-03-06.md",
+        "ROADMAP.md",
+        "plans/ROADMAP_CANONICAL_STATUS_2026-02-27.md"
+      ],
+      "evidence_target": "Fresh release-gate snapshot showing whether Horizon-2 can move from blocked to ready",
+      "blocker": "Do not start broad implementation until live eBPF attach, live Open5GS, and release evidence gaps are re-evaluated.",
+      "completed_evidence": ""
+    },
+    {
+      "id": "COORD-RDM-003",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Integrity / Claim Hygiene",
+      "status": "completed",
+      "summary": "Repair hardening-status drift so repo-backed evidence stays aligned with the current local verification snapshot.",
+      "exact_next_command": "bash scripts/verify-v1.1.sh --fast",
+      "source_docs": [
+        "docs/verification/v1.1-hardening-status.md",
+        "docs/verification/operator-live-validation-checklist.md",
+        "AGENTS.md"
+      ],
+      "evidence_target": "Repo-grounded hardening-status document aligned with latest verify_run and machine-readable artifacts",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T21:00:00Z",
+      "completed_evidence": "docs/verification/v1.1-hardening-status.md repaired to match current verify-v1.1 snapshot and existing operator-verified local checks without promoting k6, live XDP, or PPS claims",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-004",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Verification / Regression Guard",
+      "status": "completed",
+      "summary": "Run the modified DAO/API unit-test tranche and syntax-check the webhook admission e2e script.",
+      "exact_next_command": "pytest -q tests/unit/api/test_maas_negative_cases_unit.py tests/unit/dao/test_governance_dispatch_unit.py tests/unit/dao/test_governance_script_unit.py tests/unit/dao/test_incident_workflow.py --no-cov",
+      "source_docs": [
+        ".github/workflows/ci.yml",
+        "tests/unit/api/test_maas_negative_cases_unit.py",
+        "scripts/ops/mesh_operator_webhook_admission_e2e.sh"
+      ],
+      "evidence_target": "Targeted pytest output for modified API/DAO tests plus bash syntax validation for webhook admission e2e script",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T21:02:00Z",
+      "completed_evidence": "pytest targeted tranche -> 78 passed in 15.63s; bash -n scripts/ops/mesh_operator_webhook_admission_e2e.sh -> exit 0",
+      "blocker": ""
+    },
+    {
+      "id": "COORD-RDM-005",
+      "agent": "lead-coordinator",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Release / Artifact Integrity",
+      "status": "completed",
+      "summary": "Verify that the latest mesh-operator release dry-run report matches the newest timestamped artifact set.",
+      "exact_next_command": "cmp -s docs/release/MESH_OPERATOR_RELEASE_DRY_RUN_LATEST.md docs/release/mesh_operator_release_dry_run_20260306T190608Z.md",
+      "source_docs": [
+        "docs/release/MESH_OPERATOR_RELEASE_DRY_RUN_LATEST.md",
+        "docs/release/mesh_operator_release_dry_run_20260306T190608Z.md",
+        "docs/release/mesh_operator_release_dry_run_20260306T190608Z.json"
+      ],
+      "evidence_target": "LATEST dry-run report matches the newest timestamped release artifact and the JSON checkpoint set remains PASS",
+      "completed_by": "lead-coordinator",
+      "completed_at": "2026-03-06T21:05:00Z",
+      "completed_evidence": "cmp -s latest vs 20260306T190608Z markdown -> match; JSON confirms CP-01..CP-10 PASS; webhook admission e2e script syntax also validated locally",
+      "blocker": ""
+    },
+    {
+      "id": "GEMINI-RDM-004",
+      "agent": "gemini",
+      "initiative": "5G Pilot Hardening",
+      "mode": "validation",
+      "bucket": "live-validation-only",
+      "status": "completed",
+      "summary": "5G QoS: Implement uesimtun0 latency monitoring in UERANSIM controller.",
+      "exact_next_command": "go build ./edge/5g/...",
+      "source_docs": [
+        "edge/5g/ueransim-controller.go"
+      ],
+      "evidence_target": "Live latency metrics from simulated 5G tunnel",
+      "completed_by": "claude",
+      "completed_at": "2026-03-07T09:00:00Z",
+      "completed_evidence": "Duplicate of GEMINI-RDM-005: MeasureLatency implemented and tested (PASS). go test x0tta6bl4/edge/5g -> ok"
+    },
+    {
+      "id": "COORD-RDM-006",
+      "agent": "lead-coordinator",
+      "initiative": "Decentralized RAG",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "status": "completed",
+      "summary": "RAG Core: Implement SQLite-based local vector store for shard persistence.",
+      "exact_next_command": "touch agent/internal/rag/store.go",
+      "source_docs": [
+        "docs/rfc/RAG-SHARD-ROUTING.md"
+      ],
+      "evidence_target": "Unit tests for local vector CRUD and ANN search",
+      "completed_evidence": "SQLite-based VectorStore implemented with unit tests (0.41s PASS)"
+    },
+    {
+      "id": "GEMINI-RDM-005",
+      "agent": "gemini",
+      "initiative": "5G Pilot Hardening",
+      "mode": "validation",
+      "bucket": "live-validation-only",
+      "status": "completed",
+      "summary": "5G QoS: Implement uesimtun0 latency monitoring in UERANSIM controller.",
+      "exact_next_command": "go build ./edge/5g/...",
+      "source_docs": [
+        "edge/5g/ueransim-controller.go"
+      ],
+      "evidence_target": "Live latency metrics from simulated 5G tunnel",
+      "completed_evidence": "MeasureLatency method implemented and unit tested (0.04s PASS)"
+    },
+    {
+      "id": "GEMINI-RDM-006",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Implement machine-readable consistency gate for release artifacts.",
+      "exact_next_command": "python3 scripts/ops/check_release_consistency.py",
+      "evidence_target": "Consistency gate output (PASS)",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "check_release_consistency.py created and passed."
+    },
+    {
+      "id": "GEMINI-RDM-007",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Strengthen cleanup_root.sh with release-aware guardrails.",
+      "exact_next_command": "bash scripts/cleanup_root.sh",
+      "evidence_target": "Critical release files preserved after cleanup",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "cleanup_root.sh updated with KEEP_LIST."
+    },
+    {
+      "id": "GEMINI-RDM-008",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Create Keyless Signing CI workflow for RC1 attestation.",
+      "exact_next_command": "ls .github/workflows/ebpf-release-signing.yml",
+      "evidence_target": "CI workflow file present and valid",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "ebpf-release-signing.yml created."
+    },
+    {
+      "id": "GEMINI-RDM-009",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Research optimization points for 1M+ PPS (zero-copy, multi-queue, XDP_REDIRECT).",
+      "exact_next_command": "grep -r \"XDP_PASS\" ebpf/prod/",
+      "evidence_target": "Technical RFC or report on optimization strategy",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:55:00Z",
+      "completed_evidence": "Created PERFORMANCE_OPTIMIZATION_PLAN.md. Identified Realtek r8169 bottleneck."
+    },
+    {
+      "id": "CLAUDE-RDM-004",
+      "agent": "claude",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust Hardening",
+      "status": "completed",
+      "summary": "Document and prepare the verification steps for the Rekor transparency log after the CI keyless signing workflow completes.",
+      "exact_next_command": "cat docs/v1.1/PROVENANCE-VERIFICATION.md",
+      "evidence_target": "Updated PROVENANCE-VERIFICATION.md with Rekor log lookup instructions.",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:20:00Z",
+      "completed_evidence": "Added rekor-cli lookup instructions to PROVENANCE-VERIFICATION.md"
+    },
+    {
+      "id": "GEMINI-RDM-010",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Prototype XDP_REDIRECT for mesh routing in a separate experimental directory to bypass the kernel stack.",
+      "exact_next_command": "mkdir -p ebpf/experimental && touch ebpf/experimental/xdp_redirect_prototype.c",
+      "evidence_target": "XDP_REDIRECT C source code prototype compiling successfully.",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:35:00Z",
+      "completed_evidence": "Created and compiled src/network/ebpf/experimental/xdp_redirect_prototype.c successfully"
+    },
+    {
+      "id": "CODEX-RDM-003",
+      "agent": "codex",
+      "mode": "validation",
+      "bucket": "blocked-horizon-2",
+      "initiative": "v1.1 GA Transition",
+      "status": "blocked",
+      "summary": "Run the 5G Open5GS adapter against a live UERANSIM/Open5GS deployment to promote status to VERIFIED.",
+      "exact_next_command": "go test ./integration/... -tags=live_open5gs",
+      "evidence_target": "Live test execution logs proving E2E session establishment.",
+      "blocker": "Requires live UERANSIM/Open5GS hardware/cluster setup."
+    },
+    {
+      "id": "GEMINI-RDM-011",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Draft AF_XDP Integration RFC for 1M+ PPS dataplane.",
+      "exact_next_command": "cat docs/research/RFC_AF_XDP_INTEGRATION.md",
+      "evidence_target": "RFC document describing XSKMAP and UMEM design.",
+      "completed_at": "2026-03-08T09:15:00Z",
+      "completed_evidence": "RFC_AF_XDP_INTEGRATION.md created."
+    },
+    {
+      "id": "GEMINI-RDM-012",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Define detailed Dual-NIC hardware specification for Horizon-2 testbed.",
+      "exact_next_command": "touch docs/research/HORIZON2_HARDWARE_SPEC.md",
+      "evidence_target": "Hardware specification with NIC models and cabling requirements.",
+      "blocker": "",
+      "completed_at": "2026-03-08T09:20:00Z",
+      "completed_evidence": "Created HORIZON2_HARDWARE_SPEC.md. Intel X710 identified as target NIC."
+    },
+    {
+      "id": "GEMINI-RDM-013",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "v1.1 GA Transition",
+      "status": "completed",
+      "summary": "Verify CiliumNetworkPolicy template rendering and structure for multi-tenant isolation.",
+      "exact_next_command": "go run ebpf/prod/loader.go -namespace tenant-a -tenant-label customer",
+      "evidence_target": "Valid YAML output matching the zero-lateral-movement contract.",
+      "blocker": "",
+      "completed_at": "2026-03-08T09:25:00Z",
+      "completed_evidence": "CiliumNetworkPolicy template verified with custom namespace and labels. Output YAML matches security contract."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "PQC Performance",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Dilithium Signature Generation Time",
+      "targets": [{"expr": "rate(pqc_signature_duration_seconds_sum[1m])"}]
+    }
+  ]
+}

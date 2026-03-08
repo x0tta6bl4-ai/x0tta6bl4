@@ -6,10 +6,7 @@ threshold logic, feature normalization, and rule-based fallback behaviour.
 These tests work regardless of whether PyTorch/torch-geometric are installed.
 """
 
-import time
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.ml.graphsage_anomaly_detector import (AnomalyPrediction,
                                                GraphSAGEAnomalyDetector)

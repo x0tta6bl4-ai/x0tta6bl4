@@ -13,7 +13,7 @@ Identity Normalization Module - CVE-2020-12812 Protection
 import hashlib
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 

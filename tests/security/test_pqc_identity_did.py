@@ -1,6 +1,5 @@
 
 import pytest
-import json
 import os
 import sys
 
@@ -58,7 +57,6 @@ def test_pqc_manifest_signing_and_verification():
 def test_pqc_key_rotation():
     """Test that identity rotation generates a new DID or updates the document."""
     identity = PQCNodeIdentity("node-rotator")
-    old_did = identity.did
     old_sig_pubkey = identity.security.get_public_keys()["sig_public_key"]
     
     identity.rotate_keys()

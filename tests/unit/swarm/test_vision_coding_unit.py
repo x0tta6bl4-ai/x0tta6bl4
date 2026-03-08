@@ -3,13 +3,10 @@ Comprehensive unit tests for src/swarm/vision_coding.py
 """
 
 import asyncio
-import hashlib
 import io
 import os
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
-import numpy as np
 import pytest
 from PIL import Image
 
@@ -439,7 +436,8 @@ class TestAStarAlgorithm:
     def test_custom_heuristic(self):
         g = _build_simple_graph()
         astar = AStarAlgorithm(heuristic_weight=2.0)
-        custom_h = lambda a, b: abs(a.x - b.x)
+        def custom_h(a, b):
+            return abs(a.x - b.x)
         result = astar.find_path(g, "A", "C", heuristic=custom_h)
         assert "A" in result.path_nodes
         assert "C" in result.path_nodes

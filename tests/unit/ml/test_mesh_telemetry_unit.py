@@ -2,10 +2,8 @@
 Unit tests for mesh telemetry generator.
 """
 
-import pytest
 
-from src.ml.mesh_telemetry import (FEATURE_NAMES, MeshSnapshot,
-                                   MeshTelemetryGenerator, ScenarioType,
+from src.ml.mesh_telemetry import (FEATURE_NAMES, MeshTelemetryGenerator, ScenarioType,
                                    generate_training_data)
 
 
@@ -41,7 +39,7 @@ class TestMeshTelemetryGenerator:
     def test_normal_snapshot_no_anomalies(self):
         snap = self.gen._generate_snapshot(20, ScenarioType.NORMAL)
         assert snap.num_anomalous == 0
-        assert all(l == 0.0 for l in snap.labels)
+        assert all(label == 0.0 for label in snap.labels)
 
     def test_link_degradation_has_anomalies(self):
         snap = self.gen._generate_snapshot(20, ScenarioType.LINK_DEGRADATION)
@@ -129,7 +127,7 @@ class TestGenerateTrainingData:
         features, edges, labels = generate_training_data(
             num_snapshots=50, nodes_per_snapshot=10, anomaly_ratio=0.4, seed=42
         )
-        num_anomalies = sum(1 for l in labels if l > 0.5)
+        num_anomalies = sum(1 for label in labels if label > 0.5)
         assert num_anomalies > 0
         # Not all should be anomalies
         assert num_anomalies < len(labels)

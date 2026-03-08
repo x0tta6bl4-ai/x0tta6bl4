@@ -6,6 +6,8 @@ on:
     paths:
       - 'src/**'
       - 'infra/chaos/**'
+      - 'scripts/ops/mttr_chaos_report.py'
+      - 'tests/unit/monitoring/test_mttr_chaos_report_unit.py'
   schedule:
     - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
@@ -202,14 +204,68 @@ jobs:
         if: always()
         run: kubectl delete -f infra/chaos/stress-chaos.yaml --ignore-not-found
 
+  # --------------------------------------------------------------------------
+  # MTTR Chaos Report — synthetic CI gate (no cluster required)
+  # --------------------------------------------------------------------------
+  mttr-chaos-report:
+    name: MTTR chaos report (synthetic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Run MTTR unit tests (no cluster)
+        run: |
+          python -m pytest tests/unit/monitoring/test_mttr_chaos_report_unit.py \
+            --no-cov -q 2>&1 | tee /tmp/mttr-unit.txt
+          grep -E "passed|failed|error" /tmp/mttr-unit.txt | tail -3
+
+      - name: Generate MTTR chaos report (synthetic-ci mode)
+        run: |
+          MTTR_SEED=${{ github.run_number }} \
+          python scripts/ops/mttr_chaos_report.py \
+            --output /tmp/mttr-chaos-report.json \
+            --markdown /tmp/mttr-chaos-report.md
+          cat /tmp/mttr-chaos-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Validate SLO gate
+        run: |
+          python - <<'PYEOF'
+          import json, sys
+          r = json.load(open("/tmp/mttr-chaos-report.json"))
+          s = r["summary"]
+          print(f"MTTR={s['mttr_s']}s  MTTD={s['mttd_s']}s  heal_rate={s['heal_rate_pct']}%")
+          if not s["mttr_slo_pass"]:
+              print(f"FAIL: MTTR {s['mttr_s']}s exceeds SLO {r['slo_mttr_s']}s", file=sys.stderr)
+              sys.exit(2)
+          if s["failed_to_heal"] > 0:
+              print(f"WARN: {s['failed_to_heal']} scenario(s) did not heal")
+          print("SLO PASS")
+          PYEOF
+
+      - name: Upload MTTR artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mttr-chaos-report-${{ github.sha }}
+          path: |
+            /tmp/mttr-chaos-report.json
+            /tmp/mttr-chaos-report.md
+            /tmp/mttr-unit.txt
+          retention-days: 90
+
   report:
-    needs: [chaos-pod-kill, chaos-network, chaos-stress]
+    needs: [chaos-pod-kill, chaos-network, chaos-stress, mttr-chaos-report]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Generate Report
         run: |
-          echo "# 🔥 Chaos Testing Report" >> $GITHUB_STEP_SUMMARY
+          echo "# Chaos Testing Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Scenario | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY

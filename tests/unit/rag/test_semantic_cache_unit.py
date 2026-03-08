@@ -2,7 +2,6 @@
 
 import hashlib
 from datetime import datetime, timedelta
-from unittest.mock import patch
 
 import numpy as np
 import pytest

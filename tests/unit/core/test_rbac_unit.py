@@ -7,7 +7,6 @@ import os
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
 
-import pytest
 
 from src.core.rbac import DEFAULT_ROLE_PERMISSIONS, MeshPermission
 

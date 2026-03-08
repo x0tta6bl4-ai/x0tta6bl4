@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import uuid
 import os
-import time
 
 from src.core.app import app
 from src.database import Base, get_db, User
@@ -82,7 +81,7 @@ def test_marketplace_persistence(client):
     search = client.get("/api/v1/maas/marketplace/search")
     assert search.status_code == 200
     listings = search.json()
-    assert any(l["node_id"] == node_id for l in listings)
+    assert any(listing["node_id"] == node_id for listing in listings)
 
 
 def test_auth_register_persists_profile_fields(client):
@@ -137,7 +136,7 @@ def test_auth_rotate_api_key_endpoint(client):
 
 def test_telemetry_isolation(client):
     email = f"tel-{uuid.uuid4().hex}@test.com"
-    u1 = client.post("/api/v1/maas/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
+    client.post("/api/v1/maas/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
     
     # Non-existent node heartbeat
     hb = client.post("/api/v1/maas/heartbeat", json={

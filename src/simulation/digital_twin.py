@@ -10,18 +10,16 @@ Features:
 - What-if analysis for routing changes
 """
 
-import hashlib
 import json
 import logging
 import random
 import statistics
 import threading
 import time
-from abc import ABC, abstractmethod
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -378,10 +376,10 @@ class MeshDigitalTwin:
             )
 
         # Record initial state
-        initial_connectivity = self._calculate_connectivity()
+        self._calculate_connectivity()
 
         # Fail the node
-        original_state = self.nodes[node_id].state
+        self.nodes[node_id].state
         self.nodes[node_id].state = NodeState.FAILED
         self._failure_start_times[node_id] = time.time()
 
@@ -754,12 +752,12 @@ class MeshDigitalTwin:
             1 for n in self.nodes.values() if n.state == NodeState.HEALTHY
         )
 
-        up_links = sum(1 for l in self.links.values() if l.state == LinkState.UP)
+        up_links = sum(1 for link in self.links.values() if link.state == LinkState.UP)
 
         avg_link_quality = 0
         if self.links:
             avg_link_quality = statistics.mean(
-                l.quality_score for l in self.links.values()
+                link.quality_score for link in self.links.values()
             )
 
         return {
@@ -779,7 +777,7 @@ class MeshDigitalTwin:
             "topology": self.get_topology_stats(),
             "mttr": self.get_mttr_statistics(),
             "nodes": [n.to_dict() for n in self.nodes.values()],
-            "links": [l.to_dict() for l in self.links.values()],
+            "links": [link.to_dict() for link in self.links.values()],
         }
 
     def to_json(self) -> str:

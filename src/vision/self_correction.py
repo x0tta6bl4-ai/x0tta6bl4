@@ -1,6 +1,5 @@
-import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 from src.vision.processor import VisionProcessor
 from src.vision.topology_analyzer import MeshTopologyAnalyzer
 
@@ -13,24 +12,21 @@ class SelfCorrectionEngine:
     Phase 3: Week 11 Deliverable.
     """
 
-    def __init__(self, processor: VisionProcessor = None, analyzer: MeshTopologyAnalyzer = None):
+    def __init__(self, processor: Optional[VisionProcessor] = None, analyzer: Optional[MeshTopologyAnalyzer] = None):
         self.processor = processor or VisionProcessor()
         self.analyzer = analyzer or MeshTopologyAnalyzer(self.processor)
 
-    async def debug_visually(self, image_path: str, context_metrics: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def debug_bytes(self, image_data: bytes, context_metrics: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Main entry point for visual debugging.
-        1. Analyzes image.
-        2. Correlates with metrics (if provided).
-        3. Proposes an action plan.
+        Visual debugging from image bytes.
         """
-        logger.info(f"Starting visual debugging session for {image_path}")
+        logger.info(f"Starting visual debugging session for image bytes (size: {len(image_data)})")
         
         # Extract topology issues
-        topo_result = await self.analyzer.analyze(image_path)
+        topo_result = await self.analyzer.analyze_bytes(image_data)
         
         # Check for other text/UI errors
-        raw_vision = await self.processor.process_image(image_path)
+        raw_vision = await self.processor.process_image(image_data)
         
         plan = []
         
@@ -57,3 +53,15 @@ class SelfCorrectionEngine:
             },
             "proposed_plan": plan
         }
+
+    async def debug_visually(self, image_path: str, context_metrics: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Main entry point for visual debugging from a file.
+        """
+        import os
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image not found at {image_path}")
+            
+        with open(image_path, "rb") as f:
+            return await self.debug_bytes(f.read(), context_metrics)
+

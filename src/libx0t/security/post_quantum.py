@@ -19,10 +19,9 @@ _warnings.warn(
 import hashlib
 import logging
 import os
-import secrets
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
@@ -40,25 +39,22 @@ KeyEncapsulation = None
 Signature = None
 
 try:
-    # Try importing oqs - if it fails, we'll use stub
+    # Try importing oqs - if it fails, we fail closed
     from oqs import KeyEncapsulation, Signature
 
     LIBOQS_AVAILABLE = True
     logger.info("✅ liboqs-python available - Post-Quantum Cryptography enabled")
 except (ImportError, RuntimeError, AttributeError) as e:
     LIBOQS_AVAILABLE = False
-    # Don't log as error in staging/dev - this is expected when liboqs is not installed
-    import sys
-
-    if os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() != "true":
-        logger.info(
-            f"ℹ Staging mode: liboqs-python not available ({type(e).__name__}), using stub"
-        )
-    else:
-        logger.critical(
-            f"❌ CRITICAL: liboqs-python not available in PRODUCTION mode! ({type(e).__name__}: {e})"
-        )
-        raise RuntimeError("Fail-closed: liboqs-python missing in production environment")
+    logger.critical(
+        f"❌ CRITICAL ERROR: liboqs-python not available! ({type(e).__name__}: {e})"
+    )
+    _fail_closed = os.environ.get("PQC_FAIL_CLOSED", "true").lower() != "false"
+    if _fail_closed:
+        logger.error("Fail-closed: PQC is MANDATORY. Ensure liboqs-dev and liboqs-python are installed.")
+        # In production-ready systems, we MUST NOT fall back to stubs.
+        raise RuntimeError("Fail-closed: PQC library missing. Refusing to start.")
+    logger.warning("PQC_FAIL_CLOSED=false: running without post-quantum cryptography (DEV/CI ONLY)")
 
 
 class PQAlgorithm(Enum):
@@ -133,8 +129,10 @@ class LibOQSBackend:
                 "Install with: pip install liboqs-python"
             )
 
-        self.kem_algorithm = kem_algorithm
-        self.sig_algorithm = sig_algorithm
+        _legacy_sig = {"Dilithium2": "ML-DSA-44", "Dilithium3": "ML-DSA-65", "Dilithium5": "ML-DSA-87"}
+        _legacy_kem = {"Kyber512": "ML-KEM-512", "Kyber768": "ML-KEM-768", "Kyber1024": "ML-KEM-1024"}
+        self.kem_algorithm = _legacy_kem.get(kem_algorithm, kem_algorithm)
+        self.sig_algorithm = _legacy_sig.get(sig_algorithm, sig_algorithm)
 
         logger.info(
             f"✅ LibOQS Backend initialized: KEM={kem_algorithm}, SIG={sig_algorithm}"
@@ -157,7 +155,6 @@ class LibOQSBackend:
             private_key = kem.export_secret_key()
 
         # Generate key_id from public key (using 32 chars for higher entropy/collision resistance)
-        import hashlib
 
         key_id = hashlib.sha256(public_key).hexdigest()[:32]
 
@@ -249,7 +246,6 @@ class LibOQSBackend:
         # Private key is stored internally, export it
         private_key = sig.export_secret_key()
         # Generate key_id from public key (using 32 chars for higher entropy)
-        import hashlib
 
         key_id = hashlib.sha256(public_key).hexdigest()[:32]
 
@@ -526,7 +522,6 @@ class HybridPQEncryption:
 
     def _classical_encrypt(self, message: bytes, public_key: bytes) -> bytes:
         """Classical encryption using AES-256-GCM."""
-        import hashlib
 
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -546,7 +541,6 @@ class HybridPQEncryption:
 
     def _classical_decrypt(self, ciphertext: bytes, private_key: bytes) -> bytes:
         """Classical decryption using AES-256-GCM."""
-        import hashlib
 
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM

@@ -8,7 +8,6 @@ Requires Docker cluster:
     docker compose -f docker-compose.integration.yml down
 """
 
-import time
 
 import pytest
 import requests

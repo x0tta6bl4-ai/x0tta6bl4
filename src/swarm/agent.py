@@ -333,7 +333,7 @@ class Agent:
 
     async def _execute_analysis(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Execute analysis task."""
-        data = payload.get("data", {})
+        payload.get("data", {})
         # Simulate analysis
         await asyncio.sleep(0.15)
         return {"anomalies_detected": 0, "confidence": 0.95, "recommendations": []}

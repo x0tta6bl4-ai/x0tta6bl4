@@ -4,7 +4,7 @@ Scaffold for distributed consensus in x0tta6bl4 mesh
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 

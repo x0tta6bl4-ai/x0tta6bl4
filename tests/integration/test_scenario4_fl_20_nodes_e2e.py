@@ -14,8 +14,7 @@ End-to-End Tests for Scenario 4: FL-Mesh Integration on 20 Nodes
 
 import asyncio
 import time
-from typing import Dict, List
-from unittest.mock import AsyncMock, MagicMock
+from typing import Dict
 
 import pytest
 import pytest_asyncio
@@ -26,7 +25,7 @@ from src.federated_learning.consciousness_integration import \
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator)
 from src.federated_learning.mesh_integration import (
-    FLMeshIntegration, MeshNodeInfo, create_integration_from_mesh_nodes)
+    FLMeshIntegration, MeshNodeInfo)
 
 # MAPEKLoopFL not available - using MAPEKLoop instead
 try:

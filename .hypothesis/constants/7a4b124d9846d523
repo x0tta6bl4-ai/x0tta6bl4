@@ -1,0 +1,4 @@
+# file: /mnt/projects/src/llm/local_llm.py
+# hypothesis_version: 6.151.9
+
+[0.7, 0.9, 128, 256, 512, '<|endoftext|>', '<|im_end|>', 'choices', 'content', 'message', 'text']

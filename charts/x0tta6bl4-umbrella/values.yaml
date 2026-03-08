@@ -1,0 +1,17 @@
+global:
+  clusterName: "default"
+  dao:
+    enabled: true
+    l2_rpc_url: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
+    gas_limit: 500000
+
+mesh-node:
+  replicaCount: 10
+  canary:
+    enabled: true
+    weight: 10 # 10% traffic
+  federation:
+    enabled: true
+
+observability:
+  slo_error_budget: "5%"

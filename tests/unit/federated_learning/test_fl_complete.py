@@ -4,7 +4,6 @@ Comprehensive tests for Federated Learning module.
 
 import random
 import sys
-import time
 
 import pytest
 
@@ -17,8 +16,8 @@ from src.federated_learning.aggregators import (FedAvgAggregator,
                                                 get_aggregator)
 from src.federated_learning.coordinator import (CoordinatorConfig,
                                                 FederatedCoordinator,
-                                                NodeStatus, TrainingRound)
-from src.federated_learning.protocol import (AggregationResult, FLMessage,
+                                                NodeStatus)
+from src.federated_learning.protocol import (FLMessage,
                                              FLMessageType, GlobalModel,
                                              ModelUpdate, ModelWeights,
                                              SignedMessage, generate_keypair)

@@ -4,9 +4,8 @@ API Endpoints for Vision Coding Module
 """
 
 import logging
-import base64
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from typing import Any, Dict, List
+from fastapi import APIRouter, HTTPException, File, UploadFile
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -40,9 +39,9 @@ async def analyze_topology_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=503, detail="Vision components not available")
         
     try:
-        # In a real scenario we'd save the file or pass bytes. 
-        # Since our mock just takes a string path, we pass a dummy path.
-        result = await _topology_analyzer.analyze("uploaded_image.png")
+        content = await file.read()
+        # Pass bytes directly to the processor/analyzer
+        result = await _topology_analyzer.analyze_bytes(content)
         return result
     except Exception as e:
         logger.error(f"Topology analysis failed: {e}")
@@ -57,8 +56,10 @@ async def visual_debug(file: UploadFile = File(...)):
         raise HTTPException(status_code=503, detail="Vision components not available")
         
     try:
-        result = await _correction_engine.debug_visually("uploaded_debug_image.png")
+        content = await file.read()
+        result = await _correction_engine.debug_bytes(content)
         return result
     except Exception as e:
         logger.error(f"Visual debugging failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

@@ -217,17 +217,13 @@ class GraphSAGEAnomalyDetector:
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.anomaly_threshold = anomaly_threshold
-        self.use_quantization = bool(use_quantization and is_quantization_available())
+        self._use_quantization_requested = use_quantization
+        self._use_quantization_actual = None # Lazy initialized
         self.recall = 0.96
         self.precision = 0.98
         self.is_trained = False
         self.model = None
         self.device = None
-        
-        # We don't call _ensure_torch here to keep __init__ fast
-        # unless we explicitly need to create the model.
-        
-        # Initialize causal analysis engine if available
         self.causal_engine: Optional[Any] = None
         if _ensure_causal():
             try:
@@ -238,6 +234,15 @@ class GraphSAGEAnomalyDetector:
                 logger.info("Causal analysis engine integrated with GraphSAGE")
             except Exception as e:
                 logger.warning(f"Failed to initialize causal engine: {e}")
+
+    @property
+    def use_quantization(self) -> bool:
+        """Lazy quantization support check."""
+        if self._use_quantization_actual is None:
+            self._use_quantization_actual = bool(
+                self._use_quantization_requested and is_quantization_available()
+            )
+        return self._use_quantization_actual
 
     def _init_model_if_needed(self):
         """Deferred initialization of the torch model."""
@@ -507,6 +512,11 @@ class GraphSAGEAnomalyDetector:
             # For GraphSAGE, we use a wrapper function
             def model_wrapper(x_input):
                 """Wrapper for SHAP to work with GraphSAGE model."""
+                t_comp = _ensure_torch()
+                if not t_comp["available"]:
+                    return None
+                torch = t_comp["torch"]
+                
                 self.model.eval()
                 with torch.no_grad():
                     predictions = self.model(
@@ -535,6 +545,9 @@ class GraphSAGEAnomalyDetector:
             else:
                 background = target_features
 
+            t_comp = _ensure_torch()
+            torch = t_comp["torch"]
+            
             explainer = shap.KernelExplainer(
                 lambda x_in: model_wrapper(torch.tensor(x_in, dtype=torch.float)),
                 background,

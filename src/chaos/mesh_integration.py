@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from src.chaos.controller import (ChaosController, ChaosExperiment,
                                   ExperimentType)
@@ -107,7 +107,7 @@ class MeshChaosIntegration:
             for node_id in target_nodes:
                 node = self.mesh_network.get_node(node_id)
                 if node:
-                    original_latency = getattr(node, "base_latency_ms", 10)
+                    getattr(node, "base_latency_ms", 10)
                     node.latency_ms = latency_ms
                     logger.info(f"Node {node_id} latency set to {latency_ms}ms")
 

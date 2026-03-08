@@ -8,6 +8,9 @@ Uses lazy loading to avoid heavy dependencies (torch, numpy, transformers) at im
 """
 
 import importlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Map of public attributes to their submodules
 _LAZY_MAPPING = {
@@ -35,23 +38,16 @@ def __getattr__(name):
         try:
             module = importlib.import_module(submodule_name, __package__)
             return getattr(module, name)
-        except ImportError:
-            # Fallback to stubs if production version fails to load
-            if "RAG" in name or "Vector" in name or name == "Document":
-                try:
-                    module = importlib.import_module(".rag_stub", __package__)
-                    return getattr(module, name)
-                except (ImportError, AttributeError):
-                    pass
-            
-            # Generic stub fallback for other classes
-            class Stub:
-                def __init__(self, *args, **kwargs): pass
-            if name == "PolicyPriority":
-                class PolicyPriority:
-                    HIGH = "high"; MEDIUM = "medium"; LOW = "low"
-                return PolicyPriority
-            return Stub
+        except ImportError as e:
+            # DEV MODE: ML_STUB_MODE allows dev without torch
+            import os
+            if os.getenv("ML_STUB_MODE", "false").lower() == "true":
+                logger.warning(f"⚠️ DEV MODE: ML stub for {name}")
+                class Stub:
+                    def __init__(self, *args, **kwargs):
+                        pass
+                return Stub
+            raise RuntimeError(f"Missing ML dependencies for {name}. Set ML_STUB_MODE=true for dev. Error: {e}")
 
     if name == "ml":
         # Handle the legacy recursive import from src/__init__.py if needed

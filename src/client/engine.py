@@ -16,7 +16,6 @@ import fcntl
 import hashlib
 import logging
 import os
-import secrets
 import socket
 import struct
 import subprocess

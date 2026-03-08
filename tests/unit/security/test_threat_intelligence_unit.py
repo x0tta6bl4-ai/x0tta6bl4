@@ -220,7 +220,7 @@ class TestThreatIntelligenceEngine:
             mock_time.time.return_value = 5000.0
             engine = self._make_engine()
 
-            ind = engine.report_indicator(
+            engine.report_indicator(
                 indicator_type=IndicatorType.NODE_ID,
                 value="evil-node",
                 threat_type=ThreatType.SYBIL_ATTACK,

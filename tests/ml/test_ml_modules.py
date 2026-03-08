@@ -14,7 +14,7 @@ from src.ml.anomaly import AnomalyConfig, AnomalyDetectionSystem
 from src.ml.decision import DecisionEngine, Policy, PolicyPriority
 from src.ml.lora import LoRAAdapter, LoRAConfig
 from src.ml.mlops import MLOpsManager, ModelMetadata
-from src.ml.rag import Document, RAGAnalyzer, VectorStore
+from src.ml.rag import Document, RAGAnalyzer
 
 # ========== RAG Tests ==========
 
@@ -268,7 +268,7 @@ class TestMLPerformance:
         import time
 
         start = time.time()
-        context = await rag.retrieve_context("test", k=5)
+        await rag.retrieve_context("test", k=5)
         elapsed = time.time() - start
 
         assert elapsed < 0.1  # Should be fast

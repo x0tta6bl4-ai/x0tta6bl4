@@ -29,7 +29,6 @@ from src.ai.fl_orchestrator_scaling import (AdaptiveLearningRate,
                                             HierarchicalOrchestrator,
                                             LearningRateSchedule, ModelUpdate,
                                             StreamingOrchestrator,
-                                            TrainingRoundStats,
                                             create_orchestrator)
 
 logger = logging.getLogger(__name__)
@@ -260,7 +259,7 @@ class TestByzantineFaultTolerance:
             ModelUpdate(
                 node_id="outlier",
                 gradient=np.random.randn(*sample_model.shape) * 100,
-                svid=f"spiffe://x0tta6bl4.mesh/node/outlier",
+                svid="spiffe://x0tta6bl4.mesh/node/outlier",
                 signature=b"sig",
             )
         )
@@ -494,7 +493,7 @@ class TestHierarchicalAggregation:
         num_nodes = 1000
         gradient_size_mb = 1  # 1MB per gradient
 
-        flat_bandwidth = num_nodes * gradient_size_mb  # 1000 MB
+        num_nodes * gradient_size_mb  # 1000 MB
 
         # With hierarchy: 10 zones, 100 nodes per zone
         # Level 1: 100 gradients per zone × 10 zones = 1000 MB
@@ -544,7 +543,7 @@ class TestFLTrainingSession:
                 )
                 updates.append(update)
 
-            stats = session.training_round(updates, loss, accuracy)
+            session.training_round(updates, loss, accuracy)
             round_count += 1
 
             if round_count >= 5:  # Force convergence after some rounds

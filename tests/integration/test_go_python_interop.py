@@ -1,11 +1,9 @@
 import asyncio
 import os
-import socket
 import struct
 import time
 import pytest
-import multiprocessing
-from src.libx0t.network.discovery.protocol import MulticastDiscovery, DiscoveryMessage, PeerInfo
+from src.libx0t.network.discovery.protocol import MulticastDiscovery
 from src.libx0t.network.pqc_tunnel import PQCTunnel
 
 # Configuration compatible with agent defaults

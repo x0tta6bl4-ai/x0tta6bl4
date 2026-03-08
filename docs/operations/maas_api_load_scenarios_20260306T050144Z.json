@@ -1,0 +1,42 @@
+{
+  "timestamp_utc": "2026-03-06T05:05:29Z",
+  "base_url": "http://127.0.0.1:38080",
+  "duration_seconds": 180,
+  "concurrency": 12,
+  "mesh_id": "mesh-load-profile",
+  "node_id": "node-001",
+  "requests_total": 490,
+  "requests_ok": 163,
+  "requests_error": 327,
+  "error_rate_percent": 66.73469387755102,
+  "throughput_rps": 2.7222222222222223,
+  "scenarios": {
+    "marketplace_search": {
+      "requests_total": 164,
+      "requests_ok": 108,
+      "requests_error": 56,
+      "error_rate_percent": 34.146341463414636,
+      "latency_mean_ms": 3940.850240951166,
+      "latency_p95_ms": 5019.431612003245,
+      "throughput_rps": 0.9111111111111111
+    },
+    "telemetry_heartbeat": {
+      "requests_total": 161,
+      "requests_ok": 0,
+      "requests_error": 161,
+      "error_rate_percent": 100.0,
+      "latency_mean_ms": 4789.681441006443,
+      "latency_p95_ms": 5026.917566996417,
+      "throughput_rps": 0.8944444444444445
+    },
+    "node_heartbeat": {
+      "requests_total": 165,
+      "requests_ok": 55,
+      "requests_error": 110,
+      "error_rate_percent": 66.66666666666666,
+      "latency_mean_ms": 4602.9780383820635,
+      "latency_p95_ms": 5013.354505994357,
+      "throughput_rps": 0.9166666666666666
+    }
+  }
+}

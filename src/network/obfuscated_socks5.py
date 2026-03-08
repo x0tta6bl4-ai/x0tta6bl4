@@ -17,7 +17,6 @@ Methods:
 import argparse
 import asyncio
 import logging
-import os
 import socket
 import struct
 from typing import Optional, Tuple
@@ -25,7 +24,6 @@ from typing import Optional, Tuple
 from .vpn_obfuscation_manager import (
     ObfuscationMethod,
     RotationStrategy,
-    VPNObfuscationManager,
     get_vpn_obfuscator,
 )
 
@@ -160,7 +158,7 @@ class ObfuscatedSOCKS5Server:
             writer.close()
             try:
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
     
     async def _socks5_handshake(

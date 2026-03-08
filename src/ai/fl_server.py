@@ -8,10 +8,7 @@ of the x0tta6bl4 GraphSAGE models.
 
 import argparse
 import logging
-import os
-import signal
 import sys
-from typing import Dict, Optional
 
 import flwr as fl
 from src.ai.federated_learning import FederatedLearningCoordinator

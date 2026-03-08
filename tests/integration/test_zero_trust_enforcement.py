@@ -8,8 +8,6 @@ Tests the complete Zero Trust enforcement flow including:
 - Continuous verification
 """
 
-import asyncio
-from typing import Any, Dict
 
 import pytest
 
@@ -59,7 +57,7 @@ class TestZeroTrustEnforcementIntegration:
 
         # Multiple failed attempts
         for _ in range(5):
-            result = enforcer.enforce(
+            enforcer.enforce(
                 peer_spiffe_id=peer_spiffe_id, resource="/api/v1/admin"
             )
 

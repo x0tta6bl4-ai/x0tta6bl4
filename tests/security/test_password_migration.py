@@ -2,11 +2,9 @@
 Тесты для password_migration - проверка безопасности хеширования паролей.
 """
 
-import bcrypt
 import pytest
 
-from src.security.password_migration import (BCRYPT_PREFIX, MigrationStats,
-                                             PasswordMigrator,
+from src.security.password_migration import (BCRYPT_PREFIX, PasswordMigrator,
                                              get_password_migrator)
 
 

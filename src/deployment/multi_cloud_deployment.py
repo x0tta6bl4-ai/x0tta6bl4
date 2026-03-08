@@ -21,9 +21,9 @@ import subprocess
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from src.core.safe_subprocess import SafeCommandResult, SafeSubprocess
+from src.core.safe_subprocess import SafeSubprocess
 
 logger = logging.getLogger(__name__)
 
@@ -450,7 +450,7 @@ class MultiCloudDeployment:
                 return None
 
             # Configure Docker for Artifact Registry
-            logger.info(f"🔐 Configuring Docker for Artifact Registry...")
+            logger.info("🔐 Configuring Docker for Artifact Registry...")
             configure_result = SafeSubprocess.run(
                 ["gcloud", "auth", "configure-docker", f"{region}-docker.pkg.dev"],
                 timeout=30,

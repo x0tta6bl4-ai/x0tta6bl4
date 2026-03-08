@@ -31,13 +31,11 @@ import logging
 import hmac
 import uuid
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional, Dict, Any, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
 
 from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
                           MeshInstance, MeshNode, User, get_db)
@@ -480,6 +478,31 @@ def _to_optional_float(value: Any) -> Optional[float]:
         return None
 
 
+def _normalize_external_telemetry_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Add stable aliases for telemetry payloads emitted by different MaaS modules."""
+    normalized = dict(payload)
+
+    if "latency_ms" not in normalized:
+        latency = _to_optional_float(normalized.get("latency"))
+        if latency is not None and latency >= 0:
+            normalized["latency_ms"] = latency
+
+    if "neighbors_count" not in normalized:
+        neighbors = normalized.get("neighbors")
+        if isinstance(neighbors, int) and not isinstance(neighbors, bool):
+            normalized["neighbors_count"] = neighbors
+        else:
+            converted = _to_optional_float(neighbors)
+            if converted is not None and converted >= 0 and float(converted).is_integer():
+                normalized["neighbors_count"] = int(converted)
+
+    status = normalized.get("status")
+    if isinstance(status, str):
+        normalized["status"] = status.strip().lower()
+
+    return normalized
+
+
 def _build_analytics_telemetry_payload(
     mesh_id: str,
     node_id: str,
@@ -532,7 +555,9 @@ def _read_external_telemetry(node_id: str) -> Dict[str, Any]:
         return {}
     try:
         payload = _get_external_telemetry(node_id)
-        return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            return {}
+        return _normalize_external_telemetry_payload(payload)
     except Exception as exc:
         logger.warning("Failed to read external telemetry snapshot (node=%s): %s", node_id, exc)
         return {}
@@ -548,7 +573,11 @@ def _read_external_telemetry_history(node_id: str, limit: int) -> List[Dict[str,
         return []
     if not isinstance(payload, list):
         return []
-    return [item for item in payload if isinstance(item, dict)]
+    return [
+        _normalize_external_telemetry_payload(item)
+        for item in payload
+        if isinstance(item, dict)
+    ]
 
 
 @router.post("/{mesh_id}/nodes/{node_id}/heartbeat")
@@ -770,8 +799,6 @@ def get_node_config(
     peers = db.query(MeshNode).filter(MeshNode.mesh_id == mesh_id, MeshNode.status == "approved").all()
     
     # Simple tag-based evaluation logic
-    allowed_peers = []
-    denied_peers = []
     
     # In this MVP version, we return all data and let the agent enforce.
     # In Enterprise version, we return pre-calculated allow/deny lists.
@@ -836,7 +863,7 @@ async def revoke_node(
         HTTPException: 404 if mesh or node not found
         HTTPException: 403 if user lacks NODE_REVOKE permission
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_REVOKE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -861,7 +888,7 @@ async def approve_node(
     
     Supports TEE (Hardware) attestation verification.
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_APPROVE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -950,7 +977,7 @@ async def delete_node(
         HTTPException: 404 if mesh or node not found
         HTTPException: 403 if user lacks NODE_DELETE permission
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_DELETE
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()
@@ -989,7 +1016,7 @@ async def heal_node(
         HTTPException: 403 if user lacks NODE_HEAL permission
         HTTPException: 503 if healing service is unavailable
     """
-    operator = _ensure_mesh_visibility_with_permission(
+    _ensure_mesh_visibility_with_permission(
         mesh_id, current_user, db, MeshPermission.NODE_HEAL
     )
     node = db.query(MeshNode).filter(MeshNode.id == node_id, MeshNode.mesh_id == mesh_id).first()

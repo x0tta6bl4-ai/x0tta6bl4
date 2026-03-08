@@ -4,8 +4,6 @@ Tests for Model Synchronization.
 Tests version control, conflict resolution, and rollback.
 """
 
-from typing import Dict
-from unittest.mock import Mock
 
 import pytest
 
@@ -41,7 +39,7 @@ class TestModelSynchronizer:
         # Receive model
         success = synchronizer.receive_global_model(global_model, "coordinator")
 
-        assert success == True
+        assert success
         assert synchronizer.get_current_model() == global_model
         assert synchronizer.get_model_version() == 1
 
@@ -60,7 +58,7 @@ class TestModelSynchronizer:
         success = synchronizer.receive_global_model(model2, "coordinator")
 
         # Should reject older model
-        assert success == False
+        assert not success
         assert synchronizer.get_model_version() == 2
 
     def test_model_history(self):
@@ -108,7 +106,7 @@ class TestModelSynchronizer:
         # Resolve with prefer_global strategy
         success = synchronizer.resolve_conflicts(conflicts, strategy="prefer_global")
 
-        assert success == True
+        assert success
         assert len(synchronizer.sync_state.conflicts) == 2
 
     def test_rollback(self):
@@ -124,7 +122,7 @@ class TestModelSynchronizer:
         # Rollback to version 2
         success = synchronizer.rollback(target_version=2)
 
-        assert success == True
+        assert success
         assert synchronizer.get_model_version() == 2
 
     def test_rollback_invalid_version(self):
@@ -139,7 +137,7 @@ class TestModelSynchronizer:
         # Try to rollback to non-existent version
         success = synchronizer.rollback(target_version=1)
 
-        assert success == False
+        assert not success
         assert synchronizer.get_model_version() == 3
 
     def test_sync_status(self):

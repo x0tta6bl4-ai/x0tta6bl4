@@ -6,12 +6,11 @@
 import statistics
 import sys
 import time
-from typing import Dict, List
+from typing import Dict
 
 sys.path.insert(0, "/mnt/AC74CC2974CBF3DC")
 
-from src.network.obfuscation.traffic_shaping import (TRAFFIC_PROFILES,
-                                                     TrafficAnalyzer,
+from src.network.obfuscation.traffic_shaping import (TrafficAnalyzer,
                                                      TrafficProfile,
                                                      TrafficShaper)
 

@@ -34,7 +34,7 @@ def check_node(node: Dict[str, str]) -> Optional[Dict[str, Any]]:
         data["name"] = node["name"]
         data["url"] = node["url"]
         return data
-    except:
+    except Exception:
         return {
             "name": node["name"],
             "url": node["url"],

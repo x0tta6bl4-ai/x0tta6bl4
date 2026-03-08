@@ -1,0 +1,24 @@
+- id: validate_security_workflows
+  cmd: python3 scripts/validate_security_workflows.py
+  rc: 0
+  started_at_utc: 2026-03-04T17:02:31Z
+  ended_at_utc: 2026-03-04T17:02:32Z
+  log: command_outputs/validate_security_workflows.log
+- id: check_env_security_defaults
+  cmd: python3 scripts/check_env_security_defaults.py
+  rc: 0
+  started_at_utc: 2026-03-04T17:02:32Z
+  ended_at_utc: 2026-03-04T17:02:41Z
+  log: command_outputs/check_env_security_defaults.log
+- id: check_migration_policy_depth3
+  cmd: python3 scripts/check_migration_policy.py --depth 3
+  rc: 0
+  started_at_utc: 2026-03-04T17:02:41Z
+  ended_at_utc: 2026-03-04T17:02:42Z
+  log: command_outputs/check_migration_policy_depth3.log
+- id: check_db_bootstrap_chain_sqlite
+  cmd: python3 scripts/check_db_bootstrap_chain.py --validate-downgrade --downgrade-steps 1
+  rc: 0
+  started_at_utc: 2026-03-04T17:02:42Z
+  ended_at_utc: 2026-03-04T17:02:58Z
+  log: command_outputs/check_db_bootstrap_chain_sqlite.log

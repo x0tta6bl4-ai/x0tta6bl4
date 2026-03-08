@@ -13,9 +13,10 @@ Key features:
 """
 
 import logging
+import os
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Tuple
 
 import bcrypt

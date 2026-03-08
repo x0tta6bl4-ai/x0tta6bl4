@@ -10,7 +10,6 @@ Provides multiple steganographic techniques for covert communication:
 """
 
 import hashlib
-import io
 import logging
 import math
 import os
@@ -21,7 +20,7 @@ import zlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Try to import cryptography library for secure stream cipher
 try:
@@ -430,7 +429,7 @@ class TextSteganography(SteganographyCarrier):
         try:
             text = carrier_data.decode('utf-8')
             return len(text) // 8  # 8 zero-width chars per byte
-        except:
+        except Exception:
             return 0
     
     def embed(self, carrier_data: bytes, hidden_data: bytes) -> EmbeddingResult:
