@@ -13,6 +13,7 @@
 | :--- | :--- | :--- | :--- |
 | **eBPF Datapath** | 🟢 VERIFIED | 142k TX / 49 RX PPS (Physical NIC) | [benchmark-20260308.json.sig](./ebpf/prod/results/benchmark-20260308T005128Z.json.sig) |
 | **5G Signaling** | 🟢 VERIFIED | SCTP Live Verified on VPS | [upf_integration_test.go](./edge/5g/upf_integration_test.go) |
+| **Ghost Protocol**| 🟢 VERIFIED | WebRTC Mimicry Verified on VPS | [ghost_proto.py](../../src/network/transport/ghost_proto.py) |
 | **Multi-Tenancy** | 🟢 VERIFIED | Live enforced on VPS (iptables/bridge) | [VERIFICATION-MATRIX.md](../v1.1/VERIFICATION-MATRIX.md) |
 | **PQC Cryptography** | 🟢 PRODUCTION | ML-KEM-768 / ML-DSA-65 (FIPS 203/204) | [test_kyber.py](./scripts/test_kyber.py) |
 | **Zero-Trust** | 🟢 PRODUCTION | SPIFFE/SPIRE Workload ID + mTLS | [playbook.md](./compliance/soc2/playbook.md) |

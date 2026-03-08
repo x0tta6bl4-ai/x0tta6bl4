@@ -13,9 +13,13 @@
       "evidence": "ebpf/prod/results/benchmark-20260308T005128Z.json"
     },
     "5g_open5gs_bridge": {
-      "status": "PARTIAL (SCTP Verified)",
+      "status": "VERIFIED (Live)",
       "tests": "39 PASS",
-      "logic": "PFCP Session Establishment implemented, SCTP transport verified"
+      "logic": "PFCP Session Establishment implemented, Live SCTP transport verified on VPS"
+    },
+    "ghost_stealth_transport": {
+      "status": "VERIFIED (Live)",
+      "logic": "ChaCha20-Poly1305 + WebRTC Mimicry, Live transport verified on VPS"
     },
     "maas_core": {
       "status": "STABLE",
