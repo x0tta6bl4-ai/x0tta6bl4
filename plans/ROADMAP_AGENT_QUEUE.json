@@ -53,7 +53,11 @@
         "COORD-RDM-001",
         "COORD-RDM-003",
         "COORD-RDM-004",
-        "COORD-RDM-005"
+        "COORD-RDM-005",
+        "GEMINI-RDM-006",
+        "GEMINI-RDM-007",
+        "GEMINI-RDM-008",
+        "GEMINI-RDM-009"
       ]
     },
     "live-validation-only": {
@@ -363,6 +367,59 @@
       ],
       "evidence_target": "Live latency metrics from simulated 5G tunnel",
       "completed_evidence": "MeasureLatency method implemented and unit tested (0.04s PASS)"
+    },
+    {
+      "id": "GEMINI-RDM-006",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Implement machine-readable consistency gate for release artifacts.",
+      "exact_next_command": "python3 scripts/ops/check_release_consistency.py",
+      "evidence_target": "Consistency gate output (PASS)",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "check_release_consistency.py created and passed."
+    },
+    {
+      "id": "GEMINI-RDM-007",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Strengthen cleanup_root.sh with release-aware guardrails.",
+      "exact_next_command": "bash scripts/cleanup_root.sh",
+      "evidence_target": "Critical release files preserved after cleanup",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "cleanup_root.sh updated with KEEP_LIST."
+    },
+    {
+      "id": "GEMINI-RDM-008",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust & Guardrails",
+      "status": "completed",
+      "summary": "Create Keyless Signing CI workflow for RC1 attestation.",
+      "exact_next_command": "ls .github/workflows/ebpf-release-signing.yml",
+      "evidence_target": "CI workflow file present and valid",
+      "completed_at": "2026-03-08T08:40:00Z",
+      "completed_evidence": "ebpf-release-signing.yml created."
+    },
+    {
+      "id": "GEMINI-RDM-009",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Research optimization points for 1M+ PPS (zero-copy, multi-queue, XDP_REDIRECT).",
+      "exact_next_command": "grep -r \"XDP_PASS\" ebpf/prod/",
+      "evidence_target": "Technical RFC or report on optimization strategy",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:55:00Z",
+      "completed_evidence": "Created PERFORMANCE_OPTIMIZATION_PLAN.md. Identified Realtek r8169 bottleneck."
     }
   ]
 }
