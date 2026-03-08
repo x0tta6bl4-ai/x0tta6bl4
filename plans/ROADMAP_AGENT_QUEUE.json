@@ -57,7 +57,11 @@
         "GEMINI-RDM-006",
         "GEMINI-RDM-007",
         "GEMINI-RDM-008",
-        "GEMINI-RDM-009"
+        "GEMINI-RDM-009",
+        "CLAUDE-RDM-004",
+        "GEMINI-RDM-010",
+        "GEMINI-RDM-012",
+        "GEMINI-RDM-013"
       ]
     },
     "live-validation-only": {
@@ -70,7 +74,8 @@
     "blocked-horizon-2": {
       "description": "Do not start implementation; keep at RFC or freeze status until release-gate blockers are re-evaluated.",
       "task_ids": [
-        "COORD-RDM-002"
+        "COORD-RDM-002",
+        "CODEX-RDM-003"
       ]
     }
   },
@@ -420,6 +425,87 @@
       "blocker": "",
       "completed_at": "2026-03-08T08:55:00Z",
       "completed_evidence": "Created PERFORMANCE_OPTIMIZATION_PLAN.md. Identified Realtek r8169 bottleneck."
+    },
+    {
+      "id": "CLAUDE-RDM-004",
+      "agent": "claude",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "RC1.1 Trust Hardening",
+      "status": "completed",
+      "summary": "Document and prepare the verification steps for the Rekor transparency log after the CI keyless signing workflow completes.",
+      "exact_next_command": "cat docs/v1.1/PROVENANCE-VERIFICATION.md",
+      "evidence_target": "Updated PROVENANCE-VERIFICATION.md with Rekor log lookup instructions.",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:20:00Z",
+      "completed_evidence": "Added rekor-cli lookup instructions to PROVENANCE-VERIFICATION.md"
+    },
+    {
+      "id": "GEMINI-RDM-010",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Prototype XDP_REDIRECT for mesh routing in a separate experimental directory to bypass the kernel stack.",
+      "exact_next_command": "mkdir -p ebpf/experimental && touch ebpf/experimental/xdp_redirect_prototype.c",
+      "evidence_target": "XDP_REDIRECT C source code prototype compiling successfully.",
+      "blocker": "",
+      "completed_at": "2026-03-08T08:35:00Z",
+      "completed_evidence": "Created and compiled src/network/ebpf/experimental/xdp_redirect_prototype.c successfully"
+    },
+    {
+      "id": "CODEX-RDM-003",
+      "agent": "codex",
+      "mode": "validation",
+      "bucket": "blocked-horizon-2",
+      "initiative": "v1.1 GA Transition",
+      "status": "blocked",
+      "summary": "Run the 5G Open5GS adapter against a live UERANSIM/Open5GS deployment to promote status to VERIFIED.",
+      "exact_next_command": "go test ./integration/... -tags=live_open5gs",
+      "evidence_target": "Live test execution logs proving E2E session establishment.",
+      "blocker": "Requires live UERANSIM/Open5GS hardware/cluster setup."
+    },
+    {
+      "id": "GEMINI-RDM-011",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Draft AF_XDP Integration RFC for 1M+ PPS dataplane.",
+      "exact_next_command": "cat docs/research/RFC_AF_XDP_INTEGRATION.md",
+      "evidence_target": "RFC document describing XSKMAP and UMEM design.",
+      "completed_at": "2026-03-08T09:15:00Z",
+      "completed_evidence": "RFC_AF_XDP_INTEGRATION.md created."
+    },
+    {
+      "id": "GEMINI-RDM-012",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "Performance Campaign",
+      "status": "completed",
+      "summary": "Define detailed Dual-NIC hardware specification for Horizon-2 testbed.",
+      "exact_next_command": "touch docs/research/HORIZON2_HARDWARE_SPEC.md",
+      "evidence_target": "Hardware specification with NIC models and cabling requirements.",
+      "blocker": "",
+      "completed_at": "2026-03-08T09:20:00Z",
+      "completed_evidence": "Created HORIZON2_HARDWARE_SPEC.md. Intel X710 identified as target NIC."
+    },
+    {
+      "id": "GEMINI-RDM-013",
+      "agent": "gemini",
+      "mode": "verification",
+      "bucket": "verification-ready",
+      "initiative": "v1.1 GA Transition",
+      "status": "completed",
+      "summary": "Verify CiliumNetworkPolicy template rendering and structure for multi-tenant isolation.",
+      "exact_next_command": "go run ebpf/prod/loader.go -namespace tenant-a -tenant-label customer",
+      "evidence_target": "Valid YAML output matching the zero-lateral-movement contract.",
+      "blocker": "",
+      "completed_at": "2026-03-08T09:25:00Z",
+      "completed_evidence": "CiliumNetworkPolicy template verified with custom namespace and labels. Output YAML matches security contract."
     }
   ]
 }
