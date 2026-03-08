@@ -171,13 +171,13 @@ EOF
       require_native cosign
     fi
 
-    : "${SIGSTORE_ID_TOKEN:?SIGSTORE_ID_TOKEN is required for ci-keyless mode}"
+    # cosign uses GitHub Actions ambient OIDC credentials automatically
+    # when the workflow has id-token: write — no explicit token needed.
 
     for artifact in "${artifacts[@]}"; do
-      # Sign keylessly using the identity token (OIDC-based)
+      # Sign keylessly — cosign picks up the OIDC token from the environment
       run_cosign sign-blob \
         --yes \
-        --identity-token "${SIGSTORE_ID_TOKEN}" \
         --output-signature "$(cpath "${artifact}.sig")" \
         --output-certificate "$(cpath "${artifact}.crt")" \
         "$(cpath "${artifact}")"
