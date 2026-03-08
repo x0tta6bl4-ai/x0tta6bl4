@@ -1,7 +1,28 @@
 {
   "release": "RC1",
   "timestamp": "2026-03-08T02:00:00Z",
-  "head_commit": "32d9509c77bf68b570c5eb1f620cb3092b79b9ce",
+  "freeze_updated": "2026-03-08T13:30:00Z",
+  "head_commit": "33094c707e3c972c248df2de5b3896408cf78bd7",
+  "provenance": {
+    "signing_mode": "mock-local",
+    "ci_keyless_status": "pending",
+    "ci_keyless_blocker": "SIGSTORE_ID_TOKEN requires GitHub Actions OIDC environment; cannot run locally",
+    "ci_workflow": ".github/workflows/ebpf-release-signing.yml",
+    "ci_trigger_branch": "release/rc1",
+    "rekor_log_base_url": "https://rekor.sigstore.dev",
+    "rekor_indices": null,
+    "rekor_note": "Indices will be populated after first successful CI keyless signing run",
+    "mock_signatures_present": true,
+    "mock_signing_artifacts": [
+      "security/sbom/out/mock-signing-status.txt",
+      "security/sbom/out/mock-cosign.pub"
+    ],
+    "oidc_issuer": "https://token.actions.githubusercontent.com",
+    "oidc_subject_pattern": "https://github.com/x0tta6bl4/x0tta6bl4/.github/workflows/ebpf-release-signing.yml@refs/heads/release/rc1",
+    "verification_command": "cosign verify-blob --certificate <artifact>.crt --signature <artifact>.sig --certificate-identity \"${oidc_subject_pattern}\" --certificate-oidc-issuer \"${oidc_issuer}\" <artifact>",
+    "provenance_bundle_dir": "docs/release/provenance/",
+    "provenance_bundle_status": "pending_ci_run"
+  },
   "artifacts": {
     "benchmarks": [
       "ebpf/prod/results/benchmark-20260306.json",
