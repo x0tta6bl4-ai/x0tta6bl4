@@ -2,7 +2,7 @@
 
 **Release Candidate:** RC1  
 **Snapshot Date:** 2026-03-08T01:45:00Z  
-**Commit ID:** `32d9509c77bf68b570c5eb1f620cb3092b79b9ce`  
+**Commit ID:** `b9896312d7d84a6b5398bdc142cd125465432f09`  
 **Provenance:** 🟢 [PROVENANCE READY] (Signed via Sigstore/Cosign)
 
 ---
@@ -12,7 +12,7 @@
 | Subsystem | Status | Baseline / Evidence | Verification |
 | :--- | :--- | :--- | :--- |
 | **eBPF Datapath** | 🟢 VERIFIED | 142k TX / 49 RX PPS (Physical NIC) | [benchmark-20260308.json.sig](./ebpf/prod/results/benchmark-20260308T005128Z.json.sig) |
-| **5G Signaling** | 🟢 VERIFIED | SCTP Live Verified on VPS | [upf_integration_test.go](./edge/5g/upf_integration_test.go) |
+| **5G Signaling** | 🟢 VERIFIED | SCTP + User Plane (Ping) Live Verified | [upf_integration_test.go](./edge/5g/upf_integration_test.go) |
 | **Ghost Protocol**| 🟢 VERIFIED | WebRTC Mimicry Verified on VPS | [ghost_proto.py](../../src/network/transport/ghost_proto.py) |
 | **Multi-Tenancy** | 🟢 VERIFIED | Live enforced on VPS (iptables/bridge) | [VERIFICATION-MATRIX.md](../v1.1/VERIFICATION-MATRIX.md) |
 | **PQC Cryptography** | 🟢 PRODUCTION | ML-KEM-768 / ML-DSA-65 (FIPS 203/204) | [test_kyber.py](./scripts/test_kyber.py) |
