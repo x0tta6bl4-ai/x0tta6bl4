@@ -3,7 +3,7 @@
 **Version:** RC1  
 **Date:** 2026-03-08  
 **Codename:** "Empirical Honesty"  
-**Commit:** `32d9509c77bf68b570c5eb1f620cb3092b79b9ce`
+**Commit:** `b9896312d7d84a6b5398bdc142cd125465432f09`
 
 ## 🚀 Overview
 Release Candidate 1 (RC1) marks the transition of x0tta6bl4 from a collection of technical hypotheses to a **validated engineering baseline**. This release focuses on transparency, empirical evidence, and security hardening.

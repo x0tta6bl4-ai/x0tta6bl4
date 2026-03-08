@@ -188,6 +188,8 @@ class ConsensusEngine:
     a unified interface for swarm decisions.
     """
     
+    DECISION_TTL_SECONDS = 3600  # 1 hour
+    
     def __init__(
         self,
         default_algorithm: ConsensusAlgorithm = ConsensusAlgorithm.SIMPLE_MAJORITY,
@@ -348,7 +350,31 @@ class ConsensusEngine:
         if self._on_decision_complete:
             self._on_decision_complete(decision)
         
+        # Prune old decisions to prevent memory leak
+        if len(self._decisions) % 100 == 0:
+            self._cleanup_decisions()
+        
         return result
+    
+    def _cleanup_decisions(self, max_age_seconds: Optional[int] = None) -> int:
+        """
+        Remove decisions older than max_age_seconds from memory.
+
+        Prevents unbounded growth of the _decisions dict.
+        Returns the number of entries removed.
+        """
+        cutoff = datetime.utcnow() - timedelta(
+            seconds=max_age_seconds if max_age_seconds is not None else self.DECISION_TTL_SECONDS
+        )
+        stale = [
+            did for did, d in self._decisions.items()
+            if d.decided_at and d.decided_at < cutoff
+        ]
+        for did in stale:
+            del self._decisions[did]
+        if stale:
+            logger.debug(f"Pruned {len(stale)} stale decisions")
+        return len(stale)
     
     def _evaluate_consensus(self, decision: Decision) -> ConsensusResult:
         """Evaluate consensus based on algorithm."""
