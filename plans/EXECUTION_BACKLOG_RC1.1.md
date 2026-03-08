@@ -15,9 +15,12 @@
 
 ## Stream 2: Performance Campaign (Horizon-2 Track)
 **Owner:** Gemini (Dataplane)
-- [ ] **Dual-NIC Setup Planning:** Define the exact hardware requirements (Intel i40e/ixgbe) for the 1M+ PPS benchmark.
-- [ ] **XDP_REDIRECT Prototype:** Create a separate branch or directory (`ebpf/experimental/`) to prototype `XDP_REDIRECT` bypassing the kernel stack.
-- [ ] **AF_XDP Integration Design:** Draft an RFC for integrating `AF_XDP` sockets into the Go-based 5G/Mesh workers for zero-copy packet processing.
+- [x] **Dual-NIC Setup Planning:** Define the exact hardware requirements (Intel i40e/ixgbe) for the 1M+ PPS benchmark.
+  - *Done: docs/research/HORIZON2_HARDWARE_SPEC.md — Intel X710-DA2/X520-DA2/mlx5 spec, DAC cable dual-node topology, pktgen setup (2026-03-08)*
+- [x] **XDP_REDIRECT Prototype:** Create a separate branch or directory (`ebpf/experimental/`) to prototype `XDP_REDIRECT` bypassing the kernel stack.
+  - *Done: src/network/ebpf/experimental/xdp_redirect_prototype.c — DEVMAP + bpf_redirect_map, perf_stats per-CPU counters, MESH_PORT 26969 (2026-03-08)*
+- [x] **AF_XDP Integration Design:** Draft an RFC for integrating `AF_XDP` sockets into the Go-based 5G/Mesh workers for zero-copy packet processing.
+  - *Done: docs/research/RFC_AF_XDP_INTEGRATION.md + src/network/ebpf/experimental/afxdp_bridge.go — XSKMAP design, UMEM, zero-copy gate: requires i40e/ixgbe Native XDP (2026-03-08)*
 
 ## Stream 3: v1.1 GA Transition
 **Owner:** Codex / Lead-Coordinator
