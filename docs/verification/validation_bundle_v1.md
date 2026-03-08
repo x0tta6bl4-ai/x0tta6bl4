@@ -7,7 +7,7 @@
 ## 📊 Benchmark Summary
 - **Interface**: `enp8s0` (Physical NIC)
 - **Duration**: 5s
-- **Measured PPS**: 3996 (RX)
+- **Measured PPS**: 49 (RX)
 - **Target PPS**: 10 (Baseline verified)
 - **Artifact**: `ebpf/prod/results/benchmark-20260307T081157Z.json`
 
