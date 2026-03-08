@@ -2,8 +2,12 @@
 
 import time
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from src.api.maas.billing_helpers import (
     IdempotencyStore,
@@ -266,3 +270,99 @@ def test_idempotency_record_to_dict_shape():
     assert "status" in d
     assert "result" in d
     assert d["status"] == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Billing endpoint routes (list_plans, estimate_cost, get_limits)
+# ---------------------------------------------------------------------------
+
+from src.api.maas.endpoints import billing as billing_mod
+from src.api.maas.auth import UserContext
+
+
+def _make_billing_client(user: UserContext | None = None) -> TestClient:
+    """Build a TestClient with the billing router and optional user override."""
+    app = FastAPI()
+    app.include_router(billing_mod.router, prefix="/api/v1/maas")
+    if user:
+        app.dependency_overrides[billing_mod.get_current_user] = lambda: user
+    return TestClient(app)
+
+
+class TestListPlansEndpoint:
+    def test_returns_three_plans(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/plans")
+        assert resp.status_code == 200
+        plans = resp.json()
+        assert len(plans) == 3
+
+    def test_plan_names(self):
+        client = _make_billing_client()
+        plans = client.get("/api/v1/maas/billing/plans").json()
+        names = {p["name"] for p in plans}
+        assert names == {"free", "pro", "enterprise"}
+
+    def test_each_plan_has_limits(self):
+        client = _make_billing_client()
+        for plan in client.get("/api/v1/maas/billing/plans").json():
+            assert "limits" in plan
+            assert "max_nodes" in plan["limits"]
+
+
+class TestEstimateCostEndpoint:
+    def test_returns_cost_fields(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/estimate?node_count=3&node_type=standard&plan=pro&region=us-east-1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "hourly_cost" in data
+        assert "monthly_cost" in data
+        assert "monthly_cost_raw" in data
+
+    def test_reflects_query_params(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/estimate?node_count=5&node_type=standard&plan=starter&region=global")
+        data = resp.json()
+        assert data["node_count"] == 5
+        assert data["node_type"] == "standard"
+        assert data["plan"] == "starter"
+
+    def test_missing_node_count_returns_422(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/estimate?node_type=standard")
+        assert resp.status_code == 422
+
+    def test_zero_node_count_returns_422(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/estimate?node_count=0")
+        assert resp.status_code == 422
+
+    def test_monthly_cost_raw_is_numeric_string(self):
+        client = _make_billing_client()
+        resp = client.get("/api/v1/maas/billing/estimate?node_count=2&node_type=standard&plan=pro&region=us-east-1")
+        raw = resp.json()["monthly_cost_raw"]
+        float(raw)  # Should not raise
+
+
+class TestGetLimitsEndpoint:
+    def test_returns_limits_for_user_plan(self):
+        user = UserContext(user_id="u-1", plan="pro")
+        client = _make_billing_client(user)
+        resp = client.get("/api/v1/maas/billing/limits")
+        assert resp.status_code == 200
+        limits = resp.json()
+        assert "max_nodes" in limits
+
+    def test_enterprise_limits_differ_from_starter(self):
+        starter_client = _make_billing_client(UserContext(user_id="u-s", plan="starter"))
+        enterprise_client = _make_billing_client(UserContext(user_id="u-e", plan="enterprise"))
+        starter_limits = starter_client.get("/api/v1/maas/billing/limits").json()
+        enterprise_limits = enterprise_client.get("/api/v1/maas/billing/limits").json()
+        assert enterprise_limits["max_nodes"] > starter_limits["max_nodes"]
+
+    def test_requires_auth(self):
+        client = _make_billing_client()  # no user override
+        resp = client.get("/api/v1/maas/billing/limits")
+        # Without auth override the dependency raises 401 or similar
+        assert resp.status_code in (401, 403, 422)
