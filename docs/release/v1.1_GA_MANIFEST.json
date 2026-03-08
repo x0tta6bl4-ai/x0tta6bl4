@@ -1,0 +1,123 @@
+{
+  "release": "v1.1 GA",
+  "project": "x0tta6bl4",
+  "freeze_date": "2026-03-08",
+  "freeze_commit": "ff6e964351c4d717ab92a85a2b7a29edae42612c",
+  "rc_baseline_commit": "32d9509c77bf68b570c5eb1f620cb3092b79b9ce",
+  "release_branch": "release/rc1",
+  "integrity_note": "Hallucinated 8.8M PPS claim purged in RC1. All performance figures are empirical hardware measurements or CI-validated Go-level benchmarks.",
+
+  "verified": {
+    "ebpf_datapath": {
+      "status": "VERIFIED",
+      "evidence_type": "Physical NIC measurement",
+      "measured_pps": "49 RX / 142k TX (enp8s0, Realtek RTL8168)",
+      "go_bench_decisions_per_sec": "99.8M (Go-level, CI-validated)",
+      "evidence": [
+        "ebpf/prod/results/benchmark-20260308T005128Z.json",
+        "ebpf/prod/bench_test.go"
+      ],
+      "not_claimed": "1M+ PPS on physical hardware — requires Intel i40e/ixgbe + pktgen (Horizon-2)"
+    },
+    "5g_e2e": {
+      "status": "VERIFIED",
+      "evidence_type": "Live VPS test",
+      "vps": "89.125.1.107",
+      "stack": "Open5GS + UERANSIM",
+      "result": "nr-binder ping 8.8.8.8: 4/4 received, RTT ~1ms; curl ifconfig.me = 89.125.1.107",
+      "evidence": "plans/EXECUTION_BACKLOG_RC1.1.md (Stream 3 entry)"
+    },
+    "ghost_stealth_transport": {
+      "status": "VERIFIED",
+      "evidence_type": "Live VPS test",
+      "logic": "ChaCha20-Poly1305 + WebRTC Mimicry verified on VPS 89.125.1.107"
+    },
+    "pqc_cryptography": {
+      "status": "VERIFIED",
+      "standard": "NIST FIPS 203/204 (ML-KEM-768, ML-DSA-65)",
+      "tests": "10,000+ PASS"
+    },
+    "zero_trust": {
+      "status": "VERIFIED",
+      "mechanism": "SPIFFE/SPIRE Workload Identity + mTLS"
+    },
+    "supply_chain_provenance": {
+      "status": "VERIFIED",
+      "signing_mode": "ci-keyless (Sigstore OIDC via GitHub Actions)",
+      "ci_run_id": "22822503867",
+      "certificates": "docs/release/provenance/ (7 .crt files committed)",
+      "sbom_formats": ["CycloneDX-JSON", "SPDX-JSON"],
+      "cve_high_critical": 0
+    },
+    "maas_core": {
+      "status": "VERIFIED",
+      "unit_tests": "10,008 PASS",
+      "api_coverage": "billing, ACL, registry, mesh, auth, supply-chain, nodes"
+    },
+    "release_consistency": {
+      "status": "VERIFIED",
+      "tool": "scripts/ops/check_release_consistency.py",
+      "result": "PASSED — RC1 manifest, README, release notes, status page synchronized"
+    }
+  },
+
+  "verified_ci_only": {
+    "rekor_transparency_log": {
+      "status": "VERIFIED IN CI",
+      "note": "Artifact signatures uploaded to public Sigstore Rekor log; indices not captured from run 22822503867",
+      "verification_command": "cosign verify-blob --certificate <artifact>.crt --signature <artifact>.sig --certificate-identity https://github.com/x0tta6bl4-ai/x0tta6bl4/.github/workflows/ebpf-release-signing.yml@refs/heads/release/rc1 --certificate-oidc-issuer https://token.actions.githubusercontent.com <artifact>"
+    },
+    "mttr_chaos_baseline": {
+      "status": "VERIFIED IN CI (synthetic)",
+      "tool": "scripts/ops/mttr_chaos_report.py",
+      "baseline": "MTTD=10.6s, MTTR=52.7s, 10/10 scenarios healed",
+      "slo": "PASS (threshold: MTTR <= 300s)",
+      "note": "Synthetic seed-deterministic simulation; hardware MTTR pending kubectl polling in live cluster"
+    },
+    "go_dataplane_bench": {
+      "status": "VERIFIED IN CI",
+      "tool": "ebpf/prod/bench_test.go",
+      "baseline": "XDP decisions: 99.8M/s; policy render: 2572 ns/op",
+      "note": "Go-level regression gate; hardware PPS gate requires root + pktgen"
+    }
+  },
+
+  "not_claimed": {
+    "pps_1m_plus": "Requires Intel i40e/ixgbe NIC + pktgen under root; Horizon-2 research track",
+    "carrier_grade_5g": "E2E UE session verified on VPS; field trials with hardware eNB/gNB not performed",
+    "24h_soak_test": "Sustained 24h high-load production traffic test not performed; MTTR baseline is synthetic CI-only",
+    "multi_tenant_k8s_cni": "Live K3s/K8s CNI NetworkPolicy validation pending (Stream 3 open item)",
+    "rekor_indices": "Rekor log indices not captured from signing run; re-run CI and query rekor-cli for final attestation record"
+  },
+
+  "open_items": [
+    {
+      "id": "GA-001",
+      "item": "Multi-Tenant NetworkPolicy Validation in live K3s/K8s cluster",
+      "stream": "Stream 3",
+      "blocking": false,
+      "note": "Live iptables/bridge isolation verified on VPS; CNI-level K8s test pending"
+    },
+    {
+      "id": "GA-002",
+      "item": "Rekor log index capture from CI signing run",
+      "stream": "Stream 1",
+      "blocking": false,
+      "note": "Artifacts are signed and in Rekor; indices not stored. Re-run signing workflow to capture."
+    }
+  ],
+
+  "definition_of_done": {
+    "provenance_green": true,
+    "consistency_gate": "PASSED",
+    "ga_manifest_assembled": true,
+    "verified_not_claimed_boundary_documented": true,
+    "ambiguous_performance_claims_removed": true,
+    "release_branch_frozen": "release/rc1"
+  },
+
+  "post_ga_roadmap": {
+    "horizon_2": "XDP_REDIRECT + AF_XDP zero-copy; Intel i40e dual-NIC 1M+ PPS campaign",
+    "rag_knowledge_plane": "Decentralised RAG RFC (docs/rfc/RAG-RFC.md) — after all infra gaps closed"
+  }
+}
