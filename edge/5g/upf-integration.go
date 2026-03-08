@@ -33,6 +33,7 @@ var (
 		Name: "slice_5g_sctp_connection_errors_total",
 		Help: "Total number of SCTP transport errors in 5G signaling",
 	})
+	dialSCTPExt = sctp.DialSCTPExt
 )
 
 type EndpointConfig struct {
@@ -320,6 +321,26 @@ type Open5GSSignaling struct {
 	Timeout time.Duration
 }
 
+func sctpInitMsgForTimeout(timeout time.Duration) sctp.InitMsg {
+	if timeout <= 0 {
+		timeout = 1 * time.Second
+	}
+
+	timeoutMs := timeout.Milliseconds()
+	if timeoutMs <= 0 {
+		timeoutMs = 1
+	}
+	const maxUint16 = int64(^uint16(0))
+	if timeoutMs > maxUint16 {
+		timeoutMs = maxUint16
+	}
+
+	return sctp.InitMsg{
+		NumOstreams:    sctp.SCTP_MAX_STREAM,
+		MaxInitTimeout: uint16(timeoutMs),
+	}
+}
+
 func (s *Open5GSSignaling) EstablishNGAP(ueID string) error {
 	if strings.TrimSpace(s.AMFAddr) == "" {
 		return fmt.Errorf("Open5GSSignaling missing AMF endpoint (NOT VERIFIED)")
@@ -341,7 +362,7 @@ func (s *Open5GSSignaling) EstablishNGAP(ueID string) error {
 	}
 
 	log.Printf("[5G-CORE][SCTP] NGAP: dialing AMF at %s for UE %s", s.AMFAddr, ueID)
-	conn, err := sctp.DialSCTP("sctp", nil, sctpAddr)
+	conn, err := dialSCTPExt("sctp", nil, sctpAddr, sctpInitMsgForTimeout(timeout))
 	if err != nil {
 		SCTPConnErrors.Inc()
 		return fmt.Errorf("SCTP transport failure to AMF (%s): %w", s.AMFAddr, err)
@@ -352,12 +373,12 @@ func (s *Open5GSSignaling) EstablishNGAP(ueID string) error {
 
 // PFCPSessionEstablishmentRequest represents a simplified PFCP session request.
 type PFCPSessionEstablishmentRequest struct {
-	NodeID        string `json:"node_id"`
-	CPSEID        uint64 `json:"cp_seid"`
-	CreatePDR     bool   `json:"create_pdr"`
-	CreateFAR     bool   `json:"create_far"`
-	PDNType       string `json:"pdn_type"`
-	SliceID       string `json:"slice_id"`
+	NodeID    string `json:"node_id"`
+	CPSEID    uint64 `json:"cp_seid"`
+	CreatePDR bool   `json:"create_pdr"`
+	CreateFAR bool   `json:"create_far"`
+	PDNType   string `json:"pdn_type"`
+	SliceID   string `json:"slice_id"`
 }
 
 func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
@@ -385,8 +406,8 @@ func (s *Open5GSSignaling) CreatePFCPSSession(sliceID string) (int64, error) {
 	// PFCP Session Establishment Request (Simplified Header)
 	// Version=1, MP=0, S=1, Type=50 (Session Establishment Request), Length=TBD, SEID=0, Seq=1
 	header := []byte{
-		0x21, // Version=1, MP=0, S=1
-		50,   // Message Type: Session Establishment Request
+		0x21,       // Version=1, MP=0, S=1
+		50,         // Message Type: Session Establishment Request
 		0x00, 0x08, // Length (simplified)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SEID (0 for new session)
 		0x00, 0x00, 0x01, // Sequence Number
