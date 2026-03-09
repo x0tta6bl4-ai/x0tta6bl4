@@ -570,7 +570,11 @@
                     .style("filter", "drop-shadow(0 0 5px #4ade80)");
 
                 node.append("text")
-                    .text(d => d.id.split('-').pop()) // Short ID
+                    .text(d => {
+                        const shortId = d.id.split('-').pop();
+                        const latency = d.telemetry && d.telemetry.latency ? ` (${Math.round(d.telemetry.latency)}ms)` : '';
+                        return `${shortId}${latency}`;
+                    })
                     .attr("x", 12)
                     .attr("y", 4)
                     .style("fill", "#aaa")

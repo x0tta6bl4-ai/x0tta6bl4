@@ -3,6 +3,7 @@ package edge5g
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/cilium/ebpf"
 )
@@ -14,14 +15,21 @@ type BPFStats struct {
 	Forwarded uint64
 }
 
+type LatencyMeasurer interface {
+	MeasureLatency(interfaceName, targetIP string) (time.Duration, error)
+}
+
 type QoSMonitor interface {
 	GetPacketStats() (BPFStats, error)
 	GetEstimatedLatencyMs(ueID string) int64
 }
 
 type EBPFQoSMonitor struct {
-	MapPath string
-	ebpfMap *ebpf.Map
+	MapPath       string
+	ebpfMap       *ebpf.Map
+	Measurer      LatencyMeasurer
+	InterfaceName string
+	TargetIP      string
 }
 
 func estimateLatencyMsFromStats(stats BPFStats) int64 {
@@ -90,7 +98,15 @@ func (m *EBPFQoSMonitor) GetPacketStats() (BPFStats, error) {
 }
 
 func (m *EBPFQoSMonitor) GetEstimatedLatencyMs(ueID string) int64 {
-	// Baseline derived from packet stats activity (simulated bridging logic)
+	// 1. Try real measurement if measurer and interface are provided
+	if m.Measurer != nil && m.InterfaceName != "" && m.TargetIP != "" {
+		latency, err := m.Measurer.MeasureLatency(m.InterfaceName, m.TargetIP)
+		if err == nil {
+			return latency.Milliseconds()
+		}
+	}
+
+	// 2. Fallback to heuristic derived from packet stats
 	stats, err := m.GetPacketStats()
 	if err != nil {
 		return 25 // fallback baseline
