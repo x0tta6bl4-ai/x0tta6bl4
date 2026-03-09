@@ -21,6 +21,7 @@
 - [x] Enterprise B2B Landing Page.
 - [x] Golden Path Deployment Script (`deploy_enterprise_demo.sh`).
 - [x] Multi-tenancy Data & Log isolation.
+- [x] Android CI/CD Automation Suite (AVD & SMS Fallback).
 - [x] **Next:** Tenant Quotas & Rate Limiting Enforcement.
 
 ### Phase 1: Validation (Day 30 - Day 60)
