@@ -107,7 +107,10 @@ def trigger_healing(reason: str):
 
     # Stage 3: run project heal script
     if _healing_attempts_count == 3:
-        heal_script = "/mnt/projects/heal_now.py"
+        import os
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parents[2]
+        heal_script = str(project_root / "heal_now.py")
         if os.path.exists(heal_script):
             subprocess.run(["python3", heal_script], check=False)
 
@@ -133,7 +136,10 @@ def run_daemon():
     logging.info(f"Started monitoring interface {INTERFACE} → target {TEST_TARGET}")
 
     # Ensure heal_now.py exists
-    heal_script = "/mnt/projects/heal_now.py"
+    import os
+    from pathlib import Path
+    project_root = Path(__file__).resolve().parents[2]
+    heal_script = str(project_root / "heal_now.py")
     if not os.path.exists(heal_script):
         with open(heal_script, "w") as f:
             f.write("print('Simulating route rebuild... Done.')\n")

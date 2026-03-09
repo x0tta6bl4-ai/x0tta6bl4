@@ -35,8 +35,19 @@ _LEGACY_FILE = Path(__file__).resolve().parents[2] / "libx0t" / "core" / "app.py
 if _LEGACY_FILE.exists():
     __file__ = str(_LEGACY_FILE)
 
+STATIC_ROOT = Path(
+    os.getenv("X0TTA6BL4_STATIC_ROOT", str(Path(__file__).resolve().parents[2]))
+)
+
 # Choose lifespan based on mode
 is_light_mode = os.getenv("MAAS_LIGHT_MODE", "false").lower() == "true"
+
+
+def _runtime_flag(name: str, default: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 if is_light_mode:
     logger.info("🚀 Starting in LIGHT MODE (Intelligence Engine disabled)")
@@ -224,7 +235,7 @@ register_api_error_handlers(app)
 
 # --- Routes Registration ---
 
-def _include_maas_router(module_path: str, label: str) -> None:
+def _include_maas_router(module_path: str, label: str, optional: bool = False) -> None:
     try:
         module = importlib.import_module(module_path)
         router = getattr(module, "router", None)
@@ -232,7 +243,11 @@ def _include_maas_router(module_path: str, label: str) -> None:
             app.include_router(router)
             logger.info(f"✓ MaaS router registered: {label}")
     except Exception as exc:
-        logger.warning(f"Could not import MaaS router {label}: {exc}")
+        if optional:
+            logger.warning(f"Could not import optional MaaS router {label}: {exc}")
+        else:
+            logger.error(f"❌ CRITICAL: Failed to import required MaaS router {label}: {exc}")
+            raise RuntimeError(f"Failed to import required MaaS router {label}: {exc}") from exc
 
 _include_maas_router("src.api.maas_legacy", "legacy")
 _include_maas_router("src.api.maas_compat", "compat")
@@ -243,8 +258,11 @@ _include_maas_router("src.api.maas_marketplace", "marketplace")
 _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_billing", "billing")
-_include_maas_router("src.api.billing", "billing-api")
+_include_maas_router("src.api.billing", "billing-api", optional=True)
 _include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
+
+if is_light_mode and _runtime_flag("MAAS_ENABLE_USER_API", False):
+    _include_maas_router("src.api.users", "users")
 
 if not is_light_mode:
     _include_maas_router("src.api.maas_nodes", "nodes")
@@ -252,14 +270,18 @@ if not is_light_mode:
     _include_maas_router("src.api.maas_telemetry", "telemetry")
     _include_maas_router("src.api.vpn", "vpn")
     _include_maas_router("src.api.users", "users")
-    _include_maas_router("src.api.swarm", "swarm")
-    _include_maas_router("src.api.ledger_endpoints", "ledger")
-    _include_maas_router("src.api.swarm_endpoints", "swarm-orchestration")
-    _include_maas_router("src.api.vision_endpoints", "vision-analytics")
+    _include_maas_router("src.api.swarm", "swarm", optional=True)
+    _include_maas_router("src.api.ledger_endpoints", "ledger", optional=True)
+    if _runtime_flag("MAAS_ENABLE_SWARM_ORCHESTRATION_API"):
+        _include_maas_router("src.api.swarm_endpoints", "swarm-orchestration", optional=True)
+    if _runtime_flag("MAAS_ENABLE_VISION_ANALYTICS_API"):
+        _include_maas_router("src.api.vision_endpoints", "vision-analytics", optional=True)
 
 _include_maas_router("src.api.maas_dashboard", "dashboard")
-_include_maas_router("src.edge.api", "edge-computing")
-_include_maas_router("src.event_sourcing.api", "event-sourcing")
+if _runtime_flag("MAAS_ENABLE_EDGE_COMPUTING_API"):
+    _include_maas_router("src.edge.api", "edge-computing", optional=True)
+if _runtime_flag("MAAS_ENABLE_EVENT_SOURCING_API"):
+    _include_maas_router("src.event_sourcing.api", "event-sourcing", optional=True)
 
 # --- Basic Endpoints ---
 
@@ -347,18 +369,43 @@ async def root():
     return {"name": "x0tta6bl4", "version": __version__, "docs": "/docs"}
 
 # --- Static UI Routes ---
-def _serve_static_asset(path: str, media_type: str) -> Response:
-    try:
-        content = Path(path).read_bytes()
-        return Response(content=content, media_type=media_type)
-    except Exception:
-        raise HTTPException(status_code=404)
+def _serve_static_asset(path_suffix: str, media_type: str) -> Response:
+    # 1. Try environment variable
+    env_root = os.getenv("PROJECT_ROOT")
+    # 2. Try dynamic relative path
+    dynamic_root = Path(__file__).resolve().parents[2]
+    # 3. Try current working directory
+    cwd_root = Path(os.getcwd())
+    
+    candidates = []
+    if env_root: candidates.append(Path(env_root))
+    candidates.append(dynamic_root)
+    candidates.append(cwd_root)
+    
+    for root in candidates:
+        asset_path = root / path_suffix
+        if not asset_path.exists():
+            asset_path = root / "src" / "web" / path_suffix
+            
+        if asset_path.exists() and asset_path.is_file():
+            try:
+                content = asset_path.read_bytes()
+                # logger.info(f"✓ Serving {path_suffix} from {asset_path}")
+                return Response(content=content, media_type=media_type)
+            except Exception:
+                continue
+                
+    raise HTTPException(status_code=404, detail=f"File {path_suffix} not found")
 
 @app.get("/login.html", include_in_schema=False)
-async def serve_login(): return _serve_static_asset("/mnt/projects/login.html", "text/html")
+async def serve_login(): return _serve_static_asset("login.html", "text/html")
 
 @app.get("/dashboard.html", include_in_schema=False)
-async def serve_dashboard(): return _serve_static_asset("/mnt/projects/dashboard.html", "text/html")
+async def serve_dashboard(): return _serve_static_asset("dashboard.html", "text/html")
+
+@app.get("/index.html", include_in_schema=False)
+async def serve_index(): return _serve_static_asset("index.html", "text/html")
+
 
 if __name__ == "__main__":
     import uvicorn
