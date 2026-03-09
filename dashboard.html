@@ -44,6 +44,7 @@
                 <div class="nav-item active" data-tab="overview" onclick="showTab('overview')">● Overview</div>
                 <div class="nav-item" data-tab="marketplace" onclick="showTab('marketplace')">🛒 Marketplace</div>
                 <div class="nav-item" data-tab="nodes" onclick="showTab('nodes')">🖥 Nodes</div>
+                <div class="nav-item" data-tab="supply-chain" onclick="showTab('supply-chain')">📦 Supply Chain</div>
                 <div class="nav-item" data-tab="billing" onclick="showTab('billing')">💳 Billing</div>
                 <div class="nav-item" data-tab="keys" onclick="showTab('keys')">🔑 API Keys</div>
                 <div class="nav-item" data-tab="audit" onclick="showTab('audit')">📋 Audit Logs</div>
@@ -154,9 +155,47 @@
                     </div>
                 </div>
 
-                <h3>Ожидают одобрения (Pending)</h3>
+                <h3>Активные узлы (Active)</h3>
+                <table class="data-table" id="active-nodes-table">
+                    <thead><tr><th>Node ID</th><th>Class</th><th>Hardware Attestation</th><th>Binary Integrity</th><th>Status</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+
+                <h3 style="margin-top: 40px;">Ожидают одобрения (Pending)</h3>
                 <table class="data-table" id="pending-nodes-table">
                     <thead><tr><th>Node ID</th><th>Class</th><th>Attestation</th><th>Action</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- TAB: SUPPLY CHAIN -->
+            <div id="tab-supply-chain" class="tab-content" style="display:none;">
+                <div class="section-title"><h2>Supply Chain Security: SBOM & Attestation</h2></div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Mesh Integrity</h3>
+                        <div id="supply-mesh-integrity" class="value" style="color: #4ade80;">CLEAN</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Attested Nodes</h3>
+                        <div id="supply-attested-count" class="value">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>SBOM Artifacts</h3>
+                        <div id="supply-sbom-count" class="value">0</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 40px;">Mesh Integrity Report</h3>
+                <div class="glass-card" style="padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+                    <p id="integrity-summary">Загрузка отчета целостности...</p>
+                    <div id="compromised-list" style="color: #ff4444; font-family: monospace; margin-top: 10px;"></div>
+                </div>
+
+                <h3>SBOM Registry (Artifacts)</h3>
+                <table class="data-table" id="sbom-table">
+                    <thead><tr><th>Version</th><th>Format</th><th>Checksum (SHA256)</th><th>Components</th><th>PQC Signature</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -243,7 +282,11 @@
             if (navItem) navItem.classList.add('active');
 
             if (tabName === 'marketplace') loadMarketplace();
-            if (tabName === 'nodes') loadPendingNodes();
+            if (tabName === 'nodes') {
+                loadActiveNodes();
+                loadPendingNodes();
+            }
+            if (tabName === 'supply-chain') loadSupplyChain();
             if (tabName === 'billing') fetchDashboard();
             if (tabName === 'audit') fetchDashboard();
             if (tabName === 'keys') loadApiKeys();
@@ -416,6 +459,84 @@
 
             summaryHealthChart = render(summaryHealthChart, 'healthChartSummary', 'Mesh Health %', healthData, '#4ade80');
             summaryTrafficChart = render(summaryTrafficChart, 'trafficChartSummary', 'Traffic Mbps', trafficData, '#00f2ff');
+        }
+
+        async function loadSupplyChain() {
+            const sbomBody = document.querySelector('#sbom-table tbody');
+            const integritySummary = document.getElementById('integrity-summary');
+            const compromisedList = document.getElementById('compromised-list');
+            
+            try {
+                // 1. Load SBOMs
+                const sbomResp = await fetch('/api/v1/maas/supply-chain/sbom', { headers: { 'X-API-Key': apiKey } });
+                const sboms = await sbomResp.json();
+                document.getElementById('supply-sbom-count').textContent = sboms.length;
+                
+                sbomBody.innerHTML = sboms.map(s => `
+                    <tr>
+                        <td><b>${s.version}</b></td>
+                        <td><span class="status-badge" style="background: #333;">${s.format}</span></td>
+                        <td><code>${s.checksum_sha256.substring(0, 16)}...</code></td>
+                        <td>${s.components.length} items</td>
+                        <td><code>${s.pqc_signature ? s.pqc_signature.substring(0, 12) + '...' : 'N/A'}</code></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="5">Нет зарегистрированных SBOM</td></tr>';
+
+                // 2. Load Mesh Integrity Report
+                const summaryResp = await fetch('/api/v1/maas/dashboard/summary', { headers: { 'X-API-Key': apiKey } });
+                const summary = await summaryResp.json();
+                if (summary.meshes.length > 0) {
+                    const meshId = summary.meshes[0].id;
+                    const reportResp = await fetch(`/api/v1/maas/supply-chain/mesh-attestation-report/${meshId}`, { headers: { 'X-API-Key': apiKey } });
+                    const report = await reportResp.json();
+                    
+                    document.getElementById('supply-mesh-integrity').textContent = report.integrity.toUpperCase();
+                    document.getElementById('supply-mesh-integrity').style.color = report.integrity === 'clean' ? '#4ade80' : '#ff4444';
+                    document.getElementById('supply-attested-count').textContent = report.total_attested;
+                    
+                    integritySummary.textContent = `Verified: ${report.summary.verified}, Mismatch: ${report.summary.mismatch}, Unknown: ${report.summary.unknown}`;
+                    
+                    if (report.compromised_nodes.length > 0) {
+                        compromisedList.innerHTML = '🚨 Compromised Nodes detected:<br>' + report.compromised_nodes.map(id => `- ${id}`).join('<br>');
+                    } else {
+                        compromisedList.innerHTML = '✅ All nodes verified against signed SBOMs.';
+                    }
+                }
+            } catch (e) {
+                console.error("Supply Chain error:", e);
+                sbomBody.innerHTML = '<tr><td colspan="5">Supply chain data unavailable</td></tr>';
+            }
+        }
+
+        async function loadActiveNodes() {
+            const tableBody = document.querySelector('#active-nodes-table tbody');
+            try {
+                const meshesResp = await fetch('/api/v1/maas/dashboard/summary', { headers: { 'X-API-Key': apiKey } });
+                if (!meshesResp.ok) throw new Error(`dashboard summary failed: ${meshesResp.status}`);
+                const summary = await meshesResp.json();
+                if (summary.meshes.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5">Сначала создайте Mesh-сеть</td></tr>';
+                    return;
+                }
+                
+                const meshId = summary.meshes[0].id;
+                const response = await fetch(`/api/v1/maas/dashboard/nodes/${meshId}`, { headers: { 'X-API-Key': apiKey } });
+                if (!response.ok) throw new Error(`active nodes failed: ${response.status}`);
+                const data = await response.json();
+                
+                tableBody.innerHTML = data.nodes.map(node => `
+                    <tr>
+                        <td><code>${node.id}</code></td>
+                        <td>${node.device_class || 'unknown'}</td>
+                        <td><span class="status-badge ${node.attestation.hardware === 'HARDWARE_ROOTED' ? 'status-active' : 'status-offline'}" style="background: ${node.attestation.hardware === 'HARDWARE_ROOTED' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(255, 68, 68, 0.1)'}">${node.attestation.hardware}</span></td>
+                        <td><span class="status-badge ${node.attestation.binary === 'verified' ? 'status-active' : 'status-offline'}" style="background: ${node.attestation.binary === 'verified' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(255, 68, 68, 0.1)'}">${node.attestation.binary.toUpperCase()}</span></td>
+                        <td><span class="status-badge ${node.health === 'healthy' ? 'status-active' : 'status-offline'}">${node.health.toUpperCase()}</span></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="5">Нет активных узлов</td></tr>';
+            } catch (e) {
+                console.error("Active nodes error:", e);
+                tableBody.innerHTML = '<tr><td colspan="5">Active nodes unavailable</td></tr>';
+            }
         }
 
         async function loadPendingNodes() {

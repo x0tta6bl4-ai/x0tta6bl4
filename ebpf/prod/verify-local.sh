@@ -176,4 +176,15 @@ else
   "${LOADER_BIN}" "${loader_args[@]}" --dry-run
 fi
 
+echo "[EXTRA] NIC performance check"
+if command -v ethtool >/dev/null 2>&1; then
+  DRIVER=$(ethtool -i "${IFACE}" 2>/dev/null | grep driver | awk '{print $2}') || DRIVER="unknown"
+  echo "  interface: ${IFACE}"
+  echo "  driver: ${DRIVER}"
+  if [[ "${DRIVER}" == "r8169" ]]; then
+    echo "  ⚠️  WARNING: Realtek r8169 detected. High-speed XDP (8.8M PPS) is NOT possible on this hardware."
+    echo "  ℹ️  ADVICE: Use Intel (i40e/ixgbe) or Mellanox (mlx5_core) for production DePIN nodes."
+  fi
+fi
+
 echo "local eBPF verification completed"

@@ -13,7 +13,7 @@ from typing import Dict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
+from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, NodeBinaryAttestation, get_db
 from src.api.maas_auth import require_permission
 
 logger = logging.getLogger(__name__)
@@ -23,17 +23,32 @@ router = APIRouter(prefix="/api/v1/maas/dashboard", tags=["MaaS Dashboard"])
 _STALE_THRESHOLD_MINUTES = 5
 
 
-def _node_attestation_type(node: MeshNode) -> str:
+def _node_attestation_type(node: MeshNode, db: Session) -> Dict[str, str]:
     """
-    Determine attestation level from stored node metadata.
+    Determine attestation level and binary integrity from stored node metadata.
 
     HARDWARE_ROOTED — node has a registered hardware_id (TPM/HSM) AND
                       enclave_enabled is set in the DB.
     SOFTWARE_ONLY   — all other nodes.
+    
+    Binary integrity is fetched from NodeBinaryAttestation.
     """
-    if node.hardware_id and node.enclave_enabled:
-        return "HARDWARE_ROOTED"
-    return "SOFTWARE_ONLY"
+    hw_level = "HARDWARE_ROOTED" if (node.hardware_id and node.enclave_enabled) else "SOFTWARE_ONLY"
+    
+    # Fetch latest binary attestation
+    binary_status = "unknown"
+    att = db.query(NodeBinaryAttestation).filter(
+        NodeBinaryAttestation.node_id == node.id
+    ).order_by(NodeBinaryAttestation.verified_at.desc()).first()
+    
+    if att:
+        binary_status = att.status
+        
+    return {
+        "hardware": hw_level,
+        "binary": binary_status,
+        "label": f"{hw_level} / {binary_status.upper()}"
+    }
 
 
 def _node_health(node: MeshNode) -> str:
@@ -77,8 +92,13 @@ async def get_dashboard_summary(
         )
         for node in nodes:
             total_nodes += 1
-            att = _node_attestation_type(node)
-            security_stats[att] = security_stats.get(att, 0) + 1
+            att_info = _node_attestation_type(node, db)
+            security_stats[att_info["hardware"]] = security_stats.get(att_info["hardware"], 0) + 1
+            
+            # Count compromised nodes
+            if att_info["binary"] == "mismatch":
+                security_stats["COMPROMISED"] = security_stats.get("COMPROMISED", 0) + 1
+                
             health = _node_health(node)
             health_stats[health] = health_stats.get(health, 0) + 1
 
@@ -232,7 +252,7 @@ async def get_mesh_nodes_summary(
                 "id": node.id,
                 "status": node.status,
                 "device_class": node.device_class,
-                "attestation": _node_attestation_type(node),
+                "attestation": _node_attestation_type(node, db),
                 "health": _node_health(node),
                 "last_seen": node.last_seen,
                 "enclave_enabled": node.enclave_enabled,
