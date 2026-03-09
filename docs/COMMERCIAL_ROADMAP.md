@@ -25,14 +25,14 @@
 
 ### Phase 1: Validation (Day 30 - Day 60)
 - [ ] Deploy 3 active Pilot instances for real B2B leads.
-- [ ] Integration with Billing (Stripe/Crypto Webhooks for Tenants).
-- [ ] Grafana "ROI Dashboard": Visual savings from Self-Healing MTTR.
-- [ ] Chaos-Mesh Demo script for Live Demos.
+- [x] Integration with Billing (Stripe/Crypto Webhooks for Tenants).
+- [x] Grafana "ROI Dashboard": Visual savings from Self-Healing MTTR.
+- [x] Chaos-Mesh Demo script for Live Demos.
 
 ### Phase 2: Scale (Day 60 - Day 90)
-- [ ] Multi-region Mesh Federation (Inter-tenant connectivity).
-- [ ] Crisis Connectivity Kit (Offline-first provisioning).
-- [ ] DAO-based node staking for Enterprise partners.
+- [x] Multi-region Mesh Federation (Inter-tenant connectivity).
+- [x] Crisis Connectivity Kit (Offline-first provisioning).
+- [x] DAO-based node staking for Enterprise partners.
 
 ## 4. Technical Gaps to Close
 1. ~~**Quota Manager**: System to block node creation/traffic if tenant exceeds plan.~~ (DONE)

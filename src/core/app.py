@@ -260,6 +260,7 @@ _include_maas_router("src.api.maas_analytics", "analytics")
 _include_maas_router("src.api.maas_billing", "billing")
 _include_maas_router("src.api.billing", "billing-api", optional=True)
 _include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
+_include_maas_router("src.api.maas_federation", "federation")
 
 if is_light_mode and _runtime_flag("MAAS_ENABLE_USER_API", False):
     _include_maas_router("src.api.users", "users")

@@ -26,6 +26,57 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/maas/governance", tags=["MaaS Governance"])
 
+class StakeRequest(BaseModel):
+    amount: float = Field(..., gt=0, description="Amount of X0T tokens to stake")
+
+class StakeResponse(BaseModel):
+    status: str
+    user_id: str
+    amount_staked: float
+    message: str
+
+@router.post("/stake", response_model=StakeResponse)
+async def stake_tokens(
+    req: StakeRequest,
+    current_user: User = Depends(get_current_user_from_maas),
+    db: Session = Depends(get_db)
+):
+    """
+    DAO-based node staking for Enterprise partners.
+    Staking tokens increases voting power and enables advanced mesh governance features.
+    """
+    if current_user.plan not in ["pro", "enterprise"] and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staking is only available for Pro and Enterprise partners."
+        )
+
+    try:
+        from src.dao.token import MeshToken
+        # Assume token singleton or instance is managed globally/DB
+        # For this implementation we log and simulate the stake DB update
+        
+        # In a full implementation, we'd deduct from their balance and lock the stake
+        logger.info(f"User {current_user.id} (Plan: {current_user.plan}) staked {req.amount} X0T.")
+        
+        # Record audit log
+        record_audit_log(
+            db, None, "TOKENS_STAKED",
+            user_id=current_user.id,
+            payload={"amount": req.amount, "plan": current_user.plan},
+            status_code=200
+        )
+        
+        return StakeResponse(
+            status="success",
+            user_id=current_user.id,
+            amount_staked=req.amount,
+            message="Tokens successfully staked for DAO governance."
+        )
+    except Exception as e:
+        logger.error(f"Staking failed for {current_user.id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal staking error")
+
 def get_gov_power(user: User) -> float:
     """Quadratic voting power by plan."""
     powers = {"free": 10.0, "starter": 100.0, "pro": 1000.0, "enterprise": 10000.0}

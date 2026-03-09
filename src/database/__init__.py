@@ -111,6 +111,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, index=True)
+    tenant_id = Column(String, default="default", index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
@@ -137,6 +138,7 @@ class MeshInstance(Base):
     """Main mesh network metadata."""
     __tablename__ = "mesh_instances"
     id = Column(String, primary_key=True) # mesh_id
+    tenant_id = Column(String, default="default", index=True, nullable=False)
     name = Column(String)
     owner_id = Column(String, ForeignKey("users.id"), index=True)
     plan = Column(String)
@@ -149,6 +151,16 @@ class MeshInstance(Base):
     join_token = Column(String)
     join_token_expires_at = Column(DateTime)
     status = Column(String, default="active", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class MeshFederation(Base):
+    """Multi-region/Inter-tenant Mesh Federation Links."""
+    __tablename__ = "mesh_federations"
+    id = Column(String, primary_key=True) # federation_id
+    source_mesh_id = Column(String, ForeignKey("mesh_instances.id"), index=True)
+    target_mesh_id = Column(String, ForeignKey("mesh_instances.id"), index=True)
+    status = Column(String, default="pending") # pending, active, revoked
+    policy = Column(String, default="allow_all") # allow_all, strict, custom
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -167,6 +179,7 @@ class MeshNode(Base):
     """Metadata for approved nodes in a mesh."""
     __tablename__ = "mesh_nodes"
     id = Column(String, primary_key=True)
+    tenant_id = Column(String, default="default", index=True, nullable=False)
     mesh_id = Column(String, index=True)
     device_class = Column(String)
     status = Column(String, default="healthy")
@@ -182,6 +195,7 @@ class MarketplaceListing(Base):
     """P2P infrastructure listings."""
     __tablename__ = "marketplace_listings"
     id = Column(String, primary_key=True)
+    tenant_id = Column(String, default="default", index=True, nullable=False)
     owner_id = Column(String, ForeignKey("users.id"), index=True)
     node_id = Column(String, unique=True)
     region = Column(String, index=True)
@@ -397,6 +411,7 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(String, default="default", index=True, nullable=False)
     user_id = Column(String, ForeignKey("users.id"), index=True, nullable=True)
     action = Column(String, index=True, nullable=False)  # e.g., "create_mesh", "update_policy"
     method = Column(String, nullable=False)  # GET, POST, etc.
