@@ -125,32 +125,33 @@
 
 ## 🟡 ОСТАВШИЕСЯ УЛУЧШЕНИЯ (P2)
 
-### 2.1 Документация API
+### 2.1 Документация API - ✅ ИСПРАВЛЕНО
 
 **Трудозатраты:** 8-16 часов
 
 **Задачи:**
-- [ ] OpenAPI спецификация для новых модулей
-- [ ] Интерактивные примеры
-- [ ] Troubleshooting guide
+- [x] OpenAPI спецификация для новых модулей (`docs/api/openapi.json`)
+- [x] Интерактивные примеры (`docs/api/INTERACTIVE_EXAMPLES.md`)
+- [x] Troubleshooting guide (`docs/TROUBLESHOOTING.md`)
+- [x] Architecture diagrams (`docs/architecture/ARCHITECTURE_DIAGRAMS.md`)
 
-### 2.2 Performance Optimization
-
-**Трудозатраты:** 16-24 часа
-
-**Задачи:**
-- [ ] Benchmarking для Edge Computing
-- [ ] Latency optimization для Event Sourcing
-- [ ] Memory profiling для LLM Gateway
-
-### 2.3 Integration Tests
+### 2.2 Performance Optimization - ✅ ИСПРАВЛЕНО
 
 **Трудозатраты:** 16-24 часа
 
 **Задачи:**
-- [ ] End-to-end тесты для новых модулей
-- [ ] Chaos engineering тесты
-- [ ] Load testing
+- [x] Benchmarking для Edge Computing (`scripts/ops/bench_maas_api.py`)
+- [x] Latency optimization для Event Sourcing (Integrated in Go Agent)
+- [x] Memory profiling для LLM Gateway
+
+### 2.3 Integration Tests - ✅ ИСПРАВЛЕНО
+
+**Трудозатраты:** 16-24 часа
+
+**Задачи:**
+- [x] End-to-end тесты для новых модулей
+- [x] Chaos engineering тесты (`tests/integration/test_chaos_healing.py`)
+- [x] Load testing (`scripts/ops/bench_maas_api.py`)
 
 ---
 
@@ -166,14 +167,14 @@
 | TD-006 | CRDT scaffold | 🔴 Каркас | ✅ Production | ИСПРАВЛЕНО |
 | TD-007 | Advanced ML | 🔴 Каркасы | ✅ Production | ИСПРАВЛЕНО |
 | TD-008 | DAO integration | 🔴 Минимальная | ✅ Полная | ИСПРАВЛЕНО |
-| TD-009 | API документация | 🟡 Неполная | 🟡 В процессе | P2 |
-| TD-010 | Performance tests | 🟡 Нет | 🟡 В процессе | P2 |
+| TD-009 | API документация | 🟡 Неполная | ✅ Готово | ИСПРАВЛЕНО |
+| TD-010 | Performance tests | 🟡 Нет | ✅ Готово | ИСПРАВЛЕНО |
 
 ---
 
 ## 🗓️ ОБНОВЛЁННАЯ ДОРОЖНАЯ КАРТА
 
-### Спринт 1: Финализация документации (Неделя 1-2)
+### Спринт 1: Финализация документации (Неделя 1-2) - ✅ ВЫПОЛНЕНО
 
 | Задача | Трудозатраты | Критерий приёмки |
 |--------|--------------|------------------|
@@ -181,7 +182,7 @@
 | Troubleshooting guide | 4ч | Документ создан |
 | Architecture diagrams | 8ч | Диаграммы актуальны |
 
-### Спринт 2: Performance & Testing (Неделя 3-4)
+### Спринт 2: Performance & Testing (Неделя 3-4) - ✅ ВЫПОЛНЕНО
 
 | Задача | Трудозатраты | Критерий приёмки |
 |--------|--------------|------------------|
