@@ -77,6 +77,23 @@ async def deploy_mesh(
     current_user: User = Depends(get_current_user_from_maas),
     db: Session = Depends(get_db)
 ):
+    # Tenant Quota Enforcement
+    from src.services.tenant_quota_service import TenantQuotaService
+    quota_service = TenantQuotaService(db)
+    tenant_id = getattr(current_user, "tenant_id", current_user.id)
+    
+    plan = quota_service._get_tenant_plan(tenant_id)
+    from src.services.tenant_quota_service import PLAN_LIMITS
+    limit = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_nodes"]
+    
+    current_count = db.query(MeshNode).filter(MeshNode.tenant_id == tenant_id).count()
+    if current_count + req.nodes > limit:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Node quota exceeded. Creating this mesh would exceed your limit of {limit} nodes."
+        )
+
     mesh_id = f"mesh-{uuid.uuid4().hex[:8]}"
     join_token = secrets.token_urlsafe(32)
     

@@ -441,6 +441,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             user.plan = plan
             user.stripe_subscription_id = subscription_id
 
+            # Sync plan with Tenant Quota Service
+            from src.services.tenant_quota_service import TenantQuotaService
+            quota_service = TenantQuotaService(db)
+            quota_service.update_tenant_plan(user.tenant_id or user.id, plan)
+
             # Stripe amounts are in cents
             try:
                 amount_total = int(session.get('amount_total', 4900))
@@ -539,6 +544,14 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         if user:
             user.plan = "free"
             user.stripe_subscription_id = None
+            
+            instances = db.query(MeshInstance).filter(MeshInstance.owner_id == user.id).all()
+            for inst in instances:
+                inst.plan = "free"
+                if inst.status == "active":
+                    inst.status = "suspended"
+                    logger.warning(f"Suspended mesh instance {inst.id} due to subscription cancellation")
+            
             db.commit()
             record_audit_log(
                 db, request, "SUBSCRIPTION_CANCELLED",
@@ -546,6 +559,34 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 payload={"sub_id": subscription.get('id')},
                 status_code=200
             )
+
+    elif event_type == 'invoice.payment_failed':
+        invoice = data_object
+        customer_id = invoice.get('customer')
+        attempt_count = invoice.get('attempt_count', 1)
+        
+        logger.warning(f"Payment failed for customer {customer_id}, attempt {attempt_count}")
+        
+        if attempt_count >= 3:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if user:
+                logger.warning(f"Downgrading user {user.id} to free plan due to repeated payment failures")
+                user.plan = "free"
+                
+                instances = db.query(MeshInstance).filter(MeshInstance.owner_id == user.id).all()
+                for inst in instances:
+                    inst.plan = "free"
+                    if inst.status == "active":
+                        inst.status = "suspended"
+                        logger.warning(f"Suspended mesh instance {inst.id} due to payment failure")
+                        
+                db.commit()
+                record_audit_log(
+                    db, request, "SUBSCRIPTION_DOWNGRADED",
+                    user_id=user.id,
+                    payload={"invoice_id": invoice.get('id'), "reason": "payment_failed"},
+                    status_code=200
+                )
 
     return {"status": "success"}
 

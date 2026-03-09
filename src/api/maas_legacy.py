@@ -1249,7 +1249,26 @@ async def deploy_mesh(
     db: Session = Depends(get_db),
 ):
     """Deploy a PQC-secured mesh network."""
-    # Check quota
+    # Tenant Quota Enforcement
+    from src.services.tenant_quota_service import TenantQuotaService
+    quota_service = TenantQuotaService(db)
+    tenant_id = getattr(current_user, "tenant_id", current_user.id)
+    
+    # We check if there's enough room for `req.nodes` nodes
+    # For now check_node_quota checks against adding 1, let's manually check for N
+    plan = quota_service._get_tenant_plan(tenant_id)
+    from src.services.tenant_quota_service import PLAN_LIMITS
+    limit = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_nodes"]
+    
+    from src.database import MeshNode
+    current_count = db.query(MeshNode).filter(MeshNode.tenant_id == tenant_id).count()
+    if current_count + req.nodes > limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Node quota exceeded. Creating this mesh would exceed your limit of {limit} nodes."
+        )
+
+    # Legacy Check quota
     try:
         billing_service.check_quota(
             current_user,

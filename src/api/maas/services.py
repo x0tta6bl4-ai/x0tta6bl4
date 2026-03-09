@@ -810,6 +810,34 @@ class BillingService:
             f"Payment failed for customer {customer_id}, attempt {attempt}"
         )
 
+        if attempt >= 3:
+            from src.database import SessionLocal, User, MeshInstance
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+                if user:
+                    logger.warning(f"Downgrading user {user.id} to free plan due to repeated payment failures")
+                    user.plan = "free"
+                    
+                    instances = db.query(MeshInstance).filter(MeshInstance.owner_id == user.id).all()
+                    for inst in instances:
+                        inst.plan = "free"
+                        if inst.status == "active":
+                            inst.status = "suspended"
+                            logger.warning(f"Suspended mesh instance {inst.id} due to payment failure")
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Failed to process payment failure downgrade for {customer_id}: {e}")
+            finally:
+                db.close()
+                
+            return {
+                "status": "processed",
+                "action": "subscription_downgraded",
+                "customer_id": customer_id,
+            }
+
         # Could trigger dunning email, grace period, etc.
         return {
             "status": "processed",

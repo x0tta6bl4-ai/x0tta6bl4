@@ -128,6 +128,26 @@ async def deploy_mesh(
 
     Requires authentication. Plan limits apply to node count.
     """
+    # Tenant Quota Enforcement
+    from src.services.tenant_quota_service import TenantQuotaService
+    quota_service = TenantQuotaService(db)
+    # user_id is the proxy for tenant_id in UserContext, unless tenant_id is available
+    tenant_id = getattr(user, "tenant_id", user.user_id)
+    
+    plan = quota_service._get_tenant_plan(tenant_id)
+    from src.services.tenant_quota_service import PLAN_LIMITS
+    limit = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_nodes"]
+    
+    from src.database import MeshNode
+    current_count = db.query(MeshNode).filter(MeshNode.tenant_id == tenant_id).count()
+    
+    if current_count + request.nodes > limit:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Node quota exceeded. Creating this mesh would exceed your limit of {limit} nodes."
+        )
+
     provisioner = get_provisioner()
 
     try:
