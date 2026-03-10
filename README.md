@@ -1,7 +1,7 @@
 # x0tta6bl4
 
 [![CI](https://github.com/x0tta6bl4/x0tta6bl4/actions/workflows/ci.yml/badge.svg)](https://github.com/x0tta6bl4/x0tta6bl4/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-71.15%25-green)](./tests/)
+[![Coverage](https://img.shields.io/badge/coverage-5.41%25-red)](./tests/)
 [![Security](https://img.shields.io/badge/security-0%20CVE-brightgreen)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)

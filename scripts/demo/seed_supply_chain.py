@@ -10,13 +10,14 @@ import json
 import uuid
 from datetime import datetime, timedelta
 
-# Add src to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
+# Add project root to sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(0, project_root)
 
 try:
     from src.database import SessionLocal, SBOMEntry, NodeBinaryAttestation, MeshNode, User
 except ImportError as e:
-    print(f"Error importing database models: {e}")
+    print(f"Error importing database models (Root: {project_root}): {e}")
     sys.exit(1)
 
 def seed_data():

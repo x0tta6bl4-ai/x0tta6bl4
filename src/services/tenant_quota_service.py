@@ -46,6 +46,8 @@ class TenantQuotaService:
         
         current_count = self.db.query(MeshNode).filter(MeshNode.tenant_id == tenant_id).count()
         
+        logger.info(f"Quota check for tenant {tenant_id}: current={current_count}, limit={limit}, plan={plan}")
+        
         if current_count >= limit:
             logger.warning(f"Tenant {tenant_id} reached node quota ({current_count}/{limit}) for plan '{plan}'")
             return False

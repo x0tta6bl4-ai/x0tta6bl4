@@ -1532,6 +1532,22 @@ async def register_node(
     enrollment_mode = "mesh_join_token"
     node_id = requested_node_id
 
+    # --- Tenant Quota Enforcement ---
+    from src.services.tenant_quota_service import TenantQuotaService
+    from src.database import SessionLocal, User, MeshNode
+    
+    with SessionLocal() as db:
+        tenant_id = instance.owner_id
+        quota_service = TenantQuotaService(db)
+        
+        # Check if this tenant can add more nodes
+        if not quota_service.check_node_quota(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Node quota exceeded for your current plan. Please upgrade to add more nodes."
+            )
+    # --------------------------------
+
     if req.enrollment_token == instance.join_token:
         if _is_join_token_expired(instance):
             raise HTTPException(
@@ -1631,6 +1647,19 @@ async def approve_node(
         if mesh_id not in _pending_nodes or node_id not in _pending_nodes[mesh_id]:
             raise HTTPException(status_code=404, detail="Pending node not found")
         
+        # --- Tenant Quota Enforcement (on Approval) ---
+        from src.services.tenant_quota_service import TenantQuotaService
+        from src.database import SessionLocal
+        with SessionLocal() as db:
+            tenant_id = instance.owner_id
+            quota_service = TenantQuotaService(db)
+            if not quota_service.check_node_quota(tenant_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Node quota exceeded. Upgrade your plan to approve more nodes."
+                )
+        # -----------------------------------------------
+
         node_data = _pending_nodes[mesh_id].pop(node_id)
         signed_join_token = token_signer.sign_token(instance.join_token, mesh_id)
 
