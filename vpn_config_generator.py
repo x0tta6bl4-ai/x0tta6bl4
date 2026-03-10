@@ -74,9 +74,9 @@ ROTATING_SPIDERX_OPTIONS = [
 
 # Default Reality parameters (stable by default, optional rotation via env)
 ENABLE_OBFUSCATION_ROTATION = os.getenv("VPN_ROTATE_OBFUSCATION", "false").lower() == "true"
-REALITY_SNI = os.getenv("REALITY_SNI", "google.com")
-REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "6b")
-REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "chrome")
+REALITY_SNI = os.getenv("REALITY_SNI", "eh.vk.com")
+REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "b2c4")
+REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "qq")
 REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
 
 
@@ -284,7 +284,7 @@ class XUIAPIClient:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            db_path = os.getenv("XUI_DB_PATH", "/usr/local/x-ui/x-ui.db")
+            db_path = os.getenv("XUI_DB_PATH", "/etc/x-ui/x-ui.db")
         self.db_path = db_path
         self._ensure_db_exists()
 
@@ -359,9 +359,17 @@ class XUIAPIClient:
             reality_settings = stream_settings.get("realitySettings", {})
             reality_settings["privateKey"] = new_priv
             
-            # Also update shortIds
+            # Append new shortId to the existing list instead of overwriting (Safety Fix)
+            current_short_ids = reality_settings.get("shortIds", [])
             new_short_id = os.urandom(4).hex()
-            reality_settings["shortIds"] = [new_short_id]
+            
+            if new_short_id not in current_short_ids:
+                current_short_ids.append(new_short_id)
+                # Keep list reasonable size (e.g. max 50)
+                if len(current_short_ids) > 50:
+                    current_short_ids.pop(0) # Remove oldest
+            
+            reality_settings["shortIds"] = current_short_ids
             
             stream_settings["realitySettings"] = reality_settings
             
