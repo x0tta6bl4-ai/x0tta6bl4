@@ -16,6 +16,14 @@ from src.core.app import app
 from src.api.maas_auth import get_current_user_from_maas, require_permission
 
 
+@pytest.fixture(autouse=True)
+def _clean_overrides():
+    """Reset dependency overrides before/after each test."""
+    app.dependency_overrides.clear()
+    yield
+    app.dependency_overrides.clear()
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

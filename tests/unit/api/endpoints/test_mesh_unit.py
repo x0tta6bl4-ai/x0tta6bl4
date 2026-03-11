@@ -51,9 +51,14 @@ async def test_deploy_mesh_persists_mesh_instance_to_db(monkeypatch):
     instance = _build_instance(mesh_id=mesh_id, owner_id="owner-1", nodes=7)
     monkeypatch.setattr(mod, "get_provisioner", lambda: _Provisioner(instance))
 
+    # Bypass tenant quota enforcement for unit test
+    from src.services.tenant_quota_service import TenantQuotaService
+    monkeypatch.setattr(TenantQuotaService, "_get_tenant_plan", lambda self, tid: "enterprise")
+
     request = MeshDeployRequest(name="mesh-unit", nodes=7, billing_plan="pro")
     user = UserContext(user_id="owner-1", plan="pro")
     db = MagicMock()
+    db.query.return_value.filter.return_value.count.return_value = 0
 
     response = await mod.deploy_mesh(request, user, db)
 
@@ -591,9 +596,13 @@ async def test_deploy_mesh_db_failure_rolls_back_registry_and_returns_http_500(m
     async with _registry_lock:
         _mesh_registry[mesh_id] = instance
 
+    from src.services.tenant_quota_service import TenantQuotaService
+    monkeypatch.setattr(TenantQuotaService, "_get_tenant_plan", lambda self, tid: "enterprise")
+
     request = MeshDeployRequest(name="mesh-unit-fail", nodes=3, billing_plan="pro")
     user = UserContext(user_id="owner-2", plan="pro")
     db = MagicMock()
+    db.query.return_value.filter.return_value.count.return_value = 0
     db.commit.side_effect = RuntimeError("db write failed")
 
     with pytest.raises(HTTPException) as exc:

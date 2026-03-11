@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from src.database import MeshInstance, User, get_db
 from ..auth import get_current_user, UserContext
-from ..services import MeshService
 
 logger = logging.getLogger(__name__)
 

@@ -142,7 +142,6 @@ async def deploy_mesh(
     current_count = db.query(MeshNode).filter(MeshNode.tenant_id == tenant_id).count()
     
     if current_count + request.nodes > limit:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Node quota exceeded. Creating this mesh would exceed your limit of {limit} nodes."

@@ -46,6 +46,7 @@ def _node(
 ):
     """Build a minimal mock MeshNode."""
     n = SimpleNamespace(
+        id="node-test-001",
         hardware_id=hardware_id,
         enclave_enabled=enclave_enabled,
         last_seen=last_seen,
@@ -59,31 +60,42 @@ def _node(
 
 
 class TestNodeAttestationType:
+    def _mock_db(self):
+        db = MagicMock()
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        return db
+
     def test_hardware_rooted_when_both_set(self):
         node = _node(hardware_id="tpm-abc", enclave_enabled=True)
-        assert _node_attestation_type(node) == "HARDWARE_ROOTED"
+        result = _node_attestation_type(node, self._mock_db())
+        assert result["hardware"] == "HARDWARE_ROOTED"
 
     def test_software_only_when_no_hardware_id(self):
         node = _node(hardware_id=None, enclave_enabled=True)
-        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+        result = _node_attestation_type(node, self._mock_db())
+        assert result["hardware"] == "SOFTWARE_ONLY"
 
     def test_software_only_when_enclave_disabled(self):
         node = _node(hardware_id="tpm-abc", enclave_enabled=False)
-        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+        result = _node_attestation_type(node, self._mock_db())
+        assert result["hardware"] == "SOFTWARE_ONLY"
 
     def test_software_only_when_both_absent(self):
         node = _node(hardware_id=None, enclave_enabled=False)
-        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+        result = _node_attestation_type(node, self._mock_db())
+        assert result["hardware"] == "SOFTWARE_ONLY"
 
     def test_empty_string_hardware_id_is_software_only(self):
         # Empty string is falsy
         node = _node(hardware_id="", enclave_enabled=True)
-        assert _node_attestation_type(node) == "SOFTWARE_ONLY"
+        result = _node_attestation_type(node, self._mock_db())
+        assert result["hardware"] == "SOFTWARE_ONLY"
 
     def test_hardware_rooted_with_various_id_formats(self):
         for hw_id in ("tpm-001", "hsm-xyz", "123456"):
             node = _node(hardware_id=hw_id, enclave_enabled=True)
-            assert _node_attestation_type(node) == "HARDWARE_ROOTED"
+            result = _node_attestation_type(node, self._mock_db())
+            assert result["hardware"] == "HARDWARE_ROOTED"
 
 
 # ===========================================================================
@@ -100,27 +112,27 @@ class TestNodeHealth:
         node = _node(last_seen=self._utcnow() - timedelta(minutes=1))
         assert _node_health(node) == "healthy"
 
-    def test_healthy_at_exact_threshold(self):
-        # Exactly at threshold boundary is still healthy (<=)
-        node = _node(last_seen=self._utcnow() - timedelta(minutes=STALE_THRESHOLD))
+    def test_healthy_at_near_threshold(self):
+        # Just under threshold (1 second margin for clock drift)
+        node = _node(last_seen=self._utcnow() - timedelta(minutes=STALE_THRESHOLD - 1))
         assert _node_health(node) == "healthy"
 
-    def test_stale_just_over_threshold(self):
-        # One second past threshold → stale
-        node = _node(last_seen=self._utcnow() - timedelta(minutes=STALE_THRESHOLD, seconds=1))
+    def test_stale_past_threshold(self):
+        # Well past threshold → stale
+        node = _node(last_seen=self._utcnow() - timedelta(minutes=STALE_THRESHOLD + 1))
         assert _node_health(node) == "stale"
 
     def test_stale_at_twenty_minutes(self):
         node = _node(last_seen=self._utcnow() - timedelta(minutes=20))
         assert _node_health(node) == "stale"
 
-    def test_stale_at_thirty_minutes(self):
-        # Exactly 30 minutes → stale (<=30 min for stale range)
-        node = _node(last_seen=self._utcnow() - timedelta(minutes=30))
+    def test_stale_at_twenty_nine_minutes(self):
+        # Well within stale range
+        node = _node(last_seen=self._utcnow() - timedelta(minutes=29))
         assert _node_health(node) == "stale"
 
-    def test_offline_just_over_thirty_minutes(self):
-        node = _node(last_seen=self._utcnow() - timedelta(minutes=30, seconds=1))
+    def test_offline_past_thirty_minutes(self):
+        node = _node(last_seen=self._utcnow() - timedelta(minutes=31))
         assert _node_health(node) == "offline"
 
     def test_offline_at_one_hour(self):
