@@ -4,9 +4,13 @@ PQC Adapter - liboqs Python bindings wrapper.
 Provides unified interface to liboqs library for post-quantum cryptography.
 """
 import logging
+import os
 from typing import Tuple, Optional, List
 
 logger = logging.getLogger(__name__)
+
+# Prevent oqs from attempting auto-install (which can hang on git clone)
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
 
 # Global availability flag
 _LIBOQS_AVAILABLE: Optional[bool] = None

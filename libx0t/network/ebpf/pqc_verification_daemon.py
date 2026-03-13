@@ -34,6 +34,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Prevent oqs from attempting auto-install (which can hang on git clone)
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
 # Try to import BCC
 try:
     from bcc import BPF

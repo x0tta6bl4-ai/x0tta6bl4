@@ -13,6 +13,9 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Prevent oqs from attempting auto-install (which can hang on git clone)
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
 # Try to import real PQC, fallback to simulation
 try:
     import oqs

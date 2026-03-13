@@ -13,6 +13,9 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# Prevent oqs from attempting auto-install (which can hang on git clone)
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
 PRODUCTION_MODE = os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true"
 
 
