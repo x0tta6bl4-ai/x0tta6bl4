@@ -11,7 +11,7 @@ anyio==4.12.1
 async-generator==1.10
 asyncio-mqtt==0.16.2
 attrs==25.4.0
-Authlib==1.6.6
+Authlib==1.6.7
 autopep8==2.3.2
 bandit==1.8.6
 base58==2.1.1
@@ -20,6 +20,7 @@ bitarray==3.8.0
 black==25.9.0
 blake3==1.0.8
 boolean.py==5.0
+brotli==1.2.0
 CacheControl==0.14.4
 certifi==2026.1.4
 cffi==2.0.0
@@ -53,6 +54,7 @@ exit-codes==1.3.0
 fastapi==0.128.5
 filelock==3.24.2
 flake8==7.3.0
+flask==3.1.3
 flwr==1.25.0
 frozenlist==1.8.0
 fsspec==2026.2.0
@@ -142,6 +144,7 @@ parsimonious==0.10.0
 parso==0.8.5
 passlib==1.7.4
 pathspec==1.0.3
+peft==0.11.1
 pem==23.1.0
 pillow==12.1.1
 pip-api==0.0.34
@@ -245,8 +248,10 @@ varint==1.0.2
 virtualenv==20.36.1
 web3==7.14.0
 websockets==15.0.1
+werkzeug==3.1.6
 wheel==0.46.3
 wrapt==2.0.1
 yarl==1.22.0
 yattag==1.16.1
+yt-dlp==2026.2.21
 zipp==3.23.0
