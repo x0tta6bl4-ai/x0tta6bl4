@@ -20,15 +20,15 @@ authors = [
 # Core dependencies based on requirements.txt and consolidated file
 dependencies = [
     "fastapi>=0.119.1",
-    "uvicorn==0.41.0",
-    "starlette==0.52.1",
+    "uvicorn==0.42.0",
+    "starlette==1.0.0",
     "pydantic==2.12.5",
-    "python-dotenv==1.2.1",
+    "python-dotenv==1.2.2",
     "httpx==0.28.1",
-    "requests==2.32.5",
-    "cryptography==46.0.5",
-    "torch==2.10.0",
-    "PyJWT==2.11.0",
+    "requests==2.33.0",
+    "cryptography==46.0.6",
+    "torch==2.11.0",
+    "PyJWT==2.12.1",
     "bcrypt==5.0.0",
     "pyyaml==6.0.3",
     "click==8.3.1",
@@ -37,7 +37,7 @@ dependencies = [
     "structlog==25.5.0",
     "orjson==3.11.7",
     "passlib==1.7.4",
-    "redis==7.2.0",
+    "redis==7.4.0",
     "slowapi==0.1.9",
     "networkx==3.4.2",
     "aiofiles==25.1.0",
@@ -45,8 +45,8 @@ dependencies = [
     "asyncio-mqtt==0.16.2",
     "python-multipart>=0.0.22",
     "python-dateutil==2.9.0.post0",
-    "pytz==2025.2",
-    "sse-starlette==3.2.0",
+    "pytz==2026.1.post1",
+    "sse-starlette==3.3.3",
     "urllib3>=2.6.3",
     "psycopg2-binary==2.9.11",
     "alembic==1.18.4",
@@ -68,14 +68,14 @@ dependencies = [
 [project.optional-dependencies]
 # Dependencies for development, testing, and CI
 dev = [
-    "black==26.1.0",
+    "black==26.3.1",
     "flake8==7.3.0",
     "mypy==1.19.1",
     "pytest==9.0.2",
     "pytest-asyncio==1.3.0",
-    "pytest-cov==7.0.0",
+    "pytest-cov==7.1.0",
     "pytest-benchmark==5.2.3",
-    "bandit==1.9.3",
+    "bandit==1.9.4",
     "safety==3.7.0",
     "pre-commit==4.5.1",
     "ruff", # From roadmap
@@ -92,19 +92,19 @@ ml = [
     "pandas==2.3.3",
     "scikit-learn==1.7.2",
     "scipy==1.16.2",
-    "sentence-transformers==5.2.3",
+    "sentence-transformers==5.3.0",
     "torch-geometric==2.7.0",
-    "transformers==5.2.0",
+    "transformers==5.4.0",
     "joblib==1.5.3",
-    "nltk==3.9.3",
+    "nltk==3.9.4",
     "matplotlib==3.10.8",
     "seaborn==0.13.2",
-    "plotly==6.5.2",
+    "plotly==6.6.0",
 ]
 
 # Optional local CPU LLM runtime (installed explicitly)
 local-llm = [
-    "llama-cpp-python==0.3.16",
+    "llama-cpp-python==0.3.19",
 ]
 
 # Dependencies for LoRA / PEFT
@@ -115,10 +115,10 @@ lora = [
 # Dependencies for monitoring and observability
 monitoring = [
     "prometheus-client==0.24.1",
-    "opentelemetry-api==1.39.1",
-    "opentelemetry-sdk==1.39.1",
-    "opentelemetry-exporter-otlp-proto-grpc==1.39.1",
-    "opentelemetry-semantic-conventions==0.60b1",
+    "opentelemetry-api==1.40.0",
+    "opentelemetry-sdk==1.40.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
+    "opentelemetry-semantic-conventions==0.61b0",
 ]
 
 # Dependencies for Telegram bots
