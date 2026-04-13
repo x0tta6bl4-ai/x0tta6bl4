@@ -49,7 +49,7 @@ jobs:
       uses: azure/setup-kubectl@v4
     
     - name: Set up Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v5
     
     - name: Configure kubectl
       run: |
@@ -102,7 +102,7 @@ jobs:
       uses: azure/setup-kubectl@v4
     
     - name: Set up Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v5
     
     - name: Configure kubectl
       run: |
@@ -136,7 +136,7 @@ jobs:
       uses: azure/setup-kubectl@v4
     
     - name: Set up Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v5
     
     - name: Configure kubectl
       run: |
