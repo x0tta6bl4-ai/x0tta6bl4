@@ -279,7 +279,7 @@ jobs:
           tar -czf x0tta6bl4-ebpf-${{ github.sha }}.tar.gz -C release .
       
       - name: Upload to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: x0tta6bl4-ebpf-*.tar.gz
