@@ -46,12 +46,12 @@ backend, and a small canary set on SPB. Actual deployed topology diverges:
 
 | Item | Original plan | Actual state |
 |---|---|---|
-| NL beta inbound `2443/tcp` | required | **not listening** (never deployed) |
-| `ghost-access-nl-beta.service` | preferred | **does not exist** |
+| NL beta inbound `2443/tcp` | required | **active** since 2026-04-18 11:48 UTC, standalone xray, config `/etc/ghost-access/nl-beta-2443.json`, 1 client, freedom outbound |
+| `ghost-access-nl-beta.service` | preferred | **active**, PID owns standalone xray on `:2443`, runs `xray-linux-amd64.real -config /etc/ghost-access/nl-beta-2443.json` |
 | SPB entry ports | `443, 2083, 8443` | `443, 2083, 8443, 2053, 2087, 2096` |
 | SPB canary inbounds | none | `entry-canary-21443` (port 21443), `entry-canary-2052` (port 2052) |
 | SPB→NL Ghost backend | planned | **active**: `tun_ghost_c` `10.8.0.2/24`, RTT ~33 ms |
-| SPB→NL fallback path | NL beta `2443` | **none** (Ghost-only via `ghost-canary` outbound) |
+| SPB→NL fallback path | NL beta `2443` | **active** (Reality to NL `2443`) AND Ghost via `tun_ghost_c` available in parallel |
 | Manual beta links | 1-3 | 12 real users overlap with bot DB, plus 17 orphan UUIDs on `entry-443` not tracked in `x0tta6bl4.db` |
 
 ## Live SPB topology (verified 2026-04-20)
@@ -65,9 +65,14 @@ beta client (Happ / Hiddify / v2rayN)
            -> open internet
 ```
 
-`nl-beta` outbound (Reality to NL `2443`) exists in xray config but routes
-nothing because NL `2443` is not listening. Effective backend for non-RU
-traffic is Ghost over `tun_ghost_c`.
+Both backends are live in parallel:
+- `nl-beta` outbound (Reality to NL `:2443`) routes traffic from inbounds
+  that don't have explicit per-inbound rules — verified by access.log
+  showing `entry-8443 -> nl-beta` (90 sessions in last 24h).
+- `ghost-canary` outbound routes foreign traffic from `entry-443` and
+  `entry-canary-21443` (12 + 19 sessions in last 24h) — verified by
+  access.log and by `tun_ghost_c` byte counters (RX 100KB / TX 34KB
+  since SPB boot).
 
 ## Live SPB inbound table
 
@@ -89,12 +94,12 @@ traffic is Ghost over `tun_ghost_c`.
 |---|---|---|
 | `direct` | freedom | RU + private destinations |
 | `ghost-canary` | freedom (`sendThrough: 10.8.0.2`) | foreign destinations via NL Ghost UDP |
-| `nl-beta` | vless+reality (NL `2443`) | **dead path** — NL `2443` not listening |
+| `nl-beta` | vless+reality (NL `2443`) | **active** — fallback Reality path, 90 sessions in last 24h |
 | `block` | blackhole | rejected |
 
 13 routing rules split across `entry-443`, `entry-canary-2052`,
 `entry-canary-21443` (each: RU/private → direct, foreign → `ghost-canary`).
-Other entries fall through to `nl-beta` (currently dead).
+Other entries fall through to `nl-beta` (Reality to NL `:2443`).
 
 ## Live services
 
@@ -105,17 +110,20 @@ Other entries fall through to `nl-beta` (currently dead).
     `tun_ghost_c 10.8.0.2/24`, RTT ~33 ms to NL
 - NL:
   - `telegram-bot-simple.service` — `active`, release `20260412T065408Z`
-  - `x-ui.service` — `active` (xray runs as child)
-  - `ghost-access-nl-beta.service` — **does not exist** (was in original plan)
+  - `x-ui.service` — `active` (xray runs as child for production
+    inbounds 443 / 2083 / 39829)
+  - `ghost-access-nl-beta.service` — **active** since 2026-04-18 11:48 UTC,
+    standalone xray on `:2443`, config `/etc/ghost-access/nl-beta-2443.json`,
+    1 client, freedom outbound
 
 ## Validation checklist (current truth)
 
 - NL:
   - [x] `telegram-bot-simple` active
   - [x] `x-ui` active
-  - [ ] `ss -ltnp` shows `:2443` — **NO**, never deployed
-  - [ ] `ufw status` shows `2443/tcp ALLOW` — **NO**
-  - [ ] `ghost-access-nl-beta.service` is `active` — **NO**, never deployed
+  - [x] `ss -ltnp` shows `:2443` (PID owns standalone xray)
+  - [x] `ufw status` shows `2443/tcp ALLOW # Ghost Access NL beta inbound`
+  - [x] `ghost-access-nl-beta.service` is `active` (1d 16h+ uptime)
 - SPB:
   - [x] `ss -ltnp` shows `:443`, `:2083`, `:8443`, `:2053`, `:2087`, `:2096`,
     `:21443`, `:2052`, `:10808` (loopback)
@@ -145,9 +153,9 @@ Other entries fall through to `nl-beta` (currently dead).
 
 ## Open work
 
-1. Decide on `nl-beta` (`2443`) outbound — either deploy
-   `ghost-access-nl-beta.service` to make it a real backup path, or remove it
-   from SPB xray config to stop confusing the topology.
+1. Decide whether to keep `nl-beta` (`2443`) as a permanent fallback now that
+   `ghost-access-nl-beta.service` is live, or fold it into `ghost-canary` once
+   the Ghost backend is proven over a longer window.
 2. Audit and remove the 17 SPB `entry-443` orphan UUIDs (claude lane;
    needs user approval for SPB xray restart).
 3. Per-user entry-node selection in the bot before any paying user is moved
