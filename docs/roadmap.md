@@ -21,7 +21,7 @@
 ## Archived Roadmaps
 
 The following files are archived and non-authoritative:
-- `ROADMAP_legacy/` - Legacy collection (archived 2025-11-11)
+- `ROADMAP_legacy/` - Removed from the public branch during repository cleanup; keep historical roadmap material under `docs/archive/` or local private worktrees only
 - `docs/archive/root_artifacts_20260215/ROADMAP*.md` - Historical snapshots
 
 ---
