@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 
-const { ethers } = hre;
+const { ethers } = await hre.network.getOrCreate();
 
 describe("Governance stack", function () {
     let token;
@@ -98,8 +98,9 @@ describe("Governance stack", function () {
         await treasury.connect(bob).confirmTransaction(0);
 
         await expect(
-            treasury.connect(carol).executeTransaction(0)
+            () => treasury.connect(carol).executeTransaction(0)
         ).to.changeEtherBalances(
+            ethers,
             [treasury, eve],
             [-amount, amount]
         );
