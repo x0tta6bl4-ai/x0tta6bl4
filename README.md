@@ -39,6 +39,7 @@ This repository has grown organically and contains both stronger and weaker area
 To keep the public surface honest:
 
 - heavy or environment-specific workflows are manual-first
+- stale live-deployment automation is removed from the public branch when it stops reflecting a real maintained environment
 - public documentation should prefer verified facts over aspirational claims
 - experimental folders may exist without being presented as product-ready
 - customer scratchpads and local debug files are intentionally kept out of public `main`
