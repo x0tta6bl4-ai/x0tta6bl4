@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/transport/udp_shaped.py
-# hypothesis_version: 6.151.9
-
-[b'PUNCH', 0.001, 0.01, 0.033, 0.1, 0.5, 1.0, 3.0, 5.0, 30.0, 1000.0, 100, 1000, 1024, 1400, 5000, 5001, 19302, 65535, 554869826, '!BIQBH', '!HHI', '0.0.0.0', '127.0.0.1', 'OBFUSCATION_KEY', 'UDPPacket', '__main__', 'game-key-123', 'gaming', 'local_address', 'none', 'obfuscation', 'packets_per_second', 'peers_count', 'shadowsocks', 'stun.l.google.com', 'total_received', 'total_sent', 'traffic_analysis', 'traffic_profile', 'uptime_seconds', 'x0tta6bl4', 'xor', 'Обфускация: XOR']

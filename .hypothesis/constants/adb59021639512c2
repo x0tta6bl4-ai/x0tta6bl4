@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/resilience/bulkhead.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.1, 0.3, 0.5, 0.85, 0.9, 0.95, 1.0, 1.1, 100.0, 1000.0, 100, 1000, 5000, 'AdaptiveBulkhead', 'BulkheadConfig', 'BulkheadRegistry', 'BulkheadStats', 'BulkheadType', 'PartitionedBulkhead', 'QueueBulkhead', 'SemaphoreBulkhead', 'T', 'accept_rate', 'accepted_calls', 'adaptive', 'adaptive_bulkhead', 'avg_wait_time_ms', 'bulkhead', 'bulkhead_count', 'bulkhead_decorator', 'current_capacity', 'current_count', 'ewma_error_rate', 'ewma_response_time', 'healthy', 'high_reject_rate', 'high_utilization', 'internal_bulkhead', 'issue', 'issues', 'max_capacity', 'max_concurrent', 'max_wait_ms', 'min_capacity', 'name', 'partition_count', 'partitioned', 'partitioned_bulkhead', 'partitions', 'queue', 'queue_bulkhead', 'queue_size', 'rejected_calls', 'semaphore', 'semaphore_bulkhead', 'target_response_time', 'timeout_calls', 'total_calls', 'type', 'utilization', 'value']

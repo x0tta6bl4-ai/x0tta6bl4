@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/workload/__init__.py
-# hypothesis_version: 6.151.9
-
-['JWTSVID', 'WorkloadAPIClient', 'X509SVID']

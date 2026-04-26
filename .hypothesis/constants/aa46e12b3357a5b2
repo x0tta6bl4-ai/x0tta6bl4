@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/coordination/events.py
-# hypothesis_version: 6.151.9
-
-[100, 1000, '.', 'Event', 'a', 'acked_by', 'agent.heartbeat', 'agent.registered', 'agent.status_changed', 'agent.unregistered', 'artifacts', 'assigned_to', 'conflict.detected', 'conflict.resolved', 'conflict_type', 'conflicting_agents', 'coordination.request', 'data', 'event_id', 'event_type', 'exclusive', 'file.created', 'file.deleted', 'file.modified', 'lock.acquired', 'lock.conflict', 'lock.expired', 'lock.released', 'lock_type', 'path', 'pipeline.handoff', 'pipeline.stage_end', 'pipeline.stage_start', 'priority', 'r', 'requires_ack', 'source_agent', 'stage', 'system.alert', 'system.shutdown', 'target_agents', 'target_files', 'task.assigned', 'task.blocked', 'task.completed', 'task.created', 'task.failed', 'task.started', 'task_id', 'task_type', 'timestamp']

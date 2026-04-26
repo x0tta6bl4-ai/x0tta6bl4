@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/vision_endpoints.py
-# hypothesis_version: 6.151.9
-
-[500, 503, '/analyze/topology', '/api/v1/vision', '/debug', 'Vision Analytics']

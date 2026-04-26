@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/zero_trust/validator.py
-# hypothesis_version: 6.151.9
-
-[1.0, 'error', 'expiry', 'failures', 'spiffe_id', 'success_rate', 'successes', 'total_attempts', 'trust_domain', 'x0tta6bl4.mesh']

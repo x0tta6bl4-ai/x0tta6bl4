@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/resilience/rate_limiter.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.1, 0.5, 0.9, 0.95, 1.0, 10.0, 1000.0, 100, 'AdaptiveRateLimiter', 'LeakyBucket', 'Rate limit exceeded', 'RateLimitConfig', 'RateLimitExceeded', 'RateLimitResult', 'RateLimiterFactory', 'RateLimiterType', 'SlidingWindowCounter', 'TokenBucket', 'X-RateLimit-Limit', 'X-RateLimit-Reset', 'adaptive', 'allow_rate', 'allowed_requests', 'bucket_stats', 'capacity', 'current_rate', 'current_requests', 'current_tokens', 'denied_requests', 'distributed', 'distributed_allows', 'error_count', 'ewma_error_rate', 'ewma_response_time', 'leak_rate', 'leaky_bucket', 'local_allows', 'local_limiter', 'max_rate', 'max_requests', 'min_rate', 'name', 'processed_requests', 'queue_size', 'rate_limit', 'refill_rate', 'sliding_window', 'success_count', 'token_bucket', 'total_requests', 'type', 'window_seconds']

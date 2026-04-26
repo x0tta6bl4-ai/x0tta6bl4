@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/providers/base.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.7, 0.9, 30.0, 512, 'BaseLLMProvider', 'ChatMessage', 'EmbeddingResult', 'GenerationResult', 'ProviderConfig', 'ProviderStatus', 'available', 'avg_latency_ms', 'content', 'default', 'error', 'finish_reason', 'last_error', 'latency_ms', 'metadata', 'model', 'name', 'provider', 'rate_limited', 'request_count', 'role', 'status', 'stop', 'test', 'text', 'timestamp', 'tokens_used', 'total_tokens', 'unavailable']

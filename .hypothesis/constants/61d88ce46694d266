@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/swarm_endpoints.py
-# hypothesis_version: 6.151.9
-
-[500, 503, '/api/v1/swarm', '/status', '/task', 'Swarm Orchestration', 'Swarm not available', 'accepted', 'base', 'status', 'task_id']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/rag/pipeline.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.7, 512, 1000, '\n---\n', '5', 'RAG_DISABLE_RERANKER', 'bm25', 'bm25_enabled', 'chunk_id', 'chunk_overlap', 'chunk_size', 'chunking_strategy', 'document_id', 'end_index', 'false', 'hybrid', 'rerank_top_k', 'reranked', 'reranking_enabled', 'search_mode', 'similarity_threshold', 'start_index', 'text', 'top_k', 'total_chunks', 'true', 'unknown', 'vector', 'vector_index']

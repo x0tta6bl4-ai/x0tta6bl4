@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_supply_chain.py
-# hypothesis_version: 6.151.9
-
-[200, 201, 400, 404, 409, '/register-artifact', '/sbom', '/sbom/{version}', '/verify-binary', '0.10.1', '2026-02-20T00:00:00Z', '3.4.0', 'CycloneDX-JSON', 'MaaS Supply Chain', 'SBOM_REGISTERED', 'Sigstore-Bundle', 'admin', 'agent_version', 'application', 'attestation', 'attestations', 'bundle_url', 'checksum', 'checksum_sha256', 'ci@x0tta6bl4.net', 'clean', 'commit', 'components', 'compromised', 'compromised_nodes', 'created_at', 'format', 'id', 'integrity', 'legacy-node', 'liboqs', 'library', 'mesh_id', 'mismatch', 'name', 'node_id', 'pqc_compliant', 'pqc_signature', 'query', 'registered', 'revoked', 'sbom-v340a', 'sbom_id', 'sha256:abc123', 'signed_at', 'signer', 'status', 'summary', 'total_attested', 'type', 'unknown', 'unknown_version', 'unverifiable', 'v', 'v3.4.0', 'valid', 'verified', 'verified_at', 'version', 'x0tta6bl4-agent']

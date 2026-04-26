@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/providers/openai_compatible.py
-# hypothesis_version: 6.151.9
-
-[5.0, 10.0, 200, 429, 1000, '/chat/completions', '/completions', '/embeddings', '/models', 'Authorization', 'Content-Type', 'api_key', 'application/json', 'base_url', 'choices', 'completion_tokens', 'content', 'created', 'data', 'embedding', 'embedding_model', 'finish_reason', 'frequency_penalty', 'gpt-3.5-turbo', 'id', 'input', 'logit_bias', 'max_tokens', 'message', 'messages', 'model', 'openai', 'presence_penalty', 'prompt', 'prompt_tokens', 'response_format', 'role', 'stop', 'temperature', 'text', 'tool_calls', 'tool_choice', 'tools', 'top_p', 'total_tokens', 'usage', 'user']

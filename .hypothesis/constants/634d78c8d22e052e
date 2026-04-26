@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/agents/maas_health_bot.py
-# hypothesis_version: 6.151.9
-
-[0.1, 0.2, 300, 500, ',', '/tmp/xray.log', '1', '1.0', '10808', '127.0.0.1', '2.0', '200', '250', '300', '5', '500', '::1', 'HealthBotConfig', 'attempted', 'auto_heal', 'broken pipe', 'command', 'connection refused', 'degraded', 'detail', 'dry_run', 'engine', 'executed_actions', 'fail', 'health_url:', 'healthy', 'id', 'ignore', 'local-rule-engine', 'localhost', 'mesh_reroute', 'name', 'ok', 'on', 'proposed_actions', 'proxy_abort_events', 'proxy_delay_ms', 'proxy_log_presence', 'reason', 'restart_xray', 'signals', 'skip', 'status', 'success', 'threshold_max', 'timestamp', 'true', 'unexpected eof', 'utf-8', 'value', 'warn', 'yes']
