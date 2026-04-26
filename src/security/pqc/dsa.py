@@ -6,11 +6,10 @@ NIST FIPS 204 compliant digital signatures.
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional
 
-from .types import PQCKeyPair, PQCSignature
 from .adapter import PQCAdapter, is_liboqs_available
-from .secure_storage import get_secure_storage, SecureKeyHandle
+from .secure_storage import SecureKeyHandle, get_secure_storage
+from .types import PQCKeyPair, PQCSignature
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +36,9 @@ class PQCDigitalSignature:
         # Verify signature
         is_valid = dsa.verify(message, signature.signature_bytes, keypair.public_key)
     """
-    
+
     DEFAULT_ALGORITHM = "ML-DSA-65"
-    
+
     def __init__(self, algorithm: str = DEFAULT_ALGORITHM):
         """
         Initialize DSA.
@@ -49,12 +48,12 @@ class PQCDigitalSignature:
         """
         self.algorithm = algorithm
         self.enabled = is_liboqs_available()
-        self._adapter: Optional[PQCAdapter] = None
-        
+        self._adapter: PQCAdapter | None = None
+
         # SECURITY: Use secure storage instead of plain dict
         self._secure_storage = get_secure_storage()
-        self._key_handles: Dict[str, SecureKeyHandle] = {}
-        
+        self._key_handles: dict[str, SecureKeyHandle] = {}
+
         if self.enabled:
             try:
                 self._adapter = PQCAdapter(sig_alg=algorithm)
@@ -64,7 +63,7 @@ class PQCDigitalSignature:
                 self.enabled = False
         else:
             logger.warning("liboqs not available - PQC DSA disabled")
-    
+
     def generate_keypair(
         self,
         key_id: str = "",
@@ -84,13 +83,13 @@ class PQCDigitalSignature:
         """
         if not self.enabled:
             raise RuntimeError("PQC not available - cannot generate keypair")
-        
+
         try:
             public_key, secret_key = self._adapter.sig_generate_keypair()
-            
+
             created = datetime.utcnow()
             expires = created + timedelta(days=validity_days)
-            
+
             # SECURITY: Store secret key in secure storage
             if key_id:
                 handle = self._secure_storage.store_key(
@@ -100,7 +99,7 @@ class PQCDigitalSignature:
                     validity_days=validity_days
                 )
                 self._key_handles[key_id] = handle
-            
+
             keypair = PQCKeyPair(
                 algorithm=self.algorithm,
                 public_key=public_key,
@@ -109,14 +108,14 @@ class PQCDigitalSignature:
                 expires_at=expires,
                 key_id=key_id,
             )
-            
+
             logger.info(f"Generated {self.algorithm} keypair: {keypair.key_id}")
             return keypair
-            
+
         except Exception as e:
             logger.error(f"Failed to generate keypair: {e}")
             raise
-    
+
     def sign(
         self,
         message: bytes,
@@ -136,11 +135,11 @@ class PQCDigitalSignature:
         """
         if not self.enabled:
             raise RuntimeError("PQC not available - cannot sign")
-        
+
         try:
             signature_bytes = self._adapter.sig_sign(message, secret_key)
             message_hash = hashlib.sha256(message).digest()
-            
+
             signature = PQCSignature(
                 algorithm=self.algorithm,
                 signature_bytes=signature_bytes,
@@ -148,14 +147,14 @@ class PQCDigitalSignature:
                 timestamp=datetime.utcnow(),
                 signer_key_id=key_id,
             )
-            
+
             logger.debug(f"Signed message: {len(signature_bytes)} byte signature")
             return signature
-            
+
         except Exception as e:
             logger.error(f"Failed to sign message: {e}")
             raise
-    
+
     def verify(
         self,
         message: bytes,
@@ -175,19 +174,19 @@ class PQCDigitalSignature:
         """
         if not self.enabled:
             raise RuntimeError("PQC not available - cannot verify")
-        
+
         try:
             is_valid = self._adapter.sig_verify(message, signature_bytes, public_key)
-            
+
             result = "VALID" if is_valid else "INVALID"
             logger.debug(f"Signature verification: {result}")
             return is_valid
-            
+
         except Exception as e:
             logger.error(f"Failed to verify signature: {e}")
             return False
-    
-    def get_cached_keypair(self, key_id: str) -> Optional[PQCKeyPair]:
+
+    def get_cached_keypair(self, key_id: str) -> PQCKeyPair | None:
         """
         Get cached keypair by ID.
         
@@ -196,17 +195,17 @@ class PQCDigitalSignature:
         handle = self._key_handles.get(key_id)
         if not handle:
             return None
-        
+
         # Retrieve secret key from secure storage
         secret_key = self._secure_storage.get_key(handle)
         if secret_key is None:
             return None
-        
+
         # Note: Public key not stored separately
         logger.warning("Public key not available for cached keypair %s", key_id)
         return None
-    
-    def get_secret_key(self, key_id: str) -> Optional[bytes]:
+
+    def get_secret_key(self, key_id: str) -> bytes | None:
         """
         Get secret key from secure storage.
         
@@ -220,7 +219,7 @@ class PQCDigitalSignature:
         if not handle:
             return None
         return self._secure_storage.get_key(handle)
-    
+
     def clear_cache(self):
         """Clear all cached keys securely."""
         for key_id in list(self._key_handles.keys()):
@@ -228,7 +227,7 @@ class PQCDigitalSignature:
             self._secure_storage.delete_key(handle)
         self._key_handles.clear()
         logger.debug("Cleared all cached keys securely")
-    
+
     def is_available(self) -> bool:
         """Check if DSA is available."""
         return self.enabled

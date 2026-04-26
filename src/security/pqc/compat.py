@@ -31,11 +31,11 @@ logger = logging.getLogger(__name__)
 try:
     from src.libx0t.security.post_quantum import (  # noqa: F401
         LIBOQS_AVAILABLE,
-        LibOQSBackend,
         HybridPQEncryption,
+        LibOQSBackend,
         PQAlgorithm,
-        PQKeyPair,
         PQCiphertext,
+        PQKeyPair,
         PQMeshSecurityLibOQS,
     )
     _LEGACY_POST_QUANTUM_AVAILABLE = True
@@ -57,9 +57,9 @@ except ImportError as _e:  # pragma: no cover
 try:
     from src.libx0t.security.pqc_core import (  # noqa: F401
         PQCHybridScheme,
-        get_pqc_key_exchange,
         get_pqc_digital_signature,
         get_pqc_hybrid,
+        get_pqc_key_exchange,
         test_pqc_availability,
     )
     _LEGACY_PQC_CORE_AVAILABLE = True

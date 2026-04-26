@@ -11,7 +11,6 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,9 @@ class KeyRotationRecord:
     public_key: bytes
     private_key_encrypted: bytes  # Encrypted with master key
     created_at: float
-    rotated_at: Optional[float] = None
+    rotated_at: float | None = None
     is_active: bool = True
-    backup_location: Optional[str] = None  # Path to backup file
+    backup_location: str | None = None  # Path to backup file
 
 
 @dataclass
@@ -64,8 +63,8 @@ class PQCKeyRotation:
     def __init__(
         self,
         node_id: str,
-        config: Optional[KeyRotationConfig] = None,
-        master_key: Optional[bytes] = None,
+        config: KeyRotationConfig | None = None,
+        master_key: bytes | None = None,
     ):
         """
         Инициализация Key Rotation Manager.
@@ -92,14 +91,14 @@ class PQCKeyRotation:
             self._save_master_key()
 
         # Key history
-        self._key_history: Dict[str, List[KeyRotationRecord]] = {
+        self._key_history: dict[str, list[KeyRotationRecord]] = {
             "kem": [],
             "signature": [],
         }
 
         # Current active keys
-        self._current_kem_key: Optional[KeyRotationRecord] = None
-        self._current_sig_key: Optional[KeyRotationRecord] = None
+        self._current_kem_key: KeyRotationRecord | None = None
+        self._current_sig_key: KeyRotationRecord | None = None
 
         # Initialize backup directory
         Path(self.config.backup_path).mkdir(parents=True, exist_ok=True)
@@ -156,7 +155,7 @@ class PQCKeyRotation:
 
     def generate_kem_keypair(
         self, algorithm: str = "ML-KEM-768"
-    ) -> Tuple[bytes, bytes]:
+    ) -> tuple[bytes, bytes]:
         """Генерировать KEM ключевую пару (NIST FIPS 203).
 
         Args:
@@ -176,7 +175,7 @@ class PQCKeyRotation:
 
     def generate_signature_keypair(
         self, algorithm: str = "ML-DSA-65"
-    ) -> Tuple[bytes, bytes]:
+    ) -> tuple[bytes, bytes]:
         """Генерировать signature ключевую пару (NIST FIPS 204).
 
         Args:
@@ -274,8 +273,7 @@ class PQCKeyRotation:
         """Зашифровать ключ с master key."""
         from cryptography.hazmat.backends import default_backend
         from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.ciphers import (Cipher, algorithms,
-                                                            modes)
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         # Derive encryption key from master key using HKDF
@@ -300,8 +298,7 @@ class PQCKeyRotation:
         """Расшифровать ключ с master key."""
         from cryptography.hazmat.backends import default_backend
         from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.ciphers import (Cipher, algorithms,
-                                                            modes)
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         # Derive decryption key using HKDF
@@ -347,6 +344,8 @@ class PQCKeyRotation:
         }
 
         backup_file.write_text(json.dumps(backup_data, indent=2))
+        # Restrict permissions: owner-only read/write for key material
+        backup_file.chmod(0o600)
         record.backup_location = str(backup_file)
 
         logger.info(f"✅ Key backed up: {backup_file}")
@@ -368,7 +367,7 @@ class PQCKeyRotation:
             backup.unlink()
             logger.debug(f"🗑️ Deleted old backup: {backup}")
 
-    def recover_key(self, key_id: str, key_type: str) -> Optional[KeyRotationRecord]:
+    def recover_key(self, key_id: str, key_type: str) -> KeyRotationRecord | None:
         """
         Восстановить ключ из backup.
 
@@ -408,19 +407,19 @@ class PQCKeyRotation:
         logger.warning(f"⚠️ Key not found in backups: {key_id}")
         return None
 
-    def get_current_kem_key(self) -> Optional[KeyRotationRecord]:
+    def get_current_kem_key(self) -> KeyRotationRecord | None:
         """Получить текущий активный KEM ключ."""
         return self._current_kem_key
 
-    def get_current_sig_key(self) -> Optional[KeyRotationRecord]:
+    def get_current_sig_key(self) -> KeyRotationRecord | None:
         """Получить текущий активный signature ключ."""
         return self._current_sig_key
 
-    def get_key_history(self, key_type: str) -> List[KeyRotationRecord]:
+    def get_key_history(self, key_type: str) -> list[KeyRotationRecord]:
         """Получить историю ротации ключей."""
         return self._key_history.get(key_type, []).copy()
 
-    def should_rotate(self) -> Tuple[bool, bool]:
+    def should_rotate(self) -> tuple[bool, bool]:
         """
         Проверить, нужно ли ротировать ключи.
 
