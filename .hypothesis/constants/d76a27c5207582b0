@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/graceful_shutdown.py
-# hypothesis_version: 6.151.9
-
-[b'application/json', b'close', b'connection', b'content-type', 0.5, 5.0, 10.0, 30.0, 503, 'Exiting process...', 'ShutdownMiddleware', 'ShutdownState', '_cleanup_name', 'active_requests', 'active_tasks', 'body', 'cleanup_completed_at', 'cleanup_handlers', 'cleanup_started_at', 'close_http_clients', 'create_lifespan', 'headers', 'http', 'http.response.body', 'http.response.start', 'is_shutting_down', 'last_cleanup_error', 'shutdown_manager', 'shutdown_started_at', 'startup_completed_at', 'status', 'type']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/hardware_enclave.py
-# hypothesis_version: 6.151.9
-
-[b'hw-secret', b'tpm-endorsement-key-sha256', '/dev/tpm0', 'HARDWARE_ROOTED', 'SOFTWARE_ONLY', 'auto', 'blake3', 'enclave_enabled', 'hardware_id', 'is_trusted', 'mock', 'r', 'security_level', 'tpm2.0']

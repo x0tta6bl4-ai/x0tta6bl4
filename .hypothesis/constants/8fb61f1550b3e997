@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/reliability_policy.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.05, 0.1, 0.25, 2.0, 8.0, 30.0, ',', '-', 'CircuitBreakerOpen', 'ReliabilityPolicy', 'RetryExhausted', 'T', '_', 'build_retry_policy', 'state']

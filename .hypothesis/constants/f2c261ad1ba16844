@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/mtls/mtls_controller_production.py
-# hypothesis_version: 6.151.9
-
-[b'cached', 300, 384, 3600, 7200, '.pem', '__main__', 'expiry', 'mtls_svid', 'spiffe-ca-', 'spiffe-cert-', 'spiffe-key-', 'spiffe://', 'wb']

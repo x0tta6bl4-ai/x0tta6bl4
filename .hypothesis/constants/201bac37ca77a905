@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/vault_monitoring.py
-# hypothesis_version: 6.151.9
-
-[300, '_name', 'authenticated', 'cache_stats', 'check_interval', 'is_degraded', 'is_healthy', 'last_health', 'running', 'token_warning_sent', 'utf-8', 'vault_addr', 'vault_degraded_mode', 'vault_uptime_seconds']

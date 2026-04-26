@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/providers/vllm.py
-# hypothesis_version: 6.151.9
-
-[5.0, 10.0, 200, 1000, '/health', '/v1/chat/completions', '/v1/completions', '/v1/models', 'Authorization', 'Content-Type', 'VLLMProvider', 'api_key', 'application/json', 'base_url', 'best_of', 'choices', 'completion_tokens', 'content', 'default', 'finish_reason', 'id', 'max_tokens', 'message', 'messages', 'model', 'prompt', 'prompt_tokens', 'repetition_penalty', 'role', 'stop', 'temperature', 'text', 'top_k', 'top_p', 'total_tokens', 'usage', 'vllm']

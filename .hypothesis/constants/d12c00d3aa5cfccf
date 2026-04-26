@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/controller/spiffe_controller.py
-# hypothesis_version: 6.151.9
-
-[0.5, 3600, ',', '100', '10000', '127.0.0.1:8081', '24h', '5000', 'Auto-renewal stopped', 'SPIRE_JWT_CACHE_SIZE', 'SPIRE_MAX_TOKEN_TTL', 'SPIRE_PRIMARY_REGION', '_spiffe_endpoint', 'agent', 'default-node', 'eu-west,asia-pacific', 'identity_valid', 'ttl', 'unix://', 'unknown', 'us-east', 'workload_api', 'x0tta6bl4.mesh']

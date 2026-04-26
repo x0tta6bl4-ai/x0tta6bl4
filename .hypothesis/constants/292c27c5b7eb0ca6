@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/anti_censorship/domain_fronting.py
-# hypothesis_version: 6.151.9
-
-[10.0, 30.0, 200, '*/*', '104.16.0.0/13', '104.24.0.0/14', '13.32.0.0/15', '151.101.0.0/16', '172.64.0.0/13', '23.0.0.0/12', '52.46.0.0/17', '74.125.0.0/16', 'Accept', 'Accept-Encoding', 'Accept-Language', 'CDNConfig', 'CDNProvider', 'CDN_CONFIGS', 'Connection', 'DELETE', 'DomainFrontingClient', 'FrontingConfig', 'GET', 'Host', 'POST', 'PUT', 'User-Agent', 'a.akamai.net', 'akamai', 'azure', 'cloudflare', 'cloudflare.com', 'cloudfront', 'cloudfront.net', 'config', 'custom', 'en-US,en;q=0.9', 'enabled', 'failures', 'fastly', 'fastly.com', 'google', 'gzip, deflate, br', 'http://', 'https://', 'keep-alive', 'last_used', 'provider', 'providers', 'requests', 'rotate_providers', 'ssl_context', 'successes', 'timeout', 'verify']

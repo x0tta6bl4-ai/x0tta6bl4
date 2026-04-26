@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/anti_censorship/obfuscation.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1000.0, 128, 256, 512, 1000, 1200, 1280, 1350, 1400, 1420, 1440, 1450, 1460, 1500, '>H', '>HIBH', '>Q', 'EncodingObfuscator', 'ObfuscationConfig', 'ObfuscationLayer', 'PacketShaper', 'PaddingObfuscator', 'TimingObfuscator', 'TrafficObfuscator', 'XORObfuscator', 'base64', 'dns', 'enabled_layers', 'encoding', 'fixed', 'fragmentation', 'hex', 'http', 'packet_count', 'packet_shaping', 'padding', 'quic', 'random', 'timing', 'tls', 'xor']

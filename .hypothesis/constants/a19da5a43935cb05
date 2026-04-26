@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/coordination/conflicts.py
-# hypothesis_version: 6.151.9
-
-[100, '.', '.tmp', '/', 'action', 'actions', 'agent_id', 'agents', 'conflict_id', 'conflict_type', 'conflicts', 'critical', 'current_stage', 'dependency', 'description', 'design', 'detected_at', 'file_lock', 'first_come', 'forbidden_paths', 'high', 'implementation', 'low', 'manual', 'medium', 'merge', 'message', 'metadata', 'next_stage', 'overlapping_files', 'path', 'pipeline', 'priority', 'queue', 'queued', 'r', 'reason', 'release_lock', 'requires_manual', 'research', 'resolution', 'resolved_at', 'resource', 'review', 'role', 'role_based', 'roles', 'set_waiting', 'severity', 'split', 'strategy', 'updated_at', 'vote', 'w', 'waiting', 'winner', 'working', 'zone_violation']

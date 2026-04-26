@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_playbooks.py
-# hypothesis_version: 6.151.9
-
-[201, 403, 404, 410, 422, 500, 3600, 86400, '/create', '/list/{mesh_id}', 'HMAC', 'HMAC-SHA256', 'ML-DSA', 'MaaS Playbooks', 'PLAYBOOK_CREATED', 'Playbook expired', 'Playbook not found', '_pqc_signer', '_signing_keypair', 'acknowledged_at', 'actions', 'add', 'algorithm', 'commit', 'completed', 'created_at', 'expires_at', 'failed', 'mesh_id', 'model_dump', 'name', 'node_id', 'node_statuses', 'partial', 'payload', 'playbook:create', 'playbook:view', 'playbook_id', 'playbooks', 'query', 'received', 'signature', 'status', 'target_nodes', 'targets', 'total_acks', '{}']

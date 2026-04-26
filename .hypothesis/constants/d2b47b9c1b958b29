@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/ml/lora/adapter.py
-# hypothesis_version: 6.151.9
-
-['1.0', 'LoRAAdapter', '_peft_model_loaded', 'adapter_id', 'adapter_path', 'base_model_name', 'config', 'metadata', 'r', 'save_pretrained', 'version', 'w']

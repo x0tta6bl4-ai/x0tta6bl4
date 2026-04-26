@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/parl/scheduler.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.01, 0.1, 1.0, 5.0, 100.0, -100, 100, 1000, 10000, '*', 'Scheduler shutdown', 'Task timeout', 'avg_latency_ms', 'inf', 'initial', 'load', 'state', 'task_types', 'tasks_completed']

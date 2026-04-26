@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/workload/api_client.py
-# hypothesis_version: 6.151.9
-
-[b'\n', b'-----BEGIN CERTIFICATE-----', b'MOCK_CERT_CHAIN', b'MOCK_PRIVATE_KEY', 0.5, 300.0, 'MOCK_JWT_TOKEN', 'X0TTA6BL4_PRODUCTION', 'audience', 'cert_chain', 'expiry', 'false', 'private_key', 'spiffe_id', 'token', 'true', 'utf-8']

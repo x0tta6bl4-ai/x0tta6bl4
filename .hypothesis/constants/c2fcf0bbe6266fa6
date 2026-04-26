@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/transport/ghost_proto.py
-# hypothesis_version: 6.151.9
-
-[b'Very secret mesh command with binary data: \x00\x01\x02\xff', 111, 128, 255, 960, 65535, 3735928559, '!BBHII', 'ChaCha20-Poly1305', '__main__', 'cipher', 'ghost-proto', 'http', 'packets_sent', 'stego_enabled']

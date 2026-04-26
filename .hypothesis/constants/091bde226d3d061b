@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/event_sourcing/projection.py
-# hypothesis_version: 6.151.9
-
-[100, '%Y-%m-%d %H:00', 'UserActivated', 'UserCreated', 'UserDeactivated', 'UserEmailUpdated', 'UserNameUpdated', '_handles_event', 'aggregate_types', 'created_at', 'email', 'error', 'errors', 'event_statistics', 'event_types', 'events_processed', 'is_active', 'is_running', 'lag', 'last_error', 'last_event_timestamp', 'name', 'new_email', 'new_name', 'paused', 'position', 'projections', 'running', 'running_projections', 'started_at', 'status', 'stopped', 'top_aggregate_types', 'top_event_types', 'total_events', 'total_projections', 'user_summary']

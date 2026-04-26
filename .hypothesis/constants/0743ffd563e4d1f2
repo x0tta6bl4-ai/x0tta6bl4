@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/rate_limiter.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, 2.0, 60.0, 100000, 'RateLimitConfig', 'RateLimitStrategy', 'RateLimiter', '_current_window', 'available_requests', 'available_tokens', 'current_backoff', 'fixed_window', 'inf', 'last_limited', 'requests_per_minute', 'sliding_window', 'strategy', 'token_bucket', 'tokens must be > 0', 'tokens_per_minute', 'total_limited', 'total_requests', 'total_tokens']

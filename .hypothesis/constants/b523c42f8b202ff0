@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/resilience/retry.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.5, 1.0, 2.0, 100.0, 1000.0, 60000.0, 429, 500, 502, 503, 504, 'ExponentialBackoff', 'JitterType', 'RetryConfig', 'RetryPolicy', 'T', 'decorrelated', 'equal', 'failed_after_retries', 'full', 'none', 'retry', 'retry_rate', 'success_rate', 'successful_retries', 'total_attempts', 'total_delay_ms', 'total_retries']

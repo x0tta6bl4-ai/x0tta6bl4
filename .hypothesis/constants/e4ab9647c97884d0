@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/vault_client.py
-# hypothesis_version: 6.151.9
-
-[0.01, 0.05, 0.1, 0.5, 0.8, 1.0, 2.0, 5.0, 300, 'Deleted secret at %s', 'GET', 'InvalidPath', 'Secret cache cleared', 'Secret write latency', 'Stored secret at %s', 'Total cache hits', 'Total cache misses', 'VaultError', '_name', 'auth', 'cache_ttl_seconds', 'cached_secrets', 'client_token', 'connection_error', 'data', 'delete', 'initialized', 'keys', 'lease_duration', 'namespace', 'not_found', 'operation', 'proxy-api', 'r', 'read', 'reason', 'sealed', 'url', 'vault_error', 'vault_health_status', 'verify', 'write']

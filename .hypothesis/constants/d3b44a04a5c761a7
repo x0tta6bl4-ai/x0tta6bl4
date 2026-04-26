@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/event_sourcing/command_bus.py
-# hypothesis_version: 6.151.9
-
-[0.0, 100.0, 1000.0, 1000, 'Command', 'TCommand', 'TResult', '_retry_count', 'failed', 'succeeded']

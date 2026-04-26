@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/agents/monitoring/__init__.py
-# hypothesis_version: 6.151.9
-
-['Alert', 'AlertSeverity', 'HealthCheckResult', 'HealthMonitorAgent', 'HealthStatus', 'get_health_monitor']

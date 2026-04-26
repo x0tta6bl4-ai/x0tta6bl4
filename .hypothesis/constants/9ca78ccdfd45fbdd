@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/mtls/__init__.py
-# hypothesis_version: 6.151.9
-
-['MTLSContext', 'TLSConfig', 'TLSRole']

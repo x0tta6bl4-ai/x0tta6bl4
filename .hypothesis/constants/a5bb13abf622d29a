@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/semantic_cache.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.5, 0.95, 1000, 3600, 'CacheEntry', 'SemanticCache', 'access_count', 'embed', 'embedding', 'entries', 'hit_rate', 'hits', 'latency_ms', 'max_size', 'metadata', 'misses', 'model', 'provider', 'query', 'r', 'response', 'semantic_hit_rate', 'semantic_hits', 'similarity_threshold', 'size', 'stats', 'timestamp', 'tokens_used', 'ttl_seconds', 'w']

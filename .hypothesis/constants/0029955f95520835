@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/connection_retry.py
-# hypothesis_version: 6.151.9
-
-[0.5, 1.0, 2.0, 10.0, 30.0, 60.0, 'T', 'close']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/ml/lora/config.py
-# hypothesis_version: 6.151.9
-
-[0.1, 'CAUSAL_LM', 'LoRAConfig', 'attention', 'bias', 'c_attn', 'c_proj', 'inference_mode', 'k_proj', 'lora_alpha', 'lora_dropout', 'mlp', 'none', 'o_proj', 'q_proj', 'r', 'target_modules', 'task_type', 'v_proj']

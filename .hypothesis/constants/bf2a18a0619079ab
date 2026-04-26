@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/reputation_scoring.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 0.95, 1.0, 3650.0, -100, 100, 300, 500, 1000, 2000, 86400, 'ReputationLevel', 'avg_latency_ms', 'avg_trust_score', 'banned', 'block_events', 'blocked', 'by_level', 'captcha', 'domain', 'domains', 'error_breakdown', 'failure_streak', 'first_seen', 'high', 'high_risk', 'high_risk_domain', 'last_access', 'level', 'medium', 'performance_score', 'proxies', 'proxy_id', 'rate_limited', 'recommendation', 'recommendations', 'reliability_score', 'risk_score', 'score', 'severity', 'success_rate', 'success_streak', 'total', 'total_events', 'total_requests', 'trust_score', 'trusted', 'type', 'untrusted_proxy']

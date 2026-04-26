@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/libx0t/security/pqc_core.py
-# hypothesis_version: 6.151.9
-
-[365, 'ML-DSA-65', 'ML-KEM-768', 'PQC not available', 'X0TTA6BL4_PRODUCTION', 'algorithm', 'algorithms', 'cert_signer', 'classical', 'classical_crypto', 'client_ephemeral', 'created_at', 'disabled', 'error', 'expires_at', 'failed', 'fallback', 'false', 'key_exchange', 'key_id', 'liboqs not available', 'method', 'no_pqc_available', 'operational', 'pqc_hybrid', 'public_key_b64', 'reason', 'server_ephemeral', 'shared_secret_len', 'status', 'success', 'timestamp', 'true']

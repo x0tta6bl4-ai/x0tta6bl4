@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/coordination/state.py
-# hypothesis_version: 6.151.9
-
-[300, 3600, '*.lock', '.', '.gitlab-ci.yml', '.tmp', '/', 'AgentState', 'CoordinationLock', 'ROADMAP.md', 'STATUS.md', 'acquired_at', 'agent_id', 'agents', 'alembic/', 'available', 'benchmarks/', 'blocked', 'claude', 'codex', 'current_task', 'deploy/', 'directory', 'docs/', 'docs/*.md', 'docs/adr/', 'docs/perf/', 'exclusive', 'experiments/', 'gemini', 'glm5', 'human', 'idle', 'last_heartbeat', 'lock_type', 'locked_files', 'locks', 'metadata', 'multiple_locks', 'offline', 'path', 'plans/', 'priority', 'r', 'role', 'roles', 'same_directory', 'src/', 'status', 'tests/', 'tests/load/', 'timestamp', 'ttl_seconds', 'type', 'updated_at', 'utf-8', 'w', 'waiting', 'working']
