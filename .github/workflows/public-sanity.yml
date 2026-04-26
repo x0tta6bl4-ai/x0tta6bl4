@@ -1,0 +1,35 @@
+name: Public Sanity
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "README.md"
+      - ".github/workflows/public-sanity.yml"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/ebpf-compilation.yml"
+      - ".github/workflows/long-tests-nightly.yml"
+      - ".github/workflows/golden-smoke-nightly.yml"
+      - ".github/workflows/chaos-testing.yml"
+      - ".github/workflows/performance-benchmark.yml"
+      - ".github/workflows/codeql.yml"
+  workflow_dispatch:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate curated public surface
+        run: |
+          test -f README.md
+          python -m py_compile src/version.py
+          python -m py_compile src/security/pqc/adapter.py
+          python -m py_compile src/security/pqc/hybrid_tls.py
+          python -m py_compile src/network/ebpf/ebpf_loader.py

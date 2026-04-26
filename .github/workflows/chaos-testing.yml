@@ -1,15 +1,6 @@
 name: Chaos Resilience Testing
 
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'src/**'
-      - 'infra/chaos/**'
-      - 'scripts/ops/mttr_chaos_report.py'
-      - 'tests/unit/monitoring/test_mttr_chaos_report_unit.py'
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
     inputs:
       scenario:

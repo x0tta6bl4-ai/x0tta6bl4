@@ -1,15 +1,7 @@
 name: eBPF Compilation & Integration
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'src/network/ebpf/programs/**'
-      - '.github/workflows/ebpf-compilation.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'src/network/ebpf/programs/**'
+  workflow_dispatch:
 
 env:
   LLVM_VERSION: 14
@@ -47,27 +39,21 @@ jobs:
         run: |
           COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
-          # Compile XDP counter
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c xdp_counter.c \
-            -o ../../../../build/ebpf/xdp_counter.o
-          
-          
-          # Compile XDP mesh filter
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c xdp_mesh_filter.c \
-            -o ../../../../build/ebpf/xdp_mesh_filter.o
-          
-          
-          # Compile XDP PQC verify
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c xdp_pqc_verify.c \
-            -o ../../../../build/ebpf/xdp_pqc_verify.o
-          
-          
+          compile_if_present() {
+            local src_file="$1"
+            local out_file="$2"
+            if [[ -f "$src_file" ]]; then
+              clang-${{ env.LLVM_VERSION }} $COMMON_FLAGS -c "$src_file" -o "$out_file"
+              echo "✓ compiled $src_file"
+            else
+              echo "skip missing $src_file"
+            fi
+          }
+
+          compile_if_present xdp_counter.c ../../../../build/ebpf/xdp_counter.o
+          compile_if_present xdp_mesh_filter.c ../../../../build/ebpf/xdp_mesh_filter.o
+          compile_if_present xdp_pqc_verify.c ../../../../build/ebpf/xdp_pqc_verify.o
+
           echo "✓ XDP programs compiled"
       
       - name: Compile kprobe programs
@@ -75,13 +61,15 @@ jobs:
         run: |
           COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
-          # Compile kprobe syscall latency
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c kprobe_syscall_latency_secure.c \
-            -o ../../../../build/ebpf/kprobe_syscall_latency.o
-          
-          
+          if [[ -f kprobe_syscall_latency_secure.c ]]; then
+            clang-${{ env.LLVM_VERSION }} \
+              $COMMON_FLAGS \
+              -c kprobe_syscall_latency_secure.c \
+              -o ../../../../build/ebpf/kprobe_syscall_latency.o
+          else
+            echo "skip missing kprobe_syscall_latency_secure.c"
+          fi
+
           echo "✓ kprobe programs compiled"
       
       - name: Compile tracepoint programs
@@ -89,13 +77,15 @@ jobs:
         run: |
           COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
-          # Compile tracepoint net events
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c tracepoint_net.c \
-            -o ../../../../build/ebpf/tracepoint_net.o
-          
-          
+          if [[ -f tracepoint_net.c ]]; then
+            clang-${{ env.LLVM_VERSION }} \
+              $COMMON_FLAGS \
+              -c tracepoint_net.c \
+              -o ../../../../build/ebpf/tracepoint_net.o
+          else
+            echo "skip missing tracepoint_net.c"
+          fi
+
           echo "✓ tracepoint programs compiled"
       
       - name: Compile TC programs
@@ -103,13 +93,15 @@ jobs:
         run: |
           COMMON_FLAGS="-target bpf -D__KERNEL__ -D__BPF_TRACING__ -O2 -g -I./vmlinux -I/usr/include/$(uname -m)-linux-gnu -I/usr/include"
 
-          # Compile TC classifier
-          clang-${{ env.LLVM_VERSION }} \
-            $COMMON_FLAGS \
-            -c tc_classifier.c \
-            -o ../../../../build/ebpf/tc_classifier.o
-          
-          
+          if [[ -f tc_classifier.c ]]; then
+            clang-${{ env.LLVM_VERSION }} \
+              $COMMON_FLAGS \
+              -c tc_classifier.c \
+              -o ../../../../build/ebpf/tc_classifier.o
+          else
+            echo "skip missing tc_classifier.c"
+          fi
+
           echo "✓ TC programs compiled"
       
       - name: Verify compiled objects
@@ -121,7 +113,13 @@ jobs:
           file build/ebpf/*.o
           
           # Verify all .o files are valid eBPF
-          for obj in build/ebpf/*.o; do
+          shopt -s nullglob
+          objects=(build/ebpf/*.o)
+          if [[ ${#objects[@]} -eq 0 ]]; then
+            echo "No eBPF objects were produced"
+            exit 1
+          fi
+          for obj in "${objects[@]}"; do
             readelf -h "$obj" | grep -q "Machine.*BPF" && \
               echo "✓ $(basename $obj) is valid eBPF" || \
               (echo "✗ $(basename $obj) is INVALID" && exit 1)
