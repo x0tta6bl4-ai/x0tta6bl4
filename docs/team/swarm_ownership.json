@@ -228,7 +228,6 @@
         "integration/",
         "test/",
         "scripts/verify-5g-path.sh",
-        "README.v1.1.md",
         "docs/v1.1/VERIFICATION-MATRIX.md"
       ]
     },
