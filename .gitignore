@@ -294,3 +294,7 @@ x0t_real_vpn.py
 # API response files with potential secrets (testing artifacts)
 response.json
 k6-v*-linux-amd64/
+
+# Public GitHub cleanup: keep sales/customer scratchpads out of main
+beta-customers/
+WEB3_GO_TO_MARKET/
