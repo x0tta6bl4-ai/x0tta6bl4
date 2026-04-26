@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/federated_learning/lora_fl_integration.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1e-05, 0.0002, 0.1, 0.9, 1.0, 120.0, 300.0, 100, 'LoRAWeightUpdate', 'adapter_id', 'aggregating', 'avg_round_time', 'base_adapter_id', 'base_model_name', 'collecting', 'collection_deadline', 'completed', 'completed_at', 'current_round', 'distributing', 'eligible_nodes', 'failed', 'fedavg', 'final_adapter_id', 'fl_lora_coordinator', 'global_adapter', 'global_lora', 'global_lora_v0', 'learning_rate', 'local_epochs', 'lora_A', 'lora_B', 'lora_config', 'lora_weights.json', 'metrics', 'min_participants', 'participating_nodes', 'pending', 'registered_nodes', 'round_number', 'round_results', 'rounds_completed', 'selected_nodes', 'started_at', 'status', 'total_rounds', 'total_time', 'total_training_time', 'training', 'training_started_at', 'updates_received', 'w']

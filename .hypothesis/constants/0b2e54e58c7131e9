@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/services/node_manager_service.py
-# hypothesis_version: 6.151.9
-
-[5000, 'active', 'active_nodes', 'closed', 'connections', 'coordinator', 'count', 'default', 'destinations', 'error', 'list', 'message', 'node_id', 'nodes', 'peers', 'peers_count', 'port', 'routes', 'routes_cached', 'routing', 'running', 'status', 'success', 'total', 'total_connections', 'total_nodes', 'user_id', 'x0tta6bl4-mesh', 'xor', 'Узел не запущен', 'Узел остановлен', 'Узел уже запущен']

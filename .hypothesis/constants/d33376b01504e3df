@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/monitoring/maas_metrics.py
-# hypothesis_version: 6.151.9
-
-[120, 300, 900, 3600, 86400, 'MaaSMetrics', 'VPN operation errors', '_name', 'buckets', 'currency', 'endpoint', 'error_type', 'event_type', 'maas_metrics', 'maas_nodes_active', 'maas_nodes_offline', 'node_id', 'operation', 'plan', 'pqc_handshakes_total', 'proposal_id', 'protocol', 'reason', 'record_billing_error', 'record_heartbeat', 'region', 'result', 'status', 'unknown']

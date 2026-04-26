@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/providers/ollama.py
-# hypothesis_version: 6.151.9
-
-[1000.0, '...', 'OllamaProvider', 'ollama', 'stop', 'stub', 'user']

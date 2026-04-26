@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/agents/monitoring/health_monitor_agent.py
-# hypothesis_version: 6.151.9
-
-[1.5, -100, 200, 300, 500, 1000, 'Timeout', 'active_alerts', 'alert_details', 'api', 'avg_response_time_ms', 'critical', 'database', 'degraded', 'error', 'health_history', 'healthy', 'healthy_ratio', 'id', 'info', 'is_running', 'last_check', 'max_history', 'mesh', 'message', 'older_avg', 'prometheus', 'recent_avg', 'response_time_ms', 'service', 'services', 'severity', 'status', 'status_code', 'timestamp', 'unhealthy', 'unhealthy_threshold', 'unknown', 'warning']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_governance.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.5, 10.0, 100.0, 1000.0, 10000.0, 100, 128, 168, 200, 201, 400, 403, 404, 409, '/proposals', 'Already voted', 'GOVERNANCE_VOTE_CAST', 'MaaS Governance', 'Pro/Enterprise only', 'Proposal not found', 'Unknown action type', '^(yes|no|abstain)$', 'abstain', 'accepted', 'action', 'action_type', 'actions', 'active', 'created_at', 'description', 'detail', 'end_time', 'enterprise', 'executed', 'executed_at', 'execution_hash', 'expires_at', 'finality_hash', 'free', 'hash', 'id', 'key', 'no', 'params', 'passed', 'power', 'pqc', 'pqc_attestation', 'pro', 'proposal_id', 'proposals', 'quadratic_weight', 'query', 'rejected', 'results', 'rotate_keys', 'starter', 'state', 'status', 'success', 'title', 'type', 'unknown', 'update_config', 'update_price', 'value', 'vote', 'votes', 'votes_count', 'voting_power_used', 'yes']

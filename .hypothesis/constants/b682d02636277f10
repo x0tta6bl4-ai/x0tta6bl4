@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/zkp_attestor.py
-# hypothesis_version: 6.151.9
-
-[100, 300, 'batch_inconsistency', 'commitment', 'node_id', 'public_key', 'response', 'timestamp', 'unknown', 'zkp-attestor']

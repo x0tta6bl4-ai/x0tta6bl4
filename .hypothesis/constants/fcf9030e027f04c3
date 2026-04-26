@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/routing/topology.py
-# hypothesis_version: 6.151.9
-
-[-60.0, 0.0, 0.2, 0.3, 1.0, 10.0, 25.0, 50.0, 120.0, 200.0, 'active_nodes', 'average_link_quality', 'local_node_id', 'neighbor_count', 'total_nodes']

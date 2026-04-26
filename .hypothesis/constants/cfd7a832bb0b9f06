@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/llm/consciousness_integration.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.3, 0.4, 0.5, 0.7, 100, 200, 300, 500, 512, 'Continue monitoring', 'HealingDecision', 'LLM analysis failed', 'SystemAnalysis', '[', ']', 'action', 'analysis_count', 'anomalies', 'base_url', 'confidence', 'current', 'decision_count', 'decreasing', 'default', 'expected_outcome', 'gateway_stats', 'increasing', 'llama3.2', 'low', 'mean', 'medium', 'model', 'monitor', 'name', 'ollama', 'parameters', 'reasoning', 'recommendations', 'risk_level', 'summary', 'system', 'target', 'trend', 'type', 'user', '{', '}']

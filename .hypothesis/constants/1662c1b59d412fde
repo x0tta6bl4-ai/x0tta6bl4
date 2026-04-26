@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/services/maas_auth_service.py
-# hypothesis_version: 6.151.9
-
-[400, 401, 'Email is required', 'Invalid credentials', 'user']

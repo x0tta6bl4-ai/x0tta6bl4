@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_compat.py
-# hypothesis_version: 6.151.9
-
-[501, 'MaaS Compatibility', '^(stripe|crypto)$', 'created', 'crypto', 'mesh:create', 'method', 'payment_url', 'plan', 'status', 'stripe', 'url']

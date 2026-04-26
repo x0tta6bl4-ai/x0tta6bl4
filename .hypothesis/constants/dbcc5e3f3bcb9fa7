@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/vault_secrets.py
-# hypothesis_version: 6.151.9
-
-['api_key', 'api_secret', 'api_token', 'ca_chain', 'ca_pem', 'cert_pem', 'certificate', 'client_id', 'client_secret', 'connection_string', 'credentials', 'database', 'encryption_key', 'host', 'key', 'key_pem', 'password', 'port', 'private_key', 'proxy', 'token', 'username']

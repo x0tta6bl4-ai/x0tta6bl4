@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/federated_learning/parl_integration.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.1, 0.15, 0.5, 1.0, 2.0, 5.0, 1000.0, 100, 1500, 'avg_round_time_ms', 'completed', 'current_round', 'fedavg', 'global_model_version', 'layer1.bias', 'layer1.weight', 'max_parallel_steps', 'max_workers', 'node_id', 'nodes_selected', 'parl_enabled', 'payload', 'priority', 'result', 'round_id', 'round_number', 'round_time_ms', 'round_times_ms', 'status', 'success', 'task_id', 'task_type', 'total_rounds', 'train_model', 'use_gpu']

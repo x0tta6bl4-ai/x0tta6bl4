@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_security.py
-# hypothesis_version: 6.151.9
-
-[0.0, 5.0, 60.0, 3600.0, 401, 429, 501, 503, 3600, '/', '1', 'ENVIRONMENT', 'ES256', 'ES384', 'HMAC-SHA256', 'MAAS_TOKEN_SECRET', 'ML-DSA-65', 'OIDC token expired', 'OIDC_AUDIENCE', 'OIDC_CLIENT_ID', 'OIDC_ISSUER', 'RS256', 'RS384', 'RS512', 'Retry-After', 'VAULT_TOKEN', 'VAULT_URL', 'X0TTA6BL4_PRODUCTION', 'algorithm', 'client_id', 'data', 'email', 'enabled', 'exp', 'false', 'given_name', 'iat', 'issuer', 'jwks_uri', 'keys', 'kid', 'live', 'maas', 'maas-token-signer', 'name', 'on', 'openid', 'pqc_secured', 'preferred_username', 'prod', 'production', 'profile', 'require', 'scopes', 'secret', 'signature', 'signer_key_id', 'signing-key', 'sub', 'token', 'true', 'x0t_', 'yes']

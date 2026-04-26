@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/federated_learning/privacy.py
-# hypothesis_version: 6.151.9
-
-[-2.0, 0.0, 1e-10, 1e-05, 0.01, 1.0, 1.1, 1.25, 2.0, 100, 12345, 1103515245, 'avg_noise_scale', 'budget', 'can_continue', 'clip_rate', 'clipped', 'config', 'delta', 'epsilon', 'epsilon_spent', 'max_grad_norm', 'noise_multiplier', 'noise_scale', 'original_norm', 'rounds_participated', 'target_delta', 'target_epsilon', 'total_epsilon']

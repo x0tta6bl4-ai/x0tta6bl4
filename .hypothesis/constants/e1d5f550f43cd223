@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/thread_safe_stats.py
-# hypothesis_version: 6.151.9
-
-[0.0, 100, 1000, 'alive_peers', 'avg_latency', 'cache_hit_rate', 'cache_hits', 'cache_misses', 'cache_size', 'component', 'connections_failed', 'counters', 'failover_events', 'gauges', 'last_update', 'max_latency', 'min_latency', 'packets_dropped', 'packets_routed', 'path_computations', 'peer_latencies', 'recent_series', 'routes_cached', 'sets', 'success_rate', 'total_links', 'total_nodes', 'total_peers']

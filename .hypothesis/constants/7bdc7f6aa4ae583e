@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/tracing_middleware.py
-# hypothesis_version: 6.151.9
-
-[200, 400, 500, 1000, '/health', '/metrics', 'Authorization', 'Bearer ', 'TracingMiddleware', 'User-Agent', 'X-API-Key', 'X-Correlation-ID', 'X-Request-Duration', 'X-Trace-ID', 'anonymous', 'api_tracer', 'content-type', 'correlation_id', 'db.operation', 'db.system', 'db.table', 'db_tracer', 'error.message', 'error.type', 'external.operation', 'external.service', 'external.url', 'get_correlation_id', 'http.auth_present', 'http.client_ip', 'http.credential_id', 'http.duration_ms', 'http.host', 'http.method', 'http.path', 'http.scheme', 'http.status_code', 'http.url', 'http.user_agent', 'postgresql', 'traceparent', 'unknown', 'utf-8', 'x0tta6bl4', 'x0tta6bl4-db']

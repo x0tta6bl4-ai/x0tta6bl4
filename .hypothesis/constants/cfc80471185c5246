@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/certificate_validator.py
-# hypothesis_version: 6.151.9
-
-[b'\n', b'-----', b'-----BEGIN', 10.0, 200, 'Content-Type', 'expired', 'not_yet_valid', 'spiffe://', 'x0tta6bl4.mesh']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/rag/chunker.py
-# hypothesis_version: 6.151.9
-
-[1.5, 100, 512, '!', '.', '?', 'chunk_index', 'fixed_size', 'paragraph', 'recursive', 'semantic', 'sentence']

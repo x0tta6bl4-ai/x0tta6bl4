@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/ledger_endpoints.py
-# hypothesis_version: 6.151.9
-
-[500, '/api/v1/ledger', '/index', '/search', '/status', 'continuity_file', 'file_exists', 'indexed', 'ledger', 'message', 'status', 'success', 'Поисковый запрос']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/agents/development/spec_to_code_agent.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.85, 'api', 'controller', 'generated_by', 'go', 'java', 'javascript', 'model', 'python', 'rust', 'service', 'spec_to_code_agent', 'test', 'typescript', 'utility']

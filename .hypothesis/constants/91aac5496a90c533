@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_analytics.py
-# hypothesis_version: 6.151.9
-
-[404, '/{mesh_id}/summary', '24h', 'MaaS Analytics', 'Mesh not found', 'REDIS_URL', 'analytics:view']
