@@ -11,9 +11,15 @@ import json
 import time
 from datetime import datetime
 
-from .hybrid_tls import (HybridTLSContext, hybrid_decrypt, hybrid_encrypt,
-                         hybrid_handshake, hybrid_sign, hybrid_verify,
-                         measure_handshake_overhead)
+from .hybrid_tls import (
+    HybridTLSContext,
+    hybrid_decrypt,
+    hybrid_encrypt,
+    hybrid_handshake,
+    hybrid_sign,
+    hybrid_verify,
+    measure_handshake_overhead,
+)
 
 
 def demo_mesh_handshake_and_encryption():

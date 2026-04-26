@@ -1,0 +1,23 @@
+{
+  "generated_at_utc": "2026-04-26T21:06:24Z",
+  "claim_boundary": "Real local liboqs-backed hybrid TLS handshake and transcript-signature validation in this environment. This is still local runtime evidence, not production traffic proof.",
+  "algorithms": {
+    "kem": "ML-KEM-768",
+    "classical_kex": "ECDHE P-256",
+    "signature": "ML-DSA-65 transcript binding",
+    "transport_cipher": "AES session key derived via HKDF-SHA256"
+  },
+  "results": {
+    "basic_session_keys_match": true,
+    "authenticated_session_keys_match": true,
+    "session_key_length": 32,
+    "ciphertext_length": 1088,
+    "transcript_sha256": "8e11d6f687d4667ea659d872ba90e547b2274dc8886916b7fcff122e52931d28",
+    "client_signature_length": 3309,
+    "server_signature_length": 3309,
+    "peer_signature_verification": true,
+    "liboqs_runtime": true,
+    "client_sig_public_key_length": 1952,
+    "server_sig_public_key_length": 1952
+  }
+}

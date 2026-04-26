@@ -9,11 +9,12 @@ MODE="mock"
 usage() {
   cat <<'EOF'
 Usage:
-  verify-cosign-rekor.sh [--mode mock|ci-keyless] [--tool-mode auto|native|docker]
+  verify-cosign-rekor.sh [--mode local-key|mock|ci-keyless] [--tool-mode auto|native|docker]
 
 Modes:
-  mock        Local developer mode. Generates an ephemeral key pair, signs SBOM blobs,
+  local-key   Local developer mode. Generates or reuses a local key pair, signs SBOM blobs,
               and verifies the signatures locally. No Rekor upload is attempted.
+  mock        Backward-compatible alias for local-key.
   ci-keyless  CI-only mode. Requires SIGSTORE_ID_TOKEN plus native cosign and rekor-cli.
               Signs blobs keylessly and uploads them to Rekor.
 EOF
@@ -103,7 +104,7 @@ require_native() {
 }
 
 case "${MODE}" in
-  mock)
+  local-key|mock)
     if [[ "${TOOL_MODE}" == "docker" ]]; then
       command -v docker >/dev/null 2>&1 || {
         echo "docker is required for mock docker mode" >&2
@@ -113,7 +114,14 @@ case "${MODE}" in
       require_native cosign
     fi
     export COSIGN_PASSWORD=""
-    key_prefix="${OUTPUT_DIR}/mock-cosign"
+    key_prefix="${OUTPUT_DIR}/local-cosign"
+    legacy_key_prefix="${OUTPUT_DIR}/mock-cosign"
+    if [[ ! -f "${key_prefix}.key" || ! -f "${key_prefix}.pub" ]]; then
+      if [[ -f "${legacy_key_prefix}.key" && -f "${legacy_key_prefix}.pub" ]]; then
+        cp "${legacy_key_prefix}.key" "${key_prefix}.key"
+        cp "${legacy_key_prefix}.pub" "${key_prefix}.pub"
+      fi
+    fi
     if [[ ! -f "${key_prefix}.key" || ! -f "${key_prefix}.pub" ]]; then
       run_cosign generate-key-pair --output-key-prefix "$(cpath "${key_prefix}")"
     fi
@@ -138,11 +146,11 @@ case "${MODE}" in
       cp "${artifact}.sig" "${prov_dir}/" 2>/dev/null || true
     done
     if [[ -f "${key_prefix}.pub" ]]; then
-      cp "${key_prefix}.pub" "${prov_dir}/mock-cosign.pub"
+      cp "${key_prefix}.pub" "${prov_dir}/local-cosign.pub"
     fi
 
-    cat > "${OUTPUT_DIR}/mock-signing-status.txt" <<EOF
-mode=mock
+    cat > "${OUTPUT_DIR}/local-key-signing-status.txt" <<EOF
+mode=local-key
 rekor=skipped
 timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 artifacts_signed=${#artifacts[@]}
@@ -151,12 +159,12 @@ does_not_prove=keyless OIDC signing, Rekor transparency-log upload, supply-chain
 to_claim_rekor=run in CI with: security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native
 EOF
     echo ""
-    echo "MOCK-ONLY — what this run proved:"
-    echo "  + ephemeral key pair generated at ${OUTPUT_DIR}/mock-cosign.{key,pub}"
+    echo "LOCAL-KEY — what this run proved:"
+    echo "  + local key pair available at ${OUTPUT_DIR}/local-cosign.{key,pub}"
     echo "  + SBOM blobs signed and signatures verified locally"
     echo "  - Rekor transparency-log upload: SKIPPED (no OIDC token)"
     echo "  - Keyless cosign: SKIPPED (no SIGSTORE_ID_TOKEN)"
-    echo "  Status written to: ${OUTPUT_DIR}/mock-signing-status.txt"
+    echo "  Status written to: ${OUTPUT_DIR}/local-key-signing-status.txt"
     echo ""
     echo "To claim transparency-log inclusion run in CI:"
     echo "  security/sbom/verify-cosign-rekor.sh --mode ci-keyless --tool-mode native"
@@ -212,8 +220,8 @@ EOF
     ;;
 esac
 
-if [[ "${MODE}" == "mock" ]]; then
-  echo "cosign signing completed: MOCK mode (local key only — Rekor NOT involved)"
+if [[ "${MODE}" == "local-key" || "${MODE}" == "mock" ]]; then
+  echo "cosign signing completed: LOCAL-KEY mode (local key only — Rekor NOT involved)"
 else
   echo "cosign/rekor signing completed: CI-KEYLESS mode (Rekor upload attempted)"
 fi
