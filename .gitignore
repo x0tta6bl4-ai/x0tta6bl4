@@ -298,3 +298,17 @@ k6-v*-linux-amd64/
 # Public GitHub cleanup: keep sales/customer scratchpads out of main
 beta-customers/
 WEB3_GO_TO_MARKET/
+
+# Public GitHub cleanup: keep local debug scratch out of main
+check_pqc_debug*.py
+debug_algos.py
+debug_liboqs.py
+debug_pytest.sh
+debug_test_imports.py
+diagnose_imports.py
+diagnose_imports_v2.py
+diagnose_imports_v3.py
+diagnose.sh
+demo_provisioning.py
+current_config.json
+correct-config.json
