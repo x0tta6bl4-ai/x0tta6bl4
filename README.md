@@ -28,6 +28,11 @@ This public branch is a **curated research surface**, not a promise of productio
 - `docs/verification/` — evidence, validation notes, and reality checks
 - `docs/operations/` — operator-facing runbooks
 
+## Related public repos
+
+- `x0tta6bl4-ai/x0tta6bl4-ai` — profile README and public entry point
+- `x0tta6bl4-ai/x0tta6bl4-mesh-mvp` — smaller mesh-focused MVP surface
+
 ## Public branch policy
 
 This repository has grown organically and contains both stronger and weaker areas.
