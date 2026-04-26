@@ -41,6 +41,7 @@ To keep the public surface honest:
 - heavy or environment-specific workflows are manual-first
 - public documentation should prefer verified facts over aspirational claims
 - experimental folders may exist without being presented as product-ready
+- customer scratchpads and local debug files are intentionally kept out of public `main`
 
 ## Minimal local setup
 
