@@ -1,27 +1,6 @@
 name: Performance Benchmarks
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'src/security/**'
-      - 'src/network/**'
-      - 'src/testing/**'
-      - 'scripts/check_competitive_self_healing_gate.py'
-      - 'benchmarks/**'
-      - 'benchmarks/baseline/**'
-      - '.github/workflows/performance-benchmark.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'src/security/**'
-      - 'src/network/**'
-      - 'src/testing/**'
-      - 'scripts/check_competitive_self_healing_gate.py'
-      - 'benchmarks/**'
-      - 'benchmarks/baseline/**'
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
   workflow_dispatch:
 
 jobs:
