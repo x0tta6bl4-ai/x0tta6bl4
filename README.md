@@ -28,6 +28,20 @@ This public branch is a **curated research surface**, not a promise of productio
 - `docs/verification/` — evidence, validation notes, and reality checks
 - `docs/operations/` — operator-facing runbooks
 
+## Current truth files
+
+If you want the current repo-backed status instead of older notes, start here:
+
+- `bash scripts/verify-v1.1.sh --fast` — local verification snapshot
+- `docs/verification/release-gate-v1.1.md` — current go/no-go gate
+- `docs/verification/v1.1-hardening-status.md` — current evidence summary
+- `docs/verification/HYBRID_TLS_VALIDATION_LATEST.md` — latest local hybrid TLS validation note
+
+Current empirical eBPF baseline retained across the release docs:
+
+- `142k TX / 49 RX PPS` on the RC1 dataplane baseline
+- this is a functional baseline, not a claim of `>1M PPS` production throughput
+
 ## Related public repos
 
 - `x0tta6bl4-ai/x0tta6bl4-ai` — profile README and public entry point

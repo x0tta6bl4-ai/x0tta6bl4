@@ -7,6 +7,7 @@ LOADER_BIN="${ROOT_DIR}/ebpf/prod/loader"
 IFACE="${IFACE:-eth0}"
 LIVE_ATTACH=0
 RUN_STATUS=1
+PROBE_LISTENER_LOSS=0
 
 detect_arch_suffix() {
   case "$(uname -m)" in
@@ -23,7 +24,7 @@ GENERATED_GO="${ROOT_DIR}/ebpf/prod/meshcore_${ARCH_SUFFIX}_bpfel.go"
 usage() {
   cat <<'EOF'
 Usage:
-  verify-local.sh [--iface IFACE] [--live-attach] [--no-status]
+  verify-local.sh [--iface IFACE] [--live-attach] [--probe-listener-loss] [--no-status]
 
 Default behavior is non-mutating verification:
   - checks kernel version
@@ -33,6 +34,7 @@ Default behavior is non-mutating verification:
   - renders the Cilium policy and dumps status
 
 Use --live-attach to load and attach the XDP program to a real interface.
+Use --probe-listener-loss to run TCP port 443 listener-loss detector (VPN fallback monitoring).
 EOF
 }
 
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --live-attach)
       LIVE_ATTACH=1
+      shift
+      ;;
+    --probe-listener-loss)
+      PROBE_LISTENER_LOSS=1
       shift
       ;;
     --no-status)
@@ -174,6 +180,38 @@ if [[ "${LIVE_ATTACH}" -eq 1 ]]; then
 else
   echo "[5/5] verification-only mode"
   "${LOADER_BIN}" "${loader_args[@]}" --dry-run
+fi
+
+echo "[EXTRA] NIC performance check"
+if command -v ethtool >/dev/null 2>&1; then
+  DRIVER=$(ethtool -i "${IFACE}" 2>/dev/null | grep driver | awk '{print $2}') || DRIVER="unknown"
+  echo "  interface: ${IFACE}"
+  echo "  driver: ${DRIVER}"
+  if [[ "${DRIVER}" == "r8169" ]]; then
+    echo "  ⚠️  WARNING: Realtek r8169 detected. High-speed XDP (8.8M PPS) is NOT possible on this hardware."
+    echo "  ℹ️  ADVICE: Use Intel (i40e/ixgbe) or Mellanox (mlx5_core) for production DePIN nodes."
+  fi
+fi
+
+if [[ "${PROBE_LISTENER_LOSS}" -eq 1 ]]; then
+  echo "[EXTRA] TCP listener-loss detector (port 443 monitoring)"
+  OUTPUT_DIR="${ROOT_DIR}/.tmp/listener_detector_$(date +%s)"
+  mkdir -p "${OUTPUT_DIR}"
+  
+  if bash "${ROOT_DIR}/scripts/ebpf_listener_detector.sh" \
+      "${ROOT_DIR}/ebpf/prod/probe_listener_loss.c" \
+      "${OUTPUT_DIR}" >/dev/null 2>&1; then
+    echo "  listener-loss detector: OK"
+    echo "  artifacts: ${OUTPUT_DIR}/listener_loss_metrics.json"
+    
+    # Include metrics in final report
+    if [[ -f "${OUTPUT_DIR}/listener_loss_metrics.json" ]]; then
+      echo "  confidence score: $(jq -r '.scenarios.baseline.metrics.listener_health_confidence // "N/A"' "${OUTPUT_DIR}/listener_loss_metrics.json")"
+    fi
+  else
+    echo "  listener-loss detector: WARNING (may need root or newer kernel)"
+    echo "  troubleshooting: check /proc/net/tcp or ensure NetFilter hooks available"
+  fi
 fi
 
 echo "local eBPF verification completed"

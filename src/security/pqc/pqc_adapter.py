@@ -1,15 +1,43 @@
 #!/usr/bin/env python3
 """
-x0tta6bl4 Post-Quantum Cryptography Adapter
-============================================
+x0tta6bl4 Post-Quantum Cryptography Adapter (LEGACY)
+=====================================================
+
+DEPRECATED: Use src.security.pqc.adapter.PQCAdapter instead.
+This module is kept for backward compatibility only.
+
+Key difference: this module allows initialization when liboqs is missing
+(self.available=False, methods raise on call). The canonical adapter.py
+raises RuntimeError at __init__ time (fail-closed).
 
 Адаптер для библиотеки liboqs, предоставляющий интерфейсы
 для Kyber KEM и Dilithium signatures.
 """
+import warnings
 
-from typing import Tuple
+warnings.warn(
+    "src.security.pqc.pqc_adapter is deprecated. Use src.security.pqc.adapter instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-import oqs
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+# Prevent oqs from attempting auto-install (which can hang on git clone)
+os.environ.setdefault("OQS_DISABLE_AUTO_INSTALL", "1")
+
+try:
+    import oqs
+    LIBOQS_AVAILABLE = True
+except (ImportError, RuntimeError, AttributeError) as e:
+    oqs = None
+    LIBOQS_AVAILABLE = False
+    logger.warning(
+        "liboqs not available - PQCAdapter will run in degraded mode: %s", e
+    )
 
 
 class PQCAdapter:
@@ -46,61 +74,78 @@ class PQCAdapter:
             sig_alg = legacy_sig_map[sig_alg]
 
         # Try to validate algorithms, but handle API differences
-        try:
-            if hasattr(oqs, "get_enabled_kem_mechanisms"):
-                mechanisms = oqs.get_enabled_kem_mechanisms()
-                if kem_alg not in mechanisms:
-                    # Try legacy name if NIST name not found
-                    legacy_name = next(
-                        (k for k, v in legacy_kem_map.items() if v == kem_alg), None
-                    )
-                    if legacy_name and legacy_name in mechanisms:
-                        kem_alg = legacy_name
-                    else:
-                        raise RuntimeError(
-                            f"KEM-алгоритм {kem_alg} не поддерживается библиотекой OQS."
+        if oqs is not None:
+            try:
+                if hasattr(oqs, "get_enabled_kem_mechanisms"):
+                    mechanisms = oqs.get_enabled_kem_mechanisms()
+                    if kem_alg not in mechanisms:
+                        # Try legacy name if NIST name not found
+                        legacy_name = next(
+                            (k for k, v in legacy_kem_map.items() if v == kem_alg),
+                            None,
                         )
-            if hasattr(oqs, "get_enabled_sig_mechanisms"):
-                mechanisms = oqs.get_enabled_sig_mechanisms()
-                if sig_alg not in mechanisms:
-                    # Try legacy name if NIST name not found
-                    legacy_name = next(
-                        (k for k, v in legacy_sig_map.items() if v == sig_alg), None
-                    )
-                    if legacy_name and legacy_name in mechanisms:
-                        sig_alg = legacy_name
-                    else:
-                        raise RuntimeError(
-                            f"Алгоритм подписи {sig_alg} не поддерживается библиотекой OQS."
+                        if legacy_name and legacy_name in mechanisms:
+                            kem_alg = legacy_name
+                        else:
+                            raise RuntimeError(
+                                f"KEM-алгоритм {kem_alg} не поддерживается библиотекой OQS."
+                            )
+                if hasattr(oqs, "get_enabled_sig_mechanisms"):
+                    mechanisms = oqs.get_enabled_sig_mechanisms()
+                    if sig_alg not in mechanisms:
+                        # Try legacy name if NIST name not found
+                        legacy_name = next(
+                            (k for k, v in legacy_sig_map.items() if v == sig_alg),
+                            None,
                         )
-        except (AttributeError, RuntimeError):
-            # If validation fails, try to use algorithms anyway
-            # They will fail at runtime if not supported
-            pass
+                        if legacy_name and legacy_name in mechanisms:
+                            sig_alg = legacy_name
+                        else:
+                            raise RuntimeError(
+                                f"Алгоритм подписи {sig_alg} не поддерживается библиотекой OQS."
+                            )
+            except (AttributeError, RuntimeError):
+                # If validation fails, try to use algorithms anyway
+                # They will fail at runtime if not supported
+                pass
+        else:
+            logger.warning(
+                "PQCAdapter initialized without liboqs; methods will raise if called."
+            )
 
         self.kem_alg = kem_alg
         self.sig_alg = sig_alg
+        self.available = oqs is not None
+
+    def _require_oqs(self) -> None:
+        if oqs is None:
+            raise RuntimeError(
+                "liboqs-python not available. "
+                "Install with: pip install liboqs-python"
+            )
 
     # --- Key Encapsulation Mechanism (KEM) - Kyber ---
 
-    def kem_generate_keypair(self) -> Tuple[bytes, bytes]:
+    def kem_generate_keypair(self) -> tuple[bytes, bytes]:
         """
         Генерирует пару ключей для Kyber KEM.
 
         :return: Кортеж (публичный_ключ, приватный_ключ).
         """
+        self._require_oqs()
         with oqs.KeyEncapsulation(self.kem_alg) as kem:
             public_key = kem.generate_keypair()
             private_key = kem.export_secret_key()
             return public_key, private_key
 
-    def kem_encapsulate(self, public_key: bytes) -> Tuple[bytes, bytes]:
+    def kem_encapsulate(self, public_key: bytes) -> tuple[bytes, bytes]:
         """
         Инкапсулирует разделяемый секрет с помощью публичного ключа Kyber.
 
         :param public_key: Публичный ключ получателя.
         :return: Кортеж (шифротекст, разделяемый_секрет).
         """
+        self._require_oqs()
         with oqs.KeyEncapsulation(self.kem_alg) as kem:
             # The public key is passed to encap_secret, not the constructor.
             ciphertext, shared_secret = kem.encap_secret(public_key)
@@ -114,18 +159,20 @@ class PQCAdapter:
         :param ciphertext: Шифротекст для декапсуляции.
         :return: Разделяемый секрет.
         """
+        self._require_oqs()
         with oqs.KeyEncapsulation(self.kem_alg, secret_key=private_key) as kem:
             shared_secret = kem.decap_secret(ciphertext)
             return shared_secret
 
     # --- Digital Signature Algorithm - Dilithium ---
 
-    def sig_generate_keypair(self) -> Tuple[bytes, bytes]:
+    def sig_generate_keypair(self) -> tuple[bytes, bytes]:
         """
         Генерирует пару ключей для Dilithium.
 
         :return: Кортеж (публичный_ключ_для_проверки, приватный_ключ_для_подписи).
         """
+        self._require_oqs()
         with oqs.Signature(self.sig_alg) as sig:
             public_key = sig.generate_keypair()
             private_key = sig.export_secret_key()
@@ -139,6 +186,7 @@ class PQCAdapter:
         :param message: Сообщение для подписи.
         :return: Цифровая подпись.
         """
+        self._require_oqs()
         with oqs.Signature(self.sig_alg, secret_key=private_key) as sig:
             signature = sig.sign(message)
             return signature
@@ -152,6 +200,7 @@ class PQCAdapter:
         :param signature: Цифровая подпись.
         :return: True, если подпись валидна, иначе False.
         """
+        self._require_oqs()
         with oqs.Signature(self.sig_alg) as sig:
             try:
                 is_valid = sig.verify(message, signature, public_key)

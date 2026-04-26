@@ -6,7 +6,7 @@ Data classes for Post-Quantum Cryptography operations.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class PQCAlgorithm(Enum):
@@ -15,7 +15,7 @@ class PQCAlgorithm(Enum):
     ML_KEM_512 = "ML-KEM-512"
     ML_KEM_768 = "ML-KEM-768"
     ML_KEM_1024 = "ML-KEM-1024"
-    
+
     # Digital Signature Algorithms (NIST FIPS 204)
     ML_DSA_44 = "ML-DSA-44"
     ML_DSA_65 = "ML-DSA-65"
@@ -37,9 +37,9 @@ class PQCKeyPair:
     public_key: bytes
     secret_key: bytes
     created_at: datetime = field(default_factory=datetime.utcnow)
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
     key_id: str = ""
-    
+
     def __post_init__(self):
         """Generate key_id if not provided."""
         if not self.key_id:
@@ -47,13 +47,13 @@ class PQCKeyPair:
             # Ensure public_key is bytes
             pk = self.public_key if isinstance(self.public_key, bytes) else bytes(self.public_key)
             self.key_id = hashlib.sha256(pk).hexdigest()[:16]
-    
+
     def is_expired(self) -> bool:
         """Check if key is expired."""
         if self.expires_at is None:
             return False
         return datetime.utcnow() > self.expires_at
-    
+
     def is_valid(self) -> bool:
         """Check if key is valid (not expired and has required fields)."""
         return (
@@ -62,8 +62,8 @@ class PQCKeyPair:
             and bool(self.secret_key)
             and bool(self.algorithm)
         )
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "algorithm": self.algorithm,
@@ -73,9 +73,9 @@ class PQCKeyPair:
             "key_id": self.key_id,
             "is_expired": self.is_expired(),
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PQCKeyPair':
+    def from_dict(cls, data: dict[str, Any]) -> 'PQCKeyPair':
         """Create from dictionary."""
         return cls(
             algorithm=data["algorithm"],
@@ -95,8 +95,8 @@ class PQCSignature:
     message_hash: bytes
     timestamp: datetime = field(default_factory=datetime.utcnow)
     signer_key_id: str = ""
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "algorithm": self.algorithm,
@@ -105,9 +105,9 @@ class PQCSignature:
             "timestamp": self.timestamp.isoformat(),
             "signer_key_id": self.signer_key_id,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PQCSignature':
+    def from_dict(cls, data: dict[str, Any]) -> 'PQCSignature':
         """Create from dictionary."""
         return cls(
             algorithm=data["algorithm"],
@@ -124,8 +124,8 @@ class PQCEncapsulationResult:
     ciphertext: bytes
     shared_secret: bytes
     algorithm: str
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "algorithm": self.algorithm,
@@ -142,15 +142,15 @@ class PQCSession:
     shared_secret: bytes
     peer_public_key: bytes
     created_at: datetime = field(default_factory=datetime.utcnow)
-    expires_at: Optional[datetime] = None
-    
+    expires_at: datetime | None = None
+
     def is_expired(self) -> bool:
         """Check if session is expired."""
         if self.expires_at is None:
             return False
         return datetime.utcnow() > self.expires_at
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary (without secret)."""
         return {
             "session_id": self.session_id,
