@@ -7,7 +7,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 
-const { ethers } = hre;
+const { ethers } = await hre.network.getOrCreate();
 
 describe("X0TToken", function () {
     let token;
