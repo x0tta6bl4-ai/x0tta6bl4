@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_telemetry.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.5, 1.0, 100, 300, 404, 1000, 2000, 3600, 10000, '/api/v1/maas', '/heartbeat', '/{mesh_id}/topology', 'MaaS Telemetry', 'Node not registered', 'REDIS_URL', 'ack', 'class', 'cpu', 'evictions', 'healthy', 'hit_rate', 'hits', 'id', 'last_seen', 'latency', 'links', 'max_size', 'mem', 'mesh_id', 'misses', 'neighbors', 'nodes', 'offline', 'pheromones', 'pqc-mesh', 'pqc_enabled', 'quality', 'redis', 'reputation', 'score', 'secure', 'size', 'source', 'status', 'target', 'telemetry', 'trust_score', 'type', 'uptime']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/batman/topology.py
-# hypothesis_version: 6.151.9
-
-[0.0, 100, 300, 'avg_latency_ms', 'cache_ttl', 'degraded', 'gauges', 'good_links', 'inf', 'initializing', 'k_disjoint', 'local_node_id', 'mesh_diameter', 'mesh_id', 'node_added', 'node_removed', 'offline', 'online', 'total_links', 'total_nodes']

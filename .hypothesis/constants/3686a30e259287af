@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/pqc_identity.py
-# hypothesis_version: 6.151.9
-
-['@context', 'ML-DSA-65', 'ML-KEM-768', 'assertionMethod', 'authentication', 'controller', 'created', 'id', 'kem_algorithm', 'kem_public_key', 'keyAgreement', 'keyId', 'key_id', 'manifest', 'proof', 'publicKeyHex', 'sig_algorithm', 'sig_public_key', 'signatureValue', 'type', 'updated', 'verificationMethod']

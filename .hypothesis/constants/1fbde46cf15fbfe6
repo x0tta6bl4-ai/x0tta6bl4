@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/discovery/protocol.py
-# hypothesis_version: 6.151.9
-
-[0.01, 0.1, 5.0, 10.0, 60.0, 1000, 4096, 7777, 65535, '1.0.0', '127.0.0.1', '239.255.77.77', '4sl', '8.8.8.8', 'DiscoveryMessage', 'PQCNodeIdentity', 'PeerInfo', 'addresses', 'big', 'dht_enabled', 'did', 'mesh', 'multicast_enabled', 'node_id', 'payload', 'peer', 'peers', 'peers_count', 'ping_ts', 'pqc_pubkey', 'pub', 'reason', 'sender', 'services', 'sig', 'sig_public_key', 'target_id', 'ts', 'type', 'unknown', 'utf-8', 'verifier-temp', 'version']

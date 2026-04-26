@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/swarm/orchestrator.py
-# hypothesis_version: 6.151.9
-
-[0.0, 100.0, 1000.0, 100, 300, 1500, 'active', 'agents', 'agents_spawned', 'avg_task_time_ms', 'base', 'completed', 'default-swarm', 'error', 'failed', 'generic', 'global-optimizer-0', 'initializing', 'metrics', 'monitor', 'pending', 'pricing', 'pricing_optimizer', 'ready', 'status', 'tasks_executed', 'tasks_failed', 'total_agents']

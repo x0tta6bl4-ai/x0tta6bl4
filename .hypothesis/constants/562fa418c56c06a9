@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/resilience/timeout.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.8, 1.0, 10.0, 30.0, 'CascadeTimeout', 'T', 'Thread timeout', 'TimeoutConfig', 'TimeoutContext', 'TimeoutError', 'TimeoutPattern', 'avg_time', 'depth', 'exception', 'result', 'timeout_rate', 'timeouts', 'total_calls', 'total_time']

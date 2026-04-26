@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas_agent_mesh.py
-# hypothesis_version: 6.151.9
-
-[200, 403, 503, '/api/v1/maas/agents', '/health/history', '/health/run', '/health/status', 'MAAS_AGENT_BOT_TOKEN', 'MaaS Agent Mesh', 'X-Agent-Token', 'items']

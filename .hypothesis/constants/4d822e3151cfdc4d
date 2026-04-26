@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/resilience/wan_overlay_pqc.py
-# hypothesis_version: 6.151.9
-
-[b'KEEPALIVE', b'rx_key', b'tx_key', 25.0, 3600.0, 1400, 1568, 1952, 2592, 3168, 'CRYSTALS-Dilithium5', 'CRYSTALS-Kyber-1024', 'ClassicalKeyPair', 'CryptoMode', 'Ed25519', 'HybridKeyBundle', 'PQCKeyPair', 'TunnelConfig', 'TunnelSession', 'TunnelState', 'WANOverlayPQC', 'X25519', 'big', 'bytes_received', 'bytes_sent', 'classical', 'classical_kem_public', 'closed', 'crypto_mode', 'degraded', 'established', 'established_at', 'handshake', 'hybrid', 'initializing', 'last_activity', 'node_id', 'packets_received', 'packets_sent', 'pqc_kem_public', 'pqc_only', 'pqc_sign_public', 'remote_node', 'rx_counter', 'state', 'timestamp', 'tunnel_id', 'tx_counter']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/security/spiffe/optimizations.py
-# hypothesis_version: 6.151.9
-
-[1.0, 2.0, 3.0, 5.0, 100, 200, 443, 500, 3600, 5000, 10000, 43200, '24h', '30s', 'SPIRE_SERVER_EU_WEST', 'SPIRE_SERVER_US_EAST', 'asia-pacific', 'eu-west', 'h', 'https', 'm', 'needs_refresh', 'priority', 's', 'spire_server_url', 'timestamp', 'token', 'us-east']

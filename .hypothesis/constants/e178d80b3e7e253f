@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/circuit_breaker.py
-# hypothesis_version: 6.151.9
-
-[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 'T', '_name', 'auth_provider', 'circuit_name', 'closed', 'failure', 'failure_count', 'from_state', 'half_open', 'last_failure_time', 'last_success_time', 'name', 'open', 'result', 'state', 'stripe_api', 'success', 'success_count', 'to_state', 'total_failures', 'total_requests', 'total_successes', 'vpn_provisioning']

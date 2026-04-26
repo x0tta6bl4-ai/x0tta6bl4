@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/swarm.py
-# hypothesis_version: 6.151.9
-
-[30.0, 100.0, 100, 300, 1500, 3600, 86400, '/api/v3/swarm', '/create', '/health', '/{swarm_id}', '/{swarm_id}/agents', '/{swarm_id}/metrics', '/{swarm_id}/scale', '/{swarm_id}/status', '/{swarm_id}/tasks', '10/minute', '100/minute', '1000/minute', '5/minute', '50/minute', 'ADMIN_TOKEN', 'action', 'active_swarms', 'agent_id', 'agents', 'analysis_id', 'analysis_type', 'anomaly_detection', 'completed', 'created_at', 'failed', 'graceful', 'healthy', 'image_size', 'mesh_topology', 'metrics', 'name', 'new_count', 'num_agents', 'parl', 'pause', 'percent', 'previous_count', 'queued', 'results', 'resume', 'returned', 'scale_up', 'scaling_status', 'state', 'status', 'swarm', 'swarm_id', 'swarms', 'task_execution', 'task_ids', 'tasks', 'tasks_submitted', 'terminate', 'terminated', 'total', 'total_agents']

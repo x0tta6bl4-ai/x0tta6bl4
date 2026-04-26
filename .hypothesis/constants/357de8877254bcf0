@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/routing/router.py
-# hypothesis_version: 6.151.9
-
-[b'\x00', 0.0, 1.0, 30.0, 60.0, '_receive_data', 'ignore', 'local_node_id', 'packet_handler', 'recovery', 'routes', 'running', 'topology']

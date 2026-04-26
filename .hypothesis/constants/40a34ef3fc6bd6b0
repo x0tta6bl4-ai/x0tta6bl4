@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/middleware/auth.py
-# hypothesis_version: 6.151.9
-
-['ADMIN_TOKEN', 'Admin token required', 'Bearer', 'Invalid admin token', 'WWW-Authenticate', 'admin']

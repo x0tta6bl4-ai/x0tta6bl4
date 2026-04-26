@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/maas/models.py
-# hypothesis_version: 6.151.9
-
-[0.0, 100, 120, 128, 320, 900, 1000, 3600, 86400, 604800, 2592000, 31536000, 'ApiKeyResponse', 'ApiKeyRotateRequest', 'ApiKeyRotateResponse', 'LoginRequest', 'LoginResponse', 'MeshDeployRequest', 'MeshDeployResponse', 'MeshMetricsResponse', 'MeshScaleRequest', 'MeshStatusResponse', 'NodeApproveRequest', 'NodeApproveResponse', 'NodeHeartbeatRequest', 'NodeRegisterRequest', 'NodeRegisterResponse', 'NodeRevokeRequest', 'NodeRevokeResponse', 'OIDCExchangeRequest', 'PolicyRequest', 'PolicyResponse', 'RegisterRequest', 'RegisterResponse', 'ScaleRequest', 'ScaleResponse', 'TokenResponse', 'TokenRotateResponse', 'UserProfileResponse', '^(allow|deny)$', '^(fedavg|hw_fedavg)$', '^(none|xor|aes)$', 'allow', 'api_key', 'default', 'edge', 'fedavg', 'manual_revoke', 'none', 'standard', 'starter']

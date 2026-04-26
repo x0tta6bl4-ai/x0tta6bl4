@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/anti_censorship/__init__.py
-# hypothesis_version: 6.151.9
-
-['BlockingType', 'CDNProvider', 'CensorshipDetector', 'DetectionResult', 'DomainFrontingClient', 'FrontingConfig', 'MeekTransport', 'OBFS4Transport', 'ObfuscationConfig', 'ObfuscationLayer', 'PluggableTransport', 'SnowflakeTransport', 'StegoMeshProtocol', 'TrafficObfuscator', 'TransportConfig', 'TransportType']

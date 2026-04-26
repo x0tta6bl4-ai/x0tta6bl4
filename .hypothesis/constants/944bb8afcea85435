@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/coordination/tasks.py
-# hypothesis_version: 6.151.9
-
-['.', '.tmp', 'Cancelled by user', 'Task', 'artifacts', 'assigned', 'assigned_role', 'assigned_to', 'blocked', 'blocks', 'by_status', 'cancelled', 'claude', 'code', 'code.implement', 'code.migration', 'code.test', 'codex', 'completed', 'completed_at', 'created_at', 'created_files', 'deadline', 'depends_on', 'description', 'design', 'design.architecture', 'design.decomposition', 'design.interface', 'error', 'failed', 'gemini', 'glm5', 'human', 'in_progress', 'integrate', 'integrate.deploy', 'integrate.document', 'integrate.merge', 'metadata', 'overdue', 'pending', 'pipeline', 'priority', 'r', 'research', 'research.load_test', 'result', 'review', 'review.code', 'review.refactor', 'review.security', 'started_at', 'status', 'tags', 'target_files', 'task_id', 'task_type', 'tasks', 'title', 'total', 'updated_at', 'w']

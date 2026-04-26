@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/routing/route_table.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, 60.0, 'average_hop_count', 'destinations', 'total_routes']

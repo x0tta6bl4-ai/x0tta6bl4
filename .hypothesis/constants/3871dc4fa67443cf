@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/federated_learning/ppo_agent.py
-# hypothesis_version: 6.151.9
-
-[-10.0, -5.0, -0.5, -0.1, 0.0, 1e-10, 1e-08, 0.0003, 0.01, 0.2, 0.5, 0.8, 0.95, 0.99, 1.0, 2.0, 10.0, 100, 200, 500, 2048, 'action_dim', 'actions', 'actor', 'advantages', 'avg_hops', 'config', 'critic', 'current_hop', 'delivered', 'delivery_rate', 'entropy', 'episodes', 'error', 'hop', 'hops', 'invalid_action', 'linear', 'log_probs', 'loss', 'outcome', 'packet_lost', 'packets_delivered', 'packets_dropped', 'policy_loss', 'r', 'relu', 'returns', 'softmax', 'state_dim', 'states', 'steps', 'tanh', 'total_reward', 'train_steps', 'value_loss', 'w']

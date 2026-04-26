@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/storage/vector_index.py
-# hypothesis_version: 6.151.9
-
-[0.7, 1.0, 200, 384, 1000, 10000, '5', 'M', 'RAG_DISABLE_HNSW', 'action_taken', 'all-MiniLM-L6-v2', 'anomaly_type', 'cosine', 'dimension', 'ef_search', 'embedding', 'false', 'hnsw_available', 'hnsw_index.bin', 'max_elements', 'metadata', 'metadata.json', 'next_id', 'r', 'root_cause', 'text', 'total_documents', 'true', 'w']

@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/api/middleware/audit.py
-# hypothesis_version: 6.151.9
-
-[128, 1000, '********', '/api/v1/maas', '4096', '60', 'Authorization', 'Bearer ', 'DELETE', 'PATCH', 'POST', 'PUT', 'User-Agent', 'X-API-Key', '\\1: \\2 ********', '\\1=********', '__next__', 'access_token', 'api_key', 'authorization', 'body', 'close', 'credential', 'http.request', 'passphrase', 'passwd', 'password', 'pqc_key', 'private_key', 'refresh_token', 'replace', 'secret', 'session_token', 'token', 'type', 'utf-8']

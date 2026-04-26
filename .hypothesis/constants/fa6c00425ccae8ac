@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/core/mtls_middleware.py
-# hypothesis_version: 6.151.9
-
-[400, 403, '.', '/', '/docs', '/health', '/metrics', '/openapi.json', '1.3', '10.0.0.0/8', '127.0.0.1/32', '172.16.0.0/12', '192.168.0.0/16', '::1/128', 'BEGIN CERTIFICATE', 'DENY', 'Invalid SPIFFE SVID', 'OK', 'SSL_CLIENT_CERT', 'SUCCESS', 'TLS 1.3 required', 'TLS1.0', 'TLS1.1', 'TLS1.2', 'TLS1.3', 'TLSV1.0', 'TLSV1.1', 'TLSV1.2', 'TLSV1.3', 'TLSv1.0', 'TLSv1.1', 'TLSv1.2', 'TLSv1.3', 'VERIFIED', 'X-Frame-Options', 'X-SSL-Client-Cert', 'X-SSL-Client-Verify', 'X-SSL-Protocol', '_', 'details', 'error', 'getpeercert', 'nosniff', 'spiffe://', 'ssl_object', 'unknown', 'unknown (allowed)', 'version', 'x0tta6bl4.mesh']

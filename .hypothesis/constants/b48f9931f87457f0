@@ -1,4 +1,0 @@
-# file: /mnt/projects/src/network/routing/packet_handler.py
-# hypothesis_version: 6.151.9
-
-[b'\x00', 1.0, 2.0, 30.0, 4294967295, '!BBII16s16sB', 'Packet too short', 'RoutingPacket', 'pending_requests', 'seen_packets_cache', 'sequence_number']
