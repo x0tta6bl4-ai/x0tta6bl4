@@ -25,10 +25,10 @@ dependencies = [
     "pydantic==2.12.5",
     "python-dotenv==1.2.2",
     "httpx==0.28.1",
-    "requests==2.32.5",
+    "requests==2.33.0",
     "cryptography==46.0.7",
     "torch==2.10.0",
-    "PyJWT==2.11.0",
+    "PyJWT==2.12.0",
     "bcrypt==5.0.0",
     "pyyaml==6.0.3",
     "click==8.3.1",
@@ -68,7 +68,7 @@ dependencies = [
 [project.optional-dependencies]
 # Dependencies for development, testing, and CI
 dev = [
-    "black==26.1.0",
+    "black==26.3.1",
     "flake8==7.3.0",
     "mypy==1.19.1",
     "pytest==9.0.3",
