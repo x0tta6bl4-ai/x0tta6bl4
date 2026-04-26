@@ -14,18 +14,24 @@
     "deploy:polygon": "hardhat run scripts/deploy_x0t.js --network polygon",
     "deploy:base-testnet": "hardhat run scripts/deploy_x0t.js --network base_sepolia",
     "deploy:base": "hardhat run scripts/deploy_x0t.js --network base",
-    "node": "hardhat node",
-    "verify": "hardhat verify"
+    "node": "hardhat node"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0"
+    "@openzeppelin/contracts": "5.4.0"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-ethers": "^4.0.9",
+    "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.6",
+    "@nomicfoundation/hardhat-mocha": "^3.0.17",
+    "chai": "^5.3.3",
     "dotenv": "^16.3.1",
-    "hardhat": "^2.26.3"
+    "ethers": "^6.16.0",
+    "hardhat": "^3.4.1",
+    "mocha": "^11.7.5"
   },
   "overrides": {
+    "brace-expansion": "^2.0.3",
+    "diff": "^8.0.3",
     "follow-redirects": "^1.16.0",
     "lodash": "^4.18.1",
     "picomatch": "^2.3.2",
@@ -33,8 +39,7 @@
     "serialize-javascript": "^7.0.5",
     "undici": "^6.24.0",
     "tmp": "^0.2.4",
-    "cookie": "^0.7.0",
-    "elliptic": "^6.6.1"
+    "cookie": "^0.7.0"
   },
   "keywords": [
     "ethereum",
@@ -45,5 +50,8 @@
     "x0tta6bl4"
   ],
   "author": "x0tta6bl4 Team",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.10.0"
+  }
 }

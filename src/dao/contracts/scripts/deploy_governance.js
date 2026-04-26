@@ -8,11 +8,12 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
   console.log("🚀 Deploying MeshGovernance...\n");
+  const { ethers, networkName } = await hre.network.getOrCreate();
 
   // Get deployer account
-  const [deployer] = await hre.ethers.getSigners();
+  const [deployer] = await ethers.getSigners();
   console.log("📝 Deploying with account:", deployer.address);
-  console.log("💰 Account balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "ETH\n");
+  console.log("💰 Account balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)), "ETH\n");
 
   // Get X0TToken address from latest deployment
   const deploymentsDir = path.join(__dirname, "../deployments");
@@ -34,7 +35,7 @@ async function main() {
   }
 
   // Deploy MeshGovernance
-  const MeshGovernance = await hre.ethers.getContractFactory("MeshGovernance");
+  const MeshGovernance = await ethers.getContractFactory("MeshGovernance");
   const governance = await MeshGovernance.deploy(tokenAddress);
 
   await governance.waitForDeployment();
@@ -56,8 +57,8 @@ async function main() {
 
   // Save deployment info
   const deploymentInfo = {
-    network: hre.network.name,
-    chainId: (await hre.ethers.provider.getNetwork()).chainId.toString(),
+    network: networkName,
+    chainId: (await ethers.provider.getNetwork()).chainId.toString(),
     deployer: deployer.address,
     contract: {
       name: "MeshGovernance",
@@ -65,12 +66,12 @@ async function main() {
       tokenAddress: tokenAddress
     },
     timestamp: new Date().toISOString(),
-    blockNumber: (await hre.ethers.provider.getBlockNumber()).toString()
+    blockNumber: (await ethers.provider.getBlockNumber()).toString()
   };
 
   const deploymentFile = path.join(
     deploymentsDir,
-    `governance_${hre.network.name}_${Date.now()}.json`
+    `governance_${networkName}_${Date.now()}.json`
   );
   fs.writeFileSync(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
   console.log("\n📁 Deployment info saved to:", deploymentFile);
@@ -79,7 +80,7 @@ async function main() {
   console.log("🎉 DEPLOYMENT COMPLETE");
   console.log("=".repeat(50));
   console.log("\nContract Address:", governanceAddress);
-  console.log("Network:", hre.network.name);
+  console.log("Network:", networkName);
   console.log("\nNext steps:");
   console.log("1. Link governance contract in Python code");
   console.log("2. Test creating proposals");
@@ -93,4 +94,3 @@ main()
     console.error(error);
     process.exit(1);
   });
-
