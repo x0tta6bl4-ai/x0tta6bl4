@@ -217,6 +217,11 @@ def main() -> int:
         action="store_true",
         help="Fail when secret values look like placeholders",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show detailed validation messages in trusted local runs",
+    )
     args = parser.parse_args()
 
     if args.source == "process-env":
@@ -241,13 +246,11 @@ def main() -> int:
         allow_env_references=(args.source == "file" and not args.strict_secrets),
     )
     if errors:
-        print("Production env contract violations:")
-        print(_format_messages(errors))
+        print(f"Production env contract violations: {len(errors)}")
         return 1
 
     if warnings:
-        print("Production env contract warnings:")
-        print(_format_messages(warnings))
+        print(f"Production env contract warnings: {len(warnings)}")
     print(f"Production env contract check passed: {source_label}")
     return 0
 

@@ -1,0 +1,10 @@
+name: supported-surface
+
+paths-ignore:
+  - archive/**
+  - tests/**
+  - project/tests/**
+  - examples/**
+  - demos/**
+  - anti-geolocation-system/**
+  - backup-*/**
