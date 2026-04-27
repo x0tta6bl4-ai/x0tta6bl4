@@ -17,7 +17,7 @@
 
 ### Day 1-2: Bot Setup ✅
 - [x] Bot создан через @BotFather
-- [x] Token получен: `7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE`
+- [x] Token получен: `<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>`
 - [x] Dependencies установлены (aiogram, magic-filter, aiofiles)
 - [x] Database инициализирована
 
