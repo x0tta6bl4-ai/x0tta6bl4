@@ -310,8 +310,22 @@ class EnhancedDatabaseCredentialRotator:
         return f"{prefix}_{timestamp}_{random_suffix}"
 
     def _hash_creds(self, creds: Dict[str, Any]) -> str:
-        """Create hash of credentials for tracking."""
-        creds_str = json.dumps(creds, sort_keys=True)
+        """Create a tracking hash without hashing secret values."""
+        redacted_markers = (
+            "password",
+            "secret",
+            "token",
+            "private",
+            "key",
+        )
+        safe_snapshot: Dict[str, Any] = {}
+        for key, value in creds.items():
+            if any(marker in key.lower() for marker in redacted_markers):
+                safe_snapshot[key] = "<redacted>"
+            else:
+                safe_snapshot[key] = value
+
+        creds_str = json.dumps(safe_snapshot, sort_keys=True, default=str)
         return hashlib.sha256(creds_str.encode()).hexdigest()[:16]
 
     async def _get_pg_connection(self):

@@ -286,18 +286,18 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     # Test password hashing
-    test_password = os.getenv("TEST_PASSWORD", "TestPassword123!@#")
+    test_password = "ExamplePassword123!@#"
     print("Testing password validation with sample input")
 
     is_valid, msg = PasswordHasher.validate_password_strength(test_password)
-    print(f"Password validation: {msg}")
+    print("Password validation completed")
 
     if is_valid:
         hashed = PasswordHasher.hash_password(test_password)
         print("Password hashing succeeded")
 
         verified = PasswordHasher.verify_password(test_password, hashed)
-        print(f"Verification: {verified}")
+        print(f"Password verification passed: {verified}")
 
     # Security headers
     print("\nSecurity Headers:")

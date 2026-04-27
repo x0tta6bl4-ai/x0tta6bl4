@@ -543,7 +543,8 @@ class UDPHolePuncher:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.setblocking(False)
-            sock.bind(("0.0.0.0", local_port))  # nosec B104
+            bind_host = os.getenv("X0TTA_UDP_BIND_HOST", "127.0.0.1")
+            sock.bind((bind_host, local_port))
 
             self._local_socket = sock
             local_port = sock.getsockname()[1]
