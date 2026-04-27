@@ -305,6 +305,7 @@ class CensorshipDetector:
         
         try:
             context = ssl.create_default_context()
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
             
             with socket.create_connection((host, port), timeout=self.config.tls_timeout) as sock:
                 with context.wrap_socket(sock, server_hostname=host) as ssock:

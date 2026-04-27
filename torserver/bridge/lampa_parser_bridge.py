@@ -54,6 +54,22 @@ UNSAFE_AUDIO_CODECS = {
 }
 
 
+def _resolve_media_tool(tool_name, default_name):
+    candidate = (tool_name or default_name).strip()
+    allowed = {
+        default_name,
+        f"/usr/bin/{default_name}",
+        f"/usr/local/bin/{default_name}",
+    }
+    if candidate in allowed:
+        return candidate
+    return default_name
+
+
+FFMPEG_BIN = _resolve_media_tool(FFMPEG_BIN, "ffmpeg")
+FFPROBE_BIN = _resolve_media_tool(FFPROBE_BIN, "ffprobe")
+
+
 def _sanitize_request_path(request_path):
     cleaned = (request_path or "/").replace("\r", "").replace("\n", "")
     if not cleaned.startswith("/"):
