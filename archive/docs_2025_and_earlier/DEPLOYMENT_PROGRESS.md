@@ -35,7 +35,7 @@
 
 - [x] **Telegram Bot Token**
   - [x] Bot created via @BotFather
-  - [x] Token received: `7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE`
+  - [x] Token received: `<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>`
   - [x] Deployment instructions created
   - [x] Quick deploy scripts prepared
 

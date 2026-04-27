@@ -1,6 +1,6 @@
 # 🚀 Инструкции по деплою с токеном
 
-**Токен получен:** `7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE`
+**Токен получен:** `<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>`
 
 ---
 
@@ -22,7 +22,7 @@ scp -r telegram_bot.py database.py vpn_config_generator.py qr_code_generator.py 
 ```bash
 # На VPS
 cd /root/x0tta6bl4  # или /mnt/AC74CC2974CBF3DC если там
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+export TELEGRAM_BOT_TOKEN="<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 sudo ./deploy_bot.sh
 ```
 
@@ -38,7 +38,7 @@ sudo journalctl -u x0tta6bl4-bot -f
 
 ### Если файлы уже на VPS:
 ```bash
-ssh root@89.125.1.107 "cd /mnt/AC74CC2974CBF3DC && export TELEGRAM_BOT_TOKEN='7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE' && sudo ./deploy_bot.sh"
+ssh root@89.125.1.107 "cd /mnt/AC74CC2974CBF3DC && export TELEGRAM_BOT_TOKEN='<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>' && sudo ./deploy_bot.sh"
 ```
 
 ---

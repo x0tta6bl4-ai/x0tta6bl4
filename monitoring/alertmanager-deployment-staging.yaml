@@ -15,7 +15,7 @@ metadata:
   namespace: monitoring
 type: Opaque
 stringData:
-  TELEGRAM_BOT_TOKEN: "7671485111:AAGFIIdWnXzKmNBjW_i5sVUKeqohA39KJEM"
+  TELEGRAM_BOT_TOKEN: "<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
   TELEGRAM_CHAT_ID: "PLACEHOLDER_CHAT_ID"  # Will be updated after getting chat_id
 ---
 apiVersion: v1

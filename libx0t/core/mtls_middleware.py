@@ -60,7 +60,7 @@ class MTLSValidator:
                     ipaddress.ip_network(cidr, strict=False)
                 )
             except ValueError:
-                logger.warning(f"Ignoring invalid trusted proxy CIDR: {cidr}")
+                logger.warning("Ignoring invalid trusted proxy CIDR entry")
 
     def _is_request_from_trusted_proxy(self, request: Request) -> bool:
         """Проверить, что запрос пришел от доверенного reverse proxy."""
@@ -70,7 +70,7 @@ class MTLSValidator:
         try:
             client_ip = ipaddress.ip_address(request.client.host)
         except ValueError:
-            logger.warning(f"Unable to parse client host as IP: {request.client.host}")
+            logger.warning("Unable to parse client host as IP address")
             return False
 
         return any(client_ip in network for network in self.trusted_proxy_networks)

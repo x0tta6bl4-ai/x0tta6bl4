@@ -9,7 +9,7 @@
 
 ### 1. Telegram Bot Credentials ✅
 - **Bot:** @x0tta6bl4_allert_bot
-- **Token:** 7671485111:AAGFIIdWnXzKmNBjW_i5sVUKeqohA39KJEM
+- **Token:** <REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>
 - **Chat ID:** 2018432227
 - **Secret:** `alertmanager-telegram` создан в namespace `monitoring`
 - **Тестирование:** Тестовое сообщение отправлено успешно через Telegram API

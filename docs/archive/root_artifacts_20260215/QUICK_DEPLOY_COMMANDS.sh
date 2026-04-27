@@ -1,7 +1,7 @@
 #!/bin/bash
 # Команды для быстрого деплоя - скопируй и выполни на VPS
 
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+export TELEGRAM_BOT_TOKEN="<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 
 echo "🚀 x0tta6bl4 Bot Deployment"
 echo "============================"

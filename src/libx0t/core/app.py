@@ -413,12 +413,16 @@ async def status():
     try:
         status_data = get_current_status()
         return JSONResponse(content=status_data)
-    except Exception as e:
-        logger.error(f"Error getting status: {e}")
+    except Exception:
+        logger.exception("Error getting status")
         # Fallback to minimal status if error
         return JSONResponse(
             status_code=200,
-            content={"status": "healthy", "version": "3.4.0", "error": str(e)},
+            content={
+                "status": "degraded",
+                "version": "3.4.0",
+                "error": "internal_status_collection_error",
+            },
         )
 
 
@@ -509,9 +513,9 @@ async def mesh_status():
         from libx0t.network.yggdrasil_client import get_yggdrasil_status
 
         return get_yggdrasil_status()
-    except Exception as e:
-        logger.error(f"Error getting mesh status: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    except Exception:
+        logger.exception("Error getting mesh status")
+        return JSONResponse(status_code=500, content={"error": "internal_server_error"})
 
 
 @app.get("/mesh/peers")
@@ -521,9 +525,9 @@ async def mesh_peers():
         from libx0t.network.yggdrasil_client import get_yggdrasil_peers
 
         return get_yggdrasil_peers()
-    except Exception as e:
-        logger.error(f"Error getting mesh peers: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    except Exception:
+        logger.exception("Error getting mesh peers")
+        return JSONResponse(status_code=500, content={"error": "internal_server_error"})
 
 
 @app.get("/mesh/routes")
@@ -533,9 +537,9 @@ async def mesh_routes():
         from libx0t.network.yggdrasil_client import get_yggdrasil_routes
 
         return get_yggdrasil_routes()
-    except Exception as e:
-        logger.error(f"Error getting mesh routes: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    except Exception:
+        logger.exception("Error getting mesh routes")
+        return JSONResponse(status_code=500, content={"error": "internal_server_error"})
 
 
 logger.info("✓ Routes registered")
@@ -548,8 +552,8 @@ def predict_anomaly(metrics: dict = None, node_id: str = None, **kwargs):
 
         detector = AnomalyDetector()
         return detector.predict(metrics or {}, node_id=node_id)
-    except (ImportError, Exception) as e:
-        logger.debug(f"Anomaly prediction unavailable: {e}")
+    except (ImportError, Exception):
+        logger.debug("Anomaly prediction unavailable")
         return None
 
 

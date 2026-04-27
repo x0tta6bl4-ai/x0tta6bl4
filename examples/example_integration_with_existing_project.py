@@ -25,6 +25,11 @@ pqc_core = None
 mesh_router = None
 prometheus_metrics = None
 
+
+def _internal_error_response():
+    """Return a generic 500 response without leaking exception details."""
+    return jsonify(error="internal_server_error"), 500
+
 @app.route("/health")
 def health():
     """Health check endpoint."""
@@ -48,9 +53,9 @@ def get_data():
         }
 
         return jsonify(data)
-    except Exception as e:
+    except Exception:
         prometheus_metrics.increment_api_errors("get_data")
-        return jsonify(error=str(e)), 500
+        return _internal_error_response()
 
 @app.route("/api/sensitive")
 def get_sensitive_data():
@@ -64,9 +69,9 @@ def get_sensitive_data():
         encrypted_data = pqc_core.encrypt_sensitive_data(sensitive_data)
 
         return jsonify(encrypted_data=encrypted_data)
-    except Exception as e:
+    except Exception:
         prometheus_metrics.increment_api_errors("get_sensitive_data")
-        return jsonify(error=str(e)), 500
+        return _internal_error_response()
 
 def main():
     """Main entry point."""
@@ -99,7 +104,7 @@ def main():
 
     # Step 2: Start Flask app
     print("\n🌐 Starting Flask application...")
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host="127.0.0.1", port=5000)
 
     # Step 3: Stop x0tta6bl4 components
     print("\n🛑 Stopping x0tta6bl4 components...")

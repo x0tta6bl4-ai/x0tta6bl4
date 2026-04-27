@@ -287,7 +287,7 @@ if __name__ == "__main__":
 
     # Test password hashing
     test_password = os.getenv("TEST_PASSWORD", "TestPassword123!@#")
-    print(f"Testing password: {test_password}")
+    print(f"Testing password: [redacted; length={len(test_password)}]")
 
     is_valid, msg = PasswordHasher.validate_password_strength(test_password)
     print(f"Password validation: {msg}")
