@@ -1,222 +1,87 @@
 # Security Policy
 
-## Supported Versions
+## Supported Surface
 
-| Version | Supported | Status |
-| ------- | --------- | ------ |
-| 1.0.x   | :white_check_mark: | Active development |
-| 0.9.x   | :white_check_mark: | Maintenance |
-| < 0.9   | :x: | End of life |
+This repository is an experimental codebase with a curated public `main` branch.
 
-## Security Overview
+Supported surface:
 
-x0tta6bl4 implements a defense-in-depth security architecture with multiple layers of protection:
+| Surface | Status |
+| ------- | ------ |
+| `main` | Supported for security triage |
+| historical archives and demo artifacts | best effort only |
+| old tags, snapshots, and experimental branches | unsupported |
 
-```
-..Security Architecture...................
-.
-.  ..Layer 1: Cryptographic...............
-.  .  - Post-Quantum Cryptography (PQC)
-.  .  - ML-KEM-768 (NIST FIPS 203)
-.  .  - ML-DSA-65 (NIST FIPS 204)
-.  .  - AES-256-GCM symmetric encryption
-.  .......................................
-.
-.  ..Layer 2: Identity....................
-.  .  - SPIFFE/SPIRE Zero Trust
-.  .  - mTLS for all internal traffic
-.  .  - Workload attestation
-.  .......................................
-.
-.  ..Layer 3: Network.....................
-.  .  - eBPF XDP packet filtering
-.  .  - SipHash-2-4 MAC verification
-.  .  - Kernel-space crypto operations
-.  .......................................
-.
-.  ..Layer 4: Application.................
-.  .  - Input validation
-.  .  - Rate limiting
-.  .  - Audit logging
-.  .......................................
-...........................................
-```
+## Source Of Truth
 
-## Security Features
+Do not treat this file as a live dashboard.
 
-### Post-Quantum Cryptography (PQC)
+The current source of truth for security state is:
 
-x0tta6bl4 uses NIST-standardized post-quantum algorithms:
+1. the GitHub **Security** tab for this repository
+2. the latest passing checks on the default branch
+3. locally verified evidence under `docs/verification/` when explicitly referenced
 
-| Algorithm | Type | Standard | Use Case |
-|-----------|------|----------|----------|
-| **ML-KEM-768** | Key Encapsulation | NIST FIPS 203 | Key exchange |
-| **ML-DSA-65** | Digital Signature | NIST FIPS 204 | Authentication |
-| **AES-256-GCM** | Symmetric Encryption | NIST SP 800-38D | Data encryption |
+Counts for alerts, secrets, and code scanning findings change over time. This file intentionally does **not** claim fixed values like “0 vulnerabilities” or “0 secrets”.
 
-#### Secure Key Storage
+## Scope And Honesty Boundaries
 
-All secret keys are protected using **SecureKeyStorage**:
+x0tta6bl4 contains work on:
 
-```python
-from src.security.pqc import SecureKeyStorage
+- post-quantum cryptography experiments
+- SPIFFE/SPIRE and mTLS integration
+- eBPF/XDP dataplane and observability tooling
+- bot, VPN, and Ghost Access operational code
 
-# Keys are encrypted in memory with AES-256-GCM
-storage = SecureKeyStorage()
-storage.store_key("ml-kem-private", private_key_bytes)
+Important boundary:
 
-# Memory is locked (mlock) to prevent swapping
-# Secure zeroization on deletion
-```
+- presence of security-oriented code does **not** imply field validation
+- demo code, archived docs, and research surfaces may lag behind the hardened path
+- any public claim about throughput, uptime, MTTR, or field validation must be backed by current evidence, not by this file
 
-**Security Features:**
-- AES-256-GCM encryption of keys in memory
-- Memory locking (mlock) to prevent swapping to disk
-- Secure zeroization on object deletion
-- Thread-safe singleton pattern
-- Ephemeral encryption key per session
+## Reporting A Vulnerability
 
-#### Hybrid Schemes
+Do **not** open public GitHub issues for undisclosed security problems.
 
-For backward compatibility and defense-in-depth:
+Preferred path:
 
-```python
-# Hybrid key exchange: X25519 + ML-KEM-768
-from src.security.pqc import HybridKeyExchange
+1. use GitHub private vulnerability reporting for this repository, if available
+2. otherwise email [security@x0tta6bl4.net](mailto:security@x0tta6bl4.net)
 
-hybrid = HybridKeyExchange()
-keypair = hybrid.generate_keypair()
-# Provides both classical and post-quantum security
-```
+Please include:
 
-### Zero Trust Architecture (SPIFFE/SPIRE)
+- affected file, component, or workflow
+- exact reproduction steps
+- impact
+- whether the issue is on public `main` or only in historical material
+- proof of concept if safe to share
 
-Every workload in x0tta6bl4 has a cryptographic identity:
+## Response Expectations
 
-```
-..SPIFFE Identity Flow.....................
-.
-.  Workload -> SPIRE Agent -> Attestation
-.       |           |            |
-.       v           v            v
-.  SVID Token  Node Attest  Workload Attest
-.       |           |            |
-.       +-----------+------------+
-.                   |
-.                   v
-.           mTLS Connection
-...........................................
-```
+Targets, not guarantees:
 
-**Features:**
-- Automatic certificate rotation
-- Workload attestation (TPM, Kubernetes, etc.)
-- Short-lived SVIDs (SPIFFE Verifiable Identity Documents)
-- mTLS for all service-to-service communication
+| Stage | Target |
+| ----- | ------ |
+| acknowledgment | within 3 business days |
+| initial triage | within 7 business days |
+| follow-up cadence | weekly for active issues |
 
-### eBPF XDP Security
+## Immediate Repository Rules
 
-Kernel-space packet processing with:
+- never commit live credentials, tokens, webhook secrets, or private keys
+- if a credential is exposed, remove it from the current tree immediately and rotate it out-of-band
+- do not expose raw exception text in HTTP responses on public surfaces
+- avoid `debug=True` and similar unsafe defaults in examples that people may copy into real deployments
+- prefer redacted operational logging over verbose secret-bearing logs
 
-- **SipHash-2-4 MAC**: Fast packet authentication
-- **XDP filtering**: Drop malicious packets before kernel network stack
-- **Rate limiting**: Per-IP rate limiting in kernel space
-
-```c
-// eBPF XDP packet verification (simplified)
-SEC("xdp_pqc_verify")
-int xdp_pqc_verify_prog(struct xdp_md *ctx) {
-    // Verify SipHash MAC
-    if (!verify_mac(ctx)) {
-        return XDP_DROP;
-    }
-    // Check session validity
-    if (!session_valid(ctx)) {
-        return XDP_PASS; // To userspace for full verification
-    }
-    return XDP_PASS;
-}
-```
-
-### Security Metrics
-
-| Metric | Value | Target |
-|--------|-------|--------|
-| CVE Vulnerabilities | **0** | 0 |
-| Hardcoded Secrets | **0** | 0 |
-| Security Test Coverage | **85%+** | >80% |
-| Dependency Audit | **Clean** | No known vulnerabilities |
-
-## Reporting a Vulnerability
-
-:warning: **Do NOT report security vulnerabilities through public GitHub issues.**
-
-### How to Report
-
-1. **Email**: Send details to [security@x0tta6bl4.net](mailto:security@x0tta6bl4.net)
-2. **PGP Key**: Use our public key for encryption (see below)
-3. **Format**: Include the following information
-
-```markdown
-**Summary**: Brief description of the vulnerability
-
-**Affected Component**: Which part of x0tta6bl4 is affected
-
-**Steps to Reproduce**: 
-1. Step one
-2. Step two
-
-**Impact**: What can an attacker achieve
-
-**Proof of Concept**: If available
-
-**Suggested Fix**: If you have ideas for remediation
-```
-
-### PGP Public Key
-
-```
------BEGIN PGP PUBLIC KEY BLOCK-----
-[Public key for security@x0tta6bl4.net]
------END PGP PUBLIC KEY BLOCK-----
-```
-
-### Response Timeline
-
-| Stage | Timeline |
-|-------|----------|
-| **Acknowledgment** | Within 48 hours |
-| **Initial Assessment** | Within 5 business days |
-| **Status Update** | Every 7 days until resolved |
-| **Fix Development** | Depends on severity |
-| **Disclosure** | After fix is released |
-
-### Severity Classification
-
-| Severity | Description | Response Time |
-|----------|-------------|---------------|
-| **Critical** | Remote code execution, key compromise | 24 hours |
-| **High** | Authentication bypass, data exposure | 72 hours |
-| **Medium** | Limited information disclosure | 7 days |
-| **Low** | Minor security issue | 14 days |
-
-### Disclosure Policy
-
-We follow **Coordinated Vulnerability Disclosure (CVD)**:
-
-1. Reporter reports vulnerability privately
-2. We acknowledge and assess
-3. We develop and test fix
-4. We release fix and publish advisory
-5. Reporter may publish details after fix is released
-
-## Security Best Practices
-
-### For Developers
+## Developer Baseline
 
 ```bash
-# Always use pre-commit hooks
 pre-commit install
+python3 -m py_compile path/to/edited_file.py
+```
+
+For dependency and release checks, use the repo-local verification scripts referenced in `docs/verification/` and `scripts/`.
 
 # Run security linters
 bandit -r src/

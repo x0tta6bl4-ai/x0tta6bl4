@@ -54,6 +54,25 @@ UNSAFE_AUDIO_CODECS = {
 }
 
 
+def _sanitize_request_path(request_path):
+    cleaned = (request_path or "/").replace("\r", "").replace("\n", "")
+    if not cleaned.startswith("/"):
+        cleaned = "/" + cleaned.lstrip("/")
+    return cleaned
+
+
+def _build_backend_target(request_path):
+    backend = urlparse(BACKEND)
+    safe_path = _sanitize_request_path(request_path)
+    target = f"{BACKEND.rstrip('/')}{safe_path}"
+    parsed = urlparse(target)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("unsupported backend target scheme")
+    if parsed.netloc != backend.netloc:
+        raise ValueError("backend target origin mismatch")
+    return target
+
+
 def parse_size_to_bytes(value):
     if isinstance(value, (int, float)):
         return int(value)
@@ -306,7 +325,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _redirect(self):
-        target = f"{BACKEND}{self.path}"
+        try:
+            target = _build_backend_target(self.path)
+        except ValueError:
+            self._send_json({"error": "invalid_request_path"}, status=400)
+            return
         self.send_response(307)
         self._set_cors()
         self.send_header("Location", target)
@@ -314,7 +337,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _proxy_backend(self):
-        target = f"{BACKEND}{self.path}"
+        try:
+            target = _build_backend_target(self.path)
+        except ValueError:
+            self._send_json({"error": "invalid_request_path"}, status=400)
+            return
         req_headers = {}
         hop_by_hop = {
             "host",
@@ -408,7 +435,11 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # Keep native stream (range/seek/duration semantics) unless unsafe audio is likely.
-        target = f"{BACKEND}{self.path}"
+        try:
+            target = _build_backend_target(self.path)
+        except ValueError:
+            self._send_json({"error": "invalid_request_path"}, status=400)
+            return
         needs_transcode = _stream_needs_transcode(parsed.path)
         if not needs_transcode:
             codec = _probe_audio_codec(target)
