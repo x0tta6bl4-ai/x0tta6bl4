@@ -378,7 +378,7 @@ if __name__ == "__main__":
     print("\n🏛️ License Authority (Your Server):")
     authority = LicenseAuthority()
     token = authority.generate_activation_token("pro")
-    print(f"   Generated token: {token}")
+    print("   Generated token: [redacted]")
 
     # 3. Customer activates (CUSTOMER'S MACHINE)
     print("\n👤 Customer Activation:")

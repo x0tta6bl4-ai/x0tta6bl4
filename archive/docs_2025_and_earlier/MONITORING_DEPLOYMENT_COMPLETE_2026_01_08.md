@@ -31,7 +31,7 @@
 ## 📱 Telegram Configuration
 
 **Bot:** @x0tta6bl4_allert_bot  
-**Token:** 7671485111:AAGFIIdWnXzKmNBjW_i5sVUKeqohA39KJEM  
+**Token:** <REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>
 **Chat ID:** 2018432227  
 **Secret:** alertmanager-telegram (created in monitoring namespace)
 
@@ -286,4 +286,3 @@ curl -X POST http://localhost:8080/ -H "Content-Type: application/json" -d '{"al
 **Status:** ✅ **DEPLOYED** (webhook server initializing)  
 **Next Step:** Wait for webhook server to be ready, then test alert delivery  
 **Ready for:** Beta Launch (Jan 11-12, 2026)
-

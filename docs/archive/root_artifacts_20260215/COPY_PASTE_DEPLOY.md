@@ -28,7 +28,7 @@ scp telegram_bot.py database.py vpn_config_generator.py qr_code_generator.py adm
 **Скопируй и выполни всё это на VPS:**
 
 ```bash
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+export TELEGRAM_BOT_TOKEN="<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 cd /mnt/AC74CC2974CBF3DC
 
 # Установить зависимости
@@ -47,7 +47,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/mnt/AC74CC2974CBF3DC
-Environment="TELEGRAM_BOT_TOKEN=7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+Environment="TELEGRAM_BOT_TOKEN=<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 ExecStart=/usr/bin/python3 /mnt/AC74CC2974CBF3DC/telegram_bot.py
 Restart=always
 RestartSec=10

@@ -477,8 +477,8 @@ def validate_required_secrets() -> None:
     
     if empty_optional:
         logger.warning(
-            f"WARNING: Optional secrets not set: {', '.join(empty_optional)}. "
-            f"Some features may be disabled."
+            "WARNING: %d optional secret values are not set. Some features may be disabled.",
+            len(empty_optional),
         )
 
 

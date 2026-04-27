@@ -1,6 +1,6 @@
 # 🚀 ДЕПЛОЙ ПРЯМО СЕЙЧАС
 
-**Токен:** `7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE`  
+**Токен:** `<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>`
 **VPS:** `89.125.1.107`  
 **Статус:** Готов к деплою
 
@@ -18,7 +18,7 @@ ssh root@89.125.1.107
 cd /mnt/AC74CC2974CBF3DC
 
 # 3. Задеплой бота
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+export TELEGRAM_BOT_TOKEN="<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 sudo ./deploy_bot.sh
 
 # 4. Проверь статус
@@ -37,7 +37,7 @@ ssh root@89.125.1.107
 
 # 3. Задеплой
 cd /root/x0tta6bl4
-export TELEGRAM_BOT_TOKEN="7841762852:AAEJGXwCbhSh4yGGz0F_qQv_wUprDnGnorE"
+export TELEGRAM_BOT_TOKEN="<REDACTED_TELEGRAM_BOT_TOKEN_ROTATE_ME>"
 sudo ./deploy_bot.sh
 ```
 
@@ -110,4 +110,3 @@ ssh root@89.125.1.107 'pip3 install aiogram==2.25.1 qrcode[pil]==7.4.2'
 ---
 
 **Всё готово! Запускай деплой! 🚀**
-
