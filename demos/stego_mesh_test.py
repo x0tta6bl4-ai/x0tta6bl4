@@ -29,7 +29,7 @@ def main():
     # Тестовые данные
     secret_payload = b"SECRET_DATA_FROM_X0TTA6BL4_MESH"
     print(f"📨 РЕАЛЬНЫЕ ДАННЫЕ:")
-    print(f"   Payload: {secret_payload.decode()}")
+    print("   Payload: [redacted]")
     print(f"   Размер: {len(secret_payload)} байт")
     print()
     
@@ -91,4 +91,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

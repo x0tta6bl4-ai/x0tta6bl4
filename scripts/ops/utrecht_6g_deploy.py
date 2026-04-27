@@ -177,15 +177,17 @@ async def deploy_utrecht_demo(
     cfg = config or DeploymentConfig()
     request_payload = build_provision_request(cfg)
 
-    LOGGER.info(
-        "Starting Utrecht 6G-demo deployment (nodes=%s, plan=%s, region=%s)",
-        cfg.nodes,
-        cfg.billing_plan,
-        cfg.region,
-    )
+    LOGGER.info("Starting Utrecht 6G-demo deployment")
 
     if cfg.dry_run:
-        return {"status": "dry-run", "request": request_payload}
+        return {
+            "status": "dry-run",
+            "summary": {
+                "nodes": cfg.nodes,
+                "pqc_enabled": cfg.pqc_enabled,
+                "obfuscation": cfg.obfuscation,
+            },
+        }
 
     if provisioner is None:
         from src.api.maas.services import MeshProvisioner
@@ -198,7 +200,7 @@ async def deploy_utrecht_demo(
     LOGGER.info("Mesh provisioned successfully: %s", mesh_payload["mesh_id"])
     LOGGER.info("Monitoring dashboard: %s", mesh_payload["dashboard_url"])
 
-    return {"status": "ok", "request": request_payload, "mesh": mesh_payload}
+    return {"status": "ok", "mesh": mesh_payload}
 
 
 def format_result(result: Dict[str, Any], output: str) -> str:
@@ -209,11 +211,12 @@ def format_result(result: Dict[str, Any], output: str) -> str:
         return f"ERROR\nmessage={result.get('message', 'unknown')}"
 
     if result.get("status") == "dry-run":
-        request = result["request"]
+        summary = result["summary"]
         return (
             "DRY RUN\n"
-            f"owner={request['owner_id']} nodes={request['nodes']} "
-            f"plan={request['billing_plan']} region={request['region']}"
+            f"nodes={summary['nodes']} "
+            f"pqc_enabled={summary['pqc_enabled']} "
+            f"obfuscation={summary['obfuscation']}"
         )
 
     mesh = result.get("mesh", {})
@@ -235,8 +238,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         config = build_config(args)
         result = asyncio.run(deploy_utrecht_demo(config=config))
-    except Exception as exc:  # pragma: no cover - defensive path
-        error_result = _build_error_result(str(exc))
+    except Exception:  # pragma: no cover - defensive path
+        LOGGER.exception("Utrecht 6G deployment helper failed")
+        error_result = _build_error_result("internal_deployment_error")
         print(format_result(error_result, output=args.output if hasattr(args, "output") else "text"))
         return 1
 
