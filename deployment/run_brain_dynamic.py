@@ -224,8 +224,8 @@ async def handle_subscription(request):
         
         return web.Response(text=b64_config, content_type="text/plain")
         
-    except Exception as e:
-        return web.Response(text=str(e), status=500)
+    except Exception:
+        return web.Response(text="internal_server_error", status=500)
 
 async def init_app():
     load_peers()

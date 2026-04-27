@@ -125,12 +125,20 @@ async def billing_webhook(
 
     event_type = data.get("type", "unknown")
 
-    return await billing.process_webhook(
-        event_type=event_type,
-        event_data=data.get("data", {}),
-        event_id=x_event_id,
-        include_idempotency_metadata=True,
-    )
+    try:
+        return await billing.process_webhook(
+            event_type=event_type,
+            event_data=data.get("data", {}),
+            event_id=x_event_id,
+            include_idempotency_metadata=True,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal billing webhook error",
+        )
 
 
 @router.get(

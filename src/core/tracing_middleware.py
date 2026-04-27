@@ -47,24 +47,22 @@ def get_correlation_id() -> Optional[str]:
 
 def _masked_credential_id(request: Request) -> str:
     """
-    Return a non-sensitive credential fingerprint for telemetry.
+    Return a low-cardinality credential presence label for telemetry.
 
     Never return raw API keys/tokens. Output is one of:
     - anonymous
-    - api_key_<hash12>
-    - bearer_<hash12>
+    - api_key_present
+    - bearer_present
     """
     api_key = request.headers.get("X-API-Key")
     if api_key:
-        digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
-        return f"api_key_{digest}"
+        return "api_key_present"
 
     auth_val = request.headers.get("Authorization", "")
     if auth_val.startswith("Bearer "):
         token = auth_val[7:].strip()
         if token:
-            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
-            return f"bearer_{digest}"
+            return "bearer_present"
 
     return "anonymous"
 
