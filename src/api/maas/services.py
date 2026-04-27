@@ -715,9 +715,9 @@ class BillingService:
                     "action": "subscription_created",
                     "customer_id": event_data.get("customer_id"),
                 }
-        except Exception as e:
-            logger.error(f"Error processing webhook {event_id}: {e}")
-            result = {"status": "error", "error": str(e)}
+        except Exception:
+            logger.exception("Error processing billing webhook")
+            result = {"status": "error", "error": "webhook_processing_failed"}
 
         # Cache result for idempotency
         self._cache_webhook_result(event_id, result)
