@@ -371,8 +371,8 @@ if __name__ == "__main__":
     # 1. Generate fingerprint
     print("\n📱 Device Fingerprint:")
     fp = HardwareFingerprinter.generate()
-    for k, v in fp.to_dict().items():
-        print(f"   {k}: {v}")
+    print("   Fingerprint generated successfully")
+    print(f"   Fingerprint hash prefix: {fp.to_hash()[:12]}...")
 
     # 2. Authority generates token (YOUR SERVER)
     print("\n🏛️ License Authority (Your Server):")
