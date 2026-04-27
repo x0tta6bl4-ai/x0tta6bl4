@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import socket
 import struct
 import time
@@ -151,7 +152,8 @@ class MulticastDiscovery:
         self._socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
 
         # Bind
-        self._socket.bind(("", self.multicast_port))
+        bind_host = os.getenv("X0TTA_DISCOVERY_BIND_HOST", "127.0.0.1")
+        self._socket.bind((bind_host, self.multicast_port))
 
         # Присоединяемся к multicast группе
         mreq = struct.pack(

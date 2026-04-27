@@ -89,6 +89,19 @@ def _build_backend_target(request_path):
     return target
 
 
+def _validate_media_source_url(raw_url):
+    parsed = urlparse(raw_url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("unsupported media source scheme")
+    if not parsed.netloc:
+        raise ValueError("missing media source host")
+    if parsed.username or parsed.password:
+        raise ValueError("embedded credentials are not allowed")
+    if raw_url.startswith("-"):
+        raise ValueError("invalid media source target")
+    return raw_url
+
+
 def parse_size_to_bytes(value):
     if isinstance(value, (int, float)):
         return int(value)
@@ -137,6 +150,11 @@ def _stream_needs_transcode(path):
 
 
 def _probe_audio_codec(url):
+    try:
+        safe_url = _validate_media_source_url(url)
+    except ValueError:
+        return ""
+
     cmd = [
         FFPROBE_BIN,
         "-v",
@@ -151,7 +169,7 @@ def _probe_audio_codec(url):
         "stream=codec_name",
         "-of",
         "default=nokey=1:noprint_wrappers=1",
-        url,
+        safe_url,
     ]
     try:
         res = subprocess.run(
@@ -343,6 +361,7 @@ class Handler(BaseHTTPRequestHandler):
     def _redirect(self):
         try:
             target = _build_backend_target(self.path)
+            target = _validate_media_source_url(target)
         except ValueError:
             self._send_json({"error": "invalid_request_path"}, status=400)
             return
