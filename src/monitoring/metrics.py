@@ -736,15 +736,13 @@ class MetricsMiddleware:
                 api_key = header_value.decode("utf-8", errors="ignore").strip()
                 if not api_key:
                     return "anonymous"
-                digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
-                return f"api_key_{digest}"
+                return "api_key_present"
             if header_name == b"authorization":
                 auth_val = header_value.decode("utf-8", errors="ignore")
                 if auth_val.startswith("Bearer "):
                     token = auth_val[7:].strip()
                     if token:
-                        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
-                        return f"bearer_{digest}"
+                        return "bearer_present"
         return "anonymous"
 
     @staticmethod

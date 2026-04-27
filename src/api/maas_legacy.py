@@ -2246,14 +2246,7 @@ async def billing_webhook(
         if subscription_id:
             user.stripe_subscription_id = subscription_id
 
-        logger.info(
-            "[MaaS] Billing webhook processed: event_id=%s event=%s user=%s plan=%s->%s",
-            event_id,
-            event_type,
-            user.id,
-            plan_before,
-            plan_after,
-        )
+        logger.info("[MaaS] Billing webhook processed successfully")
 
         response_payload = {
             "processed": True,

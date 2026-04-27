@@ -27,10 +27,9 @@ def deploy_dashboard(host, port, username, password, dashboard_file):
             return True
         else:
             print(f"❌ Failed to deploy dashboard: {response.status_code}")
-            print(f"   Response: {response.text}")
             return False
-    except Exception as e:
-        print(f"❌ Error connecting to Grafana: {e}")
+    except Exception:
+        print("❌ Error connecting to Grafana")
         return False
 
 if __name__ == "__main__":
@@ -41,7 +40,7 @@ if __name__ == "__main__":
     passwords = ["x0tta6bl4_mesh_v3", "admin", "x0tta6bl4"]
     
     for pwd in passwords:
-        print(f"🔄 Attempting deployment with password: {pwd}")
+        print("🔄 Attempting deployment with configured credential candidate")
         if deploy_dashboard(host, port, user, pwd, "grafana/xdp_dashboard.json"):
             sys.exit(0)
     
