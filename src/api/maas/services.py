@@ -1474,10 +1474,10 @@ class AuthService:
                 
                 # Enforce subscription expiration
                 if user.expires_at and user.expires_at < datetime.utcnow():
-                    logger.warning(f"🚫 Access denied: Subscription for user {user_id} expired on {user.expires_at}")
+                    logger.warning("🚫 Access denied: subscription expired")
                     return None
             except Exception as e:
-                logger.error(f"Error checking user activity for {user_id}: {e}")
+                logger.error("Error checking user activity")
                 # DB schema error — key is structurally valid; fail open for availability
                 # NOTE: For financial operations, consider fail-closed: metrics.get("subscription_check_failed")
                 import logging as log

@@ -99,8 +99,6 @@ def main() -> None:
 
         if findings["secrets"]:
             print(f"⚠️  SECRETS FOUND: {len(findings['secrets'])} potential leaks")
-            for secret in findings["secrets"][:5]:  # Show first 5
-                print(f"   - {secret['type']} in {secret['table']}.{secret['column']}")
         else:
             print(f"✅ No secrets detected")
 
