@@ -71,7 +71,9 @@ def _validate_enterprise_guardrails(testing_mode: bool) -> bool:
         violations.append("REQUEST_VALIDATION_ENABLED must be true in production")
     if _env_true("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY", False):
         violations.append("X0TTA6BL4_ALLOW_INSECURE_PQC_VERIFY must be false in production")
-    if not _env_true("DB_ENFORCE_SCHEMA", True):
+    if os.getenv("DB_ENFORCE_SCHEMA") is None:
+        violations.append("DB_ENFORCE_SCHEMA must be explicitly set (DB_ENFORCE_SCHEMA=true) in production")
+    elif not _env_true("DB_ENFORCE_SCHEMA", True):
         violations.append("DB_ENFORCE_SCHEMA must be true in production")
 
     if violations:
@@ -100,14 +102,18 @@ class OptimizationEngine:
     async def startup(self):
         logger.info("🚀 Initializing Production Intelligence Engine...")
 
-        production_mode = False
+        # Determine production mode early to prevent fail-open bypass if guardrails fail
+        production_mode = settings.is_production() or _env_true("X0TTA6BL4_PRODUCTION", False)
+
         try:
             testing_mode = (
                 settings.is_testing()
                 or os.getenv("TESTING", "false").lower() == "true"
                 or bool(os.getenv("PYTEST_CURRENT_TEST"))
             )
-            production_mode = _validate_enterprise_guardrails(testing_mode)
+            # Re-validate and enforce guardrails
+            _validate_enterprise_guardrails(testing_mode)
+
             enforce_schema = os.getenv("DB_ENFORCE_SCHEMA", "true").lower() == "true"
             auto_default = "true" if settings.is_production() else "false"
             auto_migrate = (
@@ -179,6 +185,12 @@ class OptimizationEngine:
             logger.error(f"❌ Failed to start Intelligence Engine: {e}", exc_info=True)
             fail_open_default = not production_mode
             fail_open = _env_true("X0TTA6BL4_FAIL_OPEN_STARTUP", fail_open_default)
+
+            # Hard-block fail-open if production guardrails are violated
+            if "Production guardrails violated" in str(e):
+                logger.critical("🛑 CRITICAL: Production guardrails violated. Fail-open DISALLOWED.")
+                fail_open = False
+
             if fail_open:
                 logger.warning(
                     "⚠️ Startup fail-open enabled (X0TTA6BL4_FAIL_OPEN_STARTUP=true). "
