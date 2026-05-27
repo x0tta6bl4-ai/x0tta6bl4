@@ -21,17 +21,51 @@ CHECKS_FAILED=0
 CHECKS_WARNINGS=0
 
 # Configuration
-CONFIG_DIR="/usr/local/etc/xray"
-LOG_DIR="/var/log/xray"
+CONFIG_DIR="${CONFIG_DIR:-/usr/local/etc/xray}"
+LOG_DIR="${LOG_DIR:-/var/log/xray}"
 ALERT_THRESHOLD_ERRORS=50
 ALERT_THRESHOLD_LOAD=80
+XRAY_SERVICE="${XRAY_SERVICE:-}"
+XRAY_CONFIG="${XRAY_CONFIG:-}"
+XRAY_BIN="${XRAY_BIN:-}"
+
+if [[ -z "$XRAY_SERVICE" ]]; then
+    if systemctl list-unit-files x-ui.service &>/dev/null; then
+        XRAY_SERVICE="x-ui"
+    else
+        XRAY_SERVICE="xray"
+    fi
+fi
+
+if [[ -z "$XRAY_CONFIG" ]]; then
+    if [[ -f /usr/local/x-ui/bin/config.json ]]; then
+        XRAY_CONFIG="/usr/local/x-ui/bin/config.json"
+    else
+        XRAY_CONFIG="${CONFIG_DIR}/config.json"
+    fi
+fi
+
+if [[ -z "$XRAY_BIN" ]]; then
+    if [[ -x /usr/local/x-ui/bin/xray-linux-amd64.real ]]; then
+        XRAY_BIN="/usr/local/x-ui/bin/xray-linux-amd64.real"
+    else
+        XRAY_BIN="$(command -v xray || true)"
+    fi
+fi
 
 # Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((CHECKS_PASSED++)); }
-log_fail() { echo -e "${RED}[FAIL]${NC} $1"; ((CHECKS_FAILED++)); HEALTH_STATUS="UNHEALTHY"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; ((CHECKS_WARNINGS++)); }
+log_pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((++CHECKS_PASSED)); }
+log_fail() { echo -e "${RED}[FAIL]${NC} $1"; ((++CHECKS_FAILED)); HEALTH_STATUS="UNHEALTHY"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; ((++CHECKS_WARNINGS)); }
 log_section() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
+xray_version() {
+    if [[ -n "$XRAY_BIN" && -x "$XRAY_BIN" ]]; then
+        "$XRAY_BIN" -version 2>/dev/null | head -1 || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
 
 # Check if running as root
 check_root() {
@@ -45,21 +79,21 @@ check_root() {
 check_service() {
     log_section "SERVICE STATUS"
     
-    if systemctl is-active --quiet xray; then
-        local uptime=$(systemctl show xray --property=ActiveEnterTimestamp --value 2>/dev/null | cut -d' ' -f2-)
-        log_pass "Xray service is running (since: $uptime)"
+    if systemctl is-active --quiet "$XRAY_SERVICE"; then
+        local uptime=$(systemctl show "$XRAY_SERVICE" --property=ActiveEnterTimestamp --value 2>/dev/null | cut -d' ' -f2-)
+        log_pass "$XRAY_SERVICE service is running (since: $uptime)"
         
         # Check for restarts
-        local restarts=$(systemctl show xray --property=NRestarts --value 2>/dev/null || echo "0")
+        local restarts=$(systemctl show "$XRAY_SERVICE" --property=NRestarts --value 2>/dev/null || echo "0")
         if [[ "$restarts" -gt 0 ]]; then
             log_warn "Service has been restarted $restarts times"
         fi
     else
-        log_fail "Xray service is not running"
+        log_fail "$XRAY_SERVICE service is not running"
         return 1
     fi
     
-    if systemctl is-enabled --quiet xray 2>/dev/null; then
+    if systemctl is-enabled --quiet "$XRAY_SERVICE" 2>/dev/null; then
         log_pass "Service is enabled on boot"
     else
         log_warn "Service is not enabled on boot"
@@ -70,15 +104,15 @@ check_service() {
 check_config() {
     log_section "CONFIGURATION"
     
-    if [[ ! -f "${CONFIG_DIR}/config.json" ]]; then
-        log_fail "Configuration file not found"
+    if [[ ! -f "$XRAY_CONFIG" ]]; then
+        log_fail "Configuration file not found: $XRAY_CONFIG"
         return 1
     fi
     
-    log_pass "Configuration file exists"
+    log_pass "Configuration file exists: $XRAY_CONFIG"
     
     # Check JSON validity
-    if jq empty "${CONFIG_DIR}/config.json" 2>/dev/null; then
+    if jq empty "$XRAY_CONFIG" 2>/dev/null; then
         log_pass "Configuration is valid JSON"
     else
         log_fail "Configuration is invalid JSON"
@@ -86,7 +120,7 @@ check_config() {
     fi
     
     # Test with Xray
-    if xray -test -config "${CONFIG_DIR}/config.json" &>/dev/null; then
+    if [[ -x "$XRAY_BIN" ]] && "$XRAY_BIN" -test -config "$XRAY_CONFIG" &>/dev/null; then
         log_pass "Xray configuration test passed"
     else
         log_fail "Xray configuration test failed"
@@ -94,7 +128,7 @@ check_config() {
     fi
     
     # Count inbounds
-    local inbounds=$(jq '.inbounds | length' "${CONFIG_DIR}/config.json" 2>/dev/null || echo "0")
+    local inbounds=$(jq '.inbounds | length' "$XRAY_CONFIG" 2>/dev/null || echo "0")
     log_info "Number of inbounds: $inbounds"
 }
 
@@ -102,25 +136,24 @@ check_config() {
 check_ports() {
     log_section "PORT STATUS"
     
-    declare -A PORTS
-    PORTS[443]="VLESS-Reality"
-    PORTS[8443]="VLESS-xHTTP"
-    PORTS[8388]="Shadowsocks"
-    PORTS[9443]="Trojan"
-    PORTS[8080]="ShadowTLS"
-    
     local any_listening=false
+    local rows=""
+    rows=$(jq -r '.inbounds[]? | select(.port != null) | [.port, (.protocol // "unknown"), (.tag // "")] | @tsv' "$XRAY_CONFIG" 2>/dev/null || true)
     
-    for port in "${!PORTS[@]}"; do
-        local service="${PORTS[$port]}"
+    if [[ -z "$rows" ]]; then
+        rows=$'443\tVLESS-Reality\tdefault\n8443\tVLESS-xHTTP\tdefault\n8388\tShadowsocks\tdefault\n9443\tTrojan\tdefault\n8080\tShadowTLS\tdefault'
+    fi
+
+    while IFS=$'\t' read -r port protocol tag; do
+        [[ -z "$port" ]] && continue
         if ss -tlnp 2>/dev/null | grep -q ":$port " || \
            netstat -tlnp 2>/dev/null | grep -q ":$port "; then
-            log_pass "Port $port ($service) is listening"
+            log_pass "Port $port ($protocol ${tag:-untagged}) is listening"
             any_listening=true
         else
-            log_warn "Port $port ($service) is not listening"
+            log_warn "Port $port ($protocol ${tag:-untagged}) is not listening"
         fi
-    done
+    done <<< "$rows"
     
     if [[ "$any_listening" == "false" ]]; then
         log_fail "No Xray ports are listening"
@@ -245,7 +278,13 @@ check_network() {
 check_process() {
     log_section "PROCESS HEALTH"
     
-    local xray_pid=$(pgrep -x xray || echo "")
+    local xray_pid=""
+    if [[ "$XRAY_SERVICE" == "x-ui" ]]; then
+        xray_pid=$(pgrep -f "xray-linux-amd64.*bin/config.json" | head -1 || echo "")
+    fi
+    if [[ -z "$xray_pid" ]]; then
+        xray_pid=$(pgrep -f "xray-linux-amd64.*$XRAY_CONFIG|/usr/local/bin/xray.*$XRAY_CONFIG|xray run" | head -1 || echo "")
+    fi
     if [[ -z "$xray_pid" ]]; then
         log_fail "Xray process not found"
         return 1
@@ -267,11 +306,13 @@ check_connections() {
     log_section "CONNECTION STATS"
     
     # Count established connections
-    local established=$(ss -tunap 2>/dev/null | grep xray | grep ESTAB | wc -l || echo "0")
+    local established=$(ss -tunap 2>/dev/null | grep -E "xray|x-ui" | grep ESTAB | wc -l || echo "0")
     log_info "Established connections: $established"
     
     # Count connections by port
-    for port in 443 8443 8388 9443 8080; do
+    local ports
+    ports=$(jq -r '.inbounds[]? | select(.port != null) | .port' "$XRAY_CONFIG" 2>/dev/null | sort -n | uniq)
+    for port in ${ports:-443 8443 8388 9443 8080}; do
         local count=$(ss -tunap 2>/dev/null | grep ":$port " | wc -l || echo "0")
         if [[ $count -gt 0 ]]; then
             log_info "Port $port connections: $count"
@@ -294,7 +335,9 @@ generate_report() {
     # Timestamp
     echo "Report generated: $(date -Iseconds)"
     echo "Hostname: $(hostname)"
-    echo "Xray version: $(xray -version 2>/dev/null | head -1 || echo 'unknown')"
+    echo "Xray service: $XRAY_SERVICE"
+    echo "Xray config: $XRAY_CONFIG"
+    echo "Xray version: $(xray_version)"
 }
 
 # Save report to file
@@ -313,8 +356,10 @@ Checks:
   Failed: $CHECKS_FAILED
   Warnings: $CHECKS_WARNINGS
 
-Service Status: $(systemctl is-active xray 2>/dev/null || echo 'unknown')
-Xray Version: $(xray -version 2>/dev/null | head -1 || echo 'unknown')
+Service: $XRAY_SERVICE
+Service Status: $(systemctl is-active "$XRAY_SERVICE" 2>/dev/null || echo 'unknown')
+Xray Config: $XRAY_CONFIG
+Xray Version: $(xray_version)
 
 System Resources:
   Memory Usage: $(free | awk '/^Mem:/{printf "%.1f%%", $3/$2 * 100}')
