@@ -10,11 +10,15 @@ from src.services.service_event_trace import (
 from src.services.service_identity_registry import KNOWN_EVENT_IDENTITY_SERVICES
 
 
+def _source_agent(service: dict[str, str]) -> str:
+    return service.get("source_agent") or service["service_name"]
+
+
 def test_service_event_trace_filter_maps_layer_to_registered_source_agents():
     trace_filter = service_event_trace_filter(layer="dao_to_control_plane")
 
     expected = sorted(
-        service["service_name"]
+        _source_agent(service)
         for service in KNOWN_EVENT_IDENTITY_SERVICES
         if service["layer"] == "dao_to_control_plane"
     )
@@ -30,6 +34,15 @@ def test_service_event_trace_filter_reports_unknown_without_values():
     assert trace_filter["status"] == "unknown_filter"
     assert trace_filter["source_agents"] == []
     assert trace_filter["services"] == []
+
+
+def test_service_event_trace_filter_uses_source_agent_alias():
+    trace_filter = service_event_trace_filter(service_name="pqc-zero-trust-executor")
+
+    assert trace_filter["status"] == "ok"
+    assert trace_filter["source_agents"] == ["pqc-zero-trust-healer"]
+    assert trace_filter["services"][0]["service_name"] == "pqc-zero-trust-executor"
+    assert trace_filter["services"][0]["source_agent"] == "pqc-zero-trust-healer"
 
 
 def test_service_event_history_and_replay_use_registry_filters(tmp_path):
@@ -66,6 +79,23 @@ def test_service_event_history_and_replay_use_registry_filters(tmp_path):
         layer="swarm_consensus_to_control_plane",
     )
     assert [event.event_id for event in replay] == [consensus.event_id]
+
+
+def test_service_event_history_uses_source_agent_alias(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    event = bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        "pqc-zero-trust-healer",
+        {"stage": "action_completed"},
+    )
+
+    history = get_service_event_history(
+        bus,
+        service_name="pqc-zero-trust-executor",
+        limit=10,
+    )
+
+    assert [item.event_id for item in history] == [event.event_id]
 
 
 def test_service_event_trace_history_redacts_identity_values(tmp_path):

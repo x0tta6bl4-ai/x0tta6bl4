@@ -32,6 +32,10 @@ def _matching_registrations(
     ]
 
 
+def _registration_source_agent(registration: Dict[str, str]) -> str:
+    return registration.get("source_agent") or registration["service_name"]
+
+
 def service_event_trace_filter(
     *,
     service_name: Optional[str] = None,
@@ -48,7 +52,9 @@ def service_event_trace_filter(
         for registration in KNOWN_EVENT_IDENTITY_SERVICES
     }
 
-    unknown_service = service_name is not None and service_name not in known_service_names
+    unknown_service = (
+        service_name is not None and service_name not in known_service_names
+    )
     unknown_layer = layer is not None and layer not in known_layers
     status = "ok"
     if unknown_service or unknown_layer:
@@ -62,7 +68,9 @@ def service_event_trace_filter(
         "redacted": True,
         "service_name": service_name,
         "layer": layer,
-        "source_agents": sorted(service["service_name"] for service in services),
+        "source_agents": sorted(
+            _registration_source_agent(service) for service in services
+        ),
         "services_total": len(services),
         "registered_services_total": len(KNOWN_EVENT_IDENTITY_SERVICES),
         "known_layers": sorted(known_layers),

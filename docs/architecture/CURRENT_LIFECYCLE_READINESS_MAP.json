@@ -176,10 +176,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/marketplace",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/marketplace/status",
+      "runtime_readiness_field": "write_db_ready",
+      "hidden_dependency": "Marketplace routes are registered in light mode and do not have a production_lifespan startup hook, but state-changing escrow/listing operations require a database-backed write path. The status endpoint exposes route availability separately from database readiness and marks database degradation.",
       "source_refs": [
         "src/core/app.py:246",
-        "src/api/maas_marketplace.py:42"
+        "src/api/maas_marketplace.py:42",
+        "src/api/maas_marketplace.py:272",
+        "src/api/maas_marketplace.py:300"
       ]
     },
     {

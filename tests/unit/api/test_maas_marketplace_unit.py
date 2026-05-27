@@ -68,6 +68,7 @@ _idempotency_get = _mod._idempotency_get
 _idempotency_set = _mod._idempotency_set
 _db_session_available = _mod._db_session_available
 _is_dependency_placeholder = _mod._is_dependency_placeholder
+_marketplace_readiness_status = _mod._marketplace_readiness_status
 _to_cents = _mod._to_cents
 _to_dollars = _mod._to_dollars
 _row_to_listing = _mod._row_to_listing
@@ -345,6 +346,41 @@ class TestDbSessionAvailable:
 
     def test_dict_returns_false(self):
         assert _db_session_available({}) is False
+
+
+class TestMarketplaceReadinessStatus:
+    def test_ready_when_db_session_is_available(self):
+        db = MagicMock(spec=["query", "commit", "add", "flush"])
+
+        payload = _marketplace_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["route_registered"] is True
+        assert payload["lifecycle_binding"] == "route_import_only"
+        assert payload["startup_hook_completed"] is None
+        assert payload["write_db_ready"] is True
+        assert payload["degraded_dependencies"] == []
+        assert payload["backing_state"]["database"] == "ready"
+        assert payload["backing_state"]["escrow_write_path"] == "database_required"
+
+    def test_degraded_when_db_dependency_is_unresolved(self):
+        payload = _marketplace_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["write_db_ready"] is False
+        assert payload["degraded_dependencies"] == ["database"]
+        assert payload["backing_state"]["database"] == "unavailable"
+        assert "live chain settlement" in payload["claim_boundary"]
+
+    @pytest.mark.asyncio
+    async def test_status_endpoint_marks_degraded_database_dependency(self):
+        request = SimpleNamespace()
+        _mod.mark_degraded_dependency.reset_mock()
+
+        payload = await _mod.marketplace_status(request=request, db=SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        _mod.mark_degraded_dependency.assert_called_once_with(request, "database")
 
 
 # ===========================================================================
