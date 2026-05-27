@@ -7,7 +7,7 @@ Provides a publish-subscribe event system for inter-agent communication.
 import asyncio
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -16,6 +16,10 @@ from collections import defaultdict
 import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class EventType(str, Enum):
@@ -77,7 +81,7 @@ class Event:
     source_agent: str
     data: Dict[str, Any]
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utcnow)
     target_agents: Optional[Set[str]] = None  # None = broadcast
     priority: int = 0  # Higher = more important
     requires_ack: bool = False

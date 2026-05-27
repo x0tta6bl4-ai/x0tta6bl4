@@ -122,3 +122,21 @@ def test_lifecycle_map_captures_light_mode_route_runtime_gap():
         assert router["route_present_in_light_mode"] is True, router["id"]
         assert router["hook_available_only_when_lifespan_runs"] is True, router["id"]
         assert "light mode" in router["hidden_dependency"], router["id"]
+
+
+def test_lifecycle_map_tracks_marketplace_route_only_write_readiness():
+    lifecycle_map = _load_map()
+    marketplace = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-marketplace"
+    )
+    source = _module_path(marketplace["module"]).read_text(encoding="utf-8")
+
+    assert marketplace["lifecycle_binding"] == "route_import_only"
+    assert marketplace["registration_mode"] == "always"
+    assert marketplace["route_present_in_light_mode"] is True
+    assert marketplace["readiness_signal"] == "/api/v1/maas/marketplace/status"
+    assert marketplace["runtime_readiness_field"] == "write_db_ready"
+    assert "database-backed write path" in marketplace["hidden_dependency"]
+    assert '@router.get("/status")' in source
+    assert "write_db_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source

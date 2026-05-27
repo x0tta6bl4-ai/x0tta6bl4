@@ -127,6 +127,10 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
         == "security_identity_to_control_plane"
     )
     assert covered_services["pqc-rotator"] == "security_service_to_control_plane"
+    assert (
+        covered_services["pqc-zero-trust-executor"]
+        == "self_healing_pqc_identity"
+    )
     assert "/api/v1/ledger/event-traces/index" in smoke_source
     assert "/api/v1/ledger/search" in smoke_source
     assert "publish_marketplace_escrow_event" in smoke_source
@@ -145,6 +149,10 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "PQCRotatorService" in smoke_source
     assert "rotate_once" in smoke_source
     assert "pqc_rotator_event_id_matches" in smoke_source
+    assert "PQCZeroTrustExecutor" in smoke_source
+    assert "pqc-zero-trust-healer" in smoke_source
+    assert "pqc_healer_event_id_matches" in smoke_source
+    assert "pqc_healer_service_name_matches" in smoke_source
     assert "recovery_event_id_matches" in smoke_source
     assert "dao_event_id_matches" in smoke_source
     assert "marketplace_event_id_matches" in smoke_source

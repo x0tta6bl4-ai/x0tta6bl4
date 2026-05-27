@@ -49,6 +49,9 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "spire_server_layer_matches": True,
         "pqc_rotator_event_id_matches": True,
         "pqc_rotator_layer_matches": True,
+        "pqc_healer_event_id_matches": True,
+        "pqc_healer_layer_matches": True,
+        "pqc_healer_service_name_matches": True,
         "source_class_matches": True,
         "redacted_true": True,
         "secret_values_absent": True,
@@ -64,6 +67,7 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "mptcp-manager",
         "spire-server-client",
         "pqc-rotator",
+        "pqc-zero-trust-healer",
     }
 
     swarm = citations["swarm-pbft"]
@@ -148,3 +152,16 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert pqc_rotator["layer"] == "security_service_to_control_plane"
     assert pqc_rotator["entrypoint"] == "src/services/pqc_rotator_service.py"
     assert pqc_rotator["redacted"] is True
+
+    pqc_healer = citations["pqc-zero-trust-healer"]
+    assert pqc_healer["source"] == "EventBus"
+    assert pqc_healer["source_class"] == "event_trace"
+    assert pqc_healer["event_id"] == (
+        payload["events"]["pqc-zero-trust-healer"]["event_id"]
+    )
+    assert pqc_healer["event_type"] == "pipeline.stage_end"
+    assert pqc_healer["source_agent"] == "pqc-zero-trust-healer"
+    assert pqc_healer["service_name"] == "pqc-zero-trust-executor"
+    assert pqc_healer["layer"] == "self_healing_pqc_identity"
+    assert pqc_healer["entrypoint"] == "src/self_healing/pqc_zero_trust_healer.py"
+    assert pqc_healer["redacted"] is True

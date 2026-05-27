@@ -76,6 +76,7 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
     },
     {
         "service_name": "pqc-zero-trust-executor",
+        "source_agent": "pqc-zero-trust-healer",
         "layer": "self_healing_pqc_identity",
         "entrypoint": "src/self_healing/pqc_zero_trust_healer.py",
     },

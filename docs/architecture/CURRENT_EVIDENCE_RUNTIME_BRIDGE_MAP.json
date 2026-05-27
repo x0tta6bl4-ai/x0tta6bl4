@@ -235,11 +235,17 @@
         "service_name": "pqc-rotator",
         "layer": "security_service_to_control_plane",
         "event_type": "pipeline.stage_end"
+      },
+      {
+        "service_name": "pqc-zero-trust-executor",
+        "source_agent": "pqc-zero-trust-healer",
+        "layer": "self_healing_pqc_identity",
+        "event_type": "pipeline.stage_end"
       }
     ],
     "proves": [
-      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, DAO executor, self-healing recovery, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
-      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, dangerous-action executor, recovery-action, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
+      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, DAO executor, self-healing recovery, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
+      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, dangerous-action executor, recovery-action, PQC zero-trust healer, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
       "citations preserve event_id, source_agent, layer, source_class=event_trace, and redacted=true",
       "raw spiffe_id, did, and wallet_address values are absent from the search response"
     ],
@@ -253,10 +259,16 @@
       "scripts/ops/smoke_ledger_event_trace_citation.py:290",
       "scripts/ops/smoke_ledger_event_trace_citation.py:316",
       "scripts/ops/smoke_ledger_event_trace_citation.py:351",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:390",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:407",
       "scripts/ops/smoke_ledger_event_trace_citation.py:459",
       "scripts/ops/smoke_ledger_event_trace_citation.py:474",
       "scripts/ops/smoke_ledger_event_trace_citation.py:480",
       "scripts/ops/smoke_ledger_event_trace_citation.py:568",
+      "src/self_healing/pqc_zero_trust_healer.py:458",
+      "src/self_healing/pqc_zero_trust_healer.py:597",
+      "src/self_healing/pqc_zero_trust_healer.py:706",
+      "src/self_healing/pqc_zero_trust_healer.py:719",
       "src/services/pqc_rotator_service.py:237",
       "src/services/pqc_rotator_service.py:297",
       "src/services/share_to_earn_service.py:64",
@@ -286,6 +298,10 @@
     {
       "id": "eventbus-traces-are-runtime-evidence",
       "description": "Redacted EventBus history can now be indexed as RAG evidence. Search citations can carry event_id, event_type, source_agent, registered service_name, layer, entrypoint, and redacted=true."
+    },
+    {
+      "id": "source-agent-aliases-preserve-trace-identity",
+      "description": "The PQC zero-trust executor resolves identity as pqc-zero-trust-executor but emits EventBus events as pqc-zero-trust-healer; the trace registry now carries source_agent aliases so Ledger citations keep both the runtime source_agent and registered service_name."
     },
     {
       "id": "latest-aliases-are-first-class",

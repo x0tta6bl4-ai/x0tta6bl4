@@ -7,7 +7,7 @@ This document records the current code-level links between major x0tta6bl4 layer
 
 ## Evidence Snapshot
 
-- CodeGraph status after sync: 3554 indexed files, 70216 nodes, 153718 edges.
+- CodeGraph status after sync: 3579 indexed files, 70802 nodes, 153126 edges.
 - Main runtime entrypoint: `src/core/app.py`.
 - Production lifecycle entrypoint: `src/core/production_lifespan.py`.
 - Local fail-closed control path: `src/integration/spine.py`.
@@ -17,7 +17,7 @@ This document records the current code-level links between major x0tta6bl4 layer
 - Component registry drift-check: `tests/unit/test_component_registry_unit.py`.
 - Lifecycle readiness map: `docs/architecture/CURRENT_LIFECYCLE_READINESS_MAP.json`.
 - Lifecycle readiness drift-check: `tests/unit/test_lifecycle_readiness_map_unit.py`.
-- Runtime readiness flags: `/edge/health` and `/events/health` expose `startup_hook_completed`.
+- Runtime readiness flags: `/edge/health` and `/events/health` expose `startup_hook_completed`; `/api/v1/maas/marketplace/status` exposes `write_db_ready` for a route-only commerce module.
 - Namespace convergence map: `docs/architecture/CURRENT_NAMESPACE_CONVERGENCE_MAP.json`.
 - Namespace convergence drift-check: `tests/unit/test_namespace_convergence_map_unit.py`.
 - Canonical import direction map: `docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json`.
@@ -70,12 +70,12 @@ Local control/evidence plane
 | Billing API -> reliability and observability | `src/api/maas_billing.py:22-26`, `src/api/maas_billing.py:64-93` | Stripe calls are wrapped by shared retry/circuit policy and mark degraded dependencies for HTTP responses. |
 | Ledger API -> RAG memory | `src/api/ledger_endpoints.py:15-17`, `src/api/ledger_endpoints.py:56-147`, `src/api/ledger_endpoints.py:156-207` | `/api/v1/ledger` lazily indexes and searches the Continuity Ledger through the RAG pipeline, and search responses now expose `metadata.citations` when retrieved chunks carry source metadata. |
 | Verification evidence -> Ledger API -> RAG memory | `src/ledger/rag_search.py:21-22`, `src/ledger/rag_search.py:193-331`, `src/api/ledger_endpoints.py:260-303` | `docs/verification` artifacts can now be explicitly indexed into the same runtime RAG surface as the Continuity Ledger, with metadata preserving source path and evidence boundaries. |
-| EventBus traces -> Ledger API -> RAG memory | `src/services/service_event_trace.py:159-209`, `src/ledger/rag_search.py:237-247`, `src/ledger/rag_search.py:364-460`, `src/api/ledger_endpoints.py:311-366`, `scripts/ops/smoke_ledger_event_trace_citation.py:131-570` | Redacted EventBus history can now be indexed as runtime evidence. Search citations can carry `event_id`, `event_type`, `source_agent`, registered `service_name`, `layer`, `entrypoint`, and `redacted=true`; the smoke script exercises the API route and search citation path across swarm consensus, commerce settlement, DAO executor blocked-action, self-healing recovery-action, mesh network reward, share-to-earn network usage reward, MPTCP network control, SPIRE security identity, and PQC security service layers. |
+| EventBus traces -> Ledger API -> RAG memory | `src/services/service_event_trace.py:159-209`, `src/ledger/rag_search.py:237-247`, `src/ledger/rag_search.py:364-460`, `src/api/ledger_endpoints.py:311-366`, `scripts/ops/smoke_ledger_event_trace_citation.py:131-620` | Redacted EventBus history can now be indexed as runtime evidence. Search citations can carry `event_id`, `event_type`, `source_agent`, registered `service_name`, `layer`, `entrypoint`, and `redacted=true`; the smoke script exercises the API route and search citation path across swarm consensus, commerce settlement, DAO executor blocked-action, self-healing recovery-action, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, SPIRE security identity, and PQC security service layers. |
 | Marketplace settlement -> telemetry -> chain bridge -> audit | `src/services/marketplace_settlement.py:4-10`, `src/services/marketplace_settlement.py:35-143` | Escrow release/refund is driven by MaaS telemetry uptime, then optionally calls TokenBridge, emits marketplace events, and writes audit logs. |
 | Share-to-earn -> routing stats -> reward events | `src/services/share_to_earn_service.py:10-12`, `src/services/share_to_earn_service.py:83-150` | Economy accounting uses exit-node eligibility and local mesh stats, then emits reward lifecycle events without claiming live settlement. |
 | EventBus + service identity + actuator -> cross-layer control plane | `docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json`, `src/coordination/events.py:18-69`, `src/services/service_event_identity.py:76-103`, `src/integration/spine.py:123-186` | 37 current `src` files touch the event/control surface. API, DAO, network, security, self-healing, server, swarm, commerce, reward code, trace filtering, and Ledger/RAG event-trace indexing share one event vocabulary and identity envelope. |
 | Redacted service identity status -> event-producing services | `src/services/service_identity_registry.py:16-149`, `src/api/service_identity_status.py:21-33`, `src/core/app.py:250` | 21 current services that call `service_event_identity()` are now visible through `/api/v1/service-identity/status` without exposing SPIFFE IDs, DIDs, or wallet values. |
-| Registered service trace filters -> EventBus history/replay/API | `src/services/service_event_trace.py:35-209`, `src/coordination/events.py:282-330`, `src/coordination/cli.py:213-267`, `src/api/service_identity_status.py:27-54` | Operators can filter EventBus history/replay by registered service name or layer, using the same registry as service identity status. The HTTP trace endpoint recursively redacts `spiffe_id`, `did`, and `wallet_address` before returning event data. |
+| Registered service trace filters -> EventBus history/replay/API | `src/services/service_event_trace.py:35-209`, `src/coordination/events.py:282-330`, `src/coordination/cli.py:213-267`, `src/api/service_identity_status.py:27-54` | Operators can filter EventBus history/replay by registered service name, optional source-agent alias, or layer, using the same registry as service identity status. The HTTP trace endpoint recursively redacts `spiffe_id`, `did`, and `wallet_address` before returning event data. |
 | SafeActuator reused outside IntegrationSpine | `src/integration/spine.py:123-186` plus imports in `src/swarm`, `src/services`, `src/server`, `src/self_healing`, `src/dao`, `src/security`, `src/network` | SafeActuator is becoming the common guard for dangerous actions, not just a test helper. |
 | Canonical service identity across background services | `src/services/service_event_identity.py:76-103` | Background events share SPIFFE/DID/wallet identity resolution through service-specific and generic env vars, and the status helper reports presence/source metadata with values redacted. |
 
@@ -95,7 +95,7 @@ Local control/evidence plane
 
 7. Production lifecycle and API route inclusion are not the same thing. `src/core/app.py` includes `src.edge.api` and `src.event_sourcing.api` routers in all modes, but their startup/shutdown hooks are only called by `src/core/production_lifespan.py` when production lifespan is active.
 
-   Current lifecycle map details: 23 router registrations are tracked. `edge-computing` and `event-sourcing` are the only tracked routers with explicit `production_lifespan` startup/shutdown hooks, and both routes are still present in light mode where that lifespan is not attached. Their health payloads now expose `startup_hook_completed` so operators can separate route reachability from startup completion.
+   Current lifecycle map details: 23 router registrations are tracked. `edge-computing` and `event-sourcing` are the only tracked routers with explicit `production_lifespan` startup/shutdown hooks, and both routes are still present in light mode where that lifespan is not attached. Their health payloads now expose `startup_hook_completed` so operators can separate route reachability from startup completion. The route-only marketplace API now exposes `write_db_ready` so operators can separate route availability from database-backed escrow/listing write readiness.
 
 8. There are parallel package surfaces: `src/libx0t/...` and top-level `libx0t/...`. Current namespace map shows 154 top-level `libx0t` Python files, 114 `src/libx0t` Python files, 82 common paths, only 14 byte-identical common paths, and 68 differing common paths. This is a compatibility asset, but also a drift risk unless one surface is declared canonical.
 
@@ -125,7 +125,9 @@ Local control/evidence plane
 
 16. Event traces now use the same service registry. `src/services/service_event_trace.py` maps registered service names/layers to EventBus `source_agent` filters, so `EventBus.get_event_history()` and `EventBus.replay_events()` can be filtered by layer-level service identity without making the base event bus depend on the service registry. `/api/v1/service-identity/event-traces` exposes the filtered view with recursive identity-field redaction.
 
-17. EventBus traces are now runtime evidence, not just operator inspection output. `/api/v1/ledger/event-traces/index` builds a redacted trace payload with `service_event_trace_history()`, `LedgerRAGSearch.index_event_traces()` stores each event as RAG evidence, and Ledger citations preserve `event_id`, `source_agent`, service name, layer, entrypoint, and `redacted=true`. `python3 scripts/ops/smoke_ledger_event_trace_citation.py --json` proves the API index route, search route, citation metadata, and identity-value redaction across `swarm-pbft`, `maas-settlement`, `dao-executor`, `recovery-action-executor`, `mesh-vpn-bridge`, `share-to-earn`, `mptcp-manager`, `spire-server-client`, and `pqc-rotator`.
+17. EventBus traces are now runtime evidence, not just operator inspection output. `/api/v1/ledger/event-traces/index` builds a redacted trace payload with `service_event_trace_history()`, `LedgerRAGSearch.index_event_traces()` stores each event as RAG evidence, and Ledger citations preserve `event_id`, `source_agent`, service name, layer, entrypoint, and `redacted=true`. `python3 scripts/ops/smoke_ledger_event_trace_citation.py --json` proves the API index route, search route, citation metadata, and identity-value redaction across `swarm-pbft`, `maas-settlement`, `dao-executor`, `recovery-action-executor`, `mesh-vpn-bridge`, `share-to-earn`, `mptcp-manager`, `spire-server-client`, `pqc-rotator`, and `pqc-zero-trust-healer`.
+
+18. PQC zero-trust recovery has two useful names that now stay connected. `PQCZeroTrustExecutor` resolves identity as registered service `pqc-zero-trust-executor`, but its EventBus source is `pqc-zero-trust-healer`. The service registry now carries that `source_agent` alias, so layer filters and Ledger citations keep both the runtime source and the registered service identity.
 
 ## Current Risk Hotspots
 
@@ -133,7 +135,7 @@ Local control/evidence plane
 |---|---|---|
 | MaaS catch-all route shadowing class | Billing status shadowing was fixed by registering `src.api.maas_billing` before `src.api.maas_legacy` (`src/core/app.py:237-242`) and adding a direct route-match test. A light-mode audit checked 92 MaaS routes and found 0 shadowed routes after the fix. | Keep the route-audit command as a regression check, and add targeted tests when new fixed-prefix MaaS routers are introduced. |
 | Duplicate package surfaces | Namespace map shows `libx0t` and `src/libx0t` are not mirrors: 82 common Python paths, 68 differing common paths. Canonical import map now tracks 0 direct top-level imports inside `src/libx0t` and records five bridge modules for top-level-only network implementations. | Decide whether to migrate yggdrasil/byzantine/eBPF implementations behind the bridges or keep top-level `libx0t.network` as their source of truth. |
-| Runtime route without lifecycle | Lifecycle map tracks 23 router registrations. `edge-computing` and `event-sourcing` have explicit production hooks, but both routes are present in light mode where `production_lifespan` is not attached. Their health payloads now report `startup_hook_completed`. | Extend this readiness distinction to other route-only modules with external backing state. |
+| Runtime route without lifecycle | Lifecycle map tracks 23 router registrations. `edge-computing` and `event-sourcing` have explicit production hooks, but both routes are present in light mode where `production_lifespan` is not attached. Their health payloads now report `startup_hook_completed`. `maas-marketplace` remains route-import-only and now reports `write_db_ready` at `/api/v1/maas/marketplace/status`. | Extend this readiness distinction to the next route-only module with external backing state, such as billing/Stripe. |
 | Local evidence vs production settlement | Integration wiring report says `NOT_COMPLETE` for live settlement | Keep local wiring, live RPC receipt, and operator evidence as separate gates. |
 | Background service identity drift | 21 services call `service_event_identity()` and are now registered in `src/services/service_identity_registry.py`. | Keep the registry drift-check aligned with new service identity callers, and extend the status payload only with redacted metadata. |
 | Event/control-plane drift | Event map tracks 37 `src` files touching EventBus, service identity, event helpers, SafeActuator, AsyncSafeActuator, identity status, service trace filters, or EventBus-to-Ledger indexing. | Keep `tests/unit/test_event_control_plane_map_unit.py` as the guard when adding new event publishers, action executors, trace filters, or trace-memory bridges. |
@@ -157,7 +159,8 @@ Local control/evidence plane
    - Done: machine-readable map compares `src/core/app.py` router registration with `src/core/production_lifespan.py` startup/shutdown hooks.
    - Done: drift-check verifies all 23 app router registrations are covered and explicit hook claims are still true.
    - Done: `/edge/health` and `/events/health` expose `startup_hook_completed`.
-   - Next: extend the same readiness distinction to route-only modules with external backing state.
+   - Done: `/api/v1/maas/marketplace/status` exposes `write_db_ready` and degraded database dependency metadata for a route-only commerce module with escrow/listing write state.
+   - Next: extend the same readiness distinction to another route-only module with external backing state.
 
 4. Namespace convergence:
    - Done: namespace convergence map captures file counts, import counts, bridges, and hotspots.
@@ -175,7 +178,7 @@ Local control/evidence plane
    - Done: redacted EventBus traces can be indexed explicitly through `/api/v1/ledger/event-traces/index`.
    - Done: `/api/v1/ledger/event-traces/status` reports trace-memory indexing counters and source metadata.
    - Done: Ledger citations can now carry verification `relative_path/source_class` and EventBus `event_id/source_agent/layer` metadata.
-   - Done: `scripts/ops/smoke_ledger_event_trace_citation.py --json` indexes local `swarm-pbft`, `maas-settlement`, `dao-executor`, `recovery-action-executor`, `mesh-vpn-bridge`, `share-to-earn`, `mptcp-manager`, `spire-server-client`, and `pqc-rotator` EventBus trace samples and shows event-backed citations through `/api/v1/ledger/search`.
+   - Done: `scripts/ops/smoke_ledger_event_trace_citation.py --json` indexes local `swarm-pbft`, `maas-settlement`, `dao-executor`, `recovery-action-executor`, `mesh-vpn-bridge`, `share-to-earn`, `mptcp-manager`, `spire-server-client`, `pqc-rotator`, and `pqc-zero-trust-healer` EventBus trace samples and shows event-backed citations through `/api/v1/ledger/search`.
    - Done: map and drift-check track current counts, endpoint markers, metadata contract, and source refs.
    - Next: decide whether event-backed Ledger search should stay manual-index only or get an explicit request flag similar to `include_verification`.
 
@@ -191,4 +194,5 @@ Local control/evidence plane
    - Done: trace-memory smoke coverage now includes `share-to-earn` on the `network_usage_to_rewards` layer through `publish_share_to_earn_reward_event()`.
    - Done: trace-memory smoke coverage now includes `mptcp-manager` on the `network_to_control_plane` layer through policy-gated `MPTCPManager.enable_mptcp()`.
    - Done: trace-memory smoke coverage now includes `pqc-rotator` on the `security_service_to_control_plane` layer through policy-gated `PQCRotatorService.rotate_once()`.
-   - Next: extend trace-memory smoke coverage to a self-healing PQC identity action, for example `pqc-zero-trust-healer`.
+   - Done: trace-memory smoke coverage now includes `pqc-zero-trust-healer` on the `self_healing_pqc_identity` layer through policy-gated `PQCZeroTrustExecutor.execute()`.
+   - Next: connect route-only marketplace readiness into EventBus/Ledger evidence, or extend trace-memory smoke coverage to another route-only module with external backing state.

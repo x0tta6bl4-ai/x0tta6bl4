@@ -185,6 +185,7 @@ _event_store: Optional[EventStore] = None
 _command_bus: Optional[CommandBus] = None
 _query_bus: Optional[QueryBus] = None
 _projection_manager: Optional[ProjectionManager] = None
+_startup_hook_completed: bool = False
 
 # Resilience patterns
 _api_rate_limiter = TokenBucket(capacity=200, refill_rate=50.0, name="events_api")
@@ -222,6 +223,7 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "timestamp": dt.utcnow().isoformat(),
+        "startup_hook_completed": _startup_hook_completed,
         "components": {}
     }
     
@@ -283,7 +285,11 @@ async def health_check():
     # Check rate limiter
     health_status["components"]["rate_limiter"] = {
         "status": "healthy",
-        "available_tokens": _api_rate_limiter._tokens
+        "available_tokens": getattr(
+            _api_rate_limiter,
+            "_tokens",
+            getattr(_api_rate_limiter, "tokens", "unknown"),
+        )
     }
     
     # Check bulkheads
@@ -302,7 +308,11 @@ async def health_check():
     # Check circuit breaker
     health_status["components"]["circuit_breaker"] = {
         "state": _projection_circuit_breaker.state.value if hasattr(_projection_circuit_breaker.state, 'value') else str(_projection_circuit_breaker.state),
-        "failure_count": _projection_circuit_breaker._failure_count
+        "failure_count": getattr(
+            _projection_circuit_breaker,
+            "_failure_count",
+            getattr(_projection_circuit_breaker, "failure_count", "unknown"),
+        )
     }
     
     return health_status
@@ -1080,7 +1090,7 @@ async def get_aggregate_history(
 
 async def event_sourcing_startup():
     """Initialize event sourcing components on startup."""
-    global _event_store, _command_bus, _query_bus, _projection_manager
+    global _event_store, _command_bus, _query_bus, _projection_manager, _startup_hook_completed
     
     logger.info("Initializing Event Sourcing module...")
     
@@ -1088,13 +1098,14 @@ async def event_sourcing_startup():
     _command_bus = CommandBus()
     _query_bus = QueryBus()
     _projection_manager = ProjectionManager(_event_store)
+    _startup_hook_completed = True
     
     logger.info("Event Sourcing module initialized")
 
 
 async def event_sourcing_shutdown():
     """Cleanup event sourcing components on shutdown."""
-    global _event_store, _command_bus, _query_bus, _projection_manager
+    global _event_store, _command_bus, _query_bus, _projection_manager, _startup_hook_completed
     
     logger.info("Shutting down Event Sourcing module...")
     
@@ -1105,6 +1116,7 @@ async def event_sourcing_shutdown():
     _command_bus = None
     _query_bus = None
     _projection_manager = None
+    _startup_hook_completed = False
     
     logger.info("Event Sourcing module shut down")
 
