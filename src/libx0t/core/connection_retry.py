@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Callable, List, Optional, TypeVar
 
-from libx0t.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from src.libx0t.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ def retry(
 
         cb = None
         if circuit_breaker_name:
-            from libx0t.core.circuit_breaker import (create_circuit_breaker,
+            from src.libx0t.core.circuit_breaker import (create_circuit_breaker,
                                                   get_circuit_breaker)
 
             cb = get_circuit_breaker(circuit_breaker_name)

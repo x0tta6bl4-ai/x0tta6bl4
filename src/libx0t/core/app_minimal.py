@@ -171,6 +171,6 @@ async def startup():
 if __name__ == "__main__":
     import uvicorn
 
-    from libx0t.core.settings import settings
+    from src.libx0t.core.settings import settings
 
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)

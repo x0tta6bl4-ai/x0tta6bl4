@@ -12,6 +12,7 @@ import logging
 import os
 import secrets
 import struct
+import warnings
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
@@ -28,7 +29,14 @@ try:
     PQC_AVAILABLE = True
 except (ImportError, RuntimeError, AttributeError):
     try:
-        from oqs import KeyEncapsulation, Signature
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"liboqs version .* differs from liboqs-python version .*",
+                category=UserWarning,
+                append=False,
+            )
+            from oqs import KeyEncapsulation, Signature
 
         PQC_AVAILABLE = True
     except (ImportError, RuntimeError, AttributeError, SystemExit) as e:

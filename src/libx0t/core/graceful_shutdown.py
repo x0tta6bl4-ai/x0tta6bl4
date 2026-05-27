@@ -377,7 +377,7 @@ async def close_database_connections():
 async def close_redis_connections():
     """Close Redis connections."""
     try:
-        from libx0t.core.cache import cache
+        from src.libx0t.core.cache import cache
 
         await cache.close()
         logger.info("Redis connections closed")

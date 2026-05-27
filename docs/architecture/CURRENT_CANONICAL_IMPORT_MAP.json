@@ -6,7 +6,7 @@
     "src_libx0t_rule": "Files under src/libx0t must import src.libx0t.* when the target module or package exists under src/libx0t.",
     "allowed_exception_rule": "Files under src/libx0t may import top-level libx0t.* only when no matching src.libx0t module or package exists.",
     "top_level_libx0t_role": "Top-level libx0t remains a public and legacy compatibility surface.",
-    "pqc_runtime_rule": "Runtime modules outside src/libx0t should prefer src.libx0t.security.post_quantum and use top-level libx0t.security.post_quantum only as compatibility fallback.",
+    "pqc_runtime_rule": "Runtime modules outside src/libx0t should prefer the canonical src.security.pqc module; src.libx0t.security.post_quantum and top-level libx0t.security.post_quantum remain compatibility surfaces.",
     "security_bridge_rule": "Top-level libx0t/security shims delegate to src.libx0t.security modules or to the canonical src.security module when the implementation lives outside src.libx0t."
   },
   "current_scan": {
@@ -17,8 +17,8 @@
       "libx0t"
     ],
     "repo_direct_import_statements": {
-      "libx0t": 98,
-      "src.libx0t": 78
+      "libx0t": 97,
+      "src.libx0t": 76
     },
     "src_libx0t_top_level_libx0t_import_statements": {
       "total": 0,
@@ -37,21 +37,21 @@
       ]
     },
     {
-      "id": "pqc-identity-prefers-src-libx0t",
-      "current_target": "src.libx0t.security.post_quantum",
-      "fallback_target": "libx0t.security.post_quantum",
+      "id": "pqc-identity-uses-canonical-security-pqc",
+      "previous_problem": "src/security/pqc_identity.py imported the deprecated src.libx0t.security.post_quantum shim, which can emit DeprecationWarning and third-party oqs warnings at import time.",
+      "current_target": "src.security.pqc",
       "source_refs": [
         "src/security/pqc_identity.py:15",
-        "src/security/pqc_identity.py:17"
+        "src/security/pqc/__init__.py:56"
       ]
     },
     {
-      "id": "discovery-protocol-prefers-src-libx0t",
-      "current_target": "src.libx0t.security.post_quantum",
-      "fallback_target": "libx0t.security.post_quantum",
+      "id": "discovery-protocol-uses-canonical-security-pqc",
+      "previous_problem": "src/network/discovery/protocol.py imported the deprecated src.libx0t.security.post_quantum shim before falling back to top-level libx0t.",
+      "current_target": "src.security.pqc",
       "source_refs": [
         "src/network/discovery/protocol.py:329",
-        "src/network/discovery/protocol.py:331"
+        "src/security/pqc/compat.py:33"
       ]
     },
     {

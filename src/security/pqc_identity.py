@@ -10,11 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 
-# Import the canonical in-repo PQC backend first; top-level libx0t is a compatibility surface.
-try:
-    from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
-except ImportError:
-    from libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
+from src.security.pqc import LIBOQS_AVAILABLE, PQMeshSecurityLibOQS
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +68,14 @@ class PQCNodeIdentity:
     def __init__(self, node_id: str, kem_alg: str = "ML-KEM-768", sig_alg: str = "ML-DSA-65"):
         if not LIBOQS_AVAILABLE:
             logger.critical("liboqs is NOT available. Falling back to insecure mode (ONLY FOR DEV)!")
-        
+
         self.node_id = node_id
         self.security = PQMeshSecurityLibOQS(node_id, kem_algorithm=kem_alg, sig_algorithm=sig_alg)
-        
+
         # PQC DID: did:mesh:pqc:<node_id>:<key_id_short>
         pkeys = self.security.get_public_keys()
         self.did = f"did:mesh:pqc:{node_id}:{pkeys['key_id'][:8]}"
-        
+
         self.document = self._create_pqc_document()
         logger.info(f"Generated PQC-DID for node {node_id}: {self.did}")
 
@@ -118,7 +114,7 @@ class PQCNodeIdentity:
         """
         payload = json.dumps(manifest_data, sort_keys=True).encode()
         signature = self.security.sign(payload)
-        
+
         return {
             "manifest": manifest_data,
             "proof": {
@@ -137,7 +133,7 @@ class PQCNodeIdentity:
             payload = json.dumps(signed_manifest["manifest"], sort_keys=True).encode()
             signature = bytes.fromhex(signed_manifest["proof"]["signatureValue"])
             pubkey = bytes.fromhex(remote_pubkey_hex)
-            
+
             return self.security.verify(payload, signature, pubkey)
         except Exception as e:
             logger.error(f"PQC Verification failed: {e}")
@@ -149,8 +145,8 @@ class PQCNodeIdentity:
         """
         logger.info(f"Rotating PQC keys for node {self.node_id}")
         self.security = PQMeshSecurityLibOQS(
-            self.node_id, 
-            self.security.pq_backend.kem_algorithm, 
+            self.node_id,
+            self.security.pq_backend.kem_algorithm,
             self.security.pq_backend.sig_algorithm
         )
         self.document = self._create_pqc_document()

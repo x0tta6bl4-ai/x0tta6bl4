@@ -37,7 +37,7 @@ logger.info("✓ Routes registered")
 if __name__ == "__main__":
     import uvicorn
 
-    from libx0t.core.settings import settings
+    from src.libx0t.core.settings import settings
 
     logger.info(f"Starting server on {settings.api_host}:{settings.api_port}...")
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)

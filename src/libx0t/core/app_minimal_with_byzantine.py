@@ -20,9 +20,9 @@ logger = logging.getLogger("x0tta6bl4")
 
 # Try to import Byzantine protection
 try:
-    from libx0t.network.byzantine.mesh_byzantine_protection import \
+    from src.libx0t.network.byzantine.mesh_byzantine_protection import \
         MeshByzantineProtection
-    from libx0t.network.byzantine.signed_gossip import MessageType
+    from src.libx0t.network.byzantine.signed_gossip import MessageType
 
     BYZANTINE_AVAILABLE = True
 except ImportError as e:
@@ -185,7 +185,7 @@ async def receive_beacon(req: BeaconRequest):
         # Verify signature if provided
         if req.signature and req.public_key:
             try:
-                from libx0t.network.byzantine.signed_gossip import SignedMessage
+                from src.libx0t.network.byzantine.signed_gossip import SignedMessage
 
                 # Create SignedMessage from request
                 message = SignedMessage(
@@ -448,6 +448,6 @@ async def startup():
 if __name__ == "__main__":
     import uvicorn
 
-    from libx0t.core.settings import settings
+    from src.libx0t.core.settings import settings
 
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)
