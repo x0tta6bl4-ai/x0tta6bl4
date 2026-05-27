@@ -27,7 +27,7 @@ except ImportError:
         "⚠️ cryptography library not available. Install with: pip install cryptography"
     )
 
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend)
+from src.security.pqc import (LIBOQS_AVAILABLE, LibOQSBackend)
 
 logger = logging.getLogger(__name__)
 

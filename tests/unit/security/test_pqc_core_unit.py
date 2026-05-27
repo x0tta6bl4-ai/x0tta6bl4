@@ -6,6 +6,7 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 
 
 def test_pqc_core_import() -> None:
+    """Legacy src.security.pqc_core shim still imports during migration."""
     import src.security.pqc_core as module
 
     assert module is not None

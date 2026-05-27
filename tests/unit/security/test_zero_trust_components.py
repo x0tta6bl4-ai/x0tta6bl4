@@ -17,8 +17,8 @@ from src.security.zkp_auth import (PedersenCommitment, SchnorrZKP,
                                    ZKPAuthenticator)
 
 try:
-    from src.security.post_quantum import (HybridPQEncryption, PQAlgorithm,
-                                           PQMeshSecurityLibOQS)
+    from src.security.pqc import (HybridPQEncryption, PQAlgorithm,
+                                  PQMeshSecurityLibOQS)
 
     POSTQUANTUM_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

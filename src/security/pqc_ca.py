@@ -9,11 +9,21 @@ to sign and rotate node identities, augmenting standard SPIFFE SVIDs.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
-from src.security.pqc_identity import PQCNodeIdentity
 
 logger = logging.getLogger(__name__)
+
+PQCNodeIdentity: Any = None
+
+
+def _get_pqc_node_identity() -> Any:
+    global PQCNodeIdentity
+    if PQCNodeIdentity is None:
+        from src.security.pqc_identity import PQCNodeIdentity as imported_identity
+
+        PQCNodeIdentity = imported_identity
+    return PQCNodeIdentity
 
 @dataclass
 class PQCSVID:
@@ -31,7 +41,7 @@ class PQCCertificateAuthority:
     Central CA for issuing Post-Quantum signed identities.
     """
     def __init__(self, ca_node_id: str = "maas-root-ca"):
-        self.identity = PQCNodeIdentity(ca_node_id)
+        self.identity = _get_pqc_node_identity()(ca_node_id)
         self.issued_count = 0
         logger.info(f"PQCCertificateAuthority initialized with DID: {self.identity.did}")
 
@@ -93,7 +103,7 @@ class PQCIdentityManager:
     """
     def __init__(self, node_id: str):
         self.node_id = node_id
-        self.identity = PQCNodeIdentity(node_id)
+        self.identity = _get_pqc_node_identity()(node_id)
         self.current_svid: Optional[PQCSVID] = None
         logger.info(f"PQCIdentityManager initialized for {node_id}")
 

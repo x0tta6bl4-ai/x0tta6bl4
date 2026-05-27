@@ -31,7 +31,7 @@ def check_production_dependencies() -> None:
 
     # PQC - Critical for security
     try:
-        from libx0t.security.post_quantum_liboqs import LIBOQS_AVAILABLE
+        from src.security.pqc import LIBOQS_AVAILABLE
 
         if not LIBOQS_AVAILABLE:
             errors.append(
@@ -96,7 +96,7 @@ def get_dependency_status() -> List[Tuple[str, bool, str]]:
 
     # PQC
     try:
-        from libx0t.security.post_quantum_liboqs import LIBOQS_AVAILABLE
+        from src.security.pqc import LIBOQS_AVAILABLE
 
         status.append(
             (

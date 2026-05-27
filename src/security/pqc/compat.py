@@ -39,7 +39,7 @@ try:
         PQMeshSecurityLibOQS,
     )
     _LEGACY_POST_QUANTUM_AVAILABLE = True
-except ImportError as _e:  # pragma: no cover
+except (ImportError, RuntimeError) as _e:  # pragma: no cover
     logger.debug("Legacy post_quantum classes unavailable: %s", _e)
     _LEGACY_POST_QUANTUM_AVAILABLE = False
     # Provide safe placeholders so import of this module never hard-fails
@@ -63,7 +63,7 @@ try:
         test_pqc_availability,
     )
     _LEGACY_PQC_CORE_AVAILABLE = True
-except ImportError as _e:  # pragma: no cover
+except (ImportError, RuntimeError) as _e:  # pragma: no cover
     logger.debug("Legacy pqc_core helpers unavailable: %s", _e)
     _LEGACY_PQC_CORE_AVAILABLE = False
     PQCHybridScheme = None  # type: ignore[assignment,misc]
