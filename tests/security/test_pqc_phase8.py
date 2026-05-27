@@ -6,10 +6,10 @@ Tests for ML-KEM-768 key exchange and ML-DSA-65 digital signatures.
 
 import pytest
 
-from src.security.pqc_core import (PQCDigitalSignature, PQCHybridScheme,
-                                   PQCKeyExchange, get_pqc_digital_signature,
-                                   get_pqc_hybrid, get_pqc_key_exchange)
-from src.security.pqc_core import test_pqc_availability as run_pqc_availability
+from src.security.pqc import (PQCDigitalSignature, PQCHybridScheme,
+                               PQCKeyExchange, get_pqc_digital_signature,
+                               get_pqc_hybrid, get_pqc_key_exchange)
+from src.security.pqc import test_pqc_availability as run_pqc_availability
 from src.security.pqc_mtls import PQCmTLSController, get_pqc_mtls_controller
 from src.security.pqc_mtls import test_pqc_mtls_setup as run_pqc_mtls_setup
 

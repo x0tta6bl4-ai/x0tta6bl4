@@ -17,7 +17,7 @@ from datetime import datetime
 import pytest
 
 # Import PQC components
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
+from src.security.pqc import (LIBOQS_AVAILABLE, LibOQSBackend,
                                               PQMeshSecurityLibOQS)
 from src.security.pqc_hybrid import HybridPQEncryption
 

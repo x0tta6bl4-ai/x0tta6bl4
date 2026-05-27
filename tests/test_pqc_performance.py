@@ -58,7 +58,7 @@ class TestPQCKeyCache:
 
     def test_cache_keypair(self, mock_liboqs):
         """Test caching KEM keypair."""
-        from src.security.post_quantum_liboqs import LibOQSBackend
+        from src.security.pqc import LibOQSBackend
 
         cache = PQCKeyCache(max_size=10, ttl_seconds=3600)
         backend = LibOQSBackend()
@@ -73,7 +73,7 @@ class TestPQCKeyCache:
 
     def test_cache_expiration(self, mock_liboqs):
         """Test cache expiration."""
-        from src.security.post_quantum_liboqs import LibOQSBackend
+        from src.security.pqc import LibOQSBackend
 
         cache = PQCKeyCache(max_size=10, ttl_seconds=1)  # 1 second TTL
         backend = LibOQSBackend()
@@ -91,7 +91,7 @@ class TestPQCKeyCache:
 
     def test_cache_size_limit(self, mock_liboqs):
         """Test cache size limit."""
-        from src.security.post_quantum_liboqs import LibOQSBackend
+        from src.security.pqc import LibOQSBackend
 
         cache = PQCKeyCache(max_size=2, ttl_seconds=3600)
         backend = LibOQSBackend()

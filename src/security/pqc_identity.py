@@ -10,12 +10,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
 
-# Import the existing PQC backend from libx0t
+# Import the canonical in-repo PQC backend first; top-level libx0t is a compatibility surface.
 try:
-    from libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
-except ImportError:
-    # Fallback if not installed in site-packages yet
     from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
+except ImportError:
+    from libx0t.security.post_quantum import PQMeshSecurityLibOQS, LIBOQS_AVAILABLE
 
 logger = logging.getLogger(__name__)
 

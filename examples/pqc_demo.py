@@ -11,8 +11,8 @@ Run: python3 pqc.py
 import sys
 import binascii
 
-# Import from the actual implementation location
-from libx0t.crypto.pqc import PQC
+# Import from the canonical location
+from src.security.pqc.simple import PQC
 
 
 def demo_kyber768_key_exchange():

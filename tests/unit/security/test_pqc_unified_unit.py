@@ -86,13 +86,11 @@ class TestLegacyAPIFromCanonical:
 
 class TestShimImportPaths:
     def test_post_quantum_shim(self):
-        """src.security.post_quantum shim redirects to libx0t (sys.modules-level)."""
+        """src.security.post_quantum legacy shim still imports."""
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            # post_quantum.py is a sys.modules redirect to libx0t.security.post_quantum.
-            # It exports libx0t's symbols: LibOQSBackend, LIBOQS_AVAILABLE, etc.
-            from src.security.post_quantum import (  # noqa: F401
+            from src.security.post_quantum import (
                 LibOQSBackend,
                 LIBOQS_AVAILABLE,
                 HybridPQEncryption,
@@ -100,11 +98,11 @@ class TestShimImportPaths:
         assert isinstance(LIBOQS_AVAILABLE, bool)
 
     def test_post_quantum_liboqs_shim(self):
-        """src.security.post_quantum_liboqs shim re-exports correctly."""
+        """src.security.post_quantum_liboqs legacy shim still imports."""
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            from src.security.post_quantum_liboqs import (  # noqa: F401
+            from src.security.post_quantum_liboqs import (
                 LIBOQS_AVAILABLE,
                 LibOQSBackend,
                 HybridPQEncryption,
@@ -113,7 +111,7 @@ class TestShimImportPaths:
         assert True
 
     def test_pqc_core_shim(self):
-        """src.security.pqc_core shim re-exports correctly."""
+        """src.security.pqc_core legacy shim still imports."""
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -124,6 +122,11 @@ class TestShimImportPaths:
                 LIBOQS_AVAILABLE,
             )
         assert True
+
+    def test_pqc_simple_wrapper(self):
+        """src.security.pqc.simple.PQC is importable."""
+        from src.security.pqc.simple import PQC
+        assert PQC is not None
 
     def test_pqc_adapter_submodule(self):
         """src.security.pqc.pqc_adapter (old submodule path) still importable."""

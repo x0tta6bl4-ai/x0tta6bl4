@@ -9,24 +9,24 @@ import pytest
 
 @pytest.mark.usefixtures("real_oqs")
 class TestLibx0tPQC:
-    """Tests for libx0t/crypto/pqc.py"""
+    """Tests for src.security.pqc.simple.PQC (migrated from libx0t/crypto/pqc.py)"""
 
     def test_import_pqc_module(self):
         """Test that PQC module can be imported."""
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
 
         assert PQC is not None
 
     def test_pqc_initialization(self):
         """Test PQC class initialization."""
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
 
         pqc = PQC(algorithm="Kyber768")
         assert pqc.algorithm == "Kyber768"
 
     def test_pqc_keypair_generation(self):
         """Test keypair generation."""
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
 
         pqc = PQC(algorithm="Kyber768")
         public_key, private_key = pqc.generate_keypair()
@@ -36,7 +36,7 @@ class TestLibx0tPQC:
 
     def test_pqc_encapsulation(self):
         """Test KEM encapsulation."""
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
 
         pqc = PQC(algorithm="Kyber768")
         public_key, private_key = pqc.generate_keypair()
@@ -48,7 +48,7 @@ class TestLibx0tPQC:
 
     def test_pqc_decapsulation(self):
         """Test KEM decapsulation."""
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
 
         pqc = PQC(algorithm="Kyber768")
         public_key, private_key = pqc.generate_keypair()

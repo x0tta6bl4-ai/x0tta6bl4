@@ -47,7 +47,6 @@ from .adapter import (
 # Backward-compatible legacy API (from compat bridge)
 # ---------------------------------------------------------------------------
 from .compat import (  # noqa: F401
-    LIBOQS_AVAILABLE,
     HybridPQEncryption,
     LibOQSBackend,
     PQAlgorithm,
@@ -60,6 +59,19 @@ from .compat import (  # noqa: F401
     get_pqc_key_exchange,
     test_pqc_availability,
 )
+
+
+def __getattr__(name: str):
+    if name == "LIBOQS_AVAILABLE":
+        return is_liboqs_available()
+    # Lazy imports for oqs classes (used by legacy code and tests)
+    if name in ("KeyEncapsulation", "Signature"):
+        try:
+            import oqs
+            return getattr(oqs, name)
+        except (ImportError, AttributeError) as e:
+            raise AttributeError(f"oqs.{name} not available: {e}") from e
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # DSA (Digital Signature Algorithm)
 from .dsa import PQCDigitalSignature
@@ -74,6 +86,9 @@ from .hybrid import (
 
 # KEM (Key Encapsulation Mechanism)
 from .kem import PQCKeyExchange
+
+# Simple PQC wrapper (migrated from libx0t.crypto.pqc)
+from .simple import PQC
 
 # Types
 from .types import (
@@ -110,6 +125,8 @@ __all__ = [
     "HybridSignature",
     "HybridKeyExchange",
     "HybridSignatureScheme",
+    # Simple wrapper (migrated from libx0t.crypto.pqc)
+    "PQC",
     # --- Legacy API (backward-compat) ---
     "LIBOQS_AVAILABLE",
     "LibOQSBackend",
