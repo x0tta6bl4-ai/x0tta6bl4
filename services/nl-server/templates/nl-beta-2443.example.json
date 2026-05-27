@@ -1,0 +1,62 @@
+{
+  "_template_note": "Sanitized example for /etc/ghost-access/nl-beta-2443.json. Do not store production UUIDs, keys, short IDs, passwords or subscription URLs here.",
+  "_source_shape": {
+    "profile": "nl-diagnostics/nl-server-profile/20260527T173222Z",
+    "remote_path": "/etc/ghost-access/nl-beta-2443.json",
+    "remote_sha256": "3e9af013222ae98619f03a7b88301b76223c7f149450d65978a26dd48766d29d",
+    "sanitized_shape_captured_utc": "2026-05-27T17:32:22Z",
+    "production_values_saved": false
+  },
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "port": 2443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "REPLACE_WITH_RUNTIME_UUID",
+            "flow": "xtls-rprx-vision",
+            "email": "nl-beta-example@example.invalid"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "www.example.com:443",
+          "serverNames": [
+            "www.example.com",
+            "example.com",
+            "cdn.example.com"
+          ],
+          "privateKey": "REPLACE_WITH_RUNTIME_PRIVATE_KEY",
+          "shortIds": [
+            "REPLACE_WITH_RUNTIME_SHORT_ID"
+          ]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
