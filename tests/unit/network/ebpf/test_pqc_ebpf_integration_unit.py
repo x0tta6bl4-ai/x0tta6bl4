@@ -378,7 +378,7 @@ class TestKEMToEBPFMapE2EFlow:
         assert s.peer_id == "peer-1"
 
     def test_initiate_key_exchange_returns_3tuple(self, mock_pqc_gateway):
-        result = mock_pqc_gateway.initiate_key_exchange("peer-1")
+        result = mock_pqc_gateway.initiate_key_exchange("peer-1", MOCK_PUB_KEY)
         assert len(result) == 3
         sid, ct, sig = result
         assert isinstance(sid, str)
@@ -386,26 +386,26 @@ class TestKEMToEBPFMapE2EFlow:
         assert isinstance(sig, bytes)
 
     def test_initiate_sets_aes_key_32_bytes(self, mock_pqc_gateway):
-        sid, _, _ = mock_pqc_gateway.initiate_key_exchange("peer-1")
+        sid, _, _ = mock_pqc_gateway.initiate_key_exchange("peer-1", MOCK_PUB_KEY)
         assert len(mock_pqc_gateway.sessions[sid].aes_key) == 32
 
     def test_initiate_sets_mac_key_16_bytes(self, mock_pqc_gateway):
-        sid, _, _ = mock_pqc_gateway.initiate_key_exchange("peer-1")
+        sid, _, _ = mock_pqc_gateway.initiate_key_exchange("peer-1", MOCK_PUB_KEY)
         assert len(mock_pqc_gateway.sessions[sid].mac_key) == 16
 
     def test_initiated_session_not_yet_in_ebpf_map(self, mock_pqc_gateway):
-        mock_pqc_gateway.initiate_key_exchange("peer-1")
+        mock_pqc_gateway.initiate_key_exchange("peer-1", MOCK_PUB_KEY)
         assert mock_pqc_gateway.get_ebpf_map_data() == {}
 
     def test_complete_key_exchange_marks_verified(self, mock_pqc_gateway):
-        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-2")
+        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-2", MOCK_PUB_KEY)
         ok = mock_pqc_gateway.complete_key_exchange(sid, ct, sig, MOCK_PUB_KEY)
         assert ok is True
         assert mock_pqc_gateway.sessions[sid].verified is True
 
     def test_kem_to_ebpf_map_full_e2e(self, mock_pqc_gateway):
         """Full E2E: KEM handshake -> verified session -> eBPF map entry."""
-        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-3")
+        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-3", MOCK_PUB_KEY)
         mock_pqc_gateway.complete_key_exchange(sid, ct, sig, MOCK_PUB_KEY)
 
         data = mock_pqc_gateway.get_ebpf_map_data()
@@ -423,7 +423,7 @@ class TestKEMToEBPFMapE2EFlow:
         assert result is False
 
     def test_encrypt_decrypt_roundtrip(self, mock_pqc_gateway):
-        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-4")
+        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-4", MOCK_PUB_KEY)
         mock_pqc_gateway.complete_key_exchange(sid, ct, sig, MOCK_PUB_KEY)
 
         plaintext = b"hello mesh node PQC"
@@ -444,7 +444,7 @@ class TestKEMToEBPFMapE2EFlow:
         assert s.session_id not in mock_pqc_gateway.sessions
 
     def test_rotate_session_keys_resets_counters(self, mock_pqc_gateway):
-        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-7")
+        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-7", MOCK_PUB_KEY)
         mock_pqc_gateway.complete_key_exchange(sid, ct, sig, MOCK_PUB_KEY)
         mock_pqc_gateway.sessions[sid].last_seq = 999
         mock_pqc_gateway.sessions[sid].packet_counter = 500
@@ -460,7 +460,7 @@ class TestKEMToEBPFMapE2EFlow:
         assert info is None
 
     def test_get_session_info_returns_dict_for_verified(self, mock_pqc_gateway):
-        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-9")
+        sid, ct, sig = mock_pqc_gateway.initiate_key_exchange("peer-9", MOCK_PUB_KEY)
         mock_pqc_gateway.complete_key_exchange(sid, ct, sig, MOCK_PUB_KEY)
         info = mock_pqc_gateway.get_session_info(sid)
         assert info is not None

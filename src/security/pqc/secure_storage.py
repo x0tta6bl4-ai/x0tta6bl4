@@ -128,14 +128,18 @@ class SecureKeyStorage:
 
         try:
             if hasattr(ctypes, 'windll'):
-                # Windows: VirtualLock
-                # Note: Requires SE_LOCK_MEMORY_NAME privilege
-                return True  # Assume success for now
+                logger.warning(
+                    "Windows process-wide memory locking is unavailable; "
+                    "VirtualLock must be applied to explicit buffers"
+                )
+                return False
             else:
                 # Unix: mlockall
                 MCL_CURRENT = 1
                 MCL_FUTURE = 2
                 result = _libc.mlockall(MCL_CURRENT | MCL_FUTURE)
+                if result != 0:
+                    logger.warning("mlockall failed with errno=%s", ctypes.get_errno())
                 return result == 0
         except Exception as e:
             logger.warning("Failed to lock memory: %s", e)

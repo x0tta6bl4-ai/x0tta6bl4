@@ -1,0 +1,42 @@
+# x0tta6bl4_pulse External Evidence Inventory
+
+Status: `PASS`
+
+Inventory status: `EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS`
+
+Proof: `docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json`
+
+## Claim Boundary
+
+- kernel_attach_verified: `True`
+- production_ready: `False`
+- stealth_verified: `False`
+- whitelist_verified: `False`
+
+## Summary
+
+- verified: `kernel_attach, packet_capture, baseline_timing_comparison`
+- invalid: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- missing: `none`
+
+## Gap Audit
+
+- status: `PASS`
+- replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
+- expected_replacement_required: `dpi_lab, whitelist_lab, security_review, production_readiness`
+
+## Rows
+
+| Claim | JSON | Markdown | Proof Status | Validation Status | SHA256 |
+| --- | --- | --- | --- | --- | --- |
+| kernel_attach | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json` | `docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.md` | `VERIFIED` | `VERIFIED` | `9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c` |
+| packet_capture | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json` | `docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.md` | `VERIFIED` | `VERIFIED` | `7ed3bbd885084a012ff7f33b2685558fb3d84ebd6fe1a4b9db2d767dd548aac6` |
+| baseline_timing_comparison | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json` | `docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.md` | `VERIFIED` | `VERIFIED` | `b04869ba8237910191ec24d359338571469f0d262154a795cfcef58738717f4e` |
+| dpi_lab | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_DPI_LAB_LATEST.md` | `INVALID` | `INVALID` | `d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7` |
+| whitelist_lab | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json` | `docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.md` | `INVALID` | `INVALID` | `731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051` |
+| security_review | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json` | `docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.md` | `INVALID` | `INVALID` | `ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29` |
+| production_readiness | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json` | `docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.md` | `INVALID` | `INVALID` | `fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b` |
+
+## Failures
+
+- None

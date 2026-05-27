@@ -1,0 +1,75 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/ghost-pulse-baseline-comparison-20260522T072344Z/baseline-events.jsonl",
+      "role": "baseline_events",
+      "sha256": "825dc73139fa501ddc393bd92e462397d0d26eaeaa544e1a34939b9cd8c68e1a"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-baseline-comparison-20260522T072344Z/pulse-events.jsonl",
+      "role": "pulse_events",
+      "sha256": "e2db60dc6e1b7bf2dc5403bb4f0852609fa4762c20e49a48d3e6b0e82eb426d8"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-baseline-comparison-20260522T072344Z/comparison.json",
+      "role": "timing_comparison",
+      "sha256": "c344efd88c91c8cf8f9d0729945e95ba07f2cdc5d4269a4a3785a8b94d413478"
+    }
+  ],
+  "bundle": "docs/verification/ghost-pulse-baseline-comparison-20260522T072344Z",
+  "claim_boundary": {
+    "baseline_timing_comparison_verified": true,
+    "note": "Local loopback timing comparison only; this is not DPI, whitelist, kernel attach, or production evidence."
+  },
+  "claim_id": "baseline_timing_comparison",
+  "commands": [
+    {
+      "args": [
+        "uname",
+        "-r"
+      ],
+      "available": true,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "6.14.0-37-generic\n"
+    },
+    {
+      "args": [
+        "/usr/bin/python3",
+        "-m",
+        "py_compile",
+        "scripts/ops/collect_ghost_pulse_local_evidence.py",
+        "src/network/transport/pulse_transport.py",
+        "src/network/transport/udp_shaped.py"
+      ],
+      "available": true,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "comparison": {
+    "baseline_mean_gap_ms": 0.29887545454545456,
+    "baseline_packets_received": 12,
+    "baseline_status": "VERIFIED_LOCAL",
+    "pulse_mean_gap_ms": 40.80156009090909,
+    "pulse_packets_received": 12,
+    "pulse_status": "VERIFIED_LOCAL",
+    "pulse_timing_replay_sha256": "e23fa27c38b046dbf25f9e61ddb6559b7caee532f469818643357254d9bfdf90",
+    "pulse_timing_replay_status": "LOCAL_SEED_REPLAYABLE"
+  },
+  "dry_run": false,
+  "failures": [],
+  "measurements": {
+    "baseline_digest": "825dc73139fa501ddc393bd92e462397d0d26eaeaa544e1a34939b9cd8c68e1a",
+    "comparison_passed": true,
+    "pulse_digest": "e2db60dc6e1b7bf2dc5403bb4f0852609fa4762c20e49a48d3e6b0e82eb426d8",
+    "sample_count": 11
+  },
+  "mode": "LOCAL_LOOPBACK_BASELINE_VS_PULSE",
+  "observed_at_utc": "2026-05-22T07:23:44.865571+00:00",
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "VERIFIED",
+  "template": false
+}

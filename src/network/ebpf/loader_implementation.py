@@ -8,6 +8,7 @@ All TODO items from loader.py are implemented here.
 """
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
@@ -81,20 +82,65 @@ class EBPFLoaderImplementation(EBPFLoader):
         if attached_to is None:
             return True
 
-        # Check if still attached via ip link
+        # Check if still attached via ip link. If this check cannot run, fail
+        # closed because returning success would hide a possibly attached program.
         try:
             cmd = ["ip", "link", "show", "dev", attached_to]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
 
-            if result.returncode == 0:
-                # Check if XDP is still attached
-                if "xdp" in result.stdout.lower():
-                    return False  # Still attached
-                return True  # Not attached
-        except Exception as e:
-            logger.debug(f"Error checking attachment status: {e}")
+            if result.returncode != 0:
+                logger.warning(
+                    "Failed to verify eBPF detachment for %s on %s: %s",
+                    program_id,
+                    attached_to,
+                    result.stderr.strip(),
+                )
+                return False
 
-        return True  # Assume detached if we can't verify
+            output = result.stdout.lower()
+            if "xdp off" in output:
+                return True
+            if "xdp" in output:
+                return False  # Still attached
+            return True  # Not attached
+        except Exception as e:
+            logger.warning(
+                "Error verifying eBPF detachment for %s on %s: %s",
+                program_id,
+                attached_to,
+                e,
+            )
+            return False
+
+    def _remove_pinned_bpf_path(self, pinned_path: str) -> bool:
+        """
+        Remove a pinned BPF object path from bpffs.
+
+        Args:
+            pinned_path: File or directory path under bpffs
+
+        Returns:
+            True when the path is absent after cleanup
+        """
+        path = Path(pinned_path)
+        if not path.exists():
+            return True
+
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except Exception as e:
+            logger.warning("Failed to remove pinned BPF path %s: %s", pinned_path, e)
+            return False
+
+        if path.exists():
+            logger.warning("Pinned BPF path still exists after cleanup: %s", pinned_path)
+            return False
+
+        logger.debug("Removed pinned BPF path %s", pinned_path)
+        return True
 
     def _release_bpf_maps(self, program_id: str) -> bool:
         """
@@ -115,23 +161,7 @@ class EBPFLoaderImplementation(EBPFLoader):
         if not pinned_path:
             return True  # No pinned maps to release
 
-        # Try to unpin maps using bpftool
-        try:
-            # List maps for this program
-            cmd = ["bpftool", "map", "list"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-
-            if result.returncode == 0:
-                # Maps are automatically cleaned up when program is unloaded
-                # This is mainly for logging
-                logger.debug(
-                    f"Maps for program {program_id} will be released on unload"
-                )
-                return True
-        except Exception as e:
-            logger.debug(f"Error releasing maps: {e}")
-
-        return True  # Maps will be released by kernel on program unload
+        return self._remove_pinned_bpf_path(str(pinned_path))
 
     def attach_to_interface_complete(
         self, program_id: str, interface: str, mode: EBPFAttachMode = EBPFAttachMode.DRV
@@ -193,6 +223,7 @@ class EBPFLoaderImplementation(EBPFLoader):
                 logger.warning(
                     f"⚠️ Program {program_id} may still be attached to {interface}"
                 )
+                return False
 
         return success
 
@@ -217,10 +248,24 @@ class EBPFLoaderImplementation(EBPFLoader):
             logger.warning(f"Program {program_id} still attached, detaching first...")
             if "attached_to" in self.loaded_programs.get(program_id, {}):
                 interface = self.loaded_programs[program_id]["attached_to"]
-                self.detach_from_interface(program_id, interface)
+                if not self.detach_from_interface(program_id, interface):
+                    logger.warning(
+                        "Failed to detach program %s from %s before unload",
+                        program_id,
+                        interface,
+                    )
+                    return False
+                if not self._verify_program_detached(program_id):
+                    logger.warning(
+                        "Program %s is still not verified detached after cleanup",
+                        program_id,
+                    )
+                    return False
 
         # Release maps
-        self._release_bpf_maps(program_id)
+        if not self._release_bpf_maps(program_id):
+            logger.warning("Failed to release BPF maps for program %s", program_id)
+            return False
 
         # Use base implementation
         return self.unload_program(program_id)

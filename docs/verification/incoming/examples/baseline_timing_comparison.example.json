@@ -1,0 +1,117 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "baseline_timing_comparison",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/baseline_timing_comparison/baseline_events.REPLACE_WITH_REAL_FILE",
+      "role": "baseline_events",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/baseline_timing_comparison/pulse_events.REPLACE_WITH_REAL_FILE",
+      "role": "pulse_events",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/baseline_timing_comparison/timing_comparison.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "timing_comparison",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/baseline_timing_comparison.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "baseline_timing_comparison",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "comparison": {
+    "example_placeholder": "REPLACE_WITH_REAL_COMPARISON"
+  },
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "baseline_timing_comparison",
+    "--candidate",
+    "docs/verification/incoming/baseline_timing_comparison.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "baseline_digest": "REPLACE_WITH_SHA256",
+    "comparison_passed": "REPLACE_WITH_TRUE",
+    "pulse_digest": "REPLACE_WITH_SHA256",
+    "sample_count": "REPLACE_WITH_POSITIVE_INTEGER"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "artifact_sha256_measurements": {
+      "baseline_events": "baseline_digest",
+      "pulse_events": "pulse_digest"
+    },
+    "claim_id": "baseline_timing_comparison",
+    "json_artifact_object_field_links": {
+      "timing_comparison": [
+        "measurements",
+        "comparison",
+        "failures"
+      ]
+    },
+    "measurements": {
+      "baseline_digest": "sha256",
+      "comparison_passed": true,
+      "pulse_digest": "sha256",
+      "sample_count": "positive_int"
+    },
+    "paired_jsonl_gap_count_measurements": [
+      {
+        "measurement": "sample_count",
+        "roles": [
+          "baseline_events",
+          "pulse_events"
+        ]
+      }
+    ],
+    "path": "docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "baseline_events",
+      "pulse_events",
+      "timing_comparison"
+    ],
+    "title": "Baseline-vs-pulse timing comparison"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Baseline-vs-pulse timing comparison"
+}

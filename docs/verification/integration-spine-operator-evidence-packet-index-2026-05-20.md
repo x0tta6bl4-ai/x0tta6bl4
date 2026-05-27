@@ -1,0 +1,297 @@
+# Integration Spine Operator Evidence Packet Index
+
+Generated: `2026-05-21T08:03:51Z`
+Decision: `ALL_OPERATOR_PACKETS_ACTIONABLE`
+All packets actionable: `True`
+
+## Claim Boundary
+
+Read-only index of operator packets for every current integration-spine production evidence blocker. It does not collect evidence, write evidence files, contact live systems, mutate NL/SPB/runtime state, or mark the objective complete.
+
+## Packet Summary
+
+- `external_settlement`: actionable=`True`, commands=`17`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`1`
+  - operator action: Submit or locate a real external X0T settlement transaction, retain settlement-submit.json, verify it against live Base RPC, and rerun the retained evidence gates.
+  - missing operator production artifact: `.tmp/external-settlement-evidence/settlement-submit.json`
+  - replacement passport items: `1`, blocking=`1`
+  - replacement requirement: `.tmp/external-settlement-evidence/settlement-submit.json` ->
+  - command: `python3 scripts/ops/scaffold_x0t_external_settlement_evidence.py --write-template-files --force`
+  - command: `export X0T_BASE_RPC_URL='<read-only Base RPC URL for the matching chain>'`
+  - command: `export X0T_SETTLEMENT_TX_HASH='<0x-prefixed submitted settlement transaction hash>'`
+  - command: `export X0T_DESTINATION_CHAIN='<base-sepolia|base|base-mainnet>'`
+  - command: `export X0T_SETTLEMENT_ID='<non-placeholder settlement id>'`
+  - command: `python3 -m src.integration.external_settlement --root . --preflight-capture-inputs --transaction-hash "$X0T_SETTLEMENT_TX_HASH" --destination-chain "$X0T_DESTINATION_CHAIN" --settlement-id "$X0T_SETTLEMENT_ID" --rpc-url "$X0T_BASE_RPC_URL" --evidence .tmp/external-settlement-evidence/settlement-submit.json --require-preflight-ready`
+  - command: `python3 -m src.integration.external_settlement --root . --capture-from-rpc --transaction-hash "$X0T_SETTLEMENT_TX_HASH" --destination-chain "$X0T_DESTINATION_CHAIN" --settlement-id "$X0T_SETTLEMENT_ID" --rpc-url "$X0T_BASE_RPC_URL" --evidence .tmp/external-settlement-evidence/settlement-submit.json --write-evidence --require-ready`
+  - command: `python3 scripts/ops/verify_x0t_external_settlement_evidence.py --evidence .tmp/external-settlement-evidence/settlement-submit.json --require-ready`
+  - command: `python3 scripts/ops/verify_x0t_external_settlement_live_rpc.py --evidence .tmp/external-settlement-evidence/settlement-submit.json --rpc-url "$X0T_BASE_RPC_URL" --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: x0t_external_settlement_ready == true
+  - acceptance: live_rpc_ready == true
+  - acceptance: verify_x0t_external_settlement_evidence.py reports READY
+  - acceptance: verify_x0t_external_settlement_live_rpc.py reports READY
+  - acceptance: source-candidate audit marks external_settlement READY_TO_INSTALL
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production evidence intake no longer lists external_settlement in pending_evidence_keys
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+- `billing-provisioning`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `6`, blocking=`6`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/billing-provisioning/operator-manifest.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/billing-provisioning/payment-webhook.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/billing-provisioning/activation-flow.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key billing-provisioning --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_billing_provisioning_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks billing-provisioning READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `ebpf-observability`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `7`, blocking=`7`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/ebpf-observability/operator-manifest.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/ebpf-observability/live-xdp-attach.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/ebpf-observability/dmesg-bpf-clean.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key ebpf-observability --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_ebpf_observability_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks ebpf-observability READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `live_spire_mtls`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `8`, blocking=`8`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/operator-manifest.json` -> Replace this value only with retained production evidence proving: operator-manifest environment must be production; Replace this value only with retained production evidence proving: operator-manifest federation_trust_domains must include at least one peer trust domain
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/production-spire-ha-federation.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/mtls-fail-closed.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key live_spire_mtls --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_zero_trust_pqc_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_zero_trust_pqc_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks live_spire_mtls READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `multi_host_mesh`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `8`, blocking=`8`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/operator-manifest.json` -> Replace this value only with retained production evidence proving: operator-manifest environment must be production
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/peer-discovery-membership.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/pqc-handshake-transport.json` -> Replace this value only with retained production evidence proving: pqc-handshake-transport must prove no plain UDP customer traffic; Replace this value only with retained production evidence proving: pqc-handshake-transport tls_version must stay TLSv1.3
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key multi_host_mesh --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_self_healing_pqc_mesh_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_self_healing_pqc_mesh_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks multi_host_mesh READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `paid_client_path`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `8`, blocking=`8`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/operator-manifest.json` -> Replace this value only with retained production evidence proving: operator-manifest environment must be production; Replace this value only with retained production evidence proving: operator-manifest service_tier must identify a real paid production tier
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/billing-webhook-replay.json` -> Replace this value only with retained production evidence proving: billing-webhook-replay payment_confirmed must be true; Replace this value only with retained production evidence proving: billing-webhook-replay payment_processor_event_source must be production-payment-processor
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/paid-activation-revocation.json` -> Replace this value only with retained production evidence proving: paid-activation-revocation access_denied_after_revocation must be true; Replace this value only with retained production evidence proving: paid-activation-revocation access_probe_after_activation must be true
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key paid_client_path --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_paid_client_serviceability_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_paid_client_serviceability_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks paid_client_path READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `safe_rollout_rollback`: actionable=`True`, commands=`17`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `6`, blocking=`6`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/live-rollout/operator-manifest.json` -> Replace this value only with retained production evidence proving: operator-manifest cluster_context must identify a real non-local production cluster; Replace this value only with retained production evidence proving: operator-manifest environment must be production
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/live-rollout/argocd-app-get.json` -> Replace this value only with retained production evidence proving: argocd-app-get health status must be Healthy; argocd-app-get sync status must be Synced; Replace this value only with retained production evidence proving: argocd-app-get operationState.phase must be Succeeded
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/live-rollout/kubectl-rollout-status.json` -> Replace this value only with retained production evidence proving: kubectl-rollout-status output must include successfully rolled out; kubectl-rollout-status output must name the x0tta6bl4 workload; Replace this value only with retained production evidence proving: kubectl-rollout-status output must include successfully rolled out; kubectl-rollout-status output must name the x0tta6bl4 workload
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key safe_rollout_rollback --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_live_rollout_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_live_rollout_evidence_gate.py --require-ready`
+  - command: `python3 scripts/ops/scaffold_live_rollout_image_provenance_evidence.py --write-template-files --force`
+  - command: `python3 -m src.integration.rollout_provenance --root . --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks safe_rollout_rollback READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+  - acceptance: rollout provenance gate reports READY_TO_CLOSE for digest-pinned runtime images and retained per-image provenance
+- `signed-release-provenance`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `8`, blocking=`8`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/operator-manifest.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/github-run.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/signed-artifacts.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key signed-release-provenance --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_signed_release_provenance_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks signed-release-provenance READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `sla-telemetry`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `6`, blocking=`6`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/sla-telemetry/operator-manifest.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/sla-telemetry/prometheus-query-results.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/sla-telemetry/grafana-dashboard-snapshot.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key sla-telemetry --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_sla_telemetry_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks sla-telemetry READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0
+- `stable-deploy`: actionable=`True`, commands=`15`, missing_entrypoints=`0`, missing_local_artifacts=`0`, missing_operator_artifacts=`0`
+  - operator action: Replace every listed retained/local raw file with operator-captured production JSON, including production_ready=true and no production_promotion_blockers, then rerun collectors and gates.
+  - replacement passport items: `6`, blocking=`6`
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/stable-deploy/operator-manifest.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/stable-deploy/argocd-app.json` ->
+  - replacement requirement: `.tmp/production-raw-evidence-operator-bundle/stable-deploy/kubernetes-runtime-health.json` ->
+  - command: `python3 scripts/ops/generate_production_raw_evidence_template_pack.py --write-template-files --force`
+  - command: `write real production JSON files to the required operator bundle paths`
+  - command: `python3 -m src.integration.operator_bundle_identity --root . --evidence-key stable-deploy --require-clean`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json`
+  - command: `python3 scripts/ops/apply_operator_bundle_identity_patch.py --root . --identity-report .tmp/validation-shards/integration-spine-operator-bundle-identity-current.json --apply`
+  - command: `python3 scripts/ops/collect_stable_deploy_evidence_bundle.py --require-ready`
+  - command: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+  - command: `python3 -m src.integration.evidence_source_candidates --root . --require-ready`
+  - command: `python3 -m src.integration.production_evidence_replacement_passport --root . --verification-output-json .tmp/validation-shards/integration-spine-production-evidence-replacement-passport-verification-current.json --require-valid --require-ready`
+  - command: `python3 -m src.integration.production_evidence_intake --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_return_acceptance --root . --require-ready`
+  - command: `python3 -m src.integration.production_input_pipeline --root . --require-ready`
+  - command: `python3 -m src.integration.production_closeout_review --root . --require-ready`
+  - command: `python3 -m src.integration.completion_audit --root . --require-complete`
+  - command: `python3 -m src.integration.production_gap_index --root . --require-clear`
+  - acceptance: source-candidate audit marks stable-deploy READY_TO_INSTALL
+  - acceptance: operator bundle identity report is OPERATOR_BUNDLE_IDENTITY_CLEAN
+  - acceptance: production evidence replacement passport is PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_CLEAR
+  - acceptance: production input pipeline reports READY_FOR_PRODUCTION_CLOSEOUT_REVIEW
+  - acceptance: all listed operator bundle files have production_ready == true
+  - acceptance: all listed operator bundle files have empty production_promotion_blockers
+  - acceptance: semantic blocker count for this collector is 0

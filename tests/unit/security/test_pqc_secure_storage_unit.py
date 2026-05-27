@@ -172,6 +172,15 @@ class TestSecureKeyStorageSecureZero:
         storage._secure_zero(data)
         assert all(b == 0 for b in data)
 
+    def test_windows_memory_lock_does_not_assume_success(self, monkeypatch):
+        import src.security.pqc.secure_storage as mod
+
+        storage = object.__new__(SecureKeyStorage)
+        monkeypatch.setattr(mod, "_MEM_LOCK", True)
+        monkeypatch.setattr(mod.ctypes, "windll", object(), raising=False)
+
+        assert storage._try_lock_memory() is False
+
 
 class TestSecureKeyStorageEncryption:
     """Tests for encrypt/decrypt roundtrip."""

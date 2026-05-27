@@ -1,0 +1,30 @@
+{
+  "claim_boundary": {
+    "kernel_attach_verified": true,
+    "note": "Verified only when current kernel output shows XDP attach, pulse program visibility, and a positive pulse map counter delta. The collector itself is read-only."
+  },
+  "failures": [],
+  "measurements": {
+    "bpftool_net_contains_interface": true,
+    "bpftool_prog_show_contains_pulse": true,
+    "historical_candidate_audit_status": "NO_ACCEPTED_CANDIDATE",
+    "interface": "x0rp021",
+    "interface_scan_count": 16,
+    "interface_scan_xdp_interfaces": [
+      "x0rp021"
+    ],
+    "interface_seen": true,
+    "map_counter_after_packets": 564,
+    "map_counter_before_packets": 76,
+    "map_counter_delta_packets": 488,
+    "object_preflight_object_contains_pulse_function": true,
+    "object_preflight_object_contains_pulse_stats": true,
+    "object_preflight_object_has_btf_section": true,
+    "object_preflight_object_has_xdp_section": true,
+    "object_preflight_object_is_ebpf": true,
+    "object_preflight_object_path": "src/network/ebpf/x0tta6bl4_pulse.o",
+    "object_preflight_source_path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
+    "object_preflight_status": "READY_FOR_CONTROLLED_ATTACH_TEST",
+    "xdp_attached": true
+  }
+}

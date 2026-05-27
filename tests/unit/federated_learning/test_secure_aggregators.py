@@ -215,6 +215,63 @@ class TestGraphSAGEAggregator:
         if hasattr(result.global_model, "graphsage_metadata"):
             assert result.global_model.graphsage_metadata is not None
 
+    def test_graphsage_metadata_is_extracted_and_aggregated(self):
+        """GraphSAGE metadata is averaged/merged instead of dropped."""
+        aggregator = GraphSAGEAggregator()
+        updates = [
+            ModelUpdate(
+                node_id="node-1",
+                round_number=1,
+                weights=ModelWeights(
+                    layer_weights={"layer1": [1.0, 2.0]},
+                    metadata={
+                        "node_embeddings": {
+                            "n1": [1.0, 2.0],
+                            "n2": [3.0, 4.0],
+                        },
+                        "graph_structure": {
+                            "nodes": ["n1", "n2"],
+                            "edges": [{"source": "n1", "target": "n2"}],
+                        },
+                        "edge_weights": {"n1->n2": 0.2},
+                    },
+                ),
+                num_samples=100,
+            ),
+            ModelUpdate(
+                node_id="node-2",
+                round_number=1,
+                weights=ModelWeights(
+                    layer_weights={"layer1": [3.0, 4.0]},
+                    metadata={
+                        "node_embeddings": {
+                            "n1": [3.0, 4.0],
+                            "n3": [5.0, 6.0],
+                        },
+                        "graph_structure": {
+                            "nodes": ["n1", "n3"],
+                            "adjacency": {"n1": ["n3"]},
+                        },
+                        "edge_weights": {"n1->n2": 0.6, "n1->n3": 0.4},
+                    },
+                ),
+                num_samples=100,
+            ),
+        ]
+
+        result = aggregator.aggregate(updates)
+
+        assert result.success
+        metadata = result.global_model.graphsage_metadata
+        assert metadata["node_embeddings"]["n1"] == [2.0, 3.0]
+        assert metadata["node_embeddings"]["n2"] == [3.0, 4.0]
+        assert metadata["node_embeddings"]["n3"] == [5.0, 6.0]
+        assert metadata["graph_structure"]["nodes"] == ["n1", "n2", "n3"]
+        assert {"source": "n1", "target": "n2"} in metadata["graph_structure"]["edges"]
+        assert {"source": "n1", "target": "n3"} in metadata["graph_structure"]["edges"]
+        assert metadata["edge_weights"]["n1->n2"] == pytest.approx(0.4)
+        assert metadata["edge_weights"]["n1->n3"] == pytest.approx(0.4)
+
     def test_graphsage_with_base_aggregator(self):
         """Test GraphSAGE with custom base aggregator"""
         from src.federated_learning.aggregators import KrumAggregator

@@ -269,8 +269,7 @@ class EBPFMetricsCollector:
                 (total_packet_loss / total_packets * 100) if total_packets > 0 else 0
             )
 
-            # Calculate latency (simplified - would need RTT tracking)
-            latency_ms = 25.0  # Placeholder - would be calculated from RTT
+            latency_ms = self._calculate_network_latency_ms(sys_metrics)
 
             # Create metrics object
             metrics = NetworkMetrics(
@@ -306,6 +305,78 @@ class EBPFMetricsCollector:
         except Exception as e:
             logger.error(f"❌ Failed to collect network metrics: {e}")
             return NetworkMetrics(timestamp=time.time())
+
+    def _calculate_network_latency_ms(self, sys_metrics: Any) -> float:
+        latency_ms = self._extract_latency_ms(sys_metrics)
+        if latency_ms > 0:
+            return latency_ms
+
+        try:
+            connection_map = self.net_monitor["connection_map"] if self.net_monitor else None
+        except (KeyError, TypeError):
+            connection_map = None
+
+        if not connection_map:
+            return 0.0
+
+        samples: List[float] = []
+        try:
+            for _key, metrics in connection_map.items():
+                sample_ms = self._extract_latency_ms(metrics)
+                if sample_ms > 0:
+                    samples.append(sample_ms)
+        except Exception as e:
+            logger.warning("Failed to read eBPF connection latency map: %s", e)
+            return 0.0
+
+        return sum(samples) / len(samples) if samples else 0.0
+
+    @staticmethod
+    def _extract_latency_ms(metrics: Any) -> float:
+        total_rtt_ns = EBPFMetricsCollector._numeric_attr(metrics, "total_rtt_ns")
+        sample_count = EBPFMetricsCollector._numeric_attr(
+            metrics,
+            "rtt_samples",
+            "latency_samples",
+            "total_rtt_samples",
+        )
+        if total_rtt_ns > 0 and sample_count > 0:
+            return total_rtt_ns / sample_count / 1_000_000.0
+
+        latency_fields = (
+            ("latency_ms", 1.0),
+            ("avg_latency_ms", 1.0),
+            ("rtt_ms", 1.0),
+            ("avg_rtt_ms", 1.0),
+            ("latency_us", 1 / 1_000.0),
+            ("avg_latency_us", 1 / 1_000.0),
+            ("rtt_us", 1 / 1_000.0),
+            ("avg_rtt_us", 1 / 1_000.0),
+            ("latency_ns", 1 / 1_000_000.0),
+            ("avg_latency_ns", 1 / 1_000_000.0),
+            ("rtt_ns", 1 / 1_000_000.0),
+            ("avg_rtt_ns", 1 / 1_000_000.0),
+        )
+        for field_name, scale in latency_fields:
+            value = EBPFMetricsCollector._numeric_attr(metrics, field_name)
+            if value > 0:
+                return value * scale
+
+        return 0.0
+
+    @staticmethod
+    def _numeric_attr(metrics: Any, *names: str) -> float:
+        for name in names:
+            value = getattr(metrics, name, None)
+            if value is None:
+                continue
+            if hasattr(value, "value"):
+                value = value.value
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                continue
+        return 0.0
 
     def collect_security_metrics(self) -> SecurityMetrics:
         """

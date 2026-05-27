@@ -19,6 +19,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+_XDP_MODE_FLAGS = {
+    "generic": "xdp",
+    "native": "xdpdrv",
+    "offload": "xdpoffload",
+}
+
 
 class XDPAction(Enum):
     """XDP program return codes"""
@@ -59,15 +65,23 @@ class XDPHook:
         Check if driver supports requested XDP mode.
 
         Returns:
-            True if mode is supported or cannot be determined
+            True if the requested mode can be attempted
         """
+        if mode not in _XDP_MODE_FLAGS:
+            logger.error("Unsupported XDP mode requested: %s", mode)
+            return False
+
         if mode == "generic":
             return True  # Generic mode always works
 
-        # For native/offload, check driver features
-        # This is a simplified check - real implementation would parse ethtool -k
+        if not self._check_interface_exists(interface):
+            logger.error("Cannot check XDP support, interface not found: %s", interface)
+            return False
+
+        # For native/offload, first verify that the installed iproute2 supports
+        # the required mode flag. The actual driver support is still confirmed by
+        # the kernel attach attempt below.
         try:
-            # Check if interface is up
             operstate_path = Path(f"/sys/class/net/{interface}/operstate")
             if operstate_path.exists():
                 operstate = operstate_path.read_text().strip()
@@ -78,7 +92,28 @@ class XDPHook:
         except Exception:
             pass
 
-        return True  # Assume supported, let kernel reject if not
+        try:
+            result = subprocess.run(
+                ["ip", "link", "help"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except Exception as e:
+            logger.warning("Cannot verify ip link XDP mode support: %s", e)
+            return False
+
+        help_text = f"{result.stdout}\n{result.stderr}".lower()
+        required_flag = _XDP_MODE_FLAGS[mode]
+        if required_flag not in help_text:
+            logger.debug(
+                "ip link does not advertise %s support for %s mode",
+                required_flag,
+                mode,
+            )
+            return False
+
+        return True
 
     def attach(self, interface: str, program_path: str, mode: str = "generic") -> bool:
         """
@@ -125,12 +160,16 @@ class XDPHook:
         mode_order = list(dict.fromkeys(mode_order))
 
         for attempt_mode in mode_order:
+            if not self._check_driver_support(interface, attempt_mode):
+                logger.debug(
+                    "Skipping XDP %s mode on %s: support check failed",
+                    attempt_mode,
+                    interface,
+                )
+                continue
+
             # Map mode to ip link command flag
-            mode_flag = {
-                "generic": "xdp",
-                "native": "xdpdrv",
-                "offload": "xdpoffload",
-            }[attempt_mode]
+            mode_flag = _XDP_MODE_FLAGS[attempt_mode]
 
             try:
                 # Execute: ip link set dev {interface} {mode_flag} obj {program_path} sec xdp

@@ -11,6 +11,7 @@ import hashlib
 import logging
 import os
 import sys
+from typing import Any, Dict, Tuple
 
 try:
     import httpx
@@ -24,10 +25,7 @@ MAAS_SC_URL = os.getenv("MAAS_SUPPLY_CHAIN_URL", "http://localhost:8000/api/v1/m
 
 def calculate_binary_hash() -> str:
     """Calculate SHA-256 hash of the currently running agent binary."""
-    # In a real environment, we would hash the executable.
-    # For simulation/python, we can hash the main script or just use a placeholder.
     try:
-        # Try to hash the main file
         main_file = sys.modules['__main__'].__file__
         if main_file and os.path.exists(main_file):
             with open(main_file, "rb") as f:
@@ -35,8 +33,63 @@ def calculate_binary_hash() -> str:
     except Exception:
         pass
     
-    # Fallback/Placeholder
-    return "sha256:abc1234567890"
+    executable = getattr(sys, "executable", "")
+    if executable and os.path.exists(executable):
+        with open(executable, "rb") as f:
+            return "sha256:" + hashlib.sha256(f.read()).hexdigest()
+
+    fallback_material = f"{sys.version}:{sys.argv[0]}".encode()
+    logger.warning("Falling back to runtime fingerprint for binary hash")
+    return "sha256:" + hashlib.sha256(fallback_material).hexdigest()
+
+
+def _strict_integrity_enabled() -> bool:
+    return os.getenv("X0TTA6BL4_INTEGRITY_FAIL_OPEN", "false").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _require_sbom_signature() -> bool:
+    return os.getenv("X0TTA6BL4_REQUIRE_SBOM_PQC_SIGNATURE", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _verify_sbom_signature(
+    sbom: Dict[str, Any],
+    *,
+    agent_version: str,
+    checksum_sha256: str,
+) -> Tuple[bool, str]:
+    pqc_sig = sbom.get("pqc_signature")
+    if not pqc_sig:
+        return False, "missing pqc_signature"
+
+    public_key_hex = sbom.get("pqc_public_key")
+    if not public_key_hex:
+        return False, "missing pqc_public_key"
+
+    try:
+        signature = bytes.fromhex(str(pqc_sig))
+        public_key = bytes.fromhex(str(public_key_hex))
+    except ValueError:
+        return False, "invalid hex signature or public key"
+
+    try:
+        from src.core.app import pqc_verify
+
+        payload = f"{agent_version}:{checksum_sha256}".encode()
+        if pqc_verify(payload, signature, public_key):
+            return True, "verified"
+        return False, "pqc_verify returned false"
+    except Exception as exc:
+        return False, f"pqc verification failed: {exc}"
 
 async def verify_integrity(node_id: str, agent_version: str) -> bool:
     """
@@ -60,16 +113,7 @@ async def verify_integrity(node_id: str, agent_version: str) -> bool:
             
             sbom = resp.json()
             
-            # 2. Verify PQC signature of the SBOM (Simulated)
-            pqc_sig = sbom.get("pqc_signature")
-            if not pqc_sig:
-                logger.warning("⚠️ SBOM is not PQC-signed. Proceeding with caution.")
-            else:
-                # In production, we would use PQMeshSecurity to verify the signature
-                # against the known MaaS CI public key.
-                logger.info("✅ SBOM PQC-signature verified")
-
-            # 3. Check checksum match
+            # 2. Check checksum match
             expected_checksum = sbom.get("checksum_sha256")
             if checksum != expected_checksum:
                 logger.error(f"🚨 INTEGRITY MISMATCH! Expected {expected_checksum}, found {checksum}")
@@ -81,6 +125,19 @@ async def verify_integrity(node_id: str, agent_version: str) -> bool:
                     "checksum_sha256": checksum
                 })
                 return False
+
+            # 3. Verify PQC signature when enough material is present.
+            signature_ok, signature_reason = _verify_sbom_signature(
+                sbom,
+                agent_version=agent_version,
+                checksum_sha256=expected_checksum,
+            )
+            if signature_ok:
+                logger.info("✅ SBOM PQC-signature verified")
+            else:
+                logger.warning("⚠️ SBOM PQC-signature not verified: %s", signature_reason)
+                if _require_sbom_signature():
+                    return False
 
             # 4. Report successful attestation
             await client.post(f"{MAAS_SC_URL}/verify-binary", json={
@@ -94,6 +151,4 @@ async def verify_integrity(node_id: str, agent_version: str) -> bool:
 
     except Exception as e:
         logger.error(f"⚠️ Integrity verification failed due to error: {e}")
-        # In strict mode, we should return False. 
-        # For now, we allow fallback to proceed if MaaS is unreachable.
-        return True
+        return not _strict_integrity_enabled()

@@ -10,6 +10,37 @@ from typing import Optional
 from .base import ObfuscationTransport
 
 
+def _parse_content_length(headers: bytes) -> Optional[int]:
+    for line in headers.split(b"\r\n"):
+        if b":" not in line:
+            continue
+        name, value = line.split(b":", 1)
+        if name.strip().lower() != b"content-length":
+            continue
+        try:
+            return max(0, int(value.strip()))
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_http_body(buffer: bytes) -> tuple[Optional[bytes], bytes]:
+    header_end = buffer.find(b"\r\n\r\n")
+    if header_end == -1:
+        return None, buffer
+
+    headers = buffer[:header_end]
+    body_start = header_end + 4
+    content_length = _parse_content_length(headers)
+    if content_length is None:
+        return buffer[body_start:], b""
+
+    body_end = body_start + content_length
+    if len(buffer) < body_end:
+        return None, buffer
+    return buffer[body_start:body_end], buffer[body_end:]
+
+
 class DomainFrontingSocket(socket.socket):
     """
     Socket wrapper that performs Domain Fronting.
@@ -37,8 +68,7 @@ class DomainFrontingSocket(socket.socket):
 
     def send(self, data: bytes, flags=0) -> int:
         # Encapsulate in HTTP POST
-        # Note: In a real streaming scenario, we might use WebSocket or Chunked encoding.
-        # For this MVP, we wrap each send in a discrete HTTP request (REST-like).
+        # Each send is framed as a discrete HTTP request for this transport mode.
 
         body = data
         headers = (
@@ -64,10 +94,12 @@ class DomainFrontingSocket(socket.socket):
         # We need to read HTTP responses and extract body.
         # HTTP/1.1 200 OK ... \r\n\r\n[BODY]
 
-        # This is a simplified parser for MVP.
-        # It assumes the peer sends standard responses.
-
         try:
+            body, remaining = _extract_http_body(self._buffer)
+            if body is not None:
+                self._buffer = remaining
+                return body
+
             # Read chunk from TLS
             chunk = self._tls_sock.recv(bufsize)
             if not chunk:
@@ -75,23 +107,11 @@ class DomainFrontingSocket(socket.socket):
 
             self._buffer += chunk
 
-            # Try to find end of headers
-            header_end = self._buffer.find(b"\r\n\r\n")
-            if header_end != -1:
-                # We have headers
-                body_start = header_end + 4
-                # Parse Content-Length?
-                # For MVP we might assume the rest of the buffer is body
-                # Real impl needs a state machine.
-
-                # Let's extract what we can
-                data = self._buffer[body_start:]
-                self._buffer = (
-                    b""  # Consume all (assuming 1 req = 1 resp for this transport mode)
-                )
-                return data
-
-            return b""  # Need more data
+            body, remaining = _extract_http_body(self._buffer)
+            if body is None:
+                return b""
+            self._buffer = remaining
+            return body
 
         except ssl.SSLError as e:
             if e.errno == ssl.SSL_ERROR_WANT_READ:
@@ -118,14 +138,17 @@ class DomainFrontingTransport(ObfuscationTransport):
     """
 
     def __init__(
-        self, 
-        front_domain: str, 
+        self,
+        front_domain: str,
         backend_domain: str,
         verify_mode: int = ssl.CERT_REQUIRED,
-        ca_bundle: Optional[str] = None
+        ca_bundle: Optional[str] = None,
     ):
         self.front_domain = front_domain
         self.backend_domain = backend_domain
+
+        if verify_mode == ssl.CERT_NONE:
+            raise ValueError("ssl.CERT_NONE is not allowed for DomainFrontingTransport")
 
         # Setup SSL Context with PROPER certificate verification
         # CVE-2026-DF-001: Never use ssl.CERT_NONE in production
@@ -133,14 +156,14 @@ class DomainFrontingTransport(ObfuscationTransport):
             self.context = ssl.create_default_context(cafile=ca_bundle)
         else:
             self.context = ssl.create_default_context()
-        
+
         # Verify the front domain certificate (CDN certificate)
         self.context.check_hostname = True
         self.context.verify_mode = verify_mode
-        
+
         # Enforce minimum TLS 1.2
         self.context.minimum_version = ssl.TLSVersion.TLSv1_2
-        
+
         # Log security configuration
         import logging
         logger = logging.getLogger(__name__)
@@ -157,11 +180,6 @@ class DomainFrontingTransport(ObfuscationTransport):
         return DomainFrontingSocket(sock, self, tls_sock)
 
     def obfuscate(self, data: bytes) -> bytes:
-        # This transport is stateful (socket wrapper), obfuscate/deobfuscate are mainly for stateless packet modes.
-        # If used statelessly (e.g. UDP), we can just frame it in HTTP bytes without TLS?
-        # Or assume the caller handles the TLS tunnel.
-        # Let's return the HTTP frame.
-
         headers = (
             f"POST /data HTTP/1.1\r\n"
             f"Host: {self.backend_domain}\r\n"
@@ -172,7 +190,7 @@ class DomainFrontingTransport(ObfuscationTransport):
 
     def deobfuscate(self, data: bytes) -> bytes:
         # Strip headers
-        header_end = data.find(b"\r\n\r\n")
-        if header_end != -1:
-            return data[header_end + 4 :]
+        if data.find(b"\r\n\r\n") != -1:
+            body, _remaining = _extract_http_body(data)
+            return body or b""
         return data

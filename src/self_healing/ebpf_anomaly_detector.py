@@ -14,16 +14,29 @@ Triggers self-healing actions when anomalies detected.
 
 import asyncio
 import logging
+import os
+import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..coordination.events import EventBus, EventType, get_event_bus
+from ..integration.spine import SafeActuator, SafeActuatorResult
 from ..network.ebpf.bcc_probes import MeshNetworkProbes
 from ..network.ebpf.loader import EBPFLoader
+from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "ebpf-self-healing"
+EBPF_CLAIM_BOUNDARY = (
+    "eBPF self-healing recovery event only. It records local policy and safe "
+    "actuator state; it is not production rollout evidence or live throughput evidence."
+)
 
 
 class EBPFAnomalyType(Enum):
@@ -204,9 +217,189 @@ class EBPFExecutor(MAPEKExecutor):
     Executes recovery actions for eBPF anomalies.
     """
 
-    def __init__(self, loader: EBPFLoader):
+    def __init__(
+        self,
+        loader: EBPFLoader,
+        node_id: str = "default-node",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[SafeActuator] = None,
+    ):
         super().__init__()
         self.loader = loader
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else self._env_bool("X0TTA6BL4_EBPF_RECOVERY_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_RECOVERY_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="ebpf-self-healing")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id or service_identity["spiffe_id"],
+            "did": did or service_identity["did"],
+            "wallet_address": wallet_address or service_identity["wallet_address"],
+        }
+        self.safe_actuator = safe_actuator or SafeActuator(self._execute_action_internal)
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize eBPF self-healing EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize eBPF self-healing policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        if hasattr(decision, "allowed"):
+            return bool(decision.allowed)
+        return bool(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return str(getattr(decision, "reason", "") or "")
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> List[str]:
+        rules = getattr(decision, "matched_rules", []) or []
+        return [str(rule) for rule in rules]
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    @staticmethod
+    def _action_resource_name(action_type: str) -> str:
+        action_lower = str(action_type or "unknown_action").lower().strip()
+        slug = "".join(
+            char if char.isalnum() else "_"
+            for char in action_lower
+        ).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        return slug or "unknown_action"
+
+    def _publish_recovery_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        action_type: str,
+        context: Dict[str, Any],
+        result: Optional[Dict[str, Any]] = None,
+        reason: str = "",
+        policy_decision: Any = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        action_resource = self._action_resource_name(action_type)
+        payload = {
+            "component": "self_healing.ebpf_anomaly_detector",
+            "stage": stage,
+            "action_type": action_type,
+            "action_resource": action_resource,
+            "resource": f"self_healing:ebpf:{action_resource}",
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context),
+            "result": self._safe_context(result or {}) if result is not None else None,
+            "success": result.get("success") if result is not None else None,
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "claim_boundary": EBPF_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish eBPF self-healing event: %s", exc)
+            return None
+
+    def _evaluate_action_policy(self, action_type: str) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "eBPF self-healing policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "eBPF self-healing SPIFFE identity is required for policy evaluation"
+        action_resource = self._action_resource_name(action_type)
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource=f"self_healing:ebpf:{action_resource}",
+                workload_type="self-healing",
+            )
+        except Exception as exc:
+            return False, None, f"eBPF self-healing policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, self._policy_reason(decision) or "eBPF self-healing policy denied action"
+        return True, decision, self._policy_reason(decision)
 
     def execute(self, action: Dict[str, Any]) -> bool:
         """
@@ -215,56 +408,181 @@ class EBPFExecutor(MAPEKExecutor):
         Returns:
             True if successful, False otherwise
         """
-        action_type = action["action"]
-        interface = action["interface"]
-
         try:
-            if action_type == "clear_packet_queues":
-                return self._clear_queues(interface)
+            context = dict(action or {})
+            action_type = str(context.get("action", "unknown_action"))
+            interface = str(context.get("interface", ""))
+            context["interface"] = interface
 
-            elif action_type == "adjust_route_weights":
-                return self._adjust_routes(interface)
-
-            elif action_type == "optimize_ebpf_program":
-                return self._reload_ebpf(interface)
-
-            elif action_type == "enable_hw_offload":
-                return self._enable_hw_offload(interface)
-
-            elif action_type == "increase_queue_size":
-                return self._increase_queue_size(interface)
-
-            elif action_type == "throttle_traffic":
-                return self._throttle_traffic(interface)
-
-            else:
-                logger.warning(f"Unknown action: {action_type}")
+            if not action_type or action_type == "unknown_action" or not interface:
+                reason = "eBPF action and interface are required"
+                result = {"success": False, "reason": reason}
+                self._publish_recovery_event(
+                    EventType.TASK_FAILED,
+                    stage="invalid_action",
+                    action_type=action_type,
+                    context=context,
+                    result=result,
+                    reason=reason,
+                )
                 return False
 
+            self._publish_recovery_event(
+                EventType.COORDINATION_REQUEST,
+                stage="received",
+                action_type=action_type,
+                context=context,
+            )
+
+            policy_allowed, policy_decision, policy_reason = (
+                self._evaluate_action_policy(action_type)
+            )
+            if not policy_allowed:
+                result = {
+                    "success": False,
+                    "reason": policy_reason,
+                    "policy_required": True,
+                    "matched_rules": self._policy_rules(policy_decision),
+                }
+                self._publish_recovery_event(
+                    EventType.TASK_BLOCKED,
+                    stage="policy_denied",
+                    action_type=action_type,
+                    context=context,
+                    result=result,
+                    reason=policy_reason,
+                    policy_decision=policy_decision,
+                )
+                return False
+
+            self._publish_recovery_event(
+                EventType.PIPELINE_STAGE_START,
+                stage="actuator_start",
+                action_type=action_type,
+                context=context,
+                reason=policy_reason,
+                policy_decision=policy_decision,
+            )
+            actuator_result = self.safe_actuator.execute(action_type, context)
+            if actuator_result.simulated:
+                reason = actuator_result.reason or "safe actuator returned simulated result"
+                result = {
+                    "success": False,
+                    "reason": reason,
+                    "simulated": True,
+                }
+                self._publish_recovery_event(
+                    EventType.TASK_FAILED,
+                    stage="actuator_simulated",
+                    action_type=action_type,
+                    context=context,
+                    result=result,
+                    reason=reason,
+                    policy_decision=policy_decision,
+                )
+                return False
+
+            result = {
+                "success": actuator_result.success,
+                "reason": actuator_result.reason,
+                "simulated": actuator_result.simulated,
+            }
+            self._publish_recovery_event(
+                EventType.PIPELINE_STAGE_END
+                if actuator_result.success
+                else EventType.TASK_FAILED,
+                stage="actuator_completed"
+                if actuator_result.success
+                else "actuator_failed",
+                action_type=action_type,
+                context=context,
+                result=result,
+                reason=actuator_result.reason or policy_reason,
+                policy_decision=policy_decision,
+            )
+            return actuator_result.success
+
         except Exception as e:
-            logger.error(f"Failed to execute {action_type}: {e}")
+            logger.error(f"Failed to execute eBPF action: {e}")
+            return False
+
+    def _execute_action_internal(
+        self,
+        action_type: str,
+        context: Dict[str, Any],
+    ) -> SafeActuatorResult:
+        interface = str(context.get("interface", ""))
+
+        if action_type == "clear_packet_queues":
+            return SafeActuatorResult(self._clear_queues(interface))
+
+        if action_type == "adjust_route_weights":
+            return SafeActuatorResult(self._adjust_routes(interface))
+
+        if action_type == "optimize_ebpf_program":
+            return SafeActuatorResult(self._reload_ebpf(interface))
+
+        if action_type == "enable_hw_offload":
+            return SafeActuatorResult(self._enable_hw_offload(interface))
+
+        if action_type == "increase_queue_size":
+            return SafeActuatorResult(self._increase_queue_size(interface))
+
+        if action_type == "throttle_traffic":
+            return SafeActuatorResult(self._throttle_traffic(interface))
+
+        logger.warning(f"Unknown action: {action_type}")
+        return SafeActuatorResult(False, f"unknown eBPF action: {action_type}")
+
+    @staticmethod
+    def _interface_exists(interface: str) -> bool:
+        return bool(interface) and Path("/sys/class/net", interface).exists()
+
+    def _run_command(self, command: List[str]) -> bool:
+        if not command:
+            return False
+        executable = command[0]
+        if shutil.which(executable) is None:
+            logger.warning("Required recovery command is unavailable: %s", executable)
+            return False
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return True
+        except subprocess.CalledProcessError as exc:
+            logger.warning(
+                "Recovery command failed: %s stderr=%s",
+                " ".join(command),
+                (exc.stderr or "").strip(),
+            )
             return False
 
     def _clear_queues(self, interface: str) -> bool:
         """Clear packet queues"""
-        # Use tc command to flush queues
-        import subprocess
+        if not self._interface_exists(interface):
+            logger.warning("Cannot clear queues; interface does not exist: %s", interface)
+            return False
 
-        try:
-            subprocess.run(["tc", "qdisc", "del", "dev", interface, "root"], check=True)
-            subprocess.run(
-                ["tc", "qdisc", "add", "dev", interface, "root", "fq"], check=True
-            )
+        if self._run_command(["tc", "qdisc", "replace", "dev", interface, "root", "fq"]):
             logger.info(f"Cleared queues on {interface}")
             return True
-        except subprocess.CalledProcessError:
-            return False
+        return False
 
     def _adjust_routes(self, interface: str) -> bool:
         """Adjust routing weights"""
-        # This would integrate with topology manager
-        logger.info(f"Adjusting routes for {interface}")
-        return True  # Placeholder
+        if not self._interface_exists(interface):
+            logger.warning("Cannot adjust routes; interface does not exist: %s", interface)
+            return False
+
+        if self._run_command(["ip", "route", "flush", "cache"]):
+            logger.info("Flushed route cache after anomaly on %s", interface)
+            return True
+        return False
 
     def _reload_ebpf(self, interface: str) -> bool:
         """Reload optimized eBPF program"""
@@ -279,29 +597,55 @@ class EBPFExecutor(MAPEKExecutor):
 
     def _enable_hw_offload(self, interface: str) -> bool:
         """Enable hardware offload"""
-        # Check if supported and enable
-        logger.info(f"Enabling HW offload on {interface}")
-        return True  # Placeholder
+        if not self._interface_exists(interface):
+            logger.warning("Cannot enable hardware offload; interface does not exist: %s", interface)
+            return False
+
+        command = ["ethtool", "-K", interface, "tso", "on", "gso", "on", "gro", "on"]
+        if self._run_command(command):
+            logger.info(f"Enabled HW offload on {interface}")
+            return True
+        return False
 
     def _increase_queue_size(self, interface: str) -> bool:
         """Increase queue buffer size"""
-        import subprocess
+        if not self._interface_exists(interface):
+            logger.warning("Cannot increase queue size; interface does not exist: %s", interface)
+            return False
 
-        try:
-            # Increase txqueuelen
-            subprocess.run(
-                ["ip", "link", "set", interface, "txqueuelen", "1000"], check=True
-            )
+        if self._run_command(["ip", "link", "set", interface, "txqueuelen", "1000"]):
             logger.info(f"Increased queue size on {interface}")
             return True
-        except subprocess.CalledProcessError:
-            return False
+        return False
 
     def _throttle_traffic(self, interface: str) -> bool:
         """Apply traffic throttling"""
-        # Use tc for traffic shaping
-        logger.info(f"Applying traffic throttling on {interface}")
-        return True  # Placeholder
+        if not self._interface_exists(interface):
+            logger.warning("Cannot throttle traffic; interface does not exist: %s", interface)
+            return False
+
+        rate = os.getenv("X0TTA6BL4_EBPF_THROTTLE_RATE", "100mbit")
+        burst = os.getenv("X0TTA6BL4_EBPF_THROTTLE_BURST", "32kbit")
+        latency = os.getenv("X0TTA6BL4_EBPF_THROTTLE_LATENCY", "400ms")
+        command = [
+            "tc",
+            "qdisc",
+            "replace",
+            "dev",
+            interface,
+            "root",
+            "tbf",
+            "rate",
+            rate,
+            "burst",
+            burst,
+            "latency",
+            latency,
+        ]
+        if self._run_command(command):
+            logger.info("Applied traffic throttling on %s at %s", interface, rate)
+            return True
+        return False
 
 
 class EBPFSelfHealingController:
@@ -310,7 +654,20 @@ class EBPFSelfHealingController:
     Integrates all MAPE-K components.
     """
 
-    def __init__(self, interface: str = "eth0"):
+    def __init__(
+        self,
+        interface: str = "eth0",
+        node_id: str = "default-node",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[SafeActuator] = None,
+    ):
         self.interface = interface
         self.loader = EBPFLoader(interface)
         self.probes = MeshNetworkProbes(interface)
@@ -319,7 +676,19 @@ class EBPFSelfHealingController:
         self.monitor = MAPEKMonitor()
         self.analyzer = EBPFAnalyzer()
         self.planner = EBPFPlanner()
-        self.executor = EBPFExecutor(self.loader)
+        self.executor = EBPFExecutor(
+            self.loader,
+            node_id=node_id,
+            event_bus=event_bus,
+            event_project_root=event_project_root,
+            policy_engine=policy_engine,
+            require_policy=require_policy,
+            source_agent=source_agent,
+            spiffe_id=spiffe_id,
+            did=did,
+            wallet_address=wallet_address,
+            safe_actuator=safe_actuator,
+        )
 
         # Register eBPF anomaly detector
         self.monitor.register_detector(self._detect_anomalies)

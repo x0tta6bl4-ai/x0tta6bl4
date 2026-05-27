@@ -4,13 +4,14 @@ Replaces TODO in spiffe_controller.py line 175.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import ssl
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 try:
     from prometheus_client import Counter, Gauge
@@ -59,6 +60,7 @@ class MTLSControllerProduction:
         self._rotation_task: Optional[asyncio.Task] = None
         self._temp_files: List[tempfile.NamedTemporaryFile] = []
         self.enable_optimizations = enable_optimizations
+        self._cached_svid: Optional[Any] = None
 
         # Try to import optimizations
         if enable_optimizations:
@@ -96,15 +98,19 @@ class MTLSControllerProduction:
             # Fetch X.509-SVID from SPIRE (with token caching if enabled)
             if self.token_cache:
                 cache_key = "mtls_svid"
-                cached_token = self.token_cache.get(cache_key)
-                if cached_token and not self.token_cache.needs_refresh(cache_key):
+                cached_marker = self.token_cache.get(cache_key)
+                if (
+                    cached_marker
+                    and not self.token_cache.needs_refresh(cache_key)
+                    and self._is_cached_svid_usable()
+                ):
                     logger.debug("Using cached SVID for mTLS")
-                    # Still need to fetch for actual certificate, but cache reduces API calls
-                    svid = await self.workload_api.fetch_x509_svid()
+                    svid = self._cached_svid
                 else:
                     svid = await self.workload_api.fetch_x509_svid()
                     if svid:
-                        self.token_cache.set(cache_key, b"cached")  # Placeholder
+                        self._cached_svid = svid
+                        self.token_cache.set(cache_key, self._svid_cache_marker(svid))
             else:
                 svid = await self.workload_api.fetch_x509_svid()
 
@@ -173,6 +179,35 @@ class MTLSControllerProduction:
         except Exception as e:
             logger.error(f"❌ Failed to setup mTLS context: {e}")
             raise
+
+    def _is_cached_svid_usable(self) -> bool:
+        if self._cached_svid is None:
+            return False
+
+        is_expired = getattr(self._cached_svid, "is_expired", None)
+        if callable(is_expired):
+            return not is_expired()
+
+        expiry = getattr(self._cached_svid, "expiry", None)
+        if isinstance(expiry, datetime):
+            return expiry > datetime.utcnow()
+
+        return True
+
+    @staticmethod
+    def _svid_cache_marker(svid: Any) -> bytes:
+        cert_pem = getattr(svid, "cert_pem", b"") or b""
+        if not isinstance(cert_pem, bytes):
+            cert_pem = str(cert_pem).encode("utf-8")
+
+        expiry = getattr(svid, "expiry", None)
+        expiry_text = expiry.isoformat() if isinstance(expiry, datetime) else str(expiry or "")
+
+        digest = hashlib.sha256()
+        digest.update(cert_pem)
+        digest.update(b"|")
+        digest.update(expiry_text.encode("utf-8"))
+        return digest.hexdigest().encode("ascii")
 
     def _write_temp_cert(self, cert_pem: bytes) -> str:
         """Write certificate to temp file securely using NamedTemporaryFile."""

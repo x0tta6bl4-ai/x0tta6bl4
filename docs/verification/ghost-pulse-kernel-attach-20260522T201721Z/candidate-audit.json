@@ -1,0 +1,32 @@
+{
+  "accepted": [],
+  "candidates": [
+    {
+      "contains_interface": false,
+      "contains_pulse_marker": false,
+      "contains_xdp_attach": true,
+      "exists": true,
+      "path": "docs/verification/xdp-live-attach-20260402T081417Z/verify-local-live-attach.log",
+      "rejection_reasons": [
+        "candidate does not contain x0tta6bl4_pulse marker",
+        "candidate references xdp_mesh_filter, not x0tta6bl4_pulse",
+        "candidate does not reference interface x0rp021"
+      ],
+      "sha256": "8a95b32aec04d571514798c8c9ec67b32a30dbd3137889e6275aa7f8def38769"
+    },
+    {
+      "contains_interface": false,
+      "contains_pulse_marker": false,
+      "contains_xdp_attach": true,
+      "exists": true,
+      "path": "ebpf/prod/results/benchmark-live.json",
+      "rejection_reasons": [
+        "candidate does not contain x0tta6bl4_pulse marker",
+        "candidate does not reference interface x0rp021"
+      ],
+      "sha256": "e0e6dd7267eb24a151a40ea374831c214739a623c5f6bf777e558caf35f32665"
+    }
+  ],
+  "claim_boundary": "Historical XDP artifacts are advisory only; proof gate still requires current kernel measurements.",
+  "status": "NO_ACCEPTED_CANDIDATE"
+}

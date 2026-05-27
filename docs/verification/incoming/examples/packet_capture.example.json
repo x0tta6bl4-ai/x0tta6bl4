@@ -1,0 +1,128 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "packet_capture",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/packet_capture/sender_pcap.REPLACE_WITH_REAL_FILE",
+      "role": "sender_pcap",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/packet_capture/receiver_pcap.REPLACE_WITH_REAL_FILE",
+      "role": "receiver_pcap",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/packet_capture/sender_events.REPLACE_WITH_REAL_FILE",
+      "role": "sender_events",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/packet_capture/receiver_events.REPLACE_WITH_REAL_FILE",
+      "role": "receiver_events",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/packet_capture/capture_summary.REPLACE_WITH_REAL_FILE",
+      "role": "capture_summary",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/packet_capture.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "packet_capture",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "packet_capture",
+    "--candidate",
+    "docs/verification/incoming/packet_capture.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "receiver_pcap_packets": "REPLACE_WITH_POSITIVE_INTEGER",
+    "receiver_pcap_sha256": "REPLACE_WITH_SHA256",
+    "sender_pcap_packets": "REPLACE_WITH_POSITIVE_INTEGER",
+    "sender_pcap_sha256": "REPLACE_WITH_SHA256"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "artifact_sha256_measurements": {
+      "receiver_pcap": "receiver_pcap_sha256",
+      "sender_pcap": "sender_pcap_sha256"
+    },
+    "claim_id": "packet_capture",
+    "jsonl_record_count_measurements": {
+      "receiver_events": "receiver_pcap_packets",
+      "sender_events": "sender_pcap_packets"
+    },
+    "measurements": {
+      "receiver_pcap_packets": "positive_int",
+      "receiver_pcap_sha256": "sha256",
+      "sender_pcap_packets": "positive_int",
+      "sender_pcap_sha256": "sha256"
+    },
+    "paired_jsonl_payload_sha256_roles": [
+      [
+        "sender_events",
+        "receiver_events"
+      ]
+    ],
+    "path": "docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json",
+    "pcap_packet_count_measurements": {
+      "receiver_pcap": "receiver_pcap_packets",
+      "sender_pcap": "sender_pcap_packets"
+    },
+    "pcap_payload_sha256_jsonl_roles": {
+      "receiver_pcap": "receiver_events",
+      "sender_pcap": "sender_events"
+    },
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "sender_pcap",
+      "receiver_pcap",
+      "sender_events",
+      "receiver_events",
+      "capture_summary"
+    ],
+    "title": "Sender and receiver packet captures"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Sender and receiver packet captures"
+}

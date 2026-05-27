@@ -1,0 +1,107 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "whitelist_lab",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/whitelist_lab/provider_or_lab_authorization.REPLACE_WITH_REAL_FILE",
+      "role": "provider_or_lab_authorization",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/whitelist_lab/provider_profile.REPLACE_WITH_REAL_FILE",
+      "role": "provider_profile",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/whitelist_lab/third_party_baseline_capture.REPLACE_WITH_REAL_FILE",
+      "role": "third_party_baseline_capture",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/whitelist_lab/whitelist_conclusion.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "whitelist_conclusion",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/whitelist_lab.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "whitelist_lab",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "whitelist_lab",
+    "--candidate",
+    "docs/verification/incoming/whitelist_lab.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "authorized_provider_or_lab": "REPLACE_WITH_TRUE",
+    "provider_profile": "REPLACE_WITH_NONEMPTY_VALUE",
+    "third_party_baseline_captured": "REPLACE_WITH_TRUE",
+    "whitelist_behavior_verified": "REPLACE_WITH_TRUE"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "claim_id": "whitelist_lab",
+    "json_artifact_object_field_links": {
+      "whitelist_conclusion": [
+        "measurements",
+        "failures",
+        "claim_boundary"
+      ]
+    },
+    "measurements": {
+      "authorized_provider_or_lab": true,
+      "provider_profile": "nonempty",
+      "third_party_baseline_captured": true,
+      "whitelist_behavior_verified": true
+    },
+    "path": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "provider_or_lab_authorization",
+      "provider_profile",
+      "third_party_baseline_capture",
+      "whitelist_conclusion"
+    ],
+    "title": "Authorized whitelist-behavior lab result"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Authorized whitelist-behavior lab result"
+}

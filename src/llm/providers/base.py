@@ -25,6 +25,10 @@ class ProviderStatus(Enum):
     ERROR = "error"
 
 
+class ProviderCapabilityError(RuntimeError):
+    """Raised when a provider does not support a requested capability."""
+
+
 @dataclass
 class GenerationResult:
     """Result from a text generation request."""
@@ -209,10 +213,14 @@ class BaseLLMProvider(ABC):
             EmbeddingResult or list of EmbeddingResult
             
         Note:
-            Not all providers support embeddings. Default implementation
-            raises NotImplementedError.
+            Not all providers support embeddings. Default implementation raises
+            ProviderCapabilityError.
         """
-        raise NotImplementedError(f"{self.name} does not support embeddings")
+        raise ProviderCapabilityError(f"{self.name} does not support embeddings")
+
+    def supports_embeddings(self) -> bool:
+        """Return True when this provider implements embedding requests."""
+        return False
     
     def stream_generate(
         self,
@@ -308,5 +316,6 @@ __all__ = [
     "ChatMessage",
     "EmbeddingResult",
     "ProviderConfig",
+    "ProviderCapabilityError",
     "BaseLLMProvider",
 ]

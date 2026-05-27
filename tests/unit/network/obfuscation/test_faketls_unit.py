@@ -108,16 +108,9 @@ class TestObfuscateDeobfuscateRoundTrip:
     def test_roundtrip_empty_data(self):
         data = b""
         obfuscated = self.transport.obfuscate(data)
-        # obfuscate produces 5-byte header + empty payload = 5 bytes
-        # deobfuscate: len(5) == 5, not > 5, so it returns as-is
-        # But data[0] == 0x17 and len > 5 is False (len == 5),
-        # so deobfuscate returns the raw 5-byte record unchanged.
-        # This is a known edge case: deobfuscate requires len > 5.
-        # Still, let's verify the behavior is consistent.
         assert len(obfuscated) == 5
-        # deobfuscate returns it as-is since len is not > 5
         result = self.transport.deobfuscate(obfuscated)
-        assert result == obfuscated
+        assert result == b""
 
     def test_roundtrip_large_data(self):
         data = b"\xab" * 1000
@@ -162,6 +155,13 @@ class TestGenerateClientHello:
         hello = transport.generate_client_hello()
         assert b"my.custom.domain.com" in hello
 
+    def test_client_hello_contains_tls13_extensions(self):
+        extension_types = _client_hello_extension_types(self.hello)
+
+        assert {0x0000, 0x000A, 0x000D, 0x0010, 0x002B, 0x0033}.issubset(
+            extension_types
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestFakeTLSSocket
@@ -171,9 +171,8 @@ class TestGenerateClientHello:
 class TestFakeTLSSocket:
     """Tests for FakeTLSSocket class structure.
 
-    Note: FakeTLSSocket.__init__ has a bug — it assigns to ``self.timeout``
-    which is a read-only C descriptor on socket.socket.  We test class
-    attributes / inheritance without calling ``__init__`` via wrap_socket.
+    Note: FakeTLSSocket is a composition wrapper. It subclasses socket for
+    backward compatibility but delegates actual I/O to the wrapped socket.
     """
 
     def test_is_subclass_of_socket(self):
@@ -189,11 +188,12 @@ class TestFakeTLSSocket:
         transport = FakeTLSTransport()
         assert callable(getattr(transport, "wrap_socket", None))
 
-    def test_socket_init_hits_timeout_attribute_error(self):
+    def test_socket_init_wraps_timeout_access(self):
         raw_a, raw_b = socket.socketpair()
         try:
-            with pytest.raises(AttributeError):
-                FakeTLSSocket(raw_a, FakeTLSTransport())
+            wrapped = FakeTLSSocket(raw_a, FakeTLSTransport())
+            wrapped.settimeout(0.5)
+            assert wrapped.gettimeout() == 0.5
         finally:
             try:
                 raw_a.close()
@@ -209,9 +209,8 @@ class TestFakeTLSSocket:
             def __init__(self):
                 self.sent = []
 
-            def send(self, data, flags=0):
-                self.sent.append((data, flags))
-                return len(data)
+            def sendall(self, data):
+                self.sent.append((data, 0))
 
         class _Transport:
             def generate_client_hello(self):
@@ -227,7 +226,7 @@ class TestFakeTLSSocket:
         wrapped._handshake_received = False
 
         sent_len = wrapped.send(b"abc")
-        assert sent_len == len(b"REC:abc")
+        assert sent_len == len(b"abc")
         assert wrapped._sock.sent == [(b"HELLO", 0), (b"REC:abc", 0)]
 
         wrapped.send(b"xyz")
@@ -248,7 +247,7 @@ class TestFakeTLSSocket:
 
         class _Transport:
             def deobfuscate(self, data):
-                return b"plain:" + data
+                return b"plain:" + data[5:]
 
         wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
         wrapped._sock = _Sock()
@@ -265,7 +264,6 @@ class TestFakeTLSSocket:
             def __init__(self):
                 self.responses = [
                     struct.pack("!BHH", 0x17, 0x0303, 4),
-                    struct.pack("!BHH", 0x17, 0x0303, 4),
                     b"ABCD",
                     b"",
                 ]
@@ -275,7 +273,7 @@ class TestFakeTLSSocket:
 
         class _Transport:
             def deobfuscate(self, data):
-                return data.lower()
+                return data[5:].lower()
 
         wrapped = FakeTLSSocket.__new__(FakeTLSSocket)
         wrapped._sock = _Sock()
@@ -322,8 +320,8 @@ class TestFakeTLSSocket:
         raw_a, raw_b = socket.socketpair()
         try:
             transport = FakeTLSTransport()
-            with pytest.raises(AttributeError):
-                transport.wrap_socket(raw_a)
+            wrapped = transport.wrap_socket(raw_a)
+            assert wrapped.fileno() == raw_a.fileno()
         finally:
             try:
                 raw_a.close()
@@ -333,3 +331,44 @@ class TestFakeTLSSocket:
                 raw_b.close()
             except OSError:
                 pass
+
+    def test_wrapped_socket_roundtrip_with_buffering(self):
+        raw_a, raw_b = socket.socketpair()
+        try:
+            left = FakeTLSTransport().wrap_socket(raw_a)
+            right = FakeTLSTransport().wrap_socket(raw_b)
+            left._handshake_sent = True
+            right._handshake_received = True
+
+            assert left.send(b"hello world") == len(b"hello world")
+            assert right.recv(5) == b"hello"
+            assert right.recv(1024) == b" world"
+        finally:
+            try:
+                raw_a.close()
+            except OSError:
+                pass
+            try:
+                raw_b.close()
+            except OSError:
+                pass
+
+
+def _client_hello_extension_types(hello: bytes) -> set[int]:
+    body = hello[9:]
+    pos = 2 + 32
+    session_len = body[pos]
+    pos += 1 + session_len
+    cipher_len = struct.unpack("!H", body[pos : pos + 2])[0]
+    pos += 2 + cipher_len
+    compression_len = body[pos]
+    pos += 1 + compression_len
+    ext_len = struct.unpack("!H", body[pos : pos + 2])[0]
+    pos += 2
+    end = pos + ext_len
+    extension_types = set()
+    while pos < end:
+        ext_type, length = struct.unpack("!HH", body[pos : pos + 4])
+        extension_types.add(ext_type)
+        pos += 4 + length
+    return extension_types

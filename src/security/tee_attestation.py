@@ -1,6 +1,11 @@
+import base64
+import json
 import logging
-from typing import Optional
+import os
+import shlex
+import subprocess
 from dataclasses import dataclass
+from typing import Any, Callable, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +20,30 @@ class TEEAttestation:
 class TEEValidator:
     """Validates hardware-rooted attestation reports."""
     
-    def __init__(self, *, allow_mock: bool = False):
+    def __init__(
+        self,
+        *,
+        allow_mock: bool = False,
+        sgx_verifier: Optional[Callable[[TEEAttestation], bool]] = None,
+        sgx_verifier_command: Optional[Sequence[str] | str] = None,
+    ):
         self.allow_mock = allow_mock
+        self.sgx_verifier = sgx_verifier
+        self.sgx_verifier_command = self._resolve_sgx_verifier_command(
+            sgx_verifier_command
+        )
         logger.info("TEE Validator initialized (allow_mock=%s)", allow_mock)
+
+    @staticmethod
+    def _resolve_sgx_verifier_command(
+        command: Optional[Sequence[str] | str],
+    ) -> list[str]:
+        if isinstance(command, str):
+            return shlex.split(command)
+        if command is not None:
+            return list(command)
+        env_command = os.getenv("X0TTA6BL4_SGX_VERIFIER_CMD")
+        return shlex.split(env_command) if env_command else []
 
     def verify_report(self, attestation: TEEAttestation) -> bool:
         """
@@ -44,12 +70,68 @@ class TEEValidator:
 
     def _verify_sgx(self, attestation: TEEAttestation) -> bool:
         """
-        Placeholder for Intel SGX Remote Attestation logic.
-        Requires 'pysgx' or similar library.
+        Verify Intel SGX attestation through a configured backend.
+
+        The backend can be an in-process callable or a local command such as an
+        Intel DCAP/PCS verifier wrapper. Without a backend this method rejects
+        the report instead of simulating success.
         """
         if not attestation.quote or not attestation.signature:
             logger.warning("SGX attestation missing quote/signature")
             return False
+        if not attestation.report_data:
+            logger.warning("SGX attestation missing report_data")
+            return False
+
+        if self.sgx_verifier is not None:
+            try:
+                return bool(self.sgx_verifier(attestation))
+            except Exception as exc:
+                logger.error("SGX attestation verifier callable failed: %s", exc)
+                return False
+
+        if self.sgx_verifier_command:
+            return self._verify_sgx_with_command(attestation)
 
         logger.error("SGX attestation backend is not configured; rejecting attestation")
         return False
+
+    def _verify_sgx_with_command(self, attestation: TEEAttestation) -> bool:
+        payload = {
+            "provider": "sgx",
+            "report_data_b64": self._b64(attestation.report_data),
+            "quote_b64": self._b64(attestation.quote or b""),
+            "signature_b64": self._b64(attestation.signature or b""),
+        }
+        try:
+            result = subprocess.run(
+                self.sgx_verifier_command,
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            logger.error("SGX verifier command not found: %s", self.sgx_verifier_command[0])
+            return False
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            logger.error("SGX verifier command failed to run: %s", exc)
+            return False
+
+        if result.returncode != 0:
+            logger.warning("SGX verifier command rejected attestation")
+            return False
+
+        stdout = result.stdout.strip()
+        if not stdout:
+            return True
+        try:
+            response: Any = json.loads(stdout)
+        except json.JSONDecodeError:
+            return True
+        return bool(response.get("valid"))
+
+    @staticmethod
+    def _b64(value: bytes) -> str:
+        return base64.b64encode(value).decode("ascii")

@@ -1,0 +1,597 @@
+{
+  "artifacts": {
+    "baseline_packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/baseline-packet-events.csv",
+    "baseline_packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/baseline-packet-events.jsonl",
+    "packet_events_csv": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/packet-events.csv",
+    "packet_events_jsonl": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/packet-events.jsonl"
+  },
+  "baseline_probe": {
+    "claim_boundary": "Loopback baseline only; it is a local negative control, not network/DPI evidence.",
+    "duration_ms": 252.654838,
+    "event_summary": {
+      "inter_packet_gap_ms": {
+        "count": 11,
+        "max": 0.298962,
+        "mean": 0.18573545454545454,
+        "min": 0.125556,
+        "p50": 0.167876,
+        "p95": 0.298962,
+        "stdev": 0.05458795693251503
+      },
+      "packet_count": 12,
+      "size_bytes": {
+        "max": 652,
+        "mean": 402.3333333333333,
+        "min": 101
+      }
+    },
+    "kind": "baseline_unshaped_udp",
+    "loss_count_local": 0,
+    "packet_count_requested": 12,
+    "packets_received": 12,
+    "packets_send_success": 12,
+    "receiver": "127.0.0.1:52757",
+    "seed": 20260522,
+    "status": "VERIFIED_LOCAL",
+    "transport_stats": {
+      "local_address": "127.0.0.1:56641",
+      "obfuscation": "none",
+      "packets_per_second": 47.51626196246215,
+      "peers_count": 1,
+      "total_received": 0,
+      "total_sent": 12,
+      "traffic_analysis": {
+        "avg_interval_ms": 0.18345225941051138,
+        "avg_size": 402.3333333333333,
+        "max_size": 652,
+        "min_size": 101,
+        "packets": 12,
+        "throughput_pps": 5451.0094517958405
+      },
+      "traffic_profile": "none",
+      "uptime_seconds": 0.2525451183319092
+    }
+  },
+  "bundle": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z",
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "kernel_read_only_visible": false,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "decision": "LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED",
+  "environment": {
+    "cwd": "/mnt/projects",
+    "kernel": "6.14.0-37-generic",
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]"
+  },
+  "gates": {
+    "ghost_core_shell_syntax": {
+      "command": {
+        "args": [
+          "bash",
+          "-n",
+          "ghost-core.sh"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    },
+    "python_compile": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "-m",
+          "py_compile",
+          "src/network/transport/pulse_transport.py",
+          "src/network/obfuscation/whitelist_mimicry.py",
+          "src/network/mesh_node_complete.py"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    }
+  },
+  "kernel_read_only": {
+    "claim_boundary": "Read-only inspection only; absence of visible data means no kernel attach claim.",
+    "commands": {
+      "bpftool_map": {
+        "args": [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: Operation not permitted\n",
+        "stdout": ""
+      },
+      "bpftool_net": {
+        "args": [
+          "bpftool",
+          "net"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: can't query prog: Operation not permitted\n",
+        "stdout": ""
+      },
+      "bpftool_prog": {
+        "args": [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: can't get next program: Operation not permitted\n",
+        "stdout": ""
+      },
+      "ip_links": {
+        "args": [
+          "ip",
+          "-j",
+          "link",
+          "show"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-2346afa010d6\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"9e:d9:ef:93:23:80\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"br-5cce4ae051c7\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"32:ad:9b:96:8e:23\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"ifname\":\"br-afb7e5743700\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ae:8a:5a:72:04:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":9,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"1a:d5:9e:f7:f5:69\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":10,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:75:0e:8d:0a:8c\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":11,\"link_index\":2,\"ifname\":\"veth6864553\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"d6:c6:17:be:6d:61\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":13,\"link_index\":2,\"ifname\":\"vethb6b7267\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"06:ca:da:6a:35:a2\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":14,\"link_index\":2,\"ifname\":\"vethdfca4d4\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"c6:04:bb:36:cb:e8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":3},{\"ifindex\":54,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
+      }
+    },
+    "pulse_map_present": false,
+    "pulse_prog_visible": false,
+    "status": "KERNEL_ATTACH_NOT_VERIFIED",
+    "xdp_links": []
+  },
+  "local_probe": {
+    "claim_boundary": "Loopback timing probe only; this does not prove DPI evasion or whitelist behavior.",
+    "duration_ms": 702.200888,
+    "event_summary": {
+      "inter_packet_gap_ms": {
+        "count": 11,
+        "max": 45.811847,
+        "mean": 40.93050981818182,
+        "min": 36.596624,
+        "p50": 40.833428,
+        "p95": 45.811847,
+        "stdev": 2.373123479438661
+      },
+      "packet_count": 12,
+      "size_bytes": {
+        "max": 642,
+        "mean": 455.1666666666667,
+        "min": 145
+      }
+    },
+    "loss_count_local": 0,
+    "mode": "corporate",
+    "packet_count_requested": 12,
+    "packets_received": 12,
+    "packets_send_success": 12,
+    "pcap_capture": {
+      "path": null,
+      "requested": false,
+      "status": "NOT_REQUESTED"
+    },
+    "receiver": "127.0.0.1:34998",
+    "seed": 20260521,
+    "status": "VERIFIED_LOCAL",
+    "transport_stats": {
+      "evidence_status": "EXPERIMENTAL_LOCAL_TIMING_PROFILE",
+      "local_address": "127.0.0.1:48896",
+      "obfuscation": "none",
+      "packets_per_second": 17.105493222259454,
+      "peers_count": 1,
+      "protocol": "x0tta6bl4_pulse",
+      "pulse_coherence": "98.5%",
+      "pulse_mode": "corporate",
+      "pulse_packets_sent": 12,
+      "pulse_rng_seed": 20260521,
+      "stealth_mode": "NOT_VERIFIED",
+      "timing_plan_replay": {
+        "claim_boundary": "Replay validates deterministic sender-side timing plans from the local seed only; it does not prove network delivery timing or DPI behavior.",
+        "deterministic_fields": [
+          "index",
+          "mode",
+          "profile_label",
+          "next_profile_label",
+          "mode_shift_roll",
+          "mode_shifted",
+          "planned_delay_ms"
+        ],
+        "sample_count": 12,
+        "seed": 20260521,
+        "sha256": "63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff",
+        "status": "LOCAL_SEED_REPLAYABLE"
+      },
+      "timing_plan_samples": [
+        {
+          "actual_gap_ms": null,
+          "index": 1,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 129,
+          "planned_delay_ms": 42.02115945885417,
+          "profile_label": "corporate",
+          "relative_error": null,
+          "wait_time_ms": 0.0
+        },
+        {
+          "actual_gap_ms": 41.29528999328613,
+          "index": 2,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 479,
+          "planned_delay_ms": 40.86002075545901,
+          "profile_label": "corporate",
+          "relative_error": 0.010652692528771365,
+          "wait_time_ms": 40.848338245083035
+        },
+        {
+          "actual_gap_ms": 36.51022911071777,
+          "index": 3,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 527,
+          "planned_delay_ms": 35.79488508298193,
+          "profile_label": "corporate",
+          "relative_error": 0.019984532037957185,
+          "wait_time_ms": 35.77724210812841
+        },
+        {
+          "actual_gap_ms": 41.98193550109863,
+          "index": 4,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 606,
+          "planned_delay_ms": 41.57490361973795,
+          "profile_label": "corporate",
+          "relative_error": 0.009790326517255954,
+          "wait_time_ms": 41.55821431920084
+        },
+        {
+          "actual_gap_ms": 38.32292556762695,
+          "index": 5,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 517,
+          "planned_delay_ms": 37.73342499934682,
+          "profile_label": "corporate",
+          "relative_error": 0.015622768627293586,
+          "wait_time_ms": 37.71911988460073
+        },
+        {
+          "actual_gap_ms": 40.799856185913086,
+          "index": 6,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 549,
+          "planned_delay_ms": 39.2685436290777,
+          "profile_label": "corporate",
+          "relative_error": 0.038995909074190344,
+          "wait_time_ms": 39.253046421436096
+        },
+        {
+          "actual_gap_ms": 40.69805145263672,
+          "index": 7,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 626,
+          "planned_delay_ms": 39.66250935459284,
+          "profile_label": "corporate",
+          "relative_error": 0.0261088396799575,
+          "wait_time_ms": 39.646296891213936
+        },
+        {
+          "actual_gap_ms": 38.98811340332031,
+          "index": 8,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 584,
+          "planned_delay_ms": 38.72309550428161,
+          "profile_label": "corporate",
+          "relative_error": 0.006843923389580281,
+          "wait_time_ms": 38.702591506478875
+        },
+        {
+          "actual_gap_ms": 40.352821350097656,
+          "index": 9,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 131,
+          "planned_delay_ms": 39.87174869404944,
+          "profile_label": "corporate",
+          "relative_error": 0.012065501810308568,
+          "wait_time_ms": 39.85696674214514
+        },
+        {
+          "actual_gap_ms": 45.83930969238281,
+          "index": 10,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 264,
+          "planned_delay_ms": 45.27903981015254,
+          "profile_label": "corporate",
+          "relative_error": 0.01237371385478553,
+          "wait_time_ms": 45.26401943966914
+        },
+        {
+          "actual_gap_ms": 43.350934982299805,
+          "index": 11,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 535,
+          "planned_delay_ms": 43.01233698596146,
+          "profile_label": "corporate",
+          "relative_error": 0.007872113446169041,
+          "wait_time_ms": 42.97705103625443
+        },
+        {
+          "actual_gap_ms": 42.02628135681152,
+          "index": 12,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 323,
+          "planned_delay_ms": 41.21543643846675,
+          "profile_label": "corporate",
+          "relative_error": 0.01967333087823387,
+          "wait_time_ms": 41.1915945805566
+        }
+      ],
+      "timing_plan_samples_tail": [
+        {
+          "actual_gap_ms": 36.51022911071777,
+          "index": 3,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 527,
+          "planned_delay_ms": 35.79488508298193,
+          "profile_label": "corporate",
+          "relative_error": 0.019984532037957185,
+          "wait_time_ms": 35.77724210812841
+        },
+        {
+          "actual_gap_ms": 41.98193550109863,
+          "index": 4,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 606,
+          "planned_delay_ms": 41.57490361973795,
+          "profile_label": "corporate",
+          "relative_error": 0.009790326517255954,
+          "wait_time_ms": 41.55821431920084
+        },
+        {
+          "actual_gap_ms": 38.32292556762695,
+          "index": 5,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 517,
+          "planned_delay_ms": 37.73342499934682,
+          "profile_label": "corporate",
+          "relative_error": 0.015622768627293586,
+          "wait_time_ms": 37.71911988460073
+        },
+        {
+          "actual_gap_ms": 40.799856185913086,
+          "index": 6,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 549,
+          "planned_delay_ms": 39.2685436290777,
+          "profile_label": "corporate",
+          "relative_error": 0.038995909074190344,
+          "wait_time_ms": 39.253046421436096
+        },
+        {
+          "actual_gap_ms": 40.69805145263672,
+          "index": 7,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 626,
+          "planned_delay_ms": 39.66250935459284,
+          "profile_label": "corporate",
+          "relative_error": 0.0261088396799575,
+          "wait_time_ms": 39.646296891213936
+        },
+        {
+          "actual_gap_ms": 38.98811340332031,
+          "index": 8,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 584,
+          "planned_delay_ms": 38.72309550428161,
+          "profile_label": "corporate",
+          "relative_error": 0.006843923389580281,
+          "wait_time_ms": 38.702591506478875
+        },
+        {
+          "actual_gap_ms": 40.352821350097656,
+          "index": 9,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 131,
+          "planned_delay_ms": 39.87174869404944,
+          "profile_label": "corporate",
+          "relative_error": 0.012065501810308568,
+          "wait_time_ms": 39.85696674214514
+        },
+        {
+          "actual_gap_ms": 45.83930969238281,
+          "index": 10,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 264,
+          "planned_delay_ms": 45.27903981015254,
+          "profile_label": "corporate",
+          "relative_error": 0.01237371385478553,
+          "wait_time_ms": 45.26401943966914
+        },
+        {
+          "actual_gap_ms": 43.350934982299805,
+          "index": 11,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 535,
+          "planned_delay_ms": 43.01233698596146,
+          "profile_label": "corporate",
+          "relative_error": 0.007872113446169041,
+          "wait_time_ms": 42.97705103625443
+        },
+        {
+          "actual_gap_ms": 42.02628135681152,
+          "index": 12,
+          "mode": "corporate",
+          "mode_shift_roll": null,
+          "mode_shifted": false,
+          "next_profile_label": "corporate",
+          "payload_size_bytes": 323,
+          "planned_delay_ms": 41.21543643846675,
+          "profile_label": "corporate",
+          "relative_error": 0.01967333087823387,
+          "wait_time_ms": 41.1915945805566
+        }
+      ],
+      "timing_plan_summary": {
+        "actual_gap_ms": {
+          "count": 11,
+          "max": 45.83930969238281,
+          "mean": 40.924158963290125,
+          "min": 36.51022911071777,
+          "stdev": 2.391456736333693
+        },
+        "claim_boundary": "Local sender-side timing plan telemetry only; this does not prove DPI evasion or third-party traffic equivalence.",
+        "planned_delay_ms": {
+          "count": 12,
+          "max": 45.27903981015254,
+          "mean": 40.41809202774685,
+          "min": 35.79488508298193,
+          "stdev": 2.393452319374174
+        },
+        "relative_error": {
+          "count": 11,
+          "max": 0.038995909074190344,
+          "mean": 0.01636215016768211,
+          "min": 0.006843923389580281,
+          "stdev": 0.009069179577732284
+        },
+        "samples_recorded": 12,
+        "wait_time_ms": {
+          "count": 12,
+          "max": 45.26401943966914,
+          "mean": 36.899540097897265,
+          "min": 0.0,
+          "stdev": 11.369575603080486
+        }
+      },
+      "total_received": 0,
+      "total_sent": 12,
+      "traffic_analysis": {
+        "avg_interval_ms": 40.924180637706414,
+        "avg_size": 455.1666666666667,
+        "max_size": 642,
+        "min_size": 145,
+        "packets": 12,
+        "throughput_pps": 24.435431190493464
+      },
+      "traffic_profile": "none",
+      "uptime_seconds": 0.7015290260314941
+    }
+  },
+  "schema": "x0tta6bl4.ghost_pulse.local_evidence.v1",
+  "static_artifacts": {
+    "file_command": {
+      "args": [
+        "file",
+        "src/network/ebpf/x0tta6bl4_pulse.o"
+      ],
+      "available": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped\n"
+    },
+    "object": {
+      "elf_magic": "7f454c46",
+      "exists": true,
+      "is_elf": true,
+      "path": "src/network/ebpf/x0tta6bl4_pulse.o",
+      "sha256": "f5f713eae20ab53c1fcc533f88b8614349e0707aa1ae7b4b01bc495196099927",
+      "size_bytes": 1288
+    },
+    "source": {
+      "exists": true,
+      "path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
+      "sha256": "75bd37951938ff63157ae912c953da08ce189c73a5634ab9b7a2e70d93535475",
+      "size_bytes": 2196
+    },
+    "status": "STATIC_OBJECT_PRESENT"
+  },
+  "timestamp_utc": "2026-05-22T00:53:53.918970+00:00",
+  "timing_comparison": {
+    "baseline_mean_gap_ms": 0.18573545454545454,
+    "baseline_received": 12,
+    "claim_boundary": "Local baseline comparison only; this can show timing modulation relative to unshaped UDP, not DPI evasion or whitelist behavior.",
+    "mean_gap_delta_ms": 40.74477436363637,
+    "mean_gap_ratio": 220.3699337767793,
+    "pulse_mean_gap_ms": 40.93050981818182,
+    "pulse_received": 12,
+    "sender_actual_mean_gap_ms": 40.924158963290125,
+    "sender_planned_mean_delay_ms": 40.41809202774685,
+    "sender_relative_error_mean": 0.01636215016768211,
+    "status": "VERIFIED_LOCAL_COMPARISON"
+  }
+}

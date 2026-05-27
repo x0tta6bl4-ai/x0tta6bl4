@@ -372,17 +372,15 @@ class RaftNetworkServer:
         else:
             await self._start_http_server()
 
+        if self.server is None:
+            raise RuntimeError(f"Raft Network Server failed to start for {self.node_id}")
+
         logger.info(f"Raft Network Server started for {self.node_id}")
 
     async def stop(self):
         """Stop network server"""
         if self.server:
-            if isinstance(self.server, str):
-                # Placeholder server
-                logger.info(
-                    f"Raft Network Server (placeholder) stopped for {self.node_id}"
-                )
-            elif hasattr(self.server, "stop"):
+            if hasattr(self.server, "stop"):
                 # gRPC server
                 await self.server.stop(grace=5)
                 logger.info(f"Raft Network Server (gRPC) stopped for {self.node_id}")
@@ -430,10 +428,6 @@ class RaftNetworkServer:
 
     async def _start_http_server(self):
         """Start HTTP/JSON server (fallback)"""
-        if not HTTPX_AVAILABLE:
-            logger.error("HTTPX not available, cannot start HTTP server")
-            return
-
         try:
             from aiohttp import web
 
@@ -485,8 +479,8 @@ class RaftNetworkServer:
             logger.info(f"✅ HTTP server started at {self.listen_address}")
 
         except ImportError:
-            logger.warning("aiohttp not available, using placeholder HTTP server")
-            self.server = "http_server_placeholder"
+            self.server = None
+            raise RuntimeError("aiohttp not available for Raft HTTP server")
         except Exception as e:
             logger.error(f"Failed to start HTTP server: {e}")
             self.server = None

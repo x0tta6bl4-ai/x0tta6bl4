@@ -1,0 +1,36 @@
+{
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
+  "claim_boundary": "Gap records only; no external claim is verified.",
+  "claims": {
+    "dpi_lab": {
+      "bundle_json": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-evidence.json",
+      "bundle_md": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/dpi_lab-summary.md",
+      "latest_json": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+      "latest_md": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.md",
+      "status": "INCOMPLETE"
+    },
+    "production_readiness": {
+      "bundle_json": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/production_readiness-evidence.json",
+      "bundle_md": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/production_readiness-summary.md",
+      "latest_json": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+      "latest_md": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.md",
+      "status": "INCOMPLETE"
+    },
+    "security_review": {
+      "bundle_json": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/security_review-evidence.json",
+      "bundle_md": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/security_review-summary.md",
+      "latest_json": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
+      "latest_md": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.md",
+      "status": "INCOMPLETE"
+    },
+    "whitelist_lab": {
+      "bundle_json": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/whitelist_lab-evidence.json",
+      "bundle_md": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/whitelist_lab-summary.md",
+      "latest_json": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
+      "latest_md": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.md",
+      "status": "INCOMPLETE"
+    }
+  },
+  "status": "INCOMPLETE",
+  "timestamp_utc": "2026-05-22T09:33:20.933902+00:00"
+}

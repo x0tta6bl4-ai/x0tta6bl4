@@ -49,6 +49,7 @@ class PQCSession:
     kem_public_key: bytes
     dsa_public_key: bytes
     kem_secret_key: Optional[bytes] = None
+    peer_kem_public_key: Optional[bytes] = None
     shared_secret: Optional[bytes] = None
     dsa_secret_key: Optional[bytes] = None
     aes_key: Optional[bytes] = None
@@ -118,19 +119,25 @@ class EBPFPQCGateway:
         logger.info(f"Created PQC session {session_id} with peer {peer_id}")
         return session
 
-    def initiate_key_exchange(self, peer_id: str) -> Tuple[str, bytes, bytes]:
+    def initiate_key_exchange(
+        self,
+        peer_id: str,
+        peer_kem_public_key: bytes,
+    ) -> Tuple[str, bytes, bytes]:
         """
         Initiate PQC key exchange with peer.
 
         Returns:
             (session_id, kem_ciphertext, signature)
         """
-        session = self.create_session(peer_id)
+        if not peer_kem_public_key:
+            raise ValueError("peer_kem_public_key is required")
 
-        # Generate KEM ciphertext for peer's public key
-        # In real implementation, we'd have peer's public key
-        # For demo, use our own key
-        kem_ciphertext, shared_secret = self.kem.encap_secret(self.our_kem_public_key)
+        session = self.create_session(peer_id)
+        session.peer_kem_public_key = peer_kem_public_key
+
+        # Generate KEM ciphertext for the peer's public key.
+        kem_ciphertext, shared_secret = self.kem.encap_secret(peer_kem_public_key)
         session.shared_secret = shared_secret
 
         # Sign the kem_ciphertext

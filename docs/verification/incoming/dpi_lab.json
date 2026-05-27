@@ -1,0 +1,59 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z/dpi_lab-gap-record.json",
+      "role": "evidence_gap_record",
+      "sha256": "02e919a40f84e19fcc07ad4f8b3dbbf615f5d794c4fa67d7b76df569fe0cf4e2"
+    }
+  ],
+  "bundle": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z",
+  "claim_boundary": {
+    "claim_verified": false,
+    "note": "Required external evidence is absent; proof gate must reject this claim."
+  },
+  "claim_id": "dpi_lab",
+  "commands": [
+    {
+      "args": [
+        "/usr/bin/python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--claim",
+        "dpi_lab"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "missing external input: authorized lab identity and scope",
+    "missing external input: baseline detected-or-blocked result",
+    "missing external input: pulse result record",
+    "missing external input: lab conclusion for DPI bypass behavior"
+  ],
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "authorized_lab": false,
+    "baseline_detected_or_blocked": false,
+    "dpi_bypass_verified": false,
+    "pulse_result_recorded": false
+  },
+  "missing_inputs": [
+    "authorized lab identity and scope",
+    "baseline detected-or-blocked result",
+    "pulse result record",
+    "lab conclusion for DPI bypass behavior"
+  ],
+  "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
+  "observed_at_utc": "2026-05-22T20:34:14.045394+00:00",
+  "required_artifact_roles": [
+    "lab_scope",
+    "baseline_result",
+    "pulse_result",
+    "lab_conclusion"
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": false,
+  "title": "Authorized DPI lab result"
+}

@@ -16,13 +16,13 @@ Reference: Rajant Kinetic Mesh "Make-Make-Make-Never-Break" principle
 """
 
 import asyncio
+import inspect
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
-import random
 import hashlib
 
 logger = logging.getLogger(__name__)
@@ -146,8 +146,13 @@ class MakeNeverBreakEngine:
     4. Instant failover when degradation detected
     """
     
-    def __init__(self, config: Optional[ResilienceConfig] = None):
+    def __init__(
+        self,
+        config: Optional[ResilienceConfig] = None,
+        probe_backend: Optional[Callable[[NetworkPath], Any]] = None,
+    ):
         self.config = config or ResilienceConfig()
+        self._probe_backend = probe_backend
         
         # Path storage
         self._paths: Dict[str, NetworkPath] = {}
@@ -183,6 +188,12 @@ class MakeNeverBreakEngine:
         """Set callbacks for path events."""
         self._on_path_change = on_path_change
         self._on_reroute = on_reroute
+
+    def set_probe_backend(
+        self, probe_backend: Optional[Callable[[NetworkPath], Any]]
+    ) -> None:
+        """Set the path probe backend used to collect live metrics."""
+        self._probe_backend = probe_backend
     
     async def start(self) -> None:
         """Start the resilience engine."""
@@ -480,7 +491,6 @@ class MakeNeverBreakEngine:
             try:
                 for path in list(self._paths.values()):
                     if path.state != PathState.FAILED:
-                        # Simulate probe (in real implementation, send actual probe)
                         await self._probe_path(path)
                 
                 await asyncio.sleep(self.config.probe_interval_seconds)
@@ -494,20 +504,78 @@ class MakeNeverBreakEngine:
     async def _probe_path(self, path: NetworkPath) -> None:
         """Probe a single path for metrics."""
         self._stats["probes_sent"] += 1
-        
-        # In real implementation, this would send actual network probes
-        # For now, we simulate based on existing metrics with some noise
-        
-        # Simulate latency measurement
-        base_latency = path.metrics.latency_ms or 50.0
-        measured_latency = base_latency + random.gauss(0, 5)
-        
+
+        if self._probe_backend is None:
+            now = datetime.utcnow()
+            path.metrics.last_probe = now
+            path.updated_at = now
+            logger.debug(
+                "No probe backend configured; keeping existing metrics for %s",
+                path.path_id,
+            )
+            return
+
+        try:
+            result = self._probe_backend(path)
+            if inspect.isawaitable(result):
+                result = await result
+            metrics = self._normalize_probe_result(path, result)
+        except Exception as e:
+            now = datetime.utcnow()
+            path.metrics.last_probe = now
+            path.metrics.last_failure = now
+            path.metrics.failure_count += 1
+            path.updated_at = now
+            if path.state == PathState.ACTIVE:
+                path.state = PathState.DEGRADED
+            logger.warning("Probe backend failed for path %s: %s", path.path_id, e)
+            return
+
         self.update_path_metrics(
             path.path_id,
-            latency_ms=max(0, measured_latency),
-            jitter_ms=path.metrics.jitter_ms,
-            packet_loss=path.metrics.packet_loss,
+            latency_ms=metrics["latency_ms"],
+            jitter_ms=metrics["jitter_ms"],
+            packet_loss=metrics["packet_loss"],
+            bandwidth_mbps=metrics["bandwidth_mbps"],
         )
+
+    def _normalize_probe_result(
+        self, path: NetworkPath, result: Any
+    ) -> Dict[str, float]:
+        """Normalize probe backend output into path metric fields."""
+        if isinstance(result, PathMetrics):
+            raw_metrics: Dict[str, Any] = {
+                "latency_ms": result.latency_ms,
+                "jitter_ms": result.jitter_ms,
+                "packet_loss": result.packet_loss,
+                "bandwidth_mbps": result.bandwidth_mbps,
+            }
+        elif isinstance(result, dict):
+            raw_metrics = result
+        else:
+            raise TypeError("probe backend must return dict or PathMetrics")
+
+        return {
+            "latency_ms": max(
+                0.0, float(raw_metrics.get("latency_ms", path.metrics.latency_ms))
+            ),
+            "jitter_ms": max(
+                0.0, float(raw_metrics.get("jitter_ms", path.metrics.jitter_ms))
+            ),
+            "packet_loss": min(
+                1.0,
+                max(
+                    0.0,
+                    float(raw_metrics.get("packet_loss", path.metrics.packet_loss)),
+                ),
+            ),
+            "bandwidth_mbps": max(
+                0.0,
+                float(
+                    raw_metrics.get("bandwidth_mbps", path.metrics.bandwidth_mbps)
+                ),
+            ),
+        }
     
     async def _maintenance_loop(self) -> None:
         """Maintain path health and create new paths as needed."""

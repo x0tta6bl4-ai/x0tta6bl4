@@ -10,9 +10,20 @@ from datetime import datetime
 import pytest
 
 from src.monitoring.opentelemetry_integration import (
-    ConsoleSpanExporter, InstrumentationHelper,
-    MemorySpanExporter, MeterProvider, ObservabilityCollector, Span, SpanKind, SpanStatus, TraceContext, TracingProvider,
-    get_observability_collector, initialize_observability)
+    ConsoleSpanExporter,
+    InstrumentationHelper,
+    MemorySpanExporter,
+    MeterProvider,
+    ObservabilityCollector,
+    Span,
+    SpanExporter,
+    SpanKind,
+    SpanStatus,
+    TraceContext,
+    TracingProvider,
+    get_observability_collector,
+    initialize_observability,
+)
 
 
 class TestSpanKind:
@@ -234,6 +245,10 @@ class TestTracingProvider:
 
 class TestConsoleSpanExporter:
     """Test ConsoleSpanExporter"""
+
+    def test_base_exporter_is_abstract(self):
+        with pytest.raises(TypeError):
+            SpanExporter()
 
     def test_export_span(self):
         exporter = ConsoleSpanExporter()

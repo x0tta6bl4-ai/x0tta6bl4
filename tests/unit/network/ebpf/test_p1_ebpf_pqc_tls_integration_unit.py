@@ -121,7 +121,10 @@ class TestPQCHandshakeToMapWriteMetricsE2E:
         # 1) KEM handshake (mocked oqs)
         with patch("src.security.ebpf_pqc_gateway.Signature") as sig_ctor:
             sig_ctor.return_value.sign.return_value = b"sig" * 20
-            session_id, ciphertext, signature = gateway.initiate_key_exchange("peer-1")
+            session_id, ciphertext, signature = gateway.initiate_key_exchange(
+                "peer-1",
+                b"peer-pub",
+            )
         assert gateway.complete_key_exchange(
             session_id, ciphertext, signature, b"peer-pub"
         )

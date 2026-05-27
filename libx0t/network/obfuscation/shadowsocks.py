@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 import socket
+import struct
 from typing import Optional
 
 from cryptography.hazmat.primitives import hashes
@@ -16,50 +17,79 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from .base import ObfuscationTransport
 
 logger = logging.getLogger(__name__)
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+MAX_FRAME_SIZE = 16 * 1024 * 1024
+
+
+def _production_mode_enabled() -> bool:
+    return os.getenv("X0TTA6BL4_PRODUCTION", "false").strip().lower() in _TRUE_VALUES
 
 
 class ShadowsocksSocket(socket.socket):
-    """Socket wrapper that applies Shadowsocks AEAD encryption."""
+    """Socket wrapper that applies framed Shadowsocks AEAD packets."""
 
     def __init__(self, sock: socket.socket, transport: "ShadowsocksTransport"):
         self._sock = sock
         self._transport = transport
-        self._salt_sent = False
-        self._salt_received = False
         self._buffer = b""
 
-        # ShadowsocksSocket acts as a wrapper, delegating all operations to self._sock.
-        # It does NOT re-initialize super() with fileno.
-        self._timeout = sock.gettimeout()
-
     def settimeout(self, value: float | None) -> None:
-        self._timeout = value
         self._sock.settimeout(value)
 
     def gettimeout(self) -> float | None:
         return self._sock.gettimeout()
 
     def send(self, data: bytes, flags=0) -> int:
-        # Track first-write state for compatibility with stream-oriented callers.
-        if not self._salt_sent:
-            self._session_salt = secrets.token_bytes(32)  # ChaCha20 salt size
-            self._salt_sent = True
+        frame = self._transport.frame(data)
+        self._sock.sendall(frame)
+        return len(data)
 
-        # Stateless packet mode: each frame is independently obfuscated.
-        encrypted_packet = self._transport.obfuscate(data)
-        return self._sock.send(encrypted_packet, flags)
+    def sendall(self, data: bytes, flags=0) -> None:
+        self.send(data, flags)
 
     def recv(self, bufsize: int, flags=0) -> bytes:
-        # Read from socket
-        data = self._sock.recv(bufsize, flags)
-        if not data:
-            return b""
+        if self._buffer:
+            out = self._buffer[:bufsize]
+            self._buffer = self._buffer[bufsize:]
+            return out
 
-        # Deobfuscate (expects Salt+Payload)
         try:
-            return self._transport.deobfuscate(data)
+            packet = self._read_frame(flags)
+            if packet is None:
+                return b""
+            plaintext = self._transport.deobfuscate(packet)
         except Exception:
             return b""  # Decryption failed
+
+        out = plaintext[:bufsize]
+        self._buffer = plaintext[bufsize:]
+        return out
+
+    def _recv_exact(self, length: int, flags=0) -> Optional[bytes]:
+        chunks = []
+        remaining = length
+        while remaining > 0:
+            chunk = self._sock.recv(remaining, flags)
+            if not chunk:
+                return None
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def _read_frame(self, flags=0) -> Optional[bytes]:
+        header = self._recv_exact(4, flags)
+        if header is None:
+            return None
+        frame_len = struct.unpack("!I", header)[0]
+        if frame_len <= 0 or frame_len > MAX_FRAME_SIZE:
+            raise ValueError("Invalid Shadowsocks frame size")
+        return self._recv_exact(frame_len, flags)
+
+    def close(self) -> None:
+        self._sock.close()
+
+    def fileno(self) -> int:
+        return self._sock.fileno()
 
     def __getattr__(self, name):
         return getattr(self._sock, name)
@@ -80,6 +110,10 @@ class ShadowsocksTransport(ObfuscationTransport):
         if password is None:
             password = os.getenv("X0TTA6BL4_SHADOWSOCKS_PASSWORD")
             if password is None:
+                if _production_mode_enabled():
+                    raise RuntimeError(
+                        "X0TTA6BL4_SHADOWSOCKS_PASSWORD is required in production"
+                    )
                 # Fallback to random password for security if not configured
                 import secrets
 
@@ -109,6 +143,11 @@ class ShadowsocksTransport(ObfuscationTransport):
 
     def wrap_socket(self, sock: socket.socket) -> socket.socket:
         return ShadowsocksSocket(sock, self)
+
+    def frame(self, data: bytes) -> bytes:
+        """Encrypt and length-prefix one plaintext message for stream sockets."""
+        packet = self.obfuscate(data)
+        return struct.pack("!I", len(packet)) + packet
 
     def obfuscate(self, data: bytes) -> bytes:
         """

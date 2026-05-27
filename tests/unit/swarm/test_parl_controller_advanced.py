@@ -98,3 +98,34 @@ class TestPARLController:
         # Check workers stopped
         for w in controller.workers.values():
             w.stop.assert_called()
+
+    async def test_report_task_complete_records_assigned_worker_action(self, controller):
+        """Experience action reflects the worker that completed the task."""
+        task_id = "task-action-success"
+        controller.pending_tasks[task_id] = {
+            "task_id": task_id,
+            "task_type": "analysis",
+            "priority": 2,
+        }
+        controller.task_futures[task_id] = asyncio.get_running_loop().create_future()
+        controller.scheduler.assign_task(task_id, "worker_001")
+
+        await controller.report_task_complete(task_id, {"ok": True}, execution_time=0.5)
+
+        assert controller.experience_buffer[-1].action == 1
+        assert controller.completed_tasks[task_id]["success"] is True
+
+    async def test_report_task_failed_records_assigned_worker_action(self, controller):
+        """Failure experience keeps the worker action index too."""
+        task_id = "task-action-failed"
+        controller.pending_tasks[task_id] = {
+            "task_id": task_id,
+            "task_type": "analysis",
+        }
+        controller.task_futures[task_id] = asyncio.get_running_loop().create_future()
+        controller.scheduler.assign_task(task_id, "worker_001")
+
+        await controller.report_task_failed(task_id, "boom")
+
+        assert controller.experience_buffer[-1].action == 1
+        assert controller.completed_tasks[task_id]["success"] is False
