@@ -211,15 +211,14 @@ def test_production_system_uses_existing_hardening_module():
     assert legacy_import not in source
 
 
-def test_pqc_runtime_fallback_order_prefers_src_libx0t():
+def test_pqc_runtime_imports_use_canonical_security_pqc_module():
     for rel_path in [
         "src/security/pqc_identity.py",
         "src/network/discovery/protocol.py",
     ]:
         source = (ROOT / rel_path).read_text(encoding="utf-8")
-        canonical = source.index("src.libx0t.security.post_quantum")
-        fallback = source.index("libx0t.security.post_quantum", canonical + 1)
-        assert canonical < fallback, rel_path
+        assert "from src.security.pqc import" in source, rel_path
+        assert "src.libx0t.security.post_quantum" not in source, rel_path
 
 
 def test_top_level_security_shims_delegate_to_canonical_modules():

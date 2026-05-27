@@ -7,8 +7,8 @@ import logging
 import asyncio
 from typing import Optional, Dict, Any
 
-from libx0t.network.mesh_router import MeshRouter
-from libx0t.network.mesh_node import MeshNode, MeshNodeConfig
+from src.libx0t.network.mesh_router import MeshRouter
+from src.libx0t.network.mesh_node import MeshNode, MeshNodeConfig
 
 logger = logging.getLogger("libx0t")
 

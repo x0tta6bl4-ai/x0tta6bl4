@@ -9,10 +9,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
-from libx0t.network.batman.node_manager import NodeManager
-from libx0t.network.discovery import MeshDiscovery, PeerInfo
-from libx0t.network.obfuscation import (TransportManager)
-from libx0t.network.transport.udp_shaped import ShapedUDPTransport
+from src.libx0t.network.batman.node_manager import NodeManager
+from src.libx0t.network.discovery import MeshDiscovery, PeerInfo
+from src.libx0t.network.obfuscation import (TransportManager)
+from src.libx0t.network.transport.udp_shaped import ShapedUDPTransport
 
 logger = logging.getLogger(__name__)
 

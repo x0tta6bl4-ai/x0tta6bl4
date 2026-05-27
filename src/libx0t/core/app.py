@@ -7,15 +7,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from libx0t.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
-from libx0t.core.mtls_middleware import MTLSMiddleware
-from libx0t.core.production_lifespan import production_lifespan
-from libx0t.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
-from libx0t.core.request_validation import (RequestValidationMiddleware,
+from src.libx0t.core.graceful_shutdown import (ShutdownMiddleware, shutdown_manager)
+from src.libx0t.core.mtls_middleware import MTLSMiddleware
+from src.libx0t.core.production_lifespan import production_lifespan
+from src.libx0t.core.rate_limit_middleware import RateLimitConfig, RateLimitMiddleware
+from src.libx0t.core.request_validation import (RequestValidationMiddleware,
                                          ValidationConfig)
-from libx0t.core.settings import settings
-from libx0t.core.status_collector import get_current_status
-from libx0t.core.tracing_middleware import TracingMiddleware
+from src.libx0t.core.settings import settings
+from src.libx0t.core.status_collector import get_current_status
+from src.libx0t.core.tracing_middleware import TracingMiddleware
 
 # Preserve legacy module path for compatibility checks.
 _LEGACY_FILE = Path(__file__).resolve().parents[2] / "libx0t" / "core" / "app.py"
@@ -39,7 +39,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 try:
-    from libx0t.core.app_minimal import BeaconRequest
+    from src.libx0t.core.app_minimal import BeaconRequest
 except ImportError:
 
     class BeaconRequest(BaseModel):  # type: ignore[no-redef]
@@ -92,7 +92,7 @@ async def get_mesh_status():
 async def get_mesh_peers():
     """Return mesh peers from Yggdrasil or local tracking."""
     try:
-        from libx0t.network.yggdrasil_client import get_yggdrasil_peers
+        from src.libx0t.network.yggdrasil_client import get_yggdrasil_peers
 
         data = get_yggdrasil_peers()
         return data.get("peers", [])
@@ -103,7 +103,7 @@ async def get_mesh_peers():
 def get_mesh_routes(*args, **kwargs):
     """Return mesh routes from Yggdrasil or empty list."""
     try:
-        from libx0t.network.yggdrasil_client import get_yggdrasil_routes
+        from src.libx0t.network.yggdrasil_client import get_yggdrasil_routes
 
         return get_yggdrasil_routes()
     except Exception:
@@ -369,7 +369,7 @@ async def health():
 @app.get("/health/live")
 async def health_live():
     """Kubernetes liveness probe - is the app running?"""
-    from libx0t.core.health_check import get_liveness
+    from src.libx0t.core.health_check import get_liveness
 
     return await get_liveness()
 
@@ -377,7 +377,7 @@ async def health_live():
 @app.get("/health/ready")
 async def health_ready():
     """Kubernetes readiness probe - is the app ready to serve traffic?"""
-    from libx0t.core.health_check import get_readiness
+    from src.libx0t.core.health_check import get_readiness
 
     result = await get_readiness()
     if result["status"] == "not_ready":
@@ -392,7 +392,7 @@ async def health_detailed():
     """Detailed health check with all dependency statuses."""
     from fastapi.responses import JSONResponse
 
-    from libx0t.core.health_check import HealthStatus, get_health_status
+    from src.libx0t.core.health_check import HealthStatus, get_health_status
 
     result = await get_health_status()
     status_code = 200 if result.status != HealthStatus.UNHEALTHY else 503
@@ -510,7 +510,7 @@ def _generate_training_data(num_nodes=10, num_edges=15, seed=42):
 async def mesh_status():
     """Get Yggdrasil mesh network status"""
     try:
-        from libx0t.network.yggdrasil_client import get_yggdrasil_status
+        from src.libx0t.network.yggdrasil_client import get_yggdrasil_status
 
         return get_yggdrasil_status()
     except Exception:
@@ -522,7 +522,7 @@ async def mesh_status():
 async def mesh_peers():
     """Get Yggdrasil mesh network peers"""
     try:
-        from libx0t.network.yggdrasil_client import get_yggdrasil_peers
+        from src.libx0t.network.yggdrasil_client import get_yggdrasil_peers
 
         return get_yggdrasil_peers()
     except Exception:
@@ -534,7 +534,7 @@ async def mesh_peers():
 async def mesh_routes():
     """Get Yggdrasil mesh network routes"""
     try:
-        from libx0t.network.yggdrasil_client import get_yggdrasil_routes
+        from src.libx0t.network.yggdrasil_client import get_yggdrasil_routes
 
         return get_yggdrasil_routes()
     except Exception:
@@ -572,7 +572,7 @@ def cast_vote(proposal_id: str = None, voter_id: str = None, vote: bool = True, 
 def handshake(peer_id: str = None, public_key: bytes = None, **kwargs):
     """Perform PQC key exchange handshake with peer."""
     try:
-        from libx0t.security.post_quantum import LibOQSBackend
+        from src.libx0t.security.post_quantum import LibOQSBackend
 
         backend = LibOQSBackend()
         if public_key:
@@ -601,7 +601,7 @@ def train_model_background(node_data=None, edge_data=None):
 if __name__ == "__main__":
     import uvicorn
 
-    from libx0t.core.settings import settings
+    from src.libx0t.core.settings import settings
 
     logger.info(f"Starting server on {settings.api_host}:{settings.api_port}...")
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)

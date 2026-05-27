@@ -32,7 +32,7 @@ except ImportError:
 
 # Obfuscation Integration
 try:
-    from libx0t.network.obfuscation import ObfuscationTransport, TransportManager
+    from src.libx0t.network.obfuscation import ObfuscationTransport, TransportManager
 
     OBFUSCATION_AVAILABLE = True
 except ImportError:
@@ -65,7 +65,7 @@ except ImportError:
 
 # Traffic Shaping Integration
 try:
-    from libx0t.network.obfuscation.traffic_shaping import (TrafficProfile,
+    from src.libx0t.network.obfuscation.traffic_shaping import (TrafficProfile,
                                                             TrafficShaper)
 
     TRAFFIC_SHAPING_AVAILABLE = True

@@ -22,7 +22,7 @@ except ImportError:
     WebSocketClientProtocol = None
     WebSocketServerProtocol = None
 
-from libx0t.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
+from src.libx0t.network.obfuscation import (ObfuscationTransport, TrafficAnalyzer,
                                         TrafficProfile, TrafficShaper,
                                         TransportManager)
 
