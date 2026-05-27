@@ -1,6 +1,10 @@
 from src.api.maas_governance import _execute_action
 from src.coordination.events import EventBus, EventType
 from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.security.policy_engine import (
+    PolicyDecision as ABACPolicyDecision,
+    PolicyEffect,
+)
 from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
 
 
@@ -130,6 +134,41 @@ def test_maas_governance_policy_denied_blocks_db_mutation(tmp_path):
         source_agent="maas-governance",
     )
     assert blocked[-1].data["stage"] == "policy_denied"
+    assert blocked[-1].data["policy_allowed"] is False
+
+
+def test_maas_governance_blocks_abac_deny_decision_shape(tmp_path):
+    class ABACDenyPolicy:
+        def evaluate(self, *_args, **_kwargs):
+            return ABACPolicyDecision(
+                effect=PolicyEffect.DENY,
+                policy_id="default-deny",
+                rule_id="deny-all",
+                reason="ABAC deny",
+                attributes_evaluated=1,
+                evaluation_time_ms=0.1,
+            )
+
+    db = FakeDB()
+    bus = EventBus(str(tmp_path))
+
+    result = _execute_action(
+        _action(),
+        db,
+        event_bus=bus,
+        policy_engine=ABACDenyPolicy(),
+        require_policy=True,
+        spiffe_id="spiffe://x0tta6bl4.mesh/workload/maas-governance",
+    )
+
+    assert result["success"] is False
+    assert result["detail"] == "ABAC deny"
+    assert result["matched_rules"] == ["deny-all"]
+    assert db.commits == 0
+    blocked = bus.get_event_history(
+        event_type=EventType.TASK_BLOCKED,
+        source_agent="maas-governance",
+    )
     assert blocked[-1].data["policy_allowed"] is False
 
 

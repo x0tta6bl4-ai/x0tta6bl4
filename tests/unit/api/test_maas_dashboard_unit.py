@@ -16,6 +16,11 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _load_dashboard():
+    key = "src.api.maas_dashboard"
+    attr = "maas_dashboard"
+    sentinel = object()
+    original_module = sys.modules.get(key, sentinel)
+    parent = sys.modules.get("src.api")
     stubs = {
         "redis": MagicMock(),
         "src.database": MagicMock(),
@@ -24,11 +29,18 @@ def _load_dashboard():
         "src.core.cache": MagicMock(),
     }
     # Avoid re-use of cached module across other test sessions
-    key = "src.api.maas_dashboard"
     if key in sys.modules:
         del sys.modules[key]
     with patch.dict("sys.modules", stubs):
         mod = importlib.import_module(key)
+    if original_module is sentinel:
+        sys.modules.pop(key, None)
+        if parent is not None and getattr(parent, attr, None) is mod:
+            delattr(parent, attr)
+    else:
+        sys.modules[key] = original_module
+        if parent is not None:
+            setattr(parent, attr, original_module)
     return mod
 
 

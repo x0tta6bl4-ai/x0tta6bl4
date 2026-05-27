@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.agents import maas_health_bot
 from src.agents.maas_health_bot import HealthBotConfig, MaasHealthBot
 
 
@@ -185,3 +186,32 @@ def test_history_returns_latest_first(tmp_path):
     assert len(history) == 2
     assert history[0]["timestamp"] == second["timestamp"]
     assert history[1]["timestamp"] == first["timestamp"]
+
+
+def test_from_env_detects_active_socks_port(monkeypatch):
+    monkeypatch.delenv("MAAS_HEALTH_BOT_SOCKS_PORT", raising=False)
+    monkeypatch.setenv("MAAS_HEALTH_BOT_SOCKS_PORT_CANDIDATES", "10808,10918")
+    monkeypatch.setattr(
+        maas_health_bot,
+        "_socks_port_reachable",
+        lambda host, port, timeout: port == 10918,
+    )
+
+    cfg = HealthBotConfig.from_env()
+
+    assert cfg.socks_host == "127.0.0.1"
+    assert cfg.socks_port == 10918
+
+
+def test_from_env_respects_explicit_socks_port(monkeypatch):
+    monkeypatch.setenv("MAAS_HEALTH_BOT_SOCKS_PORT", "10808")
+    monkeypatch.setenv("MAAS_HEALTH_BOT_SOCKS_PORT_CANDIDATES", "10918")
+    monkeypatch.setattr(
+        maas_health_bot,
+        "_socks_port_reachable",
+        lambda host, port, timeout: port == 10918,
+    )
+
+    cfg = HealthBotConfig.from_env()
+
+    assert cfg.socks_port == 10808

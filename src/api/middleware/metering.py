@@ -42,19 +42,25 @@ class MeteringMiddleware(BaseHTTPMiddleware):
             # Extract API Key from header
             api_key = request.headers.get("X-API-Key")
             if api_key:
+                quota_allowed = True
                 try:
                     # Enforce Quota BEFORE processing request
-                    if not self._check_quota(request, api_key):
-                        return Response(
-                            content=json.dumps({"detail": "Quota exceeded for your current plan. Please upgrade."}),
-                            status_code=429,
-                            media_type="application/json"
-                        )
-                    
+                    quota_allowed = self._check_quota(request, api_key)
+                except Exception as e:
+                    logger.error(f"Failed to check usage quota: {e}")
+
+                if not quota_allowed:
+                    return Response(
+                        content=json.dumps({"detail": "Quota exceeded for your current plan. Please upgrade."}),
+                        status_code=429,
+                        media_type="application/json"
+                    )
+
+                try:
                     # Update usage (asynchronous/batch)
                     self._update_usage(request, api_key)
                 except Exception as e:
-                    logger.error(f"Failed to check/update usage stats: {e}")
+                    logger.error(f"Failed to update usage stats: {e}")
 
         # Process request
         response = await call_next(request)
