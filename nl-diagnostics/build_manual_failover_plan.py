@@ -120,8 +120,8 @@ def build_payload(decision: dict[str, Any], backlog: dict[str, Any]) -> dict[str
     procedures = {
         "prepare_now": [
             "choose a new provider/region for a future secondary node",
-            "define a redacted profile template and health-check contract",
-            "prepare local-only health probe config from nl-diagnostics/manual-failover-secondary.example.json",
+            "create safe probe config with nl-diagnostics/create_secondary_exit_config.py using public endpoint metadata only",
+            "prepare local-only health probe config from nl-diagnostics/manual-failover-secondary.example.json as a fallback template",
             "document manual switch and rollback steps without storing secrets",
         ],
         "during_incident": [
@@ -157,6 +157,7 @@ def build_payload(decision: dict[str, Any], backlog: dict[str, Any]) -> dict[str
         "blocked_actions": blocked_actions,
         "local_probe": {
             "script": "nl-diagnostics/probe_secondary_exit.py",
+            "config_generator": "nl-diagnostics/create_secondary_exit_config.py",
             "example_config": "nl-diagnostics/manual-failover-secondary.example.json",
             "placeholder_status": "planning_template",
         },
@@ -230,6 +231,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "```text",
             f"script={local_probe.get('script')}",
+            f"config_generator={local_probe.get('config_generator')}",
             f"example_config={local_probe.get('example_config')}",
             f"placeholder_status={local_probe.get('placeholder_status')}",
             "mutation_allowed=false",
