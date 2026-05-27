@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_vpn_operator_card.py",
+  "generated_at": "2026-05-27T23:11:33.714144+00:00",
+  "snapshot": "nl-diagnostics/snapshots/20260527T230246Z",
+  "operator": {
+    "operator_status": "observe",
+    "plain_action": "VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.",
+    "first_branch": "app_or_external_path_check"
+  },
+  "current_state": {
+    "decision": "observe",
+    "confidence": "high",
+    "overall_status": "advisory",
+    "transport_status": "healthy",
+    "telegram_media_status": "degraded",
+    "provider_status": "recent_boot_gap",
+    "failure_domain": "external_network",
+    "blocking_history_trend": "stable_no_probe_evidence",
+    "blocking_history_snapshot_count": 4,
+    "manual_failover_status": "planning_not_active",
+    "secondary_probe_template_status": "planning_template"
+  },
+  "commands": [
+    {
+      "id": "collect_fresh_snapshot",
+      "command": "VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/collect_vpn_readonly_snapshot.sh",
+      "expected": "prints /mnt/projects/nl-diagnostics/snapshots/<timestamp>",
+      "writes": "local snapshot only; NL read-only commands only"
+    },
+    {
+      "id": "refresh_reports",
+      "command": "python3 /mnt/projects/nl-diagnostics/refresh_vpn_planning_reports.py --snapshot /mnt/projects/nl-diagnostics/snapshots/<timestamp>",
+      "expected": "vpn-planning-refresh ok=true",
+      "writes": "local reports only"
+    },
+    {
+      "id": "read_decision",
+      "command": "sed -n '1,120p' /mnt/projects/nl-diagnostics/vpn-planning-refresh-2026-05-28.md",
+      "expected": "decision, confidence, blocking trend, failover status",
+      "writes": "none"
+    }
+  ],
+  "decision_table": [
+    {
+      "when": "decision=observe",
+      "do": "observe; test affected app/media path separately",
+      "do_not": "restart x-ui, change NL, auto-switch profile, use SPB"
+    },
+    {
+      "when": "decision=local_fix",
+      "do": "fix local route/SOCKS/client first",
+      "do_not": "touch NL before local client is healthy"
+    },
+    {
+      "when": "decision=provider_ticket",
+      "do": "build provider packet from fresh snapshot",
+      "do_not": "restart services to mask provider or host symptoms"
+    },
+    {
+      "when": "decision=manual_profile_review",
+      "do": "manual profile review only after fresh evidence and explicit approval",
+      "do_not": "automatic profile switch"
+    },
+    {
+      "when": "decision=nl_readonly_review",
+      "do": "inspect NL services/listeners read-only and prepare backup/rollback",
+      "do_not": "write to NL without separate approval"
+    }
+  ],
+  "blocked_actions": [
+    "do not restart x-ui from app/blocking evidence alone",
+    "do not change NL without explicit write approval",
+    "do not auto-switch VPN profile",
+    "do not use SPB as fallback while SPB is disabled",
+    "do not store raw VPN URIs, UUIDs, private keys, or bot tokens in reports"
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

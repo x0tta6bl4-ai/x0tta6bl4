@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/refresh_vpn_planning_reports.py",
+  "generated_at": "2026-05-27T23:11:33.743556+00:00",
+  "snapshot": "nl-diagnostics/snapshots/20260527T230246Z",
+  "ok": true,
+  "summary": {
+    "decision": "observe",
+    "decision_confidence": "high",
+    "operator_status": "observe",
+    "blocking_history_trend": "stable_no_probe_evidence",
+    "blocking_history_snapshot_count": 4,
+    "backlog_decision": "observe",
+    "manual_failover_status": "planning_not_active",
+    "secondary_probe_template_status": "planning_template",
+    "nl_mutation_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "steps": [
+    {
+      "id": "blocking_history",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "decision_report",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "improvement_backlog",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "manual_failover_plan",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/manual-failover-plan-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/manual-failover-plan-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_probe_template_check",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-probe-template-2026-05-28.json"
+      ]
+    },
+    {
+      "id": "operator_card",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.md"
+      ]
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}
