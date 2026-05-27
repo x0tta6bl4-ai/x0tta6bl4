@@ -1,16 +1,23 @@
-# Expose common API submodules for easy patching/import in tests
-# Import submodules lazily and guard imports to avoid heavy startup failures
-try:
-    from . import users  # noqa: F401
-except Exception:
-    users = None
+"""Lightweight API package exports.
 
-try:
-    from . import billing  # noqa: F401
-except Exception:
-    billing = None
+Submodules are imported only when requested. This keeps unrelated routers from
+performing environment checks while another API module is being imported.
+"""
 
-try:
-    from . import vpn  # noqa: F401
-except Exception:
-    vpn = None
+from __future__ import annotations
+
+from importlib import import_module
+from types import ModuleType
+
+__all__ = ["users", "billing", "vpn"]
+
+
+def __getattr__(name: str) -> ModuleType | None:
+    if name not in __all__:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    try:
+        module = import_module(f"{__name__}.{name}")
+    except Exception:
+        module = None
+    globals()[name] = module
+    return module

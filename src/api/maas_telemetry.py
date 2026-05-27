@@ -178,6 +178,7 @@ def _derive_topology_status(
 ) -> str:
     """Normalize node status for topology consumers across mixed payload shapes."""
     raw_status = None
+    has_telemetry = isinstance(telemetry, dict) and bool(telemetry)
     if isinstance(telemetry, dict):
         value = telemetry.get("status")
         if isinstance(value, str):
@@ -188,7 +189,7 @@ def _derive_topology_status(
 
     if raw_status in {"degraded", "unhealthy"}:
         return "degraded"
-    if telemetry:
+    if has_telemetry:
         return "healthy"
     return "offline"
 

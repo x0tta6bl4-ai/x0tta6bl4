@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.routing import Match
 from unittest.mock import MagicMock, patch
 
 from types import SimpleNamespace
@@ -42,6 +43,26 @@ def _authed_client(role: str = "user", permissions: str = "") -> TestClient:
 def _clean_overrides():
     yield
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# Route precedence — fixed-prefix routers before legacy catch-all
+# ---------------------------------------------------------------------------
+
+class TestRoutePrecedence:
+
+    def test_billing_status_uses_billing_router_not_legacy_mesh_status(self):
+        path = "/api/v1/maas/billing/status"
+        for route in app.router.routes:
+            match, child_scope = route.matches(
+                {"type": "http", "method": "GET", "path": path}
+            )
+            if match == Match.FULL:
+                assert route.path == path
+                assert route.endpoint.__name__ == "get_subscription_status"
+                assert child_scope.get("path_params", {}) == {}
+                return
+        pytest.fail(f"No route matched {path}")
 
 
 # ---------------------------------------------------------------------------

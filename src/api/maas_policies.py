@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from src.database import User, ACLPolicy, get_db
@@ -27,15 +27,14 @@ class PolicyRequest(BaseModel):
     action: str = Field(default="allow", pattern="^(allow|deny)$")
 
 class PolicyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     mesh_id: str
     source_tag: str
     target_tag: str
     action: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 @router.get("/{mesh_id}/policies", response_model=List[PolicyResponse])
 def list_policies(
