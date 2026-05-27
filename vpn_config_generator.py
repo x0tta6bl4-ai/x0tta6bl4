@@ -80,10 +80,9 @@ REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT", "chrome")
 REALITY_SPIDERX = os.getenv("REALITY_SPIDERX", "/")
 
 
-# ✅ SECURITY FIX: Removed DEFAULT_UUID - always require user_uuid
-# If REALITY_PRIVATE_KEY is not set, raise error
-if not REALITY_PRIVATE_KEY:
-    logger.warning("⚠️ REALITY_PRIVATE_KEY not set in environment! Set it in .env file")
+# ✅ SECURITY FIX: Removed DEFAULT_UUID - always require user_uuid.
+# Private Reality keys are not needed for ordinary config rendering, so missing
+# key checks must not run at import time.
 
 
 def generate_uuid() -> str:
@@ -290,7 +289,7 @@ class XUIAPIClient:
 
     def _ensure_db_exists(self):
         if not os.path.exists(self.db_path):
-            logger.warning(f"⚠️ x-ui database not found at {self.db_path}. Using simulation mode.")
+            logger.info("x-ui database not found at %s. Using simulation mode.", self.db_path)
             self.simulated = True
         else:
             self.simulated = False
@@ -300,6 +299,8 @@ class XUIAPIClient:
         Generates new X25519 keys for Reality and updates the inbound config in x-ui.db.
         This is a critical security operation for self-healing.
         """
+        if not REALITY_PRIVATE_KEY and os.getenv("X0TTA6BL4_PRODUCTION", "false").lower() == "true":
+            raise RuntimeError("REALITY_PRIVATE_KEY must be set for production Reality rotation")
         if self.simulated:
             logger.info("Simulating Reality key rotation...")
             return {"public_key": "simulated_pub", "private_key": "simulated_priv"}
