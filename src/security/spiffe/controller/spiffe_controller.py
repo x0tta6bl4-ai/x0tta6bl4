@@ -14,7 +14,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
 
 import httpx
 
@@ -23,7 +23,9 @@ from ..certificate_validator import CertificateValidator
 from ..mtls.tls_context import MTLSContext, TLSRole, build_mtls_context
 from ..server.client import SPIREServerClient, SPIREServerEntry
 from ..workload import X509SVID, WorkloadAPIClient
-from src.security.pqc_ca import PQCCertificateAuthority, PQCIdentityManager
+
+if TYPE_CHECKING:
+    from src.security.pqc_ca import PQCCertificateAuthority, PQCIdentityManager
 
 try:
     from ..optimizations import (MultiRegionConfig, SPIREOptimizations,
@@ -78,9 +80,9 @@ class SPIFFEController:
         self.server_address = server_address
         self.node_id = node_id
 
-        # Post-Quantum Identity Management
-        self.pqc_ca = PQCCertificateAuthority() # In prod, this points to MaaS API
-        self.pqc_manager = PQCIdentityManager(node_id)
+        # Post-Quantum identity is initialized only when rotation is needed.
+        self.pqc_ca: Optional["PQCCertificateAuthority"] = None
+        self.pqc_manager: Optional["PQCIdentityManager"] = None
 
         self.agent = (
             SPIREAgentManager(config_path=agent_config)
@@ -129,6 +131,16 @@ class SPIFFEController:
         self.cert_validator = CertificateValidator(trust_domain=trust_domain)
 
         logger.info(f"SPIFFE Controller initialized for trust domain: {trust_domain}")
+
+    def _ensure_pqc_identity(
+        self,
+    ) -> tuple["PQCCertificateAuthority", "PQCIdentityManager"]:
+        if self.pqc_ca is None or self.pqc_manager is None:
+            from src.security.pqc_ca import PQCCertificateAuthority, PQCIdentityManager
+
+            self.pqc_ca = PQCCertificateAuthority()
+            self.pqc_manager = PQCIdentityManager(self.node_id)
+        return self.pqc_ca, self.pqc_manager
 
     def initialize(
         self,
@@ -235,7 +247,8 @@ class SPIFFEController:
                 logger.info(f"SVID renewed: {old_id} -> {new_identity.spiffe_id}")
             
             # Also rotate PQC identity
-            self.pqc_manager.rotate_identity(self.pqc_ca)
+            pqc_ca, pqc_manager = self._ensure_pqc_identity()
+            pqc_manager.rotate_identity(pqc_ca)
             
         except Exception as e:
             logger.error(f"Failed to renew identity: {e}")

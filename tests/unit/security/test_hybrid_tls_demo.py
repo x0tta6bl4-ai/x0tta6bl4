@@ -3,7 +3,7 @@
 
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -23,37 +23,39 @@ from src.security.pqc.hybrid_tls_demo import generate_report
 
 
 @pytest.fixture
-def mock_oqs_key_encapsulation():
-    """Mock oqs.KeyEncapsulation for tests."""
-    with patch("src.security.pqc.pqc_adapter.oqs.KeyEncapsulation") as mock_kem:
-        mock_kem_instance = MagicMock()
-        mock_kem_instance.generate_keypair.return_value = (
-            b"mock_public_key",
-            b"mock_private_key",
-        )
-        shared_secret = b"mock_shared_secret"
-        mock_kem_instance.encap_secret.return_value = (
-            b"mock_ciphertext",
-            shared_secret,
-        )
-        mock_kem_instance.decap_secret.return_value = shared_secret
-        mock_kem.return_value.__enter__.return_value = mock_kem_instance
-        yield mock_kem_instance
+def mock_oqs_key_encapsulation(monkeypatch):
+    """Mock the PQC adapter boundary used by HybridTLSContext."""
+
+    class _FakePQCAdapter:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def kem_generate_keypair(self):
+            return b"mock_kem_public_key", b"mock_kem_private_key"
+
+        def sig_generate_keypair(self):
+            return b"mock_sig_public_key", b"mock_sig_private_key"
+
+        def kem_encapsulate(self, _public_key):
+            return b"mock_ciphertext", b"mock_shared_secret"
+
+        def kem_decapsulate(self, _private_key, _ciphertext):
+            return b"mock_shared_secret"
+
+        def sig_sign(self, _message, _private_key):
+            return b"mock_signature"
+
+        def sig_verify(self, _message, _signature, _public_key):
+            return True
+
+    monkeypatch.setattr("src.security.pqc.hybrid_tls.PQCAdapter", _FakePQCAdapter)
+    yield _FakePQCAdapter
 
 
 @pytest.fixture
 def mock_oqs_signature():
-    """Mock oqs.Signature for tests."""
-    with patch("src.security.pqc.pqc_adapter.oqs.Signature") as mock_sig:
-        mock_sig_instance = MagicMock()
-        mock_sig_instance.generate_keypair.return_value = (
-            b"mock_public_key",
-            b"mock_private_key",
-        )
-        mock_sig_instance.sign.return_value = b"mock_signature"
-        mock_sig_instance.verify.return_value = True
-        mock_sig.return_value.__enter__.return_value = mock_sig_instance
-        yield mock_sig_instance
+    """Kept for existing test signatures; PQC is mocked at adapter boundary."""
+    yield MagicMock()
 
 
 @pytest.mark.skipif(

@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.security.post_quantum import (
+from src.security.pqc import (
     LIBOQS_AVAILABLE,
     HybridPQEncryption,
     LibOQSBackend,
@@ -97,7 +97,7 @@ class TestDataclasses:
 
 class TestLibOQSBackend:
     def test_init_raises_when_liboqs_unavailable(self):
-        with patch("src.security.post_quantum.LIBOQS_AVAILABLE", False):
+        with patch("src.libx0t.security.post_quantum.LIBOQS_AVAILABLE", False):
             with pytest.raises(ImportError, match="liboqs-python not installed"):
                 LibOQSBackend()
 
@@ -145,7 +145,7 @@ class TestLibOQSBackend:
         from unittest.mock import MagicMock
         mock_kem = MagicMock()
         mock_kem.generate_keypair.return_value = (b"\x01" * 32, b"\x02" * 32)
-        with patch("src.security.post_quantum.KeyEncapsulation", return_value=mock_kem):
+        with patch("src.libx0t.security.post_quantum.KeyEncapsulation", return_value=mock_kem):
             kp = backend.generate_kem_keypair()
         assert kp.algorithm == PQAlgorithm.ML_KEM_768
 
@@ -228,7 +228,7 @@ class TestLibOQSBackend:
         mock_sig = MagicMock()
         mock_sig.generate_keypair.return_value = b"\x01" * 32
         mock_sig.export_secret_key.return_value = b"\x02" * 32
-        with patch("src.security.post_quantum.Signature", return_value=mock_sig):
+        with patch("src.libx0t.security.post_quantum.Signature", return_value=mock_sig):
             kp = backend.generate_signature_keypair()
         assert kp.algorithm == PQAlgorithm.ML_DSA_65
 
@@ -270,7 +270,7 @@ class TestLibOQSBackend:
 
 class TestHybridPQEncryption:
     def test_init_raises_when_liboqs_unavailable(self):
-        with patch("src.security.post_quantum.LIBOQS_AVAILABLE", False):
+        with patch("src.libx0t.security.post_quantum.LIBOQS_AVAILABLE", False):
             with pytest.raises(ImportError, match="liboqs-python required"):
                 HybridPQEncryption()
 
@@ -413,7 +413,7 @@ class TestHybridPQEncryption:
 
 class TestPQMeshSecurityLibOQS:
     def test_init_raises_when_liboqs_unavailable(self):
-        with patch("src.security.post_quantum.LIBOQS_AVAILABLE", False):
+        with patch("src.libx0t.security.post_quantum.LIBOQS_AVAILABLE", False):
             with pytest.raises(RuntimeError, match="liboqs not available"):
                 PQMeshSecurityLibOQS("node-1")
 

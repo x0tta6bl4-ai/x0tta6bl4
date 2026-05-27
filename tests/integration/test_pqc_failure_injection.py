@@ -8,7 +8,7 @@ import pytest
 from tests.conftest import latency_threshold
 
 try:
-    from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
+    from src.security.pqc import PQMeshSecurityLibOQS
 
     PQC_AVAILABLE = True
 except ImportError:

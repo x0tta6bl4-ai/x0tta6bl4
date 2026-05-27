@@ -8,7 +8,7 @@ Tests PQC integration with MAPE-K self-healing loop.
 import pytest
 
 try:
-    from src.security.post_quantum_liboqs import PQMeshSecurityLibOQS
+    from src.security.pqc import PQMeshSecurityLibOQS
     from src.self_healing.mape_k import MAPEK
 
     PQC_AVAILABLE = True

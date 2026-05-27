@@ -71,6 +71,27 @@ class TestZeroTrustPolicyEngine:
         )
         assert decision.allowed
 
+    def test_audit_rule_allows_and_logs(self):
+        """Audit is an allow-with-log action, not a deny."""
+        engine = PolicyEngine(default_action=PolicyAction.DENY)
+        rule = PolicyRule(
+            rule_id="audit-user-1",
+            name="Audit user-1 access",
+            action=PolicyAction.AUDIT,
+            spiffe_id_pattern="spiffe://test/workload/user-1",
+            allowed_resources=["resource-1"],
+            priority=200,
+        )
+        engine.add_rule(rule)
+
+        decision = engine.evaluate(
+            peer_spiffe_id="spiffe://test/workload/user-1", resource="resource-1"
+        )
+
+        assert decision.allowed is True
+        assert decision.audit_log is True
+        assert engine.get_audit_log(limit=1)[-1]["matched_rules"] == ["audit-user-1"]
+
     def test_explicit_deny_rule(self):
         """Test explicit deny rule (overrides allow)"""
         engine = PolicyEngine(default_action=PolicyAction.DENY)

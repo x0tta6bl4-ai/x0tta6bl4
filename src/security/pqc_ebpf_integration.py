@@ -73,6 +73,18 @@ class PQCeBPFAccelerator:
         """Check if eBPF acceleration is available."""
         return self.enable_ebpf and self.program is not None
 
+    def create_key_lookup_map(self, map_name: str = "pqc_keys") -> Optional[str]:
+        """Return an available eBPF key map name, or None when eBPF is unavailable."""
+        if not self.is_available() or not getattr(self.program, "loaded", False):
+            return None
+
+        try:
+            self.program.bpf[map_name]
+            return map_name
+        except Exception as e:
+            logger.warning(f"⚠️ eBPF key lookup map unavailable: {e}")
+            return None
+
     def cache_session_key_ebpf(
         self, peer_id: str, public_key_hash: bytes, session_key: bytes
     ) -> bool:
