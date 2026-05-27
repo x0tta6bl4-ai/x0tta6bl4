@@ -16,6 +16,8 @@ improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 operator card: nl-diagnostics/vpn-operator-card-2026-05-28.md
+NL transport probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
+readiness audit: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 boot gap report: nl-diagnostics/boot-gap-2026-05-27-report.md
 P1 source promotion update: nl-diagnostics/nl-p1-source-promotion-update-2026-05-27.md
 ```
@@ -35,6 +37,9 @@ current decision: observe, high confidence
 operator status: observe
 blocking probe history: stable_no_probe_evidence across 4 snapshots
 planning refresh: ok=true
+outside-in NL transport probe: healthy, 3/3 ports ok
+readiness audit: ready_local_with_future_blocks, missing=0
+blocked future items: GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 NL writes: 0
 ```
 
@@ -153,6 +158,7 @@ external uptime probe for 89.125.1.107:443/2083/39829
 provider evidence packet generated automatically from fresh snapshots
 manual failover requirements are documented for a new secondary node, not SPB
 local-only secondary health probe template: nl-diagnostics/probe_secondary_exit.py
+local-only outside-in NL transport probe: nl-diagnostics/probe_nl_transport_ports.py
 safe secondary config generator: nl-diagnostics/create_secondary_exit_config.py
 example secondary probe config: nl-diagnostics/manual-failover-secondary.example.json
 alert when boot gap appears after an unclean shutdown
@@ -204,4 +210,6 @@ do_not_deploy_to_nl: true
 next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
 refresh_command: python3 nl-diagnostics/refresh_vpn_planning_reports.py --snapshot nl-diagnostics/snapshots/<timestamp>
 operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
+nl_transport_probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
+readiness_audit: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 ```

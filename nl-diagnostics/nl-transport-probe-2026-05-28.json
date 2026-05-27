@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/probe_nl_transport_ports.py",
+  "generated_at": "2026-05-27T23:25:20.949912+00:00",
+  "host": "89.125.1.107",
+  "ports": [
+    443,
+    2083,
+    39829
+  ],
+  "status": "healthy",
+  "ok_count": 3,
+  "port_count": 3,
+  "results": [
+    {
+      "host": "89.125.1.107",
+      "port": 443,
+      "ok": true,
+      "latency_ms": 67.114,
+      "error": ""
+    },
+    {
+      "host": "89.125.1.107",
+      "port": 2083,
+      "ok": true,
+      "latency_ms": 65.562,
+      "error": ""
+    },
+    {
+      "host": "89.125.1.107",
+      "port": 39829,
+      "ok": true,
+      "latency_ms": 67.628,
+      "error": ""
+    }
+  ],
+  "failure_domain_hint": "none",
+  "recommended_action": "observe",
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

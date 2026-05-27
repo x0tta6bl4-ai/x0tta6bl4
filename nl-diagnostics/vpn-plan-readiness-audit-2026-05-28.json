@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
+  "generated_at": "2026-05-27T23:25:21.809556+00:00",
+  "overall_status": "ready_local_with_future_blocks",
+  "ok": true,
+  "summary": {
+    "ready_local": 10,
+    "blocked_future_approval": 2,
+    "watch": 0,
+    "missing": 0,
+    "missing_items": [],
+    "watch_items": [],
+    "blocked_items": [
+      "GATE-01",
+      "FAILOVER-02"
+    ],
+    "operator_status": "observe",
+    "decision": "observe",
+    "transport_probe_status": "healthy",
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "items": [
+    {
+      "id": "EVIDENCE-01",
+      "title": "Latest read-only snapshot is the shared evidence anchor",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
+        "refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
+        "latest_snapshot=20260527T230246Z",
+        "snapshot_exists=true"
+      ],
+      "next_step": "collect a fresh read-only snapshot during the next visible outage"
+    },
+    {
+      "id": "DECISION-01",
+      "title": "Current decision blocks mutation and automatic profile changes",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision=observe",
+        "transport_status=healthy",
+        "failure_domain=external_network",
+        "safe_flags=true"
+      ],
+      "next_step": "keep decision=observe unless a fresh snapshot changes the failure domain"
+    },
+    {
+      "id": "EVIDENCE-02",
+      "title": "Blocking/app probe history is available as trend evidence",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "snapshot_count=4",
+        "trend=stable_no_probe_evidence",
+        "latest_probe_snapshot=20260527T230246Z",
+        "latest_targets_ok=8/8"
+      ],
+      "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
+    },
+    {
+      "id": "REFRESH-01",
+      "title": "One refresh command rebuilds the local planning reports",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "refresh_ok=true",
+        "operator_status=observe",
+        "manual_failover_status=planning_not_active",
+        "safe_flags=true"
+      ],
+      "next_step": "run refresh after every new snapshot before deciding on action"
+    },
+    {
+      "id": "OPERATOR-01",
+      "title": "Short incident card exists for the next outage",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "operator_status=observe",
+        "plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.",
+        "blocking_history_trend=stable_no_probe_evidence",
+        "safe_flags=true"
+      ],
+      "next_step": "start incidents from the operator card, then collect fresh evidence"
+    },
+    {
+      "id": "TRANSPORT-01",
+      "title": "Outside-in NL TCP port probe is available",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "transport_probe_status=healthy",
+        "transport_probe_ok_count=3/3",
+        "failure_domain_hint=none",
+        "safe_flags=true"
+      ],
+      "next_step": "if any public NL port fails, collect a fresh read-only snapshot and compare listeners"
+    },
+    {
+      "id": "SOURCE-01",
+      "title": "NL source reconciliation is locally closed and deploy-blocked",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "nl_write_allowed=false",
+        "deployable_to_nl=false",
+        "missing_local_source=0",
+        "local_name_drift=0",
+        "accepted_local_delta=5"
+      ],
+      "next_step": "keep services/nl-server as reviewed local source until a separate NL write approval exists"
+    },
+    {
+      "id": "PREFLIGHT-01",
+      "title": "Preflight validator passes while deploy remains blocked",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "preflight_ok=true",
+        "deploy_status=local_ready_but_deploy_blocked",
+        "nl_write_allowed=false",
+        "check_count=70"
+      ],
+      "next_step": "run preflight again before any maintenance window"
+    },
+    {
+      "id": "GATE-01",
+      "title": "Future NL write is blocked until the exact approval phrase",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "approval_phrase_present=true",
+        "required_phrase=approve NL write for health shell split only",
+        "nl_write_allowed=false",
+        "deploy_status=local_ready_but_deploy_blocked"
+      ],
+      "next_step": "do not stage files to NL before the exact approval phrase is given"
+    },
+    {
+      "id": "SPB-01",
+      "title": "SPB remains excluded from recovery",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "decision_spb_fallback_allowed=false",
+        "refresh_spb_fallback_allowed=false",
+        "manual_failover_spb_fallback_allowed=false",
+        "secondary_spb_fallback_allowed=false",
+        "manifest_spb_enabled=false",
+        "plain_true_marker_absent=true"
+      ],
+      "next_step": "keep SPB disabled until it has its own explicit reactivation plan"
+    },
+    {
+      "id": "FAILOVER-01",
+      "title": "Manual failover is documented but inactive",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "manual_failover_status=planning_not_active",
+        "spb_fallback_allowed=false",
+        "automatic_failover_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "keep failover manual-only and require fresh evidence before any client switch"
+    },
+    {
+      "id": "FAILOVER-02",
+      "title": "Secondary exit probe is only a safe template until a new node exists",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "secondary_probe_status=planning_template",
+        "candidate_configured=false",
+        "spb_fallback_allowed=false",
+        "automatic_failover_allowed=false"
+      ],
+      "next_step": "choose a new non-SPB provider/region before any emergency profile test"
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}
