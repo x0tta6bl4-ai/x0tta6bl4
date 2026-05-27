@@ -1,6 +1,6 @@
 # VPN Operator Card
 
-generated_at: `2026-05-27T23:40:37.857217+00:00`
+generated_at: `2026-05-27T23:53:10.079981+00:00`
 snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 
 ## Status
@@ -25,25 +25,15 @@ automatic_failover_allowed=false
 
 ## First Commands
 
-### collect_fresh_snapshot
+### incident_readonly_refresh
 
 ```bash
-VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/collect_vpn_readonly_snapshot.sh
+VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 ```
 
-Expected: prints /mnt/projects/nl-diagnostics/snapshots/<timestamp>
+Expected: prints snapshot path and refresh report path; vpn-planning-refresh ok=true
 
-Writes: local snapshot only; NL read-only commands only
-
-### refresh_reports
-
-```bash
-python3 /mnt/projects/nl-diagnostics/refresh_vpn_planning_reports.py --snapshot /mnt/projects/nl-diagnostics/snapshots/<timestamp>
-```
-
-Expected: vpn-planning-refresh ok=true
-
-Writes: local reports only
+Writes: local snapshot and local reports only; NL read-only commands only
 
 ### read_decision
 

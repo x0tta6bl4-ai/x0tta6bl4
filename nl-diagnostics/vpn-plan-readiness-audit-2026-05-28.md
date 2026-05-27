@@ -1,13 +1,13 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-27T23:40:38.252149+00:00`
+generated_at: `2026-05-27T23:53:10.506939+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=11
+ready_local=12
 blocked_future_approval=2
 watch=1
 missing=0
@@ -17,6 +17,7 @@ boot_gap_watch_status=watch
 provider_packet_type=provider_watch
 provider_packet_stale=False
 transport_probe_status=healthy
+transport_uptime_status=stable_healthy
 nl_write_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -34,6 +35,7 @@ automatic_failover_allowed=false
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
+| `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SOURCE-01` | `ready_local` | NL source reconciliation is locally closed and deploy-blocked | keep services/nl-server as reviewed local source until a separate NL write approval exists |
 | `PREFLIGHT-01` | `ready_local` | Preflight validator passes while deploy remains blocked | run preflight again before any maintenance window |
 | `GATE-01` | `blocked_future_approval` | Future NL write is blocked until the exact approval phrase | do not stage files to NL before the exact approval phrase is given |
@@ -49,6 +51,8 @@ automatic_failover_allowed=false
 - refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z
 - latest_snapshot=20260527T230246Z
 - snapshot_exists=true
+- snapshot_age_seconds=3024
+- fresh=true
 
 ### DECISION-01
 
@@ -100,6 +104,14 @@ automatic_failover_allowed=false
 - transport_probe_status=healthy
 - transport_probe_ok_count=3/3
 - failure_domain_hint=none
+- safe_flags=true
+
+### UPTIME-01
+
+- uptime_status=stable_healthy
+- sample_count=1
+- latest_status=healthy
+- consecutive_non_healthy=0
 - safe_flags=true
 
 ### SOURCE-01

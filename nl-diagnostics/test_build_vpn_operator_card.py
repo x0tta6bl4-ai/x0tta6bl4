@@ -48,7 +48,7 @@ class VpnOperatorCardTests(unittest.TestCase):
         self.assertEqual(payload["operator"]["operator_status"], "observe")
         self.assertFalse(payload["nl_mutation_allowed"])
         self.assertFalse(payload["spb_fallback_allowed"])
-        self.assertIn("collect_vpn_readonly_snapshot.sh", payload["commands"][0]["command"])
+        self.assertIn("run_vpn_incident_readonly_refresh.sh", payload["commands"][0]["command"])
         self.assertIn("do not restart x-ui", payload["blocked_actions"][0])
 
     def test_provider_ticket_branch_prioritizes_provider_packet(self):
