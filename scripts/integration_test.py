@@ -37,13 +37,12 @@ def import_components():
 
     # A. Post-Quantum Crypto
     try:
-        from src.security.post_quantum import (HybridEncryption,
-                                               PQMeshSecurity,
-                                               QuantumSafeKeyExchange)
+        from src.security.pqc import (HybridPQEncryption,
+                                      PQMeshSecurityLibOQS)
 
         components["pq_crypto"] = {
-            "PQMeshSecurity": PQMeshSecurity,
-            "HybridEncryption": HybridEncryption,
+            "PQMeshSecurity": PQMeshSecurityLibOQS,
+            "HybridEncryption": HybridPQEncryption,
             "status": "✅ Loaded",
         }
     except ImportError as e:
@@ -209,9 +208,9 @@ class IntegrationTestSuite:
         test_message = b"Emergency: Node 5 failing, reroute traffic!"
 
         # Alice encrypts for Bob (sync version for testing)
-        from src.security.post_quantum import HybridEncryption
+        from src.security.pqc import HybridPQEncryption
 
-        hybrid = HybridEncryption()
+        hybrid = HybridPQEncryption()
 
         secret, ciphertexts = hybrid.hybrid_encapsulate(
             bytes.fromhex(bob_pub["pq_public_key"]),
