@@ -1,6 +1,6 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-27T23:25:21.870584+00:00`
+generated_at: `2026-05-27T23:40:38.271893+00:00`
 snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 ok: `true`
 
@@ -10,6 +10,10 @@ ok: `true`
 decision=observe
 decision_confidence=high
 operator_status=observe
+boot_gap_watch_status=watch
+boot_gap_seconds=21907
+provider_packet_type=provider_watch
+provider_packet_stale=False
 blocking_history_trend=stable_no_probe_evidence
 blocking_history_snapshot_count=4
 manual_failover_status=planning_not_active
@@ -33,6 +37,20 @@ exit_code=0
 ```
 
 ### decision_report
+
+```text
+ok=true
+exit_code=0
+```
+
+### boot_gap_watch
+
+```text
+ok=true
+exit_code=0
+```
+
+### provider_packet
 
 ```text
 ok=true

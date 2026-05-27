@@ -12,6 +12,8 @@ server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
 decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
+boot-gap watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
+provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
 improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
@@ -36,9 +38,11 @@ NL provider_status: recent_boot_gap
 current decision: observe, high confidence
 operator status: observe
 blocking probe history: stable_no_probe_evidence across 4 snapshots
+boot-gap watch: watch, boot_gap_seconds=21907
+provider packet: provider_watch, snapshot_stale=false
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-readiness audit: ready_local_with_future_blocks, missing=0
+readiness audit: ready_local_with_future_blocks, watch=1, missing=0
 blocked future items: GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 NL writes: 0
 ```
@@ -156,6 +160,7 @@ Needed:
 ```text
 external uptime probe for 89.125.1.107:443/2083/39829
 provider evidence packet generated automatically from fresh snapshots
+boot-gap watch generated automatically from fresh snapshots
 manual failover requirements are documented for a new secondary node, not SPB
 local-only secondary health probe template: nl-diagnostics/probe_secondary_exit.py
 local-only outside-in NL transport probe: nl-diagnostics/probe_nl_transport_ports.py
@@ -210,6 +215,8 @@ do_not_deploy_to_nl: true
 next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
 refresh_command: python3 nl-diagnostics/refresh_vpn_planning_reports.py --snapshot nl-diagnostics/snapshots/<timestamp>
 operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
+boot_gap_watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
+provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
 nl_transport_probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
 readiness_audit: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 ```
