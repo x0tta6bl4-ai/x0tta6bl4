@@ -1,0 +1,148 @@
+{
+  "artifacts": {
+    "chain_bundle_json": "docs/verification/ghost-pulse-artifact-chain-20260525T044547Z/chain.json",
+    "chain_bundle_md": "docs/verification/ghost-pulse-artifact-chain-20260525T044547Z/summary.md",
+    "chain_latest_json": "docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json",
+    "chain_latest_md": "docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.md",
+    "external_evidence_intake": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
+    "external_evidence_intake_sha256": "4b9bdd7b7ab92d97271b9357e1147b58dbd753b2e3eb7b055e0eb930ff1d3e13",
+    "external_evidence_inventory": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+    "external_evidence_inventory_sha256": "f4256ee4492c5825d44804aa89413525e6c8e26ca8789799920812ba360d1092",
+    "local_evidence": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+    "local_evidence_sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+    "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
+    "profile_matrix_sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
+    "replacement_candidates": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+    "replacement_candidates_sha256": "f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb",
+    "suite_bundle": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/summary.md",
+    "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+    "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md",
+    "verification_suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+    "verification_suite_sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599"
+  },
+  "bundle": "docs/verification/ghost-pulse-artifact-chain-20260525T044547Z",
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "kernel_read_only_visible": false,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "claim_boundary_note": "Artifact-chain verification is read-only consistency evidence. It does not prove DPI evasion, whitelist behavior, kernel attach, or production readiness.",
+  "decision": "GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED",
+  "failures": [],
+  "gates": {
+    "external_evidence_intake_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+          "--report",
+          "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse external evidence intake report is current\nreport=docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json\ndecision=EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED\n"
+      },
+      "status": "PASS"
+    },
+    "external_evidence_inventory_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+          "--report",
+          "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+          "--skip-proof-consistency"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse external evidence inventory report is current\nreport=docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json\ninventory_status=EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS\n"
+      },
+      "status": "PASS"
+    },
+    "local_evidence_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_local_evidence.py",
+          "--evidence",
+          "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: local x0tta6bl4_pulse evidence is bounded and internally consistent\nevidence=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json\n"
+      },
+      "status": "PASS"
+    },
+    "profile_matrix_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_profile_matrix.py",
+          "--evidence",
+          "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: local x0tta6bl4_pulse profile matrix is bounded and internally consistent\nevidence=docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json\n"
+      },
+      "status": "PASS"
+    },
+    "replacement_candidates_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+          "--report",
+          "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse replacement candidate report is current\nreport=docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json\ndecision=REPLACEMENT_CANDIDATES_NOT_READY\n"
+      },
+      "status": "PASS"
+    },
+    "seed_replay_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_rng_replay.py",
+          "--local-evidence",
+          "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+          "--profile-matrix",
+          "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse seed replay digests match evidence artifacts\nchecked=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json, docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json\n"
+      },
+      "status": "PASS"
+    },
+    "suite_self_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_verification_suite.py",
+          "--suite",
+          "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse verification suite report is internally consistent\nsuite=docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json\n"
+      },
+      "status": "PASS"
+    }
+  },
+  "schema": "x0tta6bl4.ghost_pulse.artifact_chain.v1",
+  "timestamp_utc": "2026-05-25T04:45:47.966320+00:00"
+}

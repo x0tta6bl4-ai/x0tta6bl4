@@ -53,9 +53,21 @@ CRITERIA = {
     "BUSINESS": "Competitor moves, new regulations (NIST), monetization opportunities, SDK launches."
 }
 
-# Sources (Placeholders for real APIs)
+# Source templates for deterministic deep-search handoff.
 SOURCES = [
-    "https://arxiv.org/list/cs.CR/recent",  # Cryptography and Security
-    "https://hnrss.org/frontpage",          # Hacker News
-    "https://www.nist.gov/news-events/news" # NIST news
+    {
+        "name": "arxiv_cs_cr",
+        "url_template": "https://arxiv.org/search/cs?query={query}&searchtype=all&source=header",
+        "summary": "Cryptography, security, and AI research papers.",
+    },
+    {
+        "name": "hacker_news",
+        "url_template": "https://hn.algolia.com/?q={query}",
+        "summary": "Engineering launch and discussion signal.",
+    },
+    {
+        "name": "nist_news",
+        "url_template": "https://www.nist.gov/search?search={query}",
+        "summary": "Standards, PQC, and compliance updates.",
+    },
 ]

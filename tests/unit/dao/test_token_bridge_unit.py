@@ -101,6 +101,11 @@ class TestBridgeConfig:
         assert cfg.confirmations == 2
         assert cfg.gas_limit == 200000
         assert cfg.max_gas_price_gwei == 50.0
+        assert cfg.allow_simulated_chain_writes is False
+
+    def test_simulated_chain_writes_must_be_explicit(self):
+        cfg = BridgeConfig(allow_simulated_chain_writes=True)
+        assert cfg.allow_simulated_chain_writes is True
 
 
 # ─── TokenBridge init ────────────────────────────────────────────
@@ -120,7 +125,15 @@ class TestTokenBridgeInit:
         assert bridge._initialized is False
 
     def test_event_handlers_initialized(self, bridge):
-        expected = {"Staked", "Unstaked", "Transfer", "RelayPaid", "EpochRewardsDistributed"}
+        expected = {
+            "Staked",
+            "Unstaked",
+            "Transfer",
+            "RelayPaid",
+            "EpochRewardsDistributed",
+            "BridgeDeposit",
+            "BridgeRelease",
+        }
         assert set(bridge._event_handlers.keys()) == expected
         for handlers in bridge._event_handlers.values():
             assert handlers == []
@@ -441,12 +454,25 @@ class TestPollEvents:
 
         await bridge._poll_events()
 
-        assert bridge._process_event_type.call_count == 4  # 4 event types
-        assert bridge._last_block == 15
+        assert bridge._process_event_type.call_count == len(TokenBridge.POLLED_EVENT_TYPES)
+        assert bridge._last_block == 13
 
         # Verify event types processed
         called_types = [c.args[0] for c in bridge._process_event_type.call_args_list]
-        assert called_types == ["Staked", "Unstaked", "Transfer", "RelayPaid"]
+        assert called_types == list(TokenBridge.POLLED_EVENT_TYPES)
+        assert all(c.args[1:] == (11, 13) for c in bridge._process_event_type.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_poll_waits_for_required_confirmations(self, bridge):
+        bridge.web3 = MagicMock()
+        bridge.web3.eth.block_number = 11
+        bridge._last_block = 10
+        bridge._process_event_type = AsyncMock()
+
+        await bridge._poll_events()
+
+        bridge._process_event_type.assert_not_called()
+        assert bridge._last_block == 10
 
 
 # ─── _process_event_type ─────────────────────────────────────────
@@ -564,6 +590,74 @@ class TestHandleEvent:
         await bridge._handle_event("RelayPaid", event)
 
         bridge._sync_relay_payment.assert_called_once_with("0xP", "0xR", 100000000000000000)
+
+    @pytest.mark.asyncio
+    async def test_bridge_deposit_event_mints_via_deposit_handler(self, bridge, mock_mesh_token):
+        bridge.register_address("node-bridge", "0xabc123")
+        event = self._make_event(
+            {
+                "depositId": "0xdepositid",
+                "depositor": "0xDepositor",
+                "recipient": "0xabc123",
+                "amount": int(7e18),
+                "nodeIdHash": "0xnodehash",
+                "meshNodeId": "node-bridge",
+            },
+            block=250,
+            tx_hash_bytes="0xbridgedeposit",
+        )
+
+        with patch.object(bridge, "_init_web3", return_value=False):
+            await bridge._handle_event("BridgeDeposit", event)
+
+        mock_mesh_token.mint.assert_called_once_with("node-bridge", 7.0, "bridge_deposit_sepolia")
+        assert len(bridge._tx_history) == 1
+        tx = bridge._tx_history[0]
+        assert tx.event_type == "BridgeDeposit"
+        assert tx.tx_hash == "0xbridgedeposit"
+        assert tx.block_number == 250
+        assert tx.status == "confirmed"
+
+    @pytest.mark.asyncio
+    async def test_bridge_deposit_event_calls_registered_handler(self, bridge):
+        handler = MagicMock()
+        bridge.on_event("BridgeDeposit", handler)
+        bridge.mint_from_bridge_event = AsyncMock(return_value=None)
+        event = self._make_event(
+            {"recipient": "0xabc123", "amount": int(1e18)},
+            tx_hash_bytes="0xhandlerdeposit",
+        )
+
+        await bridge._handle_event("BridgeDeposit", event)
+
+        bridge.mint_from_bridge_event.assert_called_once_with(
+            tx_hash="0xhandlerdeposit",
+            recipient_address="0xabc123",
+            amount_wei=int(1e18),
+            block_number=100,
+        )
+        handler.assert_called_once_with(event)
+        assert bridge._tx_history == []
+
+    @pytest.mark.asyncio
+    async def test_bridge_release_event_records_recipient(self, bridge):
+        event = self._make_event(
+            {
+                "releaseId": "0xreleaseid",
+                "recipient": "0xRecipient",
+                "amount": int(2e18),
+            },
+            tx_hash_bytes="0xbridgerelease",
+        )
+
+        await bridge._handle_event("BridgeRelease", event)
+
+        assert len(bridge._tx_history) == 1
+        tx = bridge._tx_history[0]
+        assert tx.event_type == "BridgeRelease"
+        assert tx.from_address == "bridge"
+        assert tx.to_address == "0xRecipient"
+        assert tx.amount == 2.0
 
     @pytest.mark.asyncio
     async def test_sync_handler_called(self, bridge):
@@ -719,6 +813,60 @@ class TestSyncRelayPayment:
         bridge._address_mapping = {}
         await bridge._sync_relay_payment("0xP", "0xR", 1_000_000_000_000_000_000)
         # No error expected
+
+
+# ─── on-chain escrow writes ──────────────────────────────────────
+
+
+class TestOnChainEscrowWrites:
+    @pytest.mark.asyncio
+    async def test_lock_no_web3_fails_closed_by_default(self, bridge):
+        bridge._init_web3 = MagicMock(return_value=False)
+
+        result = await bridge.lock_escrow_on_chain("escrow-1", "node1", 10.0)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_lock_no_web3_simulates_only_when_explicit(self, bridge):
+        bridge.config.allow_simulated_chain_writes = True
+        bridge._init_web3 = MagicMock(return_value=False)
+
+        result = await bridge.lock_escrow_on_chain("escrow-1", "node1", 10.0)
+
+        assert isinstance(result, str)
+        assert result.startswith("sim_tx_")
+
+    @pytest.mark.asyncio
+    async def test_lock_with_web3_fails_closed_until_real_submission_exists(self, bridge):
+        bridge._init_web3 = MagicMock(return_value=True)
+        bridge.contract = MagicMock()
+        bridge.account = MagicMock()
+        bridge.register_address("node1", "0xNode1")
+
+        result = await bridge.lock_escrow_on_chain("escrow-1", "node1", 10.0)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_release_with_web3_fails_closed_until_real_submission_exists(self, bridge):
+        bridge._init_web3 = MagicMock(return_value=True)
+        bridge.contract = MagicMock()
+        bridge.account = MagicMock()
+
+        result = await bridge.release_escrow_on_chain("escrow-1")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_refund_with_web3_fails_closed_until_real_submission_exists(self, bridge):
+        bridge._init_web3 = MagicMock(return_value=True)
+        bridge.contract = MagicMock()
+        bridge.account = MagicMock()
+
+        result = await bridge.refund_escrow_on_chain("escrow-1")
+
+        assert result is False
 
 
 # ─── push_rewards_to_chain ───────────────────────────────────────

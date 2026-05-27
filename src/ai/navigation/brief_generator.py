@@ -1,5 +1,8 @@
-from typing import List, Dict, Any
+import argparse
+import json
+import sys
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 class BriefGenerator:
     """
@@ -39,16 +42,72 @@ class BriefGenerator:
         
         return "\n".join(lines)
 
+
+def _read_json(path: str) -> Any:
+    if path == "-":
+        return json.loads(sys.stdin.read())
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _coerce_news(payload: Any) -> List[Dict[str, Any]]:
+    if isinstance(payload, dict):
+        payload = payload.get("filtered_news", payload.get("news"))
+    if not isinstance(payload, list) or not all(
+        isinstance(item, dict) for item in payload
+    ):
+        raise ValueError("news input must be a JSON list or an object with filtered_news")
+    return payload
+
+
+def _coerce_actions(payload: Any) -> List[str]:
+    if isinstance(payload, dict):
+        payload = payload.get("actions")
+    if payload is None:
+        return []
+    if not isinstance(payload, list) or not all(
+        isinstance(item, str) for item in payload
+    ):
+        raise ValueError("actions input must be a JSON string list")
+    return payload
+
+
+def load_brief_inputs(
+    news_path: str,
+    actions_path: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Load brief inputs from JSON files or stdin via '-'."""
+    news_payload = _read_json(news_path)
+    actions_payload = _read_json(actions_path) if actions_path else news_payload
+    return _coerce_news(news_payload), _coerce_actions(actions_payload)
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate an AI navigation brief.")
+    parser.add_argument(
+        "--news",
+        required=True,
+        help="Path to JSON list, JSON object with filtered_news, or '-' for stdin.",
+    )
+    parser.add_argument(
+        "--actions",
+        help="Optional path to JSON string list or JSON object with actions.",
+    )
+    parser.add_argument("--project-name", default="x0tta6bl4")
+    return parser
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+    try:
+        news, actions = load_brief_inputs(args.news, args.actions)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        parser.error(str(exc))
+
+    print(BriefGenerator(args.project_name).generate_markdown(news, actions))
+    return 0
+
+
 if __name__ == "__main__":
-    # Mock data for demonstration
-    mock_news = [
-        {"category": "BENCHMARK", "title": "NIST Finalizes PQC Standards", "url": "https://nist.gov", "relevance_score": 0.8},
-        {"category": "BUSINESS", "title": "Competitor X launches eBPF-based mesh", "url": "#", "relevance_score": 0.6}
-    ]
-    mock_actions = [
-        "COMPLIANCE: Verify our implementation matches FIPS 203 final spec.",
-        "BENCHMARK: Compare XDP performance with Competitor X's latest release."
-    ]
-    
-    generator = BriefGenerator()
-    print(generator.generate_markdown(mock_news, mock_actions))
+    raise SystemExit(main())

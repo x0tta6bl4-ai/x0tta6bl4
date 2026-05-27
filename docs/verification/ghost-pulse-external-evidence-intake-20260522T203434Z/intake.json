@@ -1,0 +1,1027 @@
+{
+  "artifacts": {
+    "intake_bundle_json": "docs/verification/ghost-pulse-external-evidence-intake-20260522T203434Z/intake.json",
+    "intake_bundle_md": "docs/verification/ghost-pulse-external-evidence-intake-20260522T203434Z/summary.md",
+    "intake_latest_json": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
+    "intake_latest_md": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md"
+  },
+  "bundle": "docs/verification/ghost-pulse-external-evidence-intake-20260522T203434Z",
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "note": "External evidence intake readiness only; this report does not import evidence or promote proof-gate claims.",
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "collection_tasks": [
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "dpi_lab",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/dpi_lab",
+      "blocking_reasons": [
+        "candidate_validation_failed",
+        "preflight_failures_present"
+      ],
+      "candidate": "docs/verification/incoming/dpi_lab.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "6ef291d6fac6cc7bee9a793f3703e8b867ebdf9c42edb3e846accc06a9126c0e",
+      "claim_id": "dpi_lab",
+      "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+      "failures": [
+        "dpi_lab: status must be VERIFIED",
+        "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+        "dpi_lab: failures must be absent or empty for VERIFIED evidence",
+        "dpi_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "dpi_lab: required artifact role missing: lab_scope",
+        "dpi_lab: required artifact role missing: baseline_result",
+        "dpi_lab: required artifact role missing: pulse_result",
+        "dpi_lab: required artifact role missing: lab_conclusion",
+        "dpi_lab: measurements.authorized_lab must be True",
+        "dpi_lab: measurements.baseline_detected_or_blocked must be True",
+        "dpi_lab: measurements.pulse_result_recorded must be True",
+        "dpi_lab: measurements.dpi_bypass_verified must be True",
+        "dpi_lab: artifact role missing for content check: lab_conclusion"
+      ],
+      "import_decision": "REJECTED",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "dpi_lab",
+        "--candidate",
+        "docs/verification/incoming/dpi_lab.json",
+        "--require-ready",
+        "--json"
+      ],
+      "ready_to_import": false,
+      "required_artifact_roles": [
+        "lab_scope",
+        "baseline_result",
+        "pulse_result",
+        "lab_conclusion"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "authorized_lab": true,
+        "baseline_detected_or_blocked": true,
+        "dpi_bypass_verified": true,
+        "pulse_result_recorded": true
+      },
+      "required_references": [],
+      "status": "CANDIDATE_REJECTED",
+      "title": "Authorized DPI lab result",
+      "validation_status": "INVALID",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "dpi_lab",
+        "--candidate",
+        "docs/verification/incoming/dpi_lab.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "whitelist_lab",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/whitelist_lab",
+      "blocking_reasons": [
+        "candidate_validation_failed",
+        "preflight_failures_present"
+      ],
+      "candidate": "docs/verification/incoming/whitelist_lab.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "7a10127f82ed1879b4d2898e6af51ab2ef2cfccdbccc63690929cd18d85ea9f9",
+      "claim_id": "whitelist_lab",
+      "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
+      "failures": [
+        "whitelist_lab: status must be VERIFIED",
+        "whitelist_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "whitelist_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+        "whitelist_lab: failures must be absent or empty for VERIFIED evidence",
+        "whitelist_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "whitelist_lab: required artifact role missing: provider_or_lab_authorization",
+        "whitelist_lab: required artifact role missing: provider_profile",
+        "whitelist_lab: required artifact role missing: third_party_baseline_capture",
+        "whitelist_lab: required artifact role missing: whitelist_conclusion",
+        "whitelist_lab: measurements.authorized_provider_or_lab must be True",
+        "whitelist_lab: measurements.provider_profile must be nonempty",
+        "whitelist_lab: measurements.third_party_baseline_captured must be True",
+        "whitelist_lab: measurements.whitelist_behavior_verified must be True",
+        "whitelist_lab: artifact role missing for content check: whitelist_conclusion"
+      ],
+      "import_decision": "REJECTED",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "whitelist_lab",
+        "--candidate",
+        "docs/verification/incoming/whitelist_lab.json",
+        "--require-ready",
+        "--json"
+      ],
+      "ready_to_import": false,
+      "required_artifact_roles": [
+        "provider_or_lab_authorization",
+        "provider_profile",
+        "third_party_baseline_capture",
+        "whitelist_conclusion"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "authorized_provider_or_lab": true,
+        "provider_profile": "nonempty",
+        "third_party_baseline_captured": true,
+        "whitelist_behavior_verified": true
+      },
+      "required_references": [],
+      "status": "CANDIDATE_REJECTED",
+      "title": "Authorized whitelist-behavior lab result",
+      "validation_status": "INVALID",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "whitelist_lab",
+        "--candidate",
+        "docs/verification/incoming/whitelist_lab.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "security_review",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/security_review",
+      "blocking_reasons": [
+        "candidate_validation_failed",
+        "preflight_failures_present"
+      ],
+      "candidate": "docs/verification/incoming/security_review.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "053524618cca7c2acadd4a0e4f9f9e1c7efa8055510d99123a8f24d36013688b",
+      "claim_id": "security_review",
+      "example": "docs/verification/incoming/examples/security_review.example.json",
+      "failures": [
+        "security_review: status must be VERIFIED",
+        "security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "security_review: missing_inputs must be absent or empty for VERIFIED evidence",
+        "security_review: failures must be absent or empty for VERIFIED evidence",
+        "security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "security_review: required artifact role missing: reviewer_identity",
+        "security_review: required artifact role missing: review_scope",
+        "security_review: required artifact role missing: findings_report",
+        "security_review: measurements.reviewer must be nonempty",
+        "security_review: measurements.scope_includes_pulse_transport must be True",
+        "security_review: measurements.open_critical_findings must be 0",
+        "security_review: measurements.open_high_findings must be 0",
+        "security_review: artifact role missing for content check: findings_report"
+      ],
+      "import_decision": "REJECTED",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "security_review",
+        "--candidate",
+        "docs/verification/incoming/security_review.json",
+        "--require-ready",
+        "--json"
+      ],
+      "ready_to_import": false,
+      "required_artifact_roles": [
+        "reviewer_identity",
+        "review_scope",
+        "findings_report"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "open_critical_findings": 0,
+        "open_high_findings": 0,
+        "reviewer": "nonempty",
+        "scope_includes_pulse_transport": true
+      },
+      "required_references": [],
+      "status": "CANDIDATE_REJECTED",
+      "title": "Security review with no open high-severity findings",
+      "validation_status": "INVALID",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "security_review",
+        "--candidate",
+        "docs/verification/incoming/security_review.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "production_readiness",
+          "--require-pass",
+          "--json"
+        ],
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_proof_gate.py",
+          "--require-all-proven",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/production_readiness",
+      "blocking_reasons": [
+        "candidate_validation_failed",
+        "preflight_failures_present"
+      ],
+      "candidate": "docs/verification/incoming/production_readiness.json",
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_is_symlink": false,
+      "candidate_sha256": "ab57e676ca5fb39f022e3d74c6500b874f64d4a682f35a7008e38fd82b056a0d",
+      "claim_id": "production_readiness",
+      "example": "docs/verification/incoming/examples/production_readiness.example.json",
+      "failures": [
+        "production_readiness: status must be VERIFIED",
+        "production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "production_readiness: missing_inputs must be absent or empty for VERIFIED evidence",
+        "production_readiness: failures must be absent or empty for VERIFIED evidence",
+        "production_readiness: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "production_readiness: required artifact role missing: operator_approval",
+        "production_readiness: required artifact role missing: rollback_plan",
+        "production_readiness: required artifact role missing: monitoring_plan",
+        "production_readiness: required artifact role missing: prior_claim_references",
+        "production_readiness: measurements.production_ready must be bool_true",
+        "production_readiness: measurements.rollback_plan_verified must be True",
+        "production_readiness: measurements.monitoring_plan_verified must be True",
+        "production_readiness: measurements.operator_approval_recorded must be True",
+        "production_readiness: measurements.all_prior_claims_referenced must be True",
+        "production_readiness: artifact role missing for content check: prior_claim_references",
+        "production_readiness: references must be a non-empty list"
+      ],
+      "import_decision": "REJECTED",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "production_readiness",
+        "--candidate",
+        "docs/verification/incoming/production_readiness.json",
+        "--require-ready",
+        "--json"
+      ],
+      "ready_to_import": false,
+      "required_artifact_roles": [
+        "operator_approval",
+        "rollback_plan",
+        "monitoring_plan",
+        "prior_claim_references"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "all_prior_claims_referenced": true,
+        "monitoring_plan_verified": true,
+        "operator_approval_recorded": true,
+        "production_ready": "bool_true",
+        "rollback_plan_verified": true
+      },
+      "required_references": [
+        "kernel_attach",
+        "packet_capture",
+        "baseline_timing_comparison",
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review"
+      ],
+      "status": "CANDIDATE_REJECTED",
+      "title": "Production readiness approval and rollback evidence",
+      "validation_status": "INVALID",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "production_readiness",
+        "--candidate",
+        "docs/verification/incoming/production_readiness.json",
+        "--write",
+        "--json"
+      ]
+    }
+  ],
+  "collection_tasks_verification": {
+    "failures": [],
+    "status": "PASS"
+  },
+  "currently_ready_write_commands": [],
+  "decision": "EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED",
+  "failures": [],
+  "incoming_examples_manifest": "docs/verification/incoming/examples/manifest.json",
+  "incoming_examples_manifest_sha256": "f3fe1085c595f098473b641b68132dc56a859952e184e68a5d6618c3a7253217",
+  "incoming_examples_verification": {
+    "collection_task_count": 7,
+    "collection_tasks": [
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "kernel_attach",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/kernel_attach",
+        "candidate": "docs/verification/incoming/kernel_attach.json",
+        "claim_id": "kernel_attach",
+        "example": "docs/verification/incoming/examples/kernel_attach.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--candidate",
+          "docs/verification/incoming/kernel_attach.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "kernel_commands",
+          "kernel_measurements",
+          "kernel_interface_scan",
+          "kernel_candidate_audit"
+        ],
+        "required_commands": [
+          [
+            "uname",
+            "-r"
+          ],
+          [
+            "ip",
+            "-d",
+            "-j",
+            "link",
+            "show"
+          ],
+          [
+            "ip",
+            "-j",
+            "link",
+            "show",
+            "<interface>"
+          ],
+          [
+            "ip",
+            "-d",
+            "-j",
+            "link",
+            "show",
+            "<interface>"
+          ],
+          [
+            "bpftool",
+            "prog",
+            "show"
+          ],
+          [
+            "bpftool",
+            "net"
+          ],
+          [
+            "bpftool",
+            "map",
+            "show",
+            "name",
+            "pulse_stats"
+          ],
+          [
+            "bpftool",
+            "map",
+            "dump",
+            "name",
+            "pulse_stats"
+          ],
+          [
+            "bpftool",
+            "map",
+            "dump",
+            "name",
+            "pulse_stats"
+          ]
+        ],
+        "required_measurements": {
+          "bpftool_net_contains_interface": true,
+          "bpftool_prog_show_contains_pulse": true,
+          "interface": "nonempty",
+          "map_counter_delta_packets": "positive_int",
+          "xdp_attached": true
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "XDP attach and map-counter evidence",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--candidate",
+          "docs/verification/incoming/kernel_attach.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "packet_capture",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/packet_capture",
+        "candidate": "docs/verification/incoming/packet_capture.json",
+        "claim_id": "packet_capture",
+        "example": "docs/verification/incoming/examples/packet_capture.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "packet_capture",
+          "--candidate",
+          "docs/verification/incoming/packet_capture.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "sender_pcap",
+          "receiver_pcap",
+          "sender_events",
+          "receiver_events",
+          "capture_summary"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "receiver_pcap_packets": "positive_int",
+          "receiver_pcap_sha256": "sha256",
+          "sender_pcap_packets": "positive_int",
+          "sender_pcap_sha256": "sha256"
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Sender and receiver packet captures",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "packet_capture",
+          "--candidate",
+          "docs/verification/incoming/packet_capture.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "baseline_timing_comparison",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/baseline_timing_comparison",
+        "candidate": "docs/verification/incoming/baseline_timing_comparison.json",
+        "claim_id": "baseline_timing_comparison",
+        "example": "docs/verification/incoming/examples/baseline_timing_comparison.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "baseline_timing_comparison",
+          "--candidate",
+          "docs/verification/incoming/baseline_timing_comparison.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "baseline_events",
+          "pulse_events",
+          "timing_comparison"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "baseline_digest": "sha256",
+          "comparison_passed": true,
+          "pulse_digest": "sha256",
+          "sample_count": "positive_int"
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Baseline-vs-pulse timing comparison",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "baseline_timing_comparison",
+          "--candidate",
+          "docs/verification/incoming/baseline_timing_comparison.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "dpi_lab",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/dpi_lab",
+        "candidate": "docs/verification/incoming/dpi_lab.json",
+        "claim_id": "dpi_lab",
+        "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "dpi_lab",
+          "--candidate",
+          "docs/verification/incoming/dpi_lab.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "lab_scope",
+          "baseline_result",
+          "pulse_result",
+          "lab_conclusion"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "authorized_lab": true,
+          "baseline_detected_or_blocked": true,
+          "dpi_bypass_verified": true,
+          "pulse_result_recorded": true
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Authorized DPI lab result",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "dpi_lab",
+          "--candidate",
+          "docs/verification/incoming/dpi_lab.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "whitelist_lab",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/whitelist_lab",
+        "candidate": "docs/verification/incoming/whitelist_lab.json",
+        "claim_id": "whitelist_lab",
+        "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "whitelist_lab",
+          "--candidate",
+          "docs/verification/incoming/whitelist_lab.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "provider_or_lab_authorization",
+          "provider_profile",
+          "third_party_baseline_capture",
+          "whitelist_conclusion"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "authorized_provider_or_lab": true,
+          "provider_profile": "nonempty",
+          "third_party_baseline_captured": true,
+          "whitelist_behavior_verified": true
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Authorized whitelist-behavior lab result",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "whitelist_lab",
+          "--candidate",
+          "docs/verification/incoming/whitelist_lab.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "security_review",
+            "--require-pass",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/security_review",
+        "candidate": "docs/verification/incoming/security_review.json",
+        "claim_id": "security_review",
+        "example": "docs/verification/incoming/examples/security_review.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "security_review",
+          "--candidate",
+          "docs/verification/incoming/security_review.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "reviewer_identity",
+          "review_scope",
+          "findings_report"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "open_critical_findings": 0,
+          "open_high_findings": 0,
+          "reviewer": "nonempty",
+          "scope_includes_pulse_transport": true
+        },
+        "required_references": [],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Security review with no open high-severity findings",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "security_review",
+          "--candidate",
+          "docs/verification/incoming/security_review.json",
+          "--write",
+          "--json"
+        ]
+      },
+      {
+        "acceptance_commands": [
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "production_readiness",
+            "--require-pass",
+            "--json"
+          ],
+          [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_proof_gate.py",
+            "--require-all-proven",
+            "--json"
+          ]
+        ],
+        "artifact_root": "docs/verification/incoming/artifacts/production_readiness",
+        "candidate": "docs/verification/incoming/production_readiness.json",
+        "claim_id": "production_readiness",
+        "example": "docs/verification/incoming/examples/production_readiness.example.json",
+        "read_only_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "production_readiness",
+          "--candidate",
+          "docs/verification/incoming/production_readiness.json",
+          "--require-ready",
+          "--json"
+        ],
+        "required_artifact_roles": [
+          "operator_approval",
+          "rollback_plan",
+          "monitoring_plan",
+          "prior_claim_references"
+        ],
+        "required_commands": [],
+        "required_measurements": {
+          "all_prior_claims_referenced": true,
+          "monitoring_plan_verified": true,
+          "operator_approval_recorded": true,
+          "production_ready": "bool_true",
+          "rollback_plan_verified": true
+        },
+        "required_references": [
+          "kernel_attach",
+          "packet_capture",
+          "baseline_timing_comparison",
+          "dpi_lab",
+          "whitelist_lab",
+          "security_review"
+        ],
+        "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+        "title": "Production readiness approval and rollback evidence",
+        "write_import_command": [
+          "python3",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "--claim",
+          "production_readiness",
+          "--candidate",
+          "docs/verification/incoming/production_readiness.json",
+          "--write",
+          "--json"
+        ]
+      }
+    ],
+    "example_count": 7,
+    "examples": [
+      {
+        "candidate": "docs/verification/incoming/kernel_attach.json",
+        "claim_id": "kernel_attach",
+        "example": "docs/verification/incoming/examples/kernel_attach.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "d7baa8e08fc723c15b73381e8c1236be4e361b3f416a3bef7fc440cdddc97c1a",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/packet_capture.json",
+        "claim_id": "packet_capture",
+        "example": "docs/verification/incoming/examples/packet_capture.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "955f219cce74994eb78672a3a4ee3e31d941184a848743f3da65ffb9090cc75d",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/baseline_timing_comparison.json",
+        "claim_id": "baseline_timing_comparison",
+        "example": "docs/verification/incoming/examples/baseline_timing_comparison.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "8a550423fc36b16e4ac7308e9ba25bdffbb63f33060bbfd14f03cb39dcc2074f",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/dpi_lab.json",
+        "claim_id": "dpi_lab",
+        "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "fb0ff5038e7621d7b6e8edeb80a1d14b4d0db551541b487a3fd61b79547e59c6",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/whitelist_lab.json",
+        "claim_id": "whitelist_lab",
+        "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "3a70ed4d92cdc037bff30e8d68c4fc9066ccb6367f872f5b44238c80a69d2211",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/security_review.json",
+        "claim_id": "security_review",
+        "example": "docs/verification/incoming/examples/security_review.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "0ac0927834ae5dd36e2db36ac72993353b8b5caea3ea649c13ad94acf57359a9",
+        "status": "INCOMPLETE",
+        "template": true
+      },
+      {
+        "candidate": "docs/verification/incoming/production_readiness.json",
+        "claim_id": "production_readiness",
+        "example": "docs/verification/incoming/examples/production_readiness.example.json",
+        "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+        "sha256": "78b5bc6b0f5cff3f4cf27271b5109bfe3443eccd35eb9475f4b79801d51db56a",
+        "status": "INCOMPLETE",
+        "template": true
+      }
+    ],
+    "failures": [],
+    "manifest": "docs/verification/incoming/examples/manifest.json",
+    "manifest_sha256": "f3fe1085c595f098473b641b68132dc56a859952e184e68a5d6618c3a7253217",
+    "status": "PASS"
+  },
+  "missing_candidate_paths": [],
+  "non_file_candidate_paths": [],
+  "not_ready": [
+    "dpi_lab",
+    "whitelist_lab",
+    "security_review",
+    "production_readiness"
+  ],
+  "post_import_refresh_commands": [
+    [
+      "python3",
+      "scripts/ops/audit_ghost_pulse_external_evidence_gaps.py",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+      "--write-report",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+      "--write-report",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/run_ghost_pulse_proof_gate.py",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+      "--write-report",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/run_ghost_pulse_verification_suite.py"
+    ],
+    [
+      "python3",
+      "scripts/ops/run_ghost_pulse_proof_gate.py",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+      "--write-report",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_goal_state.py",
+      "--write-report",
+      "--json"
+    ]
+  ],
+  "preflight": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+  "preflight_sha256": "f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb",
+  "preflight_verification": {
+    "failures": [],
+    "status": "PASS"
+  },
+  "read_only_preflight_commands": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "dpi_lab",
+      "--candidate",
+      "docs/verification/incoming/dpi_lab.json",
+      "--require-ready",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "whitelist_lab",
+      "--candidate",
+      "docs/verification/incoming/whitelist_lab.json",
+      "--require-ready",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "security_review",
+      "--candidate",
+      "docs/verification/incoming/security_review.json",
+      "--require-ready",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "production_readiness",
+      "--candidate",
+      "docs/verification/incoming/production_readiness.json",
+      "--require-ready",
+      "--json"
+    ]
+  ],
+  "ready": [],
+  "replacement_required": [
+    "dpi_lab",
+    "whitelist_lab",
+    "security_review",
+    "production_readiness"
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.external_evidence_intake.v1",
+  "status": "PASS",
+  "timestamp_utc": "2026-05-22T20:34:34.331056+00:00",
+  "unsafe_candidate_paths": [],
+  "write_commands_after_ready": [
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "dpi_lab",
+      "--candidate",
+      "docs/verification/incoming/dpi_lab.json",
+      "--write",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "whitelist_lab",
+      "--candidate",
+      "docs/verification/incoming/whitelist_lab.json",
+      "--write",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "security_review",
+      "--candidate",
+      "docs/verification/incoming/security_review.json",
+      "--write",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/import_ghost_pulse_external_evidence.py",
+      "--claim",
+      "production_readiness",
+      "--candidate",
+      "docs/verification/incoming/production_readiness.json",
+      "--write",
+      "--json"
+    ]
+  ]
+}

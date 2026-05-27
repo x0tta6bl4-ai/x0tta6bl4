@@ -105,6 +105,18 @@ class TestDeobfuscate:
         raw = b"HTTP/1.1 204 No Content\r\n\r\n"
         assert self.t.deobfuscate(raw) == b""
 
+    def test_respects_content_length(self):
+        raw = (
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n"
+            b"hello"
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nbye"
+        )
+        assert self.t.deobfuscate(raw) == b"hello"
+
+    def test_incomplete_content_length_returns_empty_body(self):
+        raw = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhe"
+        assert self.t.deobfuscate(raw) == b""
+
 
 # ===========================================================================
 # TestObfuscateDeobfuscateRoundTrip
@@ -238,6 +250,24 @@ class TestDomainFrontingSocket:
         assert wrapped.recv(4096) == b""
         assert wrapped.recv(4096) == b"abc"
         assert wrapped.recv(4096) == b""
+
+    def test_recv_waits_for_full_body_and_keeps_buffered_response(self):
+        wrapped = DomainFrontingSocket.__new__(DomainFrontingSocket)
+        wrapped._transport = DomainFrontingTransport(FRONT, BACKEND)
+        wrapped._buffer = b""
+        wrapped._raw_sock = MagicMock()
+        wrapped._tls_sock = MagicMock()
+        wrapped._tls_sock.recv.side_effect = [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhe",
+            (
+                b"llo"
+                b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nbye"
+            ),
+        ]
+
+        assert wrapped.recv(4096) == b""
+        assert wrapped.recv(4096) == b"hello"
+        assert wrapped.recv(4096) == b"bye"
 
     def test_recv_ssl_want_read_and_other_ssl_error(self):
         wrapped_want = DomainFrontingSocket.__new__(DomainFrontingSocket)

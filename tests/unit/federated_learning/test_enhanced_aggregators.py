@@ -119,6 +119,26 @@ class TestEnhancedAggregator:
         assert "avg_quality_score" in stats
         assert stats["total_aggregations"] == 5
 
+    def test_base_aggregate_fails_closed_without_concrete_strategy(self):
+        """Test base aggregator returns an explicit failure result."""
+        aggregator = EnhancedAggregator(enable_metrics=True)
+        updates = [
+            ModelUpdate(
+                node_id="node-1",
+                round_number=1,
+                weights=ModelWeights(layer_weights={"layer1": [1.0]}),
+                num_samples=100,
+            )
+        ]
+
+        result = aggregator.aggregate(updates)
+
+        assert result.success is False
+        assert result.updates_received == 1
+        assert result.updates_rejected == 1
+        assert "requires a concrete aggregation strategy" in result.error_message
+        assert "metrics" in result.metadata
+
 
 @pytest.mark.skipif(
     not ENHANCED_AGGREGATORS_AVAILABLE, reason="Enhanced aggregators not available"

@@ -153,6 +153,8 @@ class TestEBPFMetricsExporterEnhanced:
         e.error_count = ErrorCount()
         e.max_queue_size = 1000
         e.metric_queue = []
+        e.metric_last_updated = {}
+        e.stale_metric_ttl_seconds = 300.0
         e.performance_stats = {"export_time": [], "parse_time": [], "read_time": []}
         e.registered_maps = {}
         e.prometheus = MagicMock()
@@ -283,6 +285,39 @@ class TestEBPFMetricsExporterEnhanced:
     def test_cleanup_stale_metrics(self):
         e = self._make()
         e._cleanup_stale_metrics()  # Should not raise
+
+    def test_cleanup_stale_metrics_removes_only_expired_metrics(self):
+        e = self._make()
+        e.metric_last_updated = {
+            "fresh_metric": 1_000.0,
+            "stale_metric": 500.0,
+        }
+        stale_metric = MagicMock()
+        e.prometheus.metrics = {
+            "fresh_metric": MagicMock(),
+            "stale_metric": stale_metric,
+        }
+        e._unregister_prometheus_metric = MagicMock()
+
+        removed = e._cleanup_stale_metrics(now=1_001.0, ttl_seconds=300.0)
+
+        assert removed == ["stale_metric"]
+        assert "fresh_metric" in e.metric_last_updated
+        assert "stale_metric" not in e.metric_last_updated
+        assert "fresh_metric" in e.prometheus.metrics
+        assert "stale_metric" not in e.prometheus.metrics
+        e._unregister_prometheus_metric.assert_called_once_with(stale_metric)
+
+    def test_export_metrics_updates_metric_timestamps(self):
+        e = self._make()
+        e._collect_all_metrics_with_validation = MagicMock(return_value=({}, []))
+        e._cleanup_stale_metrics = MagicMock()
+
+        exported = e.export_metrics({"packet_counters": 7})
+
+        assert exported == {"packet_counters": 7}
+        assert "packet_counters" in e.metric_last_updated
+        e._cleanup_stale_metrics.assert_called_once()
 
     def test_register_map_valid(self):
         e = self._make()

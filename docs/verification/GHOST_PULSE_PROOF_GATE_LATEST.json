@@ -1,0 +1,570 @@
+{
+  "artifacts": {
+    "proof_bundle_json": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/proof.json",
+    "proof_bundle_md": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z/summary.md",
+    "proof_latest_json": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
+    "proof_latest_md": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.md"
+  },
+  "bundle": "docs/verification/ghost-pulse-proof-gate-20260525T044523Z",
+  "claim_boundary": {
+    "kernel_attach_verified": true,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "claim_boundary_note": "Only the local timing replay, false-claim hygiene, and artifact chain can be proven from current repo-local evidence. DPI, whitelist, kernel attach, and production claims require the external evidence files listed in required_external_evidence. Replacement-candidate preflight is supporting evidence only and never promotes claims.",
+  "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
+  "failures": [
+    "dpi_lab: status must be VERIFIED",
+    "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+    "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+    "dpi_lab: failures must be absent or empty for VERIFIED evidence",
+    "dpi_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+    "dpi_lab: required artifact role missing: lab_scope",
+    "dpi_lab: required artifact role missing: baseline_result",
+    "dpi_lab: required artifact role missing: pulse_result",
+    "dpi_lab: required artifact role missing: lab_conclusion",
+    "dpi_lab: measurements.authorized_lab must be True",
+    "dpi_lab: measurements.baseline_detected_or_blocked must be True",
+    "dpi_lab: measurements.pulse_result_recorded must be True",
+    "dpi_lab: measurements.dpi_bypass_verified must be True",
+    "dpi_lab: artifact role missing for content check: lab_conclusion",
+    "whitelist_lab: status must be VERIFIED",
+    "whitelist_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+    "whitelist_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+    "whitelist_lab: failures must be absent or empty for VERIFIED evidence",
+    "whitelist_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+    "whitelist_lab: required artifact role missing: provider_or_lab_authorization",
+    "whitelist_lab: required artifact role missing: provider_profile",
+    "whitelist_lab: required artifact role missing: third_party_baseline_capture",
+    "whitelist_lab: required artifact role missing: whitelist_conclusion",
+    "whitelist_lab: measurements.authorized_provider_or_lab must be True",
+    "whitelist_lab: measurements.provider_profile must be nonempty",
+    "whitelist_lab: measurements.third_party_baseline_captured must be True",
+    "whitelist_lab: measurements.whitelist_behavior_verified must be True",
+    "whitelist_lab: artifact role missing for content check: whitelist_conclusion",
+    "security_review: status must be VERIFIED",
+    "security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+    "security_review: missing_inputs must be absent or empty for VERIFIED evidence",
+    "security_review: failures must be absent or empty for VERIFIED evidence",
+    "security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+    "security_review: required artifact role missing: reviewer_identity",
+    "security_review: required artifact role missing: review_scope",
+    "security_review: required artifact role missing: findings_report",
+    "security_review: measurements.reviewer must be nonempty",
+    "security_review: measurements.scope_includes_pulse_transport must be True",
+    "security_review: measurements.open_critical_findings must be 0",
+    "security_review: measurements.open_high_findings must be 0",
+    "security_review: artifact role missing for content check: findings_report",
+    "production_readiness: status must be VERIFIED",
+    "production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+    "production_readiness: missing_inputs must be absent or empty for VERIFIED evidence",
+    "production_readiness: failures must be absent or empty for VERIFIED evidence",
+    "production_readiness: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+    "production_readiness: required artifact role missing: operator_approval",
+    "production_readiness: required artifact role missing: rollback_plan",
+    "production_readiness: required artifact role missing: monitoring_plan",
+    "production_readiness: required artifact role missing: prior_claim_references",
+    "production_readiness: measurements.production_ready must be bool_true",
+    "production_readiness: measurements.rollback_plan_verified must be True",
+    "production_readiness: measurements.monitoring_plan_verified must be True",
+    "production_readiness: measurements.operator_approval_recorded must be True",
+    "production_readiness: measurements.all_prior_claims_referenced must be True",
+    "production_readiness: artifact role missing for content check: prior_claim_references",
+    "production_readiness: references must be a non-empty list"
+  ],
+  "not_verified_yet": [
+    "dpi_lab",
+    "whitelist_lab",
+    "security_review",
+    "production_readiness"
+  ],
+  "proof_rows": [
+    {
+      "claim_id": "local_timing_replay",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "status": "VERIFIED",
+      "title": "Seeded local timing plan replay"
+    },
+    {
+      "claim_id": "false_claim_hygiene",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "status": "VERIFIED",
+      "title": "False-claim hygiene scan"
+    },
+    {
+      "claim_id": "artifact_chain",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+      "sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+      "status": "VERIFIED",
+      "title": "Latest artifact chain integrity"
+    },
+    {
+      "claim_id": "kernel_attach",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+      "sha256": "9a484a124d83b08353e80b8e6ffea02e42bf6e864336a873bf4c6649f52db68c",
+      "status": "VERIFIED",
+      "title": "XDP attach and map-counter evidence"
+    },
+    {
+      "claim_id": "packet_capture",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json",
+      "sha256": "7ed3bbd885084a012ff7f33b2685558fb3d84ebd6fe1a4b9db2d767dd548aac6",
+      "status": "VERIFIED",
+      "title": "Sender and receiver packet captures"
+    },
+    {
+      "claim_id": "baseline_timing_comparison",
+      "errors": [],
+      "evidence": "docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json",
+      "sha256": "b04869ba8237910191ec24d359338571469f0d262154a795cfcef58738717f4e",
+      "status": "VERIFIED",
+      "title": "Baseline-vs-pulse timing comparison"
+    },
+    {
+      "claim_id": "dpi_lab",
+      "errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: lab_scope",
+        "required artifact role missing: baseline_result",
+        "required artifact role missing: pulse_result",
+        "required artifact role missing: lab_conclusion",
+        "measurements.authorized_lab must be True",
+        "measurements.baseline_detected_or_blocked must be True",
+        "measurements.pulse_result_recorded must be True",
+        "measurements.dpi_bypass_verified must be True",
+        "artifact role missing for content check: lab_conclusion"
+      ],
+      "evidence": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+      "sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+      "status": "INVALID",
+      "title": "Authorized DPI lab result"
+    },
+    {
+      "claim_id": "whitelist_lab",
+      "errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: provider_or_lab_authorization",
+        "required artifact role missing: provider_profile",
+        "required artifact role missing: third_party_baseline_capture",
+        "required artifact role missing: whitelist_conclusion",
+        "measurements.authorized_provider_or_lab must be True",
+        "measurements.provider_profile must be nonempty",
+        "measurements.third_party_baseline_captured must be True",
+        "measurements.whitelist_behavior_verified must be True",
+        "artifact role missing for content check: whitelist_conclusion"
+      ],
+      "evidence": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
+      "sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
+      "status": "INVALID",
+      "title": "Authorized whitelist-behavior lab result"
+    },
+    {
+      "claim_id": "security_review",
+      "errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: reviewer_identity",
+        "required artifact role missing: review_scope",
+        "required artifact role missing: findings_report",
+        "measurements.reviewer must be nonempty",
+        "measurements.scope_includes_pulse_transport must be True",
+        "measurements.open_critical_findings must be 0",
+        "measurements.open_high_findings must be 0",
+        "artifact role missing for content check: findings_report"
+      ],
+      "evidence": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
+      "sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
+      "status": "INVALID",
+      "title": "Security review with no open high-severity findings"
+    },
+    {
+      "claim_id": "production_readiness",
+      "errors": [
+        "status must be VERIFIED",
+        "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+        "missing_inputs must be absent or empty for VERIFIED evidence",
+        "failures must be absent or empty for VERIFIED evidence",
+        "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+        "required artifact role missing: operator_approval",
+        "required artifact role missing: rollback_plan",
+        "required artifact role missing: monitoring_plan",
+        "required artifact role missing: prior_claim_references",
+        "measurements.production_ready must be bool_true",
+        "measurements.rollback_plan_verified must be True",
+        "measurements.monitoring_plan_verified must be True",
+        "measurements.operator_approval_recorded must be True",
+        "measurements.all_prior_claims_referenced must be True",
+        "artifact role missing for content check: prior_claim_references",
+        "references must be a non-empty list"
+      ],
+      "evidence": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+      "sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
+      "status": "INVALID",
+      "title": "Production readiness approval and rollback evidence"
+    }
+  ],
+  "replacement_candidates": {
+    "claim_boundary": {
+      "kernel_attach_verified": false,
+      "note": "Replacement candidate preflight only; it never promotes proof-gate claims.",
+      "production_ready": false,
+      "stealth_verified": false,
+      "whitelist_verified": false
+    },
+    "decision": "REPLACEMENT_CANDIDATES_NOT_READY",
+    "failures": [],
+    "missing_candidates": [],
+    "not_ready": [
+      "dpi_lab",
+      "whitelist_lab",
+      "security_review",
+      "production_readiness"
+    ],
+    "ready": [],
+    "replacement_required": [
+      "dpi_lab",
+      "whitelist_lab",
+      "security_review",
+      "production_readiness"
+    ],
+    "report": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+    "sha256": "f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb",
+    "status": "PASS",
+    "verifier_command": [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+      "--report",
+      "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+      "--json"
+    ]
+  },
+  "required_external_evidence": [
+    {
+      "claim_id": "kernel_attach",
+      "json_artifact_object_field_links": {
+        "kernel_measurements": [
+          "measurements",
+          "failures",
+          "claim_boundary"
+        ]
+      },
+      "json_artifact_payload_links": {
+        "kernel_candidate_audit": "candidate_audit",
+        "kernel_commands": "commands",
+        "kernel_interface_scan": "interface_scan"
+      },
+      "measurements": {
+        "bpftool_net_contains_interface": true,
+        "bpftool_prog_show_contains_pulse": true,
+        "interface": "nonempty",
+        "map_counter_delta_packets": "positive_int",
+        "xdp_attached": true
+      },
+      "path": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "kernel_commands",
+        "kernel_measurements",
+        "kernel_interface_scan",
+        "kernel_candidate_audit"
+      ],
+      "required_commands": [
+        [
+          "uname",
+          "-r"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show"
+        ],
+        [
+          "ip",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        [
+          "bpftool",
+          "net"
+        ],
+        [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ]
+      ],
+      "title": "XDP attach and map-counter evidence"
+    },
+    {
+      "artifact_sha256_measurements": {
+        "receiver_pcap": "receiver_pcap_sha256",
+        "sender_pcap": "sender_pcap_sha256"
+      },
+      "claim_id": "packet_capture",
+      "jsonl_record_count_measurements": {
+        "receiver_events": "receiver_pcap_packets",
+        "sender_events": "sender_pcap_packets"
+      },
+      "measurements": {
+        "receiver_pcap_packets": "positive_int",
+        "receiver_pcap_sha256": "sha256",
+        "sender_pcap_packets": "positive_int",
+        "sender_pcap_sha256": "sha256"
+      },
+      "paired_jsonl_payload_sha256_roles": [
+        [
+          "sender_events",
+          "receiver_events"
+        ]
+      ],
+      "path": "docs/verification/GHOST_PULSE_PACKET_CAPTURE_LATEST.json",
+      "pcap_packet_count_measurements": {
+        "receiver_pcap": "receiver_pcap_packets",
+        "sender_pcap": "sender_pcap_packets"
+      },
+      "pcap_payload_sha256_jsonl_roles": {
+        "receiver_pcap": "receiver_events",
+        "sender_pcap": "sender_events"
+      },
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "sender_pcap",
+        "receiver_pcap",
+        "sender_events",
+        "receiver_events",
+        "capture_summary"
+      ],
+      "title": "Sender and receiver packet captures"
+    },
+    {
+      "artifact_sha256_measurements": {
+        "baseline_events": "baseline_digest",
+        "pulse_events": "pulse_digest"
+      },
+      "claim_id": "baseline_timing_comparison",
+      "json_artifact_object_field_links": {
+        "timing_comparison": [
+          "measurements",
+          "comparison",
+          "failures"
+        ]
+      },
+      "measurements": {
+        "baseline_digest": "sha256",
+        "comparison_passed": true,
+        "pulse_digest": "sha256",
+        "sample_count": "positive_int"
+      },
+      "paired_jsonl_gap_count_measurements": [
+        {
+          "measurement": "sample_count",
+          "roles": [
+            "baseline_events",
+            "pulse_events"
+          ]
+        }
+      ],
+      "path": "docs/verification/GHOST_PULSE_BASELINE_COMPARISON_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "baseline_events",
+        "pulse_events",
+        "timing_comparison"
+      ],
+      "title": "Baseline-vs-pulse timing comparison"
+    },
+    {
+      "claim_id": "dpi_lab",
+      "json_artifact_object_field_links": {
+        "lab_conclusion": [
+          "measurements",
+          "failures",
+          "claim_boundary"
+        ]
+      },
+      "measurements": {
+        "authorized_lab": true,
+        "baseline_detected_or_blocked": true,
+        "dpi_bypass_verified": true,
+        "pulse_result_recorded": true
+      },
+      "path": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "lab_scope",
+        "baseline_result",
+        "pulse_result",
+        "lab_conclusion"
+      ],
+      "title": "Authorized DPI lab result"
+    },
+    {
+      "claim_id": "whitelist_lab",
+      "json_artifact_object_field_links": {
+        "whitelist_conclusion": [
+          "measurements",
+          "failures",
+          "claim_boundary"
+        ]
+      },
+      "measurements": {
+        "authorized_provider_or_lab": true,
+        "provider_profile": "nonempty",
+        "third_party_baseline_captured": true,
+        "whitelist_behavior_verified": true
+      },
+      "path": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "provider_or_lab_authorization",
+        "provider_profile",
+        "third_party_baseline_capture",
+        "whitelist_conclusion"
+      ],
+      "title": "Authorized whitelist-behavior lab result"
+    },
+    {
+      "claim_id": "security_review",
+      "json_artifact_object_field_links": {
+        "findings_report": [
+          "measurements",
+          "failures",
+          "claim_boundary"
+        ]
+      },
+      "measurements": {
+        "open_critical_findings": 0,
+        "open_high_findings": 0,
+        "reviewer": "nonempty",
+        "scope_includes_pulse_transport": true
+      },
+      "path": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "reviewer_identity",
+        "review_scope",
+        "findings_report"
+      ],
+      "title": "Security review with no open high-severity findings"
+    },
+    {
+      "claim_id": "production_readiness",
+      "json_artifact_object_field_links": {
+        "prior_claim_references": [
+          "measurements",
+          "references",
+          "failures",
+          "claim_boundary"
+        ]
+      },
+      "measurements": {
+        "all_prior_claims_referenced": true,
+        "monitoring_plan_verified": true,
+        "operator_approval_recorded": true,
+        "production_ready": "bool_true",
+        "rollback_plan_verified": true
+      },
+      "path": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+      "rejected_placeholder_markers": [
+        "REPLACE_WITH",
+        "EXAMPLE_ONLY_NOT_EVIDENCE",
+        "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+      ],
+      "required_artifact_roles": [
+        "operator_approval",
+        "rollback_plan",
+        "monitoring_plan",
+        "prior_claim_references"
+      ],
+      "required_references": [
+        "kernel_attach",
+        "packet_capture",
+        "baseline_timing_comparison",
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review"
+      ],
+      "title": "Production readiness approval and rollback evidence"
+    }
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
+  "suite": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+  "suite_sha256": "60f7b19763c2fb21f66cad7268345486a761c656ef4580ebe1df61370e9e9599",
+  "timestamp_utc": "2026-05-25T04:45:23.098081+00:00"
+}

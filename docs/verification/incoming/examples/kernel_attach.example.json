@@ -1,0 +1,255 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "kernel_attach",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/kernel_attach/kernel_commands.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "kernel_commands",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/kernel_attach/kernel_measurements.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "kernel_measurements",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/kernel_attach/kernel_interface_scan.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "kernel_interface_scan",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/kernel_attach/kernel_candidate_audit.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "kernel_candidate_audit",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_audit": {
+    "example_placeholder": "REPLACE_WITH_REAL_CANDIDATE_AUDIT"
+  },
+  "candidate_destination": "docs/verification/incoming/kernel_attach.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "kernel_attach",
+  "commands": [
+    {
+      "args": [
+        "uname",
+        "-r"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "ip",
+        "-d",
+        "-j",
+        "link",
+        "show"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "ip",
+        "-j",
+        "link",
+        "show",
+        "REPLACE_WITH_INTERFACE"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "ip",
+        "-d",
+        "-j",
+        "link",
+        "show",
+        "REPLACE_WITH_INTERFACE"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "bpftool",
+        "prog",
+        "show"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "bpftool",
+        "net"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "bpftool",
+        "map",
+        "show",
+        "name",
+        "pulse_stats"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "bpftool",
+        "map",
+        "dump",
+        "name",
+        "pulse_stats"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    },
+    {
+      "args": [
+        "bpftool",
+        "map",
+        "dump",
+        "name",
+        "pulse_stats"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "kernel_attach",
+    "--candidate",
+    "docs/verification/incoming/kernel_attach.json",
+    "--require-ready",
+    "--json"
+  ],
+  "interface_scan": {
+    "example_placeholder": "REPLACE_WITH_REAL_INTERFACE_SCAN"
+  },
+  "measurements": {
+    "bpftool_net_contains_interface": "REPLACE_WITH_TRUE",
+    "bpftool_prog_show_contains_pulse": "REPLACE_WITH_TRUE",
+    "interface": "REPLACE_WITH_NONEMPTY_VALUE",
+    "map_counter_delta_packets": "REPLACE_WITH_POSITIVE_INTEGER",
+    "xdp_attached": "REPLACE_WITH_TRUE"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "claim_id": "kernel_attach",
+    "json_artifact_object_field_links": {
+      "kernel_measurements": [
+        "measurements",
+        "failures",
+        "claim_boundary"
+      ]
+    },
+    "json_artifact_payload_links": {
+      "kernel_candidate_audit": "candidate_audit",
+      "kernel_commands": "commands",
+      "kernel_interface_scan": "interface_scan"
+    },
+    "measurements": {
+      "bpftool_net_contains_interface": true,
+      "bpftool_prog_show_contains_pulse": true,
+      "interface": "nonempty",
+      "map_counter_delta_packets": "positive_int",
+      "xdp_attached": true
+    },
+    "path": "docs/verification/GHOST_PULSE_KERNEL_ATTACH_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "kernel_commands",
+      "kernel_measurements",
+      "kernel_interface_scan",
+      "kernel_candidate_audit"
+    ],
+    "required_commands": [
+      [
+        "uname",
+        "-r"
+      ],
+      [
+        "ip",
+        "-d",
+        "-j",
+        "link",
+        "show"
+      ],
+      [
+        "ip",
+        "-j",
+        "link",
+        "show",
+        "<interface>"
+      ],
+      [
+        "ip",
+        "-d",
+        "-j",
+        "link",
+        "show",
+        "<interface>"
+      ],
+      [
+        "bpftool",
+        "prog",
+        "show"
+      ],
+      [
+        "bpftool",
+        "net"
+      ],
+      [
+        "bpftool",
+        "map",
+        "show",
+        "name",
+        "pulse_stats"
+      ],
+      [
+        "bpftool",
+        "map",
+        "dump",
+        "name",
+        "pulse_stats"
+      ],
+      [
+        "bpftool",
+        "map",
+        "dump",
+        "name",
+        "pulse_stats"
+      ]
+    ],
+    "title": "XDP attach and map-counter evidence"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "XDP attach and map-counter evidence"
+}

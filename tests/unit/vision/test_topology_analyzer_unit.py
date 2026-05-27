@@ -128,6 +128,21 @@ class TestMeshTopologyAnalyzer:
         assert "n2" in centrality
         assert "n3" in centrality
         assert centrality["n2"] > centrality["n1"]  # n2 has higher degree
+
+    def test_compute_centrality_is_normalized(self, analyzer):
+        """Centrality stays in the expected 0..1 range."""
+        nodes = [{"id": f"n{i}"} for i in range(5)]
+        links = [
+            {"source": "n0", "target": "n1"},
+            {"source": "n0", "target": "n2"},
+            {"source": "n0", "target": "n3"},
+            {"source": "n0", "target": "n4"},
+        ]
+
+        centrality = analyzer._compute_centrality(nodes, links)
+
+        assert centrality["n0"] == 1.0
+        assert all(0.0 <= value <= 1.0 for value in centrality.values())
     
     def test_detect_bottlenecks(self, analyzer):
         """Test bottleneck detection."""

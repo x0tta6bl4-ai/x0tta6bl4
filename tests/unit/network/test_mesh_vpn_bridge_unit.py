@@ -7,11 +7,15 @@ import src.network.mesh_vpn_bridge as bridge_mod
 
 
 class _FakeRewards:
-    def __init__(self, contract_address=""):
+    instances = []
+
+    def __init__(self, contract_address="", **kwargs):
         self.contract_address = contract_address
+        self.kwargs = dict(kwargs)
         self.balance = Decimal("1000.0")
         self.daily_earnings = Decimal("0.0")
         self.calls = []
+        self.instances.append(self)
 
     def reward_relay(self, node_id, packets):
         self.calls.append((node_id, packets))
@@ -43,6 +47,7 @@ class _FakeReader:
 
 
 def _patch_init_deps(monkeypatch):
+    _FakeRewards.instances = []
     monkeypatch.setattr(
         bridge_mod, "MeshNodeConfig", lambda **kw: SimpleNamespace(**kw)
     )
@@ -61,6 +66,7 @@ def _patch_init_deps(monkeypatch):
     )
     monkeypatch.setattr(bridge_mod, "PQCCrypto", lambda: object())
     monkeypatch.setattr(bridge_mod, "TokenRewards", _FakeRewards)
+    monkeypatch.setattr(bridge_mod, "get_event_bus", lambda project_root=".": "event-bus")
 
 
 def test_init_parses_exit_nodes_and_mode(monkeypatch):
@@ -72,6 +78,30 @@ def test_init_parses_exit_nodes_and_mode(monkeypatch):
     assert b.use_mesh_routing is False
     assert len(b.exit_nodes) == 2
     assert b.exit_nodes[0]["ip"] == "1.1.1.1"
+
+
+def test_init_wires_reward_manager_to_event_bus_and_service_identity(monkeypatch):
+    _patch_init_deps(monkeypatch)
+    monkeypatch.setenv("MESH_VPN_BRIDGE_SPIFFE_ID", "spiffe://mesh.x0tta6bl4.mesh/workload/vpn")
+    monkeypatch.setenv("MESH_VPN_BRIDGE_DID", "did:mesh:pqc:vpn")
+    monkeypatch.setenv("MESH_VPN_BRIDGE_WALLET_ADDRESS", "0xffffffffffffffffffffffffffffffffffffffff")
+    monkeypatch.setenv("X0TTA6BL4_EVENT_PROJECT_ROOT", "/tmp/x0t-events")
+
+    b = bridge_mod.MeshVPNBridge(node_id="node-vpn-1")
+
+    assert b.reward_identity == {
+        "spiffe_id": "spiffe://mesh.x0tta6bl4.mesh/workload/vpn",
+        "did": "did:mesh:pqc:vpn",
+        "wallet_address": "0xffffffffffffffffffffffffffffffffffffffff",
+    }
+    rewards = _FakeRewards.instances[-1]
+    assert rewards.kwargs["event_bus"] == "event-bus"
+    assert rewards.kwargs["event_project_root"] == "/tmp/x0t-events"
+    assert rewards.kwargs["source_agent"] == "mesh-vpn-bridge"
+    assert rewards.kwargs["node_id"] == "node-vpn-1"
+    assert rewards.kwargs["spiffe_id"] == "spiffe://mesh.x0tta6bl4.mesh/workload/vpn"
+    assert rewards.kwargs["did"] == "did:mesh:pqc:vpn"
+    assert rewards.kwargs["wallet_address"] == "0xffffffffffffffffffffffffffffffffffffffff"
 
 
 def test_parse_socks_request_ipv4_domain_default(monkeypatch):
@@ -118,6 +148,21 @@ async def test_relay_stream_updates_metrics_and_rewards(monkeypatch):
     assert b.packets_relayed == 100
     assert writer.writes[0] == b"abc"
     assert b.rewards.calls == [("node-1", 100)]
+
+
+@pytest.mark.asyncio
+async def test_relay_stream_rewards_configured_wallet_address(monkeypatch):
+    _patch_init_deps(monkeypatch)
+    monkeypatch.setenv("MESH_VPN_BRIDGE_WALLET_ADDRESS", "0xffffffffffffffffffffffffffffffffffffffff")
+    b = bridge_mod.MeshVPNBridge()
+    b.mesh.config.node_id = "node-1"
+    b.packets_relayed = 99
+    reader = _FakeReader([b"abc", b""])
+    writer = _FakeWriter()
+
+    await b._relay_stream(reader, writer, direction="upstream", peer_id=None)
+
+    assert b.rewards.calls == [("0xffffffffffffffffffffffffffffffffffffffff", 100)]
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,20 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
+SIMULATED_PQC_ENV = "X0TTA6BL4_ALLOW_SIMULATED_PQC"
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _simulated_pqc_allowed() -> bool:
+    return os.getenv(SIMULATED_PQC_ENV, "").strip().lower() in _TRUE_VALUES
+
+
+def _require_simulated_pqc_allowed() -> None:
+    if not _simulated_pqc_allowed():
+        raise RuntimeError(
+            "liboqs is required for PQC tunnel key exchange. "
+            f"Set {SIMULATED_PQC_ENV}=true only for local tests."
+        )
 
 # Try to import real PQC, fallback to simulation
 try:
@@ -21,7 +35,7 @@ try:
     logger.info("✅ liboqs available - using real Kyber768")
 except ImportError:
     PQC_AVAILABLE = False
-    logger.warning("⚠️ liboqs not available - using simulated PQC")
+    logger.warning("⚠️ liboqs not available - simulated PQC requires explicit opt-in")
 
 # Try to import AES
 try:
@@ -72,7 +86,8 @@ class PQCTunnel:
             public_key = kem.generate_keypair()
             private_key = kem.export_secret_key()
         else:
-            # Simulated keys (32 bytes each for demo)
+            _require_simulated_pqc_allowed()
+            logger.warning("Using simulated PQC keys for local test mode only")
             private_key = os.urandom(32)
             public_key = hashlib.sha256(b"PQC_PUB_" + private_key).digest()
 
@@ -112,7 +127,8 @@ class PQCTunnel:
             kem = oqs.KeyEncapsulation(self.KEM_ALGORITHM)
             ciphertext, shared_secret = kem.encap_secret(peer_public_key)
         else:
-            # Simulated encapsulation - derive shared secret from both public keys
+            _require_simulated_pqc_allowed()
+            # Local-test encapsulation derives a shared secret from both public keys.
             # The ciphertext contains our public key so peer can derive same secret
             ciphertext = self.keys.public_key
             shared_secret = hashlib.sha256(
@@ -149,7 +165,8 @@ class PQCTunnel:
             )
             shared_secret = kem.decap_secret(ciphertext)
         else:
-            # Simulated decapsulation - ciphertext is peer's public key
+            _require_simulated_pqc_allowed()
+            # Local-test decapsulation expects ciphertext to carry the peer public key.
             peer_public_key = ciphertext
             shared_secret = hashlib.sha256(
                 b"SHARED_" + self.keys.public_key + peer_public_key

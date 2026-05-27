@@ -1,0 +1,28 @@
+{
+  "claim_id": "production_readiness",
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "all_prior_claims_referenced": false,
+    "monitoring_plan_verified": false,
+    "operator_approval_recorded": false,
+    "production_ready": false,
+    "rollback_plan_verified": false
+  },
+  "missing_inputs": [
+    "production readiness approval",
+    "verified rollback plan",
+    "verified monitoring plan",
+    "operator approval record",
+    "references to all prior proof rows"
+  ],
+  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "recorded_by": "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+  "required_artifact_roles": [
+    "operator_approval",
+    "rollback_plan",
+    "monitoring_plan",
+    "prior_claim_references"
+  ],
+  "status": "INCOMPLETE",
+  "title": "Production readiness approval and rollback evidence"
+}

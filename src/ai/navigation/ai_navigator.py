@@ -32,9 +32,7 @@ class AINavigator:
         """
         processed_news = []
         for item in raw_news:
-            # Placeholder for LLM-based classification
-            # In a real scenario, we would call an LLM with PROJECT_CONTEXT and CRITERIA
-            category = self._simple_classifier(item)
+            category = self._classify_item(item)
             relevance = self._calculate_relevance(item)
             
             if category != "GARBAGE":
@@ -49,9 +47,13 @@ class AINavigator:
         processed_news.sort(key=lambda x: x["relevance_score"], reverse=True)
         return processed_news
 
+    def _classify_item(self, item: Dict[str, str]) -> str:
+        """Classify news with a deterministic local policy."""
+        return self._simple_classifier(item)
+
     def _simple_classifier(self, item: Dict[str, str]) -> str:
         """Simple keyword-based classifier (fallback)."""
-        text = (item["title"] + " " + item["summary"]).lower()
+        text = (item.get("title", "") + " " + item.get("summary", "")).lower()
         
         # Check for benchmark keywords
         bench_keywords = ["sota", "benchmark", "performance", "record", "new release"]
@@ -61,7 +63,7 @@ class AINavigator:
         # Check against project context keywords
         context_keywords = self.context.get("keywords", [])
         
-        found_context = any(kw in text for kw in context_keywords)
+        found_context = any(self._keyword_matches(text, kw) for kw in context_keywords)
         
         if not found_context:
             return "GARBAGE"
@@ -75,8 +77,7 @@ class AINavigator:
 
     def _calculate_relevance(self, item: Dict[str, str]) -> float:
         """Calculate relevance score (0.0 to 1.0) with word boundary awareness."""
-        import re
-        text = (item["title"] + " " + item["summary"]).lower()
+        text = (item.get("title", "") + " " + item.get("summary", "")).lower()
         relevance = 0.0
         
         keywords = self.context.get("keywords", [])
@@ -85,12 +86,7 @@ class AINavigator:
             
         matches = 0
         for kw in keywords:
-            # For short keywords, use word boundaries to avoid false positives
-            if len(kw) <= 3:
-                pattern = rf"\b{re.escape(kw)}\b"
-                if re.search(pattern, text):
-                    matches += 1
-            elif kw in text:
+            if self._keyword_matches(text, kw):
                 matches += 1
                 
         # Non-linear scoring: first match is most important
@@ -98,6 +94,16 @@ class AINavigator:
             relevance = 0.4 + min(matches * 0.1, 0.6)
         
         return relevance
+
+    @staticmethod
+    def _keyword_matches(text: str, keyword: str) -> bool:
+        import re
+
+        normalized = keyword.lower()
+        if len(normalized) <= 3 or normalized.replace("-", "").isalnum():
+            pattern = rf"(?<![a-z0-9]){re.escape(normalized)}(?![a-z0-9])"
+            return re.search(pattern, text) is not None
+        return normalized in text
 
     async def generate_actionable_steps(self, filtered_news: List[Dict[str, Any]]) -> List[str]:
         """

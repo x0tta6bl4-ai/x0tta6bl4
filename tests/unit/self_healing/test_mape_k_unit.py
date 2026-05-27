@@ -877,15 +877,25 @@ class TestMAPEKExecutor:
         result = executor.execute("Restart service")
         assert result is False
 
-    def test_execute_placeholder_fallback(self):
+    def test_execute_fails_closed_without_recovery_executor(self):
         executor = MAPEKExecutor.__new__(MAPEKExecutor)
         executor.recovery_executor = None
         executor.use_recovery_executor = False
 
-        with patch("src.self_healing.mape_k.time") as mock_time:
-            result = executor.execute("Restart service")
+        result = executor.execute("Restart service")
+
+        assert result is False
+        assert executor.was_simulated is False
+
+    def test_execute_noop_without_recovery_executor(self):
+        executor = MAPEKExecutor.__new__(MAPEKExecutor)
+        executor.recovery_executor = None
+        executor.use_recovery_executor = False
+
+        result = executor.execute("No action needed")
+
         assert result is True
-        mock_time.sleep.assert_called_once_with(0.1)
+        assert executor.was_simulated is False
 
     def test_execute_with_context_none(self):
         executor = MAPEKExecutor.__new__(MAPEKExecutor)

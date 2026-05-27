@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
+from src.services.maas_analytics_service import MaaSAnalyticsService
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,50 @@ def _node_health(node: MeshNode) -> str:
     if age <= timedelta(minutes=30):
         return "stale"
     return "offline"
+
+
+def _safe_non_negative_float(value) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return parsed if parsed >= 0 else 0.0
+
+
+def _dashboard_traffic_by_bucket(
+    db: Session,
+    mesh_ids: list[str],
+    owner_id: str,
+    *,
+    buckets: int = 24,
+) -> list[float]:
+    """
+    Build dashboard traffic series from the production analytics service.
+
+    The service uses Redis heartbeat telemetry when available and falls back to
+    DB-backed marketplace bandwidth, so the dashboard does not hard-code chart
+    traffic to zero.
+    """
+    totals = [0.0 for _ in range(buckets)]
+    if not mesh_ids:
+        return totals
+
+    service = MaaSAnalyticsService(db, None)
+    for mesh_id in mesh_ids:
+        try:
+            result = service.get_mesh_timeseries(mesh_id, owner_id, "24h")
+        except Exception as exc:
+            logger.warning("Failed to load dashboard traffic for mesh %s: %s", mesh_id, exc)
+            continue
+        data = (result or {}).get("data") or []
+        recent = data[-buckets:]
+        start_index = buckets - len(recent)
+        for offset, point in enumerate(recent):
+            if isinstance(point, dict):
+                totals[start_index + offset] += _safe_non_negative_float(
+                    point.get("traffic_mbps")
+                )
+    return [round(value, 1) for value in totals]
 
 
 @router.get("/summary")
@@ -118,6 +163,7 @@ async def get_dashboard_summary(
     # 6. Real Metrics for Charts
     now = datetime.utcnow()
     timeseries = []
+    traffic_by_bucket = _dashboard_traffic_by_bucket(db, mesh_ids, current_user.id)
     
     # Calculate real health percentage over the last 24 hours in 1-hour buckets
     for i in range(24):
@@ -139,7 +185,7 @@ async def get_dashboard_summary(
         timeseries.append({
             "timestamp": bucket_end.isoformat(),
             "health": round(health_pct, 2),
-            "traffic_mbps": 0.0 # Placeholder until Telemetry table is fully integrated
+            "traffic_mbps": traffic_by_bucket[i],
         })
 
     # 7. Resilience Status (P2 Observability)

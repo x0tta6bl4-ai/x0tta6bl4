@@ -169,6 +169,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         prometheus_port: int = 9090,
         max_queue_size: int = 1000,
         validation_rules: Optional[Dict[str, Any]] = None,
+        stale_metric_ttl_seconds: float = 300.0,
     ):
         """Initialize enhanced metrics exporter."""
         super().__init__(prometheus_port)
@@ -176,6 +177,8 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         self.error_count = ErrorCount()
         self.max_queue_size = max_queue_size
         self.metric_queue = []
+        self.metric_last_updated: Dict[str, float] = {}
+        self.stale_metric_ttl_seconds = stale_metric_ttl_seconds
         self.performance_stats = {"export_time": [], "parse_time": [], "read_time": []}
 
         logger.info("Enhanced eBPF Metrics Exporter initialized")
@@ -307,6 +310,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
 
             # Export to Prometheus
             exported = {}
+            updated_at = time.time()
             for metric_name, value in all_metrics.items():
                 try:
                     if metric_name not in self.prometheus.metrics:
@@ -324,6 +328,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
                         metric.set(value)
 
                     exported[metric_name] = value
+                    self.metric_last_updated[metric_name] = updated_at
 
                 except Exception as e:
                     logger.error(f"Failed to export metric {metric_name}: {e}")
@@ -335,6 +340,7 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
 
             # Track performance
             self._track_performance("export_time", time.time() - export_start)
+            self._cleanup_stale_metrics(now=updated_at)
 
             # Log validation results
             for result in validation_results:
@@ -463,9 +469,11 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
             "registered_maps": list(self.registered_maps.keys()),
             "prometheus_metrics": list(self.prometheus.metrics.keys()),
             "performance": self.performance_stats,
+            "metric_last_updated": self.metric_last_updated,
             "config": {
                 "prometheus_port": self.prometheus.port,
                 "max_queue_size": self.max_queue_size,
+                "stale_metric_ttl_seconds": self.stale_metric_ttl_seconds,
             },
         }
 
@@ -476,11 +484,49 @@ class EBPFMetricsExporterEnhanced(_EBPFMetricsExporterCompatBase):
         except Exception as e:
             logger.error(f"Failed to save diagnostics: {e}")
 
-    def _cleanup_stale_metrics(self):
+    def _cleanup_stale_metrics(
+        self,
+        *,
+        now: Optional[float] = None,
+        ttl_seconds: Optional[float] = None,
+    ) -> List[str]:
         """Clean up stale metrics that haven't been updated recently."""
-        # Implementation would track last update time for each metric
-        # and remove those older than a certain threshold (e.g., 5 minutes)
-        logger.debug("Stale metrics cleanup not implemented yet")
+        last_updated = getattr(self, "metric_last_updated", None)
+        if not isinstance(last_updated, dict):
+            self.metric_last_updated = {}
+            return []
+
+        ttl = self.stale_metric_ttl_seconds if ttl_seconds is None else ttl_seconds
+        if ttl <= 0:
+            return []
+
+        current_time = time.time() if now is None else now
+        stale_names = [
+            name
+            for name, updated_at in list(last_updated.items())
+            if current_time - float(updated_at) > ttl
+        ]
+
+        for metric_name in stale_names:
+            last_updated.pop(metric_name, None)
+            metric = getattr(self.prometheus, "metrics", {}).pop(metric_name, None)
+            self._unregister_prometheus_metric(metric)
+
+        if stale_names:
+            logger.debug("Cleaned up %d stale eBPF metrics", len(stale_names))
+
+        return stale_names
+
+    def _unregister_prometheus_metric(self, metric: Any) -> None:
+        """Best-effort removal from the default Prometheus registry."""
+        if metric is None:
+            return
+        try:
+            from prometheus_client import REGISTRY
+
+            REGISTRY.unregister(metric)
+        except (ImportError, KeyError, ValueError, AttributeError):
+            return
 
 
 # Monkey patch to replace existing exporter if needed

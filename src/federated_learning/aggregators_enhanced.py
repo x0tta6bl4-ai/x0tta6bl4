@@ -131,8 +131,17 @@ class EnhancedAggregator(Aggregator):
         previous_model: Optional[GlobalModel],
         metrics: AggregationMetrics,
     ) -> AggregationResult:
-        """Implementation to be overridden by subclasses."""
-        raise NotImplementedError("Subclasses must implement _aggregate_impl")
+        """Default implementation rejects direct base-class aggregation."""
+        return AggregationResult(
+            success=False,
+            updates_received=len(updates),
+            updates_rejected=len(updates),
+            error_message=(
+                "EnhancedAggregator requires a concrete aggregation strategy. "
+                "Use EnhancedFedAvgAggregator, AdaptiveAggregator, or "
+                "get_enhanced_aggregator()."
+            ),
+        )
 
     def _calculate_quality_score(
         self,

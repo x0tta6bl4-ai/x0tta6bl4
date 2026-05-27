@@ -462,7 +462,7 @@ class MAPEKExecutor:
         except ImportError:
             self.recovery_executor = None
             self.use_recovery_executor = False
-            logger.warning("RecoveryActionExecutor not available, using placeholder")
+            logger.warning("RecoveryActionExecutor not available; recovery actions fail closed")
 
     def execute(self, action: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """
@@ -491,11 +491,25 @@ class MAPEKExecutor:
                     self.was_simulated = True
             return result
 
-        # Fallback placeholder
-        logger.warning(f"Placeholder execution for: {action}")
-        self.was_simulated = True
-        time.sleep(0.1)
-        return True
+        if self._is_noop_action(action):
+            logger.info("No recovery action required: %s", action)
+            return True
+
+        logger.error("RecoveryActionExecutor unavailable; refusing action: %s", action)
+        return False
+
+    @staticmethod
+    def _is_noop_action(action: str) -> bool:
+        normalized = " ".join(action.lower().split())
+        return normalized in {
+            "",
+            "no action",
+            "no action needed",
+            "nothing to do",
+            "do nothing",
+            "monitor",
+            "monitor only",
+        }
 
     def execute_script(self, script: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """

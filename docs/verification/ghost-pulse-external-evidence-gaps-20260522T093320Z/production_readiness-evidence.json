@@ -1,0 +1,63 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z/production_readiness-gap-record.json",
+      "role": "evidence_gap_record",
+      "sha256": "765480051731c4d0d6e8f2729ca6f681f40728d5bbe05491a8015181ed228980"
+    }
+  ],
+  "bundle": "docs/verification/ghost-pulse-external-evidence-gaps-20260522T093320Z",
+  "claim_boundary": {
+    "claim_verified": false,
+    "note": "Required external evidence is absent; proof gate must reject this claim."
+  },
+  "claim_id": "production_readiness",
+  "commands": [
+    {
+      "args": [
+        "/usr/bin/python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--claim",
+        "production_readiness"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "missing external input: production readiness approval",
+    "missing external input: verified rollback plan",
+    "missing external input: verified monitoring plan",
+    "missing external input: operator approval record",
+    "missing external input: references to all prior proof rows"
+  ],
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "all_prior_claims_referenced": false,
+    "monitoring_plan_verified": false,
+    "operator_approval_recorded": false,
+    "production_ready": false,
+    "rollback_plan_verified": false
+  },
+  "missing_inputs": [
+    "production readiness approval",
+    "verified rollback plan",
+    "verified monitoring plan",
+    "operator approval record",
+    "references to all prior proof rows"
+  ],
+  "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
+  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "references": [],
+  "required_artifact_roles": [
+    "operator_approval",
+    "rollback_plan",
+    "monitoring_plan",
+    "prior_claim_references"
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": false,
+  "title": "Production readiness approval and rollback evidence"
+}

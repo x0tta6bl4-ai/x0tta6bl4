@@ -349,9 +349,10 @@ class GraphSAGEAggregator(Aggregator):
         """Extract node embeddings from updates."""
         embeddings = []
         for update in updates:
-            # In real implementation, would extract from update.weights
-            # For now, return empty dict
-            embeddings.append({})
+            metadata = update.weights.metadata or {}
+            node_embeddings = metadata.get("node_embeddings")
+            if isinstance(node_embeddings, dict) and node_embeddings:
+                embeddings.append(node_embeddings)
         return embeddings
 
     def _extract_graph_structures(
@@ -360,8 +361,10 @@ class GraphSAGEAggregator(Aggregator):
         """Extract graph structures from updates."""
         structures = []
         for update in updates:
-            # In real implementation, would extract from update.weights
-            structures.append({})
+            metadata = update.weights.metadata or {}
+            graph_structure = metadata.get("graph_structure")
+            if isinstance(graph_structure, dict) and graph_structure:
+                structures.append(graph_structure)
         return structures
 
     def _extract_edge_weights(
@@ -370,24 +373,98 @@ class GraphSAGEAggregator(Aggregator):
         """Extract edge weights from updates."""
         weights = []
         for update in updates:
-            # In real implementation, would extract from update.weights
-            weights.append({})
+            metadata = update.weights.metadata or {}
+            edge_weights = metadata.get("edge_weights")
+            if isinstance(edge_weights, dict) and edge_weights:
+                weights.append(edge_weights)
         return weights if weights else None
 
     def _aggregate_embeddings(self, embeddings: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate node embeddings."""
-        # In real implementation, would aggregate embeddings
-        return {}
+        sums: Dict[str, List[float]] = {}
+        counts: Dict[str, int] = {}
+
+        for embedding_map in embeddings:
+            for node_id, vector in embedding_map.items():
+                if not isinstance(vector, list) or not all(
+                    isinstance(value, (int, float)) for value in vector
+                ):
+                    continue
+                if node_id not in sums:
+                    sums[node_id] = [0.0] * len(vector)
+                    counts[node_id] = 0
+                if len(sums[node_id]) != len(vector):
+                    logger.warning(
+                        "Skipping GraphSAGE embedding with mismatched dimension for %s",
+                        node_id,
+                    )
+                    continue
+                sums[node_id] = [
+                    current + float(value)
+                    for current, value in zip(sums[node_id], vector)
+                ]
+                counts[node_id] += 1
+
+        return {
+            node_id: [value / counts[node_id] for value in vector]
+            for node_id, vector in sums.items()
+            if counts[node_id] > 0
+        }
 
     def _aggregate_structure(self, structures: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate graph structures (union of graphs)."""
-        # In real implementation, would merge graph structures
-        return {}
+        nodes = set()
+        edges = set()
+
+        for structure in structures:
+            for node in structure.get("nodes", []):
+                nodes.add(str(node))
+
+            for edge in structure.get("edges", []):
+                if isinstance(edge, dict):
+                    source = edge.get("source")
+                    target = edge.get("target")
+                elif isinstance(edge, (list, tuple)) and len(edge) >= 2:
+                    source, target = edge[0], edge[1]
+                else:
+                    continue
+                if source is not None and target is not None:
+                    edges.add((str(source), str(target)))
+
+            adjacency = structure.get("adjacency", {})
+            if isinstance(adjacency, dict):
+                for source, targets in adjacency.items():
+                    nodes.add(str(source))
+                    if isinstance(targets, list):
+                        for target in targets:
+                            nodes.add(str(target))
+                            edges.add((str(source), str(target)))
+
+        return {
+            "nodes": sorted(nodes),
+            "edges": [
+                {"source": source, "target": target}
+                for source, target in sorted(edges)
+            ],
+        }
 
     def _aggregate_edge_weights(self, weights: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Aggregate edge weights."""
-        # In real implementation, would aggregate edge weights
-        return {}
+        sums: Dict[str, float] = {}
+        counts: Dict[str, int] = {}
+
+        for weight_map in weights:
+            for edge_id, value in weight_map.items():
+                if not isinstance(value, (int, float)):
+                    continue
+                sums[edge_id] = sums.get(edge_id, 0.0) + float(value)
+                counts[edge_id] = counts.get(edge_id, 0) + 1
+
+        return {
+            edge_id: total / counts[edge_id]
+            for edge_id, total in sums.items()
+            if counts[edge_id] > 0
+        }
 
 
 def get_secure_aggregator(

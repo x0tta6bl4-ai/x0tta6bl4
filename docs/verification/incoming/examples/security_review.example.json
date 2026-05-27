@@ -1,0 +1,101 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "security_review",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/security_review/reviewer_identity.REPLACE_WITH_REAL_FILE",
+      "role": "reviewer_identity",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/security_review/review_scope.REPLACE_WITH_REAL_FILE",
+      "role": "review_scope",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/security_review/findings_report.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "findings_report",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/security_review.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "security_review",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "security_review",
+    "--candidate",
+    "docs/verification/incoming/security_review.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "open_critical_findings": "REPLACE_WITH_ZERO",
+    "open_high_findings": "REPLACE_WITH_ZERO",
+    "reviewer": "REPLACE_WITH_NONEMPTY_VALUE",
+    "scope_includes_pulse_transport": "REPLACE_WITH_TRUE"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "claim_id": "security_review",
+    "json_artifact_object_field_links": {
+      "findings_report": [
+        "measurements",
+        "failures",
+        "claim_boundary"
+      ]
+    },
+    "measurements": {
+      "open_critical_findings": 0,
+      "open_high_findings": 0,
+      "reviewer": "nonempty",
+      "scope_includes_pulse_transport": true
+    },
+    "path": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "reviewer_identity",
+      "review_scope",
+      "findings_report"
+    ],
+    "title": "Security review with no open high-severity findings"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Security review with no open high-severity findings"
+}

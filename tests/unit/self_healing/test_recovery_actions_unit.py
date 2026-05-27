@@ -18,6 +18,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
+from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
 from src.self_healing.recovery_actions import (CircuitBreaker,
                                                CircuitBreakerState,
                                                RateLimiter,
@@ -457,7 +459,7 @@ class TestExecutorExecute:
     @patch("time.time")
     def test_exponential_backoff_on_retries(self, mock_time, mock_sleep):
         """Retry delay increases linearly: delay*(attempt+1)."""
-        mock_time.side_effect = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+        mock_time.side_effect = [float(i) for i in range(100)]
         ex = RecoveryActionExecutor(
             enable_circuit_breaker=False,
             enable_rate_limiting=False,
@@ -479,6 +481,95 @@ class TestExecutorExecute:
         assert mock_sleep.call_count == 2
         mock_sleep.assert_any_call(0.5)
         mock_sleep.assert_any_call(1.0)
+
+    def test_execute_publishes_recovery_events_with_identity(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        ex = RecoveryActionExecutor(
+            node_id="node-recovery-1",
+            enable_circuit_breaker=False,
+            enable_rate_limiting=False,
+            max_retries=1,
+            retry_delay=0.0,
+            event_bus=bus,
+            source_agent="self-healing-test",
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/recovery",
+            did="did:mesh:pqc:recovery",
+            wallet_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+
+        assert ex.execute("Clear cache", {"cache_type": "all"}) is True
+
+        events = bus.get_event_history(limit=10)
+        event_types = [event.event_type for event in events]
+        assert EventType.COORDINATION_REQUEST in event_types
+        assert EventType.PIPELINE_STAGE_START in event_types
+        assert EventType.PIPELINE_STAGE_END in event_types
+        completed = [event for event in events if event.event_type == EventType.PIPELINE_STAGE_END][-1]
+        assert completed.source_agent == "self-healing-test"
+        assert completed.data["component"] == "self_healing.recovery_actions"
+        assert completed.data["identity"] == {
+            "node_id": "node-recovery-1",
+            "spiffe_id": "spiffe://x0tta6bl4.mesh/workload/recovery",
+            "did": "did:mesh:pqc:recovery",
+            "wallet_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        }
+        assert completed.data["context"] == {"cache_type": "all"}
+        assert completed.data["success"] is True
+
+    def test_execute_policy_denied_blocks_before_action(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        policy = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)
+        ex = RecoveryActionExecutor(
+            node_id="node-recovery-1",
+            enable_circuit_breaker=False,
+            enable_rate_limiting=False,
+            max_retries=1,
+            retry_delay=0.0,
+            event_bus=bus,
+            policy_engine=policy,
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/recovery",
+        )
+
+        def _must_not_execute(_action_type, _context):
+            raise AssertionError("policy denied action should not execute")
+
+        ex._execute_action_internal = _must_not_execute
+
+        assert ex.execute("Clear cache", {"cache_type": "all"}) is False
+        assert ex.last_result.success is False
+        assert "No rules matched" in (ex.last_result.error_message or "")
+        blocked = bus.get_event_history(event_type=EventType.TASK_BLOCKED)
+        assert len(blocked) == 1
+        assert blocked[0].data["stage"] == "policy_denied"
+        assert blocked[0].data["policy_allowed"] is False
+
+    def test_execute_policy_allow_continues_to_action(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        policy = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)
+        policy.add_rule(
+            PolicyRule(
+                rule_id="allow-recovery-cache",
+                name="Allow recovery cache clear",
+                action=PolicyAction.ALLOW,
+                spiffe_id_pattern="spiffe://x0tta6bl4.mesh/workload/recovery",
+                allowed_resources=["self_healing:clear_cache"],
+            )
+        )
+        ex = RecoveryActionExecutor(
+            node_id="node-recovery-1",
+            enable_circuit_breaker=False,
+            enable_rate_limiting=False,
+            max_retries=1,
+            retry_delay=0.0,
+            event_bus=bus,
+            policy_engine=policy,
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/recovery",
+        )
+
+        assert ex.execute("Clear cache", {"cache_type": "all"}) is True
+        completed = bus.get_event_history(event_type=EventType.PIPELINE_STAGE_END)
+        assert completed[-1].data["policy_allowed"] is True
+        assert completed[-1].data["matched_rules"] == ["allow-recovery-cache"]
 
 
 # ────────────────────────────────────────────

@@ -17,6 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
+from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
+
 # ---------------------------------------------------------------------------
 # Helpers – build mock sessions / gateways / loaders used by many tests
 # ---------------------------------------------------------------------------
@@ -645,13 +648,17 @@ class TestPQCZeroTrustPlanner:
 
 class TestPQCZeroTrustExecutor:
 
-    def _make_executor(self, mod, gateway=None, loader=None):
+    def _make_executor(self, mod, gateway=None, loader=None, **kwargs):
         gw = gateway or _make_gateway()
         with patch(
             "src.self_healing.pqc_zero_trust_healer.get_pqc_gateway",
             return_value=gw,
         ):
-            return mod["PQCZeroTrustExecutor"](pqc_gateway=gw, pqc_loader=loader)
+            return mod["PQCZeroTrustExecutor"](
+                pqc_gateway=gw,
+                pqc_loader=loader,
+                **kwargs,
+            )
 
     # -- execute with empty plan -------------------------------------
 
@@ -670,6 +677,115 @@ class TestPQCZeroTrustExecutor:
         result = await executor.execute({"actions": ["Alert security team"]})
         assert result["success"] is True
         assert result["success_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_publishes_events_with_identity(self, _import_module, tmp_path):
+        bus = EventBus(str(tmp_path))
+        executor = self._make_executor(
+            _import_module,
+            event_bus=bus,
+            node_id="pqc-node-1",
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/pqc-healer",
+            did="did:mesh:pqc:test",
+            wallet_address="0xabc",
+        )
+
+        result = await executor.execute(
+            {
+                "actions": ["Alert security team"],
+                "priority": "medium",
+                "estimated_duration": 30,
+                "plan_data": {"api_token": "secret", "reason": "unit-test"},
+            }
+        )
+
+        assert result["success"] is True
+        events = bus.get_event_history(source_agent="pqc-zero-trust-healer", limit=10)
+        stages = [event.data["stage"] for event in events]
+        assert "plan_received" in stages
+        assert "action_start" in stages
+        assert "action_completed" in stages
+
+        completed = [
+            event for event in events
+            if event.event_type == EventType.PIPELINE_STAGE_END
+        ]
+        payload = completed[-1].data
+        assert payload["node_id"] == "pqc-node-1"
+        assert payload["spiffe_id"] == "spiffe://x0tta6bl4.mesh/workload/pqc-healer"
+        assert payload["did"] == "did:mesh:pqc:test"
+        assert payload["wallet_address"] == "0xabc"
+        assert payload["context"]["plan_data"]["api_token"] == "<redacted>"
+        assert payload["resource"] == "self_healing:pqc:alert_security_team"
+        assert payload["claim_boundary"]
+
+    @pytest.mark.asyncio
+    async def test_execute_policy_denied_blocks_action(self, _import_module, tmp_path):
+        bus = EventBus(str(tmp_path))
+        policy = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)
+        executor = self._make_executor(
+            _import_module,
+            event_bus=bus,
+            policy_engine=policy,
+            require_policy=True,
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/pqc-healer",
+        )
+
+        async def _must_not_execute(_action):
+            raise AssertionError("policy denied PQC action should not execute")
+
+        executor._execute_action = _must_not_execute
+        result = await executor.execute({"actions": ["Rotate expired PQC sessions"]})
+
+        assert result["success"] is False
+        assert result["success_count"] == 0
+        assert result["failed_actions"] == 1
+        assert "No rules matched" in result["execution_data"]["results"][0]["error"]
+
+        blocked = bus.get_event_history(
+            event_type=EventType.TASK_BLOCKED,
+            source_agent="pqc-zero-trust-healer",
+        )
+        assert blocked[-1].data["stage"] == "policy_denied"
+        assert blocked[-1].data["resource"] == "self_healing:pqc:rotate_expired_sessions"
+        assert blocked[-1].data["policy_allowed"] is False
+
+    @pytest.mark.asyncio
+    async def test_execute_policy_allow_continues_to_action(self, _import_module, tmp_path):
+        bus = EventBus(str(tmp_path))
+        policy = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)
+        policy.add_rule(
+            PolicyRule(
+                rule_id="allow-pqc-rotate-expired",
+                name="Allow PQC rotate expired sessions",
+                action=PolicyAction.ALLOW,
+                spiffe_id_pattern="spiffe://x0tta6bl4.mesh/workload/pqc-healer",
+                allowed_resources=["self_healing:pqc:rotate_expired_sessions"],
+                priority=1000,
+            )
+        )
+        old_session = _make_session(last_used_offset=7200)
+        gw = _make_gateway({"old": old_session})
+        executor = self._make_executor(
+            _import_module,
+            gateway=gw,
+            event_bus=bus,
+            policy_engine=policy,
+            require_policy=True,
+            spiffe_id="spiffe://x0tta6bl4.mesh/workload/pqc-healer",
+        )
+
+        result = await executor.execute({"actions": ["Rotate expired PQC sessions"]})
+
+        assert result["success"] is True
+        assert result["success_count"] == 1
+        assert gw.rotate_session_keys.call_count == 1
+        completed = bus.get_event_history(
+            event_type=EventType.PIPELINE_STAGE_END,
+            source_agent="pqc-zero-trust-healer",
+        )
+        assert completed[-1].data["policy_allowed"] is True
+        assert completed[-1].data["matched_rules"] == ["allow-pqc-rotate-expired"]
 
     # -- execute exception path on top-level -------------------------
 

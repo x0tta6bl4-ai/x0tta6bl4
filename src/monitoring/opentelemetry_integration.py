@@ -7,6 +7,7 @@ for the entire system including traces, spans, metrics, and logs correlation.
 
 import asyncio
 import logging
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -202,12 +203,13 @@ class TracingProvider:
         return [self.spans[sid] for sid in span_ids if sid in self.spans]
 
 
-class SpanExporter:
+class SpanExporter(ABC):
     """Base class for span exporters"""
 
+    @abstractmethod
     def export(self, span: Span):
         """Export span"""
-        raise NotImplementedError
+        ...
 
 
 class ConsoleSpanExporter(SpanExporter):

@@ -404,6 +404,25 @@ class PARLController:
         state_vec = loads + [float(t_type), float(priority)]
         return torch.FloatTensor(state_vec)
 
+    def _worker_action_index(self, task_id: str) -> int:
+        """Map the assigned worker for a task to a PPO action index."""
+        worker_id = self.scheduler.task_assignments.get(task_id)
+        if not worker_id or self.action_dim <= 0:
+            return 0
+
+        if worker_id.startswith("worker_"):
+            suffix = worker_id.removeprefix("worker_")
+            if suffix.isdigit():
+                index = int(suffix)
+                if 0 <= index < self.action_dim:
+                    return index
+
+        worker_ids = sorted(self.workers.keys())
+        if worker_id in worker_ids:
+            return min(worker_ids.index(worker_id), self.action_dim - 1)
+
+        return 0
+
     async def _update_policy(self) -> None:
         """
         Implements actual PPO policy update.
@@ -575,6 +594,7 @@ class PARLController:
         async with self._task_lock:
             task = self.pending_tasks.get(task_id, {})
             task_type = task.get("task_type", "unknown")
+            action_index = self._worker_action_index(task_id)
             self.scheduler.complete_task(task_id, success=True, task_type=task_type)
 
             # 1. Record experience for learning
@@ -591,7 +611,7 @@ class PARLController:
             
             exp = Experience(
                 state=state,
-                action=0, # Simplified action index for now
+                action=action_index,
                 reward=reward,
                 next_state={}, # Will be populated if needed for sequential tasks
                 done=True,
@@ -628,6 +648,7 @@ class PARLController:
         async with self._task_lock:
             task = self.pending_tasks.get(task_id, {})
             task_type = task.get("task_type", "unknown")
+            action_index = self._worker_action_index(task_id)
             self.scheduler.complete_task(task_id, success=False, task_type=task_type)
 
             # Record negative experience
@@ -637,7 +658,7 @@ class PARLController:
             }
             exp = Experience(
                 state=state,
-                action=0,
+                action=action_index,
                 reward=-10.0, # Strong penalty for failure
                 next_state={},
                 done=True,
