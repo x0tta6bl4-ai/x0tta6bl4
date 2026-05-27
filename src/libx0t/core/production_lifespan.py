@@ -5,13 +5,13 @@ from typing import Optional
 
 from fastapi import FastAPI
 
-from libx0t.core.consciousness import ConsciousnessEngine
-from libx0t.core.mape_k_loop import MAPEKLoop
-from libx0t.core.settings import settings
+from src.libx0t.core.consciousness import ConsciousnessEngine
+from src.libx0t.core.mape_k_loop import MAPEKLoop
+from src.libx0t.core.settings import settings
 from src.federated_learning.app_integration import create_fl_integration
 from src.mesh.network_manager import MeshNetworkManager
 from src.monitoring.prometheus_client import PrometheusExporter
-from libx0t.security.zero_trust import ZeroTrustValidator
+from src.libx0t.security.zero_trust import ZeroTrustValidator
 from src.swarm.parl.controller import PARLController
 
 logger = logging.getLogger(__name__)

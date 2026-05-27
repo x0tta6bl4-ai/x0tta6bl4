@@ -161,7 +161,7 @@ async def explain_ebpf_event(
 
     try:
         # Import EBPFEvent and EBPFEventType here to delay module-level side effects
-        from libx0t.network.ebpf.explainer import EBPFEvent, EBPFEventType
+        from src.libx0t.network.ebpf.explainer import EBPFEvent, EBPFEventType
 
         # Создать пример события
         event = EBPFEvent(

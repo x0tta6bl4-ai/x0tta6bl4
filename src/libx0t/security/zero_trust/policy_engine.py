@@ -213,7 +213,7 @@ class PolicyEngine:
                 if self._check_conditions(rule, peer_spiffe_id):
                     # Rule matched and conditions passed
                     decision = PolicyDecision(
-                        allowed=(rule.action == PolicyAction.ALLOW),
+                        allowed=(rule.action in {PolicyAction.ALLOW, PolicyAction.AUDIT}),
                         action=rule.action,
                         matched_rules=[rule.rule_id],
                         reason=f"Matched rule: {rule.name}",
@@ -228,7 +228,7 @@ class PolicyEngine:
 
         # No rules matched - use default action
         decision = PolicyDecision(
-            allowed=(self.default_action == PolicyAction.ALLOW),
+            allowed=(self.default_action in {PolicyAction.ALLOW, PolicyAction.AUDIT}),
             action=self.default_action,
             reason=f"No rules matched, using default: {self.default_action.value}",
             audit_log=True,

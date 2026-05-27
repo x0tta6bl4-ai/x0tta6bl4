@@ -22,7 +22,7 @@ def get_health_with_dependencies() -> Dict[str, Any]:
     This includes all optional dependencies and their graceful degradation status.
     """
     try:
-        from libx0t.core.dependency_health import check_dependencies_health
+        from src.libx0t.core.dependency_health import check_dependencies_health
 
         deps_health = check_dependencies_health()
 

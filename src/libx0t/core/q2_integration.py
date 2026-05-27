@@ -36,7 +36,7 @@ except ImportError:
 
 # Cilium eBPF Integration
 try:
-    from libx0t.network.ebpf.cilium_integration import CiliumLikeIntegration
+    from src.libx0t.network.ebpf.cilium_integration import CiliumLikeIntegration
 
     CILIUM_AVAILABLE = True
 except ImportError:
