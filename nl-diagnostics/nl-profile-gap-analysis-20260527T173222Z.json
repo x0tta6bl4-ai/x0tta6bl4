@@ -1,0 +1,390 @@
+{
+  "profile": "/mnt/projects/nl-diagnostics/nl-server-profile/20260527T173222Z",
+  "root": "/mnt/projects",
+  "summary": {
+    "accepted_local_delta": 2,
+    "redacted_review_only": 2,
+    "redacted_template_only": 1,
+    "same_hash_elsewhere": 21,
+    "server_backup_only": 4,
+    "server_runtime_artifact": 4
+  },
+  "artifacts": [
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/check_bot_user_chains.py",
+      "sha256": "62ffaca72e3e093714758add99ec259708eecfe754f8e6de1a961ea3ac31135b",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/check_bot_user_chains.py"
+      ],
+      "local_drifts": [
+        "backup-20260410-090811/scripts/check_bot_user_chains.py"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/issue_offline_subscription.py",
+      "sha256": "aa358dd59d03b1a5130bf06fc88ab9c45f80d057c8ce6ec5b1e0f8f636ae0552",
+      "status": "redacted_review_only",
+      "local_matches": [
+        "services/nl-server/redacted/ghost-access/issue_offline_subscription.redacted.py"
+      ],
+      "local_drifts": [],
+      "metadata": [
+        "services/nl-server/redacted/ghost-access/issue_offline_subscription.redacted.py.meta.json"
+      ],
+      "notes": "Redacted local review copy exists; raw source is not stored locally and this is not deployable source."
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/issue_offline_subscription.py.bak-20260501T084846Z",
+      "sha256": "9ca9bcad17af607c5cc46c8335311c96da70c9e5461d6b6bc3b6db4708ae5e9f",
+      "status": "server_backup_only",
+      "local_matches": [],
+      "local_drifts": [],
+      "notes": "No local file with the same basename found."
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_telegram_bot_simple.sh",
+      "sha256": "e61c7b1ef00d990391c3139d5fd0e7db2c8c8896cb36723980969a6ff9684a40",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "backup-20260410-090811/scripts/run_telegram_bot_simple.sh"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_delivery_canary.py",
+      "sha256": "269fb1d88cf6e88f79c020682686019cbb829399aaf98d6ca1a46d36c8f7e050",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/run_vpn_delivery_canary.py"
+      ],
+      "local_drifts": [
+        "backup-20260410-090811/scripts/run_vpn_delivery_canary.py"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py",
+      "sha256": "41b6a912e5c02e294777f517206651cd5712a470651b4fc9a948712a7291ee7f",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/run_vpn_service_access_agent.py"
+      ],
+      "local_drifts": [
+        "backup-20260410-090811/scripts/run_vpn_service_access_agent.py"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py.bak-20260425T100742Z",
+      "sha256": "b3fdea271bb4c7faac018c1cb6869a9f48c121f29885ed8cd130046de16ff244",
+      "status": "server_backup_only",
+      "local_matches": [],
+      "local_drifts": [],
+      "notes": "No local file with the same basename found."
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/run_vpn_service_access_agent.py.bak-20260429T180618Z",
+      "sha256": "2aba08c965258e697a8214daea0d09d866b1c59cd1f3bfece1dd4251f7d5a6d4",
+      "status": "server_backup_only",
+      "local_matches": [],
+      "local_drifts": [],
+      "notes": "No local file with the same basename found."
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/sync_spb_standalone_clients.py",
+      "sha256": "62f60f62e4d81849bdb1a03c8e647f9622cf7802ef499f650830b77282e5a5d8",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/sync_spb_standalone_clients.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/sync_xray_device_activity.py",
+      "sha256": "2d716478bd8a3c6926c315ae476173934d4cd310433c831c3f0dd20c4e1db745",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/sync_xray_device_activity.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/sync_xray_device_activity.py.bak-20260425T105720Z",
+      "sha256": "1cb28d3ef9d2bcb5f3fcad4e070fbbd960433a62df5dafe182765ba0e8646864",
+      "status": "server_backup_only",
+      "local_matches": [],
+      "local_drifts": [],
+      "notes": "No local file with the same basename found."
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/xray_runtime_user_manager.py",
+      "sha256": "3802f64e80e43fd8bdcf36afab6636b7b8a157ec018b2328d1ee258d517c08b4",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/xray_runtime_user_manager.py"
+      ],
+      "local_drifts": [
+        "backup-20260410-090811/scripts/xray_runtime_user_manager.py"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/scripts/xui_client_manager.py",
+      "sha256": "104acccf5ef345e17f7b64c9e85975c2f35b20900b90c291922a3f81b2248769",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-access/xui_client_manager.py"
+      ],
+      "local_drifts": [
+        "backup-20260410-090811/scripts/xui_client_manager.py"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "ghost-access",
+      "remote_path": "/opt/ghost-access-bot/current/telegram_bot_simple.py",
+      "sha256": "b593ddd82b3542e02e8a6fc17b558d957d780326ab86b5f7bd203d8d1d5b2f93",
+      "status": "redacted_review_only",
+      "local_matches": [
+        "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py"
+      ],
+      "local_drifts": [],
+      "metadata": [
+        "services/nl-server/redacted/ghost-access/telegram_bot_simple.redacted.py.meta.json"
+      ],
+      "notes": "Redacted local review copy exists; raw source is not stored locally and this is not deployable source."
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/etc/ghost-access/nl-beta-2443.json",
+      "sha256": "3e9af013222ae98619f03a7b88301b76223c7f149450d65978a26dd48766d29d",
+      "status": "redacted_template_only",
+      "local_matches": [
+        "services/nl-server/templates/nl-beta-2443.example.json"
+      ],
+      "local_drifts": [],
+      "metadata": [
+        "services/nl-server/templates/nl-beta-2443.example.json.meta.json"
+      ],
+      "notes": "Sanitized local template exists; raw production values are not stored locally and this is not deployable source."
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/scripts/ghost_tcp_bridge.py",
+      "sha256": "f2d6cfb176ded07b305f0794f2a5abbc678ac498821e5741e1fe5ce73194ba06",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_tcp_bridge.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_client.py",
+      "sha256": "f214ee0990f5833b42545efc9e8d3c49db05912778f24455a900243fa9f85510",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_client.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_protocol.py",
+      "sha256": "aa05113520d86653348fb0f287a63cbcb5b42d26a83a1ff5e4c464d24cc60de2",
+      "status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_protocol.py"
+      ],
+      "local_drifts": [],
+      "notes": "local import compatibility fallback for workspace tests; not applied to NL"
+    },
+    {
+      "component": "ghost-vpn",
+      "remote_path": "/mnt/projects/src/network/ghost_vpn_server.py",
+      "sha256": "d51a7a742d8a73a81d40dfa9cc4c782a5fff1642aa1461b5c96c3777ee898b1e",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/ghost-vpn/ghost_vpn_server.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/apply_config_auto.py",
+      "sha256": "75f99b59f48d3248853be9adb99f45cc5eff33569ae639c873fcfc00e8356159",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/apply_config_auto.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/auto_monitor.py",
+      "sha256": "904007827c4e1203ac2dac8f0974dee19d37fb6c84c41a511588a5f588a96671",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/auto_monitor.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/build_runtime_state.py",
+      "sha256": "f0b2b7eea367545a9c3c366b7a10943a3870aebe87b7071e6ebbae9c2b09fa91",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/build_runtime_state.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/full_stealth_config.py",
+      "sha256": "dfc8e76cc74a8be9a41018dcb3b3abad5f8791ec1b769e293a2c1eb5c4dc8e8b",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/full_stealth_config.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/health_check.sh",
+      "sha256": "3b70430c20c8b828834fc01fc772cb09e149dd3c355fe59f782f9829d71f2590",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/health_check.sh"
+      ],
+      "local_drifts": [
+        "scripts/health_check.sh",
+        "backup-20260410-090811/scripts/health_check.sh"
+      ],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/listener_loss_signal.py",
+      "sha256": "905a4891482418a428d37ab247820f3cc5f58bfe8db1c2e1f28c3db3663e63e4",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/listener_loss_signal.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/monitor.py",
+      "sha256": "33027cb107c643018e9b89ad00545f46418619c8193679234cb7bdce566d80f4",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/monitor.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/profile_status_api.py",
+      "sha256": "ea47410d580c830de8fc2b56b9e4991f0766f1f7a1f315b85c24f61eaa74080e",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/profile_status_api.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/publish_client_profile_hint.py",
+      "sha256": "7937206dfc78f47551b79dc597b2682cc30ba25adf2e6994829336388d8133b9",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/publish_client_profile_hint.py"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/rotation_timer.sh",
+      "sha256": "af80c172b893c399eb51c8e9b0aae33de51261ce545cab5f2905e994fe8a568e",
+      "status": "same_hash_elsewhere",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/rotation_timer.sh"
+      ],
+      "local_drifts": [],
+      "notes": ""
+    },
+    {
+      "component": "mesh",
+      "remote_path": "/opt/x0tta6bl4-mesh/scripts/vps_build_runtime_state.py",
+      "sha256": "7f3df8157545fd5248b202fac761f5dca40ff69357c61e76fcc9e5f3c5d51dd1",
+      "status": "accepted_local_delta",
+      "local_matches": [
+        "services/nl-server/mesh-runtime/vps_build_runtime_state.py"
+      ],
+      "local_drifts": [],
+      "notes": "local policy fix: Telegram media degraded with healthy transport is advisory/observe, ports match current NL, x-ui path prefers /usr/local/x-ui/bin/config.json"
+    },
+    {
+      "component": "xui",
+      "remote_path": "/etc/x-ui/x-ui.db",
+      "sha256": "8ff67af0e020064957988d63380cc3021d0180394f802a52856033eb74d21226",
+      "status": "server_runtime_artifact",
+      "local_matches": [],
+      "notes": "Runtime binary/database/config metadata only; do not store full artifact in repo."
+    },
+    {
+      "component": "xui",
+      "remote_path": "/usr/local/x-ui/bin/config.json",
+      "sha256": "f8efda2f610a8db9dd798253b8ecc07d32e03c8634ca0b6513f2241f3b138e4a",
+      "status": "server_runtime_artifact",
+      "local_matches": [],
+      "notes": "Runtime binary/database/config metadata only; do not store full artifact in repo."
+    },
+    {
+      "component": "xui",
+      "remote_path": "/usr/local/x-ui/bin/xray-linux-amd64.real",
+      "sha256": "3f650abf1fc4a4fbf5abe7fc9990a2658020907cd984214e9c075b4b00989fea",
+      "status": "server_runtime_artifact",
+      "local_matches": [],
+      "notes": "Runtime binary/database/config metadata only; do not store full artifact in repo."
+    },
+    {
+      "component": "xui",
+      "remote_path": "/usr/local/x-ui/x-ui",
+      "sha256": "f6e4f7675af55833d70b419c7e8ad5a1918072bbcddbfdbd30ae06f98235a651",
+      "status": "server_runtime_artifact",
+      "local_matches": [],
+      "notes": "Runtime binary/database/config metadata only; do not store full artifact in repo."
+    }
+  ]
+}
