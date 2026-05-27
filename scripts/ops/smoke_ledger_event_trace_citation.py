@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
+import io
 import json
+import logging
 import os
 import sys
 import tempfile
+import warnings
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,7 +44,7 @@ from src.ledger.rag_search import LedgerRAGSearch
 from src.network.mptcp_manager import MPTCPManager
 from src.security.spiffe.server.client import SPIREServerClient
 from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
-from src.self_healing.recovery_actions import (
+from src.self_healing.recovery import (
     RecoveryActionExecutor,
     RecoveryActionType,
     RecoveryResult,
@@ -71,10 +75,14 @@ SPIRE_SERVER_CREATE_ENTRY_RESOURCE = "identity:spire_server:create_entry"
 PQC_ROTATOR_SERVICE_NAME = "pqc-rotator"
 PQC_ROTATOR_SERVICE_LAYER = "security_service_to_control_plane"
 PQC_ROTATOR_ROTATE_RESOURCE = "services:pqc_rotator:rotate_identity"
+PQC_HEALER_SERVICE_NAME = "pqc-zero-trust-executor"
+PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
+PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
+PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
 SEARCH_QUERY = (
     "swarm-pbft maas-settlement dao-executor recovery-action-executor "
     "mesh-vpn-bridge share-to-earn mptcp-manager spire-server-client "
-    "pqc-rotator event trace"
+    "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
 )
 SECRET_VALUES = (
     "spiffe://secret/workload",
@@ -124,7 +132,7 @@ def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
     ledger = LedgerRAGSearch.__new__(LedgerRAGSearch)
     ledger.continuity_file = temp_root / "CONTINUITY.md"
     ledger.verification_root = temp_root / "docs" / "verification"
-    ledger.top_k = 10
+    ledger.top_k = 30
     ledger.rag = _SmokeRAG()
     ledger._indexed = True
     ledger._verification_indexed = False
@@ -150,6 +158,29 @@ def _allow_policy(spiffe_id: str, resource: str) -> PolicyEngine:
         )
     )
     return policy
+
+
+def _pqc_zero_trust_executor_class() -> Any:
+    oqs_logger = logging.getLogger("oqs.oqs")
+    previous_oqs_disabled = oqs_logger.disabled
+    oqs_logger.disabled = True
+    with (
+        warnings.catch_warnings(),
+        contextlib.redirect_stdout(io.StringIO()),
+        contextlib.redirect_stderr(io.StringIO()),
+    ):
+        try:
+            warnings.filterwarnings(
+                "ignore",
+                message=r"liboqs version .* differs from liboqs-python version .*",
+                category=UserWarning,
+                append=False,
+            )
+            from src.self_healing.pqc_zero_trust_healer import PQCZeroTrustExecutor
+        finally:
+            oqs_logger.disabled = previous_oqs_disabled
+
+    return PQCZeroTrustExecutor
 
 
 async def _publish_trace_events(
@@ -381,6 +412,34 @@ async def _publish_trace_events(
     assert pqc_rotator_events
     pqc_rotator_event_id = pqc_rotator_events[-1].event_id
 
+    pqc_zero_trust_executor = _pqc_zero_trust_executor_class()
+    pqc_healer = pqc_zero_trust_executor(
+        pqc_gateway=SimpleNamespace(sessions={}),
+        event_bus=bus,
+        policy_engine=_allow_policy(SECRET_VALUES[0], PQC_HEALER_HEALTH_RESOURCE),
+        require_policy=True,
+        source_agent=PQC_HEALER_SOURCE_AGENT,
+        node_id=PQC_HEALER_SOURCE_AGENT,
+        spiffe_id=SECRET_VALUES[0],
+        did=SECRET_VALUES[1],
+        wallet_address=SECRET_VALUES[2],
+    )
+    pqc_healer_result = await pqc_healer.execute(
+        {
+            "actions": ["full health check"],
+            "priority": "medium",
+            "estimated_duration": 5,
+            "plan_data": {"api_token": "secret-value-that-must-not-leak"},
+        }
+    )
+    assert pqc_healer_result["success"] is True
+    pqc_healer_events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent=PQC_HEALER_SOURCE_AGENT,
+    )
+    assert pqc_healer_events
+    pqc_healer_event_id = pqc_healer_events[-1].event_id
+
     return {
         SWARM_SERVICE_NAME: {
             "event_id": event.event_id,
@@ -426,6 +485,12 @@ async def _publish_trace_events(
             "event_id": pqc_rotator_event_id,
             "layer": PQC_ROTATOR_SERVICE_LAYER,
             "event_type": EventType.PIPELINE_STAGE_END.value,
+        },
+        PQC_HEALER_SOURCE_AGENT: {
+            "event_id": pqc_healer_event_id,
+            "layer": PQC_HEALER_SERVICE_LAYER,
+            "event_type": EventType.PIPELINE_STAGE_END.value,
+            "service_name": PQC_HEALER_SERVICE_NAME,
         },
     }
 
@@ -473,13 +538,13 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             ) as client:
                 index_response = await client.post(
                     "/api/v1/ledger/event-traces/index",
-                    params={"limit": 20},
+                    params={"limit": 40},
                 )
                 index_response.raise_for_status()
 
                 search_response = await client.post(
                     "/api/v1/ledger/search",
-                    json={"query": SEARCH_QUERY, "top_k": 15},
+                    json={"query": SEARCH_QUERY, "top_k": 30},
                 )
                 search_response.raise_for_status()
         finally:
@@ -498,7 +563,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
 
         assertions = {
             "indexed_successfully": index_body.get("status") == "success",
-            "citations_present": len(citations_by_service) >= 9,
+            "citations_present": len(citations_by_service) >= 10,
             "swarm_event_id_matches": (
                 citations_by_service.get(SWARM_SERVICE_NAME, {}).get("event_id")
                 == expected_events[SWARM_SERVICE_NAME]["event_id"]
@@ -573,6 +638,20 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 citations_by_service.get(PQC_ROTATOR_SERVICE_NAME, {}).get("layer")
                 == PQC_ROTATOR_SERVICE_LAYER
             ),
+            "pqc_healer_event_id_matches": (
+                citations_by_service.get(PQC_HEALER_SOURCE_AGENT, {}).get("event_id")
+                == expected_events[PQC_HEALER_SOURCE_AGENT]["event_id"]
+            ),
+            "pqc_healer_layer_matches": (
+                citations_by_service.get(PQC_HEALER_SOURCE_AGENT, {}).get("layer")
+                == PQC_HEALER_SERVICE_LAYER
+            ),
+            "pqc_healer_service_name_matches": (
+                citations_by_service.get(PQC_HEALER_SOURCE_AGENT, {}).get(
+                    "service_name"
+                )
+                == PQC_HEALER_SERVICE_NAME
+            ),
             "source_class_matches": all(
                 citation.get("source_class") == "event_trace"
                 for citation in citations_by_service.values()
@@ -609,6 +688,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable JSON output.",
     )
     args = parser.parse_args(argv)
+    if args.json:
+        logging.getLogger().setLevel(logging.ERROR)
 
     payload = asyncio.run(run_smoke())
     if args.json:
