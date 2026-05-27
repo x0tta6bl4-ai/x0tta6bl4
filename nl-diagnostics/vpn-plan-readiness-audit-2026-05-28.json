@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-27T23:40:38.252149+00:00",
+  "generated_at": "2026-05-27T23:53:10.506939+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 11,
+    "ready_local": 12,
     "blocked_future_approval": 2,
     "watch": 1,
     "missing": 0,
@@ -23,6 +23,7 @@
     "provider_packet_type": "provider_watch",
     "provider_packet_stale": false,
     "transport_probe_status": "healthy",
+    "transport_uptime_status": "stable_healthy",
     "nl_write_allowed": false,
     "spb_fallback_allowed": false,
     "automatic_failover_allowed": false
@@ -37,7 +38,9 @@
         "decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
         "refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
         "latest_snapshot=20260527T230246Z",
-        "snapshot_exists=true"
+        "snapshot_exists=true",
+        "snapshot_age_seconds=3024",
+        "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
     },
@@ -134,6 +137,20 @@
         "safe_flags=true"
       ],
       "next_step": "if any public NL port fails, collect a fresh read-only snapshot and compare listeners"
+    },
+    {
+      "id": "UPTIME-01",
+      "title": "Outside-in NL TCP uptime history is recorded locally",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "uptime_status=stable_healthy",
+        "sample_count=1",
+        "latest_status=healthy",
+        "consecutive_non_healthy=0",
+        "safe_flags=true"
+      ],
+      "next_step": "if uptime history becomes watch, collect a fresh read-only snapshot and provider packet"
     },
     {
       "id": "SOURCE-01",

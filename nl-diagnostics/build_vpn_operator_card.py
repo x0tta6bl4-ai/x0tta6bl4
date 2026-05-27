@@ -85,16 +85,10 @@ def build_payload(
 
     commands = [
         {
-            "id": "collect_fresh_snapshot",
-            "command": "VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/collect_vpn_readonly_snapshot.sh",
-            "expected": "prints /mnt/projects/nl-diagnostics/snapshots/<timestamp>",
-            "writes": "local snapshot only; NL read-only commands only",
-        },
-        {
-            "id": "refresh_reports",
-            "command": "python3 /mnt/projects/nl-diagnostics/refresh_vpn_planning_reports.py --snapshot /mnt/projects/nl-diagnostics/snapshots/<timestamp>",
-            "expected": "vpn-planning-refresh ok=true",
-            "writes": "local reports only",
+            "id": "incident_readonly_refresh",
+            "command": "VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/run_vpn_incident_readonly_refresh.sh",
+            "expected": "prints snapshot path and refresh report path; vpn-planning-refresh ok=true",
+            "writes": "local snapshot and local reports only; NL read-only commands only",
         },
         {
             "id": "read_decision",
