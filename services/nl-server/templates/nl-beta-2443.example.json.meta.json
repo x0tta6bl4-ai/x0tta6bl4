@@ -1,0 +1,10 @@
+{
+  "created_utc": "2026-05-27T17:32:22Z",
+  "deployable_to_nl": false,
+  "host": "nl",
+  "raw_saved_locally": false,
+  "raw_sha256": "3e9af013222ae98619f03a7b88301b76223c7f149450d65978a26dd48766d29d",
+  "redacted_sha256": "fddb80fa17036907700afa6dc43bb7f739bd65cdf2a749f1f50485326ba24f29",
+  "remote_path": "/etc/ghost-access/nl-beta-2443.json",
+  "target_path": "templates/nl-beta-2443.example.json"
+}
