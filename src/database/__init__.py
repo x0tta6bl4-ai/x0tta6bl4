@@ -13,8 +13,7 @@ from typing import List
 from dotenv import load_dotenv
 from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String,
                         Text, create_engine, inspect as sqlalchemy_inspect, event, exc as sa_exc)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
 
 logger = logging.getLogger(__name__)
