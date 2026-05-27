@@ -5,6 +5,7 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -14,6 +15,9 @@ assert SPEC and SPEC.loader
 audit = importlib.util.module_from_spec(SPEC)
 sys.modules["audit_vpn_plan_readiness"] = audit
 SPEC.loader.exec_module(audit)
+
+FRESH_NOW = datetime(2026, 5, 27, 23, 10, tzinfo=timezone.utc)
+STALE_NOW = datetime(2026, 5, 28, 2, 30, tzinfo=timezone.utc)
 
 
 def sample_decision() -> dict:
@@ -134,6 +138,20 @@ def sample_transport_probe() -> dict:
     }
 
 
+def sample_transport_uptime() -> dict:
+    return {
+        "summary": {
+            "status": "stable_healthy",
+            "sample_count": 1,
+            "latest_status": "healthy",
+            "consecutive_non_healthy": 0,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_secondary() -> dict:
     return {
         "status": "planning_template",
@@ -181,6 +199,7 @@ def sample_inputs() -> dict:
         "operator_card": sample_operator_card(),
         "failover": sample_failover(),
         "transport_probe": sample_transport_probe(),
+        "transport_uptime": sample_transport_uptime(),
         "secondary": sample_secondary(),
         "manifest": sample_manifest(),
         "preflight": sample_preflight(),
@@ -195,7 +214,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
             root = Path(tmp)
             (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
 
-            payload = audit.build_payload(sample_inputs(), root=root)
+            payload = audit.build_payload(sample_inputs(), root=root, now=FRESH_NOW)
 
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["overall_status"], "ready_local_with_future_blocks")
@@ -209,6 +228,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["provider_packet_type"], "provider_watch")
         self.assertFalse(payload["summary"]["provider_packet_stale"])
         self.assertEqual(payload["summary"]["transport_probe_status"], "healthy")
+        self.assertEqual(payload["summary"]["transport_uptime_status"], "stable_healthy")
         self.assertFalse(payload["nl_mutation_allowed"])
         self.assertFalse(payload["spb_fallback_allowed"])
 
@@ -223,10 +243,42 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
                 "ok_count": 2,
             }
 
-            payload = audit.build_payload(inputs, root=root)
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
 
         transport = next(item for item in payload["items"] if item["id"] == "TRANSPORT-01")
         self.assertEqual(transport["status"], audit.WATCH)
+        self.assertTrue(payload["ok"])
+
+    def test_degraded_uptime_history_is_watch_not_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            inputs = sample_inputs()
+            inputs["transport_uptime"] = {
+                **sample_transport_uptime(),
+                "summary": {
+                    **sample_transport_uptime()["summary"],
+                    "status": "watch",
+                    "latest_status": "degraded",
+                    "consecutive_non_healthy": 1,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        uptime_item = next(item for item in payload["items"] if item["id"] == "UPTIME-01")
+        self.assertEqual(uptime_item["status"], audit.WATCH)
+        self.assertTrue(payload["ok"])
+
+    def test_stale_snapshot_chain_is_watch_not_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+
+            payload = audit.build_payload(sample_inputs(), root=root, now=STALE_NOW)
+
+        evidence = next(item for item in payload["items"] if item["id"] == "EVIDENCE-01")
+        self.assertEqual(evidence["status"], audit.WATCH)
         self.assertTrue(payload["ok"])
 
     def test_stale_provider_packet_is_watch_not_missing(self):
@@ -239,7 +291,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
                 "snapshot_stale": True,
             }
 
-            payload = audit.build_payload(inputs, root=root)
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
 
         provider = next(item for item in payload["items"] if item["id"] == "PROVIDER-01")
         self.assertEqual(provider["status"], audit.WATCH)
@@ -252,7 +304,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
             inputs = sample_inputs()
             inputs["report_texts"] = ["spb_fallback_allowed=true"]
 
-            payload = audit.build_payload(inputs, root=root)
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
 
         spb = next(item for item in payload["items"] if item["id"] == "SPB-01")
         self.assertEqual(spb["status"], audit.MISSING)
@@ -265,7 +317,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
             inputs = sample_inputs()
             inputs["report_texts"] = ['"spb_fallback_allowed": true']
 
-            payload = audit.build_payload(inputs, root=root)
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
 
         spb = next(item for item in payload["items"] if item["id"] == "SPB-01")
         self.assertEqual(spb["status"], audit.MISSING)
@@ -278,7 +330,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
             inputs = sample_inputs()
             inputs["approval_text"] = "different text"
 
-            payload = audit.build_payload(inputs, root=root)
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
 
         gate = next(item for item in payload["items"] if item["id"] == "GATE-01")
         self.assertEqual(gate["status"], audit.MISSING)
@@ -288,7 +340,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
-            payload = audit.build_payload(sample_inputs(), root=root)
+            payload = audit.build_payload(sample_inputs(), root=root, now=FRESH_NOW)
 
         markdown = audit.render_markdown(payload)
 

@@ -731,6 +731,8 @@ fresh probe summary: no_probe_evidence, 8/8 targets ok direct and SOCKS
 probe history command added: nl-diagnostics/summarize_blocking_probe_history.py
 probe history report: nl-diagnostics/blocking-probe-history-2026-05-28.md
 probe history trend: stable_no_probe_evidence across 4 snapshots
+incident entrypoint added: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
+incident entrypoint behavior: collect read-only snapshot with blocking probes, then refresh local reports
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
 current decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 current decision: observe, high confidence, no NL/SPB writes
@@ -740,12 +742,16 @@ boot-gap watch status: watch, boot_gap_seconds=21907
 provider packet refresh added: nl-diagnostics/build_provider_incident_packet.py
 provider packet report: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
 provider packet status: provider_watch, snapshot_stale=false
+freshness gate added: snapshot_age_seconds <= 3600 is fresh; older evidence becomes watch
 planning refresh command added: nl-diagnostics/refresh_vpn_planning_reports.py
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
 outside-in NL transport probe added: nl-diagnostics/probe_nl_transport_ports.py
 outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-28.md
 outside-in NL transport status: healthy, 3/3 ports ok
+outside-in NL transport uptime recorder added: nl-diagnostics/record_nl_transport_uptime.py
+outside-in NL transport uptime summary: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
+outside-in NL transport uptime status: stable_healthy, samples=1, bad_streak=0
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 readiness audit status: ready_local_with_future_blocks, watch=1, missing=0

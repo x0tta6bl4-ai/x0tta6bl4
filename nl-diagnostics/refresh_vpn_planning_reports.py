@@ -179,6 +179,26 @@ def command_plan(
             ],
         },
         {
+            "id": "nl_transport_uptime",
+            "command": [
+                "python3",
+                str(diagnostics_dir / "record_nl_transport_uptime.py"),
+                "--probe-json",
+                str(diagnostics_dir / "nl-transport-probe-2026-05-28.json"),
+                "--history",
+                str(diagnostics_dir / "nl-transport-uptime-history.jsonl"),
+                "--json-out",
+                str(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.json"),
+                "--markdown-out",
+                str(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.md"),
+            ],
+            "outputs": [
+                str(diagnostics_dir / "nl-transport-uptime-history.jsonl"),
+                str(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.json"),
+                str(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.md"),
+            ],
+        },
+        {
             "id": "secondary_probe_template_check",
             "command": [
                 "python3",
@@ -269,6 +289,7 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     backlog = read_json(diagnostics_dir / "vpn-improvement-backlog-2026-05-28.json").get("summary") or {}
     failover = read_json(diagnostics_dir / "manual-failover-plan-2026-05-28.json")
     transport_probe = read_json(diagnostics_dir / "nl-transport-probe-2026-05-28.json")
+    uptime = read_json(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.json").get("summary") or {}
     secondary = read_json(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json")
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
@@ -281,12 +302,16 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "boot_gap_seconds": boot_gap.get("boot_gap_seconds", "unknown"),
         "provider_packet_type": provider_packet.get("packet_type", "unknown"),
         "provider_packet_stale": provider_packet.get("snapshot_stale", "unknown"),
+        "provider_packet_snapshot_age_seconds": provider_packet.get("snapshot_age_seconds", "unknown"),
         "blocking_history_trend": history.get("trend", "unknown"),
         "blocking_history_snapshot_count": history.get("snapshot_count", 0),
         "backlog_decision": backlog.get("decision", "unknown"),
         "manual_failover_status": failover.get("status", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
+        "nl_transport_uptime_status": uptime.get("status", "unknown"),
+        "nl_transport_uptime_samples": uptime.get("sample_count", "unknown"),
+        "nl_transport_uptime_bad_streak": uptime.get("consecutive_non_healthy", "unknown"),
         "secondary_probe_template_status": secondary.get("status", "unknown"),
         "readiness_audit_status": readiness.get("overall_status", "unknown"),
         "readiness_missing": readiness_summary.get("missing", "unknown"),
@@ -331,11 +356,15 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"boot_gap_seconds={summary.get('boot_gap_seconds')}",
         f"provider_packet_type={summary.get('provider_packet_type')}",
         f"provider_packet_stale={summary.get('provider_packet_stale')}",
+        f"provider_packet_snapshot_age_seconds={summary.get('provider_packet_snapshot_age_seconds')}",
         f"blocking_history_trend={summary.get('blocking_history_trend')}",
         f"blocking_history_snapshot_count={summary.get('blocking_history_snapshot_count')}",
         f"manual_failover_status={summary.get('manual_failover_status')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
+        f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",
+        f"nl_transport_uptime_samples={summary.get('nl_transport_uptime_samples')}",
+        f"nl_transport_uptime_bad_streak={summary.get('nl_transport_uptime_bad_streak')}",
         f"secondary_probe_template_status={summary.get('secondary_probe_template_status')}",
         f"readiness_audit_status={summary.get('readiness_audit_status')}",
         f"readiness_missing={summary.get('readiness_missing')}",
