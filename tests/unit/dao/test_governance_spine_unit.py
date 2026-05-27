@@ -1,6 +1,10 @@
 from src.coordination.events import EventBus, EventType
 from src.dao.governance import ActionDispatcher, ActionResult
 from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.security.policy_engine import (
+    PolicyDecision as ABACPolicyDecision,
+    PolicyEffect,
+)
 from src.security.zero_trust.policy_engine import PolicyAction, PolicyEngine, PolicyRule
 
 
@@ -99,6 +103,44 @@ def test_dao_dispatcher_policy_denied_blocks_handler(tmp_path):
     )
     assert blocked[-1].data["stage"] == "policy_denied"
     assert blocked[-1].data["policy_allowed"] is False
+
+
+def test_dao_dispatcher_blocks_abac_deny_decision_shape(tmp_path):
+    calls = []
+
+    class ABACDenyPolicy:
+        def evaluate(self, *_args, **_kwargs):
+            return ABACPolicyDecision(
+                effect=PolicyEffect.DENY,
+                policy_id="default-deny",
+                rule_id="deny-all",
+                reason="ABAC deny",
+                attributes_evaluated=1,
+                evaluation_time_ms=0.1,
+            )
+
+    def handler(action):
+        calls.append(action)
+        return ActionResult("update_config", True, "should not run")
+
+    dispatcher = _dispatcher(
+        tmp_path,
+        policy_engine=ABACDenyPolicy(),
+        require_policy=True,
+    )
+    dispatcher.register("update_config", handler)
+
+    result = dispatcher.dispatch(_action())
+
+    assert result.success is False
+    assert result.detail == "ABAC deny"
+    assert calls == []
+    blocked = dispatcher.event_bus.get_event_history(
+        event_type=EventType.TASK_BLOCKED,
+        source_agent="dao-governance",
+    )
+    assert blocked[-1].data["policy_allowed"] is False
+    assert blocked[-1].data["matched_rules"] == ["deny-all"]
 
 
 def test_dao_dispatcher_policy_engine_requires_spiffe_identity(tmp_path):
