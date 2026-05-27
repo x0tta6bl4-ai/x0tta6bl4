@@ -1,8 +1,8 @@
 """
-X0T Token Bridge: Off-chain (MeshToken) ↔ On-chain (X0TToken.sol)
+X0T Token Bridge: Off-chain (MeshToken) ↔ On-chain (X0TToken/X0TBridge.sol)
 
 Responsibilities:
-1. Listen to on-chain events (Staked, Unstaked, Transfer, RelayPaid)
+1. Listen to on-chain events (Staked, Unstaked, Transfer, RelayPaid, BridgeDeposit)
 2. Sync state to local MeshToken
 3. Push local rewards/payments to on-chain contract
 
@@ -20,11 +20,23 @@ Architecture:
 
 import asyncio
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.integration.spine import AsyncSafeActuator, SafeActuatorResult
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
+from src.services.marketplace_events import publish_marketplace_escrow_event
+from src.services.reward_events import publish_reward_settlement_event
+from src.services.service_event_identity import service_event_identity
 
 # Optional web3 import
 try:
@@ -40,6 +52,15 @@ if TYPE_CHECKING:
     from src.dao.token import MeshToken
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "token-bridge"
+
+TOKEN_BRIDGE_CLAIM_BOUNDARY = (
+    "TokenBridge chain-write event only. It records local policy, actuator, "
+    "and settlement submission state for X0T bridge operations; it is not "
+    "proof of final live external settlement without a verified receipt and "
+    "live RPC evidence."
+)
 
 
 class BridgeDirection(Enum):
@@ -78,11 +99,12 @@ class BridgeConfig:
     confirmations: int = 2
     gas_limit: int = 200000
     max_gas_price_gwei: float = 50.0
+    allow_simulated_chain_writes: bool = False
 
 
 class TokenBridge:
     """
-    Bridge between off-chain MeshToken and on-chain X0TToken.
+    Bridge between off-chain MeshToken and on-chain X0TToken/X0TBridge.
 
     Usage:
         from src.dao.token import MeshToken
@@ -103,7 +125,16 @@ class TokenBridge:
         await bridge.push_rewards_to_chain({"node1": 100.0, "node2": 50.0})
     """
 
-    # X0TToken ABI (minimal, only what we need)
+    POLLED_EVENT_TYPES = (
+        "Staked",
+        "Unstaked",
+        "Transfer",
+        "RelayPaid",
+        "BridgeDeposit",
+        "BridgeRelease",
+    )
+
+    # X0TToken/X0TBridge ABI (minimal, only what we need)
     CONTRACT_ABI = [
         # Events
         {
@@ -176,6 +207,29 @@ class TokenBridge:
             "name": "EscrowReleased",
             "type": "event",
         },
+        {
+            "anonymous": False,
+            "inputs": [
+                {"indexed": True, "name": "depositId", "type": "bytes32"},
+                {"indexed": True, "name": "depositor", "type": "address"},
+                {"indexed": True, "name": "recipient", "type": "address"},
+                {"indexed": False, "name": "amount", "type": "uint256"},
+                {"indexed": False, "name": "nodeIdHash", "type": "bytes32"},
+                {"indexed": False, "name": "meshNodeId", "type": "string"},
+            ],
+            "name": "BridgeDeposit",
+            "type": "event",
+        },
+        {
+            "anonymous": False,
+            "inputs": [
+                {"indexed": True, "name": "releaseId", "type": "bytes32"},
+                {"indexed": True, "name": "recipient", "type": "address"},
+                {"indexed": False, "name": "amount", "type": "uint256"},
+            ],
+            "name": "BridgeRelease",
+            "type": "event",
+        },
         # Read functions
         {
             "inputs": [{"name": "account", "type": "address"}],
@@ -233,9 +287,46 @@ class TokenBridge:
             "stateMutability": "nonpayable",
             "type": "function",
         },
+        {
+            "inputs": [
+                {"name": "recipient", "type": "address"},
+                {"name": "meshNodeId", "type": "string"},
+                {"name": "amount", "type": "uint256"},
+            ],
+            "name": "depositFor",
+            "outputs": [{"name": "depositId", "type": "bytes32"}],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        },
+        {
+            "inputs": [
+                {"name": "releaseId", "type": "bytes32"},
+                {"name": "recipient", "type": "address"},
+                {"name": "amount", "type": "uint256"},
+            ],
+            "name": "releaseToChain",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        },
     ]
 
-    def __init__(self, mesh_token: "MeshToken", config: BridgeConfig):
+    def __init__(
+        self,
+        mesh_token: "MeshToken",
+        config: BridgeConfig,
+        *,
+        node_id: str = "token-bridge",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[AsyncSafeActuator] = None,
+    ):
         """
         Initialize token bridge with resilience patterns.
 
@@ -245,6 +336,36 @@ class TokenBridge:
         """
         self.mesh_token = mesh_token
         self.config = config
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else self._env_bool("X0TTA6BL4_TOKEN_BRIDGE_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="token-bridge")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id if spiffe_id is not None else service_identity["spiffe_id"],
+            "did": did if did is not None else service_identity["did"],
+            "wallet_address": (
+                wallet_address
+                if wallet_address is not None
+                else service_identity["wallet_address"]
+            ),
+        }
+        self.safe_actuator = safe_actuator or AsyncSafeActuator(
+            self._execute_chain_write_through_actuator
+        )
+        self._last_chain_write_result: Any = None
         self.web3 = None
         self.contract = None
         self.account = None
@@ -271,9 +392,381 @@ class TokenBridge:
             "Transfer": [],
             "RelayPaid": [],
             "EpochRewardsDistributed": [],
+            "BridgeDeposit": [],
+            "BridgeRelease": [],
         }
 
         self._initialized = False
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize TokenBridge EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize TokenBridge policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        return normalize_policy_allowed(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return normalize_policy_reason(decision)
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    @staticmethod
+    def _chain_resource_name(operation: str) -> str:
+        operation_lower = str(operation or "unknown_operation").lower().strip()
+        slug = "".join(
+            char if char.isalnum() else "_"
+            for char in operation_lower
+        ).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        return slug or "unknown_operation"
+
+    def _publish_chain_write_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        operation: str,
+        context: Dict[str, Any],
+        reason: str = "",
+        policy_decision: Any = None,
+        success: Optional[bool] = None,
+        transaction_hash: Optional[str] = None,
+        simulated: Optional[bool] = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        operation_resource = self._chain_resource_name(operation)
+        payload = {
+            "component": "dao.token_bridge",
+            "stage": stage,
+            "operation": operation,
+            "operation_resource": operation_resource,
+            "resource": f"dao:token_bridge:{operation_resource}",
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context),
+            "success": success,
+            "transaction_hash": transaction_hash,
+            "simulated": simulated,
+            "submitted_transaction": bool(transaction_hash and not simulated),
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "safe_actuator": True,
+            "claim_boundary": TOKEN_BRIDGE_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=8)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish TokenBridge chain-write event: %s", exc)
+            return None
+
+    def _evaluate_chain_write_policy(self, operation: str) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "TokenBridge policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "TokenBridge SPIFFE identity is required for policy evaluation"
+        operation_resource = self._chain_resource_name(operation)
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource=f"dao:token_bridge:{operation_resource}",
+                workload_type="token-bridge",
+            )
+        except Exception as exc:
+            return False, None, f"TokenBridge policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, self._policy_reason(decision) or "TokenBridge policy denied chain write"
+        return True, decision, self._policy_reason(decision)
+
+    @staticmethod
+    def _chain_write_succeeded(operation: str, raw: Any) -> bool:
+        if operation in {"release_escrow_on_chain", "refund_escrow_on_chain"}:
+            return raw is True
+        return raw is not None
+
+    @staticmethod
+    def _chain_write_tx_hash(raw: Any) -> Optional[str]:
+        if isinstance(raw, str):
+            return raw
+        return None
+
+    @staticmethod
+    def _chain_write_simulated(operation: str, raw: Any) -> bool:
+        if operation == "lock_escrow_on_chain" and isinstance(raw, str) and raw.startswith("sim_tx_"):
+            return True
+        if operation in {"release_escrow_on_chain", "refund_escrow_on_chain"} and raw is True:
+            return True
+        return False
+
+    def _publish_reward_lifecycle(
+        self,
+        *,
+        operation: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool,
+        transaction_hash: Optional[str],
+        reason: str,
+    ) -> None:
+        if operation != "push_rewards_to_chain":
+            return
+        rewards = context.get("rewards") if isinstance(context.get("rewards"), dict) else {}
+        amount = sum(float(value) for value in rewards.values()) if rewards else None
+        publish_reward_settlement_event(
+            transition="recorded" if success and not simulated else "blocked",
+            source_agent=self.source_agent,
+            node_address=self.identity.get("wallet_address") or self.identity.get("node_id"),
+            packets=None,
+            amount=amount,
+            status="submitted" if success and not simulated else "blocked",
+            submitted_transaction=bool(transaction_hash and not simulated),
+            simulated=simulated,
+            settlement_recorded=bool(success and not simulated and transaction_hash),
+            local_accounting_recorded=False,
+            transaction_hash=transaction_hash if not simulated else None,
+            reason=reason,
+            event_bus=self.event_bus,
+            project_root=self.event_project_root,
+            **self.identity,
+        )
+
+    def _publish_marketplace_lifecycle(
+        self,
+        *,
+        operation: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool,
+        reason: str,
+    ) -> None:
+        transitions = {
+            "lock_escrow_on_chain": "held",
+            "release_escrow_on_chain": "released",
+            "refund_escrow_on_chain": "refunded",
+        }
+        if operation not in transitions:
+            return
+        publish_marketplace_escrow_event(
+            transition=transitions[operation] if success and not simulated else "blocked",
+            source_agent=self.source_agent,
+            escrow_id=context.get("escrow_id"),
+            listing_id=context.get("listing_id"),
+            renter_id=context.get("renter_id"),
+            actor_id=self.identity.get("node_id"),
+            currency="X0T",
+            status=transitions[operation] if success and not simulated else "blocked",
+            node_id=context.get("target_node_id") or self.identity.get("node_id"),
+            mesh_id=context.get("mesh_id"),
+            amount_token=context.get("amount_xot"),
+            reason=reason,
+            event_bus=self.event_bus,
+            project_root=self.event_project_root,
+            spiffe_id=self.identity.get("spiffe_id"),
+            did=self.identity.get("did"),
+            wallet_address=self.identity.get("wallet_address"),
+        )
+
+    async def _execute_chain_write_through_actuator(
+        self,
+        operation: str,
+        context: Dict[str, Any],
+    ) -> SafeActuatorResult:
+        self._last_chain_write_result = None
+        if operation == "lock_escrow_on_chain":
+            raw = await self._lock_escrow_on_chain_internal(
+                str(context.get("escrow_id", "")),
+                str(context.get("target_node_id", "")),
+                float(context.get("amount_xot") or 0.0),
+            )
+        elif operation == "release_escrow_on_chain":
+            raw = await self._release_escrow_on_chain_internal(str(context.get("escrow_id", "")))
+        elif operation == "refund_escrow_on_chain":
+            raw = await self._refund_escrow_on_chain_internal(str(context.get("escrow_id", "")))
+        elif operation == "push_rewards_to_chain":
+            rewards = context.get("rewards")
+            uptimes = context.get("uptimes")
+            raw = await self._push_rewards_to_chain_internal(
+                rewards if isinstance(rewards, dict) else {},
+                uptimes if isinstance(uptimes, dict) or uptimes is None else None,
+            )
+        elif operation == "authorize_relayer":
+            raw = await self._authorize_relayer_internal(
+                str(context.get("target_node_id", "")),
+                bool(context.get("authorized", True)),
+            )
+        else:
+            return SafeActuatorResult(False, f"unknown TokenBridge operation: {operation}")
+
+        self._last_chain_write_result = raw
+        success = self._chain_write_succeeded(operation, raw)
+        simulated = self.config.allow_simulated_chain_writes and self._chain_write_simulated(operation, raw)
+        if simulated:
+            return SafeActuatorResult(success, "simulated chain write is not production settlement", True)
+        return SafeActuatorResult(success, "" if success else f"{operation} returned no settlement result")
+
+    async def _run_chain_write(
+        self,
+        *,
+        operation: str,
+        context: Dict[str, Any],
+        failure_value: Any = None,
+    ) -> Any:
+        self._last_chain_write_result = None
+        self._publish_chain_write_event(
+            EventType.COORDINATION_REQUEST,
+            stage="received",
+            operation=operation,
+            context=context,
+        )
+        policy_allowed, policy_decision, policy_reason = self._evaluate_chain_write_policy(operation)
+        if not policy_allowed:
+            self._publish_chain_write_event(
+                EventType.TASK_BLOCKED,
+                stage="policy_denied",
+                operation=operation,
+                context=context,
+                reason=policy_reason,
+                policy_decision=policy_decision,
+                success=False,
+                simulated=False,
+            )
+            self._publish_reward_lifecycle(
+                operation=operation,
+                context=context,
+                success=False,
+                simulated=False,
+                transaction_hash=None,
+                reason=policy_reason,
+            )
+            self._publish_marketplace_lifecycle(
+                operation=operation,
+                context=context,
+                success=False,
+                simulated=False,
+                reason=policy_reason,
+            )
+            return failure_value
+
+        self._publish_chain_write_event(
+            EventType.PIPELINE_STAGE_START,
+            stage="actuator_start",
+            operation=operation,
+            context=context,
+            reason=policy_reason,
+            policy_decision=policy_decision,
+        )
+        actuator_result = await self.safe_actuator.execute(operation, context)
+        raw = self._last_chain_write_result
+        success = bool(actuator_result.success)
+        simulated = bool(actuator_result.simulated)
+        transaction_hash = self._chain_write_tx_hash(raw)
+        reason = actuator_result.reason or policy_reason
+        event_type = EventType.PIPELINE_STAGE_END if success and not simulated else EventType.TASK_FAILED
+        stage = (
+            "actuator_completed"
+            if success and not simulated
+            else "actuator_simulated"
+            if simulated
+            else "actuator_failed"
+        )
+        self._publish_chain_write_event(
+            event_type,
+            stage=stage,
+            operation=operation,
+            context=context,
+            reason=reason,
+            policy_decision=policy_decision,
+            success=success and not simulated,
+            transaction_hash=transaction_hash if not simulated else None,
+            simulated=simulated,
+        )
+        self._publish_reward_lifecycle(
+            operation=operation,
+            context=context,
+            success=success,
+            simulated=simulated,
+            transaction_hash=transaction_hash,
+            reason=reason,
+        )
+        self._publish_marketplace_lifecycle(
+            operation=operation,
+            context=context,
+            success=success,
+            simulated=simulated,
+            reason=reason,
+        )
+        if raw is not None and simulated and operation in {
+            "lock_escrow_on_chain",
+            "release_escrow_on_chain",
+            "refund_escrow_on_chain",
+        }:
+            return raw
+        return raw if success and not simulated else failure_value
 
     def _init_web3(self):
         """Initialize Web3 with failover support across multiple RPC providers."""
@@ -385,6 +878,15 @@ class TokenBridge:
         if event_name in self._event_handlers:
             self._event_handlers[event_name].append(handler)
 
+    @staticmethod
+    def _event_arg(args: Any, key: str, default: Any = None) -> Any:
+        if hasattr(args, "get"):
+            return args.get(key, default)
+        try:
+            return getattr(args, key)
+        except AttributeError:
+            return default
+
     async def start(self):
         """Start listening to on-chain events."""
         if not self._init_web3():
@@ -412,17 +914,19 @@ class TokenBridge:
         """Poll for new events since last block."""
         current_block = self.web3.eth.block_number
 
-        if current_block <= self._last_block:
+        confirmations = max(int(self.config.confirmations or 0), 0)
+        confirmed_to_block = current_block - confirmations
+        if confirmed_to_block <= self._last_block:
             return
 
         # Get events from last_block to current
         from_block = self._last_block + 1
-        to_block = current_block
+        to_block = confirmed_to_block
 
-        for event_name in ["Staked", "Unstaked", "Transfer", "RelayPaid"]:
+        for event_name in self.POLLED_EVENT_TYPES:
             await self._process_event_type(event_name, from_block, to_block)
 
-        self._last_block = current_block
+        self._last_block = confirmed_to_block
 
     async def _process_event_type(
         self, event_name: str, from_block: int, to_block: int
@@ -446,6 +950,7 @@ class TokenBridge:
         args = event.args
         block = event.blockNumber
         tx_hash = event.transactionHash.hex()
+        bridge_deposit_recorded = False
 
         logger.info(f"Event {event_name} at block {block}: {dict(args)}")
 
@@ -458,6 +963,14 @@ class TokenBridge:
             await self._sync_transfer(args["from"], args.to, args.value)
         elif event_name == "RelayPaid":
             await self._sync_relay_payment(args.payer, args.relayer, args.amount)
+        elif event_name == "BridgeDeposit":
+            bridge_deposit_recorded = True
+            await self.mint_from_bridge_event(
+                tx_hash=tx_hash,
+                recipient_address=str(self._event_arg(args, "recipient", "")),
+                amount_wei=int(self._event_arg(args, "amount", 0) or 0),
+                block_number=block,
+            )
 
         # Call registered handlers
         for handler in self._event_handlers.get(event_name, []):
@@ -469,16 +982,39 @@ class TokenBridge:
             except Exception as e:
                 logger.error(f"Event handler error: {e}")
 
+        if bridge_deposit_recorded:
+            return
+
+        if event_name == "BridgeRelease":
+            from_address = "bridge"
+            to_address = str(self._event_arg(args, "recipient", ""))
+        else:
+            from_address = str(
+                self._event_arg(
+                    args,
+                    "from",
+                    self._event_arg(args, "user", self._event_arg(args, "payer", "")),
+                )
+            )
+            to_address = str(
+                self._event_arg(
+                    args,
+                    "to",
+                    self._event_arg(args, "relayer", self._event_arg(args, "recipient", "")),
+                )
+            )
+
         # Record transaction
         self._tx_history.append(
             BridgeTransaction(
                 tx_id=f"{event_name}_{tx_hash[:8]}",
                 direction=BridgeDirection.FROM_CHAIN,
-                from_address=str(
-                    args.get("from", args.get("user", args.get("payer", "")))
+                from_address=from_address,
+                to_address=to_address,
+                amount=(
+                    float(self._event_arg(args, "amount", self._event_arg(args, "value", 0)))
+                    / 1e18
                 ),
-                to_address=str(args.get("to", args.get("relayer", ""))),
-                amount=float(args.get("amount", args.get("value", 0))) / 1e18,
                 event_type=event_name,
                 timestamp=time.time(),
                 block_number=block,
@@ -543,11 +1079,37 @@ class TokenBridge:
     async def lock_escrow_on_chain(
         self, escrow_id: str, node_id: str, amount_xot: float
     ) -> Optional[str]:
+        context = {
+            "escrow_id": escrow_id,
+            "target_node_id": node_id,
+            "amount_xot": amount_xot,
+        }
+        result = await self._run_chain_write(
+            operation="lock_escrow_on_chain",
+            context=context,
+            failure_value=None,
+        )
+        return result if isinstance(result, str) else None
+
+    async def _lock_escrow_on_chain_internal(
+        self, escrow_id: str, node_id: str, amount_xot: float
+    ) -> Optional[str]:
         """
         Lock tokens in a decentralized escrow on-chain.
         """
-        if not self._init_web3() or not self.contract:
-            logger.warning(f"Decentralized Escrow {escrow_id} simulated (Web3 unavailable)")
+        if not self._init_web3() or not self.contract or not self.account:
+            if not self.config.allow_simulated_chain_writes:
+                logger.error(
+                    "Decentralized escrow %s refused: Web3, bridge contract, or "
+                    "operator account is unavailable",
+                    escrow_id,
+                )
+                return None
+            logger.warning(
+                "Decentralized escrow %s simulated because explicit "
+                "allow_simulated_chain_writes=True is set",
+                escrow_id,
+            )
             return f"sim_tx_{uuid.uuid4().hex[:8]}"
 
         eth_addr = self.get_eth_address(node_id)
@@ -555,25 +1117,94 @@ class TokenBridge:
             logger.error(f"No Ethereum address for {node_id}")
             return None
 
-        # Implementation for real contract interaction would go here
-        logger.info(f"Locking {amount_xot} X0T for escrow {escrow_id}")
-        return f"tx_{uuid.uuid4().hex[:8]}"
+        logger.error(
+            "Decentralized escrow %s refused: real X0TBridge deposit submission "
+            "is not implemented for node %s amount %s",
+            escrow_id,
+            node_id,
+            amount_xot,
+        )
+        return None
 
     async def release_escrow_on_chain(self, escrow_id: str) -> bool:
+        result = await self._run_chain_write(
+            operation="release_escrow_on_chain",
+            context={"escrow_id": escrow_id},
+            failure_value=False,
+        )
+        return bool(result)
+
+    async def _release_escrow_on_chain_internal(self, escrow_id: str) -> bool:
         """
         Release on-chain escrow to the node operator.
         """
-        logger.info(f"Releasing on-chain escrow {escrow_id}")
-        return True
+        if not self._init_web3() or not self.contract or not self.account:
+            if self.config.allow_simulated_chain_writes:
+                logger.warning(
+                    "Release for on-chain escrow %s simulated because explicit "
+                    "allow_simulated_chain_writes=True is set",
+                    escrow_id,
+                )
+                return True
+            logger.error(
+                "Release for on-chain escrow %s refused: Web3, bridge contract, "
+                "or operator account is unavailable",
+                escrow_id,
+            )
+            return False
+
+        logger.error(
+            "Release for on-chain escrow %s refused: real X0TBridge release "
+            "submission is not implemented",
+            escrow_id,
+        )
+        return False
 
     async def refund_escrow_on_chain(self, escrow_id: str) -> bool:
+        result = await self._run_chain_write(
+            operation="refund_escrow_on_chain",
+            context={"escrow_id": escrow_id},
+            failure_value=False,
+        )
+        return bool(result)
+
+    async def _refund_escrow_on_chain_internal(self, escrow_id: str) -> bool:
         """
         Refund on-chain escrow to the renter.
         """
-        logger.info(f"Refunding on-chain escrow {escrow_id}")
-        return True
+        if not self._init_web3() or not self.contract or not self.account:
+            if self.config.allow_simulated_chain_writes:
+                logger.warning(
+                    "Refund for on-chain escrow %s simulated because explicit "
+                    "allow_simulated_chain_writes=True is set",
+                    escrow_id,
+                )
+                return True
+            logger.error(
+                "Refund for on-chain escrow %s refused: Web3, bridge contract, "
+                "or operator account is unavailable",
+                escrow_id,
+            )
+            return False
+
+        logger.error(
+            "Refund for on-chain escrow %s refused: real X0TBridge refund "
+            "submission is not implemented",
+            escrow_id,
+        )
+        return False
 
     async def push_rewards_to_chain(
+        self, rewards: Dict[str, float], uptimes: Optional[Dict[str, int]] = None
+    ) -> Optional[str]:
+        result = await self._run_chain_write(
+            operation="push_rewards_to_chain",
+            context={"rewards": dict(rewards), "uptimes": dict(uptimes) if uptimes else None},
+            failure_value=None,
+        )
+        return result if isinstance(result, str) else None
+
+    async def _push_rewards_to_chain_internal(
         self, rewards: Dict[str, float], uptimes: Optional[Dict[str, int]] = None
     ) -> Optional[str]:
         """
@@ -679,6 +1310,16 @@ class TokenBridge:
             return None
 
     async def authorize_relayer(
+        self, node_id: str, authorized: bool = True
+    ) -> Optional[str]:
+        result = await self._run_chain_write(
+            operation="authorize_relayer",
+            context={"target_node_id": node_id, "authorized": authorized},
+            failure_value=None,
+        )
+        return result if isinstance(result, str) else None
+
+    async def _authorize_relayer_internal(
         self, node_id: str, authorized: bool = True
     ) -> Optional[str]:
         """

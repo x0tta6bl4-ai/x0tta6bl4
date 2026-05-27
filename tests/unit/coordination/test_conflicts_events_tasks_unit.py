@@ -66,6 +66,40 @@ def test_event_bus_publish_pending_ack_and_replay(tmp_path):
     assert replay[0].event_id == event.event_id
 
 
+def test_event_bus_history_and_replay_filter_multiple_source_agents(tmp_path):
+    bus = EventBus(project_root=str(tmp_path))
+    first = bus.publish(
+        EventType.PIPELINE_STAGE_START,
+        "swarm-pbft",
+        {"stage": "consensus"},
+        target_agents={"agent-b"},
+    )
+    bus.publish(
+        EventType.PIPELINE_STAGE_END,
+        "pqc-rotator",
+        {"stage": "rotate"},
+        target_agents={"agent-b"},
+    )
+    bus.publish(
+        EventType.SYSTEM_ALERT,
+        "unregistered-service",
+        {"stage": "other"},
+        target_agents={"agent-b"},
+    )
+
+    history = bus.get_event_history(
+        source_agents={"swarm-pbft", "pqc-rotator"},
+        limit=10,
+    )
+    assert [event.source_agent for event in history] == [
+        "swarm-pbft",
+        "pqc-rotator",
+    ]
+
+    replay = bus.replay_events("agent-b", source_agents={"swarm-pbft"})
+    assert [event.event_id for event in replay] == [first.event_id]
+
+
 def test_event_emit_helpers_wire_payloads(tmp_path):
     bus = EventBus(project_root=str(tmp_path))
 

@@ -1,0 +1,829 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "EventBus, service identity, and SafeActuator cross-layer control plane surface.",
+  "current_scan": {
+    "scanned_root": "src",
+    "event_surface_files": 39,
+    "service_identity_services": 21,
+    "event_type_values": 31,
+    "markers": [
+      "EventBus",
+      "get_event_bus",
+      "publish_marketplace_escrow_event",
+      "publish_reward_settlement_event",
+      "service_event_identity",
+      "service_identity_registry_status",
+      "service_event_trace_filter",
+      "service_event_trace_history",
+      "SafeActuator",
+      "AsyncSafeActuator"
+    ]
+  },
+  "shared_contracts": {
+    "event_bus": {
+      "path": "src/coordination/events.py",
+      "contract": "EventType enum plus EventBus.publish/subscribe/history/replay, source-agent trace filters, and get_event_bus singleton.",
+      "persistence": ".agent_coordination/events.log",
+      "event_type_values": [
+        "agent.registered",
+        "agent.unregistered",
+        "agent.heartbeat",
+        "agent.status_changed",
+        "task.created",
+        "task.assigned",
+        "task.started",
+        "task.completed",
+        "task.failed",
+        "task.blocked",
+        "lock.acquired",
+        "lock.released",
+        "lock.expired",
+        "lock.conflict",
+        "file.modified",
+        "file.created",
+        "file.deleted",
+        "pipeline.stage_start",
+        "pipeline.stage_end",
+        "pipeline.handoff",
+        "conflict.detected",
+        "conflict.resolved",
+        "system.alert",
+        "system.shutdown",
+        "coordination.request",
+        "marketplace.escrow.held",
+        "marketplace.escrow.released",
+        "marketplace.escrow.refunded",
+        "marketplace.escrow.blocked",
+        "reward.relay.recorded",
+        "reward.relay.blocked"
+      ],
+      "source_refs": [
+        "src/coordination/events.py:18",
+        "src/coordination/events.py:129",
+        "src/coordination/events.py:217",
+        "src/coordination/events.py:282",
+        "src/coordination/events.py:307",
+        "src/coordination/events.py:411"
+      ]
+    },
+    "service_identity": {
+      "path": "src/services/service_event_identity.py",
+      "contract": "Resolves spiffe_id, did, and wallet_address through service-specific env vars before generic env vars.",
+      "identity_fields": [
+        "spiffe_id",
+        "did",
+        "wallet_address"
+      ],
+      "source_refs": [
+        "src/services/service_event_identity.py:9",
+        "src/services/service_event_identity.py:49",
+        "src/services/service_event_identity.py:76",
+        "src/services/service_event_identity.py:84"
+      ]
+    },
+    "service_identity_status": {
+      "path": "src/services/service_identity_registry.py",
+      "api_route": "/api/v1/service-identity/status",
+      "contract": "Reports redacted identity configuration status for every current service_event_identity caller; exposes configured/source/env_var metadata but never identity values.",
+      "services_total": 21,
+      "source_refs": [
+        "src/services/service_identity_registry.py:10",
+        "src/services/service_identity_registry.py:16",
+        "src/services/service_identity_registry.py:125",
+        "src/api/service_identity_status.py:10",
+        "src/api/service_identity_status.py:13",
+        "src/core/app.py:250"
+      ]
+    },
+    "service_event_trace": {
+      "path": "src/services/service_event_trace.py",
+      "api_routes": [
+        "/api/v1/service-identity/event-trace-filter",
+        "/api/v1/service-identity/event-traces",
+        "/api/v1/ledger/event-traces/index",
+        "/api/v1/ledger/event-traces/status"
+      ],
+      "cli_surface": "python -m src.coordination.cli events --service-name <service> --layer <layer> --replay-agent <agent>",
+      "contract": "Maps registered service names and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
+      "source_refs": [
+        "src/services/service_event_trace.py:12",
+        "src/services/service_event_trace.py:18",
+        "src/services/service_event_trace.py:35",
+        "src/services/service_event_trace.py:87",
+        "src/services/service_event_trace.py:108",
+        "src/services/service_event_trace.py:123",
+        "src/services/service_event_trace.py:143",
+        "src/services/service_event_trace.py:159",
+        "src/services/service_event_trace.py:199",
+        "src/services/service_event_trace.py:208",
+        "src/coordination/events.py:282",
+        "src/coordination/events.py:307",
+        "src/api/service_identity_status.py:27",
+        "src/api/service_identity_status.py:36",
+        "src/api/ledger_endpoints.py:311",
+        "src/api/ledger_endpoints.py:326",
+        "src/api/ledger_endpoints.py:335",
+        "src/api/ledger_endpoints.py:359",
+        "src/coordination/cli.py:213",
+        "src/coordination/cli.py:418"
+      ]
+    },
+    "safe_actuator": {
+      "path": "src/integration/spine.py",
+      "contract": "SafeActuator and AsyncSafeActuator normalize action execution results before control-plane components treat actions as applied.",
+      "source_refs": [
+        "src/integration/spine.py:85",
+        "src/integration/spine.py:123",
+        "src/integration/spine.py:155"
+      ]
+    }
+  },
+  "event_surface_files": [
+    {
+      "path": "src/api/maas_governance.py",
+      "layer": "api_to_control_plane",
+      "role": "MaaS governance actions enter EventBus and SafeActuator with canonical service identity.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/api/maas_governance.py:24",
+        "src/api/maas_governance.py:31",
+        "src/api/maas_governance.py:275",
+        "src/api/maas_governance.py:364"
+      ]
+    },
+    {
+      "path": "src/api/maas_marketplace.py",
+      "layer": "api_to_commerce",
+      "role": "Marketplace API emits escrow lifecycle events through the shared marketplace event helper.",
+      "markers": [
+        "marketplace_event_helper"
+      ],
+      "source_refs": [
+        "src/api/maas_marketplace.py:35",
+        "src/api/maas_marketplace.py:715"
+      ]
+    },
+    {
+      "path": "src/api/ledger_endpoints.py",
+      "layer": "ledger_event_trace_runtime_memory",
+      "role": "Indexes redacted EventBus service/layer traces into Ledger RAG so search citations can reference event_id, source_agent, and layer.",
+      "markers": [
+        "event_bus",
+        "service_event_trace"
+      ],
+      "source_refs": [
+        "src/api/ledger_endpoints.py:15",
+        "src/api/ledger_endpoints.py:17",
+        "src/api/ledger_endpoints.py:88",
+        "src/api/ledger_endpoints.py:90",
+        "src/api/ledger_endpoints.py:94",
+        "src/api/ledger_endpoints.py:311",
+        "src/api/ledger_endpoints.py:326",
+        "src/api/ledger_endpoints.py:335",
+        "src/api/ledger_endpoints.py:359"
+      ]
+    },
+    {
+      "path": "src/api/service_identity_status.py",
+      "layer": "identity_status_api",
+      "role": "Exposes redacted service identity configuration status, EventBus trace-filter metadata, and redacted trace history for event-producing services.",
+      "markers": [
+        "service_identity_registry",
+        "service_event_trace"
+      ],
+      "source_refs": [
+        "src/api/service_identity_status.py:10",
+        "src/api/service_identity_status.py:13",
+        "src/api/service_identity_status.py:18",
+        "src/api/service_identity_status.py:21",
+        "src/api/service_identity_status.py:27",
+        "src/api/service_identity_status.py:36",
+        "src/api/service_identity_status.py:46"
+      ]
+    },
+    {
+      "path": "src/coordination/__init__.py",
+      "layer": "coordination_public_surface",
+      "role": "Re-exports Event, EventBus, and EventType as the public coordination surface.",
+      "markers": [
+        "event_contract_reexport"
+      ],
+      "source_refs": [
+        "src/coordination/__init__.py:8",
+        "src/coordination/__init__.py:17"
+      ]
+    },
+    {
+      "path": "src/coordination/cli.py",
+      "layer": "coordination_cli",
+      "role": "CLI can inspect persisted EventBus history/replay and filter traces by registered service identity source or layer.",
+      "markers": [
+        "event_bus",
+        "service_event_trace"
+      ],
+      "source_refs": [
+        "src/coordination/cli.py:13",
+        "src/coordination/cli.py:16",
+        "src/coordination/cli.py:213",
+        "src/coordination/cli.py:230",
+        "src/coordination/cli.py:238",
+        "src/coordination/cli.py:418"
+      ]
+    },
+    {
+      "path": "src/coordination/events.py",
+      "layer": "coordination_contract",
+      "role": "Defines event vocabulary, persistence, publish/subscribe, source-agent history/replay filters, and singleton access.",
+      "markers": [
+        "event_contract",
+        "event_log_persistence",
+        "event_bus_singleton"
+      ],
+      "source_refs": [
+        "src/coordination/events.py:18",
+        "src/coordination/events.py:129",
+        "src/coordination/events.py:217",
+        "src/coordination/events.py:282",
+        "src/coordination/events.py:307",
+        "src/coordination/events.py:408"
+      ]
+    },
+    {
+      "path": "src/dao/executor_webhook.py",
+      "layer": "dao_to_control_plane",
+      "role": "DAO executor webhook uses EventBus, service identity, policy, and SafeActuator for execution actions.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/dao/executor_webhook.py:21",
+        "src/dao/executor_webhook.py:29",
+        "src/dao/executor_webhook.py:109",
+        "src/dao/executor_webhook.py:120"
+      ]
+    },
+    {
+      "path": "src/dao/governance.py",
+      "layer": "dao_to_control_plane",
+      "role": "DAO governance execution is wrapped in the same EventBus identity and SafeActuator pattern as MaaS governance.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/dao/governance.py:20",
+        "src/dao/governance.py:28",
+        "src/dao/governance.py:133",
+        "src/dao/governance.py:145"
+      ]
+    },
+    {
+      "path": "src/dao/governance_contract.py",
+      "layer": "dao_to_chain_control",
+      "role": "Governance contract actions are policy-gated and emitted through the shared control plane.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/dao/governance_contract.py:13",
+        "src/dao/governance_contract.py:20",
+        "src/dao/governance_contract.py:133",
+        "src/dao/governance_contract.py:144"
+      ]
+    },
+    {
+      "path": "src/dao/proposal_executor_webhook.py",
+      "layer": "dao_to_control_plane",
+      "role": "Proposal execution webhook follows the same service identity plus SafeActuator path as other dangerous actions.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/dao/proposal_executor_webhook.py:46",
+        "src/dao/proposal_executor_webhook.py:53",
+        "src/dao/proposal_executor_webhook.py:204",
+        "src/dao/proposal_executor_webhook.py:215"
+      ]
+    },
+    {
+      "path": "src/dao/token_bridge.py",
+      "layer": "dao_chain_bridge",
+      "role": "Token bridge joins direct EventBus publication with reward and marketplace event helpers.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "async_safe_actuator",
+        "marketplace_event_helper",
+        "reward_event_helper"
+      ],
+      "source_refs": [
+        "src/dao/token_bridge.py:30",
+        "src/dao/token_bridge.py:37",
+        "src/dao/token_bridge.py:38",
+        "src/dao/token_bridge.py:39",
+        "src/dao/token_bridge.py:365"
+      ]
+    },
+    {
+      "path": "src/dao/token_rewards.py",
+      "layer": "dao_rewards_to_events",
+      "role": "TokenRewards publishes reward lifecycle events through the shared reward helper.",
+      "markers": [
+        "reward_event_helper"
+      ],
+      "source_refs": [
+        "src/dao/token_rewards.py:12",
+        "src/dao/token_rewards.py:130"
+      ]
+    },
+    {
+      "path": "src/ledger/rag_search.py",
+      "layer": "ledger_event_trace_runtime_memory",
+      "role": "Stores redacted EventBus traces as RAG documents with event_id, source_agent, service_name, layer, entrypoint, and redacted metadata.",
+      "markers": [
+        "event_bus"
+      ],
+      "source_refs": [
+        "src/ledger/rag_search.py:24",
+        "src/ledger/rag_search.py:237",
+        "src/ledger/rag_search.py:364",
+        "src/ledger/rag_search.py:406",
+        "src/ledger/rag_search.py:412",
+        "src/ledger/rag_search.py:428"
+      ]
+    },
+    {
+      "path": "src/integration/code_wiring.py",
+      "layer": "integration_evidence",
+      "role": "Executable wiring proof binds IntegrationSpine to EventBus and SafeActuator.",
+      "markers": [
+        "event_bus",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/integration/code_wiring.py:18",
+        "src/integration/code_wiring.py:23",
+        "src/integration/code_wiring.py:165",
+        "src/integration/code_wiring.py:171"
+      ]
+    },
+    {
+      "path": "src/integration/completion_audit.py",
+      "layer": "integration_audit",
+      "role": "Completion audit still records identity consistency across EventBus trace events as an explicit gap surface.",
+      "markers": [
+        "event_bus"
+      ],
+      "source_refs": [
+        "src/integration/completion_audit.py:359",
+        "src/integration/completion_audit.py:1475"
+      ]
+    },
+    {
+      "path": "src/integration/spine.py",
+      "layer": "control_plane",
+      "role": "Local control spine publishes staged outcomes and owns SafeActuator classes reused by other layers.",
+      "markers": [
+        "event_bus",
+        "safe_actuator",
+        "async_safe_actuator"
+      ],
+      "source_refs": [
+        "src/integration/spine.py:14",
+        "src/integration/spine.py:123",
+        "src/integration/spine.py:155",
+        "src/integration/spine.py:511"
+      ]
+    },
+    {
+      "path": "src/network/mesh_vpn_bridge.py",
+      "layer": "network_to_rewards",
+      "role": "Mesh VPN bridge passes network relay identity and EventBus into TokenRewards.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/network/mesh_vpn_bridge.py:15",
+        "src/network/mesh_vpn_bridge.py:21",
+        "src/network/mesh_vpn_bridge.py:104",
+        "src/network/mesh_vpn_bridge.py:107"
+      ]
+    },
+    {
+      "path": "src/network/mptcp_manager.py",
+      "layer": "network_to_control_plane",
+      "role": "MPTCP control actions are policy-gated and emitted through EventBus with SafeActuator.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/network/mptcp_manager.py:14",
+        "src/network/mptcp_manager.py:21",
+        "src/network/mptcp_manager.py:109",
+        "src/network/mptcp_manager.py:286"
+      ]
+    },
+    {
+      "path": "src/security/spiffe/agent/manager.py",
+      "layer": "security_identity_to_control_plane",
+      "role": "SPIRE agent operations publish policy and actuator outcomes with canonical service identity.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/security/spiffe/agent/manager.py:34",
+        "src/security/spiffe/agent/manager.py:41",
+        "src/security/spiffe/agent/manager.py:137",
+        "src/security/spiffe/agent/manager.py:337"
+      ]
+    },
+    {
+      "path": "src/security/spiffe/server/client.py",
+      "layer": "security_identity_to_control_plane",
+      "role": "SPIRE server client operations publish policy and actuator outcomes with canonical service identity.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/security/spiffe/server/client.py:18",
+        "src/security/spiffe/server/client.py:25",
+        "src/security/spiffe/server/client.py:108",
+        "src/security/spiffe/server/client.py:316"
+      ]
+    },
+    {
+      "path": "src/self_healing/ebpf_anomaly_detector.py",
+      "layer": "self_healing_to_control_plane",
+      "role": "eBPF anomaly actions use EventBus, service identity, and SafeActuator before executing remediation.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/self_healing/ebpf_anomaly_detector.py:26",
+        "src/self_healing/ebpf_anomaly_detector.py:35",
+        "src/self_healing/ebpf_anomaly_detector.py:257",
+        "src/self_healing/ebpf_anomaly_detector.py:264"
+      ]
+    },
+    {
+      "path": "src/self_healing/mape_k_spiffe_integration.py",
+      "layer": "self_healing_identity_loop",
+      "role": "SPIFFE MAPE-K loop uses EventBus and service identity even without direct SafeActuator wrapping.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/self_healing/mape_k_spiffe_integration.py:24",
+        "src/self_healing/mape_k_spiffe_integration.py:31",
+        "src/self_healing/mape_k_spiffe_integration.py:109",
+        "src/self_healing/mape_k_spiffe_integration.py:132"
+      ]
+    },
+    {
+      "path": "src/self_healing/pqc_zero_trust_healer.py",
+      "layer": "self_healing_pqc_identity",
+      "role": "PQC zero-trust recovery publishes through EventBus with canonical service identity.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/self_healing/pqc_zero_trust_healer.py:16",
+        "src/self_healing/pqc_zero_trust_healer.py:25",
+        "src/self_healing/pqc_zero_trust_healer.py:494",
+        "src/self_healing/pqc_zero_trust_healer.py:510"
+      ]
+    },
+    {
+      "path": "src/self_healing/recovery/circuit_breaker.py",
+      "layer": "self_healing_recovery_guard",
+      "role": "Recovery circuit breaker shares the EventBus and service identity contract imports used by the recovery package.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/self_healing/recovery/circuit_breaker.py:15",
+        "src/self_healing/recovery/circuit_breaker.py:21"
+      ]
+    },
+    {
+      "path": "src/self_healing/recovery/executor.py",
+      "layer": "self_healing_to_control_plane",
+      "role": "Recovery action executor uses EventBus and service identity for action traces.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/self_healing/recovery/executor.py:17",
+        "src/self_healing/recovery/executor.py:23",
+        "src/self_healing/recovery/executor.py:67",
+        "src/self_healing/recovery/executor.py:409"
+      ]
+    },
+    {
+      "path": "src/self_healing/recovery/rate_limiter.py",
+      "layer": "self_healing_recovery_guard",
+      "role": "Recovery rate limiter shares the EventBus and service identity contract imports used by the recovery package.",
+      "markers": [
+        "event_bus",
+        "service_identity"
+      ],
+      "source_refs": [
+        "src/self_healing/recovery/rate_limiter.py:15",
+        "src/self_healing/recovery/rate_limiter.py:21"
+      ]
+    },
+    {
+      "path": "src/server/ghost_server.py",
+      "layer": "server_to_control_plane",
+      "role": "Ghost L3 server setup actions are emitted through EventBus and SafeActuator.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/server/ghost_server.py:15",
+        "src/server/ghost_server.py:23",
+        "src/server/ghost_server.py:81",
+        "src/server/ghost_server.py:88"
+      ]
+    },
+    {
+      "path": "src/services/marketplace_events.py",
+      "layer": "commerce_event_helper",
+      "role": "Normalizes escrow transition payloads and publishes marketplace EventTypes.",
+      "markers": [
+        "event_bus",
+        "marketplace_event_helper"
+      ],
+      "source_refs": [
+        "src/services/marketplace_events.py:8",
+        "src/services/marketplace_events.py:39",
+        "src/services/marketplace_events.py:94"
+      ]
+    },
+    {
+      "path": "src/services/marketplace_janitor.py",
+      "layer": "commerce_maintenance_to_events",
+      "role": "Marketplace janitor emits blocked/refunded escrow events with service identity.",
+      "markers": [
+        "service_identity",
+        "marketplace_event_helper"
+      ],
+      "source_refs": [
+        "src/services/marketplace_janitor.py:7",
+        "src/services/marketplace_janitor.py:8",
+        "src/services/marketplace_janitor.py:38",
+        "src/services/marketplace_janitor.py:109"
+      ]
+    },
+    {
+      "path": "src/services/marketplace_settlement.py",
+      "layer": "commerce_settlement_to_events",
+      "role": "Marketplace settlement emits held/released/refunded/blocked events with service identity.",
+      "markers": [
+        "service_identity",
+        "marketplace_event_helper"
+      ],
+      "source_refs": [
+        "src/services/marketplace_settlement.py:8",
+        "src/services/marketplace_settlement.py:9",
+        "src/services/marketplace_settlement.py:41",
+        "src/services/marketplace_settlement.py:121"
+      ]
+    },
+    {
+      "path": "src/services/pqc_rotator_service.py",
+      "layer": "security_service_to_control_plane",
+      "role": "PQC rotation uses EventBus, service identity, policy, and AsyncSafeActuator.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "async_safe_actuator"
+      ],
+      "source_refs": [
+        "src/services/pqc_rotator_service.py:7",
+        "src/services/pqc_rotator_service.py:14",
+        "src/services/pqc_rotator_service.py:93",
+        "src/services/pqc_rotator_service.py:100"
+      ]
+    },
+    {
+      "path": "src/services/reward_events.py",
+      "layer": "reward_event_helper",
+      "role": "Normalizes reward relay payloads and publishes reward EventTypes.",
+      "markers": [
+        "event_bus",
+        "reward_event_helper"
+      ],
+      "source_refs": [
+        "src/services/reward_events.py:8",
+        "src/services/reward_events.py:36",
+        "src/services/reward_events.py:87"
+      ]
+    },
+    {
+      "path": "src/services/service_event_identity.py",
+      "layer": "identity_contract",
+      "role": "Single identity resolver and redacted per-service identity configuration status helper.",
+      "markers": [
+        "service_identity_contract",
+        "service_identity_status"
+      ],
+      "source_refs": [
+        "src/services/service_event_identity.py:76",
+        "src/services/service_event_identity.py:84"
+      ]
+    },
+    {
+      "path": "src/services/service_identity_registry.py",
+      "layer": "identity_status_registry",
+      "role": "Registry of all current event-producing service names, layers, entrypoints, and redacted identity status.",
+      "markers": [
+        "service_identity_status",
+        "service_identity_registry"
+      ],
+      "source_refs": [
+        "src/services/service_identity_registry.py:7",
+        "src/services/service_identity_registry.py:16",
+        "src/services/service_identity_registry.py:125"
+      ]
+    },
+    {
+      "path": "src/services/service_event_trace.py",
+      "layer": "identity_to_event_trace",
+      "role": "Binds service identity registry entries to EventBus history/replay filters by source_agent and layer.",
+      "markers": [
+        "event_bus",
+        "service_event_trace"
+      ],
+      "source_refs": [
+        "src/services/service_event_trace.py:8",
+        "src/services/service_event_trace.py:9",
+        "src/services/service_event_trace.py:35",
+        "src/services/service_event_trace.py:87",
+        "src/services/service_event_trace.py:108",
+        "src/services/service_event_trace.py:123",
+        "src/services/service_event_trace.py:159"
+      ]
+    },
+    {
+      "path": "src/services/share_to_earn_service.py",
+      "layer": "network_usage_to_rewards",
+      "role": "Share-to-earn bridges network usage stats into reward EventBus publications.",
+      "markers": [
+        "service_identity",
+        "reward_event_helper"
+      ],
+      "source_refs": [
+        "src/services/share_to_earn_service.py:11",
+        "src/services/share_to_earn_service.py:12",
+        "src/services/share_to_earn_service.py:36",
+        "src/services/share_to_earn_service.py:37"
+      ]
+    },
+    {
+      "path": "src/swarm/intelligence.py",
+      "layer": "swarm_to_control_plane",
+      "role": "Swarm MAPE-K proposals use EventBus, service identity, policy, and AsyncSafeActuator.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "async_safe_actuator"
+      ],
+      "source_refs": [
+        "src/swarm/intelligence.py:36",
+        "src/swarm/intelligence.py:43",
+        "src/swarm/intelligence.py:244",
+        "src/swarm/intelligence.py:252"
+      ]
+    },
+    {
+      "path": "src/swarm/pbft.py",
+      "layer": "swarm_consensus_to_control_plane",
+      "role": "PBFT consensus execution uses EventBus, service identity, policy, and SafeActuator.",
+      "markers": [
+        "event_bus",
+        "service_identity",
+        "safe_actuator"
+      ],
+      "source_refs": [
+        "src/swarm/pbft.py:19",
+        "src/swarm/pbft.py:26",
+        "src/swarm/pbft.py:161",
+        "src/swarm/pbft.py:169"
+      ]
+    }
+  ],
+  "non_obvious_links": [
+    {
+      "id": "network-usage-to-reward-events",
+      "summary": "Network relay paths are not isolated from economy state: mesh_vpn_bridge and share_to_earn feed TokenRewards/reward_events, which publish reward relay events into EventBus.",
+      "source_refs": [
+        "src/network/mesh_vpn_bridge.py:104",
+        "src/network/mesh_vpn_bridge.py:107",
+        "src/dao/token_rewards.py:130",
+        "src/services/share_to_earn_service.py:37"
+      ]
+    },
+    {
+      "id": "commerce-and-chain-share-event-helpers",
+      "summary": "Marketplace API, marketplace services, and TokenBridge share the same escrow event helper, so commerce and chain bridge traces use one EventBus vocabulary.",
+      "source_refs": [
+        "src/api/maas_marketplace.py:35",
+        "src/services/marketplace_settlement.py:8",
+        "src/services/marketplace_janitor.py:7",
+        "src/dao/token_bridge.py:37"
+      ]
+    },
+    {
+      "id": "safe-actuator-is-cross-layer-not-local",
+      "summary": "SafeActuator is defined in IntegrationSpine but reused by API, DAO, network, security, self-healing, server, and swarm components.",
+      "source_refs": [
+        "src/integration/spine.py:123",
+        "src/api/maas_governance.py:364",
+        "src/network/mptcp_manager.py:286",
+        "src/security/spiffe/agent/manager.py:337",
+        "src/swarm/pbft.py:169"
+      ]
+    },
+    {
+      "id": "eventbus-is-persistent-audit-surface",
+      "summary": "EventBus is not just in-memory pub/sub; it appends events to .agent_coordination/events.log, and the coordination CLI can inspect that history.",
+      "source_refs": [
+        "src/coordination/events.py:139",
+        "src/coordination/events.py:217",
+        "src/coordination/cli.py:213"
+      ]
+    },
+    {
+      "id": "identity-status-bridges-hidden-env-contract",
+      "summary": "Service identity was previously only visible at individual call sites. The redacted status API now links 21 event-producing services to their configured identity sources without exposing identity values.",
+      "source_refs": [
+        "src/services/service_identity_registry.py:16",
+        "src/services/service_identity_registry.py:125",
+        "src/api/service_identity_status.py:13"
+      ]
+    },
+    {
+      "id": "registered-service-trace-filter",
+      "summary": "Event history/replay can now be filtered through the same service identity registry, so operators can trace EventBus activity by registered service name or layer instead of raw source_agent strings. The HTTP trace surface redacts SPIFFE, DID, and wallet fields before returning event data.",
+      "source_refs": [
+        "src/services/service_event_trace.py:35",
+        "src/services/service_event_trace.py:87",
+        "src/services/service_event_trace.py:108",
+        "src/services/service_event_trace.py:123",
+        "src/services/service_event_trace.py:143",
+        "src/services/service_event_trace.py:159",
+        "src/coordination/events.py:282",
+        "src/coordination/cli.py:213",
+        "src/api/service_identity_status.py:36"
+      ]
+    },
+    {
+      "id": "event-traces-feed-ledger-rag-memory",
+      "summary": "Redacted EventBus traces are now a Ledger RAG source, so operator search citations can connect runtime answers back to event_id, source_agent, registered service name, and layer.",
+      "source_refs": [
+        "src/api/ledger_endpoints.py:88",
+        "src/api/ledger_endpoints.py:94",
+        "src/api/ledger_endpoints.py:311",
+        "src/api/ledger_endpoints.py:326",
+        "src/api/ledger_endpoints.py:335",
+        "src/services/service_event_trace.py:159",
+        "src/services/service_event_trace.py:208"
+      ]
+    }
+  ],
+  "drift_checks": [
+    "tests/unit/test_event_control_plane_map_unit.py",
+    "tests/unit/coordination/test_conflicts_events_tasks_unit.py",
+    "tests/unit/services/test_service_identity_registry_unit.py",
+    "tests/unit/services/test_service_event_trace_unit.py",
+    "tests/unit/api/test_service_identity_status_unit.py"
+  ]
+}

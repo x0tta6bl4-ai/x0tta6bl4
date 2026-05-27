@@ -1,0 +1,291 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Policy decision normalization and runtime enforcement gates from governance/API/control-plane callers into SafeActuator guarded actions.",
+  "decision_dialects": {
+    "zero_trust": {
+      "primary_path": "src/security/zero_trust/policy_engine.py",
+      "compat_path": "src/libx0t/security/zero_trust/policy_engine.py",
+      "decision_shape": [
+        "allowed",
+        "action",
+        "matched_rules",
+        "reason"
+      ],
+      "audit_semantics": "PolicyAction.AUDIT is allow-with-log.",
+      "source_refs": [
+        "src/security/zero_trust/policy_engine.py:67",
+        "src/security/zero_trust/policy_engine.py:168",
+        "src/security/zero_trust/policy_engine.py:216",
+        "src/security/zero_trust/policy_engine.py:232",
+        "src/libx0t/security/zero_trust/policy_engine.py:216",
+        "src/libx0t/security/zero_trust/policy_engine.py:232"
+      ]
+    },
+    "abac": {
+      "path": "src/security/policy_engine.py",
+      "decision_shape": [
+        "effect",
+        "policy_id",
+        "rule_id",
+        "reason"
+      ],
+      "non_obvious_risk_fixed": "ABAC PolicyDecision is a truthy dataclass even when effect=DENY, so direct bool(decision) could accidentally allow a denied runtime action.",
+      "source_refs": [
+        "src/security/policy_engine.py:225",
+        "src/security/policy_engine.py:470",
+        "src/security/policy_engine.py:522",
+        "src/security/policy_engine.py:532"
+      ]
+    }
+  },
+  "normalization_bridge": {
+    "path": "src/security/policy_decision_adapter.py",
+    "exports": [
+      "policy_allowed",
+      "policy_reason",
+      "policy_rules"
+    ],
+    "source_refs": [
+      "src/security/policy_decision_adapter.py:8",
+      "src/security/policy_decision_adapter.py:21",
+      "src/security/policy_decision_adapter.py:30",
+      "src/security/policy_decision_adapter.py:57",
+      "src/security/policy_decision_adapter.py:76"
+    ],
+    "guardrails": [
+      "Known DENY/BLOCK/CHALLENGE effects are fail-closed.",
+      "AUDIT is treated as allow-with-log.",
+      "ABAC rule_id is exposed as matched-rule evidence when matched_rules is absent."
+    ]
+  },
+  "guarded_components": [
+    {
+      "component": "MaaS governance API action execution",
+      "path": "src/api/maas_governance.py",
+      "resource_prefix": "api:maas_governance",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/api/maas_governance.py:26",
+        "src/api/maas_governance.py:106",
+        "src/api/maas_governance.py:221",
+        "src/api/maas_governance.py:364"
+      ]
+    },
+    {
+      "component": "DAO governance dispatcher",
+      "path": "src/dao/governance.py",
+      "resource_prefix": "dao:governance",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/dao/governance.py:23",
+        "src/dao/governance.py:175",
+        "src/dao/governance.py:288",
+        "src/dao/governance.py:385"
+      ]
+    },
+    {
+      "component": "DAO executor webhook",
+      "path": "src/dao/executor_webhook.py",
+      "resource_prefix": "dao:executor",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/dao/executor_webhook.py:24",
+        "src/dao/executor_webhook.py:151",
+        "src/dao/executor_webhook.py:244",
+        "src/dao/executor_webhook.py:259"
+      ]
+    },
+    {
+      "component": "DAO proposal executor webhook",
+      "path": "src/dao/proposal_executor_webhook.py",
+      "resource_prefix": "dao:proposal_executor",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/dao/proposal_executor_webhook.py:48",
+        "src/dao/proposal_executor_webhook.py:239",
+        "src/dao/proposal_executor_webhook.py:335",
+        "src/dao/proposal_executor_webhook.py:370"
+      ]
+    },
+    {
+      "component": "Governance contract chain writes",
+      "path": "src/dao/governance_contract.py",
+      "resource_prefix": "dao:governance_contract",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/dao/governance_contract.py:15",
+        "src/dao/governance_contract.py:228",
+        "src/dao/governance_contract.py:339",
+        "src/dao/governance_contract.py:371"
+      ]
+    },
+    {
+      "component": "Token bridge chain writes",
+      "path": "src/dao/token_bridge.py",
+      "resource_prefix": "dao:token_bridge",
+      "actuator": "AsyncSafeActuator",
+      "source_refs": [
+        "src/dao/token_bridge.py:32",
+        "src/dao/token_bridge.py:427",
+        "src/dao/token_bridge.py:535",
+        "src/dao/token_bridge.py:638"
+      ]
+    },
+    {
+      "component": "MPTCP manager",
+      "path": "src/network/mptcp_manager.py",
+      "resource_prefix": "network:mptcp",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/network/mptcp_manager.py:16",
+        "src/network/mptcp_manager.py:66",
+        "src/network/mptcp_manager.py:191",
+        "src/network/mptcp_manager.py:286"
+      ]
+    },
+    {
+      "component": "Ghost L3 server setup",
+      "path": "src/server/ghost_server.py",
+      "resource_prefix": "server:ghost_l3",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/server/ghost_server.py:18",
+        "src/server/ghost_server.py:116",
+        "src/server/ghost_server.py:205",
+        "src/server/ghost_server.py:288"
+      ]
+    },
+    {
+      "component": "PQC identity rotator",
+      "path": "src/services/pqc_rotator_service.py",
+      "resource_prefix": "security:pqc_rotator",
+      "actuator": "AsyncSafeActuator",
+      "source_refs": [
+        "src/services/pqc_rotator_service.py:9",
+        "src/services/pqc_rotator_service.py:128",
+        "src/services/pqc_rotator_service.py:226",
+        "src/services/pqc_rotator_service.py:323"
+      ]
+    },
+    {
+      "component": "PBFT execution callback",
+      "path": "src/swarm/pbft.py",
+      "resource_prefix": "swarm:pbft",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/swarm/pbft.py:21",
+        "src/swarm/pbft.py:232",
+        "src/swarm/pbft.py:330",
+        "src/swarm/pbft.py:345"
+      ]
+    },
+    {
+      "component": "Swarm MAPE-K intelligence",
+      "path": "src/swarm/intelligence.py",
+      "resource_prefix": "swarm:mapek",
+      "actuator": "AsyncSafeActuator",
+      "source_refs": [
+        "src/swarm/intelligence.py:38",
+        "src/swarm/intelligence.py:280",
+        "src/swarm/intelligence.py:398",
+        "src/swarm/intelligence.py:413"
+      ]
+    },
+    {
+      "component": "Self-healing recovery actions",
+      "path": "src/self_healing/recovery/executor.py",
+      "resource_prefix": "self_healing:recovery",
+      "actuator": "subprocess/rate-limit guarded executor",
+      "source_refs": [
+        "src/self_healing/recovery/executor.py:18",
+        "src/self_healing/recovery/executor.py:392",
+        "src/self_healing/recovery/executor.py:400",
+        "src/self_healing/recovery/executor.py:409"
+      ]
+    },
+    {
+      "component": "eBPF anomaly recovery",
+      "path": "src/self_healing/ebpf_anomaly_detector.py",
+      "resource_prefix": "self_healing:ebpf",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/self_healing/ebpf_anomaly_detector.py:30",
+        "src/self_healing/ebpf_anomaly_detector.py:292",
+        "src/self_healing/ebpf_anomaly_detector.py:395",
+        "src/self_healing/ebpf_anomaly_detector.py:515"
+      ]
+    },
+    {
+      "component": "SPIFFE MAPE-K recovery",
+      "path": "src/self_healing/mape_k_spiffe_integration.py",
+      "resource_prefix": "self_healing:spiffe",
+      "actuator": "SPIFFE controller executor",
+      "source_refs": [
+        "src/self_healing/mape_k_spiffe_integration.py:25",
+        "src/self_healing/mape_k_spiffe_integration.py:150",
+        "src/self_healing/mape_k_spiffe_integration.py:272"
+      ]
+    },
+    {
+      "component": "PQC zero-trust healer",
+      "path": "src/self_healing/pqc_zero_trust_healer.py",
+      "resource_prefix": "self_healing:pqc",
+      "actuator": "PQC healing executor",
+      "source_refs": [
+        "src/self_healing/pqc_zero_trust_healer.py:20",
+        "src/self_healing/pqc_zero_trust_healer.py:528",
+        "src/self_healing/pqc_zero_trust_healer.py:655"
+      ]
+    },
+    {
+      "component": "SPIRE agent manager",
+      "path": "src/security/spiffe/agent/manager.py",
+      "resource_prefix": "security:spiffe_agent",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/security/spiffe/agent/manager.py:36",
+        "src/security/spiffe/agent/manager.py:188",
+        "src/security/spiffe/agent/manager.py:286",
+        "src/security/spiffe/agent/manager.py:337"
+      ]
+    },
+    {
+      "component": "SPIRE server client",
+      "path": "src/security/spiffe/server/client.py",
+      "resource_prefix": "security:spiffe_server",
+      "actuator": "SafeActuator",
+      "source_refs": [
+        "src/security/spiffe/server/client.py:20",
+        "src/security/spiffe/server/client.py:155",
+        "src/security/spiffe/server/client.py:265",
+        "src/security/spiffe/server/client.py:316"
+      ]
+    }
+  ],
+  "non_obvious_links": [
+    {
+      "id": "two-policy-decision-dialects",
+      "description": "Runtime components consume zero-trust PolicyDecision.allowed but the older ABAC policy engine emits PolicyDecision.effect. A shared adapter now normalizes both."
+    },
+    {
+      "id": "policy-before-actuator",
+      "description": "Governance/API/DAO/network/self-healing components evaluate policy before SafeActuator or local executor invocation; denied policy blocks the action path."
+    },
+    {
+      "id": "audit-is-not-deny",
+      "description": "Zero-trust PolicyAction.AUDIT is documented as allow-with-log; evaluation now returns allowed=true and audit_log=true."
+    },
+    {
+      "id": "challenge-is-fail-closed-in-normalizer",
+      "description": "The adapter treats CHALLENGE as blocked unless a caller implements an explicit challenge flow."
+    }
+  ],
+  "drift_checks": [
+    "tests/unit/security/test_policy_decision_adapter_unit.py",
+    "tests/unit/test_policy_enforcement_map_unit.py",
+    "tests/unit/dao/test_governance_spine_unit.py",
+    "tests/unit/api/test_maas_governance_spine_unit.py",
+    "tests/unit/security/test_zero_trust_policy_engine.py"
+  ]
+}
