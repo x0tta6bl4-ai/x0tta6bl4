@@ -1,0 +1,307 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Bridge between local verification artifacts, redacted EventBus traces, Ledger API, and RAG runtime search.",
+  "evidence_source": {
+    "path": "docs/verification",
+    "indexable_suffixes": [
+      ".md",
+      ".json",
+      ".jsonl"
+    ],
+    "current_indexable_files": 1073,
+    "current_latest_alias_files": 38,
+    "by_suffix": {
+      ".md": 481,
+      ".json": 561,
+      ".jsonl": 31
+    },
+    "latest_by_suffix": {
+      ".md": 19,
+      ".json": 19
+    }
+  },
+  "event_trace_source": {
+    "source": "EventBus",
+    "source_class": "event_trace",
+    "relative_path": ".agent_coordination/events.log",
+    "redaction_contract": "service_event_trace_history returns payload-level redacted=true and event-level redacted=true after recursive redaction of spiffe_id, did, and wallet_address.",
+    "metadata_fields": [
+      "event_id",
+      "event_type",
+      "source_agent",
+      "service_name",
+      "layer",
+      "entrypoint",
+      "redacted"
+    ],
+    "source_refs": [
+      "src/services/service_event_trace.py:159",
+      "src/services/service_event_trace.py:190",
+      "src/services/service_event_trace.py:207",
+      "src/ledger/rag_search.py:24",
+      "src/ledger/rag_search.py:237",
+      "src/ledger/rag_search.py:406"
+    ]
+  },
+  "runtime_surface": {
+    "router": "src/api/ledger_endpoints.py",
+    "prefix": "/api/v1/ledger",
+    "registered_by": "src/core/app.py",
+    "registration_mode": "full_mode_only",
+    "source_refs": [
+      "src/core/app.py:259",
+      "src/api/ledger_endpoints.py:21"
+    ],
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/ledger/search",
+        "bridge_role": "Searches the current RAG runtime surface. Body field include_verification=true explicitly indexes verification evidence before querying.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:21",
+          "src/api/ledger_endpoints.py:156",
+          "src/api/ledger_endpoints.py:177",
+          "src/api/ledger_endpoints.py:184"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/ledger/index",
+        "bridge_role": "Indexes CONTINUITY.md and can include verification evidence when include_verification=true.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:207",
+          "src/api/ledger_endpoints.py:220"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/ledger/status",
+        "bridge_role": "Reports continuity ledger indexing status.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:243"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/ledger/evidence/index",
+        "bridge_role": "Indexes docs/verification text-like artifacts into the same LedgerRAGSearch RAG pipeline.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:260",
+          "src/api/ledger_endpoints.py:272"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/ledger/evidence/status",
+        "bridge_role": "Reports docs/verification availability and indexing counters without indexing files.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:296",
+          "src/api/ledger_endpoints.py:303"
+        ]
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/ledger/event-traces/index",
+        "bridge_role": "Builds a redacted EventBus trace payload through the service registry and indexes it into the same LedgerRAGSearch RAG pipeline.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:311",
+          "src/api/ledger_endpoints.py:326",
+          "src/api/ledger_endpoints.py:335"
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/ledger/event-traces/status",
+        "bridge_role": "Reports EventBus trace indexing counters and source metadata without reading event history.",
+        "source_refs": [
+          "src/api/ledger_endpoints.py:359",
+          "src/api/ledger_endpoints.py:366"
+        ]
+      }
+    ]
+  },
+  "operator_citation_flow": {
+    "response_field": "metadata.citations",
+    "purpose": "Expose source paths and EventBus trace identity from retrieved chunks so operator-facing search responses can point back to docs/verification artifacts or runtime event evidence.",
+    "dedupe_keys": [
+      "relative_path",
+      "document_id",
+      "chunk_id",
+      "source"
+    ],
+    "source_refs": [
+      "src/api/ledger_endpoints.py:52",
+      "src/api/ledger_endpoints.py:56",
+      "src/api/ledger_endpoints.py:88",
+      "src/api/ledger_endpoints.py:94",
+      "src/api/ledger_endpoints.py:96",
+      "src/api/ledger_endpoints.py:114",
+      "src/api/ledger_endpoints.py:129",
+      "src/api/ledger_endpoints.py:147"
+    ]
+  },
+  "rag_bridge": {
+    "class": "src.ledger.rag_search.LedgerRAGSearch",
+    "continuity_source": "CONTINUITY.md",
+    "verification_source": "docs/verification",
+    "event_trace_source": "EventBus",
+    "same_runtime_pipeline": true,
+    "explicit_evidence_indexing": true,
+    "metadata_contract": {
+      "verification_evidence": {
+        "source": "docs/verification",
+        "source_class": "verification_evidence",
+        "relative_path": "docs/verification/...",
+        "file_suffix": ".md|.json|.jsonl",
+        "latest_alias": "boolean",
+        "parent_run": "directory name for run-scoped artifacts"
+      },
+      "event_trace": {
+        "source": "EventBus",
+        "source_class": "event_trace",
+        "relative_path": ".agent_coordination/events.log",
+        "event_id": "EventBus event id",
+        "event_type": "EventType value",
+        "source_agent": "EventBus source_agent",
+        "service_name": "registered service name when matched",
+        "layer": "registered service layer when matched",
+        "entrypoint": "registered service entrypoint when matched",
+        "redacted": true
+      }
+    },
+    "source_refs": [
+      "src/ledger/rag_search.py:21",
+      "src/ledger/rag_search.py:22",
+      "src/ledger/rag_search.py:24",
+      "src/ledger/rag_search.py:50",
+      "src/ledger/rag_search.py:80",
+      "src/ledger/rag_search.py:193",
+      "src/ledger/rag_search.py:210",
+      "src/ledger/rag_search.py:275",
+      "src/ledger/rag_search.py:314",
+      "src/ledger/rag_search.py:237",
+      "src/ledger/rag_search.py:364",
+      "src/ledger/rag_search.py:406",
+      "src/ledger/rag_search.py:412",
+      "src/ledger/rag_search.py:428"
+    ]
+  },
+  "operator_smoke": {
+    "command": "python3 scripts/ops/smoke_ledger_event_trace_citation.py --json",
+    "scenario": "eventbus_multi_layer_trace_to_ledger_rag_citation",
+    "covered_services": [
+      {
+        "service_name": "swarm-pbft",
+        "layer": "swarm_consensus_to_control_plane",
+        "event_type": "pipeline.stage_start"
+      },
+      {
+        "service_name": "maas-settlement",
+        "layer": "commerce_settlement_to_events",
+        "event_type": "marketplace.escrow.released"
+      },
+      {
+        "service_name": "dao-executor",
+        "layer": "dao_to_control_plane",
+        "event_type": "task.blocked"
+      },
+      {
+        "service_name": "recovery-action-executor",
+        "layer": "self_healing_to_control_plane",
+        "event_type": "task.blocked"
+      },
+      {
+        "service_name": "mesh-vpn-bridge",
+        "layer": "network_to_rewards",
+        "event_type": "reward.relay.recorded"
+      },
+      {
+        "service_name": "share-to-earn",
+        "layer": "network_usage_to_rewards",
+        "event_type": "reward.relay.recorded"
+      },
+      {
+        "service_name": "mptcp-manager",
+        "layer": "network_to_control_plane",
+        "event_type": "pipeline.stage_end"
+      },
+      {
+        "service_name": "spire-server-client",
+        "layer": "security_identity_to_control_plane",
+        "event_type": "pipeline.stage_end"
+      },
+      {
+        "service_name": "pqc-rotator",
+        "layer": "security_service_to_control_plane",
+        "event_type": "pipeline.stage_end"
+      }
+    ],
+    "proves": [
+      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, DAO executor, self-healing recovery, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
+      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, dangerous-action executor, recovery-action, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
+      "citations preserve event_id, source_agent, layer, source_class=event_trace, and redacted=true",
+      "raw spiffe_id, did, and wallet_address values are absent from the search response"
+    ],
+    "source_refs": [
+      "scripts/ops/smoke_ledger_event_trace_citation.py:155",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:170",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:188",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:214",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:246",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:273",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:290",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:316",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:351",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:459",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:474",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:480",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:568",
+      "src/services/pqc_rotator_service.py:237",
+      "src/services/pqc_rotator_service.py:297",
+      "src/services/share_to_earn_service.py:64",
+      "src/services/share_to_earn_service.py:97",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:24",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:50",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:102",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:111",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:120",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:143",
+      "tests/unit/services/test_share_to_earn_service_unit.py:89"
+    ]
+  },
+  "non_obvious_links": [
+    {
+      "id": "verification-docs-are-runtime-memory-now",
+      "description": "docs/verification artifacts are no longer only static operator evidence. They can be indexed into the same RAG pipeline used by /api/v1/ledger/search when requested explicitly."
+    },
+    {
+      "id": "ledger-search-result-shape-mismatch",
+      "description": "src.ledger.rag_search.LedgerRAGSearch.query returns LedgerSearchResult with results[], while the API previously assumed retrieved_chunks from RAGResult. The API serializer now supports both shapes."
+    },
+    {
+      "id": "evidence-indexing-is-explicit",
+      "description": "Normal ledger search still indexes CONTINUITY.md only. Verification artifacts enter runtime search only through include_verification=true or /api/v1/ledger/evidence/index."
+    },
+    {
+      "id": "eventbus-traces-are-runtime-evidence",
+      "description": "Redacted EventBus history can now be indexed as RAG evidence. Search citations can carry event_id, event_type, source_agent, registered service_name, layer, entrypoint, and redacted=true."
+    },
+    {
+      "id": "latest-aliases-are-first-class",
+      "description": "The map tracks 38 *_LATEST text-like aliases, which are useful operator-facing bridge points into latest verification state."
+    }
+  ],
+  "guardrails": {
+    "not_indexed_by_default": "Search remains continuity-first unless include_verification is requested.",
+    "text_like_only": "Only .md, .json, and .jsonl are indexed; packet captures and other binary artifacts stay out of RAG.",
+    "metadata_preserves_claim_boundary": "Every verification chunk is tagged with source_class=verification_evidence and relative_path.",
+    "event_trace_redaction_required": "EventBus traces enter RAG only when the trace payload and each indexed event have redacted=true."
+  },
+  "drift_checks": [
+    "tests/unit/ledger/test_rag_evidence_bridge_unit.py",
+    "tests/unit/api/test_ledger_evidence_endpoints_unit.py",
+    "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py",
+    "tests/unit/test_evidence_runtime_bridge_map_unit.py"
+  ]
+}

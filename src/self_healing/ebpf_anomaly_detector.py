@@ -27,6 +27,11 @@ from ..coordination.events import EventBus, EventType, get_event_bus
 from ..integration.spine import SafeActuator, SafeActuatorResult
 from ..network.ebpf.bcc_probes import MeshNetworkProbes
 from ..network.ebpf.loader import EBPFLoader
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
 from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
@@ -285,18 +290,15 @@ class EBPFExecutor(MAPEKExecutor):
 
     @staticmethod
     def _policy_allowed(decision: Any) -> bool:
-        if hasattr(decision, "allowed"):
-            return bool(decision.allowed)
-        return bool(decision)
+        return normalize_policy_allowed(decision)
 
     @staticmethod
     def _policy_reason(decision: Any) -> str:
-        return str(getattr(decision, "reason", "") or "")
+        return normalize_policy_reason(decision)
 
     @staticmethod
-    def _policy_rules(decision: Any) -> List[str]:
-        rules = getattr(decision, "matched_rules", []) or []
-        return [str(rule) for rule in rules]
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
 
     @classmethod
     def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:

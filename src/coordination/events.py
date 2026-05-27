@@ -59,6 +59,16 @@ class EventType(str, Enum):
     SYSTEM_SHUTDOWN = "system.shutdown"
     COORDINATION_REQUEST = "coordination.request"
 
+    # Marketplace settlement events
+    MARKETPLACE_ESCROW_HELD = "marketplace.escrow.held"
+    MARKETPLACE_ESCROW_RELEASED = "marketplace.escrow.released"
+    MARKETPLACE_ESCROW_REFUNDED = "marketplace.escrow.refunded"
+    MARKETPLACE_ESCROW_BLOCKED = "marketplace.escrow.blocked"
+
+    # Reward settlement events
+    REWARD_RELAY_RECORDED = "reward.relay.recorded"
+    REWARD_RELAY_BLOCKED = "reward.relay.blocked"
+
 
 @dataclass
 class Event:
@@ -274,7 +284,8 @@ class EventBus:
         event_type: Optional[EventType] = None,
         source_agent: Optional[str] = None,
         since: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
+        source_agents: Optional[Set[str]] = None,
     ) -> List[Event]:
         """Get filtered event history."""
         events = self._event_history
@@ -284,6 +295,9 @@ class EventBus:
         
         if source_agent:
             events = [e for e in events if e.source_agent == source_agent]
+
+        if source_agents is not None:
+            events = [e for e in events if e.source_agent in source_agents]
         
         if since:
             events = [e for e in events if e.timestamp >= since]
@@ -293,13 +307,17 @@ class EventBus:
     def replay_events(
         self,
         agent_id: str,
-        since: Optional[datetime] = None
+        since: Optional[datetime] = None,
+        source_agents: Optional[Set[str]] = None,
     ) -> List[Event]:
         """Replay events for an agent that may have missed them."""
         events = self._event_history
         
         if since:
             events = [e for e in events if e.timestamp >= since]
+
+        if source_agents is not None:
+            events = [e for e in events if e.source_agent in source_agents]
         
         # Filter to events relevant to this agent
         relevant = []

@@ -5,6 +5,8 @@ from src.database import MarketplaceEscrow, MarketplaceListing, SessionLocal
 from src.api.maas_telemetry import uptime_tracker
 from src.dao.token_bridge import TokenBridge, BridgeConfig
 from src.dao.token import MeshToken
+from src.services.marketplace_events import publish_marketplace_escrow_event
+from src.services.service_event_identity import service_event_identity
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
@@ -12,21 +14,31 @@ logger = logging.getLogger(__name__)
 # Settlement Threshold (99.9% uptime required)
 SETTLEMENT_UPTIME_THRESHOLD = 0.999
 
+_token_bridge = None
+_SERVICE_AGENT = "maas-settlement"
+
+
+def _get_token_bridge():
+    global _token_bridge
+    if _token_bridge is None:
+        from src.core.settings import settings
+
+        bridge_config = BridgeConfig(
+            rpc_url=settings.rpc_url or "",
+            contract_address=settings.contract_address or "",
+            private_key=settings.operator_private_key or "",
+        )
+        _token_bridge = TokenBridge(MeshToken(), bridge_config)
+    return _token_bridge
+
+
 async def marketplace_settlement_loop():
     """
     Daily background worker to release escrows to node owners 
     if the node maintained 99.9% uptime over the last 24h.
     """
     logger.info("💸 Marketplace Settlement service started")
-    
-    # Initialize Bridge for X0T payouts
-    from src.core.settings import settings
-    bridge_config = BridgeConfig(
-        rpc_url=settings.rpc_url or "",
-        contract_address=settings.contract_address or "",
-        private_key=settings.operator_private_key or ""
-    )
-    bridge = TokenBridge(MeshToken(), bridge_config)
+    event_identity = service_event_identity(service_name=_SERVICE_AGENT)
 
     while True:
         try:
@@ -55,18 +67,78 @@ async def marketplace_settlement_loop():
                         
                         # Trigger on-chain release if X0T
                         if escrow.currency == "X0T":
-                            await bridge.release_escrow_on_chain(escrow.id)
+                            try:
+                                released = await _get_token_bridge().release_escrow_on_chain(escrow.id)
+                            except Exception as exc:
+                                logger.error("X0T settlement release bridge error for escrow %s: %s", escrow.id, exc)
+                                publish_marketplace_escrow_event(
+                                    transition="blocked",
+                                    source_agent=_SERVICE_AGENT,
+                                    escrow_id=escrow.id,
+                                    listing_id=escrow.listing_id,
+                                    renter_id=escrow.renter_id,
+                                    actor_id="settlement-loop",
+                                    currency=escrow.currency,
+                                    status="held",
+                                    node_id=listing.node_id,
+                                    mesh_id=getattr(listing, "mesh_id", None),
+                                    amount_cents=getattr(escrow, "amount_cents", None),
+                                    amount_token=getattr(escrow, "amount_token", None),
+                                    reason="release_bridge_error",
+                                    **event_identity,
+                                )
+                                continue
+                            if not released:
+                                logger.error(
+                                    "X0T settlement release refused for escrow %s; "
+                                    "leaving escrow held",
+                                    escrow.id,
+                                )
+                                publish_marketplace_escrow_event(
+                                    transition="blocked",
+                                    source_agent=_SERVICE_AGENT,
+                                    escrow_id=escrow.id,
+                                    listing_id=escrow.listing_id,
+                                    renter_id=escrow.renter_id,
+                                    actor_id="settlement-loop",
+                                    currency=escrow.currency,
+                                    status="held",
+                                    node_id=listing.node_id,
+                                    mesh_id=getattr(listing, "mesh_id", None),
+                                    amount_cents=getattr(escrow, "amount_cents", None),
+                                    amount_token=getattr(escrow, "amount_token", None),
+                                    reason="release_bridge_rejected",
+                                    **event_identity,
+                                )
+                                continue
                         
                         escrow.status = "released"
                         escrow.released_at = datetime.utcnow()
                         # Finalize listing status if rental period ended
                         # (Assume simple hourly/daily model for now)
                         listing.status = "rented" # Still rented, just settled for last 24h
+                        db.commit()
+                        escrow_event_id = publish_marketplace_escrow_event(
+                            transition="released",
+                            source_agent=_SERVICE_AGENT,
+                            escrow_id=escrow.id,
+                            listing_id=escrow.listing_id,
+                            renter_id=escrow.renter_id,
+                            actor_id="settlement-loop",
+                            currency=escrow.currency,
+                            status="released",
+                            node_id=listing.node_id,
+                            mesh_id=getattr(listing, "mesh_id", None),
+                            amount_cents=getattr(escrow, "amount_cents", None),
+                            amount_token=getattr(escrow, "amount_token", None),
+                            reason="uptime_threshold_met",
+                            **event_identity,
+                        )
                         
                         record_audit_log(
                             db, None, "MARKETPLACE_SETTLEMENT_RELEASED",
                             user_id=escrow.renter_id,
-                            payload={"escrow_id": escrow.id, "uptime": uptime},
+                            payload={"escrow_id": escrow.id, "uptime": uptime, "event_id": escrow_event_id},
                             status_code=200
                         )
                     else:
@@ -74,20 +146,78 @@ async def marketplace_settlement_loop():
                         
                         # Trigger on-chain refund if X0T
                         if escrow.currency == "X0T":
-                            await bridge.refund_escrow_on_chain(escrow.id)
+                            try:
+                                refunded = await _get_token_bridge().refund_escrow_on_chain(escrow.id)
+                            except Exception as exc:
+                                logger.error("X0T settlement refund bridge error for escrow %s: %s", escrow.id, exc)
+                                publish_marketplace_escrow_event(
+                                    transition="blocked",
+                                    source_agent=_SERVICE_AGENT,
+                                    escrow_id=escrow.id,
+                                    listing_id=escrow.listing_id,
+                                    renter_id=escrow.renter_id,
+                                    actor_id="settlement-loop",
+                                    currency=escrow.currency,
+                                    status="held",
+                                    node_id=listing.node_id,
+                                    mesh_id=getattr(listing, "mesh_id", None),
+                                    amount_cents=getattr(escrow, "amount_cents", None),
+                                    amount_token=getattr(escrow, "amount_token", None),
+                                    reason="refund_bridge_error",
+                                    **event_identity,
+                                )
+                                continue
+                            if not refunded:
+                                logger.error(
+                                    "X0T settlement refund refused for escrow %s; "
+                                    "leaving escrow held",
+                                    escrow.id,
+                                )
+                                publish_marketplace_escrow_event(
+                                    transition="blocked",
+                                    source_agent=_SERVICE_AGENT,
+                                    escrow_id=escrow.id,
+                                    listing_id=escrow.listing_id,
+                                    renter_id=escrow.renter_id,
+                                    actor_id="settlement-loop",
+                                    currency=escrow.currency,
+                                    status="held",
+                                    node_id=listing.node_id,
+                                    mesh_id=getattr(listing, "mesh_id", None),
+                                    amount_cents=getattr(escrow, "amount_cents", None),
+                                    amount_token=getattr(escrow, "amount_token", None),
+                                    reason="refund_bridge_rejected",
+                                    **event_identity,
+                                )
+                                continue
                             
                         escrow.status = "refunded"
                         listing.status = "available"
                         listing.renter_id = None
+                        db.commit()
+                        escrow_event_id = publish_marketplace_escrow_event(
+                            transition="refunded",
+                            source_agent=_SERVICE_AGENT,
+                            escrow_id=escrow.id,
+                            listing_id=escrow.listing_id,
+                            renter_id=escrow.renter_id,
+                            actor_id="settlement-loop",
+                            currency=escrow.currency,
+                            status="refunded",
+                            node_id=listing.node_id,
+                            mesh_id=getattr(listing, "mesh_id", None),
+                            amount_cents=getattr(escrow, "amount_cents", None),
+                            amount_token=getattr(escrow, "amount_token", None),
+                            reason="uptime_threshold_failed",
+                            **event_identity,
+                        )
                         
                         record_audit_log(
                             db, None, "MARKETPLACE_SETTLEMENT_REFUNDED",
                             user_id=escrow.renter_id,
-                            payload={"escrow_id": escrow.id, "uptime": uptime},
+                            payload={"escrow_id": escrow.id, "uptime": uptime, "event_id": escrow_event_id},
                             status_code=200
                         )
-                    
-                    db.commit()
                 
             finally:
                 db.close()

@@ -17,9 +17,25 @@ from typing import Any, Callable, Dict, List, Optional
 
 _NODE_ID_RE = re.compile(r"^[\w\-\.]{1,64}$")
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.dao.quadratic_voting import QuadraticVoting
+from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
+from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "dao-governance"
+
+DAO_GOVERNANCE_CLAIM_BOUNDARY = (
+    "DAO governance dispatcher event only. It records local identity, policy, "
+    "and safe actuator state for proposal action dispatch; it is not external "
+    "settlement evidence or proof of production governance execution."
+)
 
 
 class ProposalState(Enum):
@@ -84,10 +100,217 @@ class ActionDispatcher:
       - ban_node: removes a node from the mesh
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        node_id: str = "dao-governance",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[SafeActuator] = None,
+    ):
         self._handlers: Dict[str, Callable[[Dict[str, Any]], ActionResult]] = {}
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else self._env_bool("X0TTA6BL4_DAO_GOVERNANCE_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="dao-governance")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id if spiffe_id is not None else service_identity["spiffe_id"],
+            "did": did if did is not None else service_identity["did"],
+            "wallet_address": (
+                wallet_address
+                if wallet_address is not None
+                else service_identity["wallet_address"]
+            ),
+        }
+        self._last_dispatch_result: Optional[ActionResult] = None
+        self.safe_actuator = safe_actuator or SafeActuator(self._execute_handler_through_actuator)
         # Register built-in handlers
         self._register_defaults()
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize DAO governance EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize DAO governance policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        return normalize_policy_allowed(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return normalize_policy_reason(decision)
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    @staticmethod
+    def _action_resource_name(action_type: str) -> str:
+        action_lower = str(action_type or "unknown_action").lower().strip()
+        slug = "".join(
+            char if char.isalnum() else "_"
+            for char in action_lower
+        ).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        return slug or "unknown_action"
+
+    def _publish_dispatch_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        action_type: str,
+        context: Dict[str, Any],
+        result: Optional[ActionResult] = None,
+        reason: str = "",
+        policy_decision: Any = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        action_resource = self._action_resource_name(action_type)
+        result_payload = (
+            {
+                "action_type": result.action_type,
+                "success": result.success,
+                "detail": result.detail,
+            }
+            if result is not None
+            else None
+        )
+        payload = {
+            "component": "dao.governance",
+            "stage": stage,
+            "action_type": action_type,
+            "action_resource": action_resource,
+            "resource": f"dao:governance:{action_resource}",
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context),
+            "result": self._safe_context(result_payload) if result_payload is not None else None,
+            "success": result.success if result is not None else None,
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "safe_actuator": True,
+            "claim_boundary": DAO_GOVERNANCE_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish DAO governance dispatch event: %s", exc)
+            return None
+
+    def _evaluate_dispatch_policy(self, action_type: str) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "DAO governance policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "DAO governance SPIFFE identity is required for policy evaluation"
+        action_resource = self._action_resource_name(action_type)
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource=f"dao:governance:{action_resource}",
+                workload_type="dao-governance",
+            )
+        except Exception as exc:
+            return False, None, f"DAO governance policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, self._policy_reason(decision) or "DAO governance policy denied action"
+        return True, decision, self._policy_reason(decision)
+
+    def _execute_handler_through_actuator(
+        self,
+        _action_name: str,
+        context: Dict[str, Any],
+    ) -> SafeActuatorResult:
+        action = context.get("action")
+        handler = context.get("handler")
+        action_type = str(context.get("action_type", ""))
+        if not isinstance(action, dict):
+            return SafeActuatorResult(False, "DAO governance action is missing")
+        if not callable(handler):
+            return SafeActuatorResult(False, f"unknown DAO governance action type: {action_type}")
+        result = handler(action)
+        self._last_dispatch_result = result
+        return SafeActuatorResult(result.success, result.detail)
 
     def _register_defaults(self):
         self._handlers["restart_node"] = self._handle_restart_node
@@ -106,17 +329,112 @@ class ActionDispatcher:
         """Dispatch a single action to its handler."""
         action_type = action.get("type", "")
         handler = self._handlers.get(action_type)
+        context = {"action": action, "action_type": action_type}
+        self._last_dispatch_result = None
+        self._publish_dispatch_event(
+            EventType.COORDINATION_REQUEST,
+            stage="received",
+            action_type=action_type,
+            context=context,
+        )
+
         if handler is None:
-            return ActionResult(
+            result = ActionResult(
                 action_type=action_type,
                 success=False,
                 detail=f"Unknown action type: {action_type}",
             )
+            self._publish_dispatch_event(
+                EventType.TASK_FAILED,
+                stage="invalid_action",
+                action_type=action_type,
+                context=context,
+                result=result,
+                reason=result.detail,
+            )
+            return result
+
+        policy_allowed, policy_decision, policy_reason = self._evaluate_dispatch_policy(action_type)
+        if not policy_allowed:
+            result = ActionResult(
+                action_type=action_type,
+                success=False,
+                detail=policy_reason,
+            )
+            self._publish_dispatch_event(
+                EventType.TASK_BLOCKED,
+                stage="policy_denied",
+                action_type=action_type,
+                context=context,
+                result=result,
+                reason=policy_reason,
+                policy_decision=policy_decision,
+            )
+            return result
+
+        self._publish_dispatch_event(
+            EventType.PIPELINE_STAGE_START,
+            stage="actuator_start",
+            action_type=action_type,
+            context=context,
+            reason=policy_reason,
+            policy_decision=policy_decision,
+        )
+
         try:
-            return handler(action)
+            actuator_context = dict(context)
+            actuator_context["handler"] = handler
+            actuator_result = self.safe_actuator.execute(action_type, actuator_context)
+            if actuator_result.simulated:
+                result = ActionResult(
+                    action_type=action_type,
+                    success=False,
+                    detail=actuator_result.reason or "safe actuator returned simulated result",
+                )
+                self._publish_dispatch_event(
+                    EventType.TASK_FAILED,
+                    stage="actuator_simulated",
+                    action_type=action_type,
+                    context=context,
+                    result=result,
+                    reason=result.detail,
+                    policy_decision=policy_decision,
+                )
+                return result
+            result = self._last_dispatch_result or ActionResult(
+                action_type=action_type,
+                success=actuator_result.success,
+                detail=actuator_result.reason,
+            )
+            if not actuator_result.success and result.success:
+                result = ActionResult(
+                    action_type=action_type,
+                    success=False,
+                    detail=actuator_result.reason or "safe actuator failed",
+                )
+            self._publish_dispatch_event(
+                EventType.PIPELINE_STAGE_END if result.success else EventType.TASK_FAILED,
+                stage="actuator_completed" if result.success else "actuator_failed",
+                action_type=action_type,
+                context=context,
+                result=result,
+                reason=result.detail or policy_reason,
+                policy_decision=policy_decision,
+            )
+            return result
         except Exception as e:
             logger.error(f"Action '{action_type}' failed: {e}")
-            return ActionResult(action_type=action_type, success=False, detail=str(e))
+            result = ActionResult(action_type=action_type, success=False, detail=str(e))
+            self._publish_dispatch_event(
+                EventType.TASK_FAILED,
+                stage="actuator_error",
+                action_type=action_type,
+                context=context,
+                result=result,
+                reason=str(e),
+                policy_decision=policy_decision,
+            )
+            return result
 
     # --- Built-in handlers ---
 
@@ -207,7 +525,7 @@ class GovernanceEngine:
         # Total token supply (for quorum calculation)
         self.total_supply = sum(self.voting_power.values())
         # Action dispatcher
-        self.dispatcher = dispatcher or ActionDispatcher()
+        self.dispatcher = dispatcher or ActionDispatcher(node_id=node_id)
         # Append-only ledger for audit trail
         self.ledger_path = ledger_path
         # Backward-compatible enum access expected by some call sites/tests.
