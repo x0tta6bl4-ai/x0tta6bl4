@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "purpose": "Template for a future secondary exit node health probe. Keep secrets out of this file.",
+  "candidate": {
+    "label": "secondary-placeholder",
+    "provider": "TBD-new-provider-not-NL-not-SPB",
+    "region": "TBD-new-region",
+    "host": "REPLACE_WITH_SECONDARY_HOST_OR_IP",
+    "tcp_ports": [
+      443
+    ]
+  },
+  "client_probe": {
+    "enabled": false,
+    "socks_host": "127.0.0.1",
+    "socks_port": 10918,
+    "expected_exit_ip": "REPLACE_WITH_SECONDARY_EXIT_IP",
+    "exit_ip_url": "https://api.ipify.org"
+  },
+  "policy": {
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false,
+    "nl_write_allowed": false,
+    "store_raw_vpn_uri": false
+  }
+}
