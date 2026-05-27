@@ -58,7 +58,7 @@ issue_offline_subscription.redacted.py
 
 telegram_bot_simple.redacted.py
   raw_sha256:      b593ddd82b3542e02e8a6fc17b558d957d780326ab86b5f7bd203d8d1d5b2f93
-  redacted_sha256: 775cd3e2381735a6611db2390a43e2cd658a5d23f522a9ff3d748cc417505072
+  redacted_sha256: 8b04072e8f9ab785ead08b4d08c4e27102ffda463060edfb77761a6931923d61
 ```
 
 Redaction counts:

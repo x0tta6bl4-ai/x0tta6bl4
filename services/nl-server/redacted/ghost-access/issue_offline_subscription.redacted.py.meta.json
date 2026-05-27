@@ -1,0 +1,20 @@
+{
+  "created_utc": "2026-05-27T06:41:55.517725+00:00",
+  "deployable": false,
+  "host": "nl",
+  "raw_saved_locally": false,
+  "raw_sha256": "aa358dd59d03b1a5130bf06fc88ab9c45f80d057c8ce6ec5b1e0f8f636ae0552",
+  "redacted_sha256": "22490b4f33889f11d05396e147734c43e44ed188af5c0e385c8c74b81135a8f6",
+  "redaction_counts": {
+    "private_key_assignment": 0,
+    "private_key_block": 0,
+    "public_key_assignment": 0,
+    "short_id_assignment": 0,
+    "subscription_url_assignment": 0,
+    "token_assignment": 0,
+    "uuid": 0,
+    "vpn_uri": 2
+  },
+  "remote_path": "/opt/ghost-access-bot/current/scripts/issue_offline_subscription.py",
+  "target_path": "redacted/ghost-access/issue_offline_subscription.redacted.py"
+}
