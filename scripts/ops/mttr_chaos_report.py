@@ -42,6 +42,8 @@ SLO_TTD_S: float = float(os.getenv("MTTR_SLO_TTD", "30"))
 SLO_TTR_S: float = float(os.getenv("MTTR_SLO_TTR", "300"))
 SLO_MTTR_S: float = float(os.getenv("MTTR_SLO_MTTR", "300"))
 RANDOM_SEED: int = int(os.getenv("MTTR_SEED", "42"))
+SYNTHETIC_SLEEP_SCALE: float = float(os.getenv("MTTR_SYNTHETIC_SLEEP_SCALE", "0.01"))
+SYNTHETIC_MAX_SLEEP_S: float = float(os.getenv("MTTR_SYNTHETIC_MAX_SLEEP_S", "0.25"))
 
 random.seed(RANDOM_SEED)
 
@@ -70,7 +72,11 @@ class ScenarioResult:
 @dataclass
 class ChaosReport:
     schema_version: str = "1"
-    timestamp: str = field(default_factory=lambda: datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"))
+    timestamp: str = field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    )
     mode: str = field(default_factory=lambda: "hardware" if HW_MODE else "synthetic-ci")
     seed: int = RANDOM_SEED
     slo_ttd_s: float = SLO_TTD_S
@@ -186,31 +192,33 @@ _CI_SCENARIOS: List[Tuple] = [
 
 
 def _run_synthetic(scenario_def: Tuple) -> ScenarioResult:
-    """Simulate a chaos scenario with realistic but fast (10x compressed) delays."""
+    """Simulate a chaos scenario with realistic reported timings and bounded CI delay."""
     name, desc, fault_type, ttd_range, ttr_range = scenario_def
 
-    # Compress time: divide by 10 for CI speed, but keep relative variation
-    compress = 0.1
-    ttd = random.uniform(*ttd_range) * compress
-    ttr = random.uniform(*ttr_range) * compress
+    # Report realistic scenario timings while bounding wall-clock sleep in CI.
+    reported_ttd = random.uniform(*ttd_range)
+    reported_ttr = random.uniform(*ttr_range)
 
     # 95% heal rate (1 scenario probabilistically fails to recover)
     healed = random.random() < 0.95
     if not healed:
-        ttr = SLO_TTR_S * 2  # simulate breach
+        reported_ttr = SLO_TTR_S * 2  # simulate breach
+
+    sleep_ttd = min(reported_ttd * SYNTHETIC_SLEEP_SCALE, SYNTHETIC_MAX_SLEEP_S)
+    sleep_ttr = min(reported_ttr * SYNTHETIC_SLEEP_SCALE, SYNTHETIC_MAX_SLEEP_S)
 
     # Simulate actual work
     t0 = time.perf_counter()
-    time.sleep(ttd)
-    time.sleep(ttr)
+    time.sleep(sleep_ttd)
+    time.sleep(sleep_ttr)
     elapsed = time.perf_counter() - t0
 
     return ScenarioResult(
         name=name,
         description=desc,
         fault_type=fault_type,
-        ttd_s=round(ttd / compress, 2),   # report realistic seconds
-        ttr_s=round(ttr / compress, 2),
+        ttd_s=round(reported_ttd, 2),
+        ttr_s=round(reported_ttr, 2),
         healed=healed,
         notes=f"synthetic-ci (seed={RANDOM_SEED}, elapsed_wall={elapsed:.2f}s)",
     )
