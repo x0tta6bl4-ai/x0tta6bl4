@@ -1,6 +1,6 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-27T23:11:33.743556+00:00`
+generated_at: `2026-05-27T23:25:21.870584+00:00`
 snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 ok: `true`
 
@@ -13,7 +13,11 @@ operator_status=observe
 blocking_history_trend=stable_no_probe_evidence
 blocking_history_snapshot_count=4
 manual_failover_status=planning_not_active
+nl_transport_probe_status=healthy
+nl_transport_probe_ok_count=3/3
 secondary_probe_template_status=planning_template
+readiness_audit_status=ready_local_with_future_blocks
+readiness_missing=0
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -49,6 +53,13 @@ ok=true
 exit_code=0
 ```
 
+### nl_transport_probe
+
+```text
+ok=true
+exit_code=0
+```
+
 ### secondary_probe_template_check
 
 ```text
@@ -57,6 +68,13 @@ exit_code=0
 ```
 
 ### operator_card
+
+```text
+ok=true
+exit_code=0
+```
+
+### readiness_audit
 
 ```text
 ok=true
