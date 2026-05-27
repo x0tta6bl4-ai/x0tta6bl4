@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/refresh_vpn_planning_reports.py",
-  "generated_at": "2026-05-27T23:11:33.743556+00:00",
+  "generated_at": "2026-05-27T23:25:21.870584+00:00",
   "snapshot": "nl-diagnostics/snapshots/20260527T230246Z",
   "ok": true,
   "summary": {
@@ -12,7 +12,11 @@
     "blocking_history_snapshot_count": 4,
     "backlog_decision": "observe",
     "manual_failover_status": "planning_not_active",
+    "nl_transport_probe_status": "healthy",
+    "nl_transport_probe_ok_count": "3/3",
     "secondary_probe_template_status": "planning_template",
+    "readiness_audit_status": "ready_local_with_future_blocks",
+    "readiness_missing": 0,
     "nl_mutation_allowed": false,
     "spb_fallback_allowed": false,
     "automatic_failover_allowed": false
@@ -63,6 +67,17 @@
       ]
     },
     {
+      "id": "nl_transport_probe",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.md"
+      ]
+    },
+    {
       "id": "secondary_probe_template_check",
       "ok": true,
       "exit_code": 0,
@@ -81,6 +96,17 @@
       "outputs": [
         "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.json",
         "/mnt/projects/nl-diagnostics/vpn-operator-card-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "readiness_audit",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md"
       ]
     }
   ],
