@@ -1,0 +1,87 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z/sender.pcap",
+      "role": "sender_pcap",
+      "sha256": "c886a07e2fc1ca8814f4dbb7f8e0c256fe878961427c6a690f997c1bc8b4d112"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z/receiver.pcap",
+      "role": "receiver_pcap",
+      "sha256": "cd4723c89e4007cdbf9fdbe0f91c5ae8285087787b3071ce5301fd926c13f994"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z/sender-events.jsonl",
+      "role": "sender_events",
+      "sha256": "8505ddea863e17374bd4082975a20c985ef97e99c68cb0035ed69a21f2e9a566"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z/receiver-events.jsonl",
+      "role": "receiver_events",
+      "sha256": "39ec669f2ae5d599070657a614a54a686e339a61ec77d5879c79ce96426fcb83"
+    },
+    {
+      "path": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z/capture-summary.json",
+      "role": "capture_summary",
+      "sha256": "065c14210d4b67a04888291f8112643810182cd263908b862aa4bdb9d0e45de9"
+    }
+  ],
+  "bundle": "docs/verification/ghost-pulse-packet-capture-20260522T072343Z",
+  "claim_boundary": {
+    "note": "Local loopback packet capture only; this is not remote-path, DPI, whitelist, or production evidence.",
+    "packet_capture_verified": true
+  },
+  "claim_id": "packet_capture",
+  "commands": [
+    {
+      "args": [
+        "uname",
+        "-r"
+      ],
+      "available": true,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "6.14.0-37-generic\n"
+    },
+    {
+      "args": [
+        "ip",
+        "-j",
+        "link",
+        "show",
+        "lo"
+      ],
+      "available": true,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"}]\n"
+    },
+    {
+      "args": [
+        "/usr/bin/python3",
+        "-m",
+        "py_compile",
+        "src/network/transport/pulse_transport.py",
+        "src/network/transport/udp_shaped.py"
+      ],
+      "available": true,
+      "exit_code": 0,
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "dry_run": false,
+  "failures": [],
+  "measurements": {
+    "receiver_pcap_packets": 12,
+    "receiver_pcap_sha256": "cd4723c89e4007cdbf9fdbe0f91c5ae8285087787b3071ce5301fd926c13f994",
+    "sender_pcap_packets": 12,
+    "sender_pcap_sha256": "c886a07e2fc1ca8814f4dbb7f8e0c256fe878961427c6a690f997c1bc8b4d112"
+  },
+  "mode": "LOCAL_LOOPBACK_INSTRUMENTED_PCAP",
+  "observed_at_utc": "2026-05-22T07:23:43.061414+00:00",
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "VERIFIED",
+  "template": false
+}

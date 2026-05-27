@@ -4,6 +4,8 @@ AI Agent for generating code from specifications.
 """
 
 import logging
+import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -106,31 +108,226 @@ class SpecToCodeAgent:
     
     def _generate_template(self, spec: Specification) -> str:
         """Генерация шаблонного кода."""
-        
+
         if spec.language == CodeLanguage.PYTHON:
+            class_name = self._class_name(spec.name)
+            requirements = self._python_literal(spec.requirements)
+            description = self._python_literal(spec.description)
+            name = self._python_literal(spec.name)
+            code_type = self._python_literal(spec.code_type.value)
             return f'''# Generated: {spec.name}
 # Type: {spec.code_type.value}
-"""
-{spec.description}
-"""
+from datetime import datetime, timezone
+from typing import Any
 
-class {spec.name.replace('-', '_').title().replace('_', '')}:
+
+class {class_name}:
     """Auto-generated {spec.code_type.value}."""
-    
-    def __init__(self):
-        self.name = "{spec.name}"
-        self.created_at = datetime.utcnow()
-    
-    async def execute(self, *args, **kwargs):
-        """Execute {spec.name}."""
-        # TODO: Implement based on requirements
-        pass
 
-# Requirements:
-# {chr(10).join(f"# - {req}" for req in spec.requirements)}
+    description = {description}
+    requirements = {requirements}
+
+    def __init__(self) -> None:
+        self.name = {name}
+        self.code_type = {code_type}
+        self.created_at = datetime.now(timezone.utc)
+
+    async def execute(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Execute {spec.name}."""
+        return {{
+            "status": "success",
+            "name": self.name,
+            "code_type": self.code_type,
+            "requirements": list(self.requirements),
+            "args": list(args),
+            "kwargs": kwargs,
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        }}
 '''
-        
-        return f"// Generated: {spec.name}\n// Type: {spec.code_type.value}\n// TODO: Implement {spec.language.value} template"
+
+        if spec.language == CodeLanguage.JAVASCRIPT:
+            return self._generate_javascript_template(spec, typed=False)
+
+        if spec.language == CodeLanguage.TYPESCRIPT:
+            return self._generate_javascript_template(spec, typed=True)
+
+        if spec.language == CodeLanguage.GO:
+            return self._generate_go_template(spec)
+
+        if spec.language == CodeLanguage.RUST:
+            return self._generate_rust_template(spec)
+
+        if spec.language == CodeLanguage.JAVA:
+            return self._generate_java_template(spec)
+
+        raise ValueError(f"Unsupported language: {spec.language}")
+
+    def _safe_identifier(self, value: str, *, default: str = "generated") -> str:
+        identifier = re.sub(r"[^0-9a-zA-Z_]+", "_", value).strip("_").lower()
+        if not identifier:
+            identifier = default
+        if identifier[0].isdigit():
+            identifier = f"{default}_{identifier}"
+        return identifier
+
+    def _class_name(self, value: str) -> str:
+        identifier = self._safe_identifier(value)
+        class_name = "".join(part.capitalize() for part in identifier.split("_") if part)
+        return class_name or "Generated"
+
+    def _python_literal(self, value) -> str:
+        return repr(value)
+
+    def _json_literal(self, value) -> str:
+        return json.dumps(value, ensure_ascii=False)
+
+    def _generate_javascript_template(self, spec: Specification, *, typed: bool) -> str:
+        class_name = self._class_name(spec.name)
+        name = self._json_literal(spec.name)
+        code_type = self._json_literal(spec.code_type.value)
+        description = self._json_literal(spec.description)
+        requirements = self._json_literal(spec.requirements)
+
+        if typed:
+            return f'''// Generated: {spec.name}
+// Type: {spec.code_type.value}
+export type {class_name}Result = {{
+  status: "success";
+  name: string;
+  codeType: string;
+  requirements: string[];
+  args: unknown[];
+  executedAt: string;
+}};
+
+export class {class_name} {{
+  readonly name = {name};
+  readonly codeType = {code_type};
+  readonly description = {description};
+  readonly requirements = {requirements};
+
+  async execute(...args: unknown[]): Promise<{class_name}Result> {{
+    return {{
+      status: "success",
+      name: this.name,
+      codeType: this.codeType,
+      requirements: [...this.requirements],
+      args,
+      executedAt: new Date().toISOString(),
+    }};
+  }}
+}}
+'''
+
+        return f'''// Generated: {spec.name}
+// Type: {spec.code_type.value}
+export class {class_name} {{
+  constructor() {{
+    this.name = {name};
+    this.codeType = {code_type};
+    this.description = {description};
+    this.requirements = {requirements};
+  }}
+
+  async execute(...args) {{
+    return {{
+      status: "success",
+      name: this.name,
+      codeType: this.codeType,
+      requirements: [...this.requirements],
+      args,
+      executedAt: new Date().toISOString(),
+    }};
+  }}
+}}
+'''
+
+    def _generate_go_template(self, spec: Specification) -> str:
+        class_name = self._class_name(spec.name)
+        requirements = ", ".join(self._json_literal(req) for req in spec.requirements)
+        return f'''// Generated: {spec.name}
+// Type: {spec.code_type.value}
+package generated
+
+import "time"
+
+type {class_name} struct {{
+    Name string
+    CodeType string
+    Requirements []string
+}}
+
+func New{class_name}() {class_name} {{
+    return {class_name}{{
+        Name: {self._json_literal(spec.name)},
+        CodeType: {self._json_literal(spec.code_type.value)},
+        Requirements: []string{{{requirements}}},
+    }}
+}}
+
+func (s {class_name}) Execute() map[string]any {{
+    return map[string]any{{
+        "status": "success",
+        "name": s.Name,
+        "code_type": s.CodeType,
+        "requirements": s.Requirements,
+        "executed_at": time.Now().UTC().Format(time.RFC3339),
+    }}
+}}
+'''
+
+    def _generate_rust_template(self, spec: Specification) -> str:
+        class_name = self._class_name(spec.name)
+        requirements = ", ".join(self._json_literal(req) for req in spec.requirements)
+        return f'''// Generated: {spec.name}
+// Type: {spec.code_type.value}
+#[derive(Debug, Clone)]
+pub struct {class_name} {{
+    pub name: &'static str,
+    pub code_type: &'static str,
+    pub requirements: &'static [&'static str],
+}}
+
+impl {class_name} {{
+    pub fn new() -> Self {{
+        Self {{
+            name: {self._json_literal(spec.name)},
+            code_type: {self._json_literal(spec.code_type.value)},
+            requirements: &[{requirements}],
+        }}
+    }}
+
+    pub fn execute(&self) -> String {{
+        format!("{{}}:{{}}:{{}}", self.name, self.code_type, self.requirements.len())
+    }}
+}}
+'''
+
+    def _generate_java_template(self, spec: Specification) -> str:
+        class_name = self._class_name(spec.name)
+        requirements = ", ".join(self._json_literal(req) for req in spec.requirements)
+        return f'''// Generated: {spec.name}
+// Type: {spec.code_type.value}
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+public final class {class_name} {{
+    private final String name = {self._json_literal(spec.name)};
+    private final String codeType = {self._json_literal(spec.code_type.value)};
+    private final List<String> requirements = List.of({requirements});
+
+    public Map<String, Object> execute() {{
+        return Map.of(
+            "status", "success",
+            "name", name,
+            "codeType", codeType,
+            "requirements", requirements,
+            "executedAt", Instant.now().toString()
+        );
+    }}
+}}
+'''
 
 
 # Singleton instance

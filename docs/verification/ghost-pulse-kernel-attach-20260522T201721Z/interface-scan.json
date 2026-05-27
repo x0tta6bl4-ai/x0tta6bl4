@@ -1,0 +1,41 @@
+{
+  "interface_count": 16,
+  "interfaces": [
+    "lo",
+    "enp8s0",
+    "virbr0",
+    "lxcbr0",
+    "x0tctrl",
+    "br-2346afa010d6",
+    "br-5cce4ae051c7",
+    "br-afb7e5743700",
+    "docker0",
+    "br-224057b2b3d0",
+    "veth6864553",
+    "vethb6b7267",
+    "vethdfca4d4",
+    "singbox_tun",
+    "x0rp121",
+    "x0rp021"
+  ],
+  "parse_status": "OK",
+  "xdp_interfaces": [
+    {
+      "ifname": "x0rp021",
+      "xdp": {
+        "attached": [
+          {
+            "mode": 2,
+            "prog": {
+              "id": 23589
+            }
+          }
+        ],
+        "mode": 2,
+        "prog": {
+          "id": 23589
+        }
+      }
+    }
+  ]
+}

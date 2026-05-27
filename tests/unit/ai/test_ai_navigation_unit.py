@@ -192,10 +192,12 @@ class TestDeepSearcher:
         assert "ML-KEM" in ds.strategic_keywords
 
     @pytest.mark.asyncio
-    async def test_perform_search_placeholder(self):
+    async def test_perform_search_returns_source_targets(self):
         ds = DeepSearcher()
         result = await ds.perform_search("test query")
-        assert result == []
+        assert result
+        assert all(item["query"] == "test query" for item in result)
+        assert all("url" in item for item in result)
 
     @pytest.mark.asyncio
     async def test_gather_intelligence(self):

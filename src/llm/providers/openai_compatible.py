@@ -395,6 +395,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             self._status = ProviderStatus.ERROR
             self._last_error = str(e)
             raise RuntimeError(f"OpenAI-compatible embedding error: {e}")
+
+    def supports_embeddings(self) -> bool:
+        """OpenAI-compatible providers expose the /embeddings endpoint."""
+        return True
             
     def health_check(self) -> bool:
         """Check if the API is accessible."""

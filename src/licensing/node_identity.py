@@ -18,10 +18,12 @@ import os
 import platform
 import subprocess
 import time
+import urllib.error
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 # Try to import crypto libs
 try:
@@ -229,6 +231,10 @@ class LicenseAuthority:
         return True, "Valid"
 
 
+class LicenseActivationError(RuntimeError):
+    """Raised when a node cannot obtain a trusted license certificate."""
+
+
 class NodeLicenseManager:
     """
     Client-side license manager.
@@ -237,11 +243,16 @@ class NodeLicenseManager:
 
     CERT_PATH = Path.home() / ".x0tta6bl4" / "license.cert"
 
-    def __init__(self, auth_server_url: str = None):
+    def __init__(
+        self,
+        auth_server_url: Optional[str] = None,
+        activation_client: Optional[Callable[[Dict[str, Any]], Any]] = None,
+    ):
         import os
 
         auth_server_url = auth_server_url or os.getenv("LICENSE_SERVER", "")
         self.auth_server_url = auth_server_url
+        self.activation_client = activation_client
         self.fingerprint = HardwareFingerprinter.generate()
         self.certificate: Optional[IdentityCertificate] = None
 
@@ -263,9 +274,12 @@ class NodeLicenseManager:
         """
         Activate node with token.
 
-        In production: calls auth server API
-        For now: local simulation
+        The node must receive a signed certificate from the configured license
+        server, or from an explicitly injected activation client in tests/tools.
         """
+        if not activation_token:
+            return False, "Activation token is required."
+
         # Verify fingerprint matches certificate (if exists)
         if self.certificate:
             if self.certificate.fingerprint_hash != self.fingerprint.to_hash():
@@ -274,29 +288,72 @@ class NodeLicenseManager:
                     "Hardware fingerprint mismatch! License bound to different machine.",
                 )
 
-        # In production, this would call:
-        # POST {auth_server_url}/activate
-        # Body: {fingerprint: ..., token: ...}
-        # Response: {certificate: ...}
-
-        # For demo, simulate local authority
-        authority = LicenseAuthority()
-
-        # Determine tier from token
-        tier = "basic"
-        if "PRO" in activation_token:
-            tier = "pro"
-        elif "ENT" in activation_token:
-            tier = "enterprise"
-
-        self.certificate = authority.sign_certificate(
-            fingerprint_hash=self.fingerprint.to_hash(),
-            activation_token=activation_token,
-            license_tier=tier,
-        )
+        try:
+            self.certificate = self._request_certificate(activation_token)
+        except LicenseActivationError as exc:
+            return False, str(exc)
 
         self._save_certificate()
-        return True, f"Activated! Tier: {tier}"
+        return True, f"Activated! Tier: {self.certificate.license_tier}"
+
+    def _activation_url(self) -> str:
+        return f"{self.auth_server_url.rstrip('/')}/activate"
+
+    def _request_certificate(self, activation_token: str) -> IdentityCertificate:
+        payload = {
+            "activation_token": activation_token,
+            "fingerprint_hash": self.fingerprint.to_hash(),
+            "fingerprint": self.fingerprint.to_dict(),
+        }
+        if self.activation_client is not None:
+            try:
+                response_payload = self.activation_client(payload)
+            except Exception as exc:
+                raise LicenseActivationError("License activation client failed.") from exc
+        else:
+            response_payload = self._post_activation_request(payload)
+
+        if isinstance(response_payload, IdentityCertificate):
+            certificate = response_payload
+        elif isinstance(response_payload, dict):
+            cert_payload = response_payload.get("certificate", response_payload)
+            if not isinstance(cert_payload, dict):
+                raise LicenseActivationError("License server response lacks certificate data.")
+            try:
+                certificate = IdentityCertificate.from_dict(cert_payload)
+            except TypeError as exc:
+                raise LicenseActivationError("License server returned invalid certificate.") from exc
+        else:
+            raise LicenseActivationError("License server returned invalid response.")
+
+        if certificate.fingerprint_hash != self.fingerprint.to_hash():
+            raise LicenseActivationError(
+                "License server returned certificate for a different machine."
+            )
+        if not certificate.is_valid():
+            raise LicenseActivationError("License server returned an expired certificate.")
+        return certificate
+
+    def _post_activation_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not self.auth_server_url:
+            raise LicenseActivationError(
+                "LICENSE_SERVER is required for node activation."
+            )
+
+        request = urllib.request.Request(
+            self._activation_url(),
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = json.load(response)
+        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+            raise LicenseActivationError("License server activation failed.") from exc
+        if not isinstance(data, dict):
+            raise LicenseActivationError("License server returned invalid JSON.")
+        return data
 
     def verify(self) -> Tuple[bool, str]:
         """Verify current license is valid."""
@@ -362,56 +419,26 @@ class MeshNetworkValidator:
         return sum(1 for t, _ in self.known_identities.values() if t > cutoff)
 
 
-# Demo
+def main(argv: Optional[list[str]] = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Activate or verify a node license.")
+    parser.add_argument("--server", default=os.getenv("LICENSE_SERVER", ""))
+    parser.add_argument("--token", default=os.getenv("LICENSE_TOKEN", ""))
+    parser.add_argument("--verify", action="store_true")
+    args = parser.parse_args(argv)
+
+    manager = NodeLicenseManager(auth_server_url=args.server)
+    if args.verify:
+        ok, message = manager.verify()
+    else:
+        if not args.token:
+            parser.error("--token or LICENSE_TOKEN is required for activation")
+        ok, message = manager.activate(args.token)
+
+    print(message)
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🔒 x0tta6bl4 Zero-Trust Licensing Demo")
-    print("=" * 60)
-
-    # 1. Generate fingerprint
-    print("\n📱 Device Fingerprint:")
-    fp = HardwareFingerprinter.generate()
-    print("   Fingerprint generated successfully")
-    print(f"   Fingerprint hash prefix: {fp.to_hash()[:12]}...")
-
-    # 2. Authority generates token (YOUR SERVER)
-    print("\n🏛️ License Authority (Your Server):")
-    authority = LicenseAuthority()
-    token = authority.generate_activation_token("pro")
-    print("   Generated token: [redacted]")
-
-    # 3. Customer activates (CUSTOMER'S MACHINE)
-    print("\n👤 Customer Activation:")
-    manager = NodeLicenseManager()
-    success, msg = manager.activate(token)
-    print(f"   {msg}")
-
-    # 4. Verify license
-    print("\n✅ License Verification:")
-    valid, msg = manager.verify()
-    print(f"   {msg}")
-
-    # 5. Get network identity
-    print("\n🌐 Network Identity:")
-    identity = manager.get_node_identity()
-    print(f"   Node ID: {identity}")
-
-    # 6. Mesh validation
-    print("\n🛡️ Mesh Network Validation:")
-    validator = MeshNetworkValidator()
-
-    # Valid node
-    ok, msg = validator.validate_node(identity, fp.to_hash(), "192.168.1.100")
-    print(f"   First connection: {msg}")
-
-    # Same node, same IP (OK)
-    ok, msg = validator.validate_node(identity, fp.to_hash(), "192.168.1.100")
-    print(f"   Same IP reconnect: {msg}")
-
-    # Same identity, different IP (PIRACY!)
-    ok, msg = validator.validate_node(identity, fp.to_hash(), "10.0.0.50")
-    print(f"   Different IP (piracy): {msg}")
-
-    print("\n" + "=" * 60)
-    print("✅ Demo Complete!")
-    print("=" * 60)
+    raise SystemExit(main())

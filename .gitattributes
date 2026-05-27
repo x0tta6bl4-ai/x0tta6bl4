@@ -1,0 +1,4 @@
+# Hash-sensitive verification artifacts must keep their captured bytes intact.
+docs/verification/ghost-pulse-local-evidence-*/*.csv -text -diff
+docs/verification/xdp-live-attach-*/verify-local-live-attach.log -text -diff
+docs/verification/ghost-pulse-packet-capture-*/*.pcap binary

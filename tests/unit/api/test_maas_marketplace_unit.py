@@ -7,7 +7,7 @@ import time
 from collections import OrderedDict
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import importlib
 import sys
 
@@ -20,6 +20,11 @@ from fastapi import HTTPException
 # ---------------------------------------------------------------------------
 
 def _load_marketplace():
+    key = "src.api.maas_marketplace"
+    attr = "maas_marketplace"
+    sentinel = object()
+    original_module = sys.modules.get(key, sentinel)
+    parent = sys.modules.get("src.api")
     stubs = {
         "src.database": MagicMock(),
         "src.api.maas_auth": MagicMock(),
@@ -36,11 +41,18 @@ def _load_marketplace():
     stubs["src.api.maas_telemetry"].reputation_system.get_proxy_trust.return_value = None
     stubs["src.resilience.advanced_patterns"].get_resilient_executor.return_value = MagicMock()
 
-    key = "src.api.maas_marketplace"
     if key in sys.modules:
         del sys.modules[key]
     with patch.dict("sys.modules", stubs):
         mod = importlib.import_module(key)
+    if original_module is sentinel:
+        sys.modules.pop(key, None)
+        if parent is not None and getattr(parent, attr, None) is mod:
+            delattr(parent, attr)
+    else:
+        sys.modules[key] = original_module
+        if parent is not None:
+            setattr(parent, attr, original_module)
     return mod
 
 
@@ -48,6 +60,7 @@ _mod = _load_marketplace()
 
 _env_flag = _mod._env_flag
 _normalize_identity = _mod._normalize_identity
+_current_user_event_identity = _mod._current_user_event_identity
 _ids_equal = _mod._ids_equal
 _idempotency_compose_key = _mod._idempotency_compose_key
 _normalize_idempotency_key = _mod._normalize_idempotency_key
@@ -116,6 +129,29 @@ class TestNormalizeIdentity:
     def test_uuid_string(self):
         uid = "550e8400-e29b-41d4-a716-446655440000"
         assert _normalize_identity(uid) == uid
+
+
+class TestCurrentUserEventIdentity:
+    def test_normalizes_optional_identity_claims(self):
+        user = SimpleNamespace(
+            id="renter-1",
+            spiffe_id=" spiffe://mesh.x0tta6bl4.mesh/workload/marketplace ",
+            did=" did:mesh:pqc:renter-1 ",
+            wallet_address=" 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ",
+        )
+
+        assert _current_user_event_identity(user) == {
+            "spiffe_id": "spiffe://mesh.x0tta6bl4.mesh/workload/marketplace",
+            "did": "did:mesh:pqc:renter-1",
+            "wallet_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        }
+
+    def test_missing_identity_claims_are_none(self):
+        assert _current_user_event_identity(SimpleNamespace(id="renter-1")) == {
+            "spiffe_id": None,
+            "did": None,
+            "wallet_address": None,
+        }
 
 
 # ===========================================================================
@@ -427,3 +463,203 @@ class TestRowToListing:
         row = self._make_row(currency=None)
         result = _row_to_listing(row)
         assert result["currency"] == "USD"
+
+
+# ===========================================================================
+# rent_node X0T fail-closed ordering
+# ===========================================================================
+
+
+class TestRentNodeX0TFailClosed:
+    class _FakeQuery:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def with_for_update(self):
+            return self
+
+        def first(self):
+            return self._rows[0] if self._rows else None
+
+    class _FakeDb:
+        def __init__(self, listing_row):
+            self.listing_row = listing_row
+            self.added = []
+            self.commits = 0
+
+        def query(self, model):
+            if model is _mod.MarketplaceListing:
+                return TestRentNodeX0TFailClosed._FakeQuery([self.listing_row])
+            return TestRentNodeX0TFailClosed._FakeQuery([])
+
+        def add(self, row):
+            self.added.append(row)
+
+        def commit(self):
+            self.commits += 1
+
+    def setup_method(self):
+        with _mod._listings_lock:
+            _mod._listings.clear()
+        with _mod._idempotency_lock:
+            _mod._idempotency_cache.clear()
+
+    @pytest.mark.asyncio
+    async def test_x0t_bridge_lock_rejection_does_not_dirty_listing_or_create_escrow(
+        self,
+        monkeypatch,
+    ):
+        listing_id = "lst-x0t"
+        listing = {
+            "listing_id": listing_id,
+            "owner_id": "owner-1",
+            "node_id": "node-1",
+            "region": "eu-central",
+            "price_per_hour": 0.0,
+            "price_token_per_hour": 10.0,
+            "currency": "X0T",
+            "bandwidth_mbps": 100,
+            "status": "available",
+            "renter_id": None,
+            "mesh_id": None,
+            "created_at": "2026-05-21T00:00:00",
+        }
+        with _mod._listings_lock:
+            _mod._listings[listing_id] = dict(listing)
+
+        row = SimpleNamespace(
+            id=listing_id,
+            owner_id="owner-1",
+            status="available",
+            renter_id=None,
+            mesh_id=None,
+        )
+        db = self._FakeDb(row)
+        bridge = SimpleNamespace(lock_escrow_on_chain=AsyncMock(return_value=None))
+        token = SimpleNamespace(balance_of=lambda _user_id: 100.0, balances={"renter-1": 100.0})
+
+        monkeypatch.setattr(_mod, "_get_global_price_multiplier", lambda _db: 1.0)
+        monkeypatch.setattr(_mod, "_get_node_reputation_multiplier", lambda _node_id: 1.0)
+        monkeypatch.setattr(_mod, "_get_mesh_congestion_multiplier", lambda _mesh_id, _db: 1.0)
+        monkeypatch.setattr(_mod, "_get_token_bridge", lambda: bridge)
+        monkeypatch.setattr(_mod, "MeshToken", MagicMock(return_value=token))
+        publish_event = MagicMock(return_value="evt-blocked")
+        monkeypatch.setattr(_mod, "publish_marketplace_escrow_event", publish_event)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await _mod.rent_node(
+                listing_id,
+                "mesh-1",
+                hours=1,
+                current_user=SimpleNamespace(
+                    id="renter-1",
+                    role="user",
+                    spiffe_id="spiffe://mesh.x0tta6bl4.mesh/workload/marketplace",
+                    did="did:mesh:pqc:renter-1",
+                    wallet_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                ),
+                db=db,
+                idempotency_key=None,
+            )
+
+        assert exc_info.value.status_code == 502
+        bridge.lock_escrow_on_chain.assert_awaited_once()
+        assert row.status == "available"
+        assert row.renter_id is None
+        assert row.mesh_id is None
+        assert db.added == []
+        assert db.commits == 0
+        publish_event.assert_called_once()
+        kwargs = publish_event.call_args.kwargs
+        assert kwargs["transition"] == "blocked"
+        assert kwargs["source_agent"] == "maas-marketplace"
+        assert kwargs["listing_id"] == listing_id
+        assert kwargs["renter_id"] == "renter-1"
+        assert kwargs["currency"] == "X0T"
+        assert kwargs["status"] == "blocked"
+        assert kwargs["node_id"] == "node-1"
+        assert kwargs["mesh_id"] == "mesh-1"
+        assert kwargs["spiffe_id"] == "spiffe://mesh.x0tta6bl4.mesh/workload/marketplace"
+        assert kwargs["did"] == "did:mesh:pqc:renter-1"
+        assert kwargs["wallet_address"] == "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        assert kwargs["amount_token"] == 10.0
+        assert kwargs["reason"] == "x0t_lock_failed"
+        with _mod._listings_lock:
+            cached = dict(_mod._listings[listing_id])
+        assert cached["status"] == "available"
+        assert cached["renter_id"] is None
+        assert cached["mesh_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_usd_rent_publishes_held_event_after_db_commit(self, monkeypatch):
+        listing_id = "lst-usd"
+        listing = {
+            "listing_id": listing_id,
+            "owner_id": "owner-1",
+            "node_id": "node-1",
+            "region": "eu-central",
+            "price_per_hour": 5.0,
+            "price_token_per_hour": 0.0,
+            "currency": "USD",
+            "bandwidth_mbps": 100,
+            "status": "available",
+            "renter_id": None,
+            "mesh_id": None,
+            "created_at": "2026-05-21T00:00:00",
+        }
+        with _mod._listings_lock:
+            _mod._listings[listing_id] = dict(listing)
+
+        row = SimpleNamespace(
+            id=listing_id,
+            owner_id="owner-1",
+            status="available",
+            renter_id=None,
+            mesh_id=None,
+        )
+        db = self._FakeDb(row)
+        publish_event = MagicMock(return_value="evt-held")
+
+        monkeypatch.setattr(_mod, "_get_global_price_multiplier", lambda _db: 1.0)
+        monkeypatch.setattr(_mod, "_get_node_reputation_multiplier", lambda _node_id: 1.0)
+        monkeypatch.setattr(_mod, "_get_mesh_congestion_multiplier", lambda _mesh_id, _db: 1.0)
+        monkeypatch.setattr(_mod, "publish_marketplace_escrow_event", publish_event)
+
+        result = await _mod.rent_node(
+            listing_id,
+            "mesh-1",
+            hours=2,
+            current_user=SimpleNamespace(
+                id="renter-1",
+                role="user",
+                spiffe_id="spiffe://mesh.x0tta6bl4.mesh/workload/marketplace",
+                did="did:mesh:pqc:renter-1",
+                wallet_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
+            db=db,
+            idempotency_key=None,
+        )
+
+        assert result["status"] == "escrow"
+        assert row.status == "escrow"
+        assert row.renter_id == "renter-1"
+        assert row.mesh_id == "mesh-1"
+        assert db.commits == 1
+        assert len(db.added) == 1
+        publish_event.assert_called_once()
+        kwargs = publish_event.call_args.kwargs
+        assert kwargs["transition"] == "held"
+        assert kwargs["source_agent"] == "maas-marketplace"
+        assert kwargs["listing_id"] == listing_id
+        assert kwargs["renter_id"] == "renter-1"
+        assert kwargs["currency"] == "USD"
+        assert kwargs["status"] == "held"
+        assert kwargs["node_id"] == "node-1"
+        assert kwargs["mesh_id"] == "mesh-1"
+        assert kwargs["spiffe_id"] == "spiffe://mesh.x0tta6bl4.mesh/workload/marketplace"
+        assert kwargs["did"] == "did:mesh:pqc:renter-1"
+        assert kwargs["wallet_address"] == "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        assert kwargs["amount_cents"] == 1000

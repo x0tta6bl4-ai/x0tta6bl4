@@ -18,10 +18,14 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import logging
+import os
+import shlex
 import sys
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,6 +53,9 @@ class MeshNodeSPIFFEDeployer:
         self,
         trust_domain: str = "x0tta6bl4.mesh",
         spire_server_address: str = "spire-server.spire-system.svc.cluster.local:8081",
+        spire_server_bin: str = "spire-server",
+        join_token_command: Optional[Sequence[str]] = None,
+        join_token_file: Optional[Path] = None,
     ):
         """
         Initialize mesh node SPIFFE deployer.
@@ -59,6 +66,9 @@ class MeshNodeSPIFFEDeployer:
         """
         self.trust_domain = trust_domain
         self.spire_server_address = spire_server_address
+        self.spire_server_bin = spire_server_bin
+        self.join_token_command = list(join_token_command or [])
+        self.join_token_file = join_token_file
         self.deployed_nodes: List[str] = []
         self.failed_nodes: List[str] = []
 
@@ -91,8 +101,7 @@ class MeshNodeSPIFFEDeployer:
             if attestation_strategy == "join_token":
                 strategy = AttestationStrategy.JOIN_TOKEN
                 if not join_token:
-                    # Generate join token (would call SPIRE Server API)
-                    join_token = await self._generate_join_token()
+                    join_token = await self._generate_join_token(node_id)
                 attestation_data = {"token": join_token}
             elif attestation_strategy == "k8s_psat":
                 strategy = AttestationStrategy.K8S_PSAT
@@ -185,23 +194,39 @@ class MeshNodeSPIFFEDeployer:
 
         return {"deployed": deployed, "failed": failed, "total": len(node_ids)}
 
-    async def _generate_join_token(self) -> str:
+    async def _generate_join_token(self, node_id: str) -> str:
         """
-        Generate join token from SPIRE Server.
-
-        In production, this would call SPIRE Server API.
-        For now, returns a placeholder.
+        Generate a join token from a configured local SPIRE Server source.
 
         Returns:
             Join token string
         """
-        # TODO: Implement actual SPIRE Server API call
-        # For now, return placeholder
-        import secrets
+        if self.join_token_file is not None:
+            return _read_join_token_file(self.join_token_file)
 
-        return secrets.token_urlsafe(32)
+        command = (
+            list(self.join_token_command)
+            if self.join_token_command
+            else [
+                self.spire_server_bin,
+                "token",
+                "generate",
+                "-spiffeID",
+                f"spiffe://{self.trust_domain}/node/{node_id}",
+            ]
+        )
+        env = os.environ.copy()
+        env.update(
+            {
+                "X0TTA6BL4_SPIFFE_NODE_ID": node_id,
+                "X0TTA6BL4_SPIFFE_TRUST_DOMAIN": self.trust_domain,
+                "X0TTA6BL4_SPIRE_SERVER_ADDRESS": self.spire_server_address,
+            }
+        )
 
-    def get_deployment_summary(self) -> Dict[str, any]:
+        return await asyncio.to_thread(_run_join_token_command, command, env)
+
+    def get_deployment_summary(self) -> Dict[str, Any]:
         """Get deployment summary statistics."""
         return {
             "deployed_nodes": len(self.deployed_nodes),
@@ -217,6 +242,130 @@ class MeshNodeSPIFFEDeployer:
         }
 
 
+def _parse_node_ids(raw: str) -> List[str]:
+    """Parse comma/newline separated node IDs."""
+    node_ids: List[str] = []
+    seen = set()
+    for item in raw.replace("\n", ",").split(","):
+        node_id = item.strip()
+        if not node_id or node_id in seen:
+            continue
+        seen.add(node_id)
+        node_ids.append(node_id)
+    return node_ids
+
+
+def _node_id_from_item(item: Any) -> Optional[str]:
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        for key in ("id", "node_id", "name"):
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return None
+
+
+def _load_node_ids_from_json(payload: Any) -> List[str]:
+    if isinstance(payload, list):
+        return [
+            node_id
+            for node_id in (_node_id_from_item(item) for item in payload)
+            if node_id is not None
+        ]
+    if isinstance(payload, dict):
+        for key in ("node_ids", "nodes", "items"):
+            if key in payload:
+                return _load_node_ids_from_json(payload[key])
+    return []
+
+
+def load_node_ids_from_file(path: Path) -> List[str]:
+    """Load node IDs from JSON, JSON object inventory, or text list."""
+    raw = path.read_text(encoding="utf-8").strip()
+    if not raw:
+        return []
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return _parse_node_ids(raw)
+    node_ids = _load_node_ids_from_json(payload)
+    return _parse_node_ids("\n".join(node_ids))
+
+
+def resolve_node_ids(nodes: str, nodes_file: Optional[Path] = None) -> List[str]:
+    """
+    Resolve CLI node selection.
+
+    `--nodes all` is intentionally fail-closed: production deploys must use a
+    real inventory source instead of a synthetic node range.
+    """
+    if nodes.lower() != "all":
+        return _parse_node_ids(nodes)
+
+    inventory_file = nodes_file
+    env_file = os.getenv("X0TTA6BL4_MESH_NODES_FILE")
+    if inventory_file is None and env_file:
+        inventory_file = Path(env_file)
+    if inventory_file is not None:
+        node_ids = load_node_ids_from_file(inventory_file)
+        if node_ids:
+            return node_ids
+
+    env_node_ids = os.getenv("X0TTA6BL4_MESH_NODE_IDS", "")
+    node_ids = _parse_node_ids(env_node_ids)
+    if node_ids:
+        return node_ids
+
+    raise ValueError(
+        "--nodes all requires a real mesh inventory. Provide --nodes-file, "
+        "X0TTA6BL4_MESH_NODES_FILE, or X0TTA6BL4_MESH_NODE_IDS."
+    )
+
+
+def _read_join_token_file(path: Path) -> str:
+    token = path.read_text(encoding="utf-8").strip()
+    if not token:
+        raise RuntimeError(f"Join token file is empty: {path}")
+    return token
+
+
+def _extract_join_token(stdout: str) -> str:
+    for line in reversed(stdout.splitlines()):
+        value = line.strip()
+        if not value:
+            continue
+        if ":" in value:
+            key, candidate = value.split(":", 1)
+            if key.strip().lower() in {"token", "join token", "jointoken"}:
+                value = candidate.strip()
+        if value:
+            return value
+    raise RuntimeError("SPIRE join token command returned no token")
+
+
+def _run_join_token_command(command: Sequence[str], env: Dict[str, str]) -> str:
+    if not command:
+        raise RuntimeError("Join token command is empty")
+    try:
+        result = subprocess.run(
+            list(command),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=env,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Join token command not found: {command[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Join token command timed out") from exc
+    if result.returncode != 0:
+        stderr = result.stderr.strip() or "no stderr"
+        raise RuntimeError(f"Join token command failed: {stderr}")
+    return _extract_join_token(result.stdout)
+
+
 async def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Deploy SPIFFE/SPIRE to mesh nodes")
@@ -225,6 +374,14 @@ async def main():
         type=str,
         required=True,
         help="Comma-separated node IDs or 'all' for all nodes",
+    )
+    parser.add_argument(
+        "--nodes-file",
+        type=Path,
+        help=(
+            "Mesh node inventory for --nodes all. Supports JSON arrays, JSON objects "
+            "with node_ids/nodes/items, or comma/newline text."
+        ),
     )
     parser.add_argument(
         "--trust-domain", type=str, default="x0tta6bl4.mesh", help="SPIFFE trust domain"
@@ -239,6 +396,25 @@ async def main():
         "--join-token", type=str, help="Join token (generated if not provided)"
     )
     parser.add_argument(
+        "--join-token-file",
+        type=Path,
+        help="Local file containing a join token. Do not pass secrets through chat.",
+    )
+    parser.add_argument(
+        "--join-token-command",
+        type=str,
+        help=(
+            "Local command that prints a join token. The command receives "
+            "X0TTA6BL4_SPIFFE_NODE_ID and X0TTA6BL4_SPIFFE_TRUST_DOMAIN."
+        ),
+    )
+    parser.add_argument(
+        "--spire-server-bin",
+        type=str,
+        default="spire-server",
+        help="Path to spire-server CLI used to generate join tokens",
+    )
+    parser.add_argument(
         "--attestation-strategy",
         type=str,
         default="join_token",
@@ -251,17 +427,27 @@ async def main():
 
     args = parser.parse_args()
 
-    # Parse node list
+    try:
+        node_ids = resolve_node_ids(args.nodes, args.nodes_file)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        raise SystemExit(2) from exc
+    if not node_ids:
+        logger.error("No mesh node IDs resolved")
+        raise SystemExit(2)
     if args.nodes.lower() == "all":
-        # TODO: Get actual node list from mesh topology
-        node_ids = [f"node-{i:03d}" for i in range(1, 51)]  # Placeholder
-        logger.info(f"Deploying to all nodes (placeholder: {len(node_ids)} nodes)")
-    else:
-        node_ids = [node_id.strip() for node_id in args.nodes.split(",")]
+        logger.info("Deploying to all nodes from inventory: %s nodes", len(node_ids))
 
     # Create deployer
+    join_token_command = (
+        shlex.split(args.join_token_command) if args.join_token_command else None
+    )
     deployer = MeshNodeSPIFFEDeployer(
-        trust_domain=args.trust_domain, spire_server_address=args.spire_server
+        trust_domain=args.trust_domain,
+        spire_server_address=args.spire_server,
+        spire_server_bin=args.spire_server_bin,
+        join_token_command=join_token_command,
+        join_token_file=args.join_token_file,
     )
 
     # Deploy

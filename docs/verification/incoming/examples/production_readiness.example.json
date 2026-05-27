@@ -1,0 +1,162 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "production_readiness",
+      "--require-pass",
+      "--json"
+    ],
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_proof_gate.py",
+      "--require-all-proven",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/production_readiness/operator_approval.REPLACE_WITH_REAL_FILE",
+      "role": "operator_approval",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/production_readiness/rollback_plan.REPLACE_WITH_REAL_FILE",
+      "role": "rollback_plan",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/production_readiness/monitoring_plan.REPLACE_WITH_REAL_FILE",
+      "role": "monitoring_plan",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/production_readiness/prior_claim_references.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "prior_claim_references",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/production_readiness.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "production_readiness",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "production_readiness",
+    "--candidate",
+    "docs/verification/incoming/production_readiness.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "all_prior_claims_referenced": "REPLACE_WITH_TRUE",
+    "monitoring_plan_verified": "REPLACE_WITH_TRUE",
+    "operator_approval_recorded": "REPLACE_WITH_TRUE",
+    "production_ready": "REPLACE_WITH_TRUE",
+    "rollback_plan_verified": "REPLACE_WITH_TRUE"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "references": [
+    {
+      "claim_id": "kernel_attach",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    },
+    {
+      "claim_id": "packet_capture",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    },
+    {
+      "claim_id": "baseline_timing_comparison",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    },
+    {
+      "claim_id": "dpi_lab",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    },
+    {
+      "claim_id": "whitelist_lab",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    },
+    {
+      "claim_id": "security_review",
+      "evidence": "REPLACE_WITH_CURRENT_EVIDENCE_PATH",
+      "sha256": "REPLACE_WITH_CURRENT_EVIDENCE_SHA256",
+      "status": "REPLACE_WITH_CURRENT_PROOF_STATUS"
+    }
+  ],
+  "requirement_contract": {
+    "claim_id": "production_readiness",
+    "json_artifact_object_field_links": {
+      "prior_claim_references": [
+        "measurements",
+        "references",
+        "failures",
+        "claim_boundary"
+      ]
+    },
+    "measurements": {
+      "all_prior_claims_referenced": true,
+      "monitoring_plan_verified": true,
+      "operator_approval_recorded": true,
+      "production_ready": "bool_true",
+      "rollback_plan_verified": true
+    },
+    "path": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "operator_approval",
+      "rollback_plan",
+      "monitoring_plan",
+      "prior_claim_references"
+    ],
+    "required_references": [
+      "kernel_attach",
+      "packet_capture",
+      "baseline_timing_comparison",
+      "dpi_lab",
+      "whitelist_lab",
+      "security_review"
+    ],
+    "title": "Production readiness approval and rollback evidence"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Production readiness approval and rollback evidence"
+}

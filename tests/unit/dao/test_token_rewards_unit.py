@@ -11,6 +11,7 @@ private_key guard to keep self.web3 = None for non-blockchain tests.
 from decimal import Decimal
 
 
+from src.coordination.events import EventBus, EventType
 from src.dao.token_rewards import TokenRewards
 
 # ---------------------------------------------------------------------------
@@ -108,6 +109,53 @@ class TestRewardRelay:
         assert tr.balance == initial_balance + expected_reward
         assert tr.total_distributed == expected_reward
 
+    def test_reward_relay_reports_local_accounting_without_chain_tx(self):
+        """Local-only settlement is explicit so production callers cannot treat it as a chain receipt."""
+        tr = _make_rewards()
+        result = tr.reward_relay(NODE_ADDR, 100)
+
+        assert result["ok"] is True
+        assert result["status"] == "local_accounting_only"
+        assert result["settlement_recorded"] is True
+        assert result["local_accounting_recorded"] is True
+        assert result["submitted_transaction"] is False
+        assert result["simulated"] is True
+        assert result["transaction_hash"] == ""
+
+    def test_reward_relay_publishes_canonical_event_when_event_bus_is_bound(self, tmp_path):
+        """Reward settlement can be correlated through the shared EventBus when callers opt in."""
+        bus = EventBus(project_root=str(tmp_path))
+        tr = TokenRewards(
+            CONTRACT_ADDR,
+            private_key=None,
+            event_bus=bus,
+            source_agent="token-rewards-test",
+            node_id="node-1",
+            spiffe_id="spiffe://mesh.x0tta6bl4.mesh/workload/relay",
+            did="did:mesh:pqc:node-1",
+            wallet_address=NODE_ADDR,
+        )
+
+        result = tr.reward_relay(NODE_ADDR, 100)
+
+        events = bus.get_event_history(event_type=EventType.REWARD_RELAY_RECORDED)
+        assert len(events) == 1
+        event = events[0]
+        assert result["event_id"] == event.event_id
+        assert event.source_agent == "token-rewards-test"
+        assert event.data["identity"] == {
+            "node_id": "node-1",
+            "spiffe_id": "spiffe://mesh.x0tta6bl4.mesh/workload/relay",
+            "did": "did:mesh:pqc:node-1",
+            "wallet_address": NODE_ADDR,
+            "reward_address": NODE_ADDR,
+        }
+        assert event.data["packets"] == 100
+        assert event.data["amount"] == "0.0100"
+        assert event.data["status"] == "local_accounting_only"
+        assert event.data["simulated"] is True
+        assert event.data["submitted_transaction"] is False
+
 
 # ===========================================================================
 # TestSettleRewards
@@ -122,9 +170,11 @@ class TestSettleRewards:
         tr = _make_rewards()
         initial_balance = tr.balance
         initial_distributed = tr.total_distributed
-        tr._settle_rewards(NODE_ADDR)
+        result = tr._settle_rewards(NODE_ADDR)
         assert tr.balance == initial_balance
         assert tr.total_distributed == initial_distributed
+        assert result["status"] == "noop"
+        assert result["settlement_recorded"] is False
 
     def test_adds_pending_to_balance_and_distributed(self):
         """_settle_rewards adds pending_rewards to balance and total_distributed."""
@@ -255,3 +305,60 @@ class TestBlockchainIntegration:
         tr.reward_relay(NODE_ADDR, 1000)
         assert tr.tx_history == []
         assert len(tr.tx_history) == 0
+
+    def test_settle_rewards_reports_blockchain_submission_when_tx_hash_exists(self):
+        """A configured blockchain path returns the transaction hash for upstream settlement gates."""
+        tr = _make_rewards()
+        tr.web3 = object()
+        tr.contract = object()
+        tr.account = object()
+        tr.pending_rewards = Decimal("1.25")
+        tx_hash = "0x" + "d" * 64
+        tr._send_blockchain_reward = lambda node_address, amount: tx_hash
+
+        result = tr._settle_rewards(NODE_ADDR)
+
+        assert result["ok"] is True
+        assert result["status"] == "blockchain_submitted"
+        assert result["submitted_transaction"] is True
+        assert result["simulated"] is False
+        assert result["transaction_hash"] == tx_hash
+        assert tr.tx_history == [
+            {
+                "hash": tx_hash,
+                "amount": "1.25",
+                "to": NODE_ADDR,
+                "timestamp": tr.tx_history[0]["timestamp"],
+            }
+        ]
+
+    def test_settle_rewards_publishes_blocked_event_when_blockchain_submission_fails(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        tr = TokenRewards(
+            CONTRACT_ADDR,
+            private_key=None,
+            event_bus=bus,
+            source_agent="token-rewards-test",
+            node_id="node-1",
+            spiffe_id="spiffe://mesh.x0tta6bl4.mesh/workload/relay",
+            did="did:mesh:pqc:node-1",
+            wallet_address=NODE_ADDR,
+        )
+        tr.web3 = object()
+        tr.contract = object()
+        tr.account = object()
+        tr.pending_rewards = Decimal("1.25")
+        tr._send_blockchain_reward = lambda node_address, amount: None
+
+        result = tr._settle_rewards(NODE_ADDR, packets=12500)
+
+        events = bus.get_event_history(event_type=EventType.REWARD_RELAY_BLOCKED)
+        assert len(events) == 1
+        event = events[0]
+        assert result["event_id"] == event.event_id
+        assert result["ok"] is False
+        assert event.data["status"] == "blockchain_submission_failed"
+        assert event.data["settlement_recorded"] is False
+        assert event.data["submitted_transaction"] is False
+        assert event.data["simulated"] is False
+        assert event.data["reason"] == "blockchain transaction hash was not returned"

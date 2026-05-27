@@ -22,3 +22,5 @@ class TestDeepSearchModule:
         ds = DeepSearcher()
         result = await ds.perform_search("post-quantum cryptography")
         assert isinstance(result, list)
+        assert result
+        assert result[0]["query"] == "post-quantum cryptography"

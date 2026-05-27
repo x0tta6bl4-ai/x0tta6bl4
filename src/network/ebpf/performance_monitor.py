@@ -16,10 +16,12 @@ Integrates with Prometheus for metrics export and alerting.
 import asyncio
 import json
 import logging
+import os
 import statistics
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
@@ -85,6 +87,84 @@ class PerformanceThreshold:
     description: str
 
 
+@dataclass
+class EBPFMetricSnapshot:
+    """Point-in-time local metrics used by the performance monitor."""
+
+    packets_processed: int = 0
+    latency_microseconds: float = 0.0
+    cpu_usage_percent: float = 0.0
+    memory_usage_bytes: float = 0.0
+
+    @classmethod
+    def from_mapping(cls, payload: Dict[str, Any]) -> "EBPFMetricSnapshot":
+        return cls(
+            packets_processed=max(0, int(payload.get("packets_processed", 0))),
+            latency_microseconds=max(
+                0.0,
+                float(payload.get("latency_microseconds", 0.0)),
+            ),
+            cpu_usage_percent=max(0.0, float(payload.get("cpu_usage_percent", 0.0))),
+            memory_usage_bytes=max(0.0, float(payload.get("memory_usage_bytes", 0.0))),
+        )
+
+
+class EBPFSystemMetricSource:
+    """Reads local runtime counters without fabricating eBPF-only values."""
+
+    def __init__(
+        self,
+        proc_net_dev: Path = Path("/proc/net/dev"),
+        bpffs_root: Path = Path("/sys/fs/bpf"),
+    ):
+        self.proc_net_dev = proc_net_dev
+        self.bpffs_root = bpffs_root
+
+    def snapshot(self) -> EBPFMetricSnapshot:
+        return EBPFMetricSnapshot(
+            packets_processed=self._read_packets_processed(),
+            latency_microseconds=0.0,
+            cpu_usage_percent=0.0,
+            memory_usage_bytes=self._read_bpffs_size_bytes(),
+        )
+
+    def _read_packets_processed(self) -> int:
+        try:
+            lines = self.proc_net_dev.read_text(encoding="utf-8").splitlines()[2:]
+        except OSError:
+            return 0
+
+        total = 0
+        for line in lines:
+            if ":" not in line:
+                continue
+            _iface, counters = line.split(":", 1)
+            fields = counters.split()
+            if len(fields) < 10:
+                continue
+            try:
+                rx_packets = int(fields[1])
+                tx_packets = int(fields[9])
+            except ValueError:
+                continue
+            total += max(0, rx_packets) + max(0, tx_packets)
+        return total
+
+    def _read_bpffs_size_bytes(self) -> float:
+        if not self.bpffs_root.exists():
+            return 0.0
+
+        total = 0
+        for root, _dirs, files in os.walk(self.bpffs_root):
+            for filename in files:
+                path = Path(root) / filename
+                try:
+                    total += max(0, path.stat().st_size)
+                except OSError:
+                    continue
+        return float(total)
+
+
 class EBPFPerformanceMonitor:
     """
     Comprehensive performance monitoring for eBPF programs.
@@ -93,8 +173,9 @@ class EBPFPerformanceMonitor:
     Integrates with Prometheus and provides dashboard configurations.
     """
 
-    def __init__(self, prometheus_port: int = 9090):
+    def __init__(self, prometheus_port: int = 9090, metric_source: Any = None):
         self.prometheus_port = prometheus_port
+        self.metric_source = metric_source or EBPFSystemMetricSource()
         self.metrics: Dict[str, Any] = {}
         self._registry = CollectorRegistry() if PROMETHEUS_AVAILABLE else None
         self.alert_rules: List[AlertRule] = []
@@ -294,26 +375,36 @@ class EBPFPerformanceMonitor:
 
     async def _collect_metrics(self):
         """Collect current performance metrics"""
-        # This would integrate with actual eBPF map reading
-        # For now, we'll simulate metric collection
+        snapshot = self._read_metric_snapshot()
 
-        # Simulate packet processing metrics
-        packets_processed = self._get_mock_packets_processed()
         if "ebpf_packets_processed_total" in self.metrics:
             self.metrics["ebpf_packets_processed_total"].labels(
                 program="xdp_monitor", interface="eth0"
-            ).inc(packets_processed)
+            ).inc(snapshot.packets_processed)
 
-        # Simulate latency metrics
-        latency = self._get_mock_latency()
         if "ebpf_processing_latency_microseconds" in self.metrics:
             self.metrics["ebpf_processing_latency_microseconds"].labels(
                 program="xdp_monitor", interface="eth0"
-            ).observe(latency)
+            ).observe(snapshot.latency_microseconds)
 
         # Store in history for trend analysis
-        self._update_history("latency", latency)
-        self._update_history("packets", packets_processed)
+        self._update_history("latency", snapshot.latency_microseconds)
+        self._update_history("packets", snapshot.packets_processed)
+
+    def _read_metric_snapshot(self) -> EBPFMetricSnapshot:
+        try:
+            snapshot = self.metric_source.snapshot()
+        except Exception as exc:
+            logger.warning("Failed to read eBPF performance snapshot: %s", exc)
+            return EBPFMetricSnapshot()
+        if isinstance(snapshot, EBPFMetricSnapshot):
+            return snapshot
+        if isinstance(snapshot, dict):
+            try:
+                return EBPFMetricSnapshot.from_mapping(snapshot)
+            except (TypeError, ValueError) as exc:
+                logger.warning("Invalid eBPF performance snapshot: %s", exc)
+        return EBPFMetricSnapshot()
 
     def _update_history(self, metric_name: str, value: float):
         """Update performance history for trend analysis"""
@@ -360,38 +451,18 @@ class EBPFPerformanceMonitor:
         # For now, just log it
 
     def _get_current_metric_value(self, metric_name: str) -> float:
-        """Get current value of a metric (mock implementation)"""
+        """Get current value of a metric from the configured source."""
+        snapshot = self._read_metric_snapshot()
         if metric_name == "ebpf_processing_latency_microseconds":
-            return self._get_mock_latency()
+            return snapshot.latency_microseconds
         elif metric_name == "ebpf_cpu_usage_percent":
-            return self._get_mock_cpu_usage()
+            return snapshot.cpu_usage_percent
         elif metric_name == "ebpf_memory_usage_bytes":
-            return self._get_mock_memory_usage()
+            return snapshot.memory_usage_bytes
+        elif metric_name == "ebpf_packets_processed_total":
+            return float(snapshot.packets_processed)
 
         return 0.0
-
-    # Mock data generators (replace with real eBPF map reading)
-    def _get_mock_packets_processed(self) -> int:
-        """Mock packet processing count"""
-        return int(time.time() * 1000) % 10000
-
-    def _get_mock_latency(self) -> float:
-        """Mock processing latency in microseconds"""
-        import random
-
-        return random.gauss(25.0, 5.0)  # Normal distribution around 25µs
-
-    def _get_mock_cpu_usage(self) -> float:
-        """Mock CPU usage percentage"""
-        import random
-
-        return random.uniform(5.0, 15.0)
-
-    def _get_mock_memory_usage(self) -> float:
-        """Mock memory usage in bytes"""
-        import random
-
-        return random.uniform(10 * 1024 * 1024, 50 * 1024 * 1024)  # 10-50MB
 
     def get_performance_report(self) -> Dict[str, Any]:
         """Generate comprehensive performance report"""

@@ -1,0 +1,524 @@
+{
+  "artifacts": {
+    "goal_state_bundle_json": "docs/verification/ghost-pulse-goal-state-20260525T044558Z/goal_state.json",
+    "goal_state_bundle_md": "docs/verification/ghost-pulse-goal-state-20260525T044558Z/summary.md",
+    "goal_state_latest_json": "docs/verification/GHOST_PULSE_GOAL_STATE_LATEST.json",
+    "goal_state_latest_md": "docs/verification/GHOST_PULSE_GOAL_STATE_LATEST.md"
+  },
+  "bundle": "docs/verification/ghost-pulse-goal-state-20260525T044558Z",
+  "candidate_paths": {
+    "dpi_lab": "docs/verification/incoming/dpi_lab.json",
+    "production_readiness": "docs/verification/incoming/production_readiness.json",
+    "security_review": "docs/verification/incoming/security_review.json",
+    "whitelist_lab": "docs/verification/incoming/whitelist_lab.json"
+  },
+  "checks": {
+    "artifact_chain": {
+      "failures": [],
+      "status": "PASS"
+    },
+    "external_evidence_intake": {
+      "failures": [],
+      "missing_candidate_paths": [],
+      "not_ready": [
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review",
+        "production_readiness"
+      ],
+      "ready": [],
+      "status": "PASS"
+    },
+    "external_evidence_inventory": {
+      "failures": [],
+      "status": "PASS"
+    },
+    "incoming_examples_manifest": {
+      "failures": [],
+      "status": "PASS"
+    },
+    "pending_external_evidence_details": {
+      "failures": [],
+      "status": "PASS"
+    },
+    "proof_gate": {
+      "failures": [],
+      "pending_external_evidence_claims": [
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review",
+        "production_readiness"
+      ],
+      "starter_verified_claims": [
+        "packet_capture",
+        "baseline_timing_comparison"
+      ],
+      "status": "PASS"
+    },
+    "replacement_candidates": {
+      "failures": [],
+      "not_ready": [
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review",
+        "production_readiness"
+      ],
+      "ready": [],
+      "status": "PASS"
+    }
+  },
+  "claim_boundary": {
+    "kernel_attach_verified": true,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "decision": "GHOST_PULSE_GOAL_STATE_GAPS_RECORDED_FAIL_CLOSED",
+  "failures": [],
+  "pending_external_evidence_claims": [
+    "dpi_lab",
+    "whitelist_lab",
+    "security_review",
+    "production_readiness"
+  ],
+  "pending_external_evidence_details": [
+    {
+      "blocking_reasons": [
+        "proof_status_not_verified",
+        "proof_errors_present",
+        "replacement_not_ready",
+        "intake_not_ready",
+        "current_evidence_not_verified"
+      ],
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_missing": false,
+      "candidate_path": "docs/verification/incoming/dpi_lab.json",
+      "candidate_sha256": "6ef291d6fac6cc7bee9a793f3703e8b867ebdf9c42edb3e846accc06a9126c0e",
+      "claim_id": "dpi_lab",
+      "current_evidence": {
+        "actual_sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+        "claim_id": "dpi_lab",
+        "collection_diagnostics": null,
+        "exists": true,
+        "failures_count": 4,
+        "is_file": true,
+        "load_error": null,
+        "object_preflight": null,
+        "path": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+        "proof_sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+        "sha256_matches_proof": true,
+        "status": "INCOMPLETE"
+      },
+      "intake": {
+        "missing_candidate_path": false,
+        "not_ready": true,
+        "ready": false
+      },
+      "proof": {
+        "errors": [
+          "status must be VERIFIED",
+          "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "missing_inputs must be absent or empty for VERIFIED evidence",
+          "failures must be absent or empty for VERIFIED evidence",
+          "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "required artifact role missing: lab_scope",
+          "required artifact role missing: baseline_result",
+          "required artifact role missing: pulse_result",
+          "required artifact role missing: lab_conclusion",
+          "measurements.authorized_lab must be True",
+          "measurements.baseline_detected_or_blocked must be True",
+          "measurements.pulse_result_recorded must be True",
+          "measurements.dpi_bypass_verified must be True",
+          "artifact role missing for content check: lab_conclusion"
+        ],
+        "errors_count": 14,
+        "status": "INVALID"
+      },
+      "replacement": {
+        "candidate_exists": true,
+        "candidate_is_file": true,
+        "candidate_path": "docs/verification/incoming/dpi_lab.json",
+        "candidate_sha256": "6ef291d6fac6cc7bee9a793f3703e8b867ebdf9c42edb3e846accc06a9126c0e",
+        "failures": [
+          "dpi_lab: status must be VERIFIED",
+          "dpi_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "dpi_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+          "dpi_lab: failures must be absent or empty for VERIFIED evidence",
+          "dpi_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "dpi_lab: required artifact role missing: lab_scope",
+          "dpi_lab: required artifact role missing: baseline_result",
+          "dpi_lab: required artifact role missing: pulse_result",
+          "dpi_lab: required artifact role missing: lab_conclusion",
+          "dpi_lab: measurements.authorized_lab must be True",
+          "dpi_lab: measurements.baseline_detected_or_blocked must be True",
+          "dpi_lab: measurements.pulse_result_recorded must be True",
+          "dpi_lab: measurements.dpi_bypass_verified must be True",
+          "dpi_lab: artifact role missing for content check: lab_conclusion"
+        ],
+        "failures_count": 14,
+        "import_decision": "REJECTED",
+        "not_ready": true,
+        "passport_blocking_categories": [
+          "artifact_roles",
+          "measurements",
+          "missing_inputs",
+          "proof_errors",
+          "record"
+        ],
+        "passport_current_sha256": "d64ea7b38c180c3d5b4fb9ab554eee76b107037daf07d04a5057466c17b030a7",
+        "passport_current_status": "INVALID",
+        "ready_to_import": false,
+        "row_present": true
+      }
+    },
+    {
+      "blocking_reasons": [
+        "proof_status_not_verified",
+        "proof_errors_present",
+        "replacement_not_ready",
+        "intake_not_ready",
+        "current_evidence_not_verified"
+      ],
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_missing": false,
+      "candidate_path": "docs/verification/incoming/whitelist_lab.json",
+      "candidate_sha256": "7a10127f82ed1879b4d2898e6af51ab2ef2cfccdbccc63690929cd18d85ea9f9",
+      "claim_id": "whitelist_lab",
+      "current_evidence": {
+        "actual_sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
+        "claim_id": "whitelist_lab",
+        "collection_diagnostics": null,
+        "exists": true,
+        "failures_count": 4,
+        "is_file": true,
+        "load_error": null,
+        "object_preflight": null,
+        "path": "docs/verification/GHOST_PULSE_WHITELIST_LAB_LATEST.json",
+        "proof_sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
+        "sha256_matches_proof": true,
+        "status": "INCOMPLETE"
+      },
+      "intake": {
+        "missing_candidate_path": false,
+        "not_ready": true,
+        "ready": false
+      },
+      "proof": {
+        "errors": [
+          "status must be VERIFIED",
+          "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "missing_inputs must be absent or empty for VERIFIED evidence",
+          "failures must be absent or empty for VERIFIED evidence",
+          "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "required artifact role missing: provider_or_lab_authorization",
+          "required artifact role missing: provider_profile",
+          "required artifact role missing: third_party_baseline_capture",
+          "required artifact role missing: whitelist_conclusion",
+          "measurements.authorized_provider_or_lab must be True",
+          "measurements.provider_profile must be nonempty",
+          "measurements.third_party_baseline_captured must be True",
+          "measurements.whitelist_behavior_verified must be True",
+          "artifact role missing for content check: whitelist_conclusion"
+        ],
+        "errors_count": 14,
+        "status": "INVALID"
+      },
+      "replacement": {
+        "candidate_exists": true,
+        "candidate_is_file": true,
+        "candidate_path": "docs/verification/incoming/whitelist_lab.json",
+        "candidate_sha256": "7a10127f82ed1879b4d2898e6af51ab2ef2cfccdbccc63690929cd18d85ea9f9",
+        "failures": [
+          "whitelist_lab: status must be VERIFIED",
+          "whitelist_lab: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "whitelist_lab: missing_inputs must be absent or empty for VERIFIED evidence",
+          "whitelist_lab: failures must be absent or empty for VERIFIED evidence",
+          "whitelist_lab: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "whitelist_lab: required artifact role missing: provider_or_lab_authorization",
+          "whitelist_lab: required artifact role missing: provider_profile",
+          "whitelist_lab: required artifact role missing: third_party_baseline_capture",
+          "whitelist_lab: required artifact role missing: whitelist_conclusion",
+          "whitelist_lab: measurements.authorized_provider_or_lab must be True",
+          "whitelist_lab: measurements.provider_profile must be nonempty",
+          "whitelist_lab: measurements.third_party_baseline_captured must be True",
+          "whitelist_lab: measurements.whitelist_behavior_verified must be True",
+          "whitelist_lab: artifact role missing for content check: whitelist_conclusion"
+        ],
+        "failures_count": 14,
+        "import_decision": "REJECTED",
+        "not_ready": true,
+        "passport_blocking_categories": [
+          "artifact_roles",
+          "measurements",
+          "missing_inputs",
+          "proof_errors",
+          "record"
+        ],
+        "passport_current_sha256": "731098b1527639d43882102c8d5a12387dcb8feb6decb0771d7cf5e6d843a051",
+        "passport_current_status": "INVALID",
+        "ready_to_import": false,
+        "row_present": true
+      }
+    },
+    {
+      "blocking_reasons": [
+        "proof_status_not_verified",
+        "proof_errors_present",
+        "replacement_not_ready",
+        "intake_not_ready",
+        "current_evidence_not_verified"
+      ],
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_missing": false,
+      "candidate_path": "docs/verification/incoming/security_review.json",
+      "candidate_sha256": "053524618cca7c2acadd4a0e4f9f9e1c7efa8055510d99123a8f24d36013688b",
+      "claim_id": "security_review",
+      "current_evidence": {
+        "actual_sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
+        "claim_id": "security_review",
+        "collection_diagnostics": null,
+        "exists": true,
+        "failures_count": 4,
+        "is_file": true,
+        "load_error": null,
+        "object_preflight": null,
+        "path": "docs/verification/GHOST_PULSE_SECURITY_REVIEW_LATEST.json",
+        "proof_sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
+        "sha256_matches_proof": true,
+        "status": "INCOMPLETE"
+      },
+      "intake": {
+        "missing_candidate_path": false,
+        "not_ready": true,
+        "ready": false
+      },
+      "proof": {
+        "errors": [
+          "status must be VERIFIED",
+          "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "missing_inputs must be absent or empty for VERIFIED evidence",
+          "failures must be absent or empty for VERIFIED evidence",
+          "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "required artifact role missing: reviewer_identity",
+          "required artifact role missing: review_scope",
+          "required artifact role missing: findings_report",
+          "measurements.reviewer must be nonempty",
+          "measurements.scope_includes_pulse_transport must be True",
+          "measurements.open_critical_findings must be 0",
+          "measurements.open_high_findings must be 0",
+          "artifact role missing for content check: findings_report"
+        ],
+        "errors_count": 13,
+        "status": "INVALID"
+      },
+      "replacement": {
+        "candidate_exists": true,
+        "candidate_is_file": true,
+        "candidate_path": "docs/verification/incoming/security_review.json",
+        "candidate_sha256": "053524618cca7c2acadd4a0e4f9f9e1c7efa8055510d99123a8f24d36013688b",
+        "failures": [
+          "security_review: status must be VERIFIED",
+          "security_review: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "security_review: missing_inputs must be absent or empty for VERIFIED evidence",
+          "security_review: failures must be absent or empty for VERIFIED evidence",
+          "security_review: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "security_review: required artifact role missing: reviewer_identity",
+          "security_review: required artifact role missing: review_scope",
+          "security_review: required artifact role missing: findings_report",
+          "security_review: measurements.reviewer must be nonempty",
+          "security_review: measurements.scope_includes_pulse_transport must be True",
+          "security_review: measurements.open_critical_findings must be 0",
+          "security_review: measurements.open_high_findings must be 0",
+          "security_review: artifact role missing for content check: findings_report"
+        ],
+        "failures_count": 13,
+        "import_decision": "REJECTED",
+        "not_ready": true,
+        "passport_blocking_categories": [
+          "artifact_roles",
+          "measurements",
+          "missing_inputs",
+          "proof_errors",
+          "record"
+        ],
+        "passport_current_sha256": "ea6d69e3b4ee4ad0e7a3da922fda7253c3d983f193e1515a28530ecc0c446a29",
+        "passport_current_status": "INVALID",
+        "ready_to_import": false,
+        "row_present": true
+      }
+    },
+    {
+      "blocking_reasons": [
+        "proof_status_not_verified",
+        "proof_errors_present",
+        "replacement_not_ready",
+        "intake_not_ready",
+        "current_evidence_not_verified"
+      ],
+      "candidate_exists": true,
+      "candidate_is_file": true,
+      "candidate_missing": false,
+      "candidate_path": "docs/verification/incoming/production_readiness.json",
+      "candidate_sha256": "ab57e676ca5fb39f022e3d74c6500b874f64d4a682f35a7008e38fd82b056a0d",
+      "claim_id": "production_readiness",
+      "current_evidence": {
+        "actual_sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
+        "claim_id": "production_readiness",
+        "collection_diagnostics": null,
+        "exists": true,
+        "failures_count": 5,
+        "is_file": true,
+        "load_error": null,
+        "object_preflight": null,
+        "path": "docs/verification/GHOST_PULSE_PRODUCTION_READINESS_LATEST.json",
+        "proof_sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
+        "sha256_matches_proof": true,
+        "status": "INCOMPLETE"
+      },
+      "intake": {
+        "missing_candidate_path": false,
+        "not_ready": true,
+        "ready": false
+      },
+      "proof": {
+        "errors": [
+          "status must be VERIFIED",
+          "mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "missing_inputs must be absent or empty for VERIFIED evidence",
+          "failures must be absent or empty for VERIFIED evidence",
+          "claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "required artifact role missing: operator_approval",
+          "required artifact role missing: rollback_plan",
+          "required artifact role missing: monitoring_plan",
+          "required artifact role missing: prior_claim_references",
+          "measurements.production_ready must be bool_true",
+          "measurements.rollback_plan_verified must be True",
+          "measurements.monitoring_plan_verified must be True",
+          "measurements.operator_approval_recorded must be True",
+          "measurements.all_prior_claims_referenced must be True",
+          "artifact role missing for content check: prior_claim_references",
+          "references must be a non-empty list"
+        ],
+        "errors_count": 16,
+        "status": "INVALID"
+      },
+      "replacement": {
+        "candidate_exists": true,
+        "candidate_is_file": true,
+        "candidate_path": "docs/verification/incoming/production_readiness.json",
+        "candidate_sha256": "ab57e676ca5fb39f022e3d74c6500b874f64d4a682f35a7008e38fd82b056a0d",
+        "failures": [
+          "production_readiness: status must be VERIFIED",
+          "production_readiness: mode must not be EXTERNAL_EVIDENCE_GAP_RECORD",
+          "production_readiness: missing_inputs must be absent or empty for VERIFIED evidence",
+          "production_readiness: failures must be absent or empty for VERIFIED evidence",
+          "production_readiness: claim_boundary.claim_verified must not be false for VERIFIED evidence",
+          "production_readiness: required artifact role missing: operator_approval",
+          "production_readiness: required artifact role missing: rollback_plan",
+          "production_readiness: required artifact role missing: monitoring_plan",
+          "production_readiness: required artifact role missing: prior_claim_references",
+          "production_readiness: measurements.production_ready must be bool_true",
+          "production_readiness: measurements.rollback_plan_verified must be True",
+          "production_readiness: measurements.monitoring_plan_verified must be True",
+          "production_readiness: measurements.operator_approval_recorded must be True",
+          "production_readiness: measurements.all_prior_claims_referenced must be True",
+          "production_readiness: artifact role missing for content check: prior_claim_references",
+          "production_readiness: references must be a non-empty list"
+        ],
+        "failures_count": 16,
+        "import_decision": "REJECTED",
+        "not_ready": true,
+        "passport_blocking_categories": [
+          "artifact_roles",
+          "measurements",
+          "missing_inputs",
+          "proof_errors",
+          "record",
+          "references"
+        ],
+        "passport_current_sha256": "fde275c1d1d01803e2460e3927c7da8febf51d93c9a6d29dc9b7223dabf6bd2b",
+        "passport_current_status": "INVALID",
+        "ready_to_import": false,
+        "row_present": true
+      }
+    }
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.goal_state.v1",
+  "source_reports": {
+    "artifact_chain": {
+      "decision": "GHOST_PULSE_ARTIFACT_CHAIN_VERIFIED",
+      "exists": true,
+      "failures_count": 0,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/GHOST_PULSE_ARTIFACT_CHAIN_LATEST.json",
+      "schema": "x0tta6bl4.ghost_pulse.artifact_chain.v1",
+      "sha256": "c91b7a15026b700d3c18f08c251ab325602aa085ad6c3906ccad2444a20db5e9",
+      "status": null
+    },
+    "external_evidence_intake": {
+      "decision": "EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED",
+      "exists": true,
+      "failures_count": 0,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
+      "schema": "x0tta6bl4.ghost_pulse.external_evidence_intake.v1",
+      "sha256": "4b9bdd7b7ab92d97271b9357e1147b58dbd753b2e3eb7b055e0eb930ff1d3e13",
+      "status": "PASS"
+    },
+    "external_evidence_inventory": {
+      "decision": "EXTERNAL_EVIDENCE_INVENTORY_COMPLETE_WITH_GAPS",
+      "exists": true,
+      "failures_count": 0,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+      "schema": "x0tta6bl4.ghost_pulse.external_evidence_inventory.v1",
+      "sha256": "f4256ee4492c5825d44804aa89413525e6c8e26ca8789799920812ba360d1092",
+      "status": "PASS"
+    },
+    "incoming_examples_manifest": {
+      "decision": null,
+      "exists": true,
+      "failures_count": 0,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/incoming/examples/manifest.json",
+      "schema": "x0tta6bl4.ghost_pulse.incoming_example_manifest.v1",
+      "sha256": "f3fe1085c595f098473b641b68132dc56a859952e184e68a5d6618c3a7253217",
+      "status": "EXAMPLE_ONLY_NOT_EVIDENCE"
+    },
+    "proof": {
+      "decision": "GHOST_PULSE_PROOF_INCOMPLETE",
+      "exists": true,
+      "failures_count": 57,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/GHOST_PULSE_PROOF_GATE_LATEST.json",
+      "schema": "x0tta6bl4.ghost_pulse.proof_gate.v1",
+      "sha256": "6f3689f64f43ed59142182275514f70358cec315d98cbe3ee6c24a4854be3a72",
+      "status": null
+    },
+    "replacement_candidates": {
+      "decision": "REPLACEMENT_CANDIDATES_NOT_READY",
+      "exists": true,
+      "failures_count": 0,
+      "is_file": true,
+      "load_error": null,
+      "path": "docs/verification/GHOST_PULSE_REPLACEMENT_CANDIDATES_LATEST.json",
+      "schema": "x0tta6bl4.ghost_pulse.replacement_candidate_preflight.v1",
+      "sha256": "f7cc7ebb57762cae23debf99ff714c7b91e8f2d0827ad24193f74f12ae7bd0bb",
+      "status": "PASS"
+    }
+  },
+  "starter_verified_claims": [
+    "packet_capture",
+    "baseline_timing_comparison"
+  ],
+  "status": "PASS",
+  "timestamp_utc": "2026-05-25T04:45:58.692446+00:00"
+}

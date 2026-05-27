@@ -20,17 +20,12 @@ class FakeTLSSocket(socket.socket):
         self._transport = transport
         self._handshake_sent = False
         self._handshake_received = False
-
-        # FakeTLSSocket acts as a wrapper, delegating all operations to self._sock.
-        # It does NOT re-initialize super() with fileno, as that could cause issues
-        # with socket ownership and is not the intended wrapper pattern.
-        self._timeout = sock.gettimeout()
+        self._buffer = b""
 
     def fileno(self) -> int:
         return self._sock.fileno()
 
     def settimeout(self, value: float | None) -> None:
-        self._timeout = value
         self._sock.settimeout(value)
 
     def gettimeout(self) -> float | None:
@@ -38,20 +33,18 @@ class FakeTLSSocket(socket.socket):
 
     def send(self, data: bytes, flags=0) -> int:
         if not self._handshake_sent:
-            # In a real implementation, we would send ClientHello here
-            # For this basic version, we assume the 'obfuscate' method handles packet format
-            # But 'obfuscate' is stateless.
-            # We need to send ClientHello prefix if this is the start of stream.
             client_hello = self._transport.generate_client_hello()
-            self._sock.send(client_hello, flags)
+            self._sock.sendall(client_hello)
             self._handshake_sent = True
 
-        # Wrap actual data in TLS Application Data record
         encrypted_record = self._transport.obfuscate(data)
-        return self._sock.send(encrypted_record, flags)
+        self._sock.sendall(encrypted_record)
+        return len(data)
+
+    def sendall(self, data: bytes, flags=0) -> None:
+        self.send(data, flags)
 
     def _recv_exact(self, size: int, flags=0) -> bytes:
-        # Helper to ensure exactly 'size' bytes are read, or return empty if not possible
         buffer = b""
         while len(buffer) < size:
             packet = self._sock.recv(size - len(buffer), flags)
@@ -62,41 +55,40 @@ class FakeTLSSocket(socket.socket):
         return buffer
 
     def recv(self, bufsize: int, flags=0) -> bytes:
-        # This recv is simplified and expects complete TLS records.
-        # It does NOT handle partial records spanning multiple recv calls.
+        buffer = self.__dict__.get("_buffer", b"")
+        if buffer:
+            out = buffer[:bufsize]
+            self._buffer = buffer[bufsize:]
+            return out
 
-        if not self._handshake_received:
-            # Attempt to read 5-byte header for ServerHello handshake record
-            header = self._recv_exact(5, flags)
-            if not header:
+        while True:
+            record = self._read_record(flags)
+            if record is None:
                 return b""
-            content_type, version, length = struct.unpack("!BHH", header)
-
-            if content_type == 0x16:  # Handshake
-                # Read and ignore the ServerHello body
-                sh_body = self._recv_exact(length, flags)
-                if not sh_body:
-                    return b"" # Incomplete ServerHello body
+            content_type = record[0]
+            if content_type == 0x16 and not self._handshake_received:
                 self._handshake_received = True
-            else:
-                # Unexpected content type for initial record.
-                # For this simplified implementation, we treat it as an error/malformed stream.
+                continue
+            if content_type != 0x17:
                 return b""
 
-        # Read App Data Header
+            plaintext = self._transport.deobfuscate(record)
+            out = plaintext[:bufsize]
+            self._buffer = plaintext[bufsize:]
+            return out
+
+    def _read_record(self, flags=0) -> bytes | None:
         header = self._recv_exact(5, flags)
         if not header:
-            return b""
-        content_type, version, length = struct.unpack("!BHH", header)
+            return None
+        _content_type, _version, length = struct.unpack("!BHH", header)
+        body = self._recv_exact(length, flags)
+        if not body and length:
+            return None
+        return header + body
 
-        if content_type == 0x17:  # Application Data
-            data = self._recv_exact(length, flags)
-            if not data:
-                return b"" # Incomplete Application Data body
-            return self._transport.deobfuscate(data)
-        else:
-            # Unexpected content type for application data record.
-            return b""
+    def close(self) -> None:
+        self._sock.close()
 
     def __getattr__(self, name):
         return getattr(self._sock, name)
@@ -119,48 +111,38 @@ class FakeTLSTransport(ObfuscationTransport):
     def wrap_socket(self, sock: socket.socket) -> socket.socket:
         return FakeTLSSocket(sock, self)
 
+    def _extension(self, extension_type: int, body: bytes) -> bytes:
+        return struct.pack("!HH", extension_type, len(body)) + body
+
     def generate_client_hello(self) -> bytes:
         """Generates a realistic TLS 1.3 ClientHello."""
-        # 1. TLS Record Header
-        # Content Type: Handshake (22)
-        # Version: TLS 1.0 (0x0301) for compatibility or 1.2 (0x0303)
-        # Length: TBD
-
-        # 2. Handshake Header
-        # Type: ClientHello (1)
-        # Length: TBD
-
-        # 3. ClientHello Body
-        # Legacy Version: 0x0303 (TLS 1.2)
-        # Random: 32 bytes
-        # Session ID: 32 bytes random (or 0 length)
-        # Cipher Suites: e.g. TLS_AES_128_GCM_SHA256 (0x1301) etc.
-        # Compression: 0x00 (Null)
-        # Extensions
-
-        # Construct Extensions
         extensions = b""
 
-        # SNI Extension
-        # Type (0x0000), Length, List Length, Name Type (0 host_name), Name Length, Name
         sni_len = len(self.sni)
-        sni_ext = (
-            struct.pack("!HHBH", 0x0000, sni_len + 5, sni_len + 3, 0x00)
+        sni_body = (
+            struct.pack("!H", sni_len + 3)
+            + b"\x00"
             + struct.pack("!H", sni_len)
             + self.sni
         )
-        extensions += sni_ext
+        extensions += self._extension(0x0000, sni_body)
 
-        # Supported Versions (TLS 1.3)
-        # Type (0x002b), Length, List Length, TLS 1.3 (0x0304)
-        sup_ver_ext = struct.pack("!HHBH", 0x002B, 3, 2, 0x0304)
-        extensions += sup_ver_ext
+        extensions += self._extension(0x002B, b"\x02\x03\x04")
 
-        # Key Share (Dummy)
-        # Type (0x0033) ...
-        # Simplified for brevity, using just SNI and Supported Versions for MVP
+        supported_groups = struct.pack("!H", 4) + struct.pack("!HH", 0x001D, 0x0017)
+        extensions += self._extension(0x000A, supported_groups)
 
-        # Construct ClientHello Body
+        key_share_entry = struct.pack("!HH", 0x001D, 32) + secrets.token_bytes(32)
+        key_share_body = struct.pack("!H", len(key_share_entry)) + key_share_entry
+        extensions += self._extension(0x0033, key_share_body)
+
+        sig_algs = struct.pack("!H", 6) + struct.pack("!HHH", 0x0403, 0x0804, 0x0807)
+        extensions += self._extension(0x000D, sig_algs)
+
+        alpn_names = b"\x02h2\x08http/1.1"
+        alpn_body = struct.pack("!H", len(alpn_names)) + alpn_names
+        extensions += self._extension(0x0010, alpn_body)
+
         random_bytes = secrets.token_bytes(32)
         session_id = secrets.token_bytes(32)
         cipher_suites = b"\x13\x01\x13\x02\x13\x03\xc0\x2b\xc0\x2f\xcc\xa9\xcc\xa8"
@@ -193,18 +175,17 @@ class FakeTLSTransport(ObfuscationTransport):
 
     def obfuscate(self, data: bytes) -> bytes:
         """Wraps data in TLS 1.3 Application Data record."""
-        # Content Type: Application Data (23)
-        # Version: TLS 1.2 (0x0303) - standard for TLS 1.3 records
-        # Length
+        if len(data) > 0xFFFF:
+            raise ValueError("FakeTLS record payload exceeds 65535 bytes")
         length = len(data)
         header = struct.pack("!BHH", 0x17, 0x0303, length)
         return header + data
 
     def deobfuscate(self, data: bytes) -> bytes:
-        """Unwraps data (assumes header was already stripped by socket recv logic)."""
-        # Since `recv` logic in FakeTLSSocket handles stripping,
-        # this method might just return data if passed raw payload.
-        # However, if passed full record:
-        if len(data) > 5 and data[0] == 0x17:
-            return data[5:]
+        """Unwrap an application-data TLS record or pass through raw payload."""
+        if len(data) >= 5 and data[0] == 0x17:
+            _content_type, _version, length = struct.unpack("!BHH", data[:5])
+            if len(data) - 5 < length:
+                raise ValueError("Incomplete FakeTLS application data record")
+            return data[5 : 5 + length]
         return data

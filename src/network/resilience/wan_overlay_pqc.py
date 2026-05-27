@@ -35,12 +35,16 @@ except ImportError:
     logger.debug("pqcrypto not available, using simulated PQC")
 
 try:
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
     CLASSICAL_CRYPTO_AVAILABLE = True
 except ImportError:
     CLASSICAL_CRYPTO_AVAILABLE = False
+    InvalidTag = None  # type: ignore[assignment]
+    ChaCha20Poly1305 = None  # type: ignore[assignment]
     logger.debug("cryptography not available, using simulated classical crypto")
 
 
@@ -443,6 +447,16 @@ class WANOverlayPQC:
         """Derive a key using HKDF."""
         # Simple HKDF-like derivation
         return hashlib.sha256(shared_secret + context).digest()
+
+    def _aead_key(self, key: bytes) -> bytes:
+        """Return a 32-byte key suitable for ChaCha20-Poly1305."""
+        if len(key) == 32:
+            return key
+        return hashlib.sha256(key).digest()
+
+    def _packet_aad(self, session: TunnelSession, counter: bytes) -> bytes:
+        """Build authenticated metadata for a tunnel packet."""
+        return b"x0t-wan-overlay-v1|" + session.tunnel_id.encode() + b"|" + counter
     
     async def close_tunnel(self, tunnel_id: str) -> None:
         """Close an overlay tunnel."""
@@ -489,27 +503,34 @@ class WANOverlayPQC:
     
     def _encrypt_packet(self, session: TunnelSession, data: bytes) -> bytes:
         """Encrypt a packet with session key."""
-        # Simple encryption for demonstration
-        # In production, use proper AEAD (ChaCha20-Poly1305 or AES-GCM)
+        if ChaCha20Poly1305 is None:
+            raise RuntimeError("ChaCha20-Poly1305 is unavailable")
         
         # Build packet: counter (8) + nonce (12) + ciphertext + tag (16)
-        counter = session.tx_counter.to_bytes(8, 'big')
+        counter = (session.tx_counter + 1).to_bytes(8, 'big')
         nonce = secrets.token_bytes(12)
-        
-        # XOR encryption (placeholder - use proper AEAD in production)
-        key = session.tx_key
-        encrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
-        
-        return counter + nonce + encrypted
+        aad = self._packet_aad(session, counter)
+        ciphertext = ChaCha20Poly1305(self._aead_key(session.tx_key)).encrypt(
+            nonce,
+            data,
+            aad,
+        )
+
+        return counter + nonce + ciphertext
     
     def _decrypt_packet(self, session: TunnelSession, packet: bytes) -> Optional[bytes]:
         """Decrypt a packet with session key."""
-        if len(packet) < 20:  # Minimum header size
+        if ChaCha20Poly1305 is None:
+            logger.error("Cannot decrypt packet: ChaCha20-Poly1305 is unavailable")
+            return None
+
+        if len(packet) < 36:  # counter (8) + nonce (12) + tag (16)
             return None
         
         # Parse header
-        counter = int.from_bytes(packet[:8], 'big')
-        packet[8:20]
+        counter_bytes = packet[:8]
+        counter = int.from_bytes(counter_bytes, 'big')
+        nonce = packet[8:20]
         ciphertext = packet[20:]
         
         # Replay protection
@@ -517,9 +538,16 @@ class WANOverlayPQC:
             logger.warning(f"Replay attack detected on tunnel {session.tunnel_id}")
             return None
         
-        # Decrypt
-        key = session.rx_key
-        decrypted = bytes(c ^ key[i % len(key)] for i, c in enumerate(ciphertext))
+        # Decrypt and authenticate
+        try:
+            decrypted = ChaCha20Poly1305(self._aead_key(session.rx_key)).decrypt(
+                nonce,
+                ciphertext,
+                self._packet_aad(session, counter_bytes),
+            )
+        except InvalidTag:
+            logger.warning(f"Packet authentication failed on tunnel {session.tunnel_id}")
+            return None
         
         session.rx_counter = counter
         return decrypted

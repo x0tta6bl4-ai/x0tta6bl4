@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from src.security.ebpf_pqc_gateway import EBPFPQCGateway, PQCSession
 
@@ -15,6 +16,42 @@ def test_verify_signature_returns_false_on_exception():
         verify=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))
     )
     assert gw.verify_signature(b"msg", b"sig", b"pk") is False
+
+
+def test_initiate_key_exchange_requires_peer_kem_public_key():
+    gw = _gateway_no_init()
+
+    try:
+        gw.initiate_key_exchange("peer-1", b"")
+    except ValueError as exc:
+        assert "peer_kem_public_key is required" in str(exc)
+    else:
+        raise AssertionError("initiate_key_exchange accepted an empty peer key")
+
+
+def test_initiate_key_exchange_encapsulates_to_peer_kem_public_key():
+    gw = _gateway_no_init()
+    peer_kem_public_key = b"peer-kem-public"
+    shared_secret = b"s" * 32
+    gw.kem = MagicMock()
+    gw.kem.encap_secret.return_value = (b"ciphertext", shared_secret)
+    gw.our_kem_public_key = b"our-kem-public"
+    gw.our_dsa_public_key = b"our-dsa-public"
+    gw.our_dsa_secret_key = b"our-dsa-secret"
+    gw._derive_aes_key = MagicMock(return_value=b"a" * 32)
+    gw._derive_mac_key = MagicMock(return_value=b"m" * 16)
+
+    with patch("src.security.ebpf_pqc_gateway.Signature") as signature_cls:
+        signature_cls.return_value.sign.return_value = b"signature"
+        session_id, ciphertext, signature = gw.initiate_key_exchange(
+            "peer-1",
+            peer_kem_public_key,
+        )
+
+    gw.kem.encap_secret.assert_called_once_with(peer_kem_public_key)
+    assert ciphertext == b"ciphertext"
+    assert signature == b"signature"
+    assert gw.sessions[session_id].peer_kem_public_key == peer_kem_public_key
 
 
 def test_get_ebpf_map_data_only_verified_sessions():

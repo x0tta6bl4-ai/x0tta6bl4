@@ -1,0 +1,271 @@
+# Integration Spine Production Evidence Replacement Passport
+
+Generated: `2026-05-21T04:12:09Z`
+Decision: `PRODUCTION_EVIDENCE_REPLACEMENT_PASSPORT_READY_FOR_OPERATOR`
+Production ready: `False`
+
+## Claim Boundary
+
+Read-only passport for replacing scaffold, template, mock, or local-observation inputs with retained production evidence. It does not materialize evidence, run collectors, submit transactions, contact live clusters/RPC/payment paths, mutate NL/SPB/VPN runtime, or mark the objective complete.
+
+## Summary
+
+- `items_total`: `64`
+- `items_ready`: `0`
+- `items_blocking`: `64`
+- `raw_evidence_items`: `63`
+- `external_settlement_items`: `1`
+- `required_evidence_files_total`: `64`
+- `required_evidence_files_ready`: `0`
+- `current_status_counts`: `{'LOCAL_OBSERVATION': 30, 'OPERATOR_REQUIRED': 34}`
+- `kind_counts`: `{'raw_evidence': 63, 'external_settlement': 1}`
+- `evidence_key_counts`: `{'multi_host_mesh': 8, 'live_spire_mtls': 8, 'safe_rollout_rollback': 6, 'paid_client_path': 8, 'external_settlement': 1, 'stable-deploy': 6, 'ebpf-observability': 7, 'signed-release-provenance': 8, 'billing-provisioning': 6, 'sla-telemetry': 6}`
+- `semantic_field_replacements_total`: `77`
+- `raw_operator_packet_files_total`: `63`
+- `raw_operator_packet_files_covered_by_checklist`: `30`
+- `raw_operator_packet_files_added_to_passport`: `33`
+- `raw_operator_packet_files_production_ready`: `0`
+- `raw_operator_packet_files_replacement_required`: `63`
+- `item_errors_total`: `220`
+- `source_errors_total`: `0`
+- `coverage_blocking_rows_total`: `18`
+- `coverage_blocking_row_ids`: `['checklist_delta_manifest', 'completion_gate_runner', 'external_settlement_operator_handoff', 'goal_audit:external_settlement_export', 'goal_audit:external_settlement_submitted', 'goal_audit:paid_client_entitlement_router', 'goal_audit:production_evidence_import', 'goal_audit:production_input_pipeline', 'goal_audit:production_raw_evidence_operator_packet', 'goal_audit:safe_actuator', 'goal_audit:safe_rollout_rollback_envelope', 'goal_audit:settlement_reward_loop', 'production_closure_preflight', 'production_evidence_replacement_passport', 'production_input_return_acceptance', 'production_next_inputs_verification', 'required_evidence_consistency', 'return_packet_verification']`
+- `raw_install_claim_source`: `return_acceptance`
+- `current_raw_files_installed`: `0`
+- `coverage_raw_files_reported_installed`: `0`
+- `coverage_raw_files_expected`: `63`
+- `return_acceptance_raw_files_expected`: `63`
+- `return_acceptance_raw_files_staged`: `0`
+- `return_acceptance_raw_files_ready_to_stage`: `0`
+- `return_acceptance_raw_files_destination_existing`: `30`
+- `return_acceptance_raw_files_local_observation`: `30`
+- `return_acceptance_raw_ready_to_stage`: `False`
+
+## Required Evidence Files
+
+- `01:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/operator-manifest.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/operator-manifest.json`
+  - semantic pointer: `/environment`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `02:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/peer-discovery-membership.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/peer-discovery-membership.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `03:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/pqc-handshake-transport.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/pqc-handshake-transport.json`
+  - semantic pointer: `/no_plain_udp_customer_traffic`
+  - semantic pointer: `/tls_version`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `04:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/failover-recovery-run.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/failover-recovery-run.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `05:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/hostile-network-chaos.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/hostile-network-chaos.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `06:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/mapek-action-log.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/mapek-action-log.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `07:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/telemetry-slo-report.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/telemetry-slo-report.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `08:raw_evidence:multi_host_mesh:self-healing-pqc-mesh/traffic-integrity-boundary.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/self-healing-pqc-mesh/traffic-integrity-boundary.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `09:raw_evidence:live_spire_mtls:zero-trust-pqc/operator-manifest.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/operator-manifest.json`
+  - semantic pointer: `/environment`
+  - semantic pointer: `/trust_domain`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `10:raw_evidence:live_spire_mtls:zero-trust-pqc/production-spire-ha-federation.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/production-spire-ha-federation.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `11:raw_evidence:live_spire_mtls:zero-trust-pqc/mtls-fail-closed.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/mtls-fail-closed.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `12:raw_evidence:live_spire_mtls:zero-trust-pqc/pqc-hybrid-tls-handshake.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/pqc-hybrid-tls-handshake.json`
+  - semantic pointer: `/hybrid_kem_on_production_path`
+  - semantic pointer: `/pqc_schemes`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `13:raw_evidence:live_spire_mtls:zero-trust-pqc/ca-key-rotation.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/ca-key-rotation.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `14:raw_evidence:live_spire_mtls:zero-trust-pqc/identity-policy-enforcement.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/identity-policy-enforcement.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `15:raw_evidence:live_spire_mtls:zero-trust-pqc/session-lifecycle-load.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/session-lifecycle-load.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `16:raw_evidence:live_spire_mtls:zero-trust-pqc/customer-traffic-boundary.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/zero-trust-pqc/customer-traffic-boundary.json`
+  - semantic pointer: `/mtls_enforced_on_customer_path`
+  - semantic pointer: `/pqc_enforced_on_customer_path`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `17:raw_evidence:safe_rollout_rollback:live-rollout/operator-manifest.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/operator-manifest.json`
+  - semantic pointer: `/cluster_context`
+  - semantic pointer: `/environment`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `18:raw_evidence:safe_rollout_rollback:live-rollout/argocd-app-get.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/argocd-app-get.json`
+  - semantic pointer: `/status/health/status`
+  - semantic pointer: `/status/operationState/phase`
+  - semantic pointer: `/status/sync/status`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `19:raw_evidence:safe_rollout_rollback:live-rollout/kubectl-rollout-status.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/kubectl-rollout-status.json`
+  - semantic pointer: `/lines`
+  - semantic pointer: `/output`
+  - semantic pointer: `/rollout_output`
+  - semantic pointer: `/status`
+  - semantic pointer: `/workload`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `20:raw_evidence:safe_rollout_rollback:live-rollout/rollback-drill.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/rollback-drill.json`
+  - semantic pointer: `/duration_seconds`
+  - semantic pointer: `/post_revision`
+  - semantic pointer: `/pre_revision`
+  - semantic pointer: `/rollback_executed`
+  - semantic pointer: `/rollback_success`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `21:raw_evidence:safe_rollout_rollback:live-rollout/admission-allow-deny.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/admission-allow-deny.json`
+  - semantic pointer: `/allow_signed_digest`
+  - semantic pointer: `/cluster_enforced`
+  - semantic pointer: `/deny_missing_slsa`
+  - semantic pointer: `/deny_unsigned_tag`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `22:raw_evidence:safe_rollout_rollback:live-rollout/image-digests.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/live-rollout/image-digests.json`
+  - semantic pointer: `/all_deploy_refs_digest_pinned`
+  - semantic pointer: `/runtime_images`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `23:raw_evidence:paid_client_path:paid-client-serviceability/operator-manifest.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/operator-manifest.json`
+  - semantic pointer: `/environment`
+  - semantic pointer: `/service_tier`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `24:raw_evidence:paid_client_path:paid-client-serviceability/billing-webhook-replay.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/billing-webhook-replay.json`
+  - semantic pointer: `/payment_confirmed`
+  - semantic pointer: `/payment_processor_event_source`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `25:raw_evidence:paid_client_path:paid-client-serviceability/paid-activation-revocation.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/paid-activation-revocation.json`
+  - semantic pointer: `/access_denied_after_revocation`
+  - semantic pointer: `/access_probe_after_activation`
+  - semantic pointer: `/activation_latency_seconds`
+  - semantic pointer: `/entitlement_created`
+  - semantic pointer: `/paid_customer_activation`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `26:raw_evidence:paid_client_path:paid-client-serviceability/customer-access-matrix.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/customer-access-matrix.json`
+  - semantic pointer: `/cases/0/connect_or_request_success`
+  - semantic pointer: `/cases/0/import_or_login_success`
+  - semantic pointer: `/cases/1/connect_or_request_success`
+  - semantic pointer: `/cases/1/import_or_login_success`
+  - semantic pointer: `/cases/2/connect_or_request_success`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `27:raw_evidence:paid_client_path:paid-client-serviceability/customer-sla-report.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/customer-sla-report.json`
+  - semantic pointer: `/availability_percent`
+  - semantic pointer: `/availability_slo_met`
+  - semantic pointer: `/error_budget_computed`
+  - semantic pointer: `/generated_from_production_telemetry`
+  - semantic pointer: `/latency_p95_ms`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `28:raw_evidence:paid_client_path:paid-client-serviceability/restore-rehearsal.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/restore-rehearsal.json`
+  - semantic pointer: `/backup_integrity_verified`
+  - semantic pointer: `/data_integrity_verified`
+  - semantic pointer: `/no_customer_data_loss`
+  - semantic pointer: `/post_restore_access_probe`
+  - semantic pointer: `/restore_rehearsed_on_throwaway_or_staging`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `29:raw_evidence:paid_client_path:paid-client-serviceability/signed-update-rollback.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/signed-update-rollback.json`
+  - semantic pointer: `/canary_passed`
+  - semantic pointer: `/gitops_sync_verified`
+  - semantic pointer: `/no_customer_impact`
+  - semantic pointer: `/rollback_duration_seconds`
+  - semantic pointer: `/rollback_tested`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `30:raw_evidence:paid_client_path:paid-client-serviceability/support-incident-drill.json`: ready=`False`, status=`LOCAL_OBSERVATION`, return=`.tmp/production-raw-evidence-operator-bundle/paid-client-serviceability/support-incident-drill.json`
+  - semantic pointer: `/ack_seconds`
+  - semantic pointer: `/alert_acknowledged`
+  - semantic pointer: `/customer_comms_sent`
+  - semantic pointer: `/incident_timeline_complete`
+  - semantic pointer: `/mitigation_recorded`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+- `31:external_settlement:external_settlement:external_settlement`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/external-settlement-evidence/settlement-submit.json`
+  - validation: `python3 scripts/ops/verify_x0t_external_settlement_live_rpc.py --require-ready`
+  - validation: `python3 scripts/ops/verify_x0t_external_settlement_evidence.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/operator-manifest.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/operator-manifest.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/argocd-app.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/argocd-app.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/kubernetes-runtime-health.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/kubernetes-runtime-health.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/deployment-smoke.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/deployment-smoke.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/image-provenance.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/image-provenance.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:stable-deploy:stable-deploy/rollback-restore-drill.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/stable-deploy/rollback-restore-drill.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_stable_deploy_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/operator-manifest.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/operator-manifest.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/live-xdp-attach.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/live-xdp-attach.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/dmesg-bpf-clean.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/dmesg-bpf-clean.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/pps-benchmark.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/pps-benchmark.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/prometheus-scrape.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/prometheus-scrape.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/grafana-alert-drill.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/grafana-alert-drill.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:ebpf-observability:ebpf-observability/rollout-coverage.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/ebpf-observability/rollout-coverage.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_ebpf_observability_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/operator-manifest.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/operator-manifest.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/github-run.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/github-run.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/signed-artifacts.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/signed-artifacts.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/rekor-entries.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/rekor-entries.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/certificates.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/certificates.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/slsa-attestations.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/slsa-attestations.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/cosign-verify.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/cosign-verify.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:signed-release-provenance:signed-release-provenance/bundle-retention.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/signed-release-provenance/bundle-retention.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_signed_release_provenance_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/operator-manifest.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/operator-manifest.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/payment-webhook.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/payment-webhook.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/activation-flow.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/activation-flow.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/revocation-flow.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/revocation-flow.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/provisioning-side-effects.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/provisioning-side-effects.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:billing-provisioning:billing-provisioning/billing-db-migration-rollback.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/billing-provisioning/billing-db-migration-rollback.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_billing_provisioning_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/operator-manifest.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/operator-manifest.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/prometheus-query-results.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/prometheus-query-results.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/grafana-dashboard-snapshot.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/grafana-dashboard-snapshot.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/client-sla-report.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/client-sla-report.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/alert-drill.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/alert-drill.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`
+- `raw_operator_packet:raw_evidence:sla-telemetry:sla-telemetry/error-budget.json`: ready=`False`, status=`OPERATOR_REQUIRED`, return=`.tmp/production-raw-evidence-operator-bundle/sla-telemetry/error-budget.json`
+  - validation: `python3 scripts/ops/import_production_raw_evidence_bundle.py --bundle-root .tmp/production-raw-evidence-operator-bundle --require-ready`
+  - validation: `python3 scripts/ops/verify_sla_telemetry_evidence_gate.py --require-ready`

@@ -6,10 +6,12 @@ These endpoints use optimized parameters to bypass current blocking techniques.
 """
 
 import hmac
+import json
 import logging
 import os
+from pathlib import Path
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
@@ -62,6 +64,127 @@ class VPNStatusResponse(BaseModel):
     protocol: str
     active_users: int
     uptime: float
+
+
+def _get_vpn_server() -> str:
+    return os.getenv("VPN_SERVER", "")
+
+
+def _get_vpn_port() -> int:
+    try:
+        return int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or 0
+    except ValueError:
+        return 0
+
+
+def _read_system_uptime(path: Path = Path("/proc/uptime")) -> float:
+    try:
+        return max(0.0, float(path.read_text(encoding="utf-8").split()[0]))
+    except (OSError, IndexError, ValueError):
+        return 0.0
+
+
+def _load_vpn_users_from_file(path: Path) -> List[Dict[str, Any]]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if isinstance(payload, list):
+        users = payload
+    elif isinstance(payload, dict):
+        users = payload.get("users") or []
+    else:
+        users = []
+    return [user for user in users if isinstance(user, dict)]
+
+
+def _load_configured_vpn_users() -> List[Dict[str, Any]]:
+    users_file = os.getenv("VPN_USERS_FILE") or os.getenv("VPN_EXPERIMENTAL_USERS_FILE")
+    if not users_file:
+        return []
+    return _load_vpn_users_from_file(Path(users_file))
+
+
+def _get_xui_client():
+    try:
+        from vpn_config_generator import XUIAPIClient
+    except Exception as exc:
+        logger.debug("XUIAPIClient unavailable for experimental VPN API: %s", exc)
+        return None
+    try:
+        client = XUIAPIClient()
+    except Exception as exc:
+        logger.debug("Failed to initialize XUIAPIClient: %s", exc)
+        return None
+    if getattr(client, "simulated", False):
+        return None
+    return client
+
+
+def _get_active_users_count() -> int:
+    configured = os.getenv("VPN_ACTIVE_USERS")
+    if configured is not None:
+        try:
+            return max(0, int(configured))
+        except ValueError:
+            logger.warning("Ignoring invalid VPN_ACTIVE_USERS=%r", configured)
+
+    users = _load_configured_vpn_users()
+    if users:
+        return len(users)
+
+    client = _get_xui_client()
+    if client is not None and hasattr(client, "get_active_users_count"):
+        try:
+            return max(0, int(client.get_active_users_count()))
+        except Exception as exc:
+            logger.warning("Failed to read x-ui active user count: %s", exc)
+
+    users = _fetch_users_from_xui_db()
+    return sum(1 for user in users if user.get("enabled", True))
+
+
+def _fetch_users_from_xui_db(db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    path = Path(db_path or os.getenv("XUI_DB_PATH", "/usr/local/x-ui/x-ui.db"))
+    if not path.exists():
+        return []
+
+    import sqlite3
+
+    conn = None
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT email, up, down, total, enable, expiry_time FROM client_traffics"
+        ).fetchall()
+    except Exception as exc:
+        logger.warning("Failed to read x-ui users from %s: %s", path, exc)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+    users = []
+    for row in rows:
+        users.append(
+            {
+                "email": row["email"],
+                "up": row["up"],
+                "down": row["down"],
+                "total": row["total"],
+                "enabled": bool(row["enable"]),
+                "expiry_time": row["expiry_time"],
+            }
+        )
+    return users
+
+
+def _get_experimental_vpn_users() -> List[Dict[str, Any]]:
+    configured = _load_configured_vpn_users()
+    if configured:
+        return configured
+    return _fetch_users_from_xui_db()
 
 
 @router.get("/config")
@@ -150,8 +273,8 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
     """
     try:
         # Get default values from environment
-        server = os.getenv("VPN_SERVER", "")
-        port = int(os.getenv("VPN_PORT_EXPERIMENTAL", "0")) or 0
+        server = _get_vpn_server()
+        port = _get_vpn_port()
 
         # Check if VPN is reachable (simple TCP connect test)
         import socket
@@ -166,17 +289,13 @@ async def get_vpn_status(request: Request) -> VPNStatusResponse:
         finally:
             sock.close()
 
-        # Mock data for active users and uptime (in production, this should come from real stats)
-        active_users = 2
-        uptime = 3600  # 1 hour
-
         return VPNStatusResponse(
             status=status,
             server=server,
             port=port,
             protocol="VLESS+Reality (Experimental)",
-            active_users=active_users,
-            uptime=uptime,
+            active_users=_get_active_users_count(),
+            uptime=_read_system_uptime(),
         )
     except Exception as e:
         logger.error(f"Error getting experimental VPN status: {e}", exc_info=True)
@@ -195,21 +314,7 @@ async def get_vpn_users(
         List of active VPN users
     """
     try:
-        # Mock data (in production, this should come from x-ui API or database)
-        users = [
-            {
-                "user_id": 1001,
-                "username": "experimental_user1",
-                "vless_link": "vless://...",
-                "last_connected": "2024-01-21 00:30:00",
-            },
-            {
-                "user_id": 1002,
-                "username": "experimental_user2",
-                "vless_link": "vless://...",
-                "last_connected": "2024-01-21 00:25:00",
-            },
-        ]
+        users = _get_experimental_vpn_users()
 
         return {"total": len(users), "users": users}
     except Exception as e:

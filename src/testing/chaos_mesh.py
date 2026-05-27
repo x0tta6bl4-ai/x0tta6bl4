@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +110,25 @@ class ChaosMesh:
         ),
     ]
 
-    def __init__(self, node_manager=None):
+    def __init__(
+        self,
+        node_manager=None,
+        *,
+        synthetic_node_count: int = 10,
+        min_online_ratio: float = 0.75,
+    ):
         self.node_manager = node_manager
+        self.min_online_ratio = min_online_ratio
+        self._synthetic_nodes = [f"node-{i}" for i in range(max(0, synthetic_node_count))]
+        self._synthetic_online_nodes: Set[str] = set(self._synthetic_nodes)
         self._results: List[ChaosResult] = []
         self._hooks: Dict[str, List[Callable]] = {
             "pre_experiment": [],
             "post_experiment": [],
             "on_failure": [],
+            "network_partition": [],
+            "latency_injection": [],
+            "cpu_stress": [],
         }
 
     def run_experiment(self, experiment: ChaosExperiment) -> ChaosResult:
@@ -219,8 +231,7 @@ class ChaosMesh:
         """Get list of available nodes."""
         if self.node_manager:
             return list(self.node_manager.nodes.keys())
-        # Mock nodes for testing
-        return [f"node-{i}" for i in range(10)]
+        return list(self._synthetic_nodes)
 
     def _execute_chaos(self, experiment: ChaosExperiment, targets: List[str]):
         """Execute the chaos action."""
@@ -242,24 +253,26 @@ class ChaosMesh:
             if self.node_manager and node_id in self.node_manager.nodes:
                 # Mark as offline
                 self.node_manager.nodes[node_id].is_online = False
+            elif not self.node_manager:
+                self._synthetic_online_nodes.discard(node_id)
 
     def _simulate_network_partition(self, targets: List[str], params: Dict):
         """Simulate network partition."""
         segments = params.get("segments", 2)
         logger.debug(f"   Creating {segments} network segments")
-        # In real implementation: configure iptables/tc rules
+        self._run_hooks("network_partition", targets, params)
 
     def _simulate_latency(self, targets: List[str], params: Dict):
         """Simulate network latency."""
         latency_ms = params.get("latency_ms", 100)
         logger.debug(f"   Injecting {latency_ms}ms latency")
-        # In real implementation: use tc netem
+        self._run_hooks("latency_injection", targets, params)
 
     def _simulate_cpu_stress(self, targets: List[str], params: Dict):
         """Simulate CPU stress."""
         load = params.get("load_percent", 50)
         logger.debug(f"   Applying {load}% CPU load")
-        # In real implementation: use stress-ng
+        self._run_hooks("cpu_stress", targets, params)
 
     def _wait_for_recovery(self, targets: List[str], timeout: int = 30) -> bool:
         """Wait for mesh to recover from chaos."""
@@ -267,21 +280,87 @@ class ChaosMesh:
 
         while time.time() - start < timeout:
             # Check if mesh has self-healed
-            if self._check_mesh_health():
+            if self._check_mesh_health(targets):
                 return True
             time.sleep(0.5)
 
         return False
 
-    def _check_mesh_health(self) -> bool:
+    def _node_is_online(self, node_id: str) -> bool:
+        if not self.node_manager:
+            return node_id in self._synthetic_online_nodes
+
+        if hasattr(self.node_manager, "is_node_online"):
+            return bool(self.node_manager.is_node_online(node_id))
+
+        node = self.node_manager.nodes.get(node_id)
+        if node is None:
+            return False
+
+        if isinstance(node, dict):
+            for key in ("is_online", "online", "healthy", "ready"):
+                if key in node:
+                    return bool(node[key])
+            status = str(node.get("status", "")).lower()
+            if status:
+                return status in {"online", "healthy", "ready"}
+            return True
+
+        for attr in ("is_online", "online", "healthy", "ready"):
+            if hasattr(node, attr):
+                return bool(getattr(node, attr))
+
+        status = str(getattr(node, "status", "")).lower()
+        if status:
+            return status in {"online", "healthy", "ready"}
+
+        return True
+
+    def _mesh_health_snapshot(self) -> Dict:
+        nodes = self._get_nodes()
+        if not nodes:
+            return {
+                "healthy": False,
+                "online_nodes": 0,
+                "total_nodes": 0,
+                "online_ratio": 0.0,
+                "offline_nodes": [],
+                "min_online_ratio": self.min_online_ratio,
+            }
+
+        offline_nodes = [
+            node_id for node_id in nodes if not self._node_is_online(node_id)
+        ]
+        online_nodes = len(nodes) - len(offline_nodes)
+        online_ratio = online_nodes / len(nodes)
+        return {
+            "healthy": online_ratio >= self.min_online_ratio,
+            "online_nodes": online_nodes,
+            "total_nodes": len(nodes),
+            "online_ratio": online_ratio,
+            "offline_nodes": offline_nodes,
+            "min_online_ratio": self.min_online_ratio,
+        }
+
+    def _check_mesh_health(self, targets: Optional[List[str]] = None) -> bool:
         """Check if mesh is healthy."""
-        # In real implementation: check routing tables, connectivity
-        return True  # Simplified for demo
+        snapshot = self._mesh_health_snapshot()
+        if not snapshot["healthy"]:
+            logger.warning(
+                "Mesh health below threshold: %.2f online, target %.2f, "
+                "affected=%s, offline=%s",
+                snapshot["online_ratio"],
+                snapshot["min_online_ratio"],
+                targets or [],
+                snapshot["offline_nodes"],
+            )
+        return bool(snapshot["healthy"])
 
     def _collect_metrics(
         self, experiment: ChaosExperiment, targets: List[str], recovery_time: float
     ) -> Dict:
         """Collect experiment metrics."""
+        health = self._mesh_health_snapshot()
         return {
             "experiment_type": experiment.chaos_type.value,
             "target_count": len(targets),
@@ -289,6 +368,11 @@ class ChaosMesh:
             "duration_seconds": experiment.duration_seconds,
             "recovery_time_seconds": recovery_time,
             "mttr_target_met": recovery_time < 5.0,
+            "mesh_healthy": health["healthy"],
+            "online_nodes": health["online_nodes"],
+            "total_nodes": health["total_nodes"],
+            "online_ratio": health["online_ratio"],
+            "min_online_ratio": health["min_online_ratio"],
         }
 
     def _create_failed_result(
