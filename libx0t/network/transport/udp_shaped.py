@@ -134,7 +134,7 @@ class ShapedUDPTransport:
     def __init__(
         self,
         local_port: int = 0,
-        local_host: str = "0.0.0.0",  # nosec B104
+        local_host: str = "127.0.0.1",
         traffic_profile: str = "gaming",
         obfuscation: str = "none",
         obfuscation_key: Optional[str] = None,

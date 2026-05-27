@@ -35,7 +35,7 @@ class ProductionSystem:
             from src.optimization.prometheus_cardinality_optimizer import \
                 get_cardinality_optimizer
             from src.resilience.advanced_patterns import get_resilient_executor
-            from libx0t.security.production_hardening import get_hardening_manager
+            from src.security.production_hardening import get_hardening_manager
 
             self.cardinality_optimizer = get_cardinality_optimizer()
             self.performance_tuner = get_performance_tuner()

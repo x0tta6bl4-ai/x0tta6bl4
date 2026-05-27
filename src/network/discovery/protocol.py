@@ -62,7 +62,7 @@ class PeerInfo:
     version: str = "1.0.0"
     last_seen: float = 0
     rtt_ms: float = 0
-    
+
     # PQC Identity Info
     did: Optional[str] = None
     pqc_pubkey: Optional[str] = None # Hex encoded public key for signature verification
@@ -127,7 +127,7 @@ class DiscoveryMessage:
             signature=obj.get("sig"),
             pqc_pubkey=obj.get("pub")
         )
-        
+
     def get_signable_data(self) -> bytes:
         """Returns the canonical bytes to be signed."""
         # We sign: type + sender + sorted(payload) + ts
@@ -248,7 +248,7 @@ class MulticastDiscovery:
         """Отправить announce."""
         # Получаем локальные адреса
         local_ip = self._get_local_ip()
-        
+
         did = self.identity_manager.did if self.identity_manager else None
         pqc_pubkey = self.identity_manager.security.get_public_keys()['sig_public_key'] if self.identity_manager else None
 
@@ -265,7 +265,7 @@ class MulticastDiscovery:
                 ).to_dict()
             },
         )
-        
+
         self._sign_message(msg)
 
         try:
@@ -325,17 +325,14 @@ class MulticastDiscovery:
 
         try:
             # Use the already available identity manager or backend
-            try:
-                from libx0t.security.post_quantum import PQMeshSecurityLibOQS
-            except ImportError:
-                from src.libx0t.security.post_quantum import PQMeshSecurityLibOQS
-            
+            from src.security.pqc import PQMeshSecurityLibOQS
+
             # Use a temporary verifier for the remote node
             verifier = PQMeshSecurityLibOQS("verifier-temp")
             data_to_verify = msg.get_signable_data()
             sig_bytes = bytes.fromhex(msg.signature)
             pub_bytes = bytes.fromhex(msg.pqc_pubkey)
-            
+
             return verifier.verify(data_to_verify, sig_bytes, pub_bytes)
         except Exception as e:
             logger.error(f"Signature verification failed: {e}")
@@ -349,7 +346,7 @@ class MulticastDiscovery:
             # Игнорируем свои сообщения
             if msg.sender_id == self.node_id:
                 return
-            
+
             # Verify Signature
             if not self._verify_message(msg):
                 logger.warning(f"Dropping message from {msg.sender_id} due to invalid/missing signature.")
@@ -374,25 +371,25 @@ class MulticastDiscovery:
         """
         target_id = msg.payload.get("target_id")
         reason = msg.payload.get("reason", "unknown")
-        
+
         if not target_id:
             return
 
         logger.warning(f"🛡️ Digital Immune System: Received BAN proposal for {target_id} from {msg.sender_id}. Reason: {reason}")
-        
+
         # Here we should check if sender is trusted (e.g. in our whitelist or high reputation)
         # For MVP: If signature is valid (checked in _handle_message), we trust it.
-        
+
         # Action: Remove peer
         if target_id in self._peers:
             logger.warning(f"🛡️ Immunity Active: Removing infected node {target_id}")
             peer = self._peers.pop(target_id)
             if self._on_peer_lost:
                 await self._on_peer_lost(peer)
-        
-        # Propagation (Gossip): Re-broadcast to other neighbors? 
+
+        # Propagation (Gossip): Re-broadcast to other neighbors?
         # To prevent storms, we only rebroadcast if we actually took action (had the peer).
-        
+
     async def _handle_announce(self, msg: DiscoveryMessage, addr: Tuple[str, int]):
         """Обработка announce."""
         peer_data = msg.payload.get("peer", {})

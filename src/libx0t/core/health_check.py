@@ -209,7 +209,7 @@ async def check_database() -> CheckResult:
 async def check_redis() -> CheckResult:
     """Check Redis connectivity."""
     try:
-        from libx0t.core.cache import cache
+        from src.libx0t.core.cache import cache
 
         start = time.time()
         await cache.set("health_check", "ok", ttl=10)
