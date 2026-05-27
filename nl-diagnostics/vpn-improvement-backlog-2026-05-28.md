@@ -1,6 +1,6 @@
 # VPN Improvement Backlog
 
-generated_at: `2026-05-27T22:31:31.334330+00:00`
+generated_at: `2026-05-27T22:48:56.149795+00:00`
 
 ## Current Evidence
 
@@ -202,7 +202,7 @@ Acceptance:
 ```text
 phase=future_resilience
 priority=P2
-status=planning
+status=requirements_documented
 allowed_now=true
 nl_write_required=false
 mutation_allowed=false
@@ -215,9 +215,13 @@ Reason: Provider/host gaps need resilience, but the current SPB path is disabled
 Evidence:
 - spb_fallback_allowed=false
 - provider_status=recent_boot_gap
+- manual_failover_plan=nl-diagnostics/manual-failover-plan-2026-05-28.md
+- secondary_probe_template=nl-diagnostics/manual-failover-secondary.example.json
 
 Next steps:
-- document requirements for a new secondary exit node on another provider/region
+- choose a new secondary provider/region that is not SPB
+- copy the secondary probe example outside git and fill only public endpoint metadata
+- run probe_secondary_exit.py before any manual profile switch
 - define a manual profile switch checklist that requires fresh evidence
 - do not reuse disabled SPB as emergency fallback
 
