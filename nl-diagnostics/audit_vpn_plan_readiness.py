@@ -21,6 +21,12 @@ from typing import Any
 ROOT = Path("/mnt/projects")
 DIAGNOSTICS_DIR = ROOT / "nl-diagnostics"
 DEFAULT_DECISION = DIAGNOSTICS_DIR / "current-vpn-decision-2026-05-28.json"
+DEFAULT_BOOT_GAP = DIAGNOSTICS_DIR / "boot-gap-watch-2026-05-28.json"
+DEFAULT_PROVIDER_PACKET = (
+    DIAGNOSTICS_DIR
+    / "provider-incident-packets"
+    / "provider-incident-packet-20260527T230246Z.json"
+)
 DEFAULT_HISTORY = DIAGNOSTICS_DIR / "blocking-probe-history-2026-05-28.json"
 DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 DEFAULT_OPERATOR_CARD = DIAGNOSTICS_DIR / "vpn-operator-card-2026-05-28.json"
@@ -205,6 +211,81 @@ def audit_blocking_history(history: dict[str, Any], decision: dict[str, Any]) ->
             f"latest_targets_ok={ok_count}/{target_count}",
         ],
         next_step="use probes as app/path evidence, not as an x-ui restart trigger",
+    )
+
+
+def audit_boot_gap_watch(boot_gap: dict[str, Any]) -> dict[str, Any]:
+    status = str(boot_gap.get("status") or "missing")
+    classification = boot_gap.get("classification") or {}
+    safe = all_false(
+        [
+            flag_is_false(boot_gap, "nl_mutation_allowed"),
+            flag_is_false(boot_gap, "spb_fallback_allowed"),
+            flag_is_false(boot_gap, "automatic_failover_allowed"),
+        ]
+    )
+    if not safe or status == "missing":
+        item_status = MISSING
+    elif status == "normal":
+        item_status = READY
+    else:
+        item_status = WATCH
+    return item(
+        item_id="BOOT-01",
+        title="Boot-gap provider signal is tracked separately from restart decisions",
+        status=item_status,
+        evidence=[
+            f"boot_gap_watch_status={status}",
+            f"boot_gap_seconds={boot_gap.get('boot_gap_seconds', 'missing')}",
+            f"provider_status={classification.get('provider_status', 'missing')}",
+            f"transport_status={classification.get('transport_status', 'missing')}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="keep provider boot gap on watch while current transport remains healthy/advisory",
+    )
+
+
+def audit_provider_packet(
+    provider_packet: dict[str, Any],
+    decision: dict[str, Any],
+) -> dict[str, Any]:
+    packet_type = str(provider_packet.get("packet_type") or "missing")
+    stale = provider_packet.get("snapshot_stale")
+    packet_snapshot = str(provider_packet.get("snapshot_dir") or "")
+    decision_snapshot = str(decision.get("snapshot") or "")
+    same_snapshot = bool(
+        packet_snapshot
+        and decision_snapshot
+        and Path(packet_snapshot).name == Path(decision_snapshot).name
+    )
+    safe = all_false(
+        [
+            provider_packet.get("nl_write_performed") is False,
+            flag_is_false(provider_packet, "mutation_allowed"),
+            flag_is_false(provider_packet, "nl_mutation_allowed"),
+            flag_is_false(provider_packet, "spb_fallback_allowed"),
+            flag_is_false(provider_packet, "automatic_failover_allowed"),
+        ]
+    )
+    if not safe or packet_type == "missing" or not same_snapshot:
+        status = MISSING
+    elif stale is True:
+        status = WATCH
+    else:
+        status = READY
+    return item(
+        item_id="PROVIDER-01",
+        title="Provider packet is generated from the same read-only snapshot",
+        status=status,
+        evidence=[
+            f"provider_packet_type={packet_type}",
+            f"snapshot_stale={str(stale).lower()}",
+            f"packet_snapshot={packet_snapshot or 'missing'}",
+            f"decision_snapshot={decision_snapshot or 'missing'}",
+            f"same_snapshot={str(same_snapshot).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="use the packet for provider questions only when fresh evidence points to provider or host failure",
     )
 
 
@@ -500,6 +581,8 @@ def run_preflight_validator(path: Path) -> dict[str, Any]:
 
 def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any]:
     decision = inputs.get("decision") or {}
+    boot_gap = inputs.get("boot_gap") or {}
+    provider_packet = inputs.get("provider_packet") or {}
     history = inputs.get("history") or {}
     refresh = inputs.get("refresh") or {}
     operator_card = inputs.get("operator_card") or {}
@@ -514,6 +597,8 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
     items: list[dict[str, Any]] = [
         audit_snapshot_chain(decision, refresh, root),
         audit_decision_guard(decision),
+        audit_boot_gap_watch(boot_gap),
+        audit_provider_packet(provider_packet, decision),
         audit_blocking_history(history, decision),
         audit_refresh(refresh),
         audit_operator_card(operator_card),
@@ -547,6 +632,9 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
             "blocked_items": blocked,
             "operator_status": (operator_card.get("operator") or {}).get("operator_status", "missing"),
             "decision": (decision.get("decision") or {}).get("decision", "missing"),
+            "boot_gap_watch_status": boot_gap.get("status", "missing"),
+            "provider_packet_type": provider_packet.get("packet_type", "missing"),
+            "provider_packet_stale": provider_packet.get("snapshot_stale", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
             "nl_write_allowed": False,
             "spb_fallback_allowed": False,
@@ -578,6 +666,10 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"missing={summary.get('missing')}",
         f"decision={summary.get('decision')}",
         f"operator_status={summary.get('operator_status')}",
+        f"boot_gap_watch_status={summary.get('boot_gap_watch_status')}",
+        f"provider_packet_type={summary.get('provider_packet_type')}",
+        f"provider_packet_stale={summary.get('provider_packet_stale')}",
+        f"transport_probe_status={summary.get('transport_probe_status')}",
         "nl_write_allowed=false",
         "spb_fallback_allowed=false",
         "automatic_failover_allowed=false",
@@ -604,6 +696,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit local VPN plan readiness")
     parser.add_argument("--decision", default=str(DEFAULT_DECISION))
+    parser.add_argument("--boot-gap", default=str(DEFAULT_BOOT_GAP))
+    parser.add_argument("--provider-packet", default=str(DEFAULT_PROVIDER_PACKET))
     parser.add_argument("--history", default=str(DEFAULT_HISTORY))
     parser.add_argument("--refresh", default=str(DEFAULT_REFRESH))
     parser.add_argument("--operator-card", default=str(DEFAULT_OPERATOR_CARD))
@@ -624,6 +718,8 @@ def main() -> int:
     ]
     inputs = {
         "decision": read_json(Path(args.decision)),
+        "boot_gap": read_json(Path(args.boot_gap)),
+        "provider_packet": read_json(Path(args.provider_packet)),
         "history": read_json(Path(args.history)),
         "refresh": read_json(Path(args.refresh)),
         "operator_card": read_json(Path(args.operator_card)),

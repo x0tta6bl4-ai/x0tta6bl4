@@ -37,6 +37,8 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
             [
                 "blocking_history",
                 "decision_report",
+                "boot_gap_watch",
+                "provider_packet",
                 "improvement_backlog",
                 "manual_failover_plan",
                 "nl_transport_probe",
@@ -48,6 +50,20 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
         for item in plan:
             self.assertTrue(refresh.command_is_local_only(item["command"]))
             self.assertNotIn("collect_vpn_readonly_snapshot.sh", " ".join(item["command"]))
+
+    def test_provider_packet_paths_are_snapshot_stable(self):
+        paths = refresh.provider_packet_paths(
+            Path("nl-diagnostics/snapshots/20260527T221810Z"),
+            Path("nl-diagnostics"),
+        )
+
+        self.assertEqual(
+            paths,
+            [
+                "nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T221810Z.json",
+                "nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T221810Z.md",
+            ],
+        )
 
     def test_run_plan_blocks_non_local_command(self):
         plan = [{"id": "bad", "command": ["ssh", "nl", "true"], "outputs": []}]

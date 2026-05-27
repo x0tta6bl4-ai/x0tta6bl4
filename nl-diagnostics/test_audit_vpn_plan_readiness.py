@@ -52,6 +52,33 @@ def sample_history() -> dict:
     }
 
 
+def sample_boot_gap() -> dict:
+    return {
+        "status": "watch",
+        "boot_gap_seconds": 21907,
+        "classification": {
+            "provider_status": "recent_boot_gap",
+            "transport_status": "healthy",
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_provider_packet() -> dict:
+    return {
+        "packet_type": "provider_watch",
+        "snapshot_dir": "nl-diagnostics/snapshots/20260527T230246Z",
+        "snapshot_stale": False,
+        "nl_write_performed": False,
+        "mutation_allowed": False,
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_refresh() -> dict:
     return {
         "snapshot": "nl-diagnostics/snapshots/20260527T230246Z",
@@ -147,6 +174,8 @@ def sample_preflight() -> dict:
 def sample_inputs() -> dict:
     return {
         "decision": sample_decision(),
+        "boot_gap": sample_boot_gap(),
+        "provider_packet": sample_provider_packet(),
         "history": sample_history(),
         "refresh": sample_refresh(),
         "operator_card": sample_operator_card(),
@@ -171,9 +200,14 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["overall_status"], "ready_local_with_future_blocks")
         self.assertEqual(payload["summary"]["missing"], 0)
+        self.assertEqual(payload["summary"]["watch"], 1)
         self.assertGreaterEqual(payload["summary"]["ready_local"], 1)
+        self.assertIn("BOOT-01", payload["summary"]["watch_items"])
         self.assertIn("GATE-01", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-02", payload["summary"]["blocked_items"])
+        self.assertEqual(payload["summary"]["boot_gap_watch_status"], "watch")
+        self.assertEqual(payload["summary"]["provider_packet_type"], "provider_watch")
+        self.assertFalse(payload["summary"]["provider_packet_stale"])
         self.assertEqual(payload["summary"]["transport_probe_status"], "healthy")
         self.assertFalse(payload["nl_mutation_allowed"])
         self.assertFalse(payload["spb_fallback_allowed"])
@@ -193,6 +227,22 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         transport = next(item for item in payload["items"] if item["id"] == "TRANSPORT-01")
         self.assertEqual(transport["status"], audit.WATCH)
+        self.assertTrue(payload["ok"])
+
+    def test_stale_provider_packet_is_watch_not_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            inputs = sample_inputs()
+            inputs["provider_packet"] = {
+                **sample_provider_packet(),
+                "snapshot_stale": True,
+            }
+
+            payload = audit.build_payload(inputs, root=root)
+
+        provider = next(item for item in payload["items"] if item["id"] == "PROVIDER-01")
+        self.assertEqual(provider["status"], audit.WATCH)
         self.assertTrue(payload["ok"])
 
     def test_spb_true_marker_makes_audit_fail(self):
