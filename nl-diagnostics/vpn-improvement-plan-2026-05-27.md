@@ -726,11 +726,14 @@ classifier now emits blocking_assessment
 latest snapshot category: app_specific_degradation
 app/path probe command added: nl-diagnostics/probe_blocking_paths.py
 default target config: nl-diagnostics/blocking_probe_targets.json
-fresh probe snapshot: nl-diagnostics/snapshots/20260527T220219Z
+fresh probe snapshot: nl-diagnostics/snapshots/20260527T221810Z
 fresh probe summary: no_probe_evidence, 8/8 targets ok direct and SOCKS
 probe history command added: nl-diagnostics/summarize_blocking_probe_history.py
 probe history report: nl-diagnostics/blocking-probe-history-2026-05-28.md
-probe history trend: stable_no_probe_evidence across 2 snapshots
+probe history trend: stable_no_probe_evidence across 3 snapshots
+decision report command added: nl-diagnostics/build_vpn_decision_report.py
+current decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
+current decision: observe, high confidence, no NL/SPB writes
 ```
 
 This is only a local reviewed-source patch. It has not been copied to NL.
@@ -738,10 +741,10 @@ This is only a local reviewed-source patch. It has not been copied to NL.
 Fresh read-only refresh:
 
 ```text
-snapshot: nl-diagnostics/snapshots/20260527T154832Z
+snapshot: nl-diagnostics/snapshots/20260527T221810Z
 profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 overall_status: advisory
-transport_status: advisory
+transport_status: healthy
 telegram_media_status: degraded
 failure_domain: external_network
 recommended_action: observe

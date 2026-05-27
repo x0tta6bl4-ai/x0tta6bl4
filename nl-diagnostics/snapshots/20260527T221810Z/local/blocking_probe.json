@@ -1,0 +1,679 @@
+{
+  "generated_at": "2026-05-27T22:18:34.690648+00:00",
+  "http_proxy_configured": false,
+  "modes": [
+    "direct",
+    "socks"
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "probes": [
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 204,
+          "metrics": {
+            "connect": 0.000171,
+            "namelookup": 2.8e-05,
+            "starttransfer": 0.414594,
+            "tls": 0.337759,
+            "total": 0.414641
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "baseline",
+      "http_code": 204,
+      "kind": "http",
+      "label": "connectivity",
+      "metrics": {
+        "connect": 0.000171,
+        "namelookup": 2.8e-05,
+        "starttransfer": 0.414594,
+        "tls": 0.337759,
+        "total": 0.414641
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://www.gstatic.com/generate_204"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 204,
+          "metrics": {
+            "connect": 0.000211,
+            "namelookup": 3e-05,
+            "starttransfer": 0.438594,
+            "tls": 0.363063,
+            "total": 0.438626
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "baseline",
+      "http_code": 204,
+      "kind": "http",
+      "label": "connectivity",
+      "metrics": {
+        "connect": 0.000211,
+        "namelookup": 3e-05,
+        "starttransfer": 0.438594,
+        "tls": 0.363063,
+        "total": 0.438626
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://www.gstatic.com/generate_204"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000284,
+            "namelookup": 2.6e-05,
+            "starttransfer": 0.442855,
+            "tls": 0.358941,
+            "total": 0.442907
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "telegram",
+      "http_code": 200,
+      "kind": "http",
+      "label": "telegram_web",
+      "metrics": {
+        "connect": 0.000284,
+        "namelookup": 2.6e-05,
+        "starttransfer": 0.442855,
+        "tls": 0.358941,
+        "total": 0.442907
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://web.telegram.org/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000798,
+            "namelookup": 2.7e-05,
+            "starttransfer": 0.487052,
+            "tls": 0.399702,
+            "total": 0.487997
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "telegram",
+      "http_code": 200,
+      "kind": "http",
+      "label": "telegram_web",
+      "metrics": {
+        "connect": 0.000798,
+        "namelookup": 2.7e-05,
+        "starttransfer": 0.487052,
+        "tls": 0.399702,
+        "total": 0.487997
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://web.telegram.org/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.004826,
+            "namelookup": 0.001106,
+            "starttransfer": 1.960341,
+            "tls": 1.765318,
+            "total": 2.001119
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "telegram",
+      "http_code": 200,
+      "kind": "http",
+      "label": "telegram_api",
+      "metrics": {
+        "connect": 0.004826,
+        "namelookup": 0.001106,
+        "starttransfer": 1.960341,
+        "tls": 1.765318,
+        "total": 2.001119
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://api.telegram.org/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000944,
+            "namelookup": 5.2e-05,
+            "starttransfer": 1.157277,
+            "tls": 0.952533,
+            "total": 1.197058
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "telegram",
+      "http_code": 200,
+      "kind": "http",
+      "label": "telegram_api",
+      "metrics": {
+        "connect": 0.000944,
+        "namelookup": 5.2e-05,
+        "starttransfer": 1.157277,
+        "tls": 0.952533,
+        "total": 1.197058
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://api.telegram.org/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "metrics": {
+            "connect": 0.039266,
+            "total": 0.039266
+          },
+          "ok": true
+        }
+      ],
+      "command_shape": "tcp connect",
+      "error": null,
+      "group": "telegram_media",
+      "host": "149.154.166.111",
+      "kind": "tcp",
+      "label": "telegram_media_dc2_149_154_166_111_443",
+      "metrics": {
+        "connect": 0.039266,
+        "total": 0.039266
+      },
+      "mode": "direct",
+      "ok": true,
+      "port": 443
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "metrics": {
+            "connect": 0.059768,
+            "total": 0.059768
+          },
+          "ok": true
+        }
+      ],
+      "command_shape": "tcp connect via SOCKS",
+      "error": null,
+      "group": "telegram_media",
+      "host": "149.154.166.111",
+      "kind": "tcp",
+      "label": "telegram_media_dc2_149_154_166_111_443",
+      "metrics": {
+        "connect": 0.059768,
+        "total": 0.059768
+      },
+      "mode": "socks",
+      "ok": true,
+      "port": 443
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "metrics": {
+            "connect": 0.036664,
+            "total": 0.036664
+          },
+          "ok": true
+        }
+      ],
+      "command_shape": "tcp connect",
+      "error": null,
+      "group": "telegram_media",
+      "host": "91.108.56.161",
+      "kind": "tcp",
+      "label": "telegram_media_dc4_91_108_56_161_443",
+      "metrics": {
+        "connect": 0.036664,
+        "total": 0.036664
+      },
+      "mode": "direct",
+      "ok": true,
+      "port": 443
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "metrics": {
+            "connect": 0.053357,
+            "total": 0.053357
+          },
+          "ok": true
+        }
+      ],
+      "command_shape": "tcp connect via SOCKS",
+      "error": null,
+      "group": "telegram_media",
+      "host": "91.108.56.161",
+      "kind": "tcp",
+      "label": "telegram_media_dc4_91_108_56_161_443",
+      "metrics": {
+        "connect": 0.053357,
+        "total": 0.053357
+      },
+      "mode": "socks",
+      "ok": true,
+      "port": 443
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 401,
+          "metrics": {
+            "connect": 0.000275,
+            "namelookup": 2.6e-05,
+            "starttransfer": 0.48962,
+            "tls": 0.296866,
+            "total": 0.48968
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "ai",
+      "http_code": 401,
+      "kind": "http",
+      "label": "openai_api",
+      "metrics": {
+        "connect": 0.000275,
+        "namelookup": 2.6e-05,
+        "starttransfer": 0.48962,
+        "tls": 0.296866,
+        "total": 0.48968
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://api.openai.com/v1/models"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 401,
+          "metrics": {
+            "connect": 0.000203,
+            "namelookup": 6e-05,
+            "starttransfer": 0.602178,
+            "tls": 0.352277,
+            "total": 0.602249
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "ai",
+      "http_code": 401,
+      "kind": "http",
+      "label": "openai_api",
+      "metrics": {
+        "connect": 0.000203,
+        "namelookup": 6e-05,
+        "starttransfer": 0.602178,
+        "tls": 0.352277,
+        "total": 0.602249
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://api.openai.com/v1/models"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000597,
+            "namelookup": 4.2e-05,
+            "starttransfer": 0.428863,
+            "tls": 0.342812,
+            "total": 0.754326
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "dev",
+      "http_code": 200,
+      "kind": "http",
+      "label": "github",
+      "metrics": {
+        "connect": 0.000597,
+        "namelookup": 4.2e-05,
+        "starttransfer": 0.428863,
+        "tls": 0.342812,
+        "total": 0.754326
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://github.com/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000359,
+            "namelookup": 3.8e-05,
+            "starttransfer": 0.475858,
+            "tls": 0.328918,
+            "total": 0.779328
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "dev",
+      "http_code": 200,
+      "kind": "http",
+      "label": "github",
+      "metrics": {
+        "connect": 0.000359,
+        "namelookup": 3.8e-05,
+        "starttransfer": 0.475858,
+        "tls": 0.328918,
+        "total": 0.779328
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://github.com/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000286,
+            "namelookup": 6.3e-05,
+            "starttransfer": 0.73334,
+            "tls": 0.482952,
+            "total": 0.733439
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl URL",
+      "exit_code": 0,
+      "group": "ru",
+      "http_code": 200,
+      "kind": "http",
+      "label": "russia_search",
+      "metrics": {
+        "connect": 0.000286,
+        "namelookup": 6.3e-05,
+        "starttransfer": 0.73334,
+        "tls": 0.482952,
+        "total": 0.733439
+      },
+      "mode": "direct",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://ya.ru/"
+    },
+    {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "exit_code": 0,
+          "http_code": 200,
+          "metrics": {
+            "connect": 0.000168,
+            "namelookup": 5.5e-05,
+            "starttransfer": 0.768953,
+            "tls": 0.480947,
+            "total": 0.769213
+          },
+          "ok": true,
+          "stderr_tail": ""
+        }
+      ],
+      "command_shape": "curl --proxy <redacted> URL",
+      "exit_code": 0,
+      "group": "ru",
+      "http_code": 200,
+      "kind": "http",
+      "label": "russia_search",
+      "metrics": {
+        "connect": 0.000168,
+        "namelookup": 5.5e-05,
+        "starttransfer": 0.768953,
+        "tls": 0.480947,
+        "total": 0.769213
+      },
+      "mode": "socks",
+      "ok": true,
+      "stderr_tail": "",
+      "url": "https://ya.ru/"
+    }
+  ],
+  "schema_version": 1,
+  "socks_host": "127.0.0.1",
+  "socks_port": 10918,
+  "socks_proxy_detected": true,
+  "source": "nl-diagnostics/probe_blocking_paths.py",
+  "summary": {
+    "assessment": "no_probe_evidence",
+    "group_assessments": {
+      "ai": {
+        "ok": 1
+      },
+      "baseline": {
+        "ok": 1
+      },
+      "dev": {
+        "ok": 1
+      },
+      "ru": {
+        "ok": 1
+      },
+      "telegram": {
+        "ok": 2
+      },
+      "telegram_media": {
+        "ok": 2
+      }
+    },
+    "target_assessments": {
+      "ok": 8
+    },
+    "target_count": 8
+  },
+  "targets": [
+    {
+      "assessment": "ok",
+      "direct_http_code": 204,
+      "direct_ok": true,
+      "group": "baseline",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "connectivity",
+      "socks_http_code": 204,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": 200,
+      "direct_ok": true,
+      "group": "telegram",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "telegram_web",
+      "socks_http_code": 200,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": 200,
+      "direct_ok": true,
+      "group": "telegram",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "telegram_api",
+      "socks_http_code": 200,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": null,
+      "direct_ok": true,
+      "group": "telegram_media",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "tcp",
+      "label": "telegram_media_dc2_149_154_166_111_443",
+      "socks_http_code": null,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": null,
+      "direct_ok": true,
+      "group": "telegram_media",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "tcp",
+      "label": "telegram_media_dc4_91_108_56_161_443",
+      "socks_http_code": null,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": 401,
+      "direct_ok": true,
+      "group": "ai",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "openai_api",
+      "socks_http_code": 401,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": 200,
+      "direct_ok": true,
+      "group": "dev",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "github",
+      "socks_http_code": 200,
+      "socks_ok": true
+    },
+    {
+      "assessment": "ok",
+      "direct_http_code": 200,
+      "direct_ok": true,
+      "group": "ru",
+      "http_proxy_http_code": null,
+      "http_proxy_ok": false,
+      "kind": "http",
+      "label": "russia_search",
+      "socks_http_code": 200,
+      "socks_ok": true
+    }
+  ],
+  "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
+}

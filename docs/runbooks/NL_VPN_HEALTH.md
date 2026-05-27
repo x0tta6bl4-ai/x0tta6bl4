@@ -118,10 +118,27 @@ python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
 Current local trend:
 
 ```text
-snapshot_count=2
+snapshot_count=3
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T220219Z
+latest_snapshot=20260527T221810Z
 latest_targets_ok=8/8
+```
+
+Build the current operator decision from the latest snapshot and probe history:
+
+```bash
+python3 /mnt/projects/nl-diagnostics/build_vpn_decision_report.py \
+  --snapshot /mnt/projects/nl-diagnostics/snapshots/<timestamp> \
+  --json-out /mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.json \
+  --markdown-out /mnt/projects/nl-diagnostics/current-vpn-decision-2026-05-28.md
+```
+
+Current decision:
+
+```text
+decision=observe
+confidence=high
+reason=core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS failure
 ```
 
 Expected healthy/advisory output shape:
