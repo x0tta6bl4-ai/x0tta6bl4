@@ -5,7 +5,7 @@ Status date: 2026-05-28 local time / 2026-05-27 UTC.
 Snapshot:
 
 ```text
-nl-diagnostics/snapshots/20260527T221810Z
+nl-diagnostics/snapshots/20260527T230246Z
 ```
 
 Current classification:
@@ -67,9 +67,9 @@ History across saved probe snapshots now says the same thing:
 
 ```text
 report: nl-diagnostics/blocking-probe-history-2026-05-28.md
-snapshot_count: 3
+snapshot_count: 4
 trend: stable_no_probe_evidence
-latest snapshot: 20260527T221810Z
+latest snapshot: 20260527T230246Z
 latest targets: 8/8 ok
 degraded targets: 0
 ```

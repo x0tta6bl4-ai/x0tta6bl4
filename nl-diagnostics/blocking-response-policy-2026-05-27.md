@@ -118,9 +118,9 @@ python3 nl-diagnostics/summarize_blocking_probe_history.py \
 Latest history result:
 
 ```text
-snapshot_count=3
+snapshot_count=4
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T221810Z
+latest_snapshot=20260527T230246Z
 latest_targets_ok=8/8
 degraded_targets=0
 ```

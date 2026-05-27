@@ -1,7 +1,7 @@
 # Current VPN Decision
 
-generated_at: `2026-05-27T22:27:03.368544+00:00`
-snapshot: `nl-diagnostics/snapshots/20260527T221810Z`
+generated_at: `2026-05-27T23:11:32.787592+00:00`
+snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 
 ## Status
 
@@ -20,7 +20,7 @@ failure_domain=external_network
 recommended_action=observe
 blocking_category=app_specific_degradation
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshots=3
+blocking_history_snapshots=4
 nl_mutation_allowed=false
 auto_profile_switch_allowed=false
 spb_fallback_allowed=false
@@ -67,9 +67,9 @@ spb_fallback_allowed=false
 ## Blocking Probe History
 
 ```text
-snapshot_count=3
+snapshot_count=4
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T221810Z
+latest_snapshot=20260527T230246Z
 latest_targets_ok=8/8
 latest_degraded_targets=0
 ```
