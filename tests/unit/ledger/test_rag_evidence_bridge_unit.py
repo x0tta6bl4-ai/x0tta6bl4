@@ -148,6 +148,52 @@ async def test_index_event_traces_adds_redacted_docs_with_citation_metadata(tmp_
 
 
 @pytest.mark.asyncio
+async def test_index_event_traces_maps_source_agent_alias_to_registered_service(tmp_path):
+    ledger = LedgerRAGSearch(
+        continuity_file=tmp_path / "CONTINUITY.md",
+        verification_root=tmp_path / "docs" / "verification",
+        enable_reranking=False,
+    )
+    ledger.rag = _FakeRAG()
+
+    success = await ledger.index_event_traces(
+        {
+            "redacted": True,
+            "filter": {
+                "service_name": "pqc-zero-trust-executor",
+                "layer": "self_healing_pqc_identity",
+                "services": [
+                    {
+                        "service_name": "pqc-zero-trust-executor",
+                        "source_agent": "pqc-zero-trust-healer",
+                        "layer": "self_healing_pqc_identity",
+                        "entrypoint": "src/self_healing/pqc_zero_trust_healer.py",
+                    }
+                ],
+            },
+            "events": [
+                {
+                    "event_id": "event-pqc-healer-1",
+                    "event_type": "pipeline.stage_end",
+                    "source_agent": "pqc-zero-trust-healer",
+                    "timestamp": "2026-05-27T00:00:00",
+                    "target_agents": None,
+                    "data": {"spiffe_id": "[redacted]", "stage": "action_completed"},
+                    "redacted": True,
+                }
+            ],
+        }
+    )
+
+    assert success is True
+    metadata = ledger.rag.documents[0]["metadata"]
+    assert metadata["source_agent"] == "pqc-zero-trust-healer"
+    assert metadata["service_name"] == "pqc-zero-trust-executor"
+    assert metadata["layer"] == "self_healing_pqc_identity"
+    assert metadata["entrypoint"] == "src/self_healing/pqc_zero_trust_healer.py"
+
+
+@pytest.mark.asyncio
 async def test_index_event_traces_rejects_unredacted_payload(tmp_path):
     ledger = LedgerRAGSearch(
         continuity_file=tmp_path / "CONTINUITY.md",

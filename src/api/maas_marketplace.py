@@ -269,6 +269,46 @@ def _ensure_write_db_ready(db: Any, request: Optional[Request] = None) -> bool:
     )
 
 
+def _marketplace_readiness_status(db: Any) -> Dict[str, Any]:
+    db_ready = _db_session_available(db)
+    degraded_dependencies = [] if db_ready else ["database"]
+    with _listings_lock:
+        cached_listings = len(_listings)
+
+    return {
+        "status": "ready" if db_ready else "degraded",
+        "route_registered": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "write_db_ready": db_ready,
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": "ready" if db_ready else "unavailable",
+            "in_memory_listing_cache_entries": cached_listings,
+            "escrow_write_path": "database_required",
+            "token_bridge": "lazy",
+            "telemetry_reputation": "imported",
+        },
+        "claim_boundary": (
+            "Marketplace route readiness distinguishes route availability from "
+            "state-changing database readiness. It does not prove live chain "
+            "settlement, Stripe payment state, or node heartbeat quality."
+        ),
+    }
+
+
+@router.get("/status")
+async def marketplace_status(
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    payload = _marketplace_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        if request is not None:
+            mark_degraded_dependency(request, dependency)
+    return payload
+
+
 def _to_cents(price_per_hour: float) -> int:
     cents = Decimal(str(price_per_hour)) * Decimal("100")
     return int(cents.quantize(Decimal("1"), rounding=ROUND_HALF_UP))

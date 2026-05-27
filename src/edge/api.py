@@ -85,7 +85,7 @@ class ResourceMetrics(BaseModel):
     disk_percent: float = Field(..., ge=0, le=100)
     network_mbps: Optional[float] = Field(None, ge=0)
     gpu_percent: Optional[float] = Field(None, ge=0, le=100)
-    load_average: Optional[List[float]] = Field(None, min_items=3, max_items=3)
+    load_average: Optional[List[float]] = Field(None, min_length=3, max_length=3)
     available_memory_mb: Optional[int] = Field(None, ge=0)
     total_memory_mb: Optional[int] = Field(None, ge=0)
 
@@ -176,6 +176,7 @@ class EdgeHealth(BaseModel):
     nodes: Dict[str, Any]
     tasks: Dict[str, Any]
     cache: Dict[str, Any]
+    startup_hook_completed: bool = False
 
 
 # =============================================================================
@@ -188,6 +189,7 @@ router = APIRouter(prefix="/edge", tags=["Edge Computing"])
 _node_manager: Optional[EdgeNodeManager] = None
 _task_distributor: Optional[TaskDistributor] = None
 _edge_cache: Optional[EdgeCache] = None
+_startup_hook_completed: bool = False
 
 # Resilience patterns
 _api_rate_limiter = TokenBucket(capacity=100, refill_rate=20.0, name="edge_api")
@@ -850,7 +852,8 @@ async def get_edge_health():
             "draining": len([n for n in nodes if n.status == EdgeNodeStatus.DRAINING])
         },
         tasks=distributor.get_stats(),
-        cache=cache.get_stats()
+        cache=cache.get_stats(),
+        startup_hook_completed=_startup_hook_completed,
     )
 
 
@@ -882,7 +885,7 @@ async def get_nodes_health():
 
 async def edge_startup():
     """Initialize edge computing components on startup."""
-    global _node_manager, _task_distributor, _edge_cache
+    global _node_manager, _task_distributor, _edge_cache, _startup_hook_completed
     
     logger.info("Initializing Edge Computing module...")
     
@@ -897,13 +900,14 @@ async def edge_startup():
             policy=CachePolicy.ADAPTIVE,
         )
     )
+    _startup_hook_completed = True
     
     logger.info("Edge Computing module initialized")
 
 
 async def edge_shutdown():
     """Cleanup edge computing components on shutdown."""
-    global _node_manager, _task_distributor, _edge_cache
+    global _node_manager, _task_distributor, _edge_cache, _startup_hook_completed
     
     logger.info("Shutting down Edge Computing module...")
     
@@ -913,6 +917,7 @@ async def edge_shutdown():
     _node_manager = None
     _task_distributor = None
     _edge_cache = None
+    _startup_hook_completed = False
     
     logger.info("Edge Computing module shut down")
 

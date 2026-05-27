@@ -105,7 +105,7 @@
         "/api/v1/ledger/event-traces/status"
       ],
       "cli_surface": "python -m src.coordination.cli events --service-name <service> --layer <layer> --replay-agent <agent>",
-      "contract": "Maps registered service names and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
+      "contract": "Maps registered service names, optional source_agent aliases, and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
       "source_refs": [
         "src/services/service_event_trace.py:12",
         "src/services/service_event_trace.py:18",
@@ -663,7 +663,7 @@
     {
       "path": "src/services/service_identity_registry.py",
       "layer": "identity_status_registry",
-      "role": "Registry of all current event-producing service names, layers, entrypoints, and redacted identity status.",
+      "role": "Registry of all current event-producing service names, optional EventBus source_agent aliases, layers, entrypoints, and redacted identity status.",
       "markers": [
         "service_identity_status",
         "service_identity_registry"
@@ -816,6 +816,16 @@
         "src/api/ledger_endpoints.py:335",
         "src/services/service_event_trace.py:159",
         "src/services/service_event_trace.py:208"
+      ]
+    },
+    {
+      "id": "pqc-healer-source-agent-alias",
+      "summary": "PQC recovery identity is registered as pqc-zero-trust-executor, while its EventBus source_agent is pqc-zero-trust-healer; source_agent aliases keep layer filters and Ledger citations connected to the registered service.",
+      "source_refs": [
+        "src/services/service_identity_registry.py:78",
+        "src/services/service_event_trace.py:31",
+        "src/self_healing/pqc_zero_trust_healer.py:30",
+        "src/self_healing/pqc_zero_trust_healer.py:494"
       ]
     }
   ],
