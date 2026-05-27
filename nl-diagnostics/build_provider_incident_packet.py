@@ -310,6 +310,8 @@ def build_packet(snapshot_dir: Path, incident_report: Path, now: datetime | None
         "nl_write_performed": False,
         "mutation_allowed": False,
         "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
         "vpn_server": VPN_SERVER,
         "hostname": HOSTNAME,
         "classification": classification,

@@ -734,6 +734,12 @@ probe history trend: stable_no_probe_evidence across 4 snapshots
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
 current decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 current decision: observe, high confidence, no NL/SPB writes
+boot-gap watch command added: nl-diagnostics/build_boot_gap_watch_report.py
+boot-gap watch report: nl-diagnostics/boot-gap-watch-2026-05-28.md
+boot-gap watch status: watch, boot_gap_seconds=21907
+provider packet refresh added: nl-diagnostics/build_provider_incident_packet.py
+provider packet report: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
+provider packet status: provider_watch, snapshot_stale=false
 planning refresh command added: nl-diagnostics/refresh_vpn_planning_reports.py
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
@@ -742,7 +748,7 @@ outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-
 outside-in NL transport status: healthy, 3/3 ports ok
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
-readiness audit status: ready_local_with_future_blocks, missing=0
+readiness audit status: ready_local_with_future_blocks, watch=1, missing=0
 operator card added: nl-diagnostics/build_vpn_operator_card.py
 operator card report: nl-diagnostics/vpn-operator-card-2026-05-28.md
 operator status: observe
