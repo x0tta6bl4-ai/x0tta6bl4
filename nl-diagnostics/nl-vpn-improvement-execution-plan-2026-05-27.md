@@ -149,6 +149,7 @@ external uptime probe for 89.125.1.107:443/2083/39829
 provider evidence packet generated automatically from fresh snapshots
 manual failover requirements are documented for a new secondary node, not SPB
 local-only secondary health probe template: nl-diagnostics/probe_secondary_exit.py
+safe secondary config generator: nl-diagnostics/create_secondary_exit_config.py
 example secondary probe config: nl-diagnostics/manual-failover-secondary.example.json
 alert when boot gap appears after an unclean shutdown
 ```

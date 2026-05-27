@@ -93,6 +93,10 @@ class VpnImprovementBacklogTests(unittest.TestCase):
             "secondary_probe_template=nl-diagnostics/manual-failover-secondary.example.json",
             resilience["evidence"],
         )
+        self.assertIn(
+            "secondary_config_generator=nl-diagnostics/create_secondary_exit_config.py",
+            resilience["evidence"],
+        )
         self.assertFalse(resilience["spb_fallback_allowed"])
 
 

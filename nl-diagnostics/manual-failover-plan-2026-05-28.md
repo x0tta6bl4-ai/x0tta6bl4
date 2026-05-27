@@ -1,6 +1,6 @@
 # Manual Failover Plan
 
-generated_at: `2026-05-27T22:49:39.530847+00:00`
+generated_at: `2026-05-27T22:55:50.792744+00:00`
 
 ## Status
 
@@ -86,8 +86,8 @@ Pass condition: selected emergency profile is not SPB and does not run sync_spb_
 ### prepare_now
 
 - choose a new provider/region for a future secondary node
-- define a redacted profile template and health-check contract
-- prepare local-only health probe config from nl-diagnostics/manual-failover-secondary.example.json
+- create safe probe config with nl-diagnostics/create_secondary_exit_config.py using public endpoint metadata only
+- prepare local-only health probe config from nl-diagnostics/manual-failover-secondary.example.json as a fallback template
 - document manual switch and rollback steps without storing secrets
 
 ### during_incident
@@ -109,6 +109,7 @@ Pass condition: selected emergency profile is not SPB and does not run sync_spb_
 
 ```text
 script=nl-diagnostics/probe_secondary_exit.py
+config_generator=nl-diagnostics/create_secondary_exit_config.py
 example_config=nl-diagnostics/manual-failover-secondary.example.json
 placeholder_status=planning_template
 mutation_allowed=false
