@@ -10,9 +10,14 @@ import json
 import sys
 
 from .state import AgentCoordinator, AgentRole
-from .events import EventBus
+from .events import EventBus, EventType
 from .tasks import TaskQueue, TaskPriority, TaskType
 from .conflicts import ConflictDetector
+from src.services.service_event_trace import (
+    get_service_event_history,
+    get_service_event_replay,
+    service_event_trace_filter,
+)
 
 
 def cmd_register(args):
@@ -208,11 +213,50 @@ def cmd_tasks(args):
 def cmd_events(args):
     """View events."""
     bus = EventBus(args.project_root)
-    
-    events = bus.get_event_history(limit=args.limit)
+
+    event_type = EventType(args.event_type) if args.event_type else None
+    trace_filter = service_event_trace_filter(
+        service_name=args.service_name,
+        layer=args.layer,
+    )
+    if trace_filter["status"] == "unknown_filter":
+        print("Unknown service identity trace filter")
+        if args.service_name:
+            print(f"  Service: {args.service_name}")
+        if args.layer:
+            print(f"  Layer: {args.layer}")
+        return 1
+
+    if args.replay_agent:
+        events = get_service_event_replay(
+            bus,
+            args.replay_agent,
+            service_name=args.service_name,
+            layer=args.layer,
+        )
+        if event_type:
+            events = [event for event in events if event.event_type == event_type]
+        events = events[-args.limit:]
+    else:
+        events = get_service_event_history(
+            bus,
+            service_name=args.service_name,
+            layer=args.layer,
+            event_type=event_type,
+            limit=args.limit,
+        )
     
     print(f"\n📜 Event History ({len(events)} events)")
     print("=" * 50)
+    if args.service_name or args.layer:
+        print(
+            "Filter: "
+            f"service={args.service_name or '*'} "
+            f"layer={args.layer or '*'} "
+            f"sources={', '.join(trace_filter['source_agents']) or 'none'}"
+        )
+    if args.replay_agent:
+        print(f"Replay target: {args.replay_agent}")
     
     for event in events:
         timestamp = event.timestamp.strftime("%H:%M:%S")
@@ -374,6 +418,10 @@ def main():
     # Events command
     events_parser = subparsers.add_parser("events", help="View events")
     events_parser.add_argument("--limit", "-l", type=int, default=20, help="Number of events")
+    events_parser.add_argument("--event-type", choices=[t.value for t in EventType], help="Event type filter")
+    events_parser.add_argument("--service-name", help="Registered service identity source filter")
+    events_parser.add_argument("--layer", help="Registered service identity layer filter")
+    events_parser.add_argument("--replay-agent", help="Replay only events relevant to this agent")
     events_parser.set_defaults(func=cmd_events)
     
     # Conflicts command

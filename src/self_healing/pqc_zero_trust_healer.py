@@ -8,16 +8,30 @@ Monitors PQC sessions, detects anomalies, plans remediation, and executes healin
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from ..coordination.events import EventBus, EventType, get_event_bus
 from ..network.ebpf.pqc_xdp_loader import PQCXDPLoader
 from ..security.ebpf_pqc_gateway import EBPFPQCGateway, get_pqc_gateway
 from ..security.pqc_identity import PQCNodeIdentity
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
+from ..services.service_event_identity import service_event_identity
 from .mape_k import MAPEKAnalyzer, MAPEKExecutor, MAPEKMonitor, MAPEKPlanner
 
 logger = logging.getLogger(__name__)
+
+_SERVICE_AGENT = "pqc-zero-trust-healer"
+PQC_CLAIM_BOUNDARY = (
+    "PQC recovery executor event only. It records local policy and healing action "
+    "state; it is not external production evidence or a settlement attestation."
+)
 
 
 @dataclass
@@ -448,37 +462,295 @@ class PQCZeroTrustExecutor(MAPEKExecutor):
         self,
         pqc_gateway: Optional[EBPFPQCGateway] = None,
         pqc_loader: Optional[PQCXDPLoader] = None,
+        node_id: str = "default-node",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
     ):
         super().__init__()
         self.pqc_gateway = pqc_gateway or get_pqc_gateway()
         self.pqc_loader = pqc_loader
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else self._env_bool("X0TTA6BL4_PQC_RECOVERY_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_RECOVERY_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="pqc-zero-trust-executor")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id or service_identity["spiffe_id"],
+            "did": did or service_identity["did"],
+            "wallet_address": wallet_address or service_identity["wallet_address"],
+        }
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize PQC recovery EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize PQC recovery policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        return normalize_policy_allowed(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return normalize_policy_reason(decision)
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    @staticmethod
+    def _action_resource_name(action: str) -> str:
+        action_lower = action.lower()
+        if "rotate all pqc keys" in action_lower:
+            return "rotate_all_keys"
+        if "rotate identity" in action_lower or "rotate pqc identity" in action_lower:
+            return "rotate_pqc_identity"
+        if "isolate compromised sessions" in action_lower:
+            return "isolate_compromised_sessions"
+        if "enable emergency security mode" in action_lower:
+            return "enable_emergency_mode"
+        if "rotate expired" in action_lower:
+            return "rotate_expired_sessions"
+        if "clean up expired" in action_lower:
+            return "cleanup_expired_sessions"
+        if "increase monitoring" in action_lower:
+            return "increase_monitoring"
+        if "full health check" in action_lower:
+            return "perform_health_check"
+        slug = "".join(
+            char if char.isalnum() else "_"
+            for char in action_lower.strip()
+        ).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        return slug or "unknown_action"
+
+    def _plan_context(self, plan: Dict[str, Any], actions: List[str]) -> Dict[str, Any]:
+        return {
+            "priority": plan.get("priority"),
+            "estimated_duration": plan.get("estimated_duration", 0),
+            "action_count": len(actions),
+            "plan_data": plan.get("plan_data", {}),
+        }
+
+    def _publish_executor_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        action: str = "",
+        context: Optional[Dict[str, Any]] = None,
+        result: Optional[Dict[str, Any]] = None,
+        reason: str = "",
+        policy_decision: Any = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        action_resource = self._action_resource_name(action) if action else "pqc_plan"
+        payload = {
+            "component": "self_healing.pqc_zero_trust_healer",
+            "stage": stage,
+            "action": action,
+            "action_resource": action_resource,
+            "resource": f"self_healing:pqc:{action_resource}",
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context or {}),
+            "result": self._safe_context(result or {}) if result is not None else None,
+            "success": result.get("success") if result is not None else None,
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "claim_boundary": PQC_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=7)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish PQC recovery event: %s", exc)
+            return None
+
+    def _evaluate_action_policy(self, action: str) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "PQC recovery policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "PQC recovery SPIFFE identity is required for policy evaluation"
+        action_resource = self._action_resource_name(action)
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource=f"self_healing:pqc:{action_resource}",
+                workload_type="self-healing",
+            )
+        except Exception as exc:
+            return False, None, f"PQC recovery policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, self._policy_reason(decision) or "PQC recovery policy denied action"
+        return True, decision, self._policy_reason(decision)
 
     async def execute(self, plan: Dict[str, Any]) -> Dict[str, Any]:
         """Execute PQC healing actions"""
         try:
+            actions = list(plan.get("actions", []))
+            plan_context = self._plan_context(plan, actions)
+            self._publish_executor_event(
+                EventType.COORDINATION_REQUEST,
+                stage="plan_received",
+                context=plan_context,
+            )
+
             results = []
             success_count = 0
 
-            for action in plan.get("actions", []):
+            for action in actions:
                 try:
+                    policy_allowed, policy_decision, policy_reason = (
+                        self._evaluate_action_policy(action)
+                    )
+                    if not policy_allowed:
+                        result = {
+                            "action": action,
+                            "success": False,
+                            "error": policy_reason,
+                            "policy_required": True,
+                            "matched_rules": self._policy_rules(policy_decision),
+                        }
+                        results.append(result)
+                        self._publish_executor_event(
+                            EventType.TASK_BLOCKED,
+                            stage="policy_denied",
+                            action=action,
+                            context=plan_context,
+                            result=result,
+                            reason=policy_reason,
+                            policy_decision=policy_decision,
+                        )
+                        logger.warning("PQC action blocked by policy: %s", action)
+                        continue
+
+                    self._publish_executor_event(
+                        EventType.PIPELINE_STAGE_START,
+                        stage="action_start",
+                        action=action,
+                        context=plan_context,
+                        reason=policy_reason,
+                        policy_decision=policy_decision,
+                    )
                     result = await self._execute_action(action)
                     results.append(result)
                     if result["success"]:
                         success_count += 1
+                    self._publish_executor_event(
+                        EventType.PIPELINE_STAGE_END
+                        if result["success"]
+                        else EventType.TASK_FAILED,
+                        stage="action_completed"
+                        if result["success"]
+                        else "action_failed",
+                        action=action,
+                        context=plan_context,
+                        result=result,
+                        reason=result.get("error", "") or policy_reason,
+                        policy_decision=policy_decision,
+                    )
+                    if result["success"]:
+                        logger.info(f"PQC action executed: {action}")
                     else:
                         logger.warning(f"PQC action failed: {action}")
                 except Exception as e:
                     logger.error(f"PQC action error: {action} - {e}")
-                    results.append(
-                        {"action": action, "success": False, "error": str(e)}
+                    result = {"action": action, "success": False, "error": str(e)}
+                    results.append(result)
+                    self._publish_executor_event(
+                        EventType.TASK_FAILED,
+                        stage="action_error",
+                        action=action,
+                        context=plan_context,
+                        result=result,
+                        reason=str(e),
                     )
 
-            overall_success = success_count == len(plan.get("actions", []))
+            overall_success = success_count == len(actions)
 
             return {
-                "actions_executed": len(plan.get("actions", [])),
+                "actions_executed": len(actions),
                 "success_count": success_count,
-                "failed_actions": len(plan.get("actions", [])) - success_count,
+                "failed_actions": len(actions) - success_count,
                 "success": overall_success,
                 "execution_data": {
                     "results": results,
@@ -731,11 +1003,32 @@ class PQCZeroTrustHealer:
         self,
         pqc_gateway: Optional[EBPFPQCGateway] = None,
         pqc_loader: Optional[PQCXDPLoader] = None,
+        node_id: str = "default-node",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
     ):
         self.monitor = PQCZeroTrustMonitor(pqc_gateway, pqc_loader)
         self.analyzer = PQCZeroTrustAnalyzer()
         self.planner = PQCZeroTrustPlanner()
-        self.executor = PQCZeroTrustExecutor(pqc_gateway, pqc_loader)
+        self.executor = PQCZeroTrustExecutor(
+            pqc_gateway,
+            pqc_loader,
+            node_id=node_id,
+            event_bus=event_bus,
+            event_project_root=event_project_root,
+            policy_engine=policy_engine,
+            require_policy=require_policy,
+            source_agent=source_agent,
+            spiffe_id=spiffe_id,
+            did=did,
+            wallet_address=wallet_address,
+        )
 
         # Start healing loop
         asyncio.create_task(self.run_healing_loop())

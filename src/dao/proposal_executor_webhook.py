@@ -43,6 +43,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+from src.coordination.events import EventBus, EventType, get_event_bus
+from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
+from src.services.service_event_identity import service_event_identity
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -72,6 +81,14 @@ _ABI_PATH = (
 
 _PROPOSAL_EXECUTED_TOPIC = (
     "0xc3be0e6a9a4297ab5ade6d0c44cf9a5b53b0c024a9e4c12b28d01b9c0671c98"
+)
+
+_SERVICE_AGENT = "dao-proposal-executor"
+
+HELM_EXECUTOR_CLAIM_BOUNDARY = (
+    "DAO proposal executor event only. It records local identity, policy, "
+    "and safe actuator state for helm upgrade attempts; it is not proof of a "
+    "successful production rollout without operator-captured deployment evidence."
 )
 
 # ---------------------------------------------------------------------------
@@ -153,8 +170,217 @@ class ProcessedStore:
 class HelmRunner:
     """Wraps `helm upgrade` with configurable dry-run and audit trail."""
 
-    def __init__(self, config: ExecutorConfig):
+    def __init__(
+        self,
+        config: ExecutorConfig,
+        *,
+        node_id: str = "dao-proposal-executor",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[SafeActuator] = None,
+    ):
         self.config = config
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else _env_bool("X0TTA6BL4_DAO_PROPOSAL_EXECUTOR_POLICY_REQUIRED", False)
+            or _env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="dao-proposal-executor")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id if spiffe_id is not None else service_identity["spiffe_id"],
+            "did": did if did is not None else service_identity["did"],
+            "wallet_address": (
+                wallet_address
+                if wallet_address is not None
+                else service_identity["wallet_address"]
+            ),
+        }
+        self.safe_actuator = safe_actuator or SafeActuator(
+            self._execute_upgrade_through_actuator
+        )
+        self._last_helm_result: Optional[HelmResult] = None
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize DAO proposal executor EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize DAO proposal executor policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        return normalize_policy_allowed(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return normalize_policy_reason(decision)
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    def _publish_upgrade_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        context: Dict[str, Any],
+        result: Optional["HelmResult"] = None,
+        reason: str = "",
+        policy_decision: Any = None,
+        simulated: Optional[bool] = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        payload = {
+            "component": "dao.proposal_executor_webhook",
+            "stage": stage,
+            "operation": "helm_upgrade",
+            "resource": "dao:proposal_executor:helm_upgrade",
+            "proposal_id": context.get("proposal_id"),
+            "helm_release": self.config.helm_release,
+            "helm_chart": self.config.helm_chart,
+            "helm_namespace": self.config.helm_namespace,
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context),
+            "success": result.success if result is not None else None,
+            "dry_run": result.dry_run if result is not None else context.get("dry_run"),
+            "simulated": simulated,
+            "returncode": result.returncode if result is not None else None,
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "safe_actuator": True,
+            "claim_boundary": HELM_EXECUTOR_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=8)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish DAO proposal executor event: %s", exc)
+            return None
+
+    def _evaluate_upgrade_policy(self) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "DAO proposal executor policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "DAO proposal executor SPIFFE identity is required for policy evaluation"
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource="dao:proposal_executor:helm_upgrade",
+                workload_type="dao-proposal-executor",
+            )
+        except Exception as exc:
+            return False, None, f"DAO proposal executor policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, (
+                self._policy_reason(decision) or "DAO proposal executor policy denied helm upgrade"
+            )
+        return True, decision, self._policy_reason(decision)
+
+    @staticmethod
+    def _build_command(config: ExecutorConfig, proposal_id: int, extra_set: Optional[Dict[str, str]]) -> tuple[List[str], str]:
+        cmd = [
+            "helm", "upgrade", "--install",
+            config.helm_release,
+            config.helm_chart,
+            "--namespace", config.helm_namespace,
+            "--wait",
+            "--timeout", "5m",
+            "--set", f"global.dao.proposalId={proposal_id}",
+            "--set", "global.dao.autoUpgrade=true",
+        ]
+        cmd.extend(config.helm_extra_args)
+        if extra_set:
+            for k, v in extra_set.items():
+                cmd.extend(["--set", f"{k}={v}"])
+        return cmd, " ".join(cmd)
+
+    def _execute_upgrade_through_actuator(
+        self,
+        action: str,
+        context: Dict[str, Any],
+    ) -> SafeActuatorResult:
+        if action != "helm_upgrade":
+            return SafeActuatorResult(False, f"unknown DAO proposal executor action: {action}")
+        result = self._upgrade_internal(
+            proposal_id=int(context.get("proposal_id", 0)),
+            command=list(context.get("command", [])),
+            command_str=str(context.get("command_str", "")),
+        )
+        self._last_helm_result = result
+        return SafeActuatorResult(
+            result.success,
+            result.stderr or result.stdout,
+            simulated=result.dry_run,
+        )
 
     def upgrade(self, proposal_id: int, extra_set: Optional[Dict[str, str]] = None) -> HelmResult:
         """
@@ -167,34 +393,93 @@ class HelmRunner:
         Returns:
             HelmResult with success flag, command, and stdout/stderr
         """
-        cmd = [
-            "helm", "upgrade", "--install",
-            self.config.helm_release,
-            self.config.helm_chart,
-            "--namespace", self.config.helm_namespace,
-            "--wait",
-            "--timeout", "5m",
-            "--set", f"global.dao.proposalId={proposal_id}",
-            "--set", "global.dao.autoUpgrade=true",
-        ]
+        cmd, cmd_str = self._build_command(self.config, proposal_id, extra_set)
+        context = {
+            "proposal_id": proposal_id,
+            "extra_set": extra_set or {},
+            "command": cmd,
+            "command_str": cmd_str,
+            "dry_run": self.config.dry_run,
+        }
+        self._last_helm_result = None
+        self._publish_upgrade_event(
+            EventType.COORDINATION_REQUEST,
+            stage="received",
+            context=context,
+        )
+        policy_allowed, policy_decision, policy_reason = self._evaluate_upgrade_policy()
+        if not policy_allowed:
+            result = HelmResult(
+                proposal_id=proposal_id,
+                success=False,
+                command=cmd_str,
+                stdout="",
+                stderr=policy_reason,
+                dry_run=self.config.dry_run,
+                returncode=0,
+            )
+            self._publish_upgrade_event(
+                EventType.TASK_BLOCKED,
+                stage="policy_denied",
+                context=context,
+                result=result,
+                reason=policy_reason,
+                policy_decision=policy_decision,
+                simulated=False,
+            )
+            return result
 
-        # Merge extra args from env
-        cmd.extend(self.config.helm_extra_args)
+        self._publish_upgrade_event(
+            EventType.PIPELINE_STAGE_START,
+            stage="actuator_start",
+            context=context,
+            reason=policy_reason,
+            policy_decision=policy_decision,
+        )
+        actuator_result = self.safe_actuator.execute("helm_upgrade", context)
+        result = self._last_helm_result or HelmResult(
+            proposal_id=proposal_id,
+            success=actuator_result.success,
+            command=cmd_str,
+            stdout="",
+            stderr=actuator_result.reason,
+            dry_run=bool(actuator_result.simulated),
+            returncode=0,
+        )
+        simulated = bool(actuator_result.simulated or result.dry_run)
+        event_type = (
+            EventType.PIPELINE_STAGE_END
+            if result.success and not simulated
+            else EventType.TASK_FAILED
+            if not result.success or simulated
+            else EventType.PIPELINE_STAGE_END
+        )
+        stage = (
+            "actuator_completed"
+            if result.success and not simulated
+            else "actuator_simulated"
+            if simulated
+            else "actuator_failed"
+        )
+        self._publish_upgrade_event(
+            event_type,
+            stage=stage,
+            context=context,
+            result=result,
+            reason=actuator_result.reason or result.stderr,
+            policy_decision=policy_decision,
+            simulated=simulated,
+        )
+        return result
 
-        # Merge per-proposal overrides
-        if extra_set:
-            for k, v in extra_set.items():
-                cmd.extend(["--set", f"{k}={v}"])
-
-        cmd_str = " ".join(cmd)
-        logger.info("[DAO Executor] helm command: %s", cmd_str)
-
+    def _upgrade_internal(self, *, proposal_id: int, command: List[str], command_str: str) -> HelmResult:
+        logger.info("[DAO Executor] helm command: %s", command_str)
         if self.config.dry_run:
             logger.info("[DAO Executor] DRY_RUN — helm not executed")
             return HelmResult(
                 proposal_id=proposal_id,
                 success=True,
-                command=cmd_str,
+                command=command_str,
                 stdout="(dry-run)",
                 stderr="",
                 dry_run=True,
@@ -202,7 +487,7 @@ class HelmRunner:
 
         try:
             proc = subprocess.run(
-                cmd,
+                command,
                 capture_output=True,
                 text=True,
                 timeout=360,
@@ -215,7 +500,7 @@ class HelmRunner:
             return HelmResult(
                 proposal_id=proposal_id,
                 success=success,
-                command=cmd_str,
+                command=command_str,
                 stdout=proc.stdout,
                 stderr=proc.stderr,
                 dry_run=False,
@@ -226,7 +511,7 @@ class HelmRunner:
             return HelmResult(
                 proposal_id=proposal_id,
                 success=False,
-                command=cmd_str,
+                command=command_str,
                 stdout="",
                 stderr="helm timed out after 360s",
                 dry_run=False,
@@ -236,7 +521,7 @@ class HelmRunner:
             return HelmResult(
                 proposal_id=proposal_id,
                 success=False,
-                command=cmd_str,
+                command=command_str,
                 stdout="",
                 stderr="helm binary not found in PATH",
                 dry_run=False,

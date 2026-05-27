@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
 from src.services import share_to_earn_service as service
 
 
@@ -83,6 +84,47 @@ def test_publish_share_to_earn_reward_event_skips_zero_amount(monkeypatch):
 
     assert event_id is None
     assert calls == []
+
+
+def test_publish_share_to_earn_reward_event_uses_injected_event_bus(
+    monkeypatch,
+    tmp_path,
+):
+    bus = EventBus(project_root=str(tmp_path))
+    monkeypatch.setenv(
+        "SHARE_TO_EARN_SPIFFE_ID",
+        "spiffe://mesh.x0tta6bl4.mesh/workload/share-to-earn",
+    )
+    monkeypatch.setenv("SHARE_TO_EARN_DID", "did:mesh:pqc:share-to-earn")
+    monkeypatch.setenv(
+        "SHARE_TO_EARN_WALLET_ADDRESS",
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    )
+
+    event_id = service.publish_share_to_earn_reward_event(
+        node_id="node-earn-1",
+        node_address="0xffffffffffffffffffffffffffffffffffffffff",
+        amount=Decimal("0.05"),
+        packets=500,
+        simulation_enabled=True,
+        status="SIMULATED_EARNING",
+        event_bus=bus,
+    )
+
+    events = bus.get_event_history(event_type=EventType.REWARD_RELAY_RECORDED)
+    assert event_id == events[-1].event_id
+    payload = events[-1].data
+    assert events[-1].source_agent == "share-to-earn"
+    assert payload["node_id"] == "node-earn-1"
+    assert payload["spiffe_id"] == (
+        "spiffe://mesh.x0tta6bl4.mesh/workload/share-to-earn"
+    )
+    assert payload["did"] == "did:mesh:pqc:share-to-earn"
+    assert payload["wallet_address"] == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    assert payload["packets"] == 500
+    assert payload["amount"] == "0.05"
+    assert payload["local_accounting_recorded"] is True
+    assert payload["claim_boundary"]
 
 
 def test_configured_user_id_requires_explicit_positive_integer(monkeypatch):

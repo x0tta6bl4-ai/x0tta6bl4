@@ -18,7 +18,15 @@ from typing import Any, Dict, Optional, Set
 from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.dao.governance_contract import GovernanceContract
+from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.security.policy_decision_adapter import (
+    policy_allowed as normalize_policy_allowed,
+    policy_reason as normalize_policy_reason,
+    policy_rules as normalize_policy_rules,
+)
+from src.services.service_event_identity import service_event_identity
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +37,13 @@ logger = logging.getLogger("dao-executor")
 _DEPLOYMENTS_DIR = Path(__file__).parent / "deployments"
 _DEFAULT_PROCESSED = _DEPLOYMENTS_DIR / "executed_proposals.json"
 _DEFAULT_LEDGER = _DEPLOYMENTS_DIR / "audit.jsonl"
+_SERVICE_AGENT = "dao-executor"
+
+DAO_EXECUTOR_CLAIM_BOUNDARY = (
+    "DAO executor release event only. It records local identity, policy, and "
+    "safe actuator state for release script attempts; it is not proof of a "
+    "successful production rollout without operator-captured deployment evidence."
+)
 
 
 class ProposalExecutedWebhook(BaseModel):
@@ -48,6 +63,17 @@ class DAOExecutor:
         poll_interval: int = 15,
         processed_file: Optional[str] = None,
         ledger_path: Optional[str] = None,
+        *,
+        node_id: str = "dao-executor",
+        event_bus: Optional[EventBus] = None,
+        event_project_root: str = ".",
+        policy_engine: Optional[Any] = None,
+        require_policy: Optional[bool] = None,
+        source_agent: str = _SERVICE_AGENT,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
+        safe_actuator: Optional[SafeActuator] = None,
     ):
         self.gov = GovernanceContract(
             contract_address=contract_address,
@@ -65,6 +91,181 @@ class DAOExecutor:
         )
         self._processed_ids = self._load_processed_ids()
         self.last_result: Dict[str, Any] = {}
+        self.node_id = node_id
+        self.source_agent = source_agent
+        self.event_project_root = event_project_root
+        self.event_bus = (
+            event_bus if event_bus is not None else self._default_event_bus(event_project_root)
+        )
+        self.policy_engine = policy_engine
+        self.require_policy = (
+            require_policy
+            if require_policy is not None
+            else self._env_bool("X0TTA6BL4_DAO_EXECUTOR_POLICY_REQUIRED", False)
+            or self._env_bool("X0TTA6BL4_PRODUCTION", False)
+        )
+        if self.policy_engine is None and self.require_policy:
+            self.policy_engine = self._default_policy_engine()
+        service_identity = service_event_identity(service_name="dao-executor")
+        self.identity = {
+            "node_id": node_id,
+            "spiffe_id": spiffe_id if spiffe_id is not None else service_identity["spiffe_id"],
+            "did": did if did is not None else service_identity["did"],
+            "wallet_address": (
+                wallet_address
+                if wallet_address is not None
+                else service_identity["wallet_address"]
+            ),
+        }
+        self.safe_actuator = safe_actuator or SafeActuator(
+            self._execute_release_through_actuator
+        )
+        self._last_upgrade_success: Optional[bool] = None
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _default_event_bus(project_root: str) -> Optional[EventBus]:
+        try:
+            return get_event_bus(project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize DAO executor EventBus: %s", exc)
+            return None
+
+    @staticmethod
+    def _default_policy_engine() -> Optional[Any]:
+        try:
+            from src.security.zero_trust.policy_engine import get_policy_engine
+
+            return get_policy_engine()
+        except Exception as exc:
+            logger.error("Failed to initialize DAO executor policy engine: %s", exc)
+            return None
+
+    @staticmethod
+    def _policy_allowed(decision: Any) -> bool:
+        return normalize_policy_allowed(decision)
+
+    @staticmethod
+    def _policy_reason(decision: Any) -> str:
+        return normalize_policy_reason(decision)
+
+    @staticmethod
+    def _policy_rules(decision: Any) -> list[str]:
+        return normalize_policy_rules(decision)
+
+    @classmethod
+    def _safe_value(cls, key: str, value: Any, depth: int = 0) -> Any:
+        blocked_fragments = ("secret", "password", "token", "key", "private")
+        if any(fragment in str(key).lower() for fragment in blocked_fragments):
+            return "<redacted>"
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict) and depth < 3:
+            return {
+                str(child_key): cls._safe_value(str(child_key), child_value, depth + 1)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list) and depth < 3:
+            return [cls._safe_value(key, item, depth + 1) for item in value]
+        return str(value)
+
+    @classmethod
+    def _safe_context(cls, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            str(key): cls._safe_value(str(key), value)
+            for key, value in context.items()
+        }
+
+    def _publish_release_event(
+        self,
+        event_type: EventType,
+        *,
+        stage: str,
+        context: Dict[str, Any],
+        success: Optional[bool] = None,
+        reason: str = "",
+        policy_decision: Any = None,
+        simulated: Optional[bool] = None,
+    ) -> Optional[str]:
+        if self.event_bus is None:
+            return None
+        payload = {
+            "component": "dao.executor_webhook",
+            "stage": stage,
+            "operation": "release_script",
+            "resource": "dao:executor:release_script",
+            "proposal_id": context.get("proposal_id"),
+            "proposal_title": context.get("title"),
+            "script_path": context.get("script_path"),
+            "node_id": self.identity["node_id"],
+            "spiffe_id": self.identity["spiffe_id"],
+            "did": self.identity["did"],
+            "wallet_address": self.identity["wallet_address"],
+            "identity": dict(self.identity),
+            "context": self._safe_context(context),
+            "success": success,
+            "simulated": simulated,
+            "reason": reason,
+            "policy_required": self.require_policy or self.policy_engine is not None,
+            "policy_allowed": self._policy_allowed(policy_decision)
+            if policy_decision is not None
+            else None,
+            "policy_reason": self._policy_reason(policy_decision)
+            if policy_decision is not None
+            else "",
+            "matched_rules": self._policy_rules(policy_decision)
+            if policy_decision is not None
+            else [],
+            "safe_actuator": True,
+            "claim_boundary": DAO_EXECUTOR_CLAIM_BOUNDARY,
+        }
+        try:
+            event = self.event_bus.publish(event_type, self.source_agent, payload, priority=8)
+            return event.event_id
+        except Exception as exc:
+            logger.error("Failed to publish DAO executor release event: %s", exc)
+            return None
+
+    def _evaluate_release_policy(self) -> tuple[bool, Any, str]:
+        if self.policy_engine is None:
+            if self.require_policy:
+                return False, None, "DAO executor policy engine is required but unavailable"
+            return True, None, ""
+        spiffe_id = self.identity.get("spiffe_id")
+        if not spiffe_id:
+            return False, None, "DAO executor SPIFFE identity is required for policy evaluation"
+        try:
+            decision = self.policy_engine.evaluate(
+                spiffe_id,
+                resource="dao:executor:release_script",
+                workload_type="dao-executor",
+            )
+        except Exception as exc:
+            return False, None, f"DAO executor policy evaluation failed: {exc}"
+        if not self._policy_allowed(decision):
+            return False, decision, self._policy_reason(decision) or "DAO executor policy denied release script"
+        return True, decision, self._policy_reason(decision)
+
+    def _execute_release_through_actuator(
+        self,
+        action: str,
+        context: Dict[str, Any],
+    ) -> SafeActuatorResult:
+        if action != "release_script":
+            return SafeActuatorResult(False, f"unknown DAO executor action: {action}")
+        success = self._trigger_upgrade_internal(
+            proposal_id=int(context.get("proposal_id", 0)),
+            title=str(context.get("title", "")),
+            script_path=str(context.get("script_path", "")),
+        )
+        self._last_upgrade_success = success
+        return SafeActuatorResult(success, "release script completed" if success else "release script failed")
 
     async def start(self):
         """Start the event listener loop."""
@@ -172,6 +373,60 @@ class DAOExecutor:
     def trigger_upgrade(self, proposal_id: int, title: str) -> bool:
         """Execute the release script."""
         script_path = "scripts/release_to_main.sh"
+        context = {
+            "proposal_id": proposal_id,
+            "title": title,
+            "script_path": script_path,
+        }
+        self._last_upgrade_success = None
+        self._publish_release_event(
+            EventType.COORDINATION_REQUEST,
+            stage="received",
+            context=context,
+        )
+        policy_allowed, policy_decision, policy_reason = self._evaluate_release_policy()
+        if not policy_allowed:
+            self._publish_release_event(
+                EventType.TASK_BLOCKED,
+                stage="policy_denied",
+                context=context,
+                success=False,
+                reason=policy_reason,
+                policy_decision=policy_decision,
+                simulated=False,
+            )
+            return False
+
+        self._publish_release_event(
+            EventType.PIPELINE_STAGE_START,
+            stage="actuator_start",
+            context=context,
+            reason=policy_reason,
+            policy_decision=policy_decision,
+        )
+        actuator_result = self.safe_actuator.execute("release_script", context)
+        success = bool(self._last_upgrade_success if self._last_upgrade_success is not None else actuator_result.success)
+        event_type = EventType.PIPELINE_STAGE_END if success and not actuator_result.simulated else EventType.TASK_FAILED
+        stage = (
+            "actuator_completed"
+            if success and not actuator_result.simulated
+            else "actuator_simulated"
+            if actuator_result.simulated
+            else "actuator_failed"
+        )
+        self._publish_release_event(
+            event_type,
+            stage=stage,
+            context=context,
+            success=success and not actuator_result.simulated,
+            reason=actuator_result.reason,
+            policy_decision=policy_decision,
+            simulated=bool(actuator_result.simulated),
+        )
+        return success and not actuator_result.simulated
+
+    def _trigger_upgrade_internal(self, proposal_id: int, title: str, script_path: str) -> bool:
+        """Execute the release script after identity, policy, and safe actuator gates."""
         if not os.path.exists(script_path):
             logger.error("Release script not found: %s", script_path)
             return False

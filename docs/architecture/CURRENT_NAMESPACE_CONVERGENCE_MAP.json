@@ -1,0 +1,139 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Namespace convergence map for top-level libx0t and src/libx0t.",
+  "surfaces": {
+    "top_level_libx0t": {
+      "path": "libx0t",
+      "python_files": 154,
+      "role": "legacy_and_public_import_surface"
+    },
+    "src_libx0t": {
+      "path": "src/libx0t",
+      "python_files": 114,
+      "role": "src_namespace_compatibility_and_security_surface"
+    }
+  },
+  "tree_comparison": {
+    "common_python_paths": 82,
+    "byte_identical_common_paths": 14,
+    "different_common_paths": 68,
+    "top_level_only_python_paths": 72,
+    "src_only_python_paths": 32
+  },
+  "import_counts": {
+    "scanned_roots": [
+      "src",
+      "tests",
+      "scripts",
+      "libx0t"
+    ],
+    "direct_import_statements": {
+      "libx0t": 98,
+      "src.libx0t": 78
+    }
+  },
+  "known_bridges": [
+    {
+      "id": "core-app-file-compat",
+      "source": "src/core/app.py",
+      "bridge_type": "runtime_file_identity_rewrite",
+      "target": "libx0t/core/app.py",
+      "why_it_matters": "Tools and audits that rely on __file__ can see the legacy libx0t path while the loaded module is src.core.app.",
+      "source_refs": [
+        "src/core/app.py:33",
+        "src/core/app.py:34",
+        "src/core/app.py:36"
+      ]
+    },
+    {
+      "id": "src-network-shims",
+      "source": "src/network/{mesh_node,mesh_router,pqc_tunnel}.py",
+      "bridge_type": "legacy_src_network_reexport",
+      "target": "src.libx0t.network.*",
+      "why_it_matters": "src.network imports can resolve to src.libx0t implementations while warning that callers should update imports.",
+      "source_refs": [
+        "src/network/mesh_node.py:5",
+        "src/network/mesh_router.py:5",
+        "src/network/pqc_tunnel.py:5"
+      ]
+    },
+    {
+      "id": "security-pqc-mtls-shim",
+      "source": "src/security/pqc_mtls.py",
+      "bridge_type": "legacy_security_reexport_with_mutable_state_sync",
+      "target": "src.libx0t.security.pqc_mtls",
+      "why_it_matters": "Legacy src.security.pqc_mtls imports keep patch points synchronized with the implementation module.",
+      "source_refs": [
+        "src/security/pqc_mtls.py:11",
+        "src/security/pqc_mtls.py:25",
+        "src/security/pqc_mtls.py:31"
+      ]
+    },
+    {
+      "id": "top-level-security-bridge",
+      "source": "libx0t/security",
+      "bridge_type": "top_level_security_reexport",
+      "target": "src.libx0t.security plus src.security.production_hardening",
+      "why_it_matters": "Several modules import libx0t.security.*, but the top-level security source tree was missing. The bridge restores imports for post_quantum, pqc_core, pqc_mtls, zero_trust, and production_hardening.",
+      "source_refs": [
+        "libx0t/security/__init__.py:1",
+        "libx0t/security/post_quantum.py:3",
+        "libx0t/security/pqc_core.py:3",
+        "libx0t/security/pqc_mtls.py:3",
+        "libx0t/security/production_hardening.py:3",
+        "libx0t/security/zero_trust/__init__.py:3"
+      ]
+    },
+    {
+      "id": "src-libx0t-network-top-level-bridges",
+      "source": "src/libx0t/network/{yggdrasil_client,byzantine,ebpf}",
+      "bridge_type": "src_namespace_network_bridge_to_top_level",
+      "target": "top-level libx0t.network yggdrasil/byzantine/ebpf modules",
+      "why_it_matters": "The runtime files under src/libx0t now import through src.libx0t.network while the current implementations remain under top-level libx0t.network.",
+      "source_refs": [
+        "src/libx0t/network/yggdrasil_client.py:6",
+        "src/libx0t/network/byzantine/mesh_byzantine_protection.py:6",
+        "src/libx0t/network/byzantine/signed_gossip.py:6",
+        "src/libx0t/network/ebpf/cilium_integration.py:6",
+        "src/libx0t/network/ebpf/explainer.py:6"
+      ]
+    }
+  ],
+  "hotspots": [
+    {
+      "id": "three-production-lifespan-surfaces",
+      "evidence": [
+        "src/core/production_lifespan.py",
+        "src/libx0t/core/production_lifespan.py",
+        "libx0t/core/production_lifespan.py"
+      ],
+      "risk": "The active FastAPI app uses src.core.production_lifespan, while compatibility modules expose similar names with different imports and behavior.",
+      "current_status": "src.libx0t.core.production_lifespan and libx0t.core.production_lifespan both import after top-level security bridge restoration."
+    },
+    {
+      "id": "src-libx0t-imports-top-level-libx0t",
+      "evidence": [
+        "docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json",
+        "tests/unit/test_canonical_import_map_unit.py"
+      ],
+      "risk": "The src.libx0t package can jump back to top-level libx0t modules when no src.libx0t counterpart exists.",
+      "current_status": "src/libx0t has 0 direct top-level libx0t import statements; yggdrasil/byzantine/eBPF top-level-only implementations are now reached through explicit src.libx0t bridge modules."
+    },
+    {
+      "id": "security-source-exists-only-under-src-libx0t",
+      "evidence": [
+        "src/libx0t/security/post_quantum.py",
+        "src/libx0t/security/pqc_core.py",
+        "src/libx0t/security/zero_trust/__init__.py"
+      ],
+      "risk": "Top-level libx0t.security imports were broken until bridge shims were added."
+    }
+  ],
+  "current_policy": {
+    "canonical_runtime_app": "src/core/app.py",
+    "canonical_security_implementation": "src.libx0t.security plus src.security.pqc and src.security.production_hardening public wrappers",
+    "compatibility_surface": "top-level libx0t remains supported through shims where current code imports it",
+    "do_not_assume": "Do not assume libx0t and src.libx0t files are mirrors; most common files differ."
+  }
+}

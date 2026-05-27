@@ -1,0 +1,404 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Cross-layer component registry for the current x0tta6bl4 workspace.",
+  "shared_planes": {
+    "http_api_shell": {
+      "entrypoint": "src/core/app.py",
+      "notes": [
+        "Registers FastAPI middleware and routers.",
+        "Router order is behavioral state for fixed-prefix routes and legacy catch-all routes."
+      ]
+    },
+    "production_lifecycle": {
+      "entrypoint": "src/core/production_lifespan.py",
+      "notes": [
+        "Starts runtime services that are not guaranteed to be alive just because their routes are present.",
+        "Owns production startup and shutdown hooks for optimization, edge, and event-sourcing modules."
+      ]
+    },
+    "local_control_plane": {
+      "entrypoint": "src/integration/spine.py",
+      "notes": [
+        "Uses EventBus, service identity, policy decisions, and SafeActuator wrappers.",
+        "Fail-closed behavior depends on policy and actuator availability."
+      ]
+    },
+    "service_identity": {
+      "entrypoint": "src/services/service_event_identity.py",
+      "notes": [
+        "Resolves source identity for background events from service-specific and generic environment values.",
+        "Keeps SPIFFE, DID, wallet, and source-agent naming consistent across services."
+      ]
+    }
+  },
+  "components": [
+    {
+      "id": "core-api-shell",
+      "layer": "api",
+      "entrypoint": "src/core/app.py",
+      "lifecycle_mode": "import_time_fastapi_app",
+      "api_prefixes": [
+        "/api/v1/maas",
+        "/api/v1/ledger",
+        "/api/v1/edge",
+        "/api/v1/event-sourcing"
+      ],
+      "event_bus": "none_direct",
+      "service_identity": "none_direct",
+      "actuator": "none_direct",
+      "hidden_dependencies": [
+        "Router registration order controls which endpoint receives ambiguous MaaS paths.",
+        "Light mode and production mode select different runtime weight.",
+        "__file__ compatibility rewrite can make tooling see legacy libx0t paths."
+      ],
+      "source_refs": [
+        "src/core/app.py:33",
+        "src/core/app.py:38",
+        "src/core/app.py:237"
+      ]
+    },
+    {
+      "id": "production-lifespan",
+      "layer": "runtime_lifecycle",
+      "entrypoint": "src/core/production_lifespan.py",
+      "lifecycle_mode": "fastapi_lifespan",
+      "event_bus": "starts_event_sourcing_lifecycle_when_available",
+      "service_identity": "node_id_from_environment",
+      "actuator": "none_direct",
+      "hidden_dependencies": [
+        "Database schema compatibility guard can block production startup.",
+        "Starts MeshNetworkManager, PrometheusExporter, ZeroTrustValidator, ConsciousnessEngine, PARLController, federated learning, MAPEKLoop, edge hooks, and event-sourcing hooks.",
+        "Routers can be registered even when their backing startup hook was skipped outside production."
+      ],
+      "source_refs": [
+        "src/core/production_lifespan.py:10",
+        "src/core/production_lifespan.py:13",
+        "src/core/production_lifespan.py:102",
+        "src/core/production_lifespan.py:146",
+        "src/core/production_lifespan.py:151",
+        "src/core/production_lifespan.py:167",
+        "src/core/production_lifespan.py:176"
+      ]
+    },
+    {
+      "id": "integration-spine",
+      "layer": "control_plane",
+      "entrypoint": "src/integration/spine.py",
+      "lifecycle_mode": "library_orchestrator",
+      "event_bus": "direct_publish",
+      "service_identity": "source_agent_field",
+      "actuator": "SafeActuator_and_AsyncSafeActuator",
+      "hidden_dependencies": [
+        "Acts as the local proof path for policy-gated actions.",
+        "SafeActuator classes are reused by several services outside IntegrationSpine itself.",
+        "Settlement paths can block when settlement manager or settlement address is missing."
+      ],
+      "source_refs": [
+        "src/integration/spine.py:14",
+        "src/integration/spine.py:85",
+        "src/integration/spine.py:123",
+        "src/integration/spine.py:155",
+        "src/integration/spine.py:264",
+        "src/integration/spine.py:530"
+      ]
+    },
+    {
+      "id": "maas-governance-api",
+      "layer": "api_to_control_plane",
+      "entrypoint": "src/api/maas_governance.py",
+      "lifecycle_mode": "fastapi_router",
+      "api_prefixes": [
+        "/api/v1/maas/governance"
+      ],
+      "event_bus": "direct_publish",
+      "service_identity": "maas-governance",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "Proposal execution passes through EventBus, service identity, policy evaluation, and SafeActuator before applying actions.",
+        "Finality hash can be signed through src.libx0t.core.app.pqc_sign when available."
+      ],
+      "source_refs": [
+        "src/api/maas_governance.py:24",
+        "src/api/maas_governance.py:25",
+        "src/api/maas_governance.py:26",
+        "src/api/maas_governance.py:31",
+        "src/api/maas_governance.py:150",
+        "src/api/maas_governance.py:273",
+        "src/api/maas_governance.py:362",
+        "src/api/maas_governance.py:500"
+      ]
+    },
+    {
+      "id": "maas-billing-api",
+      "layer": "api_to_commerce",
+      "entrypoint": "src/api/maas_billing.py",
+      "lifecycle_mode": "fastapi_router",
+      "api_prefixes": [
+        "/api/v1/maas/billing"
+      ],
+      "event_bus": "none_direct",
+      "service_identity": "current_user_dependency",
+      "actuator": "none_direct",
+      "hidden_dependencies": [
+        "Stripe billing still imports legacy MaaS mesh lookup and usage metering.",
+        "Invoice generation depends on legacy mesh semantics.",
+        "Billing router must stay before legacy MaaS catch-all routes."
+      ],
+      "source_refs": [
+        "src/api/maas_billing.py:30",
+        "src/api/maas_billing.py:61",
+        "src/api/maas_billing.py:245",
+        "src/api/maas_billing.py:260",
+        "src/api/maas_billing.py:266",
+        "src/api/maas_billing.py:267"
+      ]
+    },
+    {
+      "id": "ledger-api",
+      "layer": "api_to_memory",
+      "entrypoint": "src/api/ledger_endpoints.py",
+      "lifecycle_mode": "fastapi_router",
+      "api_prefixes": [
+        "/api/v1/ledger"
+      ],
+      "event_bus": "none_direct",
+      "service_identity": "none_direct",
+      "actuator": "none_direct",
+      "hidden_dependencies": [
+        "Continuity Ledger documents are exposed as a runtime search and indexing surface.",
+        "Operator-facing answers can be influenced by local evidence documents through the RAG pipeline."
+      ],
+      "source_refs": [
+        "src/api/ledger_endpoints.py:18",
+        "src/api/ledger_endpoints.py:38",
+        "src/api/ledger_endpoints.py:75",
+        "src/api/ledger_endpoints.py:91",
+        "src/api/ledger_endpoints.py:119"
+      ]
+    },
+    {
+      "id": "marketplace-settlement",
+      "layer": "commerce_to_telemetry_to_chain",
+      "entrypoint": "src/services/marketplace_settlement.py",
+      "lifecycle_mode": "service_function",
+      "event_bus": "via_marketplace_events",
+      "service_identity": "marketplace-settlement",
+      "actuator": "via_TokenBridge_when_chain_write_enabled",
+      "hidden_dependencies": [
+        "Escrow release or refund uses MaaS telemetry uptime as financial state input.",
+        "When configured, settlement crosses into TokenBridge and MeshToken.",
+        "Marketplace lifecycle events and audit logs are emitted around settlement decisions."
+      ],
+      "source_refs": [
+        "src/services/marketplace_settlement.py:5",
+        "src/services/marketplace_settlement.py:6",
+        "src/services/marketplace_settlement.py:7",
+        "src/services/marketplace_settlement.py:8",
+        "src/services/marketplace_settlement.py:9",
+        "src/services/marketplace_settlement.py:41",
+        "src/services/marketplace_settlement.py:63",
+        "src/services/marketplace_settlement.py:121"
+      ]
+    },
+    {
+      "id": "share-to-earn",
+      "layer": "network_usage_to_rewards",
+      "entrypoint": "src/services/share_to_earn_service.py",
+      "lifecycle_mode": "service_function",
+      "event_bus": "via_reward_events",
+      "service_identity": "share-to-earn",
+      "actuator": "none_direct",
+      "hidden_dependencies": [
+        "Reward accounting uses exit-node eligibility and local mesh stats.",
+        "Reward events are emitted as lifecycle evidence and do not by themselves prove live settlement."
+      ],
+      "source_refs": [
+        "src/services/share_to_earn_service.py:11",
+        "src/services/share_to_earn_service.py:12",
+        "src/services/share_to_earn_service.py:23",
+        "src/services/share_to_earn_service.py:36",
+        "src/services/share_to_earn_service.py:66",
+        "src/services/share_to_earn_service.py:143"
+      ]
+    },
+    {
+      "id": "token-bridge",
+      "layer": "dao_chain_bridge",
+      "entrypoint": "src/dao/token_bridge.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish_plus_reward_and_marketplace_events",
+      "service_identity": "token-bridge",
+      "actuator": "AsyncSafeActuator",
+      "hidden_dependencies": [
+        "Chain writes require policy engine and SPIFFE identity when those gates are enabled.",
+        "Bridge events synchronize local MeshToken state with on-chain settlement attempts.",
+        "Reward and marketplace event publishers reuse this bridge as a settlement evidence source."
+      ],
+      "source_refs": [
+        "src/dao/token_bridge.py:30",
+        "src/dao/token_bridge.py:31",
+        "src/dao/token_bridge.py:32",
+        "src/dao/token_bridge.py:33",
+        "src/dao/token_bridge.py:34",
+        "src/dao/token_bridge.py:349",
+        "src/dao/token_bridge.py:360",
+        "src/dao/token_bridge.py:517",
+        "src/dao/token_bridge.py:578",
+        "src/dao/token_bridge.py:612"
+      ]
+    },
+    {
+      "id": "swarm-pbft",
+      "layer": "swarm_consensus_to_control_plane",
+      "entrypoint": "src/swarm/pbft.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "swarm-pbft",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "Consensus execution callbacks are wrapped in SafeActuator before being treated as applied operations.",
+        "PBFT publishes execution lifecycle events with the same source identity pattern used by governance and bridge."
+      ],
+      "source_refs": [
+        "src/swarm/pbft.py:19",
+        "src/swarm/pbft.py:20",
+        "src/swarm/pbft.py:21",
+        "src/swarm/pbft.py:156",
+        "src/swarm/pbft.py:164",
+        "src/swarm/pbft.py:313"
+      ]
+    },
+    {
+      "id": "pqc-rotator",
+      "layer": "security_to_control_plane",
+      "entrypoint": "src/services/pqc_rotator_service.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "pqc-rotator",
+      "actuator": "AsyncSafeActuator",
+      "hidden_dependencies": [
+        "Identity rotation can be blocked when the signer command is not configured.",
+        "Rotation evidence is published through the same EventBus/source-agent convention as chain and swarm actions."
+      ],
+      "source_refs": [
+        "src/services/pqc_rotator_service.py:7",
+        "src/services/pqc_rotator_service.py:8",
+        "src/services/pqc_rotator_service.py:10",
+        "src/services/pqc_rotator_service.py:77",
+        "src/services/pqc_rotator_service.py:84",
+        "src/services/pqc_rotator_service.py:198",
+        "src/services/pqc_rotator_service.py:314"
+      ]
+    },
+    {
+      "id": "ebpf-self-healing",
+      "layer": "network_observability_to_recovery",
+      "entrypoint": "src/self_healing/ebpf_anomaly_detector.py",
+      "lifecycle_mode": "mapek_service",
+      "event_bus": "direct_publish",
+      "service_identity": "ebpf-self-healing",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "MAPE-K anomaly planning and recovery actions are tied to EventBus evidence.",
+        "Low-level recovery actions such as route adjustment, eBPF reload, offload, queue sizing, and throttling pass through SafeActuator."
+      ],
+      "source_refs": [
+        "src/self_healing/ebpf_anomaly_detector.py:23",
+        "src/self_healing/ebpf_anomaly_detector.py:24",
+        "src/self_healing/ebpf_anomaly_detector.py:27",
+        "src/self_healing/ebpf_anomaly_detector.py:28",
+        "src/self_healing/ebpf_anomaly_detector.py:249",
+        "src/self_healing/ebpf_anomaly_detector.py:256",
+        "src/self_healing/ebpf_anomaly_detector.py:374",
+        "src/self_healing/ebpf_anomaly_detector.py:510"
+      ]
+    },
+    {
+      "id": "spire-agent-manager",
+      "layer": "identity_runtime",
+      "entrypoint": "src/security/spiffe/agent/manager.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "spire-agent",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "SPIRE agent start, stop, restart, token attestation, workload registration, and health paths publish control events.",
+        "Process and workload mutations are guarded by SafeActuator."
+      ],
+      "source_refs": [
+        "src/security/spiffe/agent/manager.py:34",
+        "src/security/spiffe/agent/manager.py:35",
+        "src/security/spiffe/agent/manager.py:36",
+        "src/security/spiffe/agent/manager.py:132",
+        "src/security/spiffe/agent/manager.py:264",
+        "src/security/spiffe/agent/manager.py:339"
+      ]
+    },
+    {
+      "id": "spire-server-client",
+      "layer": "identity_control",
+      "entrypoint": "src/security/spiffe/server/client.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "spire-server-client",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "SPIRE entry create, list, delete, and server status operations are part of the same local control-plane evidence stream.",
+        "Mutating server-client operations are guarded by SafeActuator."
+      ],
+      "source_refs": [
+        "src/security/spiffe/server/client.py:18",
+        "src/security/spiffe/server/client.py:19",
+        "src/security/spiffe/server/client.py:20",
+        "src/security/spiffe/server/client.py:103",
+        "src/security/spiffe/server/client.py:235",
+        "src/security/spiffe/server/client.py:314"
+      ]
+    },
+    {
+      "id": "mptcp-manager",
+      "layer": "network_control",
+      "entrypoint": "src/network/mptcp_manager.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "mptcp-manager",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "MPTCP endpoint and kernel capability changes are policy-checked and actuator-gated.",
+        "Sensitive context keys are redacted before publishing control events."
+      ],
+      "source_refs": [
+        "src/network/mptcp_manager.py:14",
+        "src/network/mptcp_manager.py:15",
+        "src/network/mptcp_manager.py:16",
+        "src/network/mptcp_manager.py:77",
+        "src/network/mptcp_manager.py:107",
+        "src/network/mptcp_manager.py:166",
+        "src/network/mptcp_manager.py:284"
+      ]
+    },
+    {
+      "id": "ghost-l3-server",
+      "layer": "network_runtime",
+      "entrypoint": "src/server/ghost_server.py",
+      "lifecycle_mode": "service_class",
+      "event_bus": "direct_publish",
+      "service_identity": "ghost-l3-server",
+      "actuator": "SafeActuator",
+      "hidden_dependencies": [
+        "TUN setup and runtime lifecycle are represented as EventBus evidence.",
+        "Network setup is wrapped in SafeActuator."
+      ],
+      "source_refs": [
+        "src/server/ghost_server.py:15",
+        "src/server/ghost_server.py:16",
+        "src/server/ghost_server.py:18",
+        "src/server/ghost_server.py:76",
+        "src/server/ghost_server.py:83",
+        "src/server/ghost_server.py:188",
+        "src/server/ghost_server.py:286"
+      ]
+    }
+  ]
+}

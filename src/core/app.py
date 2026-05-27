@@ -234,6 +234,10 @@ def _include_maas_router(module_path: str, label: str) -> None:
     except Exception as exc:
         logger.warning(f"Could not import MaaS router {label}: {exc}")
 
+# Fixed-prefix MaaS routers must be registered before the legacy catch-all
+# routes such as /api/v1/maas/{mesh_id}/status.
+_include_maas_router("src.api.maas_billing", "billing")
+_include_maas_router("src.api.billing", "billing-api")
 _include_maas_router("src.api.maas_legacy", "legacy")
 _include_maas_router("src.api.maas_compat", "compat")
 _include_maas_router("src.api.maas_auth", "auth")
@@ -242,9 +246,8 @@ _include_maas_router("src.api.maas_supply_chain", "supply-chain")
 _include_maas_router("src.api.maas_marketplace", "marketplace")
 _include_maas_router("src.api.maas_governance", "governance")
 _include_maas_router("src.api.maas_analytics", "analytics")
-_include_maas_router("src.api.maas_billing", "billing")
-_include_maas_router("src.api.billing", "billing-api")
 _include_maas_router("src.api.maas_agent_mesh", "agent-mesh")
+_include_maas_router("src.api.service_identity_status", "service-identity-status")
 
 if not is_light_mode:
     _include_maas_router("src.api.maas_nodes", "nodes")

@@ -14,6 +14,7 @@ import time
 import uuid
 from collections import OrderedDict
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
@@ -31,6 +32,7 @@ from src.utils.audit import record_audit_log
 
 from src.resilience.advanced_patterns import get_resilient_executor
 from src.monitoring.maas_metrics import record_escrow_failure
+from src.services.marketplace_events import publish_marketplace_escrow_event
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,14 @@ def _current_user_id(current_user: User) -> str:
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid authenticated user id")
     return user_id
+
+
+def _current_user_event_identity(current_user: User) -> Dict[str, Optional[str]]:
+    return {
+        "spiffe_id": _normalize_identity(getattr(current_user, "spiffe_id", None)) or None,
+        "did": _normalize_identity(getattr(current_user, "did", None)) or None,
+        "wallet_address": _normalize_identity(getattr(current_user, "wallet_address", None)) or None,
+    }
 
 
 def _get_token_bridge() -> TokenBridge:
@@ -260,7 +270,8 @@ def _ensure_write_db_ready(db: Any, request: Optional[Request] = None) -> bool:
 
 
 def _to_cents(price_per_hour: float) -> int:
-    return int(round(price_per_hour * 100))
+    cents = Decimal(str(price_per_hour)) * Decimal("100")
+    return int(cents.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _to_dollars(cents: int) -> float:
@@ -547,6 +558,7 @@ async def rent_node(
         hours = 1
 
     renter_id = _current_user_id(current_user)
+    current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
     if normalized_idem_key:
@@ -586,10 +598,6 @@ async def rent_node(
         raise HTTPException(status_code=400, detail="Cannot rent your own node")
     if row.status != "available":
         raise HTTPException(status_code=400, detail="Listing not available")
-
-    row.status = "escrow"
-    row.renter_id = renter_id
-    row.mesh_id = mesh_id
 
     escrow_id = f"esc-{uuid.uuid4().hex[:8]}"
     multiplier = _get_global_price_multiplier(db)
@@ -647,15 +655,49 @@ async def rent_node(
                 logger.warning("Token system unavailable, using insecure escrow fallback")
             else:
                 logger.error("Token system unavailable; refusing X0T rent for escrow %s", escrow_id)
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow_id,
+                    listing_id=listing_id,
+                    renter_id=renter_id,
+                    actor_id=renter_id,
+                    currency=listing.get("currency"),
+                    status="blocked",
+                    node_id=listing.get("node_id"),
+                    mesh_id=mesh_id,
+                    **current_user_event_identity,
+                    amount_token=amount_token,
+                    reason="token_bridge_unavailable",
+                )
                 raise HTTPException(status_code=502, detail="Token bridge unavailable")
         except Exception as e:
             if _allow_insecure_escrow_fallback():
                 logger.warning("Token integration error, using insecure fallback: %s", e)
             else:
                 logger.error("Token bridge lock failed for escrow %s: %s", escrow_id, e)
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow_id,
+                    listing_id=listing_id,
+                    renter_id=renter_id,
+                    actor_id=renter_id,
+                    currency=listing.get("currency"),
+                    status="blocked",
+                    node_id=listing.get("node_id"),
+                    mesh_id=mesh_id,
+                    **current_user_event_identity,
+                    amount_token=amount_token,
+                    reason="x0t_lock_failed",
+                )
                 raise HTTPException(status_code=502, detail="Failed to lock X0T escrow")
     else:
         amount_cents = _to_cents(float(listing["price_per_hour"]) * total_multiplier) * hours
+
+    row.status = "escrow"
+    row.renter_id = renter_id
+    row.mesh_id = mesh_id
 
     db.add(
         MarketplaceEscrow(
@@ -670,6 +712,21 @@ async def rent_node(
         )
     )
     db.commit()
+    escrow_event_id = publish_marketplace_escrow_event(
+        transition="held",
+        source_agent="maas-marketplace",
+        escrow_id=escrow_id,
+        listing_id=listing_id,
+        renter_id=renter_id,
+        actor_id=renter_id,
+        currency=listing.get("currency"),
+        status="held",
+        node_id=listing.get("node_id"),
+        mesh_id=mesh_id,
+        **current_user_event_identity,
+        amount_cents=amount_cents,
+        amount_token=amount_token,
+    )
 
     listing["status"] = "escrow"
     listing["renter_id"] = renter_id
@@ -695,6 +752,7 @@ async def rent_node(
                 "amount_cents": amount_cents,
                 "amount_token": amount_token,
                 "currency": listing.get("currency"),
+                "event_id": escrow_event_id,
             },
             status_code=200,
         )
@@ -726,6 +784,7 @@ async def release_escrow(
 ):
     """Manually release escrow. Usually triggered by heartbeat."""
     requester_id = _current_user_id(current_user)
+    current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
     if normalized_idem_key:
@@ -765,21 +824,74 @@ async def release_escrow(
             except Exception as exc:
                 logger.error("Escrow release bridge error for %s: %s", escrow.id, exc)
                 record_escrow_failure("bridge_error")
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow.id,
+                    listing_id=listing_id,
+                    renter_id=escrow.renter_id,
+                    actor_id=requester_id,
+                    currency=escrow.currency,
+                    status="held",
+                    node_id=getattr(row, "node_id", None),
+                    mesh_id=getattr(row, "mesh_id", None),
+                    **current_user_event_identity,
+                    amount_cents=escrow.amount_cents,
+                    amount_token=escrow.amount_token,
+                    reason="release_bridge_error",
+                )
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
             if not released:
                 record_escrow_failure("bridge_rejected")
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow.id,
+                    listing_id=listing_id,
+                    renter_id=escrow.renter_id,
+                    actor_id=requester_id,
+                    currency=escrow.currency,
+                    status="held",
+                    node_id=getattr(row, "node_id", None),
+                    mesh_id=getattr(row, "mesh_id", None),
+                    **current_user_event_identity,
+                    amount_cents=escrow.amount_cents,
+                    amount_token=escrow.amount_token,
+                    reason="release_bridge_rejected",
+                )
                 raise HTTPException(status_code=502, detail="Failed to release X0T escrow")
 
         escrow.status = "released"
         escrow.released_at = datetime.fromisoformat(released_at)
         row.status = "rented"
         db.commit()
+        escrow_event_id = publish_marketplace_escrow_event(
+            transition="released",
+            source_agent="maas-marketplace",
+            escrow_id=escrow.id,
+            listing_id=listing_id,
+            renter_id=escrow.renter_id,
+            actor_id=requester_id,
+            currency=escrow.currency,
+            status="released",
+            node_id=getattr(row, "node_id", None),
+            mesh_id=getattr(row, "mesh_id", None),
+            **current_user_event_identity,
+            amount_cents=escrow.amount_cents,
+            amount_token=escrow.amount_token,
+            reason="manual_release",
+        )
 
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_ESCROW_RELEASED",
                 user_id=requester_id,
-                payload={"listing_id": listing_id, "escrow_id": escrow.id if escrow else None, "manual": True},
+                payload={
+                    "listing_id": listing_id,
+                    "escrow_id": escrow.id if escrow else None,
+                    "manual": True,
+                    "event_id": escrow_event_id,
+                },
                 status_code=200,
             )
         except Exception as exc:
@@ -804,6 +916,7 @@ async def refund_escrow(
 ):
     """Refund escrow if node health fails or rental cancelled before heartbeat."""
     requester_id = _current_user_id(current_user)
+    current_user_event_identity = _current_user_event_identity(current_user)
     cache_key = None
     normalized_idem_key = _normalize_idempotency_key(idempotency_key)
     if normalized_idem_key:
@@ -841,9 +954,41 @@ async def refund_escrow(
             except Exception as exc:
                 logger.error("Escrow refund bridge error for %s: %s", escrow.id, exc)
                 record_escrow_failure("bridge_error")
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow.id,
+                    listing_id=listing_id,
+                    renter_id=escrow.renter_id,
+                    actor_id=requester_id,
+                    currency=escrow.currency,
+                    status="held",
+                    node_id=getattr(row, "node_id", None),
+                    mesh_id=getattr(row, "mesh_id", None),
+                    **current_user_event_identity,
+                    amount_cents=escrow.amount_cents,
+                    amount_token=escrow.amount_token,
+                    reason="refund_bridge_error",
+                )
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
             if not refunded:
                 record_escrow_failure("bridge_rejected")
+                publish_marketplace_escrow_event(
+                    transition="blocked",
+                    source_agent="maas-marketplace",
+                    escrow_id=escrow.id,
+                    listing_id=listing_id,
+                    renter_id=escrow.renter_id,
+                    actor_id=requester_id,
+                    currency=escrow.currency,
+                    status="held",
+                    node_id=getattr(row, "node_id", None),
+                    mesh_id=getattr(row, "mesh_id", None),
+                    **current_user_event_identity,
+                    amount_cents=escrow.amount_cents,
+                    amount_token=escrow.amount_token,
+                    reason="refund_bridge_rejected",
+                )
                 raise HTTPException(status_code=502, detail="Failed to refund X0T escrow")
 
         escrow.status = "refunded"
@@ -851,12 +996,32 @@ async def refund_escrow(
         row.renter_id = None
         row.mesh_id = None
         db.commit()
+        escrow_event_id = publish_marketplace_escrow_event(
+            transition="refunded",
+            source_agent="maas-marketplace",
+            escrow_id=escrow.id,
+            listing_id=listing_id,
+            renter_id=escrow.renter_id,
+            actor_id=requester_id,
+            currency=escrow.currency,
+            status="refunded",
+            node_id=getattr(row, "node_id", None),
+            mesh_id=getattr(row, "mesh_id", None),
+            **current_user_event_identity,
+            amount_cents=escrow.amount_cents,
+            amount_token=escrow.amount_token,
+            reason="manual_refund",
+        )
 
         try:
             record_audit_log(
                 db, None, "MARKETPLACE_ESCROW_REFUNDED",
                 user_id=requester_id,
-                payload={"listing_id": listing_id, "escrow_id": escrow.id if escrow else None},
+                payload={
+                    "listing_id": listing_id,
+                    "escrow_id": escrow.id if escrow else None,
+                    "event_id": escrow_event_id,
+                },
                 status_code=200,
             )
         except Exception as exc:

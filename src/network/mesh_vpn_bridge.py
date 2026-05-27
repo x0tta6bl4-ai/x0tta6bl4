@@ -12,16 +12,19 @@ import socket
 import time
 from decimal import Decimal
 
+from src.coordination.events import get_event_bus
 from src.crypto.pqc_crypto import PQCCrypto
 from src.dao.token_rewards import TokenRewards
 # Import MeshNode from our existing implementation
 from src.network.mesh_node import MeshNode, MeshNodeConfig
 from src.network.mesh_router import MeshConnection, MeshRouter
+from src.services.service_event_identity import service_event_identity
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
+_SERVICE_AGENT = "mesh-vpn-bridge"
 
 
 class MeshVPNBridge:
@@ -98,7 +101,23 @@ class MeshVPNBridge:
         if not contract_address and os.getenv("ENVIRONMENT") != "production":
             # Development placeholder only
             contract_address = os.getenv("TOKEN_CONTRACT_ADDRESS", "")
-        self.rewards = TokenRewards(contract_address=contract_address)
+        self.reward_identity = service_event_identity(service_name=_SERVICE_AGENT)
+        self.reward_event_project_root = os.getenv("X0TTA6BL4_EVENT_PROJECT_ROOT", ".")
+        try:
+            reward_event_bus = get_event_bus(self.reward_event_project_root)
+        except Exception as exc:
+            logger.error("Failed to initialize reward EventBus for mesh VPN bridge: %s", exc)
+            reward_event_bus = None
+        self.rewards = TokenRewards(
+            contract_address=contract_address,
+            event_bus=reward_event_bus,
+            event_project_root=self.reward_event_project_root,
+            source_agent=_SERVICE_AGENT,
+            node_id=self.node_id,
+            spiffe_id=self.reward_identity["spiffe_id"],
+            did=self.reward_identity["did"],
+            wallet_address=self.reward_identity["wallet_address"],
+        )
 
         self.packets_relayed = 0
         self.bytes_relayed = 0
@@ -124,6 +143,9 @@ class MeshVPNBridge:
                     )
         except Exception as e:
             logger.error(f"Failed to load stats: {e}")
+
+    def _reward_address(self):
+        return self.reward_identity["wallet_address"] or self.mesh.config.node_id
 
     async def _stats_loop(self):
         import json
@@ -395,7 +417,7 @@ class MeshVPNBridge:
 
                 # Reward logic: every 100 packets (for demo speed) or 10MB
                 if self.packets_relayed % 100 == 0:
-                    self.rewards.reward_relay(self.mesh.config.node_id, 100)
+                    self.rewards.reward_relay(self._reward_address(), 100)
 
                 # PQC encryption for inter-node traffic
                 if peer_id and self.router.pqc and self.router.pqc.has_tunnel(peer_id):
