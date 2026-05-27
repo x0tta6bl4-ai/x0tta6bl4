@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,12 +21,14 @@ def _make_escrow(
     listing_id: str = "list-1",
     renter_id: str = "user-42",
     status: str = "held",
+    currency: str = "USD",
 ) -> MagicMock:
     esc = MagicMock()
     esc.id = escrow_id
     esc.listing_id = listing_id
     esc.renter_id = renter_id
     esc.status = status
+    esc.currency = currency
     return esc
 
 
@@ -59,6 +61,12 @@ def _setup_db(mock_db: MagicMock, escrows, listing=None):
 _MOD = "src.services.marketplace_janitor"
 
 
+@pytest.fixture(autouse=True)
+def _patch_marketplace_event_publish():
+    with patch(f"{_MOD}.publish_marketplace_escrow_event", return_value="evt-janitor") as publisher:
+        yield publisher
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -84,12 +92,15 @@ async def test_no_expired_escrows_sleeps_and_exits():
 
 
 @pytest.mark.asyncio
-async def test_single_expired_escrow_with_listing():
+async def test_single_expired_escrow_with_listing(monkeypatch, _patch_marketplace_event_publish):
     """Expired escrow refunded and listing set available."""
     mock_db = MagicMock()
     escrow = _make_escrow()
     listing = _make_listing()
     _setup_db(mock_db, escrows=[escrow], listing=listing)
+    monkeypatch.setenv("MAAS_JANITOR_SPIFFE_ID", "spiffe://mesh.x0tta6bl4.mesh/workload/janitor")
+    monkeypatch.setenv("MAAS_JANITOR_DID", "did:mesh:pqc:janitor")
+    monkeypatch.setenv("MAAS_JANITOR_WALLET_ADDRESS", "0xdddddddddddddddddddddddddddddddddddddddd")
 
     with (
         patch(f"{_MOD}.SessionLocal", return_value=mock_db),
@@ -116,6 +127,11 @@ async def test_single_expired_escrow_with_listing():
     assert _kwargs["user_id"] == "user-42"
     assert _kwargs["payload"]["escrow_id"] == "esc-1"
     assert _kwargs["payload"]["reason"] == "timeout_no_heartbeat"
+    _patch_marketplace_event_publish.assert_called_once()
+    event_kwargs = _patch_marketplace_event_publish.call_args.kwargs
+    assert event_kwargs["spiffe_id"] == "spiffe://mesh.x0tta6bl4.mesh/workload/janitor"
+    assert event_kwargs["did"] == "did:mesh:pqc:janitor"
+    assert event_kwargs["wallet_address"] == "0xdddddddddddddddddddddddddddddddddddddddd"
 
 
 @pytest.mark.asyncio
@@ -245,3 +261,69 @@ async def test_audit_log_status_code_200():
 
     _, kwargs = mock_audit.call_args
     assert kwargs["status_code"] == 200
+
+
+@pytest.mark.asyncio
+async def test_x0t_refund_rejection_keeps_expired_escrow_held(_patch_marketplace_event_publish):
+    """X0T expiry must not update local state until on-chain refund succeeds."""
+    mock_db = MagicMock()
+    escrow = _make_escrow(currency="X0T")
+    listing = _make_listing(status="escrow")
+    bridge = MagicMock()
+    bridge.refund_escrow_on_chain = AsyncMock(return_value=False)
+    _setup_db(mock_db, escrows=[escrow], listing=listing)
+
+    with (
+        patch(f"{_MOD}.SessionLocal", return_value=mock_db),
+        patch(f"{_MOD}._get_token_bridge", return_value=bridge),
+        patch(f"{_MOD}.record_audit_log") as mock_audit,
+        patch(f"{_MOD}.asyncio.sleep", side_effect=_StopLoop),
+    ):
+        from src.services.marketplace_janitor import marketplace_janitor_loop
+
+        with pytest.raises(_StopLoop):
+            await marketplace_janitor_loop()
+
+    bridge.refund_escrow_on_chain.assert_awaited_once_with("esc-1")
+    assert escrow.status == "held"
+    assert listing.status == "escrow"
+    assert listing.renter_id == "user-42"
+    assert listing.mesh_id == "mesh-1"
+    mock_db.commit.assert_not_called()
+    mock_audit.assert_not_called()
+    _patch_marketplace_event_publish.assert_called_once()
+    assert _patch_marketplace_event_publish.call_args.kwargs["transition"] == "blocked"
+    assert _patch_marketplace_event_publish.call_args.kwargs["reason"] == "refund_bridge_rejected"
+
+
+@pytest.mark.asyncio
+async def test_x0t_refund_exception_keeps_expired_escrow_held(_patch_marketplace_event_publish):
+    """Bridge errors during X0T expiry leave escrow held for retry."""
+    mock_db = MagicMock()
+    escrow = _make_escrow(escrow_id="esc-error", currency="X0T")
+    listing = _make_listing(status="escrow")
+    bridge = MagicMock()
+    bridge.refund_escrow_on_chain = AsyncMock(side_effect=RuntimeError("bridge down"))
+    _setup_db(mock_db, escrows=[escrow], listing=listing)
+
+    with (
+        patch(f"{_MOD}.SessionLocal", return_value=mock_db),
+        patch(f"{_MOD}._get_token_bridge", return_value=bridge),
+        patch(f"{_MOD}.record_audit_log") as mock_audit,
+        patch(f"{_MOD}.asyncio.sleep", side_effect=_StopLoop),
+    ):
+        from src.services.marketplace_janitor import marketplace_janitor_loop
+
+        with pytest.raises(_StopLoop):
+            await marketplace_janitor_loop()
+
+    bridge.refund_escrow_on_chain.assert_awaited_once_with("esc-error")
+    assert escrow.status == "held"
+    assert listing.status == "escrow"
+    assert listing.renter_id == "user-42"
+    assert listing.mesh_id == "mesh-1"
+    mock_db.commit.assert_not_called()
+    mock_audit.assert_not_called()
+    _patch_marketplace_event_publish.assert_called_once()
+    assert _patch_marketplace_event_publish.call_args.kwargs["transition"] == "blocked"
+    assert _patch_marketplace_event_publish.call_args.kwargs["reason"] == "refund_bridge_error"

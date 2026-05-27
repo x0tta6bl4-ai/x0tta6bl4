@@ -9,6 +9,9 @@ sys.path.append(os.getcwd())
 
 from src.core.consciousness import ConsciousnessEngine
 from src.core.mape_k_loop import MAPEKLoop
+from src.mesh.network_manager import MeshNetworkManager
+from src.monitoring.prometheus_client import PrometheusExporter
+from src.security.zero_trust import ZeroTrustValidator
 from src.swarm.parl.controller import PARLController
 
 # Configure logging
@@ -24,6 +27,21 @@ stop_event = asyncio.Event()
 def signal_handler(sig, frame):
     logger.info("🛑 Received termination signal. Shutting down...")
     stop_event.set()
+
+
+def build_mapek_dependencies(node_id=None):
+    """Build concrete dependencies required by the MAPE-K loop."""
+    mesh_node_id = (
+        node_id
+        or os.environ.get("MVP_NODE_ID")
+        or os.environ.get("X0TTA6BL4_NODE_ID")
+        or "local"
+    )
+    return {
+        "mesh": MeshNetworkManager(node_id=mesh_node_id),
+        "prometheus": PrometheusExporter(),
+        "zero_trust": ZeroTrustValidator(),
+    }
 
 
 async def check_vpn_service():
@@ -97,33 +115,11 @@ async def main():
     )  # Lightweight for MVP
     await parl_controller.initialize()
 
-    # 4. Initialize Core Mock Dependencies for Loop
-    # In a real app, these would be real singletons.
-    from unittest.mock import MagicMock
-
-    # Define async mock functions
-    async def mock_return_empty(*args, **kwargs):
-        return {}
-
-    async def mock_return_true(*args, **kwargs):
-        return True
-
-    async def mock_return_zero(*args, **kwargs):
-        return 0
-
-    async def mock_return_none(*args, **kwargs):
-        return None
-
-    mesh = MagicMock()  # Placeholder for MeshManager
-    mesh.get_statistics.side_effect = mock_return_empty
-    mesh.set_route_preference.side_effect = mock_return_true
-    mesh.trigger_aggressive_healing.side_effect = mock_return_zero
-    mesh.trigger_preemptive_checks.side_effect = mock_return_none
-
-    prometheus = MagicMock()  # Placeholder
-
-    zero_trust = MagicMock()  # Placeholder
-    zero_trust.get_validation_stats.return_value = {}  # Sync method (standard mock)
+    # 4. Initialize Core Dependencies for Loop
+    dependencies = build_mapek_dependencies()
+    mesh = dependencies["mesh"]
+    prometheus = dependencies["prometheus"]
+    zero_trust = dependencies["zero_trust"]
 
     # 5. Start MAPE-K Loop
     logger.info("🌀 Starting MAPE-K Autonomic Loop...")

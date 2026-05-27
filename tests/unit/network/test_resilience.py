@@ -439,6 +439,38 @@ class TestWANOverlayPQC:
         assert result is True
         assert session.bytes_sent > 0
         assert session.packets_sent == 1
+
+    def test_packet_encryption_uses_authenticated_ciphertext(self, overlay):
+        """Packet encryption should reject tampering, not just obfuscate bytes."""
+        from src.network.resilience.wan_overlay_pqc import TunnelSession
+
+        key = b"k" * 32
+        sender = TunnelSession(tunnel_id="test_tunnel", tx_key=key)
+        receiver = TunnelSession(tunnel_id="test_tunnel", rx_key=key)
+        plaintext = b"secret route payload"
+
+        packet = overlay._encrypt_packet(sender, plaintext)
+
+        assert plaintext not in packet
+        assert overlay._decrypt_packet(receiver, packet) == plaintext
+
+        tampered = bytearray(packet)
+        tampered[-1] ^= 0x01
+        fresh_receiver = TunnelSession(tunnel_id="test_tunnel", rx_key=key)
+
+        assert overlay._decrypt_packet(fresh_receiver, bytes(tampered)) is None
+
+    def test_packet_decryption_rejects_replay(self, overlay):
+        """Packet counters should prevent replay of an already accepted packet."""
+        from src.network.resilience.wan_overlay_pqc import TunnelSession
+
+        key = b"k" * 32
+        sender = TunnelSession(tunnel_id="test_tunnel", tx_key=key)
+        receiver = TunnelSession(tunnel_id="test_tunnel", rx_key=key)
+        packet = overlay._encrypt_packet(sender, b"once")
+
+        assert overlay._decrypt_packet(receiver, packet) == b"once"
+        assert overlay._decrypt_packet(receiver, packet) is None
     
     @pytest.mark.asyncio
     async def test_close_tunnel(self, overlay):

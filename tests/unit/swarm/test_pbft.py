@@ -478,10 +478,11 @@ class TestPBFTNodeViewChange:
         assert pbft_node.view == old_view + 1
         assert pbft_node.primary_id != old_primary
         
-        # Should send new_view message
+        # Should send view_change message; the new primary broadcasts new_view after quorum.
         assert len(messages_sent) == 3  # To all peers
         for target, msg in messages_sent:
-            assert msg["type"] == "new_view"
+            assert msg["type"] == "view_change"
+            assert msg["view"] == old_view + 1
     
     def test_handle_new_view(self):
         """Test handling new_view message."""
@@ -498,10 +499,64 @@ class TestPBFTNodeViewChange:
             "view": initial_view + 1,
             "sequence": 0,
             "digest": "",
-            "sender_id": "node-1",
+            "sender_id": "node-2",
         })
         
         assert node.view == initial_view + 1
+
+    def test_new_primary_broadcasts_new_view_after_view_change_quorum(self):
+        """Test that new primary needs quorum before broadcasting new_view."""
+        node = PBFTNode(
+            node_id="node-2",
+            peers={"node-1", "node-3", "node-4"},
+            f=1,
+        )
+        messages_sent = []
+        node.set_callbacks(send_message=lambda t, m: messages_sent.append((t, m)))
+
+        for sender in ["node-1", "node-3"]:
+            node.receive_message({
+                "type": "view_change",
+                "view": 1,
+                "sequence": 0,
+                "digest": "",
+                "sender_id": sender,
+            })
+        assert messages_sent == []
+
+        node.receive_message({
+            "type": "view_change",
+            "view": 1,
+            "sequence": 0,
+            "digest": "",
+            "sender_id": "node-4",
+        })
+
+        assert len(messages_sent) == 3
+        assert all(msg["type"] == "new_view" for _, msg in messages_sent)
+        assert messages_sent[0][1]["request"]["view_change_senders"] == [
+            "node-1",
+            "node-3",
+            "node-4",
+        ]
+
+    def test_new_view_from_non_primary_is_ignored(self):
+        """Test that replicas reject new_view from the wrong sender."""
+        node = PBFTNode(
+            node_id="node-3",
+            peers={"node-1", "node-2", "node-4"},
+            f=1,
+        )
+
+        node.receive_message({
+            "type": "new_view",
+            "view": 1,
+            "sequence": 0,
+            "digest": "",
+            "sender_id": "node-1",
+        })
+
+        assert node.view == 0
 
 
 # ==================== PBFT Consensus Flow Tests ====================

@@ -35,6 +35,7 @@ from src.llm.providers.base import (
     GenerationResult,
     ChatMessage,
     EmbeddingResult,
+    ProviderCapabilityError,
 )
 from src.llm.providers.ollama import OllamaProvider
 from src.llm.providers.vllm import VLLMProvider
@@ -70,6 +71,7 @@ __all__ = [
     "GenerationResult",
     "ChatMessage",
     "EmbeddingResult",
+    "ProviderCapabilityError",
     "OllamaProvider",
     "VLLMProvider",
     "OpenAICompatibleProvider",

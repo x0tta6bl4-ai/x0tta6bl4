@@ -7,6 +7,7 @@ Phase 2: Drift Detection ✅ COMPLETE (Jan 7, 2026)
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -151,6 +152,116 @@ class LedgerDriftDetector:
         logger.info(f"📊 Построен граф: {len(nodes)} узлов, {len(edges)} рёбер")
 
         return {"nodes": nodes, "edges": edges, "sections": sections}
+
+    def _ledger_node_features(
+        self,
+        node: Dict[str, Any],
+        graph: Dict[str, Any],
+        all_drifts: List[DriftResult],
+    ) -> Dict[str, float]:
+        title = str(node.get("title", ""))
+        node_id = node.get("id")
+        in_degree = len([e for e in graph["edges"] if e["target"] == node_id])
+        out_degree = len([e for e in graph["edges"] if e["source"] == node_id])
+        section_content = self._section_content(title, graph)
+        drift_count = len([d for d in all_drifts if d.section == title])
+
+        return {
+            "content_length": float(node.get("content_length", 0)) / 1000.0,
+            "title_length": float(len(title)) / 100.0,
+            "in_degree": float(in_degree) / 10.0,
+            "out_degree": float(out_degree) / 10.0,
+            "last_update_age": self._section_last_update_age(section_content),
+            "drift_count": float(drift_count) / 10.0,
+            "complexity": self._section_complexity_score(
+                section_content,
+                in_degree,
+                out_degree,
+            ),
+            "importance": self._section_importance_score(
+                title,
+                in_degree,
+                out_degree,
+                drift_count,
+            ),
+        }
+
+    @staticmethod
+    def _section_content(title: str, graph: Dict[str, Any]) -> str:
+        for section in graph.get("sections", []):
+            if section.get("title") == title:
+                return str(section.get("content", ""))
+        return ""
+
+    def _section_last_update_age(self, section_content: str) -> float:
+        dates = []
+        for match in re.findall(r"\b20\d{2}-\d{2}-\d{2}(?:[T ][0-9:.+-]+Z?)?", section_content):
+            parsed = self._parse_datetime(match)
+            if parsed is not None:
+                dates.append(parsed)
+
+        if dates:
+            reference = max(dates)
+        elif self.continuity_file.exists():
+            reference = datetime.utcfromtimestamp(self.continuity_file.stat().st_mtime)
+        else:
+            return 1.0
+
+        age_days = max(0.0, (datetime.utcnow() - reference).total_seconds() / 86400.0)
+        return min(1.0, age_days / 365.0)
+
+    @staticmethod
+    def _parse_datetime(raw_value: str) -> Optional[datetime]:
+        try:
+            parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                parsed = parsed.astimezone().replace(tzinfo=None)
+            return parsed
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _section_complexity_score(
+        section_content: str,
+        in_degree: int,
+        out_degree: int,
+    ) -> float:
+        content_length = len(section_content)
+        line_count = section_content.count("\n") + (1 if section_content else 0)
+        heading_count = section_content.count("### ")
+        score = (
+            content_length / 5000.0
+            + line_count / 200.0
+            + heading_count / 20.0
+            + (in_degree + out_degree) / 20.0
+        )
+        return min(1.0, score)
+
+    @staticmethod
+    def _section_importance_score(
+        title: str,
+        in_degree: int,
+        out_degree: int,
+        drift_count: int,
+    ) -> float:
+        important_keywords = (
+            "state",
+            "now",
+            "next",
+            "done",
+            "metric",
+            "security",
+            "production",
+            "evidence",
+        )
+        keyword_bonus = 0.2 if any(k in title.lower() for k in important_keywords) else 0.0
+        score = (
+            0.05
+            + keyword_bonus
+            + min(0.45, (in_degree + out_degree) / 10.0)
+            + min(0.30, drift_count / 3.0)
+        )
+        return min(1.0, score)
 
     async def detect_code_drift(self) -> List[DriftResult]:
         """
@@ -522,48 +633,11 @@ class LedgerDriftDetector:
                         # Преобразование графа в формат для GraphSAGE
                         # Для каждого узла создаем features и neighbors
                         for node in graph["nodes"]:
-                            # Создаем node features в формате Dict[str, float] для GraphSAGE
-                            # GraphSAGE ожидает 8D features (RSSI, SNR, loss rate, etc.)
-                            # Адаптируем под ledger граф: используем метрики узла
-                            node_features = {
-                                "content_length": float(node.get("content_length", 0))
-                                / 1000.0,  # Нормализация
-                                "title_length": float(len(node.get("title", "")))
-                                / 100.0,
-                                "in_degree": float(
-                                    len(
-                                        [
-                                            e
-                                            for e in graph["edges"]
-                                            if e["target"] == node["id"]
-                                        ]
-                                    )
-                                )
-                                / 10.0,
-                                "out_degree": float(
-                                    len(
-                                        [
-                                            e
-                                            for e in graph["edges"]
-                                            if e["source"] == node["id"]
-                                        ]
-                                    )
-                                )
-                                / 10.0,
-                                "last_update_age": 0.5,  # Placeholder - можно добавить реальную дату
-                                "drift_count": float(
-                                    len(
-                                        [
-                                            d
-                                            for d in all_drifts
-                                            if d.section == node.get("title", "")
-                                        ]
-                                    )
-                                )
-                                / 10.0,
-                                "complexity": 0.3,  # Placeholder
-                                "importance": 0.5,  # Placeholder
-                            }
+                            node_features = self._ledger_node_features(
+                                node,
+                                graph,
+                                all_drifts,
+                            )
 
                             # Находим neighbors (соседние узлы через edges)
                             neighbors = []
@@ -578,54 +652,11 @@ class LedgerDriftDetector:
                                         None,
                                     )
                                     if neighbor_node:
-                                        neighbor_features = {
-                                            "content_length": float(
-                                                neighbor_node.get("content_length", 0)
-                                            )
-                                            / 1000.0,
-                                            "title_length": float(
-                                                len(neighbor_node.get("title", ""))
-                                            )
-                                            / 100.0,
-                                            "in_degree": float(
-                                                len(
-                                                    [
-                                                        e
-                                                        for e in graph["edges"]
-                                                        if e["target"]
-                                                        == neighbor_node["id"]
-                                                    ]
-                                                )
-                                            )
-                                            / 10.0,
-                                            "out_degree": float(
-                                                len(
-                                                    [
-                                                        e
-                                                        for e in graph["edges"]
-                                                        if e["source"]
-                                                        == neighbor_node["id"]
-                                                    ]
-                                                )
-                                            )
-                                            / 10.0,
-                                            "last_update_age": 0.5,
-                                            "drift_count": float(
-                                                len(
-                                                    [
-                                                        d
-                                                        for d in all_drifts
-                                                        if d.section
-                                                        == neighbor_node.get(
-                                                            "title", ""
-                                                        )
-                                                    ]
-                                                )
-                                            )
-                                            / 10.0,
-                                            "complexity": 0.3,
-                                            "importance": 0.5,
-                                        }
+                                        neighbor_features = self._ledger_node_features(
+                                            neighbor_node,
+                                            graph,
+                                            all_drifts,
+                                        )
                                         neighbors.append(
                                             (
                                                 str(neighbor_node["id"]),

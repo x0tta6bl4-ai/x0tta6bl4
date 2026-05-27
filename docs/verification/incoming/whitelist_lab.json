@@ -1,0 +1,59 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z/whitelist_lab-gap-record.json",
+      "role": "evidence_gap_record",
+      "sha256": "e70f295a68ee9fc17dd16ab295d71e075ca5a90b994516771945f8c7d9db736a"
+    }
+  ],
+  "bundle": "docs/verification/incoming/artifacts/ghost-pulse-incoming-gap-candidates-20260522T203414Z",
+  "claim_boundary": {
+    "claim_verified": false,
+    "note": "Required external evidence is absent; proof gate must reject this claim."
+  },
+  "claim_id": "whitelist_lab",
+  "commands": [
+    {
+      "args": [
+        "/usr/bin/python3",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "--claim",
+        "whitelist_lab"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "missing external input: authorized provider or lab identity",
+    "missing external input: provider traffic-management profile",
+    "missing external input: third-party baseline capture",
+    "missing external input: whitelist behavior conclusion"
+  ],
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "authorized_provider_or_lab": false,
+    "provider_profile": "",
+    "third_party_baseline_captured": false,
+    "whitelist_behavior_verified": false
+  },
+  "missing_inputs": [
+    "authorized provider or lab identity",
+    "provider traffic-management profile",
+    "third-party baseline capture",
+    "whitelist behavior conclusion"
+  ],
+  "mode": "EXTERNAL_EVIDENCE_GAP_RECORD",
+  "observed_at_utc": "2026-05-22T20:34:14.045394+00:00",
+  "required_artifact_roles": [
+    "provider_or_lab_authorization",
+    "provider_profile",
+    "third_party_baseline_capture",
+    "whitelist_conclusion"
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": false,
+  "title": "Authorized whitelist-behavior lab result"
+}

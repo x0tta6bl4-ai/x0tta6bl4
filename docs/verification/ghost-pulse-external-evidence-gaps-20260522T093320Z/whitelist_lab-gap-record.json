@@ -1,0 +1,26 @@
+{
+  "claim_id": "whitelist_lab",
+  "gap_artifact_role": "evidence_gap_record",
+  "measurements": {
+    "authorized_provider_or_lab": false,
+    "provider_profile": "",
+    "third_party_baseline_captured": false,
+    "whitelist_behavior_verified": false
+  },
+  "missing_inputs": [
+    "authorized provider or lab identity",
+    "provider traffic-management profile",
+    "third-party baseline capture",
+    "whitelist behavior conclusion"
+  ],
+  "observed_at_utc": "2026-05-22T09:33:20.933902+00:00",
+  "recorded_by": "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+  "required_artifact_roles": [
+    "provider_or_lab_authorization",
+    "provider_profile",
+    "third_party_baseline_capture",
+    "whitelist_conclusion"
+  ],
+  "status": "INCOMPLETE",
+  "title": "Authorized whitelist-behavior lab result"
+}

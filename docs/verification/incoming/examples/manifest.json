@@ -1,0 +1,571 @@
+{
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "note": "Incoming examples only; no proof-gate claim is verified by this manifest.",
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "collection_tasks": [
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "kernel_attach",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/kernel_attach",
+      "candidate": "docs/verification/incoming/kernel_attach.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "kernel_attach",
+      "example": "docs/verification/incoming/examples/kernel_attach.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "kernel_commands",
+        "kernel_measurements",
+        "kernel_interface_scan",
+        "kernel_candidate_audit"
+      ],
+      "required_commands": [
+        [
+          "uname",
+          "-r"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show"
+        ],
+        [
+          "ip",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "ip",
+          "-d",
+          "-j",
+          "link",
+          "show",
+          "<interface>"
+        ],
+        [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        [
+          "bpftool",
+          "net"
+        ],
+        [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ],
+        [
+          "bpftool",
+          "map",
+          "dump",
+          "name",
+          "pulse_stats"
+        ]
+      ],
+      "required_measurements": {
+        "bpftool_net_contains_interface": true,
+        "bpftool_prog_show_contains_pulse": true,
+        "interface": "nonempty",
+        "map_counter_delta_packets": "positive_int",
+        "xdp_attached": true
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "XDP attach and map-counter evidence",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "kernel_attach",
+        "--candidate",
+        "docs/verification/incoming/kernel_attach.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "packet_capture",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/packet_capture",
+      "candidate": "docs/verification/incoming/packet_capture.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "packet_capture",
+      "example": "docs/verification/incoming/examples/packet_capture.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "packet_capture",
+        "--candidate",
+        "docs/verification/incoming/packet_capture.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "sender_pcap",
+        "receiver_pcap",
+        "sender_events",
+        "receiver_events",
+        "capture_summary"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "receiver_pcap_packets": "positive_int",
+        "receiver_pcap_sha256": "sha256",
+        "sender_pcap_packets": "positive_int",
+        "sender_pcap_sha256": "sha256"
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Sender and receiver packet captures",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "packet_capture",
+        "--candidate",
+        "docs/verification/incoming/packet_capture.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "baseline_timing_comparison",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/baseline_timing_comparison",
+      "candidate": "docs/verification/incoming/baseline_timing_comparison.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "baseline_timing_comparison",
+      "example": "docs/verification/incoming/examples/baseline_timing_comparison.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "baseline_timing_comparison",
+        "--candidate",
+        "docs/verification/incoming/baseline_timing_comparison.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "baseline_events",
+        "pulse_events",
+        "timing_comparison"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "baseline_digest": "sha256",
+        "comparison_passed": true,
+        "pulse_digest": "sha256",
+        "sample_count": "positive_int"
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Baseline-vs-pulse timing comparison",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "baseline_timing_comparison",
+        "--candidate",
+        "docs/verification/incoming/baseline_timing_comparison.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "dpi_lab",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/dpi_lab",
+      "candidate": "docs/verification/incoming/dpi_lab.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "dpi_lab",
+      "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "dpi_lab",
+        "--candidate",
+        "docs/verification/incoming/dpi_lab.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "lab_scope",
+        "baseline_result",
+        "pulse_result",
+        "lab_conclusion"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "authorized_lab": true,
+        "baseline_detected_or_blocked": true,
+        "dpi_bypass_verified": true,
+        "pulse_result_recorded": true
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Authorized DPI lab result",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "dpi_lab",
+        "--candidate",
+        "docs/verification/incoming/dpi_lab.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "whitelist_lab",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/whitelist_lab",
+      "candidate": "docs/verification/incoming/whitelist_lab.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "whitelist_lab",
+      "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "whitelist_lab",
+        "--candidate",
+        "docs/verification/incoming/whitelist_lab.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "provider_or_lab_authorization",
+        "provider_profile",
+        "third_party_baseline_capture",
+        "whitelist_conclusion"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "authorized_provider_or_lab": true,
+        "provider_profile": "nonempty",
+        "third_party_baseline_captured": true,
+        "whitelist_behavior_verified": true
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Authorized whitelist-behavior lab result",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "whitelist_lab",
+        "--candidate",
+        "docs/verification/incoming/whitelist_lab.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "security_review",
+          "--require-pass",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/security_review",
+      "candidate": "docs/verification/incoming/security_review.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "security_review",
+      "example": "docs/verification/incoming/examples/security_review.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "security_review",
+        "--candidate",
+        "docs/verification/incoming/security_review.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "reviewer_identity",
+        "review_scope",
+        "findings_report"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "open_critical_findings": 0,
+        "open_high_findings": 0,
+        "reviewer": "nonempty",
+        "scope_includes_pulse_transport": true
+      },
+      "required_references": [],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Security review with no open high-severity findings",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "security_review",
+        "--candidate",
+        "docs/verification/incoming/security_review.json",
+        "--write",
+        "--json"
+      ]
+    },
+    {
+      "acceptance_commands": [
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "--claim",
+          "production_readiness",
+          "--require-pass",
+          "--json"
+        ],
+        [
+          "python3",
+          "scripts/ops/verify_ghost_pulse_proof_gate.py",
+          "--require-all-proven",
+          "--json"
+        ]
+      ],
+      "artifact_root": "docs/verification/incoming/artifacts/production_readiness",
+      "candidate": "docs/verification/incoming/production_readiness.json",
+      "claim_boundary": "Collection task only; it records required real evidence and does not promote proof-gate claims.",
+      "claim_id": "production_readiness",
+      "example": "docs/verification/incoming/examples/production_readiness.example.json",
+      "read_only_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "production_readiness",
+        "--candidate",
+        "docs/verification/incoming/production_readiness.json",
+        "--require-ready",
+        "--json"
+      ],
+      "required_artifact_roles": [
+        "operator_approval",
+        "rollback_plan",
+        "monitoring_plan",
+        "prior_claim_references"
+      ],
+      "required_commands": [],
+      "required_measurements": {
+        "all_prior_claims_referenced": true,
+        "monitoring_plan_verified": true,
+        "operator_approval_recorded": true,
+        "production_ready": "bool_true",
+        "rollback_plan_verified": true
+      },
+      "required_references": [
+        "kernel_attach",
+        "packet_capture",
+        "baseline_timing_comparison",
+        "dpi_lab",
+        "whitelist_lab",
+        "security_review"
+      ],
+      "status": "WAITING_FOR_REAL_EXTERNAL_EVIDENCE",
+      "title": "Production readiness approval and rollback evidence",
+      "write_import_command": [
+        "python3",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "--claim",
+        "production_readiness",
+        "--candidate",
+        "docs/verification/incoming/production_readiness.json",
+        "--write",
+        "--json"
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "candidate": "docs/verification/incoming/kernel_attach.json",
+      "claim_id": "kernel_attach",
+      "example": "docs/verification/incoming/examples/kernel_attach.example.json",
+      "sha256": "d7baa8e08fc723c15b73381e8c1236be4e361b3f416a3bef7fc440cdddc97c1a"
+    },
+    {
+      "candidate": "docs/verification/incoming/packet_capture.json",
+      "claim_id": "packet_capture",
+      "example": "docs/verification/incoming/examples/packet_capture.example.json",
+      "sha256": "955f219cce74994eb78672a3a4ee3e31d941184a848743f3da65ffb9090cc75d"
+    },
+    {
+      "candidate": "docs/verification/incoming/baseline_timing_comparison.json",
+      "claim_id": "baseline_timing_comparison",
+      "example": "docs/verification/incoming/examples/baseline_timing_comparison.example.json",
+      "sha256": "8a550423fc36b16e4ac7308e9ba25bdffbb63f33060bbfd14f03cb39dcc2074f"
+    },
+    {
+      "candidate": "docs/verification/incoming/dpi_lab.json",
+      "claim_id": "dpi_lab",
+      "example": "docs/verification/incoming/examples/dpi_lab.example.json",
+      "sha256": "fb0ff5038e7621d7b6e8edeb80a1d14b4d0db551541b487a3fd61b79547e59c6"
+    },
+    {
+      "candidate": "docs/verification/incoming/whitelist_lab.json",
+      "claim_id": "whitelist_lab",
+      "example": "docs/verification/incoming/examples/whitelist_lab.example.json",
+      "sha256": "3a70ed4d92cdc037bff30e8d68c4fc9066ccb6367f872f5b44238c80a69d2211"
+    },
+    {
+      "candidate": "docs/verification/incoming/security_review.json",
+      "claim_id": "security_review",
+      "example": "docs/verification/incoming/examples/security_review.example.json",
+      "sha256": "0ac0927834ae5dd36e2db36ac72993353b8b5caea3ea649c13ad94acf57359a9"
+    },
+    {
+      "candidate": "docs/verification/incoming/production_readiness.json",
+      "claim_id": "production_readiness",
+      "example": "docs/verification/incoming/examples/production_readiness.example.json",
+      "sha256": "78b5bc6b0f5cff3f4cf27271b5109bfe3443eccd35eb9475f4b79801d51db56a"
+    }
+  ],
+  "intake_gate": {
+    "claim_boundary": "Intake gate only; examples are not evidence and must not promote proof-gate claims.",
+    "expected_current_decision_with_examples_only": "EXTERNAL_EVIDENCE_INTAKE_ACTION_REQUIRED",
+    "post_import_refresh_commands": [
+      [
+        "python3",
+        "scripts/ops/audit_ghost_pulse_external_evidence_gaps.py",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+        "--write-report",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+        "--write-report",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/run_ghost_pulse_proof_gate.py",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+        "--write-report",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/run_ghost_pulse_verification_suite.py"
+      ],
+      [
+        "python3",
+        "scripts/ops/run_ghost_pulse_proof_gate.py",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+        "--write-report",
+        "--json"
+      ],
+      [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_goal_state.py",
+        "--write-report",
+        "--json"
+      ]
+    ],
+    "read_only_command": [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+      "--json"
+    ],
+    "require_all_ready_command": [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+      "--require-all-ready",
+      "--json"
+    ],
+    "write_report_command": [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+      "--write-report",
+      "--json"
+    ]
+  },
+  "schema": "x0tta6bl4.ghost_pulse.incoming_example_manifest.v1",
+  "status": "EXAMPLE_ONLY_NOT_EVIDENCE"
+}

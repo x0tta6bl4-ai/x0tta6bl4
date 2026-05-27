@@ -22,6 +22,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -154,23 +161,53 @@ class DIDGenerator:
 
     @staticmethod
     def generate_keypair() -> Tuple[bytes, bytes]:
-        """Generate Ed25519-like keypair (simplified)."""
-        private_key = secrets.token_bytes(32)
-        # Simplified public key derivation
-        public_key = hashlib.sha256(private_key).digest()
-        return private_key, public_key
+        """Generate an Ed25519 keypair as raw 32-byte private/public keys."""
+        private_key = Ed25519PrivateKey.generate()
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_bytes = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        return private_bytes, public_bytes
 
     @staticmethod
     def multibase_encode(data: bytes) -> str:
         """Encode bytes as multibase (base58btc)."""
-        # Simplified base58 encoding
         alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
         num = int.from_bytes(data, "big")
         result = ""
         while num:
             num, rem = divmod(num, 58)
             result = alphabet[rem] + result
-        return "z" + result  # 'z' prefix for base58btc
+        pad = 0
+        for byte in data:
+            if byte == 0:
+                pad += 1
+            else:
+                break
+        encoded = ("1" * pad) + result if result else ("1" * pad or "1")
+        return "z" + encoded  # 'z' prefix for base58btc
+
+    @staticmethod
+    def multibase_decode(value: str) -> bytes:
+        """Decode multibase base58btc bytes."""
+        if not value or value[0] != "z":
+            raise ValueError("Expected base58btc multibase value with 'z' prefix")
+        alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        indexes = {char: index for index, char in enumerate(alphabet)}
+        payload = value[1:]
+        num = 0
+        for char in payload:
+            if char not in indexes:
+                raise ValueError(f"Invalid base58btc character: {char!r}")
+            num = (num * 58) + indexes[char]
+        decoded = num.to_bytes((num.bit_length() + 7) // 8, "big") if num else b""
+        pad = len(payload) - len(payload.lstrip("1"))
+        return (b"\x00" * pad) + decoded
 
     @staticmethod
     def create_did_mesh(node_id: str, public_key: bytes) -> str:
@@ -283,16 +320,23 @@ class DIDManager:
 
     def sign(self, data: bytes) -> bytes:
         """Sign data with private key."""
-        # Simplified HMAC-based signature
-        return hashlib.sha256(self.private_key + data).digest()
+        return Ed25519PrivateKey.from_private_bytes(self.private_key).sign(data)
 
     def verify_signature(
         self, data: bytes, signature: bytes, public_key: bytes
     ) -> bool:
-        """Verify signature (requires knowing the private key pattern - simplified)."""
-        # In real implementation, use Ed25519 verify
-        expected = hashlib.sha256(public_key + data).digest()
-        return hmac_compare(signature, expected)
+        """Verify an Ed25519 signature with the supplied public key."""
+        try:
+            Ed25519PublicKey.from_public_bytes(public_key).verify(signature, data)
+            return True
+        except (InvalidSignature, ValueError):
+            return False
+
+    def _public_key_for_verification_method(self, verification_method: str) -> Optional[bytes]:
+        for method in self.document.verification_method:
+            if method.id == verification_method and not method.revoked:
+                return DIDGenerator.multibase_decode(method.public_key_multibase)
+        return None
 
     def issue_credential(
         self,
@@ -361,12 +405,32 @@ class DIDManager:
             if "proof" not in vc_dict:
                 return False, "No proof found"
 
-            # Verify signature (simplified - would need issuer's public key)
             proof = vc_dict["proof"]
             if proof.get("type") != "Ed25519Signature2020":
                 return False, f"Unknown proof type: {proof.get('type')}"
 
-            # In production, resolve issuer DID and verify signature
+            if vc_dict.get("issuer") != self.did:
+                return False, "Issuer DID does not match local DID document"
+
+            verification_method = proof.get("verificationMethod")
+            if not verification_method:
+                return False, "Missing verification method"
+
+            public_key = self._public_key_for_verification_method(verification_method)
+            if public_key is None:
+                return False, "Verification method not found or revoked"
+
+            proof_value = proof.get("proofValue")
+            if not proof_value:
+                return False, "Missing proof value"
+
+            signature = DIDGenerator.multibase_decode(proof_value)
+            unsigned_vc = dict(vc_dict)
+            unsigned_vc.pop("proof", None)
+            proof_data = json.dumps(unsigned_vc, sort_keys=True).encode()
+            if not self.verify_signature(proof_data, signature, public_key):
+                return False, "Invalid credential signature"
+
             return True, "Credential valid"
 
         except Exception as e:

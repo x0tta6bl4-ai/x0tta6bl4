@@ -16,8 +16,13 @@ build/
 dist/
 
 # Local generated artifacts
+.codegraph/
+.kilo/
+.playwright-mcp/
+.tmp/
 coverage*.xml
 junit.xml
+*.out
 *.pid
 .paradox
 .paradox.log
@@ -29,6 +34,11 @@ prometheus_data/
 alertmanager_data/
 results/
 test-results/
+nl-diagnostics/snapshots/
+nl-diagnostics/nl-server-profile/
+cad-scratch/
+composite-cassettes/
+open-design-*.png
 другие проекты/
 node_stats.json
 x0tta6bl4_framework_execution.json
@@ -36,6 +46,15 @@ data/deep_intelligence.json
 PRIVATE_KEY_VALUE
 PUBLIC_KEY_VALUE
 deploy/proxy/*.pem
+
+# Generated verification history. Commit only the specific bundles referenced
+# by committed LATEST reports; use git add -f for intentional evidence bundles.
+docs/verification/ghost-pulse-*/
+
+# Local compiled artifacts. Some historical objects are tracked intentionally;
+# these rules prevent new build outputs from polluting status.
+**/*.o
+/ebpf/prod/prod
 
 # Accidental root artifacts from shell/pip output
 /=*

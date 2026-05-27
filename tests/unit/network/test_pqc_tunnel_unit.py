@@ -4,6 +4,7 @@ import struct
 import pytest
 
 import src.network.pqc_tunnel as pqc
+import src.libx0t.network.pqc_tunnel as pqc_impl
 
 os.environ.setdefault("X0TTA6BL4_PRODUCTION", "false")
 os.environ.setdefault("X0TTA6BL4_SPIFFE", "false")
@@ -32,8 +33,8 @@ class _Reader:
 
 
 def test_handshake_and_encrypt_decrypt_simulated(monkeypatch):
-    monkeypatch.setattr(pqc, "PQC_AVAILABLE", False)
-    monkeypatch.setattr(pqc, "AES_AVAILABLE", False)
+    monkeypatch.setattr(pqc_impl, "PQC_AVAILABLE", False)
+    monkeypatch.setenv(pqc_impl.SIMULATED_PQC_ENV, "true")
     a = pqc.PQCTunnel("A")
     b = pqc.PQCTunnel("B")
     init = a.create_handshake_init()
@@ -49,8 +50,8 @@ def test_handshake_and_encrypt_decrypt_simulated(monkeypatch):
 
 
 def test_packet_wrap_unwrap_and_errors(monkeypatch):
-    monkeypatch.setattr(pqc, "PQC_AVAILABLE", False)
-    monkeypatch.setattr(pqc, "AES_AVAILABLE", False)
+    monkeypatch.setattr(pqc_impl, "PQC_AVAILABLE", False)
+    monkeypatch.setenv(pqc_impl.SIMULATED_PQC_ENV, "true")
     t1 = pqc.PQCTunnel("N1")
     t2 = pqc.PQCTunnel("N2")
     _, _, resp = t2.process_handshake_init(t1.create_handshake_init())
@@ -66,8 +67,8 @@ def test_packet_wrap_unwrap_and_errors(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_manager_establish_and_accept(monkeypatch):
-    monkeypatch.setattr(pqc, "PQC_AVAILABLE", False)
-    monkeypatch.setattr(pqc, "AES_AVAILABLE", False)
+    monkeypatch.setattr(pqc_impl, "PQC_AVAILABLE", False)
+    monkeypatch.setenv(pqc_impl.SIMULATED_PQC_ENV, "true")
     initiator = pqc.PQCTunnelManager("I")
     responder = pqc.PQCTunnelManager("R")
 
@@ -89,3 +90,11 @@ async def test_manager_establish_and_accept(monkeypatch):
     peer_id = await responder.accept_tunnel(reader2, writer2)
     assert peer_id == "I"
     assert responder.has_tunnel("I") is True
+
+
+def test_simulated_pqc_requires_explicit_opt_in(monkeypatch):
+    monkeypatch.setattr(pqc_impl, "PQC_AVAILABLE", False)
+    monkeypatch.delenv(pqc_impl.SIMULATED_PQC_ENV, raising=False)
+
+    with pytest.raises(RuntimeError, match="liboqs is required"):
+        pqc.PQCTunnel("blocked")

@@ -17,29 +17,56 @@ from src.sales.telegram_bot import (Config,  # Import necessary functions
 # Load environment variables for API keys and wallet addresses
 load_dotenv()
 
+PLACEHOLDER_WALLETS = {
+    "TYourWalletAddressHere",
+    "UQYourTonWalletAddressHere",
+    "TYourWallet",
+    "UQYourTonWallet",
+}
+
+
+def _mask_wallet(value: str) -> str:
+    """Return a safe display form for a wallet address."""
+    if len(value) <= 10:
+        return "****"
+    return f"{value[:6]}...{value[-4:]}"
+
+
+def _required_wallet_from_env(env_name: str, expected_prefixes: tuple[str, ...]) -> str:
+    value = os.getenv(env_name, "").strip()
+    if not value:
+        raise ValueError(f"{env_name} is required")
+    if value in PLACEHOLDER_WALLETS or "Your" in value:
+        raise ValueError(f"{env_name} must not be a placeholder wallet")
+    if not value.startswith(expected_prefixes):
+        prefixes = ", ".join(expected_prefixes)
+        raise ValueError(f"{env_name} must start with one of: {prefixes}")
+    return value
+
+
+def configure_wallets_from_env() -> tuple[str, str]:
+    """Load and validate wallet addresses from environment variables."""
+    usdt_wallet = _required_wallet_from_env("USDT_TRC20_WALLET", ("T",))
+    ton_wallet = _required_wallet_from_env("TON_WALLET", ("UQ", "EQ"))
+    Config.USDT_TRC20_WALLET = usdt_wallet
+    Config.TON_WALLET = ton_wallet
+    return usdt_wallet, ton_wallet
+
 
 async def simulate_payment_verification():
     """Simulates the payment verification process for testing."""
     print("--- Starting Payment Verification Validation Script ---")
 
-    # --- Configuration ---
-    # Use actual config from telegram_bot
-    Config.USDT_TRC20_WALLET = os.getenv("USDT_TRC20_WALLET", "TYourWalletAddressHere")
-    Config.TON_WALLET = os.getenv("TON_WALLET", "UQYourTonWalletAddressHere")
+    try:
+        usdt_wallet, ton_wallet = configure_wallets_from_env()
+    except ValueError as exc:
+        print(f"❌ Payment verification config invalid: {exc}")
+        return False
 
-    print(f"USDT TRC20 Wallet: {Config.USDT_TRC20_WALLET}")
-    print(f"TON Wallet: {Config.TON_WALLET}")
+    print(f"USDT TRC20 Wallet: {_mask_wallet(usdt_wallet)}")
+    print(f"TON Wallet: {_mask_wallet(ton_wallet)}")
     print(f"TRON_API_KEY: {'****' if os.getenv('TRON_API_KEY') else 'Not Set'}")
     print(f"TON_API_KEY: {'****' if os.getenv('TON_API_KEY') else 'Not Set'}")
-
-    if (
-        Config.USDT_TRC20_WALLET == "TYourWalletAddressHere"
-        and Config.TON_WALLET == "UQYourTonWalletAddressHere"
-    ):
-        print(
-            "⚠️ Warning: Wallet addresses are default placeholders. Please set USDT_TRC20_WALLET and TON_WALLET env vars."
-        )
-        return
 
     # --- Simulate a test purchase ---
     test_tier = "solo"
@@ -180,7 +207,13 @@ async def simulate_payment_verification():
                 )
 
     print("\n--- Payment Verification Validation Script Finished ---")
+    return True
+
+
+async def main() -> int:
+    """Run payment verification validation."""
+    return 0 if await simulate_payment_verification() else 2
 
 
 if __name__ == "__main__":
-    asyncio.run(simulate_payment_verification())
+    sys.exit(asyncio.run(main()))

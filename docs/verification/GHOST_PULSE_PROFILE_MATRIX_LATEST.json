@@ -1,0 +1,343 @@
+{
+  "aggregates": {
+    "corporate": {
+      "all_runs_successful": true,
+      "baseline_mean_gap_ms": {
+        "count": 2,
+        "max": 0.3973188,
+        "mean": 0.2929085,
+        "min": 0.1884982,
+        "stdev": 0.10441030000000001
+      },
+      "claim_boundary": "Aggregate local timing comparison only; do not use as DPI, whitelist, kernel attach, or production evidence.",
+      "mean_gap_delta_ms": {
+        "count": 2,
+        "max": 40.2897282,
+        "mean": 40.236407,
+        "min": 40.1830858,
+        "stdev": 0.05332119999999918
+      },
+      "mean_gap_ratio": {
+        "count": 2,
+        "max": 214.1749045879483,
+        "mean": 158.2894681562993,
+        "min": 102.40403172465032,
+        "stdev": 55.88543643164899
+      },
+      "mode": "corporate",
+      "pulse_mean_gap_ms": {
+        "count": 2,
+        "max": 40.687047,
+        "mean": 40.529315499999996,
+        "min": 40.371584,
+        "stdev": 0.15773150000000058
+      },
+      "replayable_runs": 2,
+      "runs": 2,
+      "sender_actual_mean_gap_ms": {
+        "count": 2,
+        "max": 40.68470001220703,
+        "mean": 40.5256986618042,
+        "min": 40.36669731140137,
+        "stdev": 0.15900135040283203
+      },
+      "sender_planned_mean_delay_ms": {
+        "count": 2,
+        "max": 40.28907091228464,
+        "mean": 39.998892694869824,
+        "min": 39.708714477455,
+        "stdev": 0.2901782174148231
+      },
+      "successful_runs": 2
+    },
+    "whitelist": {
+      "all_runs_successful": true,
+      "baseline_mean_gap_ms": {
+        "count": 2,
+        "max": 0.1783514,
+        "mean": 0.1717038,
+        "min": 0.1650562,
+        "stdev": 0.0066476000000000035
+      },
+      "claim_boundary": "Aggregate local timing comparison only; do not use as DPI, whitelist, kernel attach, or production evidence.",
+      "mean_gap_delta_ms": {
+        "count": 2,
+        "max": 779.8971568,
+        "mean": 644.54039,
+        "min": 509.18362320000006,
+        "stdev": 135.35676679999995
+      },
+      "mean_gap_ratio": {
+        "count": 2,
+        "max": 4373.812082215222,
+        "mean": 3729.861347845559,
+        "min": 3085.9106134758954,
+        "stdev": 643.9507343696635
+      },
+      "mode": "whitelist",
+      "pulse_mean_gap_ms": {
+        "count": 2,
+        "max": 780.0755082,
+        "mean": 644.7120938,
+        "min": 509.34867940000004,
+        "stdev": 135.36341439999995
+      },
+      "replayable_runs": 2,
+      "runs": 2,
+      "sender_actual_mean_gap_ms": {
+        "count": 2,
+        "max": 780.0866603851318,
+        "mean": 644.7144985198975,
+        "min": 509.3423366546631,
+        "stdev": 135.37216186523438
+      },
+      "sender_planned_mean_delay_ms": {
+        "count": 2,
+        "max": 1142.6162647500826,
+        "mean": 783.3044611244208,
+        "min": 423.992657498759,
+        "stdev": 359.3118036256618
+      },
+      "successful_runs": 2
+    }
+  },
+  "bundle": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z",
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "kernel_read_only_visible": false,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "decision": "PROFILE_MATRIX_LOCAL_VERIFIED_STEALTH_NOT_VERIFIED",
+  "gates": {
+    "ghost_core_shell_syntax": {
+      "command": {
+        "args": [
+          "bash",
+          "-n",
+          "ghost-core.sh"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    },
+    "python_compile": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "-m",
+          "py_compile",
+          "scripts/ops/collect_ghost_pulse_local_evidence.py",
+          "scripts/ops/run_ghost_pulse_profile_matrix.py",
+          "src/network/transport/pulse_transport.py",
+          "src/network/obfuscation/whitelist_mimicry.py",
+          "src/network/mesh_node_complete.py"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    }
+  },
+  "kernel_read_only": {
+    "claim_boundary": "Read-only inspection only; absence of visible data means no kernel attach claim.",
+    "commands": {
+      "bpftool_map": {
+        "args": [
+          "bpftool",
+          "map",
+          "show",
+          "name",
+          "pulse_stats"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: Operation not permitted\n",
+        "stdout": ""
+      },
+      "bpftool_net": {
+        "args": [
+          "bpftool",
+          "net"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: can't query prog: Operation not permitted\n",
+        "stdout": ""
+      },
+      "bpftool_prog": {
+        "args": [
+          "bpftool",
+          "prog",
+          "show"
+        ],
+        "available": true,
+        "returncode": 255,
+        "stderr": "Error: can't get next program: Operation not permitted\n",
+        "stdout": ""
+      },
+      "ip_links": {
+        "args": [
+          "ip",
+          "-j",
+          "link",
+          "show"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\"},{\"ifindex\":2,\"ifname\":\"enp8s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"18:c0:4d:ab:68:60\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":3,\"ifname\":\"virbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:54:00:34:e7:cf\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":4,\"ifname\":\"lxcbr0\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:16:3e:00:00:00\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":5,\"ifname\":\"x0tctrl\",\"flags\":[\"POINTOPOINT\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"none\"},{\"ifindex\":6,\"ifname\":\"br-2346afa010d6\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"9e:d9:ef:93:23:80\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":7,\"ifname\":\"br-5cce4ae051c7\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"32:ad:9b:96:8e:23\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":8,\"ifname\":\"br-afb7e5743700\",\"flags\":[\"NO-CARRIER\",\"BROADCAST\",\"MULTICAST\",\"UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"ae:8a:5a:72:04:6d\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":9,\"ifname\":\"docker0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"1a:d5:9e:f7:f5:69\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":10,\"ifname\":\"br-224057b2b3d0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"62:75:0e:8d:0a:8c\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\"},{\"ifindex\":11,\"link_index\":2,\"ifname\":\"veth6864553\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"docker0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"d6:c6:17:be:6d:61\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":0},{\"ifindex\":13,\"link_index\":2,\"ifname\":\"vethb6b7267\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"06:ca:da:6a:35:a2\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":2},{\"ifindex\":14,\"link_index\":2,\"ifname\":\"vethdfca4d4\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"master\":\"br-224057b2b3d0\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"link_type\":\"ether\",\"address\":\"c6:04:bb:36:cb:e8\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"link_netnsid\":3},{\"ifindex\":54,\"ifname\":\"singbox_tun\",\"flags\":[\"POINTOPOINT\",\"MULTICAST\",\"NOARP\",\"UP\",\"LOWER_UP\"],\"mtu\":1420,\"qdisc\":\"fq\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":500,\"link_type\":\"none\"}]\n"
+      }
+    },
+    "pulse_map_present": false,
+    "pulse_prog_visible": false,
+    "status": "KERNEL_ATTACH_NOT_VERIFIED",
+    "xdp_links": []
+  },
+  "parameters": {
+    "modes": [
+      "corporate",
+      "whitelist"
+    ],
+    "packet_count": 6,
+    "repetitions": 2,
+    "seed": 20260522
+  },
+  "runs": [
+    {
+      "baseline_gap_stdev_ms": 0.1711212785756348,
+      "baseline_mean_gap_ms": 0.3973188,
+      "baseline_received": 6,
+      "baseline_status": "VERIFIED_LOCAL",
+      "comparison_status": "VERIFIED_LOCAL_COMPARISON",
+      "mean_gap_delta_ms": 40.2897282,
+      "mean_gap_ratio": 102.40403172465032,
+      "mode": "corporate",
+      "pulse_gap_stdev_ms": 3.1351641118733804,
+      "pulse_mean_gap_ms": 40.687047,
+      "pulse_received": 6,
+      "pulse_rng_seed": 20260522,
+      "pulse_status": "VERIFIED_LOCAL",
+      "repetition": 0,
+      "seed": 20260522,
+      "sender_actual_mean_gap_ms": 40.68470001220703,
+      "sender_planned_mean_delay_ms": 40.28907091228464,
+      "sender_relative_error_mean": 0.0182232195914254,
+      "timing_plan_replay_samples": 6,
+      "timing_plan_replay_seed": 20260522,
+      "timing_plan_replay_sha256": "e0eec8a54943af16c739546fa5afc1fcbaefa2e131d7d7abb682d77e85eff612",
+      "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
+      "timing_plan_samples_recorded": 6
+    },
+    {
+      "baseline_gap_stdev_ms": 0.04140929413259782,
+      "baseline_mean_gap_ms": 0.1884982,
+      "baseline_received": 6,
+      "baseline_status": "VERIFIED_LOCAL",
+      "comparison_status": "VERIFIED_LOCAL_COMPARISON",
+      "mean_gap_delta_ms": 40.1830858,
+      "mean_gap_ratio": 214.1749045879483,
+      "mode": "corporate",
+      "pulse_gap_stdev_ms": 2.1803281201645786,
+      "pulse_mean_gap_ms": 40.371584,
+      "pulse_received": 6,
+      "pulse_rng_seed": 20261522,
+      "pulse_status": "VERIFIED_LOCAL",
+      "repetition": 1,
+      "seed": 20261522,
+      "sender_actual_mean_gap_ms": 40.36669731140137,
+      "sender_planned_mean_delay_ms": 39.708714477455,
+      "sender_relative_error_mean": 0.015989092654109017,
+      "timing_plan_replay_samples": 6,
+      "timing_plan_replay_seed": 20261522,
+      "timing_plan_replay_sha256": "bb1c8e49043d3dc7e1a767a0ad4d1af868e2196706dd093d227839541400a2f0",
+      "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
+      "timing_plan_samples_recorded": 6
+    },
+    {
+      "baseline_gap_stdev_ms": 0.04117052737286711,
+      "baseline_mean_gap_ms": 0.1650562,
+      "baseline_received": 6,
+      "baseline_status": "VERIFIED_LOCAL",
+      "comparison_status": "VERIFIED_LOCAL_COMPARISON",
+      "mean_gap_delta_ms": 509.18362320000006,
+      "mean_gap_ratio": 3085.9106134758954,
+      "mode": "whitelist",
+      "pulse_gap_stdev_ms": 373.2849583310604,
+      "pulse_mean_gap_ms": 509.34867940000004,
+      "pulse_received": 6,
+      "pulse_rng_seed": 20262522,
+      "pulse_status": "VERIFIED_LOCAL",
+      "repetition": 0,
+      "seed": 20262522,
+      "sender_actual_mean_gap_ms": 509.3423366546631,
+      "sender_planned_mean_delay_ms": 423.992657498759,
+      "sender_relative_error_mean": 0.0845351529071251,
+      "timing_plan_replay_samples": 6,
+      "timing_plan_replay_seed": 20262522,
+      "timing_plan_replay_sha256": "a9f23f990842c94063c377bcafac09df51dc2ec97fefc123a8c7862a97f4d56a",
+      "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
+      "timing_plan_samples_recorded": 6
+    },
+    {
+      "baseline_gap_stdev_ms": 0.04542647191495286,
+      "baseline_mean_gap_ms": 0.1783514,
+      "baseline_received": 6,
+      "baseline_status": "VERIFIED_LOCAL",
+      "comparison_status": "VERIFIED_LOCAL_COMPARISON",
+      "mean_gap_delta_ms": 779.8971568,
+      "mean_gap_ratio": 4373.812082215222,
+      "mode": "whitelist",
+      "pulse_gap_stdev_ms": 541.7315336274779,
+      "pulse_mean_gap_ms": 780.0755082,
+      "pulse_received": 6,
+      "pulse_rng_seed": 20263522,
+      "pulse_status": "VERIFIED_LOCAL",
+      "repetition": 1,
+      "seed": 20263522,
+      "sender_actual_mean_gap_ms": 780.0866603851318,
+      "sender_planned_mean_delay_ms": 1142.6162647500826,
+      "sender_relative_error_mean": 0.06239467138443301,
+      "timing_plan_replay_samples": 6,
+      "timing_plan_replay_seed": 20263522,
+      "timing_plan_replay_sha256": "9475b04abfffe755728cf5630efd112735f043d55779c8345f8852cf000da044",
+      "timing_plan_replay_status": "LOCAL_SEED_REPLAYABLE",
+      "timing_plan_samples_recorded": 6
+    }
+  ],
+  "schema": "x0tta6bl4.ghost_pulse.profile_matrix.v1",
+  "static_artifacts": {
+    "file_command": {
+      "args": [
+        "file",
+        "src/network/ebpf/x0tta6bl4_pulse.o"
+      ],
+      "available": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "src/network/ebpf/x0tta6bl4_pulse.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped\n"
+    },
+    "object": {
+      "elf_magic": "7f454c46",
+      "exists": true,
+      "is_elf": true,
+      "path": "src/network/ebpf/x0tta6bl4_pulse.o",
+      "sha256": "f5f713eae20ab53c1fcc533f88b8614349e0707aa1ae7b4b01bc495196099927",
+      "size_bytes": 1288
+    },
+    "source": {
+      "exists": true,
+      "path": "src/network/ebpf/x0tta6bl4_pulse.bpf.c",
+      "sha256": "75bd37951938ff63157ae912c953da08ce189c73a5634ab9b7a2e70d93535475",
+      "size_bytes": 2196
+    },
+    "status": "STATIC_OBJECT_PRESENT"
+  },
+  "timestamp_utc": "2026-05-22T00:54:13.741112+00:00"
+}

@@ -223,6 +223,46 @@ class TestBuildLedgerGraph:
         assert result["nodes"] == []
         assert result["edges"] == []
 
+    def test_ledger_node_features_use_section_data_and_drift_count(self, tmp_path):
+        from src.ledger.drift_detector import DriftResult
+
+        today = datetime.utcnow().date().isoformat()
+        content = (
+            "## Done\nFinished items\n"
+            f"## State\nUpdated: {today}\nState Done overview\n### Risk\nDetails"
+        )
+        detector = _make_detector(continuity_content=content, tmp_path=tmp_path)
+        graph = detector.build_ledger_graph()
+        state_node = next(node for node in graph["nodes"] if node["title"] == "State")
+        drifts = [
+            DriftResult(
+                drift_type="doc_drift",
+                severity="medium",
+                description="drift",
+                section="State",
+                detected_at=datetime.utcnow().isoformat(),
+                recommendations=[],
+            )
+        ]
+
+        features = detector._ledger_node_features(state_node, graph, drifts)
+
+        assert set(features) == {
+            "content_length",
+            "title_length",
+            "in_degree",
+            "out_degree",
+            "last_update_age",
+            "drift_count",
+            "complexity",
+            "importance",
+        }
+        assert features["in_degree"] == 0.1
+        assert features["drift_count"] == 0.1
+        assert 0.0 <= features["last_update_age"] < 0.01
+        assert features["complexity"] > 0.0
+        assert features["importance"] > 0.2
+
 
 # ---------------------------------------------------------------------------
 # detect_code_drift

@@ -91,13 +91,12 @@ class MeshTopologyAnalyzer:
         nodes: List[Dict[str, Any]],
         links: List[Dict[str, Any]]
     ) -> Dict[str, float]:
-        """O(n^2) betweenness centrality approximation."""
+        """O(n) normalized degree centrality approximation."""
         degrees = self._compute_node_degree(nodes, links)
-        max_degree = max(degrees.values()) if degrees else 1
+        max_possible_degree = max(len(nodes) - 1, 1)
         
-        # Normalized degree centrality as approximation
         centrality = {
-            node_id: degree / (max_degree - 1) if max_degree > 1 else 0
+            node_id: min(1.0, degree / max_possible_degree)
             for node_id, degree in degrees.items()
         }
         return centrality
@@ -244,10 +243,8 @@ class MeshTopologyAnalyzer:
         # This will raise RuntimeError if API key is missing
         raw_data = await self.processor.process_image(image_data)
         
-        # 2. Reconstruct graph from Vision API output
-        # For now, we return a structured error if actual logic is missing
-        # In a real scenario, this would parse the 'raw_data' (JSON from Vision model)
-        # to identify nodes, links, and bottlenecks.
+        # 2. Reconstruct graph from Vision API output.
+        # The processor is expected to return structured nodes and links.
         
         # If we have findings from the processor, we format them.
         findings = raw_data.get("findings", {})
@@ -291,4 +288,3 @@ class MeshTopologyAnalyzer:
         """Clear analysis cache."""
         self._cache.clear()
         logger.info("Topology analysis cache cleared")
-

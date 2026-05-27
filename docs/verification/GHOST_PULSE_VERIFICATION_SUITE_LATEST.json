@@ -1,0 +1,576 @@
+{
+  "artifacts": {
+    "local_evidence": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+    "local_evidence_sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+    "profile_matrix": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
+    "profile_matrix_sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
+    "suite_bundle_json": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/suite.json",
+    "suite_bundle_md": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z/summary.md",
+    "suite_latest_json": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.json",
+    "suite_latest_md": "docs/verification/GHOST_PULSE_VERIFICATION_SUITE_LATEST.md"
+  },
+  "bundle": "docs/verification/ghost-pulse-verification-suite-20260525T044507Z",
+  "claim_boundary": {
+    "kernel_attach_verified": false,
+    "kernel_read_only_visible": false,
+    "production_ready": false,
+    "stealth_verified": false,
+    "whitelist_verified": false
+  },
+  "claim_boundary_note": "This suite verifies bounded local evidence consistency only. It does not prove DPI evasion, provider whitelist behavior, kernel attach, or production readiness.",
+  "decision": "GHOST_PULSE_VERIFICATION_SUITE_VERIFIED_STEALTH_NOT_VERIFIED",
+  "failures": [],
+  "gates": {
+    "artifact_integrity": {
+      "checks": {
+        "local_latest_vs_bundle_json": {
+          "left": {
+            "exists": true,
+            "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+            "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+            "size_bytes": 23758
+          },
+          "match": true,
+          "right": {
+            "exists": true,
+            "path": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/evidence.json",
+            "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+            "size_bytes": 23758
+          }
+        },
+        "local_latest_vs_bundle_md": {
+          "left": {
+            "exists": true,
+            "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.md",
+            "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
+            "size_bytes": 2111
+          },
+          "match": true,
+          "right": {
+            "exists": true,
+            "path": "docs/verification/ghost-pulse-local-evidence-20260522T005352Z/summary.md",
+            "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
+            "size_bytes": 2111
+          }
+        },
+        "matrix_latest_vs_bundle_json": {
+          "left": {
+            "exists": true,
+            "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
+            "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
+            "size_bytes": 15031
+          },
+          "match": true,
+          "right": {
+            "exists": true,
+            "path": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z/matrix.json",
+            "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
+            "size_bytes": 15031
+          }
+        },
+        "matrix_latest_vs_bundle_md": {
+          "left": {
+            "exists": true,
+            "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.md",
+            "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
+            "size_bytes": 1187
+          },
+          "match": true,
+          "right": {
+            "exists": true,
+            "path": "docs/verification/ghost-pulse-profile-matrix-20260522T005403Z/summary.md",
+            "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
+            "size_bytes": 1187
+          }
+        }
+      },
+      "claim_boundary": "Artifact hash consistency only; this is not network, DPI, or production evidence.",
+      "failures": [],
+      "policy": {
+        "check_count": 4,
+        "mode": "required_latest_bundle_path_pairs",
+        "required": true,
+        "sha256": "109d1d7d2a86630e5636a6b878a4dfeb81c8f3173709bb4b3e67b5ccf4cd8b3f"
+      },
+      "status": "PASS"
+    },
+    "false_claim_scan": {
+      "allowed_matches": [
+        {
+          "line": 12,
+          "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+          "pattern": "\\bkernel_attach_verified\\b[\\\"']?\\s*[:=]\\s*true\\b",
+          "reason": "kernel_attach_verified is proof-derived in inventory; inventory/proof verifiers validate the real evidence.",
+          "text": "\"kernel_attach_verified\": true,"
+        }
+      ],
+      "claim_boundary": "Static false-claim hygiene scan only; it is not DPI or production evidence.",
+      "failures": [],
+      "matches": [],
+      "status": "PASS",
+      "target_policy": {
+        "mode": "required_static_rel_paths",
+        "required": true,
+        "sha256": "70965d060ed53004568c323def94e04030201ef9b55bbe7ec424a36e6a914485",
+        "target_count": 40
+      },
+      "target_records": [
+        {
+          "exists": true,
+          "path": "src/network/transport/pulse_transport.py",
+          "sha256": "e492e6954dd769d650b7e3d4947c93ea80c8becab9b071d178456347eca7ddbc",
+          "size_bytes": 10533
+        },
+        {
+          "exists": true,
+          "path": "src/network/obfuscation/whitelist_mimicry.py",
+          "sha256": "14fed57c998a95c78bef2cab769d9fd61df70e570b5bb2ff25a2dc33c52d9681",
+          "size_bytes": 1925
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/collect_ghost_pulse_local_evidence.py",
+          "sha256": "a60e673a8eaefa88e8b4722b78b419c3e7a55e7b36f113cdc83e1d5f0b751e95",
+          "size_bytes": 25545
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/run_ghost_pulse_profile_matrix.py",
+          "sha256": "ea869a376a34e459889aac7fb21cc926fcdfff80e005ec093bcee4f39ce3c4aa",
+          "size_bytes": 12485
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_local_evidence.py",
+          "sha256": "8ce086edb147936aa49c521fef6e216c4fb901bc5c2225155ac155daa3664372",
+          "size_bytes": 6356
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_profile_matrix.py",
+          "sha256": "881371d2ec1a068486ba8231ee5fed775380f0bf7762d0d422d513161923029b",
+          "size_bytes": 5007
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+          "sha256": "a9df1b5b597621195c850b298ac3f853cdbc02c6551510da2bccdd7c75c8ed95",
+          "size_bytes": 37009
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_rng_replay.py",
+          "sha256": "92e519112601d8ad6ee641d32daf9f5d8637082f07d93c4daa312586f6b2e1f6",
+          "size_bytes": 7068
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_verification_suite.py",
+          "sha256": "763c400e59c231aa27d64b7f57392993baaa77951b67e2410866e729eb611a6b",
+          "size_bytes": 17889
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/collect_ghost_pulse_kernel_attach_evidence.py",
+          "sha256": "0038b9b2d6739a0f15dbc2422f839e9e36cbd8f7fcd5857a50ffdf1b21980c4e",
+          "size_bytes": 42777
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/collect_ghost_pulse_packet_capture_evidence.py",
+          "sha256": "08bad56ba8f15e3a8802b787dd9f5d1b24b61ff72fee9fe52981d012df51d584",
+          "size_bytes": 18366
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/collect_ghost_pulse_baseline_comparison_evidence.py",
+          "sha256": "2e1b17824b0454555b171ef9e0b8486e59384f3697d1591147b3260caf481e54",
+          "size_bytes": 12625
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+          "sha256": "88e394e61c00db69043ef6bded9baf629fc815ba847eed5cff5c9d1c3f115c00",
+          "size_bytes": 29731
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/audit_ghost_pulse_external_evidence_gaps.py",
+          "sha256": "132f039920557ff8d63210344d9c7143e28cb4851f0db1a240b1d1c25212cb39",
+          "size_bytes": 42536
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "sha256": "0ff99e0b34cda6dd594e946d7c282af8caf0d540e3b28e9383214a64834057c8",
+          "size_bytes": 15740
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+          "sha256": "6a38dbd2758423971ac06eccecd63fd0f46f837a16e8197050efc58b1d302b64",
+          "size_bytes": 38196
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",
+          "sha256": "572238daa69f0e06955527de1c2b91a2ee65e42d8f594221f0148eb3d2e3b14a",
+          "size_bytes": 28706
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+          "sha256": "ebc4e2733285b83732c5d2f7b6c91452f0b727d7a72f9b20a2221e009986b232",
+          "size_bytes": 26357
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_external_evidence_gap_audit.py",
+          "sha256": "ddd85cbde7761d60e1f8230158a290df2845e4ef6e3800845815949701702f0d",
+          "size_bytes": 24708
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "sha256": "69ccf5b3eba2ba4d63b188e0450e50656dccf1ba2e0e20f88ca27bd3ed95c4b9",
+          "size_bytes": 3591
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+          "sha256": "35c3e0231e9607d7c25f6e6bb30c8a20aaec03d2457987ffaa376c0e6dc7e6d2",
+          "size_bytes": 24264
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_proof_gate.py",
+          "sha256": "f5c91a6fced237c4d7527cfd6f9faef5015e9946e4750948341a31eef57a7e12",
+          "size_bytes": 12909
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/verify_ghost_pulse_goal_state.py",
+          "sha256": "d6420032c9f45d9be43c57463543c0598f1677d09177a7e471980bc35f414aea",
+          "size_bytes": 45969
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/run_ghost_pulse_proof_gate.py",
+          "sha256": "7ac570f7f6602f7800e2dc568e66741782edc5f070dc54e4bf192220b3f28e40",
+          "size_bytes": 58406
+        },
+        {
+          "exists": true,
+          "path": "scripts/ops/run_ghost_pulse_verification_suite.py",
+          "sha256": "ffa291d63131646ec0a3a61ce80fb64bd4d55e76c01137ff356ae5c270fd6e44",
+          "size_bytes": 27997
+        },
+        {
+          "exists": true,
+          "path": "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
+          "sha256": "d212ca6dd13d1a01235830d68418cc6c83c76ff37af709f46cf88fe62d629dcd",
+          "size_bytes": 25511
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/ghost-core-pulse-claim-audit-2026-05-21.md",
+          "sha256": "b2762e7b3221e3c8cae73bd7f04d97758b0bf52bbe4a4415458881f00815bb56",
+          "size_bytes": 2485
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/gemini-ghost-core-vv-audit-2026-05-20.md",
+          "sha256": "4358252be49e6e7be1f4d15d925aff691fdf43e2c1fbc1d20cfb982b72e62bbc",
+          "size_bytes": 2675
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/ghost-pulse-local-evidence-runbook.md",
+          "sha256": "e8efdc797fd443d0d5cced356cb6bf4a4b7421bd4b9dbd73de72613db5e57153",
+          "size_bytes": 4120
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/ghost-pulse-profile-matrix-runbook.md",
+          "sha256": "27c541a41c3885768b449611e6aa23eb285790b59a083487c98d78550df90dad",
+          "size_bytes": 2707
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+          "sha256": "7dd9ba7e8ecfeae4ad1d4e49aec9a6ff3c2dbe12dff8d1adbffacc7ca19ddf72",
+          "size_bytes": 23758
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.md",
+          "sha256": "f5e8085893c7b481c2469a43ddc39b18649af81b9e68ced6e9845040e5fa2d04",
+          "size_bytes": 2111
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
+          "sha256": "9edf1d51a01c1141470e1c38e95bcdaf9978c24b3dba2699b0cb311f20d2466c",
+          "size_bytes": 15031
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.md",
+          "sha256": "18cc3826457a0e1588ef22fea185c199997952057249deb109dcd8a1c61514b1",
+          "size_bytes": 1187
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+          "sha256": "f4256ee4492c5825d44804aa89413525e6c8e26ca8789799920812ba360d1092",
+          "size_bytes": 12943
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md",
+          "sha256": "95b3dd9b82f70a94cc06345ec788fafaba770850df0707cb9120a85cb8b05e24",
+          "size_bytes": 2514
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
+          "sha256": "4b9bdd7b7ab92d97271b9357e1147b58dbd753b2e3eb7b055e0eb930ff1d3e13",
+          "size_bytes": 35109
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md",
+          "sha256": "91cab44c20a05cdd0bde5e0a94f7189429cd108153b4629cefeeac4037cbe1ee",
+          "size_bytes": 1634
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
+          "sha256": "24851cc868de2dc8fdb22c44e017f12da3a80c2a0a363d87af41cd5d252a19ae",
+          "size_bytes": 21215
+        },
+        {
+          "exists": true,
+          "path": "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md",
+          "sha256": "2dc9c9a9658f8054e3ce6cfc299a5194569fc66fef23c4c0d22ea81722a91b73",
+          "size_bytes": 1244
+        }
+      ],
+      "targets_scanned": [
+        "src/network/transport/pulse_transport.py",
+        "src/network/obfuscation/whitelist_mimicry.py",
+        "scripts/ops/collect_ghost_pulse_local_evidence.py",
+        "scripts/ops/run_ghost_pulse_profile_matrix.py",
+        "scripts/ops/verify_ghost_pulse_local_evidence.py",
+        "scripts/ops/verify_ghost_pulse_profile_matrix.py",
+        "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+        "scripts/ops/verify_ghost_pulse_rng_replay.py",
+        "scripts/ops/verify_ghost_pulse_verification_suite.py",
+        "scripts/ops/collect_ghost_pulse_kernel_attach_evidence.py",
+        "scripts/ops/collect_ghost_pulse_packet_capture_evidence.py",
+        "scripts/ops/collect_ghost_pulse_baseline_comparison_evidence.py",
+        "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+        "scripts/ops/audit_ghost_pulse_external_evidence_gaps.py",
+        "scripts/ops/import_ghost_pulse_external_evidence.py",
+        "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+        "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",
+        "scripts/ops/verify_ghost_pulse_replacement_candidates.py",
+        "scripts/ops/verify_ghost_pulse_external_evidence_gap_audit.py",
+        "scripts/ops/verify_ghost_pulse_external_evidence.py",
+        "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+        "scripts/ops/verify_ghost_pulse_proof_gate.py",
+        "scripts/ops/verify_ghost_pulse_goal_state.py",
+        "scripts/ops/run_ghost_pulse_proof_gate.py",
+        "scripts/ops/run_ghost_pulse_verification_suite.py",
+        "docs/architecture/X0TTA6BL4_PULSE_PROTOCOL.md",
+        "docs/verification/ghost-core-pulse-claim-audit-2026-05-21.md",
+        "docs/verification/gemini-ghost-core-vv-audit-2026-05-20.md",
+        "docs/verification/ghost-pulse-local-evidence-runbook.md",
+        "docs/verification/ghost-pulse-profile-matrix-runbook.md",
+        "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+        "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.md",
+        "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json",
+        "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.md",
+        "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.json",
+        "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INVENTORY_LATEST.md",
+        "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.json",
+        "docs/verification/GHOST_PULSE_EXTERNAL_EVIDENCE_INTAKE_LATEST.md",
+        "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
+        "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.md"
+      ]
+    },
+    "ghost_core_shell_syntax": {
+      "command": {
+        "args": [
+          "bash",
+          "-n",
+          "ghost-core.sh"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    },
+    "incoming_gap_candidates_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",
+          "--report",
+          "docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json",
+          "--require-fail-closed"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse incoming gap candidate report is current\nreport=docs/verification/GHOST_PULSE_INCOMING_GAP_CANDIDATES_LATEST.json\ndecision=INCOMING_GAP_CANDIDATES_FAIL_CLOSED\n"
+      },
+      "status": "PASS"
+    },
+    "local_evidence_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_local_evidence.py",
+          "--evidence",
+          "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: local x0tta6bl4_pulse evidence is bounded and internally consistent\nevidence=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json\n"
+      },
+      "status": "PASS"
+    },
+    "profile_matrix_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_profile_matrix.py",
+          "--evidence",
+          "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: local x0tta6bl4_pulse profile matrix is bounded and internally consistent\nevidence=docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json\n"
+      },
+      "status": "PASS"
+    },
+    "python_compile": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "-m",
+          "py_compile",
+          "src/network/transport/pulse_transport.py",
+          "src/network/obfuscation/whitelist_mimicry.py",
+          "scripts/ops/collect_ghost_pulse_local_evidence.py",
+          "scripts/ops/run_ghost_pulse_profile_matrix.py",
+          "scripts/ops/verify_ghost_pulse_local_evidence.py",
+          "scripts/ops/verify_ghost_pulse_profile_matrix.py",
+          "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+          "scripts/ops/verify_ghost_pulse_rng_replay.py",
+          "scripts/ops/verify_ghost_pulse_verification_suite.py",
+          "scripts/ops/collect_ghost_pulse_kernel_attach_evidence.py",
+          "scripts/ops/collect_ghost_pulse_packet_capture_evidence.py",
+          "scripts/ops/collect_ghost_pulse_baseline_comparison_evidence.py",
+          "scripts/ops/scaffold_ghost_pulse_external_evidence_gaps.py",
+          "scripts/ops/audit_ghost_pulse_external_evidence_gaps.py",
+          "scripts/ops/import_ghost_pulse_external_evidence.py",
+          "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+          "scripts/ops/verify_ghost_pulse_incoming_gap_candidates.py",
+          "scripts/ops/verify_ghost_pulse_external_evidence_gap_audit.py",
+          "scripts/ops/verify_ghost_pulse_external_evidence.py",
+          "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+          "scripts/ops/verify_ghost_pulse_proof_gate.py",
+          "scripts/ops/verify_ghost_pulse_goal_state.py",
+          "scripts/ops/run_ghost_pulse_proof_gate.py",
+          "scripts/ops/run_ghost_pulse_verification_suite.py"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "status": "PASS"
+    },
+    "seed_replay_verifier": {
+      "command": {
+        "args": [
+          "/usr/bin/python3",
+          "scripts/ops/verify_ghost_pulse_rng_replay.py",
+          "--local-evidence",
+          "docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json",
+          "--profile-matrix",
+          "docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json"
+        ],
+        "available": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "PASS: x0tta6bl4_pulse seed replay digests match evidence artifacts\nchecked=docs/verification/GHOST_PULSE_LOCAL_EVIDENCE_LATEST.json, docs/verification/GHOST_PULSE_PROFILE_MATRIX_LATEST.json\n"
+      },
+      "status": "PASS"
+    }
+  },
+  "schema": "x0tta6bl4.ghost_pulse.verification_suite.v1",
+  "summary": {
+    "local": {
+      "decision": "LOCAL_TIMING_VERIFIED_STEALTH_NOT_VERIFIED",
+      "mode": "corporate",
+      "packets_received": 12,
+      "pulse_rng_seed": 20260521,
+      "replay_sample_count": 12,
+      "replay_sha256": "63161b0c98bc3482b730371866c327eb2d5c57bd00eab453a823e97d5d0f77ff",
+      "replay_status": "LOCAL_SEED_REPLAYABLE",
+      "seed": 20260521
+    },
+    "matrix": {
+      "decision": "PROFILE_MATRIX_LOCAL_VERIFIED_STEALTH_NOT_VERIFIED",
+      "modes": [
+        "corporate",
+        "whitelist"
+      ],
+      "replayable_run_count": 4,
+      "rows": [
+        {
+          "mode": "corporate",
+          "pulse_rng_seed": 20260522,
+          "repetition": 0,
+          "replay_sha256": "e0eec8a54943af16c739546fa5afc1fcbaefa2e131d7d7abb682d77e85eff612",
+          "replay_status": "LOCAL_SEED_REPLAYABLE",
+          "seed": 20260522
+        },
+        {
+          "mode": "corporate",
+          "pulse_rng_seed": 20261522,
+          "repetition": 1,
+          "replay_sha256": "bb1c8e49043d3dc7e1a767a0ad4d1af868e2196706dd093d227839541400a2f0",
+          "replay_status": "LOCAL_SEED_REPLAYABLE",
+          "seed": 20261522
+        },
+        {
+          "mode": "whitelist",
+          "pulse_rng_seed": 20262522,
+          "repetition": 0,
+          "replay_sha256": "a9f23f990842c94063c377bcafac09df51dc2ec97fefc123a8c7862a97f4d56a",
+          "replay_status": "LOCAL_SEED_REPLAYABLE",
+          "seed": 20262522
+        },
+        {
+          "mode": "whitelist",
+          "pulse_rng_seed": 20263522,
+          "repetition": 1,
+          "replay_sha256": "9475b04abfffe755728cf5630efd112735f043d55779c8345f8852cf000da044",
+          "replay_status": "LOCAL_SEED_REPLAYABLE",
+          "seed": 20263522
+        }
+      ],
+      "run_count": 4,
+      "seed": 20260522
+    }
+  },
+  "timestamp_utc": "2026-05-25T04:45:07.029484+00:00"
+}

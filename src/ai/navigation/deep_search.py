@@ -1,6 +1,8 @@
-from typing import List, Dict
 import logging
-from src.ai.navigation.config import PROJECT_CONTEXT
+from typing import Dict, List
+from urllib.parse import quote_plus
+
+from src.ai.navigation.config import PROJECT_CONTEXT, SOURCES
 
 logger = logging.getLogger("AI-Navigator-DeepSearch")
 
@@ -11,6 +13,7 @@ class DeepSearcher:
     """
     def __init__(self):
         self.keywords = PROJECT_CONTEXT.get("keywords", [])
+        self.sources = SOURCES
         # Focus on top strategic keywords for deep search to avoid noise
         self.strategic_keywords = [
             "ML-KEM", "ML-DSA", "post-quantum mesh", 
@@ -20,19 +23,46 @@ class DeepSearcher:
 
     async def perform_search(self, query: str) -> List[Dict[str, str]]:
         """
-        Placeholder for web search integration.
-        In this environment, we'll use it to simulate results 
-        or use available search tools.
+        Build source-backed deep-search candidates for a query.
+
+        The navigator runs without API keys by default. Instead of returning an
+        empty stub, it creates concrete search targets against curated sources
+        so downstream filters and briefs can route high-value research work.
         """
-        logger.info(f"Performing Deep Search for: {query}")
-        # In a real implementation with an API key:
-        # response = await tavily.search(query=query, search_depth="advanced")
-        return []
+        normalized_query = " ".join(query.split())
+        if not normalized_query:
+            return []
+
+        encoded_query = quote_plus(normalized_query)
+        results: List[Dict[str, str]] = []
+        for source in self.sources:
+            url_template = source.get("url_template", "")
+            if not url_template:
+                continue
+
+            source_name = source.get("name", "source")
+            results.append(
+                {
+                    "title": f"{normalized_query} research target: {source_name}",
+                    "summary": source.get("summary", ""),
+                    "url": url_template.format(query=encoded_query),
+                    "source": source_name,
+                    "query": normalized_query,
+                }
+            )
+
+        logger.info("Prepared %d Deep Search targets for: %s", len(results), query)
+        return results
 
     async def gather_intelligence(self) -> List[Dict[str, str]]:
         """Iterates through strategic keywords and finds news."""
         all_results = []
+        seen_urls = set()
         for kw in self.strategic_keywords:
             results = await self.perform_search(kw)
-            all_results.extend(results)
+            for item in results:
+                url = item.get("url", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    all_results.append(item)
         return all_results

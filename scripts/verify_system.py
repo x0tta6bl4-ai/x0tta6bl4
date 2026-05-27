@@ -3,6 +3,7 @@ import sys
 import os
 import time
 import logging
+from typing import Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,9 +26,8 @@ def print_banner():
 def check_pqc():
     print("\033[1;33m[1/3] Verifying Post-Quantum Cryptography (PQC)...\033[0m")
     try:
-        # Simulate import path if running from root
         sys.path.append(os.getcwd())
-        from libx0t.crypto.pqc import PQC
+        from src.security.pqc.simple import PQC
         
         pqc = PQC(algorithm="Kyber768")
         pub, priv = pqc.generate_keypair()
@@ -51,12 +51,60 @@ def check_pqc():
              
     except Exception as e:
         print(f"   PQC Check Failed: {e}")
-        # Allow simulation mode to pass if liboqs missing (for demo purposes if env not fully set)
-        if "liboqs" in str(e) or "module" in str(e):
-             print("   (Note: Running in pure-python environment, ensuring fail-safe fallback works)")
-             return True
         return False
     return True
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using %.2f", name, value, default)
+        return default
+
+def _local_cpu_percent() -> float:
+    try:
+        load_1m = os.getloadavg()[0]
+        cpu_count = os.cpu_count() or 1
+        return max(0.0, min(100.0, (load_1m / cpu_count) * 100.0))
+    except (AttributeError, OSError):
+        return 0.0
+
+def _local_memory_percent() -> float:
+    try:
+        values: Dict[str, float] = {}
+        with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+            for line in handle:
+                key, raw_value = line.split(":", 1)
+                values[key] = float(raw_value.strip().split()[0])
+        total = values.get("MemTotal", 0.0)
+        available = values.get("MemAvailable", 0.0)
+        if total <= 0:
+            return 0.0
+        return max(0.0, min(100.0, ((total - available) / total) * 100.0))
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+def collect_local_mapek_metrics() -> Dict[str, float | str]:
+    return {
+        "node_id": os.getenv("X0TTA6BL4_NODE_ID", "local-verifier"),
+        "cpu_percent": _env_float("X0TTA6BL4_VERIFY_CPU_PERCENT", _local_cpu_percent()),
+        "memory_percent": _env_float(
+            "X0TTA6BL4_VERIFY_MEMORY_PERCENT",
+            _local_memory_percent(),
+        ),
+        "packet_loss_percent": _env_float("X0TTA6BL4_VERIFY_PACKET_LOSS_PERCENT", 0.0),
+    }
+
+def _allow_remediation_execution() -> bool:
+    return os.getenv("X0TTA6BL4_VERIFY_ALLOW_REMEDIATION", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 def check_mape_k():
     print("\n\033[1;33m[2/3] Verifying MAPE-K Self-Healing Loop...\033[0m")
@@ -65,29 +113,40 @@ def check_mape_k():
         
         # 1. Monitor
         monitor = MAPEKMonitor()
-        mock_metrics = {"cpu": 95.0, "latency": 200, "packet_loss": 0.05}
-        print(f"   [Monitor] Input Metrics: {mock_metrics}")
+        metrics = collect_local_mapek_metrics()
+        print(f"   [Monitor] Local Metrics: {metrics}")
+        monitor_result = monitor.check(metrics)
+        print(f"   [Monitor] Result: {monitor_result}")
         
         # 2. Analyze
-        if mock_metrics['cpu'] > 90:
-            analysis = "HIGH_LOAD_DETECTED"
-            print(f"   [Analyze] Detection: \033[1;31m{analysis}\033[0m")
-        else:
-            analysis = "NORMAL"
+        analyzer = MAPEKAnalyzer()
+        analysis = analyzer.analyze(metrics)
+        print(f"   [Analyze] Detection: \033[1;36m{analysis}\033[0m")
 
         # 3. Plan
         planner = MAPEKPlanner()
-        plan = planner.plan(analysis) if hasattr(planner, 'plan') else "SCALING_ACTION"
+        plan = planner.plan(analysis)
         print(f"   [Plan] Strategy: \033[1;36m{plan}\033[0m")
         
         # 4. Execute
-        print(f"   [Execute] Applying remediation...")
-        time.sleep(0.5)
-        print(f"   Self-Healing Cycle: \033[1;32mCOMPLETED\033[0m")
+        executor = MAPEKExecutor()
+        if executor._is_noop_action(plan):
+            result = executor.execute(plan, {"verification": True, "metrics": metrics})
+        elif _allow_remediation_execution():
+            print("   [Execute] Applying remediation because env opt-in is enabled...")
+            result = executor.execute(plan, {"verification": True, "metrics": metrics})
+        else:
+            print(
+                "   [Execute] Remediation required but not executed. "
+                "Set X0TTA6BL4_VERIFY_ALLOW_REMEDIATION=true to opt in."
+            )
+            return False
+        if not result:
+            print("   Self-Healing Cycle: \033[1;31mFAILED\033[0m")
+            return False
+        time.sleep(0.1)
+        print("   Self-Healing Cycle: \033[1;32mCOMPLETED\033[0m")
         
-    except ImportError:
-         print("   (Mocking MAPE-K for demo as imports might need full env)")
-         print("   [Monitor] -> [Analyze] -> [Plan] -> [Execute] : \033[1;32mLOGIC VERIFIED\033[0m")
     except Exception as e:
         print(f"   MAPE-K Failed: {e}")
         return False
@@ -125,7 +184,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     if pqc_status and mapek_status and infra_status:
         print("   \033[1;32mPROOF OF WORK: VALIDATED\033[0m")
-        print("   System is 100% Operational.")
+        print("   Local verification checks passed.")
     else:
         print("   \033[1;31mPROOF OF WORK: COMPROMISED\033[0m")
         print("   Check logs for details.")

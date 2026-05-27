@@ -1,0 +1,107 @@
+{
+  "acceptance_commands": [
+    [
+      "python3",
+      "scripts/ops/verify_ghost_pulse_external_evidence.py",
+      "--claim",
+      "dpi_lab",
+      "--require-pass",
+      "--json"
+    ]
+  ],
+  "artifacts": [
+    {
+      "path": "docs/verification/incoming/artifacts/dpi_lab/lab_scope.REPLACE_WITH_REAL_FILE",
+      "role": "lab_scope",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/dpi_lab/baseline_result.REPLACE_WITH_REAL_FILE",
+      "role": "baseline_result",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/dpi_lab/pulse_result.REPLACE_WITH_REAL_FILE",
+      "role": "pulse_result",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    },
+    {
+      "path": "docs/verification/incoming/artifacts/dpi_lab/lab_conclusion.REPLACE_WITH_REAL_JSON_FILE",
+      "role": "lab_conclusion",
+      "sha256": "REPLACE_WITH_ARTIFACT_SHA256"
+    }
+  ],
+  "candidate_destination": "docs/verification/incoming/dpi_lab.json",
+  "claim_boundary": {
+    "note": "Example only; this file must not promote proof-gate claims."
+  },
+  "claim_id": "dpi_lab",
+  "commands": [
+    {
+      "args": [
+        "REPLACE_WITH_REAL_COLLECTION_OR_REVIEW_COMMAND"
+      ],
+      "exit_code": "REPLACE_WITH_ZERO_EXIT_CODE"
+    }
+  ],
+  "dry_run": false,
+  "failures": [
+    "incoming example is not evidence and must be rejected by proof gate"
+  ],
+  "import_command": [
+    "python3",
+    "scripts/ops/import_ghost_pulse_external_evidence.py",
+    "--claim",
+    "dpi_lab",
+    "--candidate",
+    "docs/verification/incoming/dpi_lab.json",
+    "--require-ready",
+    "--json"
+  ],
+  "measurements": {
+    "authorized_lab": "REPLACE_WITH_TRUE",
+    "baseline_detected_or_blocked": "REPLACE_WITH_TRUE",
+    "dpi_bypass_verified": "REPLACE_WITH_TRUE",
+    "pulse_result_recorded": "REPLACE_WITH_TRUE"
+  },
+  "missing_inputs": [
+    "replace this example with real external evidence before import",
+    "set template to false only after every placeholder is replaced"
+  ],
+  "mode": "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE",
+  "observed_at_utc": "REPLACE_WITH_REAL_OBSERVATION_TIME_UTC",
+  "requirement_contract": {
+    "claim_id": "dpi_lab",
+    "json_artifact_object_field_links": {
+      "lab_conclusion": [
+        "measurements",
+        "failures",
+        "claim_boundary"
+      ]
+    },
+    "measurements": {
+      "authorized_lab": true,
+      "baseline_detected_or_blocked": true,
+      "dpi_bypass_verified": true,
+      "pulse_result_recorded": true
+    },
+    "path": "docs/verification/GHOST_PULSE_DPI_LAB_LATEST.json",
+    "rejected_placeholder_markers": [
+      "REPLACE_WITH",
+      "EXAMPLE_ONLY_NOT_EVIDENCE",
+      "INCOMING_CANDIDATE_EXAMPLE_NOT_EVIDENCE"
+    ],
+    "required_artifact_roles": [
+      "lab_scope",
+      "baseline_result",
+      "pulse_result",
+      "lab_conclusion"
+    ],
+    "title": "Authorized DPI lab result"
+  },
+  "schema": "x0tta6bl4.ghost_pulse.claim_evidence.v1",
+  "simulated": false,
+  "status": "INCOMPLETE",
+  "template": true,
+  "title": "Authorized DPI lab result"
+}
