@@ -6,19 +6,40 @@ Supports both local simulation and real Base Sepolia transactions.
 
 import logging
 import os
+import warnings
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
+
+from src.services.reward_events import publish_reward_settlement_event
 
 logger = logging.getLogger(__name__)
 
-# Try to import Web3, fall back to simulation if not available
-try:
-    from web3 import Web3
+Web3: Any = None
+WEB3_AVAILABLE: Optional[bool] = None
 
+
+def _get_web3_class() -> Any:
+    global Web3, WEB3_AVAILABLE
+    if WEB3_AVAILABLE is False:
+        return None
+    if Web3 is not None:
+        return Web3
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"websockets\.legacy is deprecated.*",
+                category=DeprecationWarning,
+            )
+            from web3 import Web3 as imported_web3
+    except ImportError:
+        WEB3_AVAILABLE = False
+        logger.info("Web3 not installed. Using local accounting mode.")
+        return None
+
+    Web3 = imported_web3
     WEB3_AVAILABLE = True
-except ImportError:
-    WEB3_AVAILABLE = False
-    logger.warning("Web3 not installed. Using simulation mode.")
+    return Web3
 
 # Base Sepolia RPC - should be configured via environment
 BASE_SEPOLIA_RPC = os.getenv("RPC_URL", "")
@@ -52,6 +73,13 @@ class TokenRewards:
         contract_address: str,
         private_key: Optional[str] | object = _UNSET,
         rpc_url: Optional[str] = None,
+        event_bus: Any = None,
+        event_project_root: str = ".",
+        source_agent: str = "token-rewards",
+        node_id: Optional[str] = None,
+        spiffe_id: Optional[str] = None,
+        did: Optional[str] = None,
+        wallet_address: Optional[str] = None,
     ):
         self.contract_address = contract_address
         if private_key is _UNSET:
@@ -63,6 +91,13 @@ class TokenRewards:
         else:
             self.private_key = private_key
         self.rpc_url = rpc_url or os.getenv("RPC_URL", BASE_SEPOLIA_RPC)
+        self.event_bus = event_bus
+        self.event_project_root = event_project_root
+        self.source_agent = source_agent
+        self.node_id = node_id
+        self.spiffe_id = spiffe_id
+        self.did = did
+        self.wallet_address = wallet_address
 
         self.total_distributed = Decimal("0.0")
         self.pending_rewards = Decimal("0.0")
@@ -77,11 +112,13 @@ class TokenRewards:
         self.contract = None
         self.account = None
 
-        if WEB3_AVAILABLE and self.private_key:
+        web3_class = _get_web3_class() if self.private_key else None
+        if web3_class is not None and self.private_key:
             try:
-                self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
+                self.web3 = web3_class(web3_class.HTTPProvider(self.rpc_url))
                 self.contract = self.web3.eth.contract(
-                    address=Web3.to_checksum_address(contract_address), abi=ERC20_ABI
+                    address=web3_class.to_checksum_address(contract_address),
+                    abi=ERC20_ABI,
                 )
                 self.account = self.web3.eth.account.from_key(self.private_key)
                 logger.info(f"🔗 Blockchain connected: {self.rpc_url}")
@@ -100,37 +137,134 @@ class TokenRewards:
         logger.info(f"💰 Reward queued: {reward:.4f} X0T for {packets} packets")
 
         # Settle rewards (local + blockchain if configured)
-        self._settle_rewards(node_address)
+        return self._settle_rewards(node_address, packets=packets)
 
-    def _settle_rewards(self, node_address: str):
+    def _publish_settlement_event(
+        self,
+        result: dict,
+        node_address: str,
+        packets: Optional[int] = None,
+    ) -> dict:
+        if self.event_bus is None:
+            return result
+        transition = "recorded" if result.get("ok") is True else "blocked"
+        event_id = publish_reward_settlement_event(
+            transition=transition,
+            source_agent=self.source_agent,
+            node_address=node_address,
+            node_id=self.node_id,
+            spiffe_id=self.spiffe_id,
+            did=self.did,
+            wallet_address=self.wallet_address,
+            packets=packets,
+            amount=result.get("amount"),
+            status=result.get("status"),
+            submitted_transaction=result.get("submitted_transaction"),
+            simulated=result.get("simulated"),
+            settlement_recorded=result.get("settlement_recorded"),
+            local_accounting_recorded=result.get("local_accounting_recorded"),
+            transaction_hash=result.get("transaction_hash"),
+            reason=str(result.get("error") or result.get("status") or ""),
+            event_bus=self.event_bus,
+            project_root=self.event_project_root,
+        )
+        if event_id:
+            result["event_id"] = event_id
+        return result
+
+    def _settle_rewards(self, node_address: str, packets: Optional[int] = None):
         """Execute transfer - local always, blockchain if configured."""
-        if self.pending_rewards > 0:
-            amount = self.pending_rewards
-            self.balance += amount
-            self.total_distributed += amount
+        if self.pending_rewards <= 0:
+            return self._publish_settlement_event({
+                "ok": True,
+                "status": "noop",
+                "settlement_recorded": False,
+                "local_accounting_recorded": False,
+                "submitted_transaction": False,
+                "simulated": self.web3 is None or self.contract is None or self.account is None,
+                "amount": "0.0",
+                "to": node_address,
+                "transaction_hash": "",
+            }, node_address, packets)
 
-            # Try blockchain transaction if Web3 is configured
-            if self.web3 and self.contract and self.account:
-                try:
-                    tx_hash = self._send_blockchain_reward(node_address, amount)
-                    if tx_hash:
-                        self.tx_history.append(
-                            {
-                                "hash": tx_hash,
-                                "amount": str(amount),
-                                "to": node_address,
-                                "timestamp": __import__("time").time(),
-                            }
-                        )
-                        logger.info(f"⛓️  Blockchain TX: {tx_hash}")
-                except Exception as e:
-                    logger.error(f"Blockchain TX failed: {e}")
+        amount = self.pending_rewards
+        self.balance += amount
+        self.total_distributed += amount
+        blockchain_configured = bool(self.web3 and self.contract and self.account)
 
+        if not blockchain_configured:
             self.pending_rewards = Decimal("0.0")
+            return self._publish_settlement_event({
+                "ok": True,
+                "status": "local_accounting_only",
+                "settlement_recorded": True,
+                "local_accounting_recorded": True,
+                "submitted_transaction": False,
+                "simulated": True,
+                "amount": str(amount),
+                "to": node_address,
+                "transaction_hash": "",
+            }, node_address, packets)
 
-    def _send_blockchain_reward(self, to_address: str, amount: Decimal) -> str:
+        try:
+            tx_hash = self._send_blockchain_reward(node_address, amount)
+            if tx_hash:
+                self.tx_history.append(
+                    {
+                        "hash": tx_hash,
+                        "amount": str(amount),
+                        "to": node_address,
+                        "timestamp": __import__("time").time(),
+                    }
+                )
+                logger.info(f"⛓️  Blockchain TX: {tx_hash}")
+                self.pending_rewards = Decimal("0.0")
+                return self._publish_settlement_event({
+                    "ok": True,
+                    "status": "blockchain_submitted",
+                    "settlement_recorded": True,
+                    "local_accounting_recorded": True,
+                    "submitted_transaction": True,
+                    "simulated": False,
+                    "amount": str(amount),
+                    "to": node_address,
+                    "transaction_hash": tx_hash,
+                }, node_address, packets)
+            self.pending_rewards = Decimal("0.0")
+            return self._publish_settlement_event({
+                "ok": False,
+                "status": "blockchain_submission_failed",
+                "settlement_recorded": False,
+                "local_accounting_recorded": True,
+                "submitted_transaction": False,
+                "simulated": False,
+                "amount": str(amount),
+                "to": node_address,
+                "transaction_hash": "",
+                "error": "blockchain transaction hash was not returned",
+            }, node_address, packets)
+        except Exception as e:
+            logger.error(f"Blockchain TX failed: {e}")
+            self.pending_rewards = Decimal("0.0")
+            return self._publish_settlement_event({
+                "ok": False,
+                "status": "blockchain_submission_failed",
+                "settlement_recorded": False,
+                "local_accounting_recorded": True,
+                "submitted_transaction": False,
+                "simulated": False,
+                "amount": str(amount),
+                "to": node_address,
+                "transaction_hash": "",
+                "error": str(e),
+            }, node_address, packets)
+
+    def _send_blockchain_reward(self, to_address: str, amount: Decimal) -> Optional[str]:
         """Send actual ERC20 transfer on Base Sepolia."""
         if not self.web3:
+            return None
+        web3_class = _get_web3_class()
+        if web3_class is None:
             return None
 
         try:
@@ -141,7 +275,7 @@ class TokenRewards:
             nonce = self.web3.eth.get_transaction_count(self.account.address)
 
             tx = self.contract.functions.transfer(
-                Web3.to_checksum_address(to_address), amount_wei
+                web3_class.to_checksum_address(to_address), amount_wei
             ).build_transaction(
                 {
                     "from": self.account.address,

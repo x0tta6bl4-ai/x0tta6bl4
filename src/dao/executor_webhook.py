@@ -19,7 +19,6 @@ from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.dao.governance_contract import GovernanceContract
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -75,6 +74,8 @@ class DAOExecutor:
         wallet_address: Optional[str] = None,
         safe_actuator: Optional[SafeActuator] = None,
     ):
+        from src.dao.governance_contract import GovernanceContract
+
         self.gov = GovernanceContract(
             contract_address=contract_address,
             token_address=token_address,

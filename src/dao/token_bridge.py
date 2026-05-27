@@ -23,6 +23,7 @@ import logging
 import os
 import time
 import uuid
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -40,7 +41,14 @@ from src.services.service_event_identity import service_event_identity
 
 # Optional web3 import
 try:
-    from web3 import Web3
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"websockets\.legacy is deprecated.*",
+            category=DeprecationWarning,
+            append=False,
+        )
+        from web3 import Web3
 
     WEB3_AVAILABLE = True
 except ImportError:
