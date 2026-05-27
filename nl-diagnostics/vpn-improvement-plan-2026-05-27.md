@@ -734,6 +734,17 @@ probe history trend: stable_no_probe_evidence across 3 snapshots
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
 current decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 current decision: observe, high confidence, no NL/SPB writes
+improvement backlog command added: nl-diagnostics/build_vpn_improvement_backlog.py
+improvement backlog report: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
+local_now backlog: LOCAL-01, LOCAL-02, LOCAL-03, LOCAL-04
+future_nl_write backlog: NL-FUTURE-01, NL-FUTURE-02
+future_resilience backlog: FUTURE-RESILIENCE-01
+manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
+manual failover status: planning_not_active
+secondary exit node: must be new provider/region, not SPB
+secondary probe command added: nl-diagnostics/probe_secondary_exit.py
+secondary probe example config: nl-diagnostics/manual-failover-secondary.example.json
+secondary probe placeholder result: planning_template
 ```
 
 This is only a local reviewed-source patch. It has not been copied to NL.
@@ -751,14 +762,14 @@ recommended_action: observe
 nl_mutation_allowed: false
 ```
 
-Fresh gap summary:
+Fresh source reconciliation summary:
 
 ```json
 {
-  "local_name_drift": 7,
-  "missing_local_source": 2,
+  "accepted_local_delta": 5,
   "redacted_review_only": 2,
-  "same_hash_elsewhere": 15,
+  "redacted_template_only": 1,
+  "same_hash_elsewhere": 18,
   "server_backup_only": 4,
   "server_runtime_artifact": 4
 }
@@ -771,8 +782,10 @@ Current NL is not in an x-ui outage.
 Core listeners 443/2083/39829 are present.
 The remaining current degraded signal is Telegram media/external network behavior.
 Local semantic fix is prepared but not deployed.
+Current NL source reconciliation is locally closed:
+missing_local_source=0 and local_name_drift=0.
 sync_xray_device_activity.py and ghost_tcp_bridge.py now match current NL hashes locally.
-ghost_vpn_server.py and ghost_vpn_client.py also match current NL hashes locally, but are class C/not deployable without mutation gates.
+ghost_vpn_client.py also matches current NL hash locally; ghost_vpn_server.py is now an accepted local formatting delta with the remote hash still recorded.
 auto_monitor.py also matches current NL hash locally and is covered without importing its /opt log side effects.
 apply_config_auto.py also matches current NL hash locally, but is class C/not deployable because it writes x-ui config.
 full_stealth_config.py also matches current NL hash locally, but is class C/not deployable because it writes x-ui config and rotation metadata.

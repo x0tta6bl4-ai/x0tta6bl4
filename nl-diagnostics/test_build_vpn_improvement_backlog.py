@@ -80,6 +80,21 @@ class VpnImprovementBacklogTests(unittest.TestCase):
         self.assertIn("blocked_waiting_approval", markdown)
         self.assertIn("No NL or SPB writes", markdown)
 
+    def test_resilience_item_references_manual_failover_plan(self):
+        payload = backlog.build_payload(sample_decision(), sample_history(), sample_manifest())
+        resilience = next(item for item in payload["items"] if item["id"] == "FUTURE-RESILIENCE-01")
+
+        self.assertEqual(resilience["status"], "requirements_documented")
+        self.assertIn(
+            "manual_failover_plan=nl-diagnostics/manual-failover-plan-2026-05-28.md",
+            resilience["evidence"],
+        )
+        self.assertIn(
+            "secondary_probe_template=nl-diagnostics/manual-failover-secondary.example.json",
+            resilience["evidence"],
+        )
+        self.assertFalse(resilience["spb_fallback_allowed"])
+
 
 if __name__ == "__main__":
     unittest.main()
