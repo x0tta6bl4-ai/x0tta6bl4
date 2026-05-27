@@ -19,6 +19,11 @@ import sys
 
 def _load_telemetry():
     """Load maas_telemetry with Redis/DB dependencies stubbed out."""
+    key = "src.api.maas_telemetry"
+    attr = "maas_telemetry"
+    sentinel = object()
+    original_module = sys.modules.get(key, sentinel)
+    parent = sys.modules.get("src.api")
     stubs = {
         "redis": MagicMock(),
         "src.database": MagicMock(),
@@ -32,12 +37,19 @@ def _load_telemetry():
     mock_redis_client.ping.side_effect = Exception("no redis in tests")
     stubs["redis"].from_url.return_value = mock_redis_client
 
-    key = "src.api.maas_telemetry"
     if key in sys.modules:
         del sys.modules[key]
 
     with patch.dict("sys.modules", stubs):
         mod = importlib.import_module(key)
+    if original_module is sentinel:
+        sys.modules.pop(key, None)
+        if parent is not None and getattr(parent, attr, None) is mod:
+            delattr(parent, attr)
+    else:
+        sys.modules[key] = original_module
+        if parent is not None:
+            setattr(parent, attr, original_module)
     return mod
 
 
