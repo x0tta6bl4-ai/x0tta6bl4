@@ -737,6 +737,12 @@ current decision: observe, high confidence, no NL/SPB writes
 planning refresh command added: nl-diagnostics/refresh_vpn_planning_reports.py
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
+outside-in NL transport probe added: nl-diagnostics/probe_nl_transport_ports.py
+outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-28.md
+outside-in NL transport status: healthy, 3/3 ports ok
+readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
+readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
+readiness audit status: ready_local_with_future_blocks, missing=0
 operator card added: nl-diagnostics/build_vpn_operator_card.py
 operator card report: nl-diagnostics/vpn-operator-card-2026-05-28.md
 operator status: observe
