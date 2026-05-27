@@ -26,7 +26,7 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
-from src.database import Payment, Invoice
+from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
 from src.services.xray_manager import XrayManager
 
 logger = logging.getLogger(__name__)

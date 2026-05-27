@@ -45,9 +45,10 @@ def _node_health(node: MeshNode) -> str:
     if node.last_seen is None:
         return "unknown"
     age = datetime.utcnow() - node.last_seen
-    if age <= timedelta(minutes=_STALE_THRESHOLD_MINUTES):
+    age_seconds = max(0, int(age.total_seconds()))
+    if age_seconds <= _STALE_THRESHOLD_MINUTES * 60:
         return "healthy"
-    if age <= timedelta(minutes=30):
+    if age_seconds <= 30 * 60:
         return "stale"
     return "offline"
 

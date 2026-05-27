@@ -14,7 +14,7 @@ from typing import List, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from src.database import User, Invoice, get_db
@@ -53,7 +53,7 @@ _missing_plans = [k for k, v in STRIPE_PLANS.items() if not v]
 if _is_production and (not STRIPE_SECRET_KEY or _missing_plans):
     logger.critical(f"FATAL: Stripe not fully configured for production. Missing plans: {_missing_plans}")
 elif _missing_plans:
-    logger.warning(f"Development mode: Stripe plans missing ({_missing_plans}). Payments will only work with mock/legacy mode.")
+    logger.info(f"Development mode: Stripe plans missing ({_missing_plans}). Payments will only work with mock/legacy mode.")
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -93,6 +93,8 @@ async def _execute_stripe_call(
         raise HTTPException(status_code=503, detail="Payment gateway error")
 
 class InvoiceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     mesh_id: str
     total_amount: float
@@ -101,9 +103,6 @@ class InvoiceResponse(BaseModel):
     period_start: datetime
     period_end: datetime
     issued_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class SubscriptionResponse(BaseModel):
     id: Optional[str]
@@ -287,7 +286,7 @@ async def generate_invoice(
     db.commit()
     db.refresh(new_inv)
     
-    res = InvoiceResponse.from_orm(new_inv)
+    res = InvoiceResponse.model_validate(new_inv)
     res.total_amount = new_inv.total_amount / 100.0
     return res
 
@@ -299,7 +298,7 @@ async def list_invoices(
     history = db.query(Invoice).filter(Invoice.user_id == current_user.id).all()
     results = []
     for inv in history:
-        r = InvoiceResponse.from_orm(inv)
+        r = InvoiceResponse.model_validate(inv)
         r.total_amount = inv.total_amount / 100.0
         results.append(r)
     return results

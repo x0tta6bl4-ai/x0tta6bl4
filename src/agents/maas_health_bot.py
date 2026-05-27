@@ -34,6 +34,7 @@ ABORT_MARKERS = (
     "broken pipe",
 )
 DELAY_RE = re.compile(r"the delay:\s*(\d+)\s*ms", re.IGNORECASE)
+DEFAULT_SOCKS_PORT_CANDIDATES = (10918, 10808, 10809, 10924, 40467, 1080, 7890, 7891)
 
 
 def _utc_now() -> str:
@@ -44,6 +45,52 @@ def _parse_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_port_candidates(*values: str | None) -> list[int]:
+    ports: list[int] = []
+    for value in values:
+        if not value:
+            continue
+        for raw in value.replace(";", ",").split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                port = int(raw)
+            except ValueError:
+                continue
+            if 0 < port < 65536 and port not in ports:
+                ports.append(port)
+    for port in DEFAULT_SOCKS_PORT_CANDIDATES:
+        if port not in ports:
+            ports.append(port)
+    return ports
+
+
+def _socks_port_reachable(host: str, port: int, timeout: float) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _resolve_socks_port(host: str, timeout_seconds: float) -> int:
+    explicit_port = os.getenv("MAAS_HEALTH_BOT_SOCKS_PORT")
+    candidates = _parse_port_candidates(
+        explicit_port,
+        os.getenv("SOCKS_PORT"),
+        os.getenv("VPN_SOCKS_PORT"),
+        os.getenv("MAAS_HEALTH_BOT_SOCKS_PORT_CANDIDATES"),
+        os.getenv("VPN_SOCKS_PORT_CANDIDATES"),
+    )
+    if explicit_port:
+        return candidates[0]
+    for port in candidates:
+        if _socks_port_reachable(host, port, timeout_seconds):
+            return port
+    return candidates[0]
 
 
 @dataclass(frozen=True)
@@ -68,17 +115,19 @@ class HealthBotConfig:
 
     @classmethod
     def from_env(cls) -> "HealthBotConfig":
+        socks_host = os.getenv("MAAS_HEALTH_BOT_SOCKS_HOST", "127.0.0.1")
+        socks_probe_timeout_seconds = max(
+            0.1, float(os.getenv("MAAS_HEALTH_BOT_SOCKS_TIMEOUT_SECONDS", "1.0"))
+        )
         raw_urls = os.getenv(
             "MAAS_HEALTH_BOT_HEALTH_URLS",
             "http://127.0.0.1:8000/health,http://127.0.0.1:8000/health/ready",
         )
         health_urls = [item.strip() for item in raw_urls.split(",") if item.strip()]
         return cls(
-            socks_host=os.getenv("MAAS_HEALTH_BOT_SOCKS_HOST", "127.0.0.1"),
-            socks_port=max(1, int(os.getenv("MAAS_HEALTH_BOT_SOCKS_PORT", "10808"))),
-            socks_probe_timeout_seconds=max(
-                0.1, float(os.getenv("MAAS_HEALTH_BOT_SOCKS_TIMEOUT_SECONDS", "1.0"))
-            ),
+            socks_host=socks_host,
+            socks_port=_resolve_socks_port(socks_host, socks_probe_timeout_seconds),
+            socks_probe_timeout_seconds=socks_probe_timeout_seconds,
             enable_socks_probe=_parse_bool(
                 os.getenv("MAAS_HEALTH_BOT_ENABLE_SOCKS_PROBE"), True
             ),

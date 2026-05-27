@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -62,14 +62,13 @@ class MeshDeployRequest(BaseModel):
     billing_plan: str = Field(default="starter")
 
 class MeshResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     status: str
     nodes_count: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 @router.post("/deploy", response_model=MeshResponse)
 async def deploy_mesh(
