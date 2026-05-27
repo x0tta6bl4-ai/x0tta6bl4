@@ -7,10 +7,13 @@ This is a local execution plan. NL remains read-only.
 Current authoritative evidence:
 
 ```text
-vpn snapshot: nl-diagnostics/snapshots/20260527T154832Z
+vpn snapshot: nl-diagnostics/snapshots/20260527T221810Z
 server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
-provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T154832Z.md
+decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
+blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
+improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
+manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 boot gap report: nl-diagnostics/boot-gap-2026-05-27-report.md
 P1 source promotion update: nl-diagnostics/nl-p1-source-promotion-update-2026-05-27.md
 ```
@@ -24,8 +27,10 @@ packet loss: 0
 NL x-ui: active
 NL listeners: 443, 2083, 39829 present
 NL runtime: degraded because Telegram media edges are slow
-NL transport: advisory, main/443 and secondary/2083 healthy
+NL transport: healthy
 NL provider_status: recent_boot_gap
+current decision: observe, high confidence
+blocking probe history: stable_no_probe_evidence across 3 snapshots
 NL writes: 0
 ```
 
@@ -86,25 +91,26 @@ add an on-NL read-only health endpoint that exposes state-contract fields
 
 ### P2. Reconcile server source before deploy
 
-Fresh gap summary:
+Current source reconciliation status:
+
+```text
+report: nl-diagnostics/nl-source-reconciliation-status-2026-05-27.md
+status: locally closed for latest read-only profile
+missing_local_source: 0
+local_name_drift: 0
+```
+
+Current gap summary:
 
 ```json
 {
-  "local_name_drift": 7,
-  "missing_local_source": 2,
+  "accepted_local_delta": 5,
   "redacted_review_only": 2,
-  "same_hash_elsewhere": 15,
+  "redacted_template_only": 1,
+  "same_hash_elsewhere": 18,
   "server_backup_only": 4,
   "server_runtime_artifact": 4
 }
-```
-
-First promote/reconstruct candidates:
-
-```text
-ghost-access/run_vpn_service_access_agent.py
-ghost-access/run_vpn_delivery_canary.py
-ghost-access/xray_runtime_user_manager.py
 ```
 
 Promoted locally in this phase:
@@ -141,7 +147,9 @@ Needed:
 ```text
 external uptime probe for 89.125.1.107:443/2083/39829
 provider evidence packet generated automatically from fresh snapshots
-manual failover profile doc for nl-beta / reserve path
+manual failover requirements are documented for a new secondary node, not SPB
+local-only secondary health probe template: nl-diagnostics/probe_secondary_exit.py
+example secondary probe config: nl-diagnostics/manual-failover-secondary.example.json
 alert when boot gap appears after an unclean shutdown
 ```
 
@@ -151,6 +159,8 @@ Acceptance:
 provider incident can be opened with exact boot window and current service state
 local healing does not hide provider/host incidents
 manual profile switch never happens from stale evidence
+SPB remains excluded from fallback while disabled
+secondary probe blocks raw VPN URI/private key/token config
 ```
 
 ### P4. First future write, if approved
@@ -180,8 +190,11 @@ post-write read-only verification passes
 ## Current Decision
 
 ```text
-recommended_action: continue local reconciliation and provider evidence tracking
+recommended_action: observe
+decision_report: nl-diagnostics/current-vpn-decision-2026-05-28.md
+improvement_backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
+manual_failover_plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 do_not_restart_nl: true
 do_not_deploy_to_nl: true
-next_best_work: reconstruct/read-only review missing P1 source, then add tests
+next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
 ```

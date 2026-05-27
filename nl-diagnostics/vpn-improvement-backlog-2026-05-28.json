@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_improvement_backlog.py",
-  "generated_at": "2026-05-27T22:31:31.334330+00:00",
+  "generated_at": "2026-05-27T22:48:56.149795+00:00",
   "summary": {
     "decision": "observe",
     "decision_confidence": "high",
@@ -13,10 +13,10 @@
     "blocking_history_trend": "stable_no_probe_evidence",
     "blocking_history_snapshot_count": 3,
     "source_gap_summary": {
-      "accepted_local_delta": 2,
+      "accepted_local_delta": 5,
       "redacted_review_only": 2,
       "redacted_template_only": 1,
-      "same_hash_elsewhere": 21,
+      "same_hash_elsewhere": 18,
       "server_backup_only": 4,
       "server_runtime_artifact": 4
     },
@@ -195,7 +195,7 @@
       "phase": "future_resilience",
       "priority": "P2",
       "title": "Prepare second exit node and manual failover, but keep SPB disabled",
-      "status": "planning",
+      "status": "requirements_documented",
       "allowed_now": true,
       "mutation_allowed": false,
       "nl_mutation_allowed": false,
@@ -204,10 +204,14 @@
       "reason": "Provider/host gaps need resilience, but the current SPB path is disabled and not a fallback.",
       "evidence": [
         "spb_fallback_allowed=false",
-        "provider_status=recent_boot_gap"
+        "provider_status=recent_boot_gap",
+        "manual_failover_plan=nl-diagnostics/manual-failover-plan-2026-05-28.md",
+        "secondary_probe_template=nl-diagnostics/manual-failover-secondary.example.json"
       ],
       "next_steps": [
-        "document requirements for a new secondary exit node on another provider/region",
+        "choose a new secondary provider/region that is not SPB",
+        "copy the secondary probe example outside git and fill only public endpoint metadata",
+        "run probe_secondary_exit.py before any manual profile switch",
         "define a manual profile switch checklist that requires fresh evidence",
         "do not reuse disabled SPB as emergency fallback"
       ],
