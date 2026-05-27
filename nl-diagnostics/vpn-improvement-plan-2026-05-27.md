@@ -726,14 +726,20 @@ classifier now emits blocking_assessment
 latest snapshot category: app_specific_degradation
 app/path probe command added: nl-diagnostics/probe_blocking_paths.py
 default target config: nl-diagnostics/blocking_probe_targets.json
-fresh probe snapshot: nl-diagnostics/snapshots/20260527T221810Z
+fresh probe snapshot: nl-diagnostics/snapshots/20260527T230246Z
 fresh probe summary: no_probe_evidence, 8/8 targets ok direct and SOCKS
 probe history command added: nl-diagnostics/summarize_blocking_probe_history.py
 probe history report: nl-diagnostics/blocking-probe-history-2026-05-28.md
-probe history trend: stable_no_probe_evidence across 3 snapshots
+probe history trend: stable_no_probe_evidence across 4 snapshots
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
 current decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 current decision: observe, high confidence, no NL/SPB writes
+planning refresh command added: nl-diagnostics/refresh_vpn_planning_reports.py
+planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
+planning refresh status: ok=true
+operator card added: nl-diagnostics/build_vpn_operator_card.py
+operator card report: nl-diagnostics/vpn-operator-card-2026-05-28.md
+operator status: observe
 improvement backlog command added: nl-diagnostics/build_vpn_improvement_backlog.py
 improvement backlog report: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 local_now backlog: LOCAL-01, LOCAL-02, LOCAL-03, LOCAL-04
@@ -753,7 +759,7 @@ This is only a local reviewed-source patch. It has not been copied to NL.
 Fresh read-only refresh:
 
 ```text
-snapshot: nl-diagnostics/snapshots/20260527T221810Z
+snapshot: nl-diagnostics/snapshots/20260527T230246Z
 profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 overall_status: advisory
 transport_status: healthy

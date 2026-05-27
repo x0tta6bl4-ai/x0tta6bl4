@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/probe_secondary_exit.py",
+  "generated_at": "2026-05-27T23:11:33.422171+00:00",
+  "status": "planning_template",
+  "candidate": {
+    "label": "secondary-placeholder",
+    "provider": "TBD-new-provider-not-NL-not-SPB",
+    "region": "TBD-new-region",
+    "host": "UNCONFIGURED",
+    "tcp_ports": [
+      443
+    ]
+  },
+  "candidate_configured": false,
+  "tcp_results": [],
+  "client_exit_probe": {
+    "enabled": false,
+    "ok": null,
+    "reason": "client probe disabled; enable only after manual emergency profile activation on a test client"
+  },
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}
