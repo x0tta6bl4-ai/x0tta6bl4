@@ -1,13 +1,9 @@
 """
-Compatibility alias. Redirects to src.libx0t.security.post_quantum.
+Deprecated compatibility shim for legacy PQC imports.
 
-For new code use src.security.pqc instead:
-    from src.security.pqc import LibOQSBackend, HybridPQEncryption, LIBOQS_AVAILABLE
+New code should import from ``src.security.pqc``.  This module stays importable
+because deployment scripts, fixtures, and older integrations still reference
+``src.security.post_quantum``.
 """
-import sys
-from importlib import import_module
 
-# Preserve sys.modules-level redirect so that patch('src.security.post_quantum.X')
-# still works in existing tests (they patch attributes on the libx0t module via this alias).
-_legacy_module = import_module("src.libx0t.security.post_quantum")
-sys.modules[__name__] = _legacy_module
+from src.security.pqc import *  # noqa: F401,F403

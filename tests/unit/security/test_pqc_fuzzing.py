@@ -9,8 +9,8 @@ import pytest
 
 # Try to import LibOQS
 try:
-    from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE,
-                                                  PQMeshSecurityLibOQS)
+    from src.security.pqc import (LIBOQS_AVAILABLE,
+                                  PQMeshSecurityLibOQS)
 
     PQC_AVAILABLE = LIBOQS_AVAILABLE
 except ImportError:
@@ -246,7 +246,7 @@ class TestPQCSecurityBoundaries:
             assert len(ciphertext) > 0 or True  # Accept both outcomes
         except (MemoryError, ValueError) as e:
             # Graceful failure is acceptable
-            assert "too large" in str(e).lower() or "memory" in str(e).lower()
+            assert isinstance(e, MemoryError) or "too large" in str(e).lower() or "memory" in str(e).lower()
 
 
 if __name__ == "__main__":

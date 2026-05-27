@@ -17,7 +17,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, LibOQSBackend,
+from src.security.pqc import (LIBOQS_AVAILABLE, LibOQSBackend,
                                               PQKeyPair, PQMeshSecurityLibOQS)
 
 logger = logging.getLogger(__name__)

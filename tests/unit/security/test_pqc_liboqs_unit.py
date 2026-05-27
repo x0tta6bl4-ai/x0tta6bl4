@@ -12,8 +12,8 @@ Tests cover:
 
 
 
-from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE, PQAlgorithm,
-                                              PQKeyPair)
+from src.security.pqc import (LIBOQS_AVAILABLE, PQAlgorithm,
+                              PQKeyPair)
 
 
 class TestPQAlgorithmEnum:
