@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from decimal import Decimal
 from datetime import datetime
+from typing import Any
 
 from src.dao.token_rewards import TokenRewards
 from src.services.reward_events import publish_reward_settlement_event
@@ -68,6 +69,8 @@ def publish_share_to_earn_reward_event(
     packets: int,
     simulation_enabled: bool,
     status: str,
+    event_bus: Any = None,
+    project_root: str = ".",
 ):
     """Record local share-to-earn accounting without claiming payout settlement."""
     if amount <= Decimal("0"):
@@ -91,6 +94,8 @@ def publish_share_to_earn_reward_event(
         local_accounting_recorded=True,
         transaction_hash="",
         reason="share_to_earn_local_accounting",
+        event_bus=event_bus,
+        project_root=project_root,
     )
 
 

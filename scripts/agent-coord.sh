@@ -778,6 +778,10 @@ cmd_session_end() {
   echo ""
 }
 
+cmd_claim_hygiene_scan() {
+  python3 "${ROOT_DIR}/scripts/claim_hygiene_scan.py" "$@"
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 COMMAND="${1:-status}"
 shift || true
@@ -792,9 +796,10 @@ case "${COMMAND}" in
   next_task)     cmd_next_task "$@" ;;
   session_start) cmd_session_start "$@" ;;
   session_end)   cmd_session_end "$@" ;;
+  claim_hygiene_scan) cmd_claim_hygiene_scan "$@" ;;
   *)
     echo "unknown command: ${COMMAND}" >&2
-    echo "commands: status | inbox AGENT | log AGENT EVENT [JSON] | send FROM TO SUBJECT BODY | dispatch_ready FROM [--bucket NAME] [--mode verification|validation] [--agent AGENT] [--limit N] [--dry-run] | roadmap_sync AGENT | next_task AGENT [--mode verification|validation] | session_start AGENT [--mode verification|validation] [--allow-blocked] [SUMMARY] | session_end AGENT [JSON]" >&2
+    echo "commands: status | inbox AGENT | log AGENT EVENT [JSON] | send FROM TO SUBJECT BODY | dispatch_ready FROM [--bucket NAME] [--mode verification|validation] [--agent AGENT] [--limit N] [--dry-run] | roadmap_sync AGENT | next_task AGENT [--mode verification|validation] | session_start AGENT [--mode verification|validation] [--allow-blocked] [SUMMARY] | session_end AGENT [JSON] | claim_hygiene_scan [ARGS]" >&2
     exit 1
     ;;
 esac

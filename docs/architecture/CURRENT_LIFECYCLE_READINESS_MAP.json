@@ -1,0 +1,473 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "FastAPI router registration compared with explicit runtime startup and shutdown hooks.",
+  "interpretation": {
+    "route_import_only": "The router is registered by src/core/app.py, but this map found no explicit startup/shutdown hook called by src/core/production_lifespan.py for that router module.",
+    "production_lifespan_hook": "The router is registered by src/core/app.py and src/core/production_lifespan.py imports and awaits explicit startup/shutdown hooks for the same module.",
+    "always": "Registered in both light and non-light app modes.",
+    "full_mode_only": "Registered only inside `if not is_light_mode` in src/core/app.py."
+  },
+  "app_lifespan_modes": {
+    "light_mode": {
+      "condition": "MAAS_LIGHT_MODE=true",
+      "lifespan": "FastAPI app without src.core.production_lifespan.production_lifespan",
+      "source_refs": [
+        "src/core/app.py:39",
+        "src/core/app.py:41",
+        "src/core/app.py:43"
+      ]
+    },
+    "non_light_mode": {
+      "condition": "MAAS_LIGHT_MODE is not true",
+      "lifespan": "FastAPI app with src.core.production_lifespan.production_lifespan",
+      "source_refs": [
+        "src/core/app.py:48",
+        "src/core/app.py:50",
+        "src/core/app.py:56"
+      ]
+    }
+  },
+  "production_lifespan_runtime": {
+    "startup_sequence": [
+      "database_schema_guard",
+      "MeshNetworkManager",
+      "PrometheusExporter",
+      "ZeroTrustValidator",
+      "ConsciousnessEngine",
+      "PARLController",
+      "federated_learning_integration",
+      "MAPEKLoop_background_task",
+      "edge_startup",
+      "event_sourcing_startup"
+    ],
+    "shutdown_sequence": [
+      "event_sourcing_shutdown",
+      "edge_shutdown",
+      "MAPEKLoop_stop",
+      "loop_task_cancel",
+      "PARLController_terminate",
+      "federated_learning_shutdown"
+    ],
+    "source_refs": [
+      "src/core/production_lifespan.py:102",
+      "src/core/production_lifespan.py:122",
+      "src/core/production_lifespan.py:127",
+      "src/core/production_lifespan.py:131",
+      "src/core/production_lifespan.py:132",
+      "src/core/production_lifespan.py:136",
+      "src/core/production_lifespan.py:140",
+      "src/core/production_lifespan.py:146",
+      "src/core/production_lifespan.py:151",
+      "src/core/production_lifespan.py:161",
+      "src/core/production_lifespan.py:170",
+      "src/core/production_lifespan.py:179",
+      "src/core/production_lifespan.py:202",
+      "src/core/production_lifespan.py:209",
+      "src/core/production_lifespan.py:218",
+      "src/core/production_lifespan.py:227",
+      "src/core/production_lifespan.py:237"
+    ]
+  },
+  "routers": [
+    {
+      "id": "maas-billing",
+      "module": "src.api.maas_billing",
+      "label": "billing",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/billing",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:239",
+        "src/api/maas_billing.py:61"
+      ]
+    },
+    {
+      "id": "billing-api",
+      "module": "src.api.billing",
+      "label": "billing-api",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/billing",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:240",
+        "src/api/billing.py:34"
+      ]
+    },
+    {
+      "id": "maas-legacy",
+      "module": "src.api.maas_legacy",
+      "label": "legacy",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:241",
+        "src/api/maas_legacy.py:67"
+      ]
+    },
+    {
+      "id": "maas-compat",
+      "module": "src.api.maas_compat",
+      "label": "compat",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:242",
+        "src/api/maas_compat.py:18"
+      ]
+    },
+    {
+      "id": "maas-auth",
+      "module": "src.api.maas_auth",
+      "label": "auth",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/auth",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:243",
+        "src/api/maas_auth.py:37"
+      ]
+    },
+    {
+      "id": "maas-playbooks",
+      "module": "src.api.maas_playbooks",
+      "label": "playbooks",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/playbooks",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:244",
+        "src/api/maas_playbooks.py:26"
+      ]
+    },
+    {
+      "id": "maas-supply-chain",
+      "module": "src.api.maas_supply_chain",
+      "label": "supply-chain",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/supply-chain",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:245",
+        "src/api/maas_supply_chain.py:25"
+      ]
+    },
+    {
+      "id": "maas-marketplace",
+      "module": "src.api.maas_marketplace",
+      "label": "marketplace",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/marketplace",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:246",
+        "src/api/maas_marketplace.py:42"
+      ]
+    },
+    {
+      "id": "maas-governance",
+      "module": "src.api.maas_governance",
+      "label": "governance",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/governance",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:247",
+        "src/api/maas_governance.py:31"
+      ]
+    },
+    {
+      "id": "maas-analytics",
+      "module": "src.api.maas_analytics",
+      "label": "analytics",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/analytics",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:248",
+        "src/api/maas_analytics.py:24"
+      ]
+    },
+    {
+      "id": "maas-agent-mesh",
+      "module": "src.api.maas_agent_mesh",
+      "label": "agent-mesh",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/agents",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/maas/agents/health/status",
+      "source_refs": [
+        "src/core/app.py:249",
+        "src/api/maas_agent_mesh.py:14",
+        "src/api/maas_agent_mesh.py:42"
+      ]
+    },
+    {
+      "id": "service-identity-status",
+      "module": "src.api.service_identity_status",
+      "label": "service-identity-status",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/service-identity",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/service-identity/status",
+      "source_refs": [
+        "src/core/app.py:250",
+        "src/api/service_identity_status.py:18",
+        "src/api/service_identity_status.py:21"
+      ]
+    },
+    {
+      "id": "maas-nodes",
+      "module": "src.api.maas_nodes",
+      "label": "nodes",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/maas",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:253",
+        "src/api/maas_nodes.py:49"
+      ]
+    },
+    {
+      "id": "maas-policies",
+      "module": "src.api.maas_policies",
+      "label": "policies",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/maas",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:254",
+        "src/api/maas_policies.py:22"
+      ]
+    },
+    {
+      "id": "maas-telemetry",
+      "module": "src.api.maas_telemetry",
+      "label": "telemetry",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/maas",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:255",
+        "src/api/maas_telemetry.py:30"
+      ]
+    },
+    {
+      "id": "vpn",
+      "module": "src.api.vpn",
+      "label": "vpn",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/vpn",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:256",
+        "src/api/vpn.py:45"
+      ]
+    },
+    {
+      "id": "users",
+      "module": "src.api.users",
+      "label": "users",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/users",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:257",
+        "src/api/users.py:22"
+      ]
+    },
+    {
+      "id": "swarm-api",
+      "module": "src.api.swarm",
+      "label": "swarm",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v3/swarm",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v3/swarm/health",
+      "source_refs": [
+        "src/core/app.py:258",
+        "src/api/swarm.py:34",
+        "src/api/swarm.py:572"
+      ]
+    },
+    {
+      "id": "ledger-api",
+      "module": "src.api.ledger_endpoints",
+      "label": "ledger",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/ledger",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "/api/v1/ledger/status",
+      "source_refs": [
+        "src/core/app.py:259",
+        "src/api/ledger_endpoints.py:18",
+        "src/api/ledger_endpoints.py:119"
+      ]
+    },
+    {
+      "id": "swarm-orchestration",
+      "module": "src.api.swarm_endpoints",
+      "label": "swarm-orchestration",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/swarm",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:260",
+        "src/api/swarm_endpoints.py:13"
+      ]
+    },
+    {
+      "id": "vision-analytics",
+      "module": "src.api.vision_endpoints",
+      "label": "vision-analytics",
+      "registration_mode": "full_mode_only",
+      "route_present_in_light_mode": false,
+      "router_prefix": "/api/v1/vision",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:261",
+        "src/api/vision_endpoints.py:13"
+      ]
+    },
+    {
+      "id": "maas-dashboard",
+      "module": "src.api.maas_dashboard",
+      "label": "dashboard",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/api/v1/maas/dashboard",
+      "lifecycle_binding": "route_import_only",
+      "readiness_signal": "none_explicit",
+      "source_refs": [
+        "src/core/app.py:263",
+        "src/api/maas_dashboard.py:21"
+      ]
+    },
+    {
+      "id": "edge-computing",
+      "module": "src.edge.api",
+      "label": "edge-computing",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/edge",
+      "lifecycle_binding": "production_lifespan_hook",
+      "startup_hook": "edge_startup",
+      "shutdown_hook": "edge_shutdown",
+      "hook_available_only_when_lifespan_runs": true,
+      "readiness_signal": "/edge/health",
+      "runtime_readiness_field": "startup_hook_completed",
+      "lazy_runtime_getters": [
+        "get_node_manager",
+        "get_task_distributor",
+        "get_edge_cache"
+      ],
+      "runtime_globals": [
+        "_node_manager",
+        "_task_distributor",
+        "_edge_cache",
+        "_startup_hook_completed"
+      ],
+      "hidden_dependency": "Route is present in light mode, but edge_startup is called only by production_lifespan in non-light mode. Endpoints can lazily create globals, so route reachability is not the same as startup completion. The /edge/health payload now exposes startup_hook_completed for this distinction.",
+      "source_refs": [
+        "src/core/app.py:264",
+        "src/edge/api.py:186",
+        "src/edge/api.py:188",
+        "src/edge/api.py:192",
+        "src/edge/api.py:220",
+        "src/edge/api.py:228",
+        "src/edge/api.py:240",
+        "src/edge/api.py:813",
+        "src/edge/api.py:856",
+        "src/edge/api.py:886",
+        "src/edge/api.py:908",
+        "src/core/production_lifespan.py:21",
+        "src/core/production_lifespan.py:170",
+        "src/core/production_lifespan.py:218"
+      ]
+    },
+    {
+      "id": "event-sourcing",
+      "module": "src.event_sourcing.api",
+      "label": "event-sourcing",
+      "registration_mode": "always",
+      "route_present_in_light_mode": true,
+      "router_prefix": "/events",
+      "lifecycle_binding": "production_lifespan_hook",
+      "startup_hook": "event_sourcing_startup",
+      "shutdown_hook": "event_sourcing_shutdown",
+      "hook_available_only_when_lifespan_runs": true,
+      "readiness_signal": "/events/health",
+      "runtime_readiness_field": "startup_hook_completed",
+      "lazy_runtime_getters": [
+        "get_event_store",
+        "get_command_bus",
+        "get_query_bus",
+        "get_projection_manager"
+      ],
+      "runtime_globals": [
+        "_event_store",
+        "_command_bus",
+        "_query_bus",
+        "_projection_manager",
+        "_startup_hook_completed"
+      ],
+      "hidden_dependency": "Route is present in light mode, but event_sourcing_startup is called only by production_lifespan in non-light mode. Getters can lazily create globals, so a healthy route can mask that the startup hook never ran. The /events/health payload now exposes startup_hook_completed for this distinction.",
+      "source_refs": [
+        "src/core/app.py:265",
+        "src/event_sourcing/api.py:181",
+        "src/event_sourcing/api.py:183",
+        "src/event_sourcing/api.py:188",
+        "src/event_sourcing/api.py:214",
+        "src/event_sourcing/api.py:226",
+        "src/event_sourcing/api.py:319",
+        "src/event_sourcing/api.py:327",
+        "src/event_sourcing/api.py:335",
+        "src/event_sourcing/api.py:343",
+        "src/event_sourcing/api.py:1083",
+        "src/event_sourcing/api.py:1098",
+        "src/core/production_lifespan.py:29",
+        "src/core/production_lifespan.py:179",
+        "src/core/production_lifespan.py:209"
+      ]
+    }
+  ]
+}

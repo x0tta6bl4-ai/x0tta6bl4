@@ -1,0 +1,186 @@
+{
+  "captured_at": "2026-05-27",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Canonical import direction for libx0t and src.libx0t package surfaces.",
+  "canonical_import_policy": {
+    "src_libx0t_rule": "Files under src/libx0t must import src.libx0t.* when the target module or package exists under src/libx0t.",
+    "allowed_exception_rule": "Files under src/libx0t may import top-level libx0t.* only when no matching src.libx0t module or package exists.",
+    "top_level_libx0t_role": "Top-level libx0t remains a public and legacy compatibility surface.",
+    "pqc_runtime_rule": "Runtime modules outside src/libx0t should prefer src.libx0t.security.post_quantum and use top-level libx0t.security.post_quantum only as compatibility fallback.",
+    "security_bridge_rule": "Top-level libx0t/security shims delegate to src.libx0t.security modules or to the canonical src.security module when the implementation lives outside src.libx0t."
+  },
+  "current_scan": {
+    "scanned_roots_for_repo_import_counts": [
+      "src",
+      "tests",
+      "scripts",
+      "libx0t"
+    ],
+    "repo_direct_import_statements": {
+      "libx0t": 98,
+      "src.libx0t": 78
+    },
+    "src_libx0t_top_level_libx0t_import_statements": {
+      "total": 0,
+      "with_src_libx0t_counterpart": 0,
+      "top_level_only": 0
+    }
+  },
+  "repaired_import_holes": [
+    {
+      "id": "src-libx0t-production-checks-pqc",
+      "previous_problem": "src/libx0t/core/production_checks.py imported libx0t.security.post_quantum_liboqs, but that top-level module does not exist.",
+      "current_target": "src.security.pqc",
+      "source_refs": [
+        "src/libx0t/core/production_checks.py:34",
+        "src/libx0t/core/production_checks.py:99"
+      ]
+    },
+    {
+      "id": "pqc-identity-prefers-src-libx0t",
+      "current_target": "src.libx0t.security.post_quantum",
+      "fallback_target": "libx0t.security.post_quantum",
+      "source_refs": [
+        "src/security/pqc_identity.py:15",
+        "src/security/pqc_identity.py:17"
+      ]
+    },
+    {
+      "id": "discovery-protocol-prefers-src-libx0t",
+      "current_target": "src.libx0t.security.post_quantum",
+      "fallback_target": "libx0t.security.post_quantum",
+      "source_refs": [
+        "src/network/discovery/protocol.py:329",
+        "src/network/discovery/protocol.py:331"
+      ]
+    },
+    {
+      "id": "src-libx0t-mapek-loop-redirect",
+      "previous_problem": "src.libx0t.core.mape_k_loop carried local code with relative imports into missing src.libx0t.dao, src.libx0t.mesh, and src.libx0t.monitoring packages.",
+      "current_target": "src.core.mape_k_loop",
+      "source_refs": [
+        "src/libx0t/core/mape_k_loop.py:2",
+        "src/libx0t/core/mape_k_loop.py:10",
+        "src/libx0t/core/mape_k_loop.py:11"
+      ]
+    },
+    {
+      "id": "src-libx0t-production-system-hardening",
+      "previous_problem": "src/libx0t/core/production_system.py imported libx0t.security.production_hardening, but that top-level module was missing.",
+      "current_target": "src.security.production_hardening",
+      "compatibility_target": "libx0t.security.production_hardening",
+      "source_refs": [
+        "src/libx0t/core/production_system.py:38",
+        "libx0t/security/production_hardening.py:3"
+      ]
+    },
+    {
+      "id": "src-libx0t-network-top-level-bridges",
+      "previous_problem": "src/libx0t runtime modules imported top-level libx0t.network modules directly because yggdrasil, byzantine, and eBPF modules existed only under the top-level libx0t surface.",
+      "current_target": "src.libx0t.network bridge modules",
+      "compatibility_targets": [
+        "libx0t.network.yggdrasil_client",
+        "libx0t.network.byzantine.mesh_byzantine_protection",
+        "libx0t.network.byzantine.signed_gossip",
+        "libx0t.network.ebpf.cilium_integration",
+        "libx0t.network.ebpf.explainer"
+      ],
+      "source_refs": [
+        "src/libx0t/core/app.py:95",
+        "src/libx0t/core/app.py:106",
+        "src/libx0t/core/app.py:513",
+        "src/libx0t/core/app.py:525",
+        "src/libx0t/core/app.py:537",
+        "src/libx0t/core/app_minimal_with_byzantine.py:23",
+        "src/libx0t/core/app_minimal_with_byzantine.py:25",
+        "src/libx0t/core/app_minimal_with_byzantine.py:188",
+        "src/libx0t/core/demo_api.py:164",
+        "src/libx0t/core/q2_integration.py:39"
+      ]
+    }
+  ],
+  "allowed_top_level_only_imports_in_src_libx0t": [],
+  "src_libx0t_top_level_bridge_modules": [
+    {
+      "path": "src/libx0t/network/yggdrasil_client.py",
+      "target": "libx0t.network.yggdrasil_client",
+      "top_level_path": "libx0t/network/yggdrasil_client.py",
+      "source_refs": [
+        "src/libx0t/network/yggdrasil_client.py:6"
+      ]
+    },
+    {
+      "path": "src/libx0t/network/byzantine/mesh_byzantine_protection.py",
+      "target": "libx0t.network.byzantine.mesh_byzantine_protection",
+      "top_level_path": "libx0t/network/byzantine/mesh_byzantine_protection.py",
+      "source_refs": [
+        "src/libx0t/network/byzantine/mesh_byzantine_protection.py:6"
+      ]
+    },
+    {
+      "path": "src/libx0t/network/byzantine/signed_gossip.py",
+      "target": "libx0t.network.byzantine.signed_gossip",
+      "top_level_path": "libx0t/network/byzantine/signed_gossip.py",
+      "source_refs": [
+        "src/libx0t/network/byzantine/signed_gossip.py:6"
+      ]
+    },
+    {
+      "path": "src/libx0t/network/ebpf/cilium_integration.py",
+      "target": "libx0t.network.ebpf.cilium_integration",
+      "top_level_path": "libx0t/network/ebpf/cilium_integration.py",
+      "source_refs": [
+        "src/libx0t/network/ebpf/cilium_integration.py:6"
+      ]
+    },
+    {
+      "path": "src/libx0t/network/ebpf/explainer.py",
+      "target": "libx0t.network.ebpf.explainer",
+      "top_level_path": "libx0t/network/ebpf/explainer.py",
+      "source_refs": [
+        "src/libx0t/network/ebpf/explainer.py:6"
+      ]
+    }
+  ],
+  "top_level_security_shims": [
+    {
+      "path": "libx0t/security/post_quantum.py",
+      "target": "src.libx0t.security.post_quantum",
+      "source_refs": [
+        "libx0t/security/post_quantum.py:3"
+      ]
+    },
+    {
+      "path": "libx0t/security/pqc_core.py",
+      "target": "src.libx0t.security.pqc_core",
+      "source_refs": [
+        "libx0t/security/pqc_core.py:3"
+      ]
+    },
+    {
+      "path": "libx0t/security/pqc_mtls.py",
+      "target": "src.libx0t.security.pqc_mtls",
+      "source_refs": [
+        "libx0t/security/pqc_mtls.py:3"
+      ]
+    },
+    {
+      "path": "libx0t/security/zero_trust/__init__.py",
+      "target": "src.libx0t.security.zero_trust",
+      "source_refs": [
+        "libx0t/security/zero_trust/__init__.py:3"
+      ]
+    },
+    {
+      "path": "libx0t/security/production_hardening.py",
+      "target": "src.security.production_hardening",
+      "source_refs": [
+        "libx0t/security/production_hardening.py:3"
+      ]
+    }
+  ],
+  "drift_checks": [
+    "tests/unit/test_canonical_import_map_unit.py",
+    "tests/unit/test_namespace_convergence_map_unit.py"
+  ]
+}
