@@ -3,7 +3,7 @@ import sys
 import os
 import binascii
 import logging
-from libx0t.crypto.pqc import PQC
+from src.security.pqc.simple import PQC
 from src.self_healing.mape_k import MAPEKMonitor, MAPEKAnalyzer
 
 logging.basicConfig(level=logging.INFO)

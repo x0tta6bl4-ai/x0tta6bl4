@@ -182,6 +182,7 @@ async def deploy_utrecht_demo(
     if cfg.dry_run:
         return {
             "status": "dry-run",
+            "request": request_payload,
             "summary": {
                 "nodes": cfg.nodes,
                 "pqc_enabled": cfg.pqc_enabled,
