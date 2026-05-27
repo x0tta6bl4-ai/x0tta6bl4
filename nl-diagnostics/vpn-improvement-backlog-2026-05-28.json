@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/build_vpn_improvement_backlog.py",
+  "generated_at": "2026-05-27T22:31:31.334330+00:00",
+  "summary": {
+    "decision": "observe",
+    "decision_confidence": "high",
+    "overall_status": "advisory",
+    "transport_status": "healthy",
+    "telegram_media_status": "degraded",
+    "provider_status": "recent_boot_gap",
+    "failure_domain": "external_network",
+    "blocking_history_trend": "stable_no_probe_evidence",
+    "blocking_history_snapshot_count": 3,
+    "source_gap_summary": {
+      "accepted_local_delta": 2,
+      "redacted_review_only": 2,
+      "redacted_template_only": 1,
+      "same_hash_elsewhere": 21,
+      "server_backup_only": 4,
+      "server_runtime_artifact": 4
+    },
+    "promoted_source_count": 22,
+    "nl_write_allowed": false,
+    "deployable_to_nl": false,
+    "spb_fallback_allowed": false
+  },
+  "items": [
+    {
+      "id": "LOCAL-01",
+      "phase": "local_now",
+      "priority": "P0",
+      "title": "Keep one-command read-only evidence collection as the first response",
+      "status": "ready",
+      "allowed_now": true,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": false,
+      "spb_fallback_allowed": false,
+      "reason": "Fresh evidence prevents restarting NL for app-only or provider symptoms.",
+      "evidence": [
+        "decision=observe",
+        "transport_status=healthy",
+        "collector=nl-diagnostics/collect_vpn_readonly_snapshot.sh"
+      ],
+      "next_steps": [
+        "run VPN_ENABLE_BLOCKING_PROBES=1 nl-diagnostics/collect_vpn_readonly_snapshot.sh during the next visible outage",
+        "classify the new snapshot before any heal/restart decision",
+        "rebuild nl-diagnostics/current-vpn-decision-2026-05-28.md from the new snapshot"
+      ],
+      "acceptance": [
+        "snapshot exists under nl-diagnostics/snapshots/",
+        "classification has mutation_allowed=false and nl_mutation_allowed=false",
+        "decision report says observe/local_fix/provider_ticket/operator_review with explicit blocked actions"
+      ]
+    },
+    {
+      "id": "LOCAL-02",
+      "phase": "local_now",
+      "priority": "P0",
+      "title": "Keep blocking/app probes as trend evidence, not restart triggers",
+      "status": "ready",
+      "allowed_now": true,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": false,
+      "spb_fallback_allowed": false,
+      "reason": "Current app/path probe history does not prove an x-ui outage.",
+      "evidence": [
+        "blocking_history_trend=stable_no_probe_evidence",
+        "blocking_history_snapshot_count=3"
+      ],
+      "next_steps": [
+        "keep nl-diagnostics/blocking_probe_targets.json as the default target set",
+        "add only non-secret public targets when a user reports a new app-specific failure",
+        "do not restart x-ui from direct-vs-SOCKS probe results alone"
+      ],
+      "acceptance": [
+        "history report includes the latest snapshot",
+        "degraded targets are grouped by service/path",
+        "policy still blocks automatic profile switch and NL mutation"
+      ]
+    },
+    {
+      "id": "LOCAL-03",
+      "phase": "local_now",
+      "priority": "P1",
+      "title": "Keep NL source reconciliation local and deploy-blocked",
+      "status": "ready",
+      "allowed_now": true,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": false,
+      "spb_fallback_allowed": false,
+      "reason": "Local source must match or explain current NL before any future deploy.",
+      "evidence": [
+        "promoted_source_count=22",
+        "nl_write_allowed=False",
+        "deployable_to_nl=False"
+      ],
+      "next_steps": [
+        "continue using services/nl-server as reviewed local source only",
+        "keep accepted local deltas marked non-deployable until separately reviewed",
+        "run services/nl-server/tools/validate_preflight_readiness.py before any maintenance window"
+      ],
+      "acceptance": [
+        "manifest JSON is valid",
+        "validate_preflight_readiness reports local_ready_but_deploy_blocked",
+        "source gap summary has no unexplained missing_local_source or local_name_drift"
+      ]
+    },
+    {
+      "id": "LOCAL-04",
+      "phase": "local_now",
+      "priority": "P1",
+      "title": "Treat provider boot gaps as watch evidence until transport degrades",
+      "status": "watch",
+      "allowed_now": true,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": false,
+      "spb_fallback_allowed": false,
+      "reason": "A boot gap with current healthy transport is a provider-watch signal, not a restart signal.",
+      "evidence": [
+        "provider_status=recent_boot_gap",
+        "failure_domain=external_network"
+      ],
+      "next_steps": [
+        "build a provider packet if transport becomes degraded or critical",
+        "keep boot gap warning in current-vpn-decision report",
+        "avoid local hard heal when provider guard blocks on stale/provider evidence"
+      ],
+      "acceptance": [
+        "provider packet can be generated from a fresh snapshot",
+        "current decision stays observe while transport is healthy",
+        "provider_ticket is used only when current evidence points to provider/host failure"
+      ]
+    },
+    {
+      "id": "NL-FUTURE-01",
+      "phase": "future_nl_write",
+      "priority": "P0",
+      "title": "First approved NL write: stage dry-run health shell split only",
+      "status": "blocked_waiting_approval",
+      "allowed_now": false,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": true,
+      "spb_fallback_allowed": false,
+      "reason": "This is the safest first server-side improvement, but NL is read-only now.",
+      "evidence": [
+        "preflight checklist=nl-diagnostics/nl-deploy-preflight-checklist-2026-05-27.md",
+        "target files=health_check_readonly.sh, health_action_policy.py, health_heal_xui.sh"
+      ],
+      "next_steps": [
+        "wait for exact operator approval: approve NL write for health shell split only",
+        "take fresh read-only snapshot and fresh server profile",
+        "create backup, stage files under .staged-<timestamp>, validate, then promote without service restart"
+      ],
+      "acceptance": [
+        "old health_check.sh remains unchanged",
+        "no systemd reload and no x-ui restart during first write",
+        "post-write read-only verification still reports transport healthy/advisory"
+      ]
+    },
+    {
+      "id": "NL-FUTURE-02",
+      "phase": "future_nl_write",
+      "priority": "P1",
+      "title": "Port runtime status semantics to NL only after shell split proves safe",
+      "status": "blocked_waiting_approval",
+      "allowed_now": false,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": true,
+      "spb_fallback_allowed": false,
+      "reason": "Local semantic fix is prepared, but changing NL runtime behavior is a later server write.",
+      "evidence": [
+        "local behavior: Telegram media degraded + healthy transport -> advisory/observe",
+        "accepted local delta: services/nl-server/mesh-runtime/vps_build_runtime_state.py"
+      ],
+      "next_steps": [
+        "prepare a separate diff review for vps_build_runtime_state.py",
+        "require fresh snapshot/profile and rollback commands",
+        "deploy only after the read-only health wrappers are already staged and verified"
+      ],
+      "acceptance": [
+        "NL runtime exposes transport_status separately from telegram_media_status",
+        "Telegram-only degradation no longer makes the whole VPN look critical",
+        "classifier and NL runtime use matching state-contract language"
+      ]
+    },
+    {
+      "id": "FUTURE-RESILIENCE-01",
+      "phase": "future_resilience",
+      "priority": "P2",
+      "title": "Prepare second exit node and manual failover, but keep SPB disabled",
+      "status": "planning",
+      "allowed_now": true,
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "nl_write_required": false,
+      "spb_fallback_allowed": false,
+      "reason": "Provider/host gaps need resilience, but the current SPB path is disabled and not a fallback.",
+      "evidence": [
+        "spb_fallback_allowed=false",
+        "provider_status=recent_boot_gap"
+      ],
+      "next_steps": [
+        "document requirements for a new secondary exit node on another provider/region",
+        "define a manual profile switch checklist that requires fresh evidence",
+        "do not reuse disabled SPB as emergency fallback"
+      ],
+      "acceptance": [
+        "manual failover document exists",
+        "secondary node health check is separate from NL",
+        "automatic switching remains disabled until manual process is tested"
+      ]
+    }
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "auto_profile_switch_allowed": false,
+  "spb_fallback_allowed": false
+}
