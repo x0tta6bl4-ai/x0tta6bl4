@@ -7,13 +7,15 @@ This is a local execution plan. NL remains read-only.
 Current authoritative evidence:
 
 ```text
-vpn snapshot: nl-diagnostics/snapshots/20260527T221810Z
+vpn snapshot: nl-diagnostics/snapshots/20260527T230246Z
 server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
 decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
 improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
+planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
+operator card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 boot gap report: nl-diagnostics/boot-gap-2026-05-27-report.md
 P1 source promotion update: nl-diagnostics/nl-p1-source-promotion-update-2026-05-27.md
 ```
@@ -30,7 +32,9 @@ NL runtime: degraded because Telegram media edges are slow
 NL transport: healthy
 NL provider_status: recent_boot_gap
 current decision: observe, high confidence
-blocking probe history: stable_no_probe_evidence across 3 snapshots
+operator status: observe
+blocking probe history: stable_no_probe_evidence across 4 snapshots
+planning refresh: ok=true
 NL writes: 0
 ```
 
@@ -198,4 +202,6 @@ manual_failover_plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 do_not_restart_nl: true
 do_not_deploy_to_nl: true
 next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
+refresh_command: python3 nl-diagnostics/refresh_vpn_planning_reports.py --snapshot nl-diagnostics/snapshots/<timestamp>
+operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 ```
