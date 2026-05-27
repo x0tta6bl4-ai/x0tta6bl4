@@ -32,17 +32,32 @@ def latest_snapshot(snapshots_dir: Path) -> Path | None:
     return sorted(candidates, key=lambda path: path.name)[-1]
 
 
-def readiness_audit_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+def provider_packet_paths(snapshot_dir: Path, diagnostics_dir: Path = DIAGNOSTICS_DIR) -> list[str]:
+    stem = f"provider-incident-packet-{snapshot_dir.name}"
+    output_dir = diagnostics_dir / "provider-incident-packets"
+    return [
+        str(output_dir / f"{stem}.json"),
+        str(output_dir / f"{stem}.md"),
+    ]
+
+
+def readiness_audit_command(
+    diagnostics_dir: Path = DIAGNOSTICS_DIR,
+    snapshot_dir: Path | None = None,
+) -> dict[str, Any]:
+    command = [
+        "python3",
+        str(diagnostics_dir / "audit_vpn_plan_readiness.py"),
+        "--json-out",
+        str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json"),
+        "--markdown-out",
+        str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.md"),
+    ]
+    if snapshot_dir is not None:
+        command.extend(["--provider-packet", provider_packet_paths(snapshot_dir, diagnostics_dir)[0]])
     return {
         "id": "readiness_audit",
-        "command": [
-            "python3",
-            str(diagnostics_dir / "audit_vpn_plan_readiness.py"),
-            "--json-out",
-            str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json"),
-            "--markdown-out",
-            str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.md"),
-        ],
+        "command": command,
         "outputs": [
             str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json"),
             str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.md"),
@@ -88,6 +103,35 @@ def command_plan(
                 str(diagnostics_dir / "current-vpn-decision-2026-05-28.json"),
                 str(diagnostics_dir / "current-vpn-decision-2026-05-28.md"),
             ],
+        },
+        {
+            "id": "boot_gap_watch",
+            "command": [
+                "python3",
+                str(diagnostics_dir / "build_boot_gap_watch_report.py"),
+                "--snapshot",
+                str(snapshot_dir),
+                "--json-out",
+                str(diagnostics_dir / "boot-gap-watch-2026-05-28.json"),
+                "--markdown-out",
+                str(diagnostics_dir / "boot-gap-watch-2026-05-28.md"),
+            ],
+            "outputs": [
+                str(diagnostics_dir / "boot-gap-watch-2026-05-28.json"),
+                str(diagnostics_dir / "boot-gap-watch-2026-05-28.md"),
+            ],
+        },
+        {
+            "id": "provider_packet",
+            "command": [
+                "python3",
+                str(diagnostics_dir / "build_provider_incident_packet.py"),
+                "--snapshot-dir",
+                str(snapshot_dir),
+                "--output-dir",
+                str(diagnostics_dir / "provider-incident-packets"),
+            ],
+            "outputs": provider_packet_paths(snapshot_dir, diagnostics_dir),
         },
         {
             "id": "improvement_backlog",
@@ -165,7 +209,7 @@ def command_plan(
         },
     ]
     if include_readiness_audit:
-        plan.append(readiness_audit_command(diagnostics_dir))
+        plan.append(readiness_audit_command(diagnostics_dir, snapshot_dir))
     return plan
 
 
@@ -218,6 +262,9 @@ def read_json(path: Path) -> dict[str, Any]:
 
 def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     decision = read_json(diagnostics_dir / "current-vpn-decision-2026-05-28.json").get("decision") or {}
+    boot_gap = read_json(diagnostics_dir / "boot-gap-watch-2026-05-28.json")
+    provider_packet_path = provider_packet_paths(Path(str(boot_gap.get("snapshot") or "")), diagnostics_dir)[0]
+    provider_packet = read_json(Path(provider_packet_path))
     history = read_json(diagnostics_dir / "blocking-probe-history-2026-05-28.json").get("summary") or {}
     backlog = read_json(diagnostics_dir / "vpn-improvement-backlog-2026-05-28.json").get("summary") or {}
     failover = read_json(diagnostics_dir / "manual-failover-plan-2026-05-28.json")
@@ -230,6 +277,10 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "decision": decision.get("decision", "unknown"),
         "decision_confidence": decision.get("confidence", "unknown"),
         "operator_status": operator.get("operator_status", "unknown"),
+        "boot_gap_watch_status": boot_gap.get("status", "unknown"),
+        "boot_gap_seconds": boot_gap.get("boot_gap_seconds", "unknown"),
+        "provider_packet_type": provider_packet.get("packet_type", "unknown"),
+        "provider_packet_stale": provider_packet.get("snapshot_stale", "unknown"),
         "blocking_history_trend": history.get("trend", "unknown"),
         "blocking_history_snapshot_count": history.get("snapshot_count", 0),
         "backlog_decision": backlog.get("decision", "unknown"),
@@ -276,6 +327,10 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"decision={summary.get('decision')}",
         f"decision_confidence={summary.get('decision_confidence')}",
         f"operator_status={summary.get('operator_status')}",
+        f"boot_gap_watch_status={summary.get('boot_gap_watch_status')}",
+        f"boot_gap_seconds={summary.get('boot_gap_seconds')}",
+        f"provider_packet_type={summary.get('provider_packet_type')}",
+        f"provider_packet_stale={summary.get('provider_packet_stale')}",
         f"blocking_history_trend={summary.get('blocking_history_trend')}",
         f"blocking_history_snapshot_count={summary.get('blocking_history_snapshot_count')}",
         f"manual_failover_status={summary.get('manual_failover_status')}",
@@ -326,7 +381,7 @@ def main() -> int:
     if args.markdown_out:
         Path(args.markdown_out).write_text(render_markdown(payload), encoding="utf-8")
 
-    rows.extend(run_plan([readiness_audit_command()], cwd=ROOT))
+    rows.extend(run_plan([readiness_audit_command(snapshot_dir=snapshot_dir)], cwd=ROOT))
     payload = build_payload(snapshot_dir, rows, DIAGNOSTICS_DIR)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

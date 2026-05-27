@@ -126,6 +126,8 @@ May 26 10:19:14 01164.com systemd-logind[641]: System is powering down (hypervis
             self.assertEqual(packet["packet_type"], "historical_provider_incident")
             self.assertFalse(packet["nl_write_performed"])
             self.assertFalse(packet["nl_mutation_allowed"])
+            self.assertFalse(packet["spb_fallback_allowed"])
+            self.assertFalse(packet["automatic_failover_allowed"])
             self.assertEqual(packet["provider_evidence"]["current_cpu_steal_percent"], 0.18)
             self.assertIn("43.78%", packet["provider_ticket_text"])
             self.assertIn("previous boot last entry", packet["provider_ticket_text"])
