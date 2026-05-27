@@ -259,10 +259,11 @@ def build_items(summary: dict[str, Any]) -> list[dict[str, Any]]:
                 "provider_status=recent_boot_gap",
                 "manual_failover_plan=nl-diagnostics/manual-failover-plan-2026-05-28.md",
                 "secondary_probe_template=nl-diagnostics/manual-failover-secondary.example.json",
+                "secondary_config_generator=nl-diagnostics/create_secondary_exit_config.py",
             ],
             next_steps=[
                 "choose a new secondary provider/region that is not SPB",
-                "copy the secondary probe example outside git and fill only public endpoint metadata",
+                "generate the secondary probe config from public endpoint metadata only",
                 "run probe_secondary_exit.py before any manual profile switch",
                 "define a manual profile switch checklist that requires fresh evidence",
                 "do not reuse disabled SPB as emergency fallback",

@@ -64,6 +64,7 @@ class ManualFailoverPlanTests(unittest.TestCase):
         markdown = failover.render_markdown(payload)
 
         self.assertEqual(payload["local_probe"]["script"], "nl-diagnostics/probe_secondary_exit.py")
+        self.assertEqual(payload["local_probe"]["config_generator"], "nl-diagnostics/create_secondary_exit_config.py")
         self.assertEqual(payload["local_probe"]["placeholder_status"], "planning_template")
         self.assertIn("probe_secondary_exit.py", markdown)
 

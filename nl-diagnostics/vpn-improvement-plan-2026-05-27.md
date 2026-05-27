@@ -742,6 +742,7 @@ future_resilience backlog: FUTURE-RESILIENCE-01
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 manual failover status: planning_not_active
 secondary exit node: must be new provider/region, not SPB
+secondary config generator added: nl-diagnostics/create_secondary_exit_config.py
 secondary probe command added: nl-diagnostics/probe_secondary_exit.py
 secondary probe example config: nl-diagnostics/manual-failover-secondary.example.json
 secondary probe placeholder result: planning_template
