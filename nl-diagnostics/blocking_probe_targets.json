@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "label": "connectivity",
+      "kind": "http",
+      "group": "baseline",
+      "url": "https://www.gstatic.com/generate_204"
+    },
+    {
+      "label": "telegram_web",
+      "kind": "http",
+      "group": "telegram",
+      "url": "https://web.telegram.org/"
+    },
+    {
+      "label": "telegram_api",
+      "kind": "http",
+      "group": "telegram",
+      "url": "https://api.telegram.org/"
+    },
+    {
+      "label": "telegram_media_dc2_149_154_166_111_443",
+      "kind": "tcp",
+      "group": "telegram_media",
+      "host": "149.154.166.111",
+      "port": 443
+    },
+    {
+      "label": "telegram_media_dc4_91_108_56_161_443",
+      "kind": "tcp",
+      "group": "telegram_media",
+      "host": "91.108.56.161",
+      "port": 443
+    },
+    {
+      "label": "openai_api",
+      "kind": "http",
+      "group": "ai",
+      "url": "https://api.openai.com/v1/models"
+    },
+    {
+      "label": "github",
+      "kind": "http",
+      "group": "dev",
+      "url": "https://github.com/"
+    },
+    {
+      "label": "russia_search",
+      "kind": "http",
+      "group": "ru",
+      "url": "https://ya.ru/"
+    }
+  ]
+}

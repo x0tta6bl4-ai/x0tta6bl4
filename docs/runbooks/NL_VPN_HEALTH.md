@@ -99,6 +99,31 @@ local/blocking_probe.json
 The probe compares direct and SOCKS paths for a small public target set. It does
 not write to NL.
 
+Default target config:
+
+```text
+nl-diagnostics/blocking_probe_targets.json
+```
+
+It includes HTTP targets and TCP targets such as Telegram media IPs on port 443.
+
+Summarize probe history across snapshots:
+
+```bash
+python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
+  --json-out /mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.json \
+  --markdown-out /mnt/projects/nl-diagnostics/blocking-probe-history-2026-05-28.md
+```
+
+Current local trend:
+
+```text
+snapshot_count=2
+trend=stable_no_probe_evidence
+latest_snapshot=20260527T220219Z
+latest_targets_ok=8/8
+```
+
 Expected healthy/advisory output shape:
 
 ```json
