@@ -64,9 +64,8 @@ REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID_EXPERIMENTAL", "7a")
 REALITY_FINGERPRINT = os.getenv("REALITY_FINGERPRINT_EXPERIMENTAL", random.choice(ROTATING_FINGERPRINT_OPTIONS))
 REALITY_SPIDERX = os.getenv("REALITY_SPIDERX_EXPERIMENTAL", random.choice(ROTATING_SPIDERX_OPTIONS))
 
-# Security check
-if not REALITY_PRIVATE_KEY:
-    logger.warning("⚠️ REALITY_PRIVATE_KEY_EXPERIMENTAL not set in environment! Set it in .env file")
+# Private Reality keys are not needed for ordinary config rendering, so missing
+# key checks must not run at import time.
 
 
 def generate_uuid() -> str:

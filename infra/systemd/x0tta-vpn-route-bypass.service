@@ -1,0 +1,17 @@
+[Unit]
+Description=x0tta6bl4 VPN endpoint route bypass
+Documentation=file:/mnt/projects/scripts/apply_vpn_route_bypass.sh
+Wants=network-online.target
+After=network-online.target
+Before=x0tta-node.service
+
+[Service]
+Type=oneshot
+Environment=VPN_SERVER=89.125.1.107
+Environment=VPN_TUN_IFACE=singbox_tun
+Environment=VPN_ROUTE_BYPASS_PRIORITY=8999
+ExecStart=/usr/local/sbin/x0tta-vpn-route-bypass
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
