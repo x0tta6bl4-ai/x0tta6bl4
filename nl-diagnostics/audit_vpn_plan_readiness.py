@@ -32,6 +32,7 @@ DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 DEFAULT_OPERATOR_CARD = DIAGNOSTICS_DIR / "vpn-operator-card-2026-05-28.json"
 DEFAULT_FAILOVER = DIAGNOSTICS_DIR / "manual-failover-plan-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
+DEFAULT_TRANSPORT_UPTIME = DIAGNOSTICS_DIR / "nl-transport-uptime-summary-2026-05-28.json"
 DEFAULT_SECONDARY = DIAGNOSTICS_DIR / "secondary-exit-probe-template-2026-05-28.json"
 DEFAULT_MANIFEST = ROOT / "services" / "nl-server" / "manifest.json"
 DEFAULT_PREFLIGHT_VALIDATOR = ROOT / "services" / "nl-server" / "tools" / "validate_preflight_readiness.py"
@@ -41,6 +42,7 @@ DEFAULT_MARKDOWN_OUT = DIAGNOSTICS_DIR / "vpn-plan-readiness-audit-2026-05-28.md
 
 APPROVAL_PHRASE = "approve NL write for health shell split only"
 SPB_TRUE_MARKER = re.compile(r"['\"]?spb_fallback_allowed['\"]?\s*[:=]\s*true\b", re.IGNORECASE)
+EVIDENCE_MAX_AGE_SECONDS = 3600
 READY = "ready_local"
 BLOCKED = "blocked_future_approval"
 WATCH = "watch"
@@ -83,6 +85,15 @@ def latest_snapshot(snapshots_dir: Path) -> Path | None:
     return sorted(candidates, key=lambda path: path.name)[-1]
 
 
+def snapshot_age_seconds(snapshot_name: str, now: datetime | None = None) -> int | None:
+    try:
+        timestamp = datetime.strptime(snapshot_name, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    current = now or datetime.now(timezone.utc)
+    return max(0, int((current - timestamp).total_seconds()))
+
+
 def flag_is_false(payload: dict[str, Any], key: str) -> bool:
     return payload.get(key) is False
 
@@ -112,7 +123,13 @@ def item(
     }
 
 
-def audit_snapshot_chain(decision: dict[str, Any], refresh: dict[str, Any], root: Path) -> dict[str, Any]:
+def audit_snapshot_chain(
+    decision: dict[str, Any],
+    refresh: dict[str, Any],
+    root: Path,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     decision_snapshot = str(decision.get("snapshot") or "")
     refresh_snapshot = str(refresh.get("snapshot") or "")
     snapshot_path = resolve_path(decision_snapshot, root)
@@ -121,8 +138,10 @@ def audit_snapshot_chain(decision: dict[str, Any], refresh: dict[str, Any], root
     same_report_snapshot = bool(decision_snapshot and refresh_snapshot and decision_snapshot == refresh_snapshot)
     same_latest = bool(snapshot_path and latest and snapshot_path.name == latest.name)
     exists = path_exists(decision_snapshot, root)
+    age_seconds = snapshot_age_seconds(Path(decision_snapshot).name, now) if decision_snapshot else None
+    fresh = age_seconds is not None and age_seconds <= EVIDENCE_MAX_AGE_SECONDS
 
-    if same_report_snapshot and same_latest and exists:
+    if same_report_snapshot and same_latest and exists and fresh:
         status = READY
     elif decision_snapshot and exists:
         status = WATCH
@@ -138,6 +157,8 @@ def audit_snapshot_chain(decision: dict[str, Any], refresh: dict[str, Any], root
             f"refresh_snapshot={refresh_snapshot or 'missing'}",
             f"latest_snapshot={latest_name}",
             f"snapshot_exists={str(exists).lower()}",
+            f"snapshot_age_seconds={age_seconds if age_seconds is not None else 'missing'}",
+            f"fresh={str(fresh).lower()}",
         ],
         next_step="collect a fresh read-only snapshot during the next visible outage",
     )
@@ -437,6 +458,39 @@ def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def audit_transport_uptime(transport_uptime: dict[str, Any]) -> dict[str, Any]:
+    summary = transport_uptime.get("summary") or {}
+    status = str(summary.get("status") or "missing")
+    sample_count = int(summary.get("sample_count") or 0)
+    bad_streak = int(summary.get("consecutive_non_healthy") or 0)
+    safe = all_false(
+        [
+            flag_is_false(transport_uptime, "nl_mutation_allowed"),
+            flag_is_false(transport_uptime, "spb_fallback_allowed"),
+            flag_is_false(transport_uptime, "automatic_failover_allowed"),
+        ]
+    )
+    if not safe or status == "missing" or sample_count <= 0:
+        item_status = MISSING
+    elif status == "stable_healthy":
+        item_status = READY
+    else:
+        item_status = WATCH
+    return item(
+        item_id="UPTIME-01",
+        title="Outside-in NL TCP uptime history is recorded locally",
+        status=item_status,
+        evidence=[
+            f"uptime_status={status}",
+            f"sample_count={sample_count}",
+            f"latest_status={summary.get('latest_status', 'missing')}",
+            f"consecutive_non_healthy={bad_streak}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="if uptime history becomes watch, collect a fresh read-only snapshot and provider packet",
+    )
+
+
 def audit_source_reconciliation(manifest: dict[str, Any]) -> dict[str, Any]:
     gap = manifest.get("gap_summary") or {}
     source = manifest.get("source_promotion_status") or {}
@@ -579,7 +633,7 @@ def run_preflight_validator(path: Path) -> dict[str, Any]:
     return payload
 
 
-def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any]:
+def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | None = None) -> dict[str, Any]:
     decision = inputs.get("decision") or {}
     boot_gap = inputs.get("boot_gap") or {}
     provider_packet = inputs.get("provider_packet") or {}
@@ -588,6 +642,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
     operator_card = inputs.get("operator_card") or {}
     failover = inputs.get("failover") or {}
     transport_probe = inputs.get("transport_probe") or {}
+    transport_uptime = inputs.get("transport_uptime") or {}
     secondary = inputs.get("secondary") or {}
     manifest = inputs.get("manifest") or {}
     preflight = inputs.get("preflight") or {}
@@ -595,7 +650,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
     report_texts = [str(text) for text in inputs.get("report_texts") or []]
 
     items: list[dict[str, Any]] = [
-        audit_snapshot_chain(decision, refresh, root),
+        audit_snapshot_chain(decision, refresh, root, now=now),
         audit_decision_guard(decision),
         audit_boot_gap_watch(boot_gap),
         audit_provider_packet(provider_packet, decision),
@@ -603,6 +658,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
         audit_refresh(refresh),
         audit_operator_card(operator_card),
         audit_transport_probe(transport_probe),
+        audit_transport_uptime(transport_uptime),
         audit_source_reconciliation(manifest),
         audit_preflight(preflight),
         audit_future_write_gate(manifest, preflight, approval_text),
@@ -636,6 +692,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT) -> dict[str, Any
             "provider_packet_type": provider_packet.get("packet_type", "missing"),
             "provider_packet_stale": provider_packet.get("snapshot_stale", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
+            "transport_uptime_status": (transport_uptime.get("summary") or {}).get("status", "missing"),
             "nl_write_allowed": False,
             "spb_fallback_allowed": False,
             "automatic_failover_allowed": False,
@@ -670,6 +727,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"provider_packet_type={summary.get('provider_packet_type')}",
         f"provider_packet_stale={summary.get('provider_packet_stale')}",
         f"transport_probe_status={summary.get('transport_probe_status')}",
+        f"transport_uptime_status={summary.get('transport_uptime_status')}",
         "nl_write_allowed=false",
         "spb_fallback_allowed=false",
         "automatic_failover_allowed=false",
@@ -703,6 +761,7 @@ def main() -> int:
     parser.add_argument("--operator-card", default=str(DEFAULT_OPERATOR_CARD))
     parser.add_argument("--failover", default=str(DEFAULT_FAILOVER))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
+    parser.add_argument("--transport-uptime", default=str(DEFAULT_TRANSPORT_UPTIME))
     parser.add_argument("--secondary", default=str(DEFAULT_SECONDARY))
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     parser.add_argument("--preflight-validator", default=str(DEFAULT_PREFLIGHT_VALIDATOR))
@@ -725,6 +784,7 @@ def main() -> int:
         "operator_card": read_json(Path(args.operator_card)),
         "failover": read_json(Path(args.failover)),
         "transport_probe": read_json(Path(args.transport_probe)),
+        "transport_uptime": read_json(Path(args.transport_uptime)),
         "secondary": read_json(Path(args.secondary)),
         "manifest": read_json(Path(args.manifest)),
         "preflight": run_preflight_validator(Path(args.preflight_validator)),
