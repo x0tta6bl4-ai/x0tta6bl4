@@ -1,21 +1,21 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T01:11:40.847036+00:00`
+generated_at: `2026-05-28T01:17:18.486858+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=13
+ready_local=15
 blocked_future_approval=3
-watch=5
+watch=3
 missing=0
 decision=observe
 operator_status=observe
 boot_gap_watch_status=watch
 provider_packet_type=provider_watch
-provider_packet_stale=True
+provider_packet_stale=False
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
@@ -24,7 +24,7 @@ local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.21
+local_root_cleanup_estimated_reclaim_gib=3.25
 local_root_cleanup_execute_allowed=False
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
@@ -37,10 +37,10 @@ automatic_failover_allowed=false
 
 | ID | Status | Area | Next Step |
 |---|---|---|---|
-| `EVIDENCE-01` | `watch` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
+| `EVIDENCE-01` | `ready_local` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
 | `DECISION-01` | `ready_local` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
 | `BOOT-01` | `watch` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
-| `PROVIDER-01` | `watch` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
+| `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
 | `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
 | `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
@@ -63,17 +63,17 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
-- latest_snapshot=20260528T000600Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
+- latest_snapshot=20260528T011622Z
 - snapshot_exists=true
-- snapshot_age_seconds=3940
-- fresh=false
+- snapshot_age_seconds=56
+- fresh=true
 
 ### DECISION-01
 
 - decision=observe
-- transport_status=healthy
+- transport_status=advisory
 - failure_domain=external_network
 - safe_flags=true
 
@@ -82,23 +82,23 @@ automatic_failover_allowed=false
 - boot_gap_watch_status=watch
 - boot_gap_seconds=21907
 - provider_status=recent_boot_gap
-- transport_status=healthy
+- transport_status=advisory
 - safe_flags=true
 
 ### PROVIDER-01
 
 - provider_packet_type=provider_watch
-- snapshot_stale=true
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
+- snapshot_stale=false
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=5
+- snapshot_count=6
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T000600Z
+- latest_probe_snapshot=20260528T011622Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -127,7 +127,7 @@ automatic_failover_allowed=false
 - root_status=critical_full
 - root_free_gib=0.0
 - existing_candidate_count=5
-- estimated_reclaim_gib=3.21
+- estimated_reclaim_gib=3.25
 - top_candidate_id=APT-CACHE-01
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -177,7 +177,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=12
+- sample_count=13
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

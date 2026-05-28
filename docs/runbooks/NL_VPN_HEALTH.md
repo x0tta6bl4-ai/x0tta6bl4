@@ -137,9 +137,9 @@ python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
 Current local trend:
 
 ```text
-snapshot_count=5
+snapshot_count=6
 trend=stable_no_probe_evidence
-latest_snapshot=20260528T000600Z
+latest_snapshot=20260528T011622Z
 latest_targets_ok=8/8
 ```
 
@@ -167,10 +167,10 @@ operator_status=observe
 boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
-provider_packet_stale=True
+provider_packet_stale=False
 provider_packet_snapshot_age_seconds=<varies with time; collect a fresh snapshot after 3600>
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=5
+blocking_history_snapshot_count=6
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -184,19 +184,19 @@ local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.21
+local_root_cleanup_estimated_reclaim_gib=3.25
 local_root_cleanup_execute_allowed=False
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=12
+nl_transport_uptime_samples=13
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=10
+incident_timeline_event_count=11
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T000600Z
+incident_timeline_latest_snapshot=20260528T011622Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 ```
@@ -210,11 +210,11 @@ nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 Current audit summary:
 
 ```text
-ready_local=13
+ready_local=15
 blocked_future_approval=3
-watch=5
+watch=3
 missing=0
-watch_items=EVIDENCE-01, BOOT-01, PROVIDER-01, LOCALENV-01, LOCALCLEAN-01
+watch_items=BOOT-01, LOCALENV-01, LOCALCLEAN-01
 blocked_items=FAILOVER-03, GATE-01, FAILOVER-02
 ```
 
@@ -257,7 +257,7 @@ Current rule:
 
 ```text
 status=manual_cleanup_plan_ready
-estimated_reclaim_gib=3.21
+estimated_reclaim_gib=3.25
 cleanup_execute_allowed=false
 ```
 
@@ -291,7 +291,7 @@ Current result:
 
 ```text
 status=stable_healthy
-sample_count=12
+sample_count=13
 latest_status=healthy
 consecutive_non_healthy=0
 ```
@@ -335,21 +335,21 @@ Current result:
 status=watch
 boot_gap_seconds=21907
 provider_status=recent_boot_gap
-transport_status=healthy
+transport_status=advisory
 recommended_action=observe provider signal; do not restart NL while transport is healthy/advisory
 ```
 
 Provider packet for the same snapshot:
 
 ```text
-nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
+nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T011622Z.md
 ```
 
 Current packet:
 
 ```text
 packet_type=provider_watch
-snapshot_stale=true
+snapshot_stale=false
 snapshot_age_seconds=<varies with time; collect fresh evidence after 3600>
 NL writes=0
 ```
@@ -363,9 +363,9 @@ nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 Current timeline:
 
 ```text
-event_count=10
+event_count=11
 latest_event_type=provider_watch
-latest_snapshot=20260528T000600Z
+latest_snapshot=20260528T011622Z
 ```
 
 Freshness rule:

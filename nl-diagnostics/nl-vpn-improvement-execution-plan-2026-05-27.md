@@ -8,13 +8,13 @@ Current authoritative evidence:
 
 ```text
 incident entrypoint: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
-vpn snapshot: nl-diagnostics/snapshots/20260528T000600Z
+vpn snapshot: nl-diagnostics/snapshots/20260528T011622Z
 server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
 decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
 boot-gap watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
+provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T011622Z.md
 improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 secondary candidate score: nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md
@@ -40,26 +40,27 @@ packet loss: 0
 NL x-ui: active
 NL listeners: 443, 2083, 39829 present
 NL runtime: degraded because Telegram media edges are slow
-NL transport: healthy
+NL classified transport: advisory
+outside-in NL transport: healthy
 NL provider_status: recent_boot_gap
 current decision: observe, high confidence
 operator status: observe
-blocking probe history: stable_no_probe_evidence across 5 snapshots
+blocking probe history: stable_no_probe_evidence across 6 snapshots
 boot-gap watch: watch, boot_gap_seconds=21907
-provider packet: provider_watch, snapshot_stale=true
+provider packet: provider_watch, snapshot_stale=false
 freshness gate: snapshot_age_seconds varies with time, max=3600
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-outside-in NL transport uptime: stable_healthy, samples=12, bad_streak=0
+outside-in NL transport uptime: stable_healthy, samples=13, bad_streak=0
 local uptime scheduler templates: prepared only, not installed
-incident timeline: event_count=10, latest_type=provider_watch
+incident timeline: event_count=11, latest_type=provider_watch
 manual failover readiness: blocked_no_incident_trigger, manual_switch_allowed=false
 secondary candidate score: missing_candidates, viable_count=0
 secondary exit requirements: requirements_ready_no_candidate, missing=NET-01
 local diagnostic environment: watch_root_full_tmpdir_available, root_status=critical_full, tmpdir=/mnt/projects/.tmp writable
-local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.21, cleanup_execute_allowed=false
+local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.25, cleanup_execute_allowed=false
 refresh tmpdir guard: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
-readiness audit: ready_local_with_future_blocks, ready_local=13, blocked_future_approval=3, watch=5, missing=0
+readiness audit: ready_local_with_future_blocks, ready_local=15, blocked_future_approval=3, watch=3, missing=0
 blocked future items: FAILOVER-03 manual failover gate, GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 watch items: EVIDENCE-01 stale snapshot, BOOT-01 provider boot gap, PROVIDER-01 stale provider packet, LOCALENV-01 local root disk full but project tmpdir works, LOCALCLEAN-01 cleanup plan awaits approval
 NL writes: 0
@@ -245,7 +246,7 @@ local_tmpdir_rule: use TMPDIR=/mnt/projects/.tmp while / has 0 free blocks
 incident_entrypoint: VPN_ENABLE_BLOCKING_PROBES=1 nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 boot_gap_watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
+provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T011622Z.md
 freshness_rule: collect a fresh read-only snapshot if snapshot_age_seconds > 3600
 nl_transport_probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
 nl_transport_uptime: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md

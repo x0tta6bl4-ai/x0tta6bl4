@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_local_diagnostic_environment.py",
-  "generated_at": "2026-05-28T01:11:30.539732+00:00",
+  "generated_at": "2026-05-28T01:17:09.195882+00:00",
   "status": "watch_root_full_tmpdir_available",
   "ok": true,
   "summary": {
@@ -27,10 +27,10 @@
       "exists": true,
       "status": "critical_full",
       "total_bytes": 114303512576,
-      "used_bytes": 108476309504,
+      "used_bytes": 108518412288,
       "free_bytes": 0,
       "total_gib": 106.45,
-      "used_gib": 101.03,
+      "used_gib": 101.07,
       "free_gib": 0.0,
       "used_percent": 94.9
     },
@@ -39,10 +39,10 @@
       "exists": true,
       "status": "critical_full",
       "total_bytes": 114303512576,
-      "used_bytes": 108476309504,
+      "used_bytes": 108518412288,
       "free_bytes": 0,
       "total_gib": 106.45,
-      "used_gib": 101.03,
+      "used_gib": 101.07,
       "free_gib": 0.0,
       "used_percent": 94.9
     },
@@ -51,10 +51,10 @@
       "exists": true,
       "status": "ok",
       "total_bytes": 499738734592,
-      "used_bytes": 433849942016,
-      "free_bytes": 65888792576,
+      "used_bytes": 433858179072,
+      "free_bytes": 65880555520,
       "total_gib": 465.42,
-      "used_gib": 404.05,
+      "used_gib": 404.06,
       "free_gib": 61.36,
       "used_percent": 86.8
     }
