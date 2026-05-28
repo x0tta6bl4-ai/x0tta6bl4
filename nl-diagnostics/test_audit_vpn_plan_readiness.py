@@ -228,6 +228,32 @@ def sample_secondary_manual_drill(status: str = "drill_plan_ready_blocked_no_end
     }
 
 
+def sample_secondary_selection_packet(status: str = "selection_packet_ready_no_endpoint") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "recommended_label": "upcloud-fi-hel",
+            "backup_label": "ovhcloud-pl-waw",
+            "decision_option_count": 3,
+            "endpoint_count": 0,
+            "shortlist_status": "shortlist_ready_no_endpoint",
+            "provisioning_plan_status": "provisioning_plan_ready_no_endpoint",
+            "candidate_intake_status": "awaiting_public_candidate_metadata",
+            "requirements_status": "requirements_ready_no_candidate",
+            "secondary_flow_status": "blocked_missing_candidate",
+            "manual_drill_status": "drill_plan_ready_blocked_no_endpoint",
+            "external_action_required": True,
+            "may_create_endpoint_now": False,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_secondary_intake(status: str = "awaiting_public_candidate_metadata") -> dict:
     return {
         "status": status,
@@ -457,6 +483,7 @@ def sample_inputs() -> dict:
         "secondary_provisioning_plan": sample_secondary_provisioning_plan(),
         "secondary_flow": sample_secondary_flow(),
         "secondary_manual_drill": sample_secondary_manual_drill(),
+        "secondary_selection_packet": sample_secondary_selection_packet(),
         "local_env": sample_local_env(),
         "local_cleanup_plan": sample_local_cleanup_plan(),
         "local_cleanup_packet": sample_local_cleanup_packet(),
@@ -543,6 +570,11 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["secondary_manual_drill_status"], "drill_plan_ready_blocked_no_endpoint")
         self.assertEqual(payload["summary"]["secondary_manual_drill_test_scope"], "single_client")
         self.assertTrue(payload["summary"]["secondary_manual_drill_rollback_required"])
+        self.assertEqual(payload["summary"]["secondary_selection_packet_status"], "selection_packet_ready_no_endpoint")
+        self.assertEqual(payload["summary"]["secondary_selection_recommended_label"], "upcloud-fi-hel")
+        self.assertEqual(payload["summary"]["secondary_selection_backup_label"], "ovhcloud-pl-waw")
+        self.assertEqual(payload["summary"]["secondary_selection_option_count"], 3)
+        self.assertFalse(payload["summary"]["secondary_selection_may_create_endpoint_now"])
         self.assertTrue(payload["summary"]["local_tmpdir_writable"])
         self.assertEqual(payload["summary"]["local_root_cleanup_plan_status"], "manual_cleanup_plan_ready")
         self.assertFalse(payload["summary"]["local_root_cleanup_execute_allowed"])
@@ -741,6 +773,26 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         drill_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-10")
         self.assertEqual(drill_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_selection_packet_with_unsafe_flags_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_selection_packet"] = {
+                **sample_secondary_selection_packet("selection_packet_unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_secondary_selection_packet()["summary"],
+                    "spb_fallback_allowed": True,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        selection_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-11")
+        self.assertEqual(selection_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):
