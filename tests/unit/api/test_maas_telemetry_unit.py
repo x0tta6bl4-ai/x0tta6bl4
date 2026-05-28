@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import threading
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -60,6 +62,108 @@ _extract_pheromone_score = _mod._extract_pheromone_score
 _derive_topology_status = _mod._derive_topology_status
 _store_local_fallback = _mod._store_local_fallback
 get_fallback_cache_stats = _mod.get_fallback_cache_stats
+
+
+def _force_telemetry_dependencies_ready(monkeypatch) -> None:
+    monkeypatch.setattr(_mod, "REDIS_AVAILABLE", True)
+    monkeypatch.setattr(_mod, "r_client", object())
+    monkeypatch.setattr(_mod, "_LOCAL_TELEMETRY_FALLBACK", _mod.LRUCache(max_size=16))
+    monkeypatch.setattr(
+        _mod,
+        "uptime_tracker",
+        SimpleNamespace(record_heartbeat=lambda *_args: None, get_uptime_percent=lambda *_args: 1.0),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "reputation_system",
+        SimpleNamespace(
+            record_proxy_result=lambda *_args, **_kwargs: None,
+            get_proxy_trust=lambda *_args: None,
+        ),
+    )
+    monkeypatch.setattr(_mod, "_record_heartbeat_metric", lambda *_args: None)
+    monkeypatch.setattr(_mod, "get_current_user_from_maas", lambda *_args, **_kwargs: None)
+
+
+class TestTelemetryReadiness:
+    def test_ready_when_core_and_persistent_dependencies_are_available(self, monkeypatch):
+        _force_telemetry_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query", "commit"])
+
+        payload = _mod._telemetry_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["registration_mode"] == "full_mode_only"
+        assert payload["route_present_in_light_mode"] is False
+        assert payload["lifecycle_binding"] == "route_import_only"
+        assert payload["startup_hook_completed"] is None
+        assert payload["telemetry_runtime_ready"] is True
+        assert payload["telemetry_db_ready"] is True
+        assert payload["mesh_node_model_ready"] is True
+        assert payload["redis_persistence_ready"] is True
+        assert payload["fallback_cache_ready"] is True
+        assert payload["uptime_tracker_ready"] is True
+        assert payload["settlement_uptime_ready"] is True
+        assert payload["reputation_system_ready"] is True
+        assert payload["metrics_export_ready"] is True
+        assert payload["auth_dependency_ready"] is True
+        assert payload["legacy_route_shadowing"]["shadowed_by_legacy"] == [
+            "POST /heartbeat",
+            "GET /{mesh_id}/topology",
+        ]
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_runtime_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.setattr(_mod, "MeshNode", SimpleNamespace(id="id"))
+        monkeypatch.setattr(_mod, "REDIS_AVAILABLE", False)
+        monkeypatch.setattr(_mod, "r_client", None)
+        monkeypatch.setattr(_mod, "_LOCAL_TELEMETRY_FALLBACK", None)
+        monkeypatch.setattr(_mod, "uptime_tracker", SimpleNamespace(record_heartbeat=None))
+        monkeypatch.setattr(_mod, "reputation_system", SimpleNamespace())
+        monkeypatch.setattr(_mod, "_record_heartbeat_metric", None)
+        monkeypatch.setattr(_mod, "get_current_user_from_maas", None)
+
+        payload = _mod._telemetry_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["telemetry_runtime_ready"] is False
+        assert payload["telemetry_db_ready"] is False
+        assert payload["mesh_node_model_ready"] is False
+        assert payload["redis_persistence_ready"] is False
+        assert payload["fallback_cache_ready"] is False
+        assert payload["uptime_tracker_ready"] is False
+        assert payload["settlement_uptime_ready"] is False
+        assert payload["reputation_system_ready"] is False
+        assert payload["metrics_export_ready"] is False
+        assert payload["auth_dependency_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "mesh_node_model",
+            "redis",
+            "fallback_cache",
+            "uptime_tracker",
+            "reputation_system",
+            "heartbeat_metrics",
+            "auth",
+        ]
+        assert "legacy route precedence" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_telemetry_dependencies_ready(monkeypatch)
+        marked: set[str] = set()
+
+        def mark_degraded(_request, dependency):
+            marked.add(dependency)
+
+        monkeypatch.setattr(_mod, "mark_degraded_dependency", mark_degraded)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            _mod.telemetry_readiness(request=request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert marked == {"database"}
 
 
 # ===========================================================================

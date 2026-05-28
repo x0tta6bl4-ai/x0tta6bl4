@@ -273,3 +273,78 @@ def test_lifecycle_map_tracks_policies_route_precedence_readiness():
     assert "rbac_dependency_ready" in source
     assert "legacy_route_shadowing" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_nodes_route_precedence_readiness():
+    lifecycle_map = _load_map()
+    nodes = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-nodes"
+    )
+    source = _module_path(nodes["module"]).read_text(encoding="utf-8")
+
+    assert nodes["lifecycle_binding"] == "route_import_only"
+    assert nodes["registration_mode"] == "full_mode_only"
+    assert nodes["route_present_in_light_mode"] is False
+    assert nodes["readiness_signal"] == "/api/v1/maas/nodes/readiness"
+    assert nodes["runtime_readiness_field"] == "node_runtime_ready"
+    assert "shadow POST /{mesh_id}/nodes/register" in nodes["hidden_dependency"]
+    assert "heartbeat, telemetry readback, ACL check, delete, and heal routes" in (
+        nodes["hidden_dependency"]
+    )
+    assert '@router.get("/nodes/readiness")' in source
+    assert "node_runtime_ready" in source
+    assert "node_db_ready" in source
+    assert "node_model_ready" in source
+    assert "node_rbac_ready" in source
+    assert "telemetry_bridge_ready" in source
+    assert "healing_service_ready" in source
+    assert "legacy_route_shadowing" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_telemetry_route_precedence_readiness():
+    lifecycle_map = _load_map()
+    telemetry = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-telemetry"
+    )
+    source = _module_path(telemetry["module"]).read_text(encoding="utf-8")
+
+    assert telemetry["lifecycle_binding"] == "route_import_only"
+    assert telemetry["registration_mode"] == "full_mode_only"
+    assert telemetry["route_present_in_light_mode"] is False
+    assert telemetry["readiness_signal"] == "/api/v1/maas/telemetry/readiness"
+    assert telemetry["runtime_readiness_field"] == "telemetry_runtime_ready"
+    assert "shadow POST /heartbeat and GET /{mesh_id}/topology" in telemetry["hidden_dependency"]
+    assert "marketplace settlement uptime checks" in telemetry["hidden_dependency"]
+    assert '@router.get("/telemetry/readiness")' in source
+    assert "telemetry_runtime_ready" in source
+    assert "telemetry_db_ready" in source
+    assert "redis_persistence_ready" in source
+    assert "fallback_cache_ready" in source
+    assert "uptime_tracker_ready" in source
+    assert "settlement_uptime_ready" in source
+    assert "legacy_route_shadowing" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_vpn_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    vpn = next(router for router in lifecycle_map["routers"] if router["id"] == "vpn")
+    source = _module_path(vpn["module"]).read_text(encoding="utf-8")
+
+    assert vpn["lifecycle_binding"] == "route_import_only"
+    assert vpn["registration_mode"] == "full_mode_only"
+    assert vpn["route_present_in_light_mode"] is False
+    assert vpn["readiness_signal"] == "/vpn/readiness"
+    assert vpn["runtime_readiness_field"] == "vpn_runtime_ready"
+    assert "/vpn fixed prefix is not shadowed" in vpn["hidden_dependency"]
+    assert "legacy ZKP subscription database helpers" in vpn["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "vpn_runtime_ready" in source
+    assert "vpn_db_ready" in source
+    assert "config_generators_ready" in source
+    assert "xui_client_factory_ready" in source
+    assert "legacy_admin_token_ready" in source
+    assert "zkp_legacy_db_ready" in source
+    assert "production_env_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
