@@ -250,3 +250,26 @@ def test_lifecycle_map_tracks_playbooks_route_only_control_plane_readiness():
     assert "playbook_db_ready" in source
     assert "audit_log_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_policies_route_precedence_readiness():
+    lifecycle_map = _load_map()
+    policies = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-policies"
+    )
+    source = _module_path(policies["module"]).read_text(encoding="utf-8")
+
+    assert policies["lifecycle_binding"] == "route_import_only"
+    assert policies["registration_mode"] == "full_mode_only"
+    assert policies["route_present_in_light_mode"] is False
+    assert policies["readiness_signal"] == "/api/v1/maas/policies/readiness"
+    assert policies["runtime_readiness_field"] == "policy_runtime_ready"
+    assert "shadow GET/POST /{mesh_id}/policies" in policies["hidden_dependency"]
+    assert "DB-backed ACLPolicy DELETE path" in policies["hidden_dependency"]
+    assert '@router.get("/policies/readiness")' in source
+    assert "policy_runtime_ready" in source
+    assert "policy_db_ready" in source
+    assert "acl_policy_model_ready" in source
+    assert "rbac_dependency_ready" in source
+    assert "legacy_route_shadowing" in source
+    assert "mark_degraded_dependency(request, dependency)" in source

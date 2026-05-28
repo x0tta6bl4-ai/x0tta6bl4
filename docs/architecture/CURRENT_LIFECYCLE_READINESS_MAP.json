@@ -286,10 +286,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/maas",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/policies/readiness",
+      "runtime_readiness_field": "policy_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow GET/POST /{mesh_id}/policies with in-memory policy handlers, while maas_policies keeps the DB-backed ACLPolicy DELETE path. Readiness exposes the DB-backed ACL policy model, RBAC dependency, and this route-precedence boundary separately from data-plane policy enforcement.",
       "source_refs": [
         "src/core/app.py:254",
-        "src/api/maas_policies.py:22"
+        "src/api/maas_policies.py:23",
+        "src/api/maas_policies.py:55",
+        "src/api/maas_policies.py:115"
       ]
     },
     {
