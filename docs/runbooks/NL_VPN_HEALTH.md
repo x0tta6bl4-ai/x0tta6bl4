@@ -134,9 +134,9 @@ python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
 Current local trend:
 
 ```text
-snapshot_count=4
+snapshot_count=5
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T230246Z
+latest_snapshot=20260528T000600Z
 latest_targets_ok=8/8
 ```
 
@@ -165,15 +165,24 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=2519
+provider_packet_snapshot_age_seconds=945
+blocking_history_trend=stable_no_probe_evidence
+blocking_history_snapshot_count=5
+manual_failover_status=planning_not_active
+manual_failover_readiness_status=blocked_no_incident_trigger
+manual_failover_probe_allowed=False
+manual_failover_switch_allowed=False
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=2
+nl_transport_uptime_samples=6
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
+incident_timeline_event_count=4
+incident_timeline_latest_type=provider_watch
+incident_timeline_latest_snapshot=20260528T000600Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 ```
@@ -188,15 +197,17 @@ Current audit summary:
 
 ```text
 ready_local=13
-blocked_future_approval=2
+blocked_future_approval=3
 watch=1
 missing=0
 watch_items=BOOT-01
-blocked_items=GATE-01, FAILOVER-02
+blocked_items=FAILOVER-03, GATE-01, FAILOVER-02
 ```
 
 Interpretation: the local observe-mode plan is usable now. Future NL writes and
-a real secondary exit node remain blocked until separate approval/setup.
+a real secondary exit node remain blocked until separate approval/setup. Manual
+failover is also blocked while the current decision is `observe` and no healthy
+non-SPB secondary node exists.
 
 Outside-in NL transport probe:
 
@@ -225,7 +236,7 @@ Current result:
 
 ```text
 status=stable_healthy
-sample_count=2
+sample_count=6
 latest_status=healthy
 consecutive_non_healthy=0
 ```
@@ -275,7 +286,7 @@ recommended_action=observe provider signal; do not restart NL while transport is
 Provider packet for the same snapshot:
 
 ```text
-nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
+nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
 ```
 
 Current packet:
@@ -283,8 +294,22 @@ Current packet:
 ```text
 packet_type=provider_watch
 snapshot_stale=false
-snapshot_age_seconds=2519
+snapshot_age_seconds=945
 NL writes=0
+```
+
+Incident timeline:
+
+```text
+nl-diagnostics/vpn-incident-timeline-2026-05-28.md
+```
+
+Current timeline:
+
+```text
+event_count=4
+latest_event_type=provider_watch
+latest_snapshot=20260528T000600Z
 ```
 
 Freshness rule:
@@ -336,12 +361,16 @@ Manual failover planning:
 
 ```text
 nl-diagnostics/manual-failover-plan-2026-05-28.md
+nl-diagnostics/manual-failover-readiness-2026-05-28.md
 ```
 
 Current rule:
 
 ```text
 manual_failover_status=planning_not_active
+manual_failover_readiness_status=blocked_no_incident_trigger
+manual_probe_allowed=false
+manual_switch_allowed=false
 automatic_failover_allowed=false
 spb_fallback_allowed=false
 secondary exit node must be new provider/region, not SPB
@@ -356,12 +385,12 @@ python3 /mnt/projects/nl-diagnostics/create_secondary_exit_config.py \
   --region <new-region> \
   --host <secondary-host-or-ip> \
   --tcp-port 443 \
-  --out /tmp/secondary-exit-probe.json
+  --out /mnt/projects/.tmp/secondary-exit-probe.json
 ```
 
 ```bash
 python3 /mnt/projects/nl-diagnostics/probe_secondary_exit.py \
-  --config /tmp/secondary-exit-probe.json
+  --config /mnt/projects/.tmp/secondary-exit-probe.json
 ```
 
 Expected template result before a secondary node exists:

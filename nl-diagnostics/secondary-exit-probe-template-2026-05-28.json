@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/probe_secondary_exit.py",
-  "generated_at": "2026-05-27T23:59:02.780006+00:00",
+  "generated_at": "2026-05-28T00:21:47.447395+00:00",
   "status": "planning_template",
   "candidate": {
     "label": "secondary-placeholder",
