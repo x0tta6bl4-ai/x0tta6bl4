@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
@@ -6,13 +7,23 @@ from sqlalchemy.orm import sessionmaker
 
 import src.api.maas_billing as billing_mod
 import src.api.maas_marketplace as marketplace_mod
+from src.coordination.events import EventBus, EventType
 from src.database import Base, Invoice, User
 
 
 class _DummyRequest:
-    def __init__(self, payload: bytes = b"{}", signature: str = "sig"):
+    def __init__(
+        self,
+        payload: bytes = b"{}",
+        signature: str = "sig",
+        event_bus=None,
+    ):
         self._payload = payload
         self.headers = {"stripe-signature": signature}
+        self.state = SimpleNamespace(event_bus=event_bus) if event_bus else SimpleNamespace()
+        self.method = "POST"
+        self.url = SimpleNamespace(path="/api/v1/maas/billing/webhook/stripe")
+        self.client = SimpleNamespace(host="127.0.0.1")
 
     async def body(self) -> bytes:
         return self._payload
@@ -154,3 +165,75 @@ async def test_subscription_bridge_mint_requires_explicit_flag(db_session, monke
     assert account == user.id
     assert amount == 1200.0
     assert reason == "stripe_payment_cs_with_bridge"
+
+
+@pytest.mark.asyncio
+async def test_subscription_webhook_publishes_billing_event_trace(db_session, monkeypatch, tmp_path):
+    user = _create_user(db_session)
+    bus = EventBus(str(tmp_path))
+    monkeypatch.setattr(billing_mod, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+    monkeypatch.setattr(billing_mod, "record_audit_log", lambda *args, **kwargs: None)
+
+    class _FakeToken:
+        def __init__(self):
+            self.calls = []
+
+        def mint(self, account, amount, reason):
+            self.calls.append((account, amount, reason))
+
+    class _FakeBridge:
+        def __init__(self):
+            self.mesh_token = _FakeToken()
+
+    fake_bridge = _FakeBridge()
+    monkeypatch.setattr(marketplace_mod, "_get_token_bridge", lambda: fake_bridge)
+
+    fake_event = {
+        "id": "evt_billing_trace",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_billing_trace",
+                "mode": "subscription",
+                "payment_status": "paid",
+                "subscription": "sub_billing_trace",
+                "currency": "usd",
+                "amount_total": 1200,
+                "metadata": {
+                    "user_id": user.id,
+                    "plan": "starter",
+                    "bridge_x0t": "true",
+                },
+            }
+        },
+    }
+    monkeypatch.setattr(
+        billing_mod.stripe.Webhook,
+        "construct_event",
+        lambda *_args, **_kwargs: fake_event,
+    )
+
+    result = await billing_mod.stripe_webhook(
+        _DummyRequest(event_bus=bus),
+        db_session,
+    )
+
+    assert result["status"] == "success"
+    events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent="maas-billing",
+    )
+    assert len(events) == 1
+    payload = events[0].data
+    assert payload["component"] == "api.maas_billing"
+    assert payload["stage"] == "subscription_activated"
+    assert payload["stripe_event_type"] == "checkout.session.completed"
+    assert payload["stripe_event_id"] == "evt_billing_trace"
+    assert payload["session_id"] == "cs_billing_trace"
+    assert payload["user_id"] == user.id
+    assert payload["plan"] == "starter"
+    assert payload["amount_total"] == 1200
+    assert payload["currency"] == "USD"
+    assert payload["bridge_x0t_requested"] is True
+    assert payload["bridge_x0t_minted"] is True
+    assert "live Stripe settlement" in payload["claim_boundary"]

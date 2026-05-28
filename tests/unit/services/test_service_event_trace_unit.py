@@ -46,6 +46,16 @@ def test_service_event_trace_filter_includes_route_only_marketplace_api():
     assert trace_filter["services"][0]["identity_source"] == "request_user_identity"
 
 
+def test_service_event_trace_filter_includes_route_only_billing_webhook():
+    trace_filter = service_event_trace_filter(service_name="maas-billing")
+
+    assert trace_filter["status"] == "ok"
+    assert trace_filter["source_agents"] == ["maas-billing"]
+    assert trace_filter["services"][0]["layer"] == "billing_webhook_to_commerce_bridge"
+    assert trace_filter["services"][0]["entrypoint"] == "src/api/maas_billing.py"
+    assert trace_filter["services"][0]["identity_source"] == "stripe_webhook_metadata"
+
+
 def test_service_event_trace_filter_uses_source_agent_alias():
     trace_filter = service_event_trace_filter(service_name="pqc-zero-trust-executor")
 

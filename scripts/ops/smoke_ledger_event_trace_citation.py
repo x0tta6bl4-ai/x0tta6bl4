@@ -30,10 +30,15 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from src.api import ledger_endpoints
+from src.api import maas_billing as maas_billing_api
+from src.api import maas_marketplace as maas_marketplace_api
 from src.api.maas_governance import _execute_action as execute_maas_governance_action
 from src.coordination.events import EventBus, EventType
+from src.database import Base, User
 from src.dao.executor_webhook import DAOExecutor
 from src.dao.token_rewards import TokenRewards
 from src.integration.spine import (
@@ -64,6 +69,8 @@ MARKETPLACE_API_SERVICE_LAYER = "api_to_commerce"
 MAAS_GOVERNANCE_SERVICE_NAME = "maas-governance"
 MAAS_GOVERNANCE_SERVICE_LAYER = "api_to_control_plane"
 MAAS_GOVERNANCE_UPDATE_CONFIG_RESOURCE = "api:maas_governance:update_config"
+MAAS_BILLING_SERVICE_NAME = "maas-billing"
+MAAS_BILLING_SERVICE_LAYER = "billing_webhook_to_commerce_bridge"
 DAO_SERVICE_NAME = "dao-executor"
 DAO_SERVICE_LAYER = "dao_to_control_plane"
 RECOVERY_SERVICE_NAME = "recovery-action-executor"
@@ -86,7 +93,7 @@ PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
 PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
 PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
 SEARCH_QUERY = (
-    "swarm-pbft maas-settlement maas-marketplace maas-governance "
+    "swarm-pbft maas-settlement maas-marketplace maas-governance maas-billing "
     "dao-executor recovery-action-executor mesh-vpn-bridge share-to-earn "
     "mptcp-manager spire-server-client "
     "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
@@ -158,6 +165,31 @@ class _SmokeGovernanceDB:
         self.commits += 1
 
 
+class _SmokeBillingRequest:
+    def __init__(self, event_bus: EventBus) -> None:
+        self.headers = {"stripe-signature": "smoke-signature"}
+        self.state = SimpleNamespace(event_bus=event_bus)
+        self.method = "POST"
+        self.url = SimpleNamespace(path="/api/v1/maas/billing/webhook/stripe")
+        self.client = SimpleNamespace(host="127.0.0.1")
+
+    async def body(self) -> bytes:
+        return b"{}"
+
+
+class _SmokeBillingToken:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, float, str]] = []
+
+    def mint(self, account: str, amount: float, reason: str) -> None:
+        self.calls.append((account, amount, reason))
+
+
+class _SmokeBillingBridge:
+    def __init__(self) -> None:
+        self.mesh_token = _SmokeBillingToken()
+
+
 def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
     ledger = LedgerRAGSearch.__new__(LedgerRAGSearch)
     ledger.continuity_file = temp_root / "CONTINUITY.md"
@@ -173,6 +205,28 @@ def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
     ledger._event_trace_indexed_chunks = 0
     ledger._event_trace_indexed_event_ids = set()
     return ledger
+
+
+def _build_billing_session(temp_root: Path) -> Any:
+    db_path = temp_root / "billing_smoke.sqlite3"
+    engine = create_engine(f"sqlite:///{db_path}")
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine)
+    return session_factory()
+
+
+def _create_billing_user(db: Any) -> User:
+    user = User(
+        id="billing-smoke-user",
+        email="billing-smoke@test.local",
+        password_hash="test-hash",
+        api_key="billing-smoke-api-key",
+        role="user",
+        plan="free",
+    )
+    db.add(user)
+    db.commit()
+    return user
 
 
 def _allow_policy(spiffe_id: str, resource: str) -> PolicyEngine:
@@ -296,6 +350,57 @@ async def _publish_trace_events(
     )
     assert governance_events
     governance_event_id = governance_events[-1].event_id
+
+    billing_db = _build_billing_session(temp_root)
+    billing_bridge = _SmokeBillingBridge()
+    original_webhook_secret = maas_billing_api.STRIPE_WEBHOOK_SECRET
+    original_construct_event = maas_billing_api.stripe.Webhook.construct_event
+    original_token_bridge = maas_marketplace_api._get_token_bridge
+    try:
+        billing_user = _create_billing_user(billing_db)
+        billing_event = {
+            "id": "evt-billing-smoke-1",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "id": "cs-billing-smoke-1",
+                    "mode": "subscription",
+                    "payment_status": "paid",
+                    "subscription": "sub-billing-smoke-1",
+                    "currency": "usd",
+                    "amount_total": 1300,
+                    "metadata": {
+                        "user_id": billing_user.id,
+                        "plan": "starter",
+                        "bridge_x0t": "true",
+                    },
+                },
+            },
+        }
+        maas_billing_api.STRIPE_WEBHOOK_SECRET = "whsec_smoke"
+        maas_billing_api.stripe.Webhook.construct_event = (
+            lambda *_args, **_kwargs: billing_event
+        )
+        maas_marketplace_api._get_token_bridge = lambda: billing_bridge
+        billing_result = await maas_billing_api.stripe_webhook(
+            _SmokeBillingRequest(bus),
+            billing_db,
+        )
+    finally:
+        maas_billing_api.STRIPE_WEBHOOK_SECRET = original_webhook_secret
+        maas_billing_api.stripe.Webhook.construct_event = original_construct_event
+        maas_marketplace_api._get_token_bridge = original_token_bridge
+        billing_db.close()
+    assert billing_result["status"] == "success"
+    assert billing_bridge.mesh_token.calls == [
+        ("billing-smoke-user", 1300.0, "stripe_payment_cs-billing-smoke-1")
+    ]
+    billing_events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent=MAAS_BILLING_SERVICE_NAME,
+    )
+    assert billing_events
+    billing_event_id = billing_events[-1].event_id
 
     dao_executor = DAOExecutor.__new__(DAOExecutor)
     dao_executor.event_bus = bus
@@ -542,6 +647,11 @@ async def _publish_trace_events(
             "layer": MAAS_GOVERNANCE_SERVICE_LAYER,
             "event_type": EventType.PIPELINE_STAGE_END.value,
         },
+        MAAS_BILLING_SERVICE_NAME: {
+            "event_id": billing_event_id,
+            "layer": MAAS_BILLING_SERVICE_LAYER,
+            "event_type": EventType.PIPELINE_STAGE_END.value,
+        },
         DAO_SERVICE_NAME: {
             "event_id": dao_event_id,
             "layer": DAO_SERVICE_LAYER,
@@ -660,7 +770,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
 
         assertions = {
             "indexed_successfully": index_body.get("status") == "success",
-            "citations_present": len(citations_by_service) >= 12,
+            "citations_present": len(citations_by_service) >= 13,
             "swarm_event_id_matches": (
                 citations_by_service.get(SWARM_SERVICE_NAME, {}).get("event_id")
                 == expected_events[SWARM_SERVICE_NAME]["event_id"]
@@ -696,6 +806,16 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "maas_governance_layer_matches": (
                 citations_by_service.get(MAAS_GOVERNANCE_SERVICE_NAME, {}).get("layer")
                 == MAAS_GOVERNANCE_SERVICE_LAYER
+            ),
+            "maas_billing_event_id_matches": (
+                citations_by_service.get(MAAS_BILLING_SERVICE_NAME, {}).get(
+                    "event_id"
+                )
+                == expected_events[MAAS_BILLING_SERVICE_NAME]["event_id"]
+            ),
+            "maas_billing_layer_matches": (
+                citations_by_service.get(MAAS_BILLING_SERVICE_NAME, {}).get("layer")
+                == MAAS_BILLING_SERVICE_LAYER
             ),
             "dao_event_id_matches": (
                 citations_by_service.get(DAO_SERVICE_NAME, {}).get("event_id")

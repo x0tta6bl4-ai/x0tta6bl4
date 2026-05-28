@@ -212,6 +212,11 @@
         "event_type": "pipeline.stage_end"
       },
       {
+        "service_name": "maas-billing",
+        "layer": "billing_webhook_to_commerce_bridge",
+        "event_type": "pipeline.stage_end"
+      },
+      {
         "service_name": "dao-executor",
         "layer": "dao_to_control_plane",
         "event_type": "task.blocked"
@@ -254,8 +259,9 @@
       }
     ],
     "proves": [
-      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, route-only marketplace API, route-only governance API, DAO executor, self-healing recovery, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
-      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, route-only marketplace API, route-only governance API, dangerous-action executor, recovery-action, PQC zero-trust healer, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
+      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, route-only marketplace API, route-only governance API, route-only billing webhook, DAO executor, self-healing recovery, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
+      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, route-only marketplace API, route-only governance API, route-only billing webhook, dangerous-action executor, recovery-action, PQC zero-trust healer, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
+      "the billing citation proves local Stripe webhook handling, DB/audit state mutation, and optional local X0T bridge intent only; it does not prove live Stripe settlement, bank settlement, or on-chain finality",
       "citations preserve event_id, source_agent, layer, source_class=event_trace, and redacted=true",
       "raw spiffe_id, did, wallet_address, and api_token values are absent from the search response"
     ],
@@ -272,6 +278,8 @@
       "scripts/ops/smoke_ledger_event_trace_citation.py:356",
       "scripts/ops/smoke_ledger_event_trace_citation.py:383",
       "scripts/ops/smoke_ledger_event_trace_citation.py:400",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:650",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:810",
       "scripts/ops/smoke_ledger_event_trace_citation.py:426",
       "scripts/ops/smoke_ledger_event_trace_citation.py:461",
       "scripts/ops/smoke_ledger_event_trace_citation.py:506",
@@ -292,6 +300,7 @@
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:95",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:104",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:115",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:126",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:126",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:146",
       "tests/unit/services/test_share_to_earn_service_unit.py:89"

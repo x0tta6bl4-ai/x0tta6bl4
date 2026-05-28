@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
+from src.coordination.events import EventBus, EventType, get_event_bus
 from src.database import User, Invoice, get_db
 from src.api.maas_auth import get_current_user_from_maas, require_permission
 from src.core.reliability_policy import (CircuitBreakerOpen, RetryExhausted,
@@ -32,6 +33,12 @@ except Exception:
     from src.api.maas import usage_metering_service, _get_mesh_or_404
 
 logger = logging.getLogger(__name__)
+_SERVICE_AGENT = "maas-billing"
+BILLING_WEBHOOK_CLAIM_BOUNDARY = (
+    "Billing webhook event only. It records local Stripe webhook handling, "
+    "database/audit state changes, and optional local X0T bridge intent; it does "
+    "not prove live Stripe settlement, bank settlement, or on-chain finality."
+)
 
 # --- Stripe Configuration ---
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
@@ -106,6 +113,68 @@ def _billing_readiness_status(db: Any) -> dict[str, Any]:
             "webhook signature validity, or successful customer payment state."
         ),
     }
+
+
+def _billing_event_bus_from_request(request: Optional[Request]) -> Optional[EventBus]:
+    state = getattr(request, "state", None)
+    injected_bus = getattr(state, "event_bus", None)
+    if injected_bus is not None:
+        return injected_bus
+    project_root = getattr(state, "event_project_root", ".")
+    try:
+        return get_event_bus(project_root)
+    except Exception as exc:
+        logger.error("Failed to initialize MaaS billing EventBus: %s", exc)
+        return None
+
+
+def _publish_billing_webhook_event(
+    request: Optional[Request],
+    event_type: EventType,
+    *,
+    stage: str,
+    stripe_event_type: str,
+    stripe_event_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    mode: Optional[str] = None,
+    user_id: Optional[str] = None,
+    invoice_id: Optional[str] = None,
+    plan: Optional[str] = None,
+    amount_total: Optional[int] = None,
+    currency: Optional[str] = None,
+    bridge_x0t_requested: bool = False,
+    bridge_x0t_minted: bool = False,
+    status: str = "success",
+    reason: str = "",
+) -> Optional[str]:
+    event_bus = _billing_event_bus_from_request(request)
+    if event_bus is None:
+        return None
+
+    payload = {
+        "component": "api.maas_billing",
+        "stage": stage,
+        "stripe_event_type": stripe_event_type,
+        "stripe_event_id": stripe_event_id,
+        "session_id": session_id,
+        "mode": mode,
+        "user_id": user_id,
+        "invoice_id": invoice_id,
+        "plan": plan,
+        "amount_total": amount_total,
+        "currency": currency,
+        "bridge_x0t_requested": bridge_x0t_requested,
+        "bridge_x0t_minted": bridge_x0t_minted,
+        "status": status,
+        "reason": reason,
+        "claim_boundary": BILLING_WEBHOOK_CLAIM_BOUNDARY,
+    }
+    try:
+        event = event_bus.publish(event_type, _SERVICE_AGENT, payload, priority=6)
+        return event.event_id
+    except Exception as exc:
+        logger.error("Failed to publish MaaS billing webhook event: %s", exc)
+        return None
 
 
 @router.get("/readiness")
@@ -444,6 +513,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         logger.warning(f"Invalid Stripe webhook signature: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
+    stripe_event_id = event.get("id")
     event_type = event['type']
     data_object = event['data']['object']
 
@@ -533,6 +603,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
             # Optional fiat->X0T bridge: only when explicitly requested in metadata.
             bridge_flag = str(metadata.get("bridge_x0t", "")).strip().lower() in {"1", "true", "yes"}
+            bridge_minted = False
+            bridge_reason = ""
             if bridge_flag and amount_total > 0:
                 try:
                     from src.api.maas_marketplace import _get_token_bridge
@@ -542,8 +614,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         float(amount_total),
                         f"stripe_payment_{session_id}",
                     )
+                    bridge_minted = True
                     logger.info("Minted %s X0T for user %s via Stripe bridge", amount_total, user.id)
                 except Exception as exc:
+                    bridge_reason = type(exc).__name__
                     logger.error("Failed to bridge Stripe payment to X0T: %s", exc)
 
             record_audit_log(
@@ -551,6 +625,23 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 user_id=user.id,
                 payload={"plan": plan, "subscription_id": subscription_id, "invoice_id": new_invoice.id},
                 status_code=200
+            )
+            _publish_billing_webhook_event(
+                request,
+                EventType.PIPELINE_STAGE_END,
+                stage="subscription_activated",
+                stripe_event_type=event_type,
+                stripe_event_id=stripe_event_id,
+                session_id=session_id,
+                mode=mode,
+                user_id=user.id,
+                invoice_id=new_invoice.id,
+                plan=plan,
+                amount_total=amount_total,
+                currency=currency,
+                bridge_x0t_requested=bridge_flag,
+                bridge_x0t_minted=bridge_minted,
+                reason=bridge_reason,
             )
         else:
             # payment mode or mode not set — handle invoice_id if present
@@ -568,6 +659,19 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             user_id=inv.user_id,
                             payload={"invoice_id": invoice_id},
                             status_code=200
+                        )
+                        _publish_billing_webhook_event(
+                            request,
+                            EventType.PIPELINE_STAGE_END,
+                            stage="invoice_paid",
+                            stripe_event_type=event_type,
+                            stripe_event_id=stripe_event_id,
+                            session_id=session_id,
+                            mode=mode,
+                            user_id=inv.user_id,
+                            invoice_id=invoice_id,
+                            amount_total=session.get("amount_total"),
+                            currency=str(session.get("currency", "")).upper() or None,
                         )
                     else:
                         logger.info("Invoice %s already marked paid", invoice_id)
