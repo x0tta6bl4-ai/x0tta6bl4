@@ -12,12 +12,13 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Set
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import require_permission
 from src.api.maas_security import token_signer
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import PlaybookAck, SignedPlaybook, User, get_db
 from src.utils.audit import record_audit_log
 
@@ -59,6 +60,89 @@ def _db_session_available(db: Any) -> bool:
 
 def _db_query_available(db: Any) -> bool:
     return _db_session_available(db) and hasattr(db, "query")
+
+
+def _memory_queue_available() -> bool:
+    return (
+        isinstance(_playbook_store, dict)
+        and isinstance(_node_queues, dict)
+        and isinstance(_playbook_acks, dict)
+        and isinstance(_playbook_deliveries, dict)
+    )
+
+
+def _token_signer_available() -> bool:
+    return (
+        callable(getattr(token_signer, "sign_token", None))
+        and callable(getattr(token_signer, "verify_token", None))
+    )
+
+
+def _playbook_readiness_status(db: Any) -> Dict[str, Any]:
+    memory_queue_ready = _memory_queue_available()
+    token_signer_ready = _token_signer_available()
+    playbook_db_ready = _db_query_available(db)
+    audit_log_ready = _db_session_available(db) and callable(record_audit_log)
+    playbook_dispatch_ready = memory_queue_ready and token_signer_ready
+    persistent_playbook_ready = playbook_db_ready and audit_log_ready
+    playbook_control_plane_ready = playbook_dispatch_ready and persistent_playbook_ready
+
+    degraded_dependencies = []
+    if not memory_queue_ready:
+        degraded_dependencies.append("in_memory_playbook_queue")
+    if not token_signer_ready:
+        degraded_dependencies.append("token_signer")
+    if not playbook_db_ready:
+        degraded_dependencies.append("database")
+    if not audit_log_ready:
+        degraded_dependencies.append("audit_log")
+
+    queue_depth = (
+        sum(len(queue) for queue in _node_queues.values())
+        if isinstance(_node_queues, dict)
+        else 0
+    )
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "playbook_control_plane_ready": playbook_control_plane_ready,
+        "playbook_dispatch_ready": playbook_dispatch_ready,
+        "persistent_playbook_ready": persistent_playbook_ready,
+        "memory_queue_ready": memory_queue_ready,
+        "token_signer_ready": token_signer_ready,
+        "playbook_db_ready": playbook_db_ready,
+        "audit_log_ready": audit_log_ready,
+        "queue_depth": queue_depth,
+        "cached_playbooks": len(_playbook_store),
+        "pending_ack_sets": len(_playbook_acks),
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "in_memory_playbook_queue": (
+                "Node polling uses in-memory playbook queues for immediate delivery."
+            ),
+            "token_signer": (
+                "Playbooks must be signed and verified before agents execute them."
+            ),
+            "database": (
+                "SignedPlaybook and PlaybookAck rows provide durable command "
+                "history, polling seed state, and acknowledgement lookup."
+            ),
+            "audit_log": (
+                "PLAYBOOK_CREATED audit records are persisted only when a "
+                "database-backed audit path is available."
+            ),
+        },
+        "claim_boundary": (
+            "Playbook readiness distinguishes route availability from signed "
+            "command dispatch, in-memory queue state, durable playbook history, "
+            "and acknowledgement persistence. It does not prove that agents are "
+            "online, that a specific node has polled, or that PQC rather than "
+            "HMAC fallback was used for a specific playbook."
+        ),
+    }
 
 
 def _action_to_dict(action: Any) -> Dict[str, Any]:
@@ -229,6 +313,17 @@ def _safe_record_audit(
     except Exception as exc:
         db.rollback()
         logger.warning("Failed to persist audit log (%s): %s", action, exc)
+
+
+@router.get("/readiness")
+async def playbook_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _playbook_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 @router.post("/create", response_model=PlaybookCreateResponse)

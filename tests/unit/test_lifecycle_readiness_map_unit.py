@@ -225,3 +225,28 @@ def test_lifecycle_map_tracks_analytics_route_only_runtime_readiness():
     assert "analytics_service_ready" in source
     assert "realtime_telemetry_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_playbooks_route_only_control_plane_readiness():
+    lifecycle_map = _load_map()
+    playbooks = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-playbooks"
+    )
+    source = _module_path(playbooks["module"]).read_text(encoding="utf-8")
+
+    assert playbooks["lifecycle_binding"] == "route_import_only"
+    assert playbooks["registration_mode"] == "always"
+    assert playbooks["route_present_in_light_mode"] is True
+    assert playbooks["readiness_signal"] == "/api/v1/maas/playbooks/readiness"
+    assert playbooks["runtime_readiness_field"] == "playbook_control_plane_ready"
+    assert "token_signer signing/verification" in playbooks["hidden_dependency"]
+    assert "SignedPlaybook and PlaybookAck database state" in playbooks["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "playbook_control_plane_ready" in source
+    assert "playbook_dispatch_ready" in source
+    assert "persistent_playbook_ready" in source
+    assert "memory_queue_ready" in source
+    assert "token_signer_ready" in source
+    assert "playbook_db_ready" in source
+    assert "audit_log_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source

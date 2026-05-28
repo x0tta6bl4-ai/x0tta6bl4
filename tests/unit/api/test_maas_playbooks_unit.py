@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
@@ -14,6 +16,7 @@ from src.api.maas_playbooks import (
     _db_query_available,
     _db_session_available,
     _is_expired,
+    _playbook_readiness_status,
     _normalize_target_nodes,
     _queue_playbook_for_targets,
     _node_queues,
@@ -78,6 +81,66 @@ class TestDbQueryAvailable:
 
     def test_false_for_none(self):
         assert _db_query_available(None) is False
+
+
+# ---------------------------------------------------------------------------
+# readiness
+# ---------------------------------------------------------------------------
+
+
+class TestPlaybookReadiness:
+    def setup_method(self):
+        _clear_state()
+
+    def test_ready_when_signer_queue_db_and_audit_are_available(self):
+        db = MagicMock(spec=["add", "commit", "query", "rollback"])
+
+        payload = _playbook_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["route_registered"] is True
+        assert payload["lifecycle_binding"] == "route_import_only"
+        assert payload["startup_hook_completed"] is None
+        assert payload["playbook_control_plane_ready"] is True
+        assert payload["playbook_dispatch_ready"] is True
+        assert payload["persistent_playbook_ready"] is True
+        assert payload["memory_queue_ready"] is True
+        assert payload["token_signer_ready"] is True
+        assert payload["playbook_db_ready"] is True
+        assert payload["audit_log_ready"] is True
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_queue_signer_db_and_audit_are_missing(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_node_queues", [])
+        monkeypatch.setattr(_mod, "_token_signer_available", lambda: False)
+
+        payload = _playbook_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["playbook_control_plane_ready"] is False
+        assert payload["playbook_dispatch_ready"] is False
+        assert payload["persistent_playbook_ready"] is False
+        assert payload["memory_queue_ready"] is False
+        assert payload["token_signer_ready"] is False
+        assert payload["playbook_db_ready"] is False
+        assert payload["audit_log_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "in_memory_playbook_queue",
+            "token_signer",
+            "database",
+            "audit_log",
+        ]
+        assert "signed command dispatch" in payload["claim_boundary"]
+
+    def test_readiness_endpoint_marks_degraded_dependencies(self):
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            _mod.playbook_readiness(request=request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database", "audit_log"}
 
 
 # ---------------------------------------------------------------------------
