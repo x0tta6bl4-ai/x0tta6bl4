@@ -406,10 +406,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/swarm",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/swarm/readiness",
+      "runtime_readiness_field": "swarm_orchestration_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/swarm fixed prefix is outside legacy MaaS catch-all matching, but status/task flows depend on import-time SwarmOrchestrator construction, the global _orchestrator, get_status and execute_task methods, in-memory status/agents/tasks/metrics state, asyncio.create_task scheduling inside the request loop, and at least one live agent. The readiness surface exposes that accepting /task is not the same as having an initialized agent able to finish it.",
       "source_refs": [
         "src/core/app.py:260",
-        "src/api/swarm_endpoints.py:13"
+        "src/api/swarm_endpoints.py:17",
+        "src/api/swarm_endpoints.py:78",
+        "src/api/swarm_endpoints.py:167"
       ]
     },
     {
