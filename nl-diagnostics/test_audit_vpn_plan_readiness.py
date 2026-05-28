@@ -254,6 +254,31 @@ def sample_secondary_selection_packet(status: str = "selection_packet_ready_no_e
     }
 
 
+def sample_secondary_public_metadata_template(status: str = "public_metadata_template_ready_no_endpoint") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "selected_label": "upcloud-fi-hel",
+            "selected_provider": "UpCloud",
+            "selected_country": "Finland",
+            "selected_region": "Helsinki",
+            "endpoint_count": 0,
+            "candidate_file": "/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+            "candidate_intake_status": "awaiting_public_candidate_metadata",
+            "template_candidate_count": 1,
+            "forbidden_material_count": 11,
+            "candidate_file_update_allowed": False,
+            "external_action_required": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_secondary_intake(status: str = "awaiting_public_candidate_metadata") -> dict:
     return {
         "status": status,
@@ -484,6 +509,7 @@ def sample_inputs() -> dict:
         "secondary_flow": sample_secondary_flow(),
         "secondary_manual_drill": sample_secondary_manual_drill(),
         "secondary_selection_packet": sample_secondary_selection_packet(),
+        "secondary_public_metadata_template": sample_secondary_public_metadata_template(),
         "local_env": sample_local_env(),
         "local_cleanup_plan": sample_local_cleanup_plan(),
         "local_cleanup_packet": sample_local_cleanup_packet(),
@@ -575,6 +601,12 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["secondary_selection_backup_label"], "ovhcloud-pl-waw")
         self.assertEqual(payload["summary"]["secondary_selection_option_count"], 3)
         self.assertFalse(payload["summary"]["secondary_selection_may_create_endpoint_now"])
+        self.assertEqual(
+            payload["summary"]["secondary_public_metadata_template_status"],
+            "public_metadata_template_ready_no_endpoint",
+        )
+        self.assertEqual(payload["summary"]["secondary_public_metadata_selected_label"], "upcloud-fi-hel")
+        self.assertFalse(payload["summary"]["secondary_public_metadata_candidate_file_update_allowed"])
         self.assertTrue(payload["summary"]["local_tmpdir_writable"])
         self.assertEqual(payload["summary"]["local_root_cleanup_plan_status"], "manual_cleanup_plan_ready")
         self.assertFalse(payload["summary"]["local_root_cleanup_execute_allowed"])
@@ -793,6 +825,26 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         selection_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-11")
         self.assertEqual(selection_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_public_metadata_template_with_unsafe_flags_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_public_metadata_template"] = {
+                **sample_secondary_public_metadata_template("public_metadata_template_unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_secondary_public_metadata_template()["summary"],
+                    "spb_fallback_allowed": True,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        public_template_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-12")
+        self.assertEqual(public_template_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):

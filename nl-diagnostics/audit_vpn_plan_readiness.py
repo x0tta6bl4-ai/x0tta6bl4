@@ -40,6 +40,9 @@ DEFAULT_SECONDARY_PROVISIONING_PLAN = DIAGNOSTICS_DIR / "secondary-exit-provisio
 DEFAULT_SECONDARY_FLOW = DIAGNOSTICS_DIR / "secondary-exit-flow-2026-05-28.json"
 DEFAULT_SECONDARY_MANUAL_DRILL = DIAGNOSTICS_DIR / "secondary-exit-manual-drill-2026-05-28.json"
 DEFAULT_SECONDARY_SELECTION_PACKET = DIAGNOSTICS_DIR / "secondary-exit-selection-packet-2026-05-28.json"
+DEFAULT_SECONDARY_PUBLIC_METADATA_TEMPLATE = (
+    DIAGNOSTICS_DIR / "secondary-exit-public-metadata-template-2026-05-28.json"
+)
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PACKET = DIAGNOSTICS_DIR / "local-root-cleanup-approval-packet-2026-05-28.json"
@@ -951,6 +954,50 @@ def audit_secondary_selection_packet(selection_packet: dict[str, Any]) -> dict[s
     )
 
 
+def audit_secondary_public_metadata_template(public_template: dict[str, Any]) -> dict[str, Any]:
+    status = str(public_template.get("status") or "missing")
+    summary = public_template.get("summary") or {}
+    template_candidate_count = int(summary.get("template_candidate_count") or 0)
+    forbidden_material_count = int(summary.get("forbidden_material_count") or 0)
+    safe = all_false(
+        [
+            flag_is_false(public_template, "nl_mutation_allowed"),
+            flag_is_false(public_template, "spb_fallback_allowed"),
+            flag_is_false(public_template, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("external_action_required") is True,
+        ]
+    )
+    ready = (
+        safe
+        and status
+        in {
+            "public_metadata_template_ready_no_endpoint",
+            "public_metadata_template_ready_for_public_metadata",
+        }
+        and template_candidate_count > 0
+        and forbidden_material_count > 0
+    )
+    return item(
+        item_id="FAILOVER-12",
+        title="Secondary public metadata template is ready without secrets",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_public_metadata_template_status={status}",
+            f"selected_label={summary.get('selected_label', 'missing')}",
+            f"selected_provider={summary.get('selected_provider', 'missing')}",
+            f"candidate_file={summary.get('candidate_file', 'missing')}",
+            f"template_candidate_count={template_candidate_count}",
+            f"candidate_file_update_allowed={str(summary.get('candidate_file_update_allowed')).lower()}",
+            f"forbidden_material_count={forbidden_material_count}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="after external provisioning, replace only host with public IP/DNS and rerun scorer",
+    )
+
+
 def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     status = str(transport_probe.get("status") or "missing")
     ok_count = transport_probe.get("ok_count", "missing")
@@ -1204,6 +1251,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     secondary_flow = inputs.get("secondary_flow") or {}
     secondary_manual_drill = inputs.get("secondary_manual_drill") or {}
     secondary_selection_packet = inputs.get("secondary_selection_packet") or {}
+    secondary_public_metadata_template = inputs.get("secondary_public_metadata_template") or {}
     local_env = inputs.get("local_env") or {}
     local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     local_cleanup_packet = inputs.get("local_cleanup_packet") or {}
@@ -1237,6 +1285,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_secondary_exit_flow(secondary_flow),
         audit_secondary_manual_drill(secondary_manual_drill),
         audit_secondary_selection_packet(secondary_selection_packet),
+        audit_secondary_public_metadata_template(secondary_public_metadata_template),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -1318,6 +1367,13 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "secondary_selection_may_create_endpoint_now": (
                 secondary_selection_packet.get("summary") or {}
             ).get("may_create_endpoint_now", "missing"),
+            "secondary_public_metadata_template_status": secondary_public_metadata_template.get("status", "missing"),
+            "secondary_public_metadata_selected_label": (
+                secondary_public_metadata_template.get("summary") or {}
+            ).get("selected_label", "missing"),
+            "secondary_public_metadata_candidate_file_update_allowed": (
+                secondary_public_metadata_template.get("summary") or {}
+            ).get("candidate_file_update_allowed", "missing"),
             "local_diagnostic_environment_status": local_env.get("status", "missing"),
             "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
             "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
@@ -1399,6 +1455,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_selection_backup_label={summary.get('secondary_selection_backup_label')}",
         f"secondary_selection_option_count={summary.get('secondary_selection_option_count')}",
         f"secondary_selection_may_create_endpoint_now={summary.get('secondary_selection_may_create_endpoint_now')}",
+        f"secondary_public_metadata_template_status={summary.get('secondary_public_metadata_template_status')}",
+        f"secondary_public_metadata_selected_label={summary.get('secondary_public_metadata_selected_label')}",
+        f"secondary_public_metadata_candidate_file_update_allowed={summary.get('secondary_public_metadata_candidate_file_update_allowed')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
@@ -1454,6 +1513,7 @@ def main() -> int:
     parser.add_argument("--secondary-flow", default=str(DEFAULT_SECONDARY_FLOW))
     parser.add_argument("--secondary-manual-drill", default=str(DEFAULT_SECONDARY_MANUAL_DRILL))
     parser.add_argument("--secondary-selection-packet", default=str(DEFAULT_SECONDARY_SELECTION_PACKET))
+    parser.add_argument("--secondary-public-metadata-template", default=str(DEFAULT_SECONDARY_PUBLIC_METADATA_TEMPLATE))
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--local-cleanup-packet", default=str(DEFAULT_LOCAL_CLEANUP_PACKET))
@@ -1473,6 +1533,7 @@ def main() -> int:
         Path(args.operator_card).with_suffix(".md"),
         Path(args.incident_symptom_intake).with_suffix(".md"),
         Path(args.secondary_selection_packet).with_suffix(".md"),
+        Path(args.secondary_public_metadata_template).with_suffix(".md"),
         Path(args.failover).with_suffix(".md"),
     ]
     inputs = {
@@ -1492,6 +1553,7 @@ def main() -> int:
         "secondary_flow": read_json(Path(args.secondary_flow)),
         "secondary_manual_drill": read_json(Path(args.secondary_manual_drill)),
         "secondary_selection_packet": read_json(Path(args.secondary_selection_packet)),
+        "secondary_public_metadata_template": read_json(Path(args.secondary_public_metadata_template)),
         "local_env": read_json(Path(args.local_env)),
         "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "local_cleanup_packet": read_json(Path(args.local_cleanup_packet)),

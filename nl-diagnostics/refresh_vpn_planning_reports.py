@@ -294,6 +294,30 @@ def secondary_selection_packet_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) 
     }
 
 
+def secondary_public_metadata_template_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_public_metadata_template",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_public_metadata_template.py"),
+            "--selection-packet",
+            str(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.json"),
+            "--candidate-intake",
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json"),
+            "--candidate-file",
+            str(diagnostics_dir / "secondary-exit-candidates.example.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.md"),
+        ],
+    }
+
+
 def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
     return {
         "id": "local_diagnostic_environment",
@@ -538,6 +562,7 @@ def command_plan(
         secondary_exit_flow_command(diagnostics_dir),
         secondary_manual_drill_command(diagnostics_dir),
         secondary_selection_packet_command(diagnostics_dir),
+        secondary_public_metadata_template_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
         local_root_cleanup_plan_command(diagnostics_dir),
         local_root_cleanup_approval_packet_command(diagnostics_dir),
@@ -675,6 +700,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     secondary_drill_summary = secondary_drill.get("summary") or {}
     secondary_selection = read_json(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.json")
     secondary_selection_summary = secondary_selection.get("summary") or {}
+    secondary_public_template = read_json(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.json")
+    secondary_public_template_summary = secondary_public_template.get("summary") or {}
     local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
     local_env_summary = local_env.get("summary") or {}
     cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
@@ -730,6 +757,12 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "secondary_selection_option_count": secondary_selection_summary.get("decision_option_count", "unknown"),
         "secondary_selection_may_create_endpoint_now": secondary_selection_summary.get(
             "may_create_endpoint_now",
+            "unknown",
+        ),
+        "secondary_public_metadata_template_status": secondary_public_template.get("status", "unknown"),
+        "secondary_public_metadata_selected_label": secondary_public_template_summary.get("selected_label", "unknown"),
+        "secondary_public_metadata_candidate_file_update_allowed": secondary_public_template_summary.get(
+            "candidate_file_update_allowed",
             "unknown",
         ),
         "local_diagnostic_environment_status": local_env.get("status", "unknown"),
@@ -827,6 +860,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_selection_backup_label={summary.get('secondary_selection_backup_label')}",
         f"secondary_selection_option_count={summary.get('secondary_selection_option_count')}",
         f"secondary_selection_may_create_endpoint_now={summary.get('secondary_selection_may_create_endpoint_now')}",
+        f"secondary_public_metadata_template_status={summary.get('secondary_public_metadata_template_status')}",
+        f"secondary_public_metadata_selected_label={summary.get('secondary_public_metadata_selected_label')}",
+        f"secondary_public_metadata_candidate_file_update_allowed={summary.get('secondary_public_metadata_candidate_file_update_allowed')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
