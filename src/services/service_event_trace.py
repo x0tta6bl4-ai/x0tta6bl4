@@ -1,4 +1,4 @@
-"""Event trace helpers bound to registered service identity."""
+"""Event trace helpers bound to registered service and API source agents."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 from src.coordination.events import Event, EventBus, EventType
-from src.services.service_identity_registry import KNOWN_EVENT_IDENTITY_SERVICES
+from src.services.service_identity_registry import KNOWN_EVENT_TRACE_SERVICES
 
 
 EVENT_TRACE_CLAIM_BOUNDARY = (
@@ -26,7 +26,7 @@ def _matching_registrations(
 ) -> List[Dict[str, str]]:
     return [
         dict(registration)
-        for registration in KNOWN_EVENT_IDENTITY_SERVICES
+        for registration in KNOWN_EVENT_TRACE_SERVICES
         if (service_name is None or registration["service_name"] == service_name)
         and (layer is None or registration["layer"] == layer)
     ]
@@ -45,11 +45,11 @@ def service_event_trace_filter(
     services = _matching_registrations(service_name=service_name, layer=layer)
     known_service_names = {
         registration["service_name"]
-        for registration in KNOWN_EVENT_IDENTITY_SERVICES
+        for registration in KNOWN_EVENT_TRACE_SERVICES
     }
     known_layers = {
         registration["layer"]
-        for registration in KNOWN_EVENT_IDENTITY_SERVICES
+        for registration in KNOWN_EVENT_TRACE_SERVICES
     }
 
     unknown_service = (
@@ -72,7 +72,7 @@ def service_event_trace_filter(
             _registration_source_agent(service) for service in services
         ),
         "services_total": len(services),
-        "registered_services_total": len(KNOWN_EVENT_IDENTITY_SERVICES),
+        "registered_services_total": len(KNOWN_EVENT_TRACE_SERVICES),
         "known_layers": sorted(known_layers),
         "services": services,
     }

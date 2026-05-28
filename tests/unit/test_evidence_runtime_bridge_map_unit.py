@@ -114,6 +114,7 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     }
     assert covered_services["swarm-pbft"] == "swarm_consensus_to_control_plane"
     assert covered_services["maas-settlement"] == "commerce_settlement_to_events"
+    assert covered_services["maas-marketplace"] == "api_to_commerce"
     assert covered_services["dao-executor"] == "dao_to_control_plane"
     assert (
         covered_services["recovery-action-executor"]
@@ -134,6 +135,8 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "/api/v1/ledger/event-traces/index" in smoke_source
     assert "/api/v1/ledger/search" in smoke_source
     assert "publish_marketplace_escrow_event" in smoke_source
+    assert "MARKETPLACE_API_SERVICE_NAME" in smoke_source
+    assert "marketplace_api_event_id_matches" in smoke_source
     assert "TokenRewards" in smoke_source
     assert "reward_relay" in smoke_source
     assert "mesh_reward_event_id_matches" in smoke_source
