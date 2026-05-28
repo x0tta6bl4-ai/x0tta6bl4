@@ -8,14 +8,15 @@ Zero-trust policy management backed by SQLAlchemy.
 import logging
 import uuid
 from datetime import datetime
-from typing import List
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
-from src.database import User, ACLPolicy, get_db
 from src.api.maas_auth import require_role
+from src.core.reliability_policy import mark_degraded_dependency
+from src.database import ACLPolicy, User, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,92 @@ class PolicyResponse(BaseModel):
     target_tag: str
     action: str
     created_at: datetime
+
+
+def _policy_db_session_available(db: Any) -> bool:
+    return all(
+        hasattr(db, attr)
+        for attr in ("query", "add", "commit", "delete")
+    )
+
+
+def _acl_policy_model_available() -> bool:
+    return all(
+        hasattr(ACLPolicy, attr)
+        for attr in ("id", "mesh_id", "source_tag", "target_tag", "action")
+    )
+
+
+def _policy_readiness_status(db: Any) -> Dict[str, Any]:
+    policy_db_ready = _policy_db_session_available(db)
+    acl_policy_model_ready = _acl_policy_model_available()
+    rbac_dependency_ready = callable(require_role)
+    policy_runtime_ready = (
+        policy_db_ready
+        and acl_policy_model_ready
+        and rbac_dependency_ready
+    )
+
+    degraded_dependencies = []
+    if not policy_db_ready:
+        degraded_dependencies.append("database")
+    if not acl_policy_model_ready:
+        degraded_dependencies.append("acl_policy_model")
+    if not rbac_dependency_ready:
+        degraded_dependencies.append("rbac")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "policy_runtime_ready": policy_runtime_ready,
+        "policy_db_ready": policy_db_ready,
+        "acl_policy_model_ready": acl_policy_model_ready,
+        "rbac_dependency_ready": rbac_dependency_ready,
+        "legacy_route_shadowing": {
+            "get_post_shadowed_by_legacy": True,
+            "db_backed_delete_route_active": True,
+            "boundary": (
+                "Legacy maas router is registered before maas_policies, so "
+                "GET/POST /{mesh_id}/policies are handled by legacy in-memory "
+                "policy routes while DELETE remains DB-backed here."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "DB-backed policy CRUD requires query/add/delete/commit support "
+                "for ACLPolicy rows."
+            ),
+            "acl_policy_model": (
+                "ACLPolicy maps mesh source/target tags to allow/deny actions."
+            ),
+            "rbac": (
+                "Policy routes depend on role checks from maas_auth.require_role."
+            ),
+        },
+        "claim_boundary": (
+            "Policy readiness distinguishes this DB-backed ACL policy router from "
+            "legacy in-memory policy handlers that shadow GET and POST by route "
+            "order. It does not prove that every mesh policy is enforced by data "
+            "plane components."
+        ),
+    }
+
+
+@router.get("/policies/readiness")
+async def policy_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _policy_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
 
 @router.get("/{mesh_id}/policies", response_model=List[PolicyResponse])
 def list_policies(
