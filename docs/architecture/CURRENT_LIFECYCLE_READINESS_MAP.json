@@ -142,10 +142,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/auth",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/auth/readiness",
+      "runtime_readiness_field": "maas_auth_runtime_ready",
+      "hidden_dependency": "MaaS auth routes are registered in light mode and do not have a production_lifespan startup hook, but register/login/profile/API-key/admin/OIDC/bootstrap flows depend on SQLAlchemy User and Session models, a DB session, MaaSAuthService, ApiKeyManager.generate, RBAC role/permission helpers, token helpers, audit logging, optional authlib OAuth when OIDC is enabled, and optional BOOTSTRAP_TOKEN for first-admin creation. Readiness exposes those local dependency surfaces without creating users or contacting an OIDC provider.",
       "source_refs": [
         "src/core/app.py:243",
-        "src/api/maas_auth.py:37"
+        "src/api/maas_auth.py:38",
+        "src/api/maas_auth.py:134",
+        "src/api/maas_auth.py:255"
       ]
     },
     {

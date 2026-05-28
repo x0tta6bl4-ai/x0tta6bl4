@@ -186,6 +186,34 @@ def test_lifecycle_map_tracks_billing_api_route_only_runtime_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_maas_auth_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    auth = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-auth"
+    )
+    source = _module_path(auth["module"]).read_text(encoding="utf-8")
+
+    assert auth["lifecycle_binding"] == "route_import_only"
+    assert auth["registration_mode"] == "always"
+    assert auth["route_present_in_light_mode"] is True
+    assert auth["readiness_signal"] == "/api/v1/maas/auth/readiness"
+    assert auth["runtime_readiness_field"] == "maas_auth_runtime_ready"
+    assert "MaaSAuthService" in auth["hidden_dependency"]
+    assert "optional BOOTSTRAP_TOKEN" in auth["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "maas_auth_runtime_ready" in source
+    assert "auth_db_ready" in source
+    assert "user_model_ready" in source
+    assert "session_model_ready" in source
+    assert "auth_service_ready" in source
+    assert "api_key_manager_ready" in source
+    assert "rbac_ready" in source
+    assert "token_helpers_ready" in source
+    assert "audit_log_ready" in source
+    assert "oidc_redirect_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
     lifecycle_map = _load_map()
     governance = next(
