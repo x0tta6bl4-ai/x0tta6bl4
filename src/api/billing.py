@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import importlib
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ except ImportError:
 
 
 from src.core.circuit_breaker import CircuitBreakerOpen, stripe_circuit
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import BillingWebhookEvent, Invoice, License, Payment, User, get_db
 from src.services.xray_manager import XrayManager
 
@@ -124,6 +126,184 @@ def _require_env(name: str) -> str:
             detail=f"Missing required configuration: {name}",
         )
     return value
+
+
+def _billing_api_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "add", "commit", "rollback"))
+
+
+def _billing_api_stripe_checkout_config_available() -> bool:
+    return bool(_get_env("STRIPE_SECRET_KEY") and _get_env("STRIPE_PRICE_ID"))
+
+
+def _billing_api_stripe_webhook_config_available() -> bool:
+    return bool(_get_env("STRIPE_WEBHOOK_SECRET"))
+
+
+def _billing_api_stripe_transport_available() -> bool:
+    return callable(getattr(httpx, "AsyncClient", None)) and callable(
+        getattr(stripe_circuit, "call", None)
+    )
+
+
+def _billing_api_models_available() -> bool:
+    required_model_attrs = (
+        (
+            BillingWebhookEvent,
+            (
+                "event_id",
+                "event_type",
+                "payload_hash",
+                "status",
+                "response_json",
+                "created_at",
+            ),
+        ),
+        (
+            User,
+            (
+                "email",
+                "plan",
+                "vpn_uuid",
+                "stripe_customer_id",
+                "stripe_subscription_id",
+            ),
+        ),
+        (License, ("token", "user_id", "tier", "is_active")),
+        (Payment, ("status", "amount")),
+        (Invoice, ("status", "total_amount")),
+    )
+    return all(
+        hasattr(model, attr)
+        for model, attrs in required_model_attrs
+        for attr in attrs
+    )
+
+
+def _billing_api_vless_link_available() -> bool:
+    return callable(generate_vless_link)
+
+
+def _billing_api_provisioning_imports_available() -> bool:
+    try:
+        provisioning_module = importlib.import_module("src.services.provisioning_service")
+        telegram_module = importlib.import_module("src.sales.telegram_bot")
+    except Exception:
+        return False
+    return (
+        hasattr(provisioning_module, "ProvisioningSource")
+        and hasattr(provisioning_module, "provisioning_service")
+        and hasattr(telegram_module, "TokenGenerator")
+    )
+
+
+def _billing_api_readiness_status(db: Any) -> Dict[str, Any]:
+    db_ready = _billing_api_db_session_available(db)
+    stripe_checkout_config_ready = _billing_api_stripe_checkout_config_available()
+    stripe_webhook_config_ready = _billing_api_stripe_webhook_config_available()
+    stripe_transport_ready = _billing_api_stripe_transport_available()
+    billing_models_ready = _billing_api_models_available()
+    vless_link_ready = _billing_api_vless_link_available()
+    provisioning_imports_ready = _billing_api_provisioning_imports_available()
+    billing_api_runtime_ready = (
+        db_ready
+        and stripe_checkout_config_ready
+        and stripe_webhook_config_ready
+        and stripe_transport_ready
+        and billing_models_ready
+        and vless_link_ready
+        and provisioning_imports_ready
+    )
+
+    degraded_dependencies = []
+    if not db_ready:
+        degraded_dependencies.append("database")
+    if not stripe_checkout_config_ready:
+        degraded_dependencies.append("stripe_checkout_config")
+    if not stripe_webhook_config_ready:
+        degraded_dependencies.append("stripe_webhook_config")
+    if not stripe_transport_ready:
+        degraded_dependencies.append("stripe_transport")
+    if not billing_models_ready:
+        degraded_dependencies.append("billing_models")
+    if not vless_link_ready:
+        degraded_dependencies.append("vless_link_generator")
+    if not provisioning_imports_ready:
+        degraded_dependencies.append("provisioning_imports")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "always",
+        "route_present_in_light_mode": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "billing_api_runtime_ready": billing_api_runtime_ready,
+        "billing_api_db_ready": db_ready,
+        "stripe_checkout_config_ready": stripe_checkout_config_ready,
+        "stripe_webhook_config_ready": stripe_webhook_config_ready,
+        "stripe_transport_ready": stripe_transport_ready,
+        "billing_models_ready": billing_models_ready,
+        "vless_link_ready": vless_link_ready,
+        "provisioning_imports_ready": provisioning_imports_ready,
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/api/v1/billing",
+            "boundary": (
+                "Commercial billing routes use the fixed /api/v1/billing prefix, "
+                "so they are outside legacy MaaS catch-all matching and are "
+                "registered in light mode."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Webhook idempotency, user subscription state, licenses, payments, "
+                "invoices, order status, and revenue metrics require SQLAlchemy "
+                "query/add/commit/rollback methods."
+            ),
+            "stripe_checkout_config": (
+                "Checkout and order status require STRIPE_SECRET_KEY and "
+                "STRIPE_PRICE_ID."
+            ),
+            "stripe_webhook_config": (
+                "Webhook signature verification requires STRIPE_WEBHOOK_SECRET."
+            ),
+            "stripe_transport": (
+                "Stripe calls require httpx.AsyncClient and the stripe circuit "
+                "breaker call wrapper."
+            ),
+            "billing_models": (
+                "BillingWebhookEvent, User, License, Payment, and Invoice models "
+                "must expose the columns touched by billing routes."
+            ),
+            "vless_link_generator": (
+                "Paid order status requires generate_vless_link to return the "
+                "customer VPN client link."
+            ),
+            "provisioning_imports": (
+                "Successful Stripe webhooks import provisioning_service, "
+                "ProvisioningSource, and TokenGenerator at processing time."
+            ),
+        },
+        "claim_boundary": (
+            "Billing API readiness proves route availability and local dependency "
+            "surfaces only. It does not call Stripe, query the database, verify a "
+            "real webhook signature, create a license, provision VPN access, or "
+            "prove payment settlement."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def billing_api_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _billing_api_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 @router.get("/config")
