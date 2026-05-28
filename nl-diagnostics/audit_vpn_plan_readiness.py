@@ -43,6 +43,10 @@ DEFAULT_MARKDOWN_OUT = DIAGNOSTICS_DIR / "vpn-plan-readiness-audit-2026-05-28.md
 APPROVAL_PHRASE = "approve NL write for health shell split only"
 SPB_TRUE_MARKER = re.compile(r"['\"]?spb_fallback_allowed['\"]?\s*[:=]\s*true\b", re.IGNORECASE)
 EVIDENCE_MAX_AGE_SECONDS = 3600
+FORBIDDEN_SYSTEMD_TEMPLATE_WORDS = re.compile(
+    r"\b(ssh|scp|rsync|sudo|systemctl|restart|reload|enable|disable)\b",
+    re.IGNORECASE,
+)
 READY = "ready_local"
 BLOCKED = "blocked_future_approval"
 WATCH = "watch"
@@ -491,6 +495,34 @@ def audit_transport_uptime(transport_uptime: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def audit_scheduler_templates(root: Path) -> dict[str, Any]:
+    service = root / "infra/systemd/x0tta-vpn-nl-transport-uptime.service"
+    timer = root / "infra/systemd/x0tta-vpn-nl-transport-uptime.timer"
+    service_text = read_text(service)
+    timer_text = read_text(timer)
+    exists = service.exists() and timer.exists()
+    expected = (
+        "probe_nl_transport_ports.py" in service_text
+        and "record_nl_transport_uptime.py" in service_text
+        and "OnUnitActiveSec=5min" in timer_text
+        and "Unit=x0tta-vpn-nl-transport-uptime.service" in timer_text
+    )
+    forbidden = FORBIDDEN_SYSTEMD_TEMPLATE_WORDS.search(service_text + "\n" + timer_text)
+    ready = exists and expected and forbidden is None
+    return item(
+        item_id="SCHEDULER-01",
+        title="Local uptime systemd timer templates are prepared but not installed",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"service_exists={str(service.exists()).lower()}",
+            f"timer_exists={str(timer.exists()).lower()}",
+            f"expected_commands={str(expected).lower()}",
+            f"forbidden_word={forbidden.group(1) if forbidden else 'none'}",
+        ],
+        next_step="install/enable the local timer only after separate local host approval",
+    )
+
+
 def audit_source_reconciliation(manifest: dict[str, Any]) -> dict[str, Any]:
     gap = manifest.get("gap_summary") or {}
     source = manifest.get("source_promotion_status") or {}
@@ -659,6 +691,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_operator_card(operator_card),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
+        audit_scheduler_templates(root),
         audit_source_reconciliation(manifest),
         audit_preflight(preflight),
         audit_future_write_gate(manifest, preflight, approval_text),

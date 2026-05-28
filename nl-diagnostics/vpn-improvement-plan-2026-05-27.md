@@ -751,10 +751,13 @@ outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-
 outside-in NL transport status: healthy, 3/3 ports ok
 outside-in NL transport uptime recorder added: nl-diagnostics/record_nl_transport_uptime.py
 outside-in NL transport uptime summary: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
-outside-in NL transport uptime status: stable_healthy, samples=1, bad_streak=0
+outside-in NL transport uptime status: stable_healthy, samples=2, bad_streak=0
+local uptime scheduler service template: infra/systemd/x0tta-vpn-nl-transport-uptime.service
+local uptime scheduler timer template: infra/systemd/x0tta-vpn-nl-transport-uptime.timer
+local uptime scheduler status: prepared only, not installed, no systemd command run
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
-readiness audit status: ready_local_with_future_blocks, watch=1, missing=0
+readiness audit status: ready_local_with_future_blocks, ready_local=13, watch=1, missing=0
 operator card added: nl-diagnostics/build_vpn_operator_card.py
 operator card report: nl-diagnostics/vpn-operator-card-2026-05-28.md
 operator status: observe

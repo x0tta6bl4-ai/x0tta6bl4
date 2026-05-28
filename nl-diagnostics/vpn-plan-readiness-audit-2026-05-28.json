@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-27T23:53:10.506939+00:00",
+  "generated_at": "2026-05-27T23:59:03.284069+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 12,
+    "ready_local": 13,
     "blocked_future_approval": 2,
     "watch": 1,
     "missing": 0,
@@ -39,7 +39,7 @@
         "refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
         "latest_snapshot=20260527T230246Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=3024",
+        "snapshot_age_seconds=3377",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -145,12 +145,25 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=1",
+        "sample_count=2",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"
       ],
       "next_step": "if uptime history becomes watch, collect a fresh read-only snapshot and provider packet"
+    },
+    {
+      "id": "SCHEDULER-01",
+      "title": "Local uptime systemd timer templates are prepared but not installed",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "service_exists=true",
+        "timer_exists=true",
+        "expected_commands=true",
+        "forbidden_word=none"
+      ],
+      "next_step": "install/enable the local timer only after separate local host approval"
     },
     {
       "id": "SOURCE-01",
