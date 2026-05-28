@@ -780,6 +780,9 @@ secondary selection packet status: selection_packet_ready_no_endpoint, primary=u
 secondary public metadata template command added: nl-diagnostics/build_secondary_exit_public_metadata_template.py
 secondary public metadata template report: nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md
 secondary public metadata template status: public_metadata_template_ready_no_endpoint, selected=upcloud-fi-hel, candidate_file_update_allowed=false
+secondary post-provision validation command added: nl-diagnostics/build_secondary_exit_post_provision_validation.py
+secondary post-provision validation report: nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md
+secondary post-provision validation status: post_provision_validation_ready_waiting_endpoint, can_generate_probe_config=false, can_run_public_probe=false, test_client_allowed=false
 outside-in NL transport probe added: nl-diagnostics/probe_nl_transport_ports.py
 outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-28.md
 outside-in NL transport status: healthy, 3/3 ports ok
