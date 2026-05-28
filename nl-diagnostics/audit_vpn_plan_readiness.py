@@ -42,6 +42,7 @@ DEFAULT_SECONDARY_MANUAL_DRILL = DIAGNOSTICS_DIR / "secondary-exit-manual-drill-
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PACKET = DIAGNOSTICS_DIR / "local-root-cleanup-approval-packet-2026-05-28.json"
+DEFAULT_INCIDENT_SYMPTOM_INTAKE = DIAGNOSTICS_DIR / "vpn-incident-symptom-intake-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
 DEFAULT_TRANSPORT_UPTIME = DIAGNOSTICS_DIR / "nl-transport-uptime-summary-2026-05-28.json"
 DEFAULT_SECONDARY = DIAGNOSTICS_DIR / "secondary-exit-probe-template-2026-05-28.json"
@@ -510,6 +511,49 @@ def audit_operator_card(operator_card: dict[str, Any]) -> dict[str, Any]:
             f"safe_flags={str(safe).lower()}",
         ],
         next_step="start incidents from the operator card, then collect fresh evidence",
+    )
+
+
+def audit_incident_symptom_intake(symptom_intake: dict[str, Any]) -> dict[str, Any]:
+    status = str(symptom_intake.get("status") or "missing")
+    summary = symptom_intake.get("summary") or {}
+    required_field_count = int(summary.get("required_field_count") or 0)
+    forbidden_material_count = int(summary.get("forbidden_material_count") or 0)
+    safe = all_false(
+        [
+            flag_is_false(symptom_intake, "nl_mutation_allowed"),
+            flag_is_false(symptom_intake, "spb_fallback_allowed"),
+            flag_is_false(symptom_intake, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    ready = (
+        safe
+        and status in {
+            "symptom_intake_ready_observe",
+            "symptom_intake_ready_incident",
+            "symptom_intake_ready_review",
+        }
+        and required_field_count > 0
+        and forbidden_material_count > 0
+    )
+    return item(
+        item_id="INCIDENT-01",
+        title="Incident symptom intake is safe to use without collecting secrets",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"incident_symptom_intake_status={status}",
+            f"decision={summary.get('decision', 'missing')}",
+            f"operator_status={summary.get('operator_status', 'missing')}",
+            f"failure_domain={summary.get('failure_domain', 'missing')}",
+            f"transport_status={summary.get('transport_status', 'missing')}",
+            f"required_field_count={required_field_count}",
+            f"forbidden_material_count={forbidden_material_count}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="use this template for user-visible symptoms and reject any pasted VPN secrets",
     )
 
 
@@ -1122,6 +1166,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     local_env = inputs.get("local_env") or {}
     local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     local_cleanup_packet = inputs.get("local_cleanup_packet") or {}
+    symptom_intake = inputs.get("symptom_intake") or {}
     transport_probe = inputs.get("transport_probe") or {}
     transport_uptime = inputs.get("transport_uptime") or {}
     secondary = inputs.get("secondary") or {}
@@ -1141,6 +1186,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_local_root_cleanup_plan(local_cleanup_plan),
         audit_local_root_cleanup_approval_packet(local_cleanup_packet),
         audit_operator_card(operator_card),
+        audit_incident_symptom_intake(symptom_intake),
         audit_manual_failover_readiness(failover_readiness),
         audit_secondary_candidate_score(secondary_score),
         audit_secondary_exit_requirements(secondary_requirements),
@@ -1234,6 +1280,13 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "local_root_cleanup_commands_executed": (
                 local_cleanup_packet.get("summary") or {}
             ).get("commands_executed", "missing"),
+            "incident_symptom_intake_status": symptom_intake.get("status", "missing"),
+            "incident_symptom_required_fields": (
+                symptom_intake.get("summary") or {}
+            ).get("required_field_count", "missing"),
+            "incident_symptom_forbidden_material": (
+                symptom_intake.get("summary") or {}
+            ).get("forbidden_material_count", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
             "transport_uptime_status": (transport_uptime.get("summary") or {}).get("status", "missing"),
             "nl_write_allowed": False,
@@ -1295,6 +1348,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"local_root_cleanup_approval_packet_status={summary.get('local_root_cleanup_approval_packet_status')}",
         f"local_root_cleanup_approval_required={summary.get('local_root_cleanup_approval_required')}",
         f"local_root_cleanup_commands_executed={summary.get('local_root_cleanup_commands_executed')}",
+        f"incident_symptom_intake_status={summary.get('incident_symptom_intake_status')}",
+        f"incident_symptom_required_fields={summary.get('incident_symptom_required_fields')}",
+        f"incident_symptom_forbidden_material={summary.get('incident_symptom_forbidden_material')}",
         f"transport_probe_status={summary.get('transport_probe_status')}",
         f"transport_uptime_status={summary.get('transport_uptime_status')}",
         "nl_write_allowed=false",
@@ -1340,6 +1396,7 @@ def main() -> int:
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--local-cleanup-packet", default=str(DEFAULT_LOCAL_CLEANUP_PACKET))
+    parser.add_argument("--incident-symptom-intake", default=str(DEFAULT_INCIDENT_SYMPTOM_INTAKE))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
     parser.add_argument("--transport-uptime", default=str(DEFAULT_TRANSPORT_UPTIME))
     parser.add_argument("--secondary", default=str(DEFAULT_SECONDARY))
@@ -1353,6 +1410,7 @@ def main() -> int:
     report_text_paths = [
         Path(args.refresh).with_suffix(".md"),
         Path(args.operator_card).with_suffix(".md"),
+        Path(args.incident_symptom_intake).with_suffix(".md"),
         Path(args.failover).with_suffix(".md"),
     ]
     inputs = {
@@ -1374,6 +1432,7 @@ def main() -> int:
         "local_env": read_json(Path(args.local_env)),
         "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "local_cleanup_packet": read_json(Path(args.local_cleanup_packet)),
+        "symptom_intake": read_json(Path(args.incident_symptom_intake)),
         "transport_probe": read_json(Path(args.transport_probe)),
         "transport_uptime": read_json(Path(args.transport_uptime)),
         "secondary": read_json(Path(args.secondary)),

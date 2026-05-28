@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_manual_failover_readiness.py",
-  "generated_at": "2026-05-28T02:35:32.936792+00:00",
+  "generated_at": "2026-05-28T02:55:37.400197+00:00",
   "status": "blocked_no_incident_trigger",
   "manual_probe_allowed": false,
   "manual_switch_allowed": false,
@@ -9,7 +9,7 @@
     "decision": "observe",
     "decision_confidence": "high",
     "overall_status": "advisory",
-    "transport_status": "advisory",
+    "transport_status": "healthy",
     "failure_domain": "external_network",
     "provider_status": "recent_boot_gap",
     "manual_failover_status": "planning_not_active",
@@ -28,7 +28,7 @@
       "evidence": [
         "decision=observe",
         "failure_domain=external_network",
-        "transport_status=advisory",
+        "transport_status=healthy",
         "provider_status=recent_boot_gap"
       ],
       "next_step": "stay on observe while NL transport is healthy and no incident trigger exists"
