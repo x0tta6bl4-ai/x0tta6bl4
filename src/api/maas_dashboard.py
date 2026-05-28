@@ -7,12 +7,14 @@ Uses DB-backed data for all statistics including hardware attestation.
 """
 
 import logging
+import importlib
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Any, Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import AuditLog, Invoice, MeshInstance, MeshNode, User, MarketplaceListing, get_db
 from src.api.maas_auth import require_permission
 from src.services.maas_analytics_service import MaaSAnalyticsService
@@ -59,6 +61,153 @@ def _safe_non_negative_float(value) -> float:
     except (TypeError, ValueError):
         return 0.0
     return parsed if parsed >= 0 else 0.0
+
+
+def _dashboard_db_session_available(db: Any) -> bool:
+    return hasattr(db, "query")
+
+
+def _dashboard_models_available() -> bool:
+    required_model_attrs = (
+        (MeshInstance, ("id", "owner_id", "name", "status", "created_at")),
+        (
+            MeshNode,
+            (
+                "id",
+                "mesh_id",
+                "status",
+                "device_class",
+                "last_seen",
+                "hardware_id",
+                "enclave_enabled",
+            ),
+        ),
+        (MarketplaceListing, ("renter_id", "owner_id", "status")),
+        (AuditLog, ("id", "user_id", "action", "method", "path", "status_code", "created_at")),
+        (Invoice, ("id", "user_id", "status", "total_amount", "currency", "issued_at")),
+        (User, ("id", "email", "plan", "role")),
+    )
+    return all(
+        hasattr(model, attr)
+        for model, attrs in required_model_attrs
+        for attr in attrs
+    )
+
+
+def _dashboard_auth_dependency_available() -> bool:
+    return callable(require_permission)
+
+
+def _dashboard_analytics_service_available() -> bool:
+    return callable(MaaSAnalyticsService) and callable(
+        getattr(MaaSAnalyticsService, "get_mesh_timeseries", None)
+    )
+
+
+def _dashboard_resilience_imports_available() -> bool:
+    try:
+        database_module = importlib.import_module("src.database")
+        cache_module = importlib.import_module("src.core.cache")
+        resilience_module = importlib.import_module("src.resilience.advanced_patterns")
+    except Exception:
+        return False
+    return (
+        hasattr(database_module, "db_circuit_breaker")
+        and callable(getattr(cache_module, "get_cache", None))
+        and hasattr(resilience_module, "CircuitState")
+    )
+
+
+def _dashboard_readiness_status(db: Any) -> Dict[str, Any]:
+    dashboard_db_ready = _dashboard_db_session_available(db)
+    dashboard_models_ready = _dashboard_models_available()
+    dashboard_auth_ready = _dashboard_auth_dependency_available()
+    dashboard_analytics_ready = _dashboard_analytics_service_available()
+    dashboard_resilience_ready = _dashboard_resilience_imports_available()
+    dashboard_runtime_ready = (
+        dashboard_db_ready
+        and dashboard_models_ready
+        and dashboard_auth_ready
+        and dashboard_analytics_ready
+        and dashboard_resilience_ready
+    )
+
+    degraded_dependencies = []
+    if not dashboard_db_ready:
+        degraded_dependencies.append("database")
+    if not dashboard_models_ready:
+        degraded_dependencies.append("dashboard_models")
+    if not dashboard_auth_ready:
+        degraded_dependencies.append("auth")
+    if not dashboard_analytics_ready:
+        degraded_dependencies.append("analytics_service")
+    if not dashboard_resilience_ready:
+        degraded_dependencies.append("resilience_imports")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "always",
+        "route_present_in_light_mode": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "dashboard_runtime_ready": dashboard_runtime_ready,
+        "dashboard_db_ready": dashboard_db_ready,
+        "dashboard_models_ready": dashboard_models_ready,
+        "dashboard_auth_ready": dashboard_auth_ready,
+        "dashboard_analytics_ready": dashboard_analytics_ready,
+        "dashboard_resilience_ready": dashboard_resilience_ready,
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/api/v1/maas/dashboard",
+            "boundary": (
+                "Dashboard routes use the fixed /api/v1/maas/dashboard prefix. "
+                "The legacy MaaS router is registered earlier, but its dynamic "
+                "mesh routes do not match /dashboard/summary, "
+                "/dashboard/analytics/{mesh_id}/timeseries, or "
+                "/dashboard/nodes/{mesh_id}."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Summary and node views read meshes, nodes, marketplace listings, "
+                "audit logs, invoices, and user state through SQLAlchemy query."
+            ),
+            "dashboard_models": (
+                "Dashboard responses depend on MeshInstance, MeshNode, "
+                "MarketplaceListing, AuditLog, Invoice, and User columns."
+            ),
+            "auth": (
+                "Summary and node routes require mesh:view; analytics timeseries "
+                "requires analytics:view."
+            ),
+            "analytics_service": (
+                "Traffic charts use MaaSAnalyticsService.get_mesh_timeseries."
+            ),
+            "resilience_imports": (
+                "Summary resilience status imports db_circuit_breaker, get_cache, "
+                "and CircuitState lazily at request time."
+            ),
+        },
+        "claim_boundary": (
+            "Dashboard readiness proves route availability and local dependency "
+            "surfaces only. It does not query dashboard data, validate user "
+            "permissions for a real principal, call Redis, or prove chart data is "
+            "fresh."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def dashboard_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _dashboard_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 def _dashboard_traffic_by_bucket(
