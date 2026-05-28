@@ -119,6 +119,7 @@ def test_service_event_trace_history_redacts_identity_values(tmp_path):
             "wallet_address": "0xffffffffffffffffffffffffffffffffffffffff",
             "identity": {
                 "spiffe_id": "spiffe://secret/nested",
+                "api_token": "secret-value-that-must-not-leak",
                 "node_id": "node-1",
             },
         },
@@ -134,7 +135,9 @@ def test_service_event_trace_history_redacts_identity_values(tmp_path):
     assert payload["events_total"] == 1
     assert payload["events"][0]["data"]["spiffe_id"] == "[redacted]"
     assert payload["events"][0]["data"]["identity"]["spiffe_id"] == "[redacted]"
+    assert payload["events"][0]["data"]["identity"]["api_token"] == "[redacted]"
     assert payload["events"][0]["data"]["identity"]["node_id"] == "node-1"
     assert "spiffe://secret" not in text
     assert "did:mesh:secret" not in text
+    assert "secret-value-that-must-not-leak" not in text
     assert "0xffff" not in text
