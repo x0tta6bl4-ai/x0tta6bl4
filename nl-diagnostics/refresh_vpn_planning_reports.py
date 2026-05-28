@@ -302,6 +302,28 @@ def local_root_cleanup_plan_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> 
     }
 
 
+def local_root_cleanup_approval_packet_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "local_root_cleanup_approval_packet",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_local_root_cleanup_approval_packet.py"),
+            "--local-env",
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json"),
+            "--cleanup-plan",
+            str(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.json"),
+            str(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.md"),
+        ],
+    }
+
+
 def command_plan(
     snapshot_dir: Path,
     diagnostics_dir: Path = DIAGNOSTICS_DIR,
@@ -459,6 +481,7 @@ def command_plan(
         secondary_manual_drill_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
         local_root_cleanup_plan_command(diagnostics_dir),
+        local_root_cleanup_approval_packet_command(diagnostics_dir),
         {
             "id": "operator_card",
             "command": [
@@ -594,6 +617,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     local_env_summary = local_env.get("summary") or {}
     cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
     cleanup_summary = cleanup_plan.get("summary") or {}
+    cleanup_packet = read_json(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.json")
+    cleanup_packet_summary = cleanup_packet.get("summary") or {}
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
     readiness_summary = readiness.get("summary") or {}
@@ -642,6 +667,9 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "local_root_cleanup_plan_status": cleanup_plan.get("status", "unknown"),
         "local_root_cleanup_estimated_reclaim_gib": cleanup_summary.get("estimated_reclaim_gib", "unknown"),
         "local_root_cleanup_execute_allowed": cleanup_summary.get("cleanup_execute_allowed", "unknown"),
+        "local_root_cleanup_approval_packet_status": cleanup_packet.get("status", "unknown"),
+        "local_root_cleanup_approval_required": cleanup_packet_summary.get("approval_required", "unknown"),
+        "local_root_cleanup_commands_executed": cleanup_packet_summary.get("commands_executed", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
         "nl_transport_uptime_status": uptime.get("status", "unknown"),
@@ -726,6 +754,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"local_root_cleanup_plan_status={summary.get('local_root_cleanup_plan_status')}",
         f"local_root_cleanup_estimated_reclaim_gib={summary.get('local_root_cleanup_estimated_reclaim_gib')}",
         f"local_root_cleanup_execute_allowed={summary.get('local_root_cleanup_execute_allowed')}",
+        f"local_root_cleanup_approval_packet_status={summary.get('local_root_cleanup_approval_packet_status')}",
+        f"local_root_cleanup_approval_required={summary.get('local_root_cleanup_approval_required')}",
+        f"local_root_cleanup_commands_executed={summary.get('local_root_cleanup_commands_executed')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
         f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",
