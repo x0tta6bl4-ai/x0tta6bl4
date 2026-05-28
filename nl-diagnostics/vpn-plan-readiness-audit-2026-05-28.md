@@ -1,21 +1,21 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T01:02:44.818915+00:00`
+generated_at: `2026-05-28T01:11:40.847036+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=15
+ready_local=13
 blocked_future_approval=3
-watch=2
+watch=5
 missing=0
 decision=observe
 operator_status=observe
 boot_gap_watch_status=watch
 provider_packet_type=provider_watch
-provider_packet_stale=False
+provider_packet_stale=True
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
@@ -23,6 +23,9 @@ secondary_exit_requirements_status=requirements_ready_no_candidate
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
+local_root_cleanup_plan_status=manual_cleanup_plan_ready
+local_root_cleanup_estimated_reclaim_gib=3.21
+local_root_cleanup_execute_allowed=False
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
 nl_write_allowed=false
@@ -34,13 +37,14 @@ automatic_failover_allowed=false
 
 | ID | Status | Area | Next Step |
 |---|---|---|---|
-| `EVIDENCE-01` | `ready_local` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
+| `EVIDENCE-01` | `watch` | Latest read-only snapshot is the shared evidence anchor | collect a fresh read-only snapshot during the next visible outage |
 | `DECISION-01` | `ready_local` | Current decision blocks mutation and automatic profile changes | keep decision=observe unless a fresh snapshot changes the failure domain |
 | `BOOT-01` | `watch` | Boot-gap provider signal is tracked separately from restart decisions | keep provider boot gap on watch while current transport remains healthy/advisory |
-| `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
+| `PROVIDER-01` | `watch` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
 | `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
 | `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
+| `LOCALCLEAN-01` | `watch` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
 | `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
 | `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
@@ -63,8 +67,8 @@ automatic_failover_allowed=false
 - refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
 - latest_snapshot=20260528T000600Z
 - snapshot_exists=true
-- snapshot_age_seconds=3404
-- fresh=true
+- snapshot_age_seconds=3940
+- fresh=false
 
 ### DECISION-01
 
@@ -84,7 +88,7 @@ automatic_failover_allowed=false
 ### PROVIDER-01
 
 - provider_packet_type=provider_watch
-- snapshot_stale=false
+- snapshot_stale=true
 - packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
 - decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
 - same_snapshot=true
@@ -115,6 +119,17 @@ automatic_failover_allowed=false
 - diagnostic_tmpdir_writable=true
 - recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 - cleanup_required=true
+- safe_flags=true
+
+### LOCALCLEAN-01
+
+- cleanup_plan_status=manual_cleanup_plan_ready
+- root_status=critical_full
+- root_free_gib=0.0
+- existing_candidate_count=5
+- estimated_reclaim_gib=3.21
+- top_candidate_id=APT-CACHE-01
+- cleanup_execute_allowed=false
 - safe_flags=true
 
 ### OPERATOR-01
@@ -162,7 +177,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=11
+- sample_count=12
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

@@ -1,4 +1,4 @@
-# Provider Incident Packet, 2026-05-28T01:00:21.710652+00:00
+# Provider Incident Packet, 2026-05-28T01:11:28.865268+00:00
 
 ## Status
 
@@ -6,8 +6,8 @@
 packet_type: provider_watch
 decision_reason: recent NL boot gap is present; current VPN transport is healthy
 snapshot: /mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
-snapshot_age_seconds: 3261
-snapshot_stale: False
+snapshot_age_seconds: 3928
+snapshot_stale: True
 NL writes: 0
 ```
 

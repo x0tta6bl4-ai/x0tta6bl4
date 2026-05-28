@@ -1,18 +1,21 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-28T01:02:44.818915+00:00",
+  "generated_at": "2026-05-28T01:11:40.847036+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 15,
+    "ready_local": 13,
     "blocked_future_approval": 3,
-    "watch": 2,
+    "watch": 5,
     "missing": 0,
     "missing_items": [],
     "watch_items": [
+      "EVIDENCE-01",
       "BOOT-01",
-      "LOCALENV-01"
+      "PROVIDER-01",
+      "LOCALENV-01",
+      "LOCALCLEAN-01"
     ],
     "blocked_items": [
       "FAILOVER-03",
@@ -23,7 +26,7 @@
     "decision": "observe",
     "boot_gap_watch_status": "watch",
     "provider_packet_type": "provider_watch",
-    "provider_packet_stale": false,
+    "provider_packet_stale": true,
     "manual_failover_readiness_status": "blocked_no_incident_trigger",
     "manual_failover_switch_allowed": false,
     "secondary_candidate_score_status": "missing_candidates",
@@ -31,6 +34,9 @@
     "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
     "local_root_status": "critical_full",
     "local_tmpdir_writable": true,
+    "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
+    "local_root_cleanup_estimated_reclaim_gib": 3.21,
+    "local_root_cleanup_execute_allowed": false,
     "transport_probe_status": "healthy",
     "transport_uptime_status": "stable_healthy",
     "nl_write_allowed": false,
@@ -41,15 +47,15 @@
     {
       "id": "EVIDENCE-01",
       "title": "Latest read-only snapshot is the shared evidence anchor",
-      "status": "ready_local",
+      "status": "watch",
       "ok": true,
       "evidence": [
         "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "latest_snapshot=20260528T000600Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=3404",
-        "fresh=true"
+        "snapshot_age_seconds=3940",
+        "fresh=false"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
     },
@@ -83,11 +89,11 @@
     {
       "id": "PROVIDER-01",
       "title": "Provider packet is generated from the same read-only snapshot",
-      "status": "ready_local",
+      "status": "watch",
       "ok": true,
       "evidence": [
         "provider_packet_type=provider_watch",
-        "snapshot_stale=false",
+        "snapshot_stale=true",
         "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "same_snapshot=true",
@@ -139,6 +145,23 @@
         "safe_flags=true"
       ],
       "next_step": "keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval"
+    },
+    {
+      "id": "LOCALCLEAN-01",
+      "title": "Local root cleanup plan is prepared but execution is blocked",
+      "status": "watch",
+      "ok": true,
+      "evidence": [
+        "cleanup_plan_status=manual_cleanup_plan_ready",
+        "root_status=critical_full",
+        "root_free_gib=0.0",
+        "existing_candidate_count=5",
+        "estimated_reclaim_gib=3.21",
+        "top_candidate_id=APT-CACHE-01",
+        "cleanup_execute_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "review local cleanup candidates and execute cleanup only after separate local approval"
     },
     {
       "id": "OPERATOR-01",
@@ -219,7 +242,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=11",
+        "sample_count=12",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"

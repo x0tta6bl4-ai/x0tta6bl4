@@ -166,6 +166,26 @@ def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR
     }
 
 
+def local_root_cleanup_plan_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "local_root_cleanup_plan",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "plan_local_root_cleanup.py"),
+            "--local-env",
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json"),
+            str(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.md"),
+        ],
+    }
+
+
 def command_plan(
     snapshot_dir: Path,
     diagnostics_dir: Path = DIAGNOSTICS_DIR,
@@ -317,6 +337,7 @@ def command_plan(
         secondary_candidate_score_command(diagnostics_dir),
         secondary_exit_requirements_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
+        local_root_cleanup_plan_command(diagnostics_dir),
         {
             "id": "operator_card",
             "command": [
@@ -440,6 +461,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     secondary_requirements_summary = secondary_requirements.get("summary") or {}
     local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
     local_env_summary = local_env.get("summary") or {}
+    cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
+    cleanup_summary = cleanup_plan.get("summary") or {}
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
     readiness_summary = readiness.get("summary") or {}
@@ -468,6 +491,9 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "local_root_status": local_env_summary.get("root_status", "unknown"),
         "local_tmpdir_writable": local_env_summary.get("diagnostic_tmpdir_writable", "unknown"),
         "local_recommended_tmpdir_prefix": local_env_summary.get("recommended_tmpdir_prefix", "unknown"),
+        "local_root_cleanup_plan_status": cleanup_plan.get("status", "unknown"),
+        "local_root_cleanup_estimated_reclaim_gib": cleanup_summary.get("estimated_reclaim_gib", "unknown"),
+        "local_root_cleanup_execute_allowed": cleanup_summary.get("cleanup_execute_allowed", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
         "nl_transport_uptime_status": uptime.get("status", "unknown"),
@@ -535,6 +561,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
         f"local_recommended_tmpdir_prefix={summary.get('local_recommended_tmpdir_prefix')}",
+        f"local_root_cleanup_plan_status={summary.get('local_root_cleanup_plan_status')}",
+        f"local_root_cleanup_estimated_reclaim_gib={summary.get('local_root_cleanup_estimated_reclaim_gib')}",
+        f"local_root_cleanup_execute_allowed={summary.get('local_root_cleanup_execute_allowed')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
         f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",

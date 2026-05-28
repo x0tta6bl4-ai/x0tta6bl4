@@ -1,6 +1,6 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T01:00:24.170235+00:00`
+generated_at: `2026-05-28T01:11:41.299414+00:00`
 snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z`
 ok: `true`
 
@@ -13,8 +13,8 @@ operator_status=observe
 boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
-provider_packet_stale=False
-provider_packet_snapshot_age_seconds=3261
+provider_packet_stale=True
+provider_packet_snapshot_age_seconds=3928
 blocking_history_trend=stable_no_probe_evidence
 blocking_history_snapshot_count=5
 manual_failover_status=planning_not_active
@@ -29,15 +29,18 @@ local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
+local_root_cleanup_plan_status=manual_cleanup_plan_ready
+local_root_cleanup_estimated_reclaim_gib=3.21
+local_root_cleanup_execute_allowed=False
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=11
+nl_transport_uptime_samples=12
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=9
+incident_timeline_event_count=10
 incident_timeline_latest_type=provider_watch
 incident_timeline_latest_snapshot=20260528T000600Z
 nl_mutation_allowed=false
@@ -132,6 +135,13 @@ exit_code=0
 ```
 
 ### local_diagnostic_environment
+
+```text
+ok=true
+exit_code=0
+```
+
+### local_root_cleanup_plan
 
 ```text
 ok=true
