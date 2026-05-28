@@ -78,10 +78,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/billing",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/billing/readiness",
+      "runtime_readiness_field": "stripe_config_ready",
+      "hidden_dependency": "MaaS billing routes are registered in light mode and do not have a production_lifespan startup hook, but subscription checkout and invoice checkout require Stripe configuration, invoice/customer database writes, and legacy MaaS metering imports. The readiness endpoint exposes route availability separately from Stripe config, price IDs, DB write readiness, and legacy metering readiness.",
       "source_refs": [
         "src/core/app.py:239",
-        "src/api/maas_billing.py:61"
+        "src/api/maas_billing.py:61",
+        "src/api/maas_billing.py:68",
+        "src/api/maas_billing.py:111"
       ]
     },
     {
@@ -194,10 +198,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/governance",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/governance/readiness",
+      "runtime_readiness_field": "control_plane_ready",
+      "hidden_dependency": "MaaS governance routes are registered in light mode and do not have a production_lifespan startup hook, but proposal/vote writes require a database session and execution requires EventBus trace publication, service identity resolution, optional production policy evaluation, SafeActuator dispatch, and lazy PQC finality attestation. The readiness endpoint exposes route availability separately from local control-plane dispatch readiness.",
       "source_refs": [
         "src/core/app.py:247",
-        "src/api/maas_governance.py:31"
+        "src/api/maas_governance.py:37",
+        "src/api/maas_governance.py:100",
+        "src/api/maas_governance.py:163"
       ]
     },
     {
