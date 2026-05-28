@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -63,6 +64,131 @@ def _node(
         last_seen=last_seen,
     )
     return n
+
+
+def _model_with_attrs(**attrs):
+    return type("Model", (), attrs)
+
+
+def _force_dashboard_dependencies_ready(monkeypatch):
+    monkeypatch.setattr(_mod, "require_permission", lambda _permission: object())
+    monkeypatch.setattr(
+        _mod,
+        "MaaSAnalyticsService",
+        _model_with_attrs(get_mesh_timeseries=lambda *_args, **_kwargs: {}),
+    )
+    monkeypatch.setattr(_mod, "_dashboard_resilience_imports_available", lambda: True)
+    monkeypatch.setattr(
+        _mod,
+        "MeshInstance",
+        _model_with_attrs(id="", owner_id="", name="", status="", created_at=""),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "MeshNode",
+        _model_with_attrs(
+            id="",
+            mesh_id="",
+            status="",
+            device_class="",
+            last_seen="",
+            hardware_id="",
+            enclave_enabled="",
+        ),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "MarketplaceListing",
+        _model_with_attrs(renter_id="", owner_id="", status=""),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "AuditLog",
+        _model_with_attrs(
+            id="",
+            user_id="",
+            action="",
+            method="",
+            path="",
+            status_code="",
+            created_at="",
+        ),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "Invoice",
+        _model_with_attrs(
+            id="",
+            user_id="",
+            status="",
+            total_amount=0,
+            currency="",
+            issued_at="",
+        ),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "User",
+        _model_with_attrs(id="", email="", plan="", role=""),
+    )
+
+
+# ===========================================================================
+# Dashboard readiness
+# ===========================================================================
+
+
+class TestDashboardReadiness:
+    def test_router_has_readiness_route(self):
+        route_paths = [r.path for r in _mod.router.routes]
+        assert "/api/v1/maas/dashboard/readiness" in route_paths
+
+    def test_ready_when_local_dependencies_are_available(self, monkeypatch):
+        _force_dashboard_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query"])
+
+        payload = _mod._dashboard_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["dashboard_runtime_ready"] is True
+        assert payload["dashboard_db_ready"] is True
+        assert payload["dashboard_models_ready"] is True
+        assert payload["dashboard_auth_ready"] is True
+        assert payload["dashboard_analytics_ready"] is True
+        assert payload["dashboard_resilience_ready"] is True
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.setattr(_mod, "MeshInstance", _model_with_attrs(id=""))
+        monkeypatch.setattr(_mod, "require_permission", None)
+        monkeypatch.setattr(_mod, "MaaSAnalyticsService", None)
+        monkeypatch.setattr(
+            _mod, "_dashboard_resilience_imports_available", lambda: False
+        )
+
+        payload = _mod._dashboard_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["dashboard_runtime_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "dashboard_models",
+            "auth",
+            "analytics_service",
+            "resilience_imports",
+        ]
+        assert "does not query dashboard data" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_dashboard_dependencies_ready(monkeypatch)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            _mod.dashboard_readiness(request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database"}
 
 
 # ===========================================================================
