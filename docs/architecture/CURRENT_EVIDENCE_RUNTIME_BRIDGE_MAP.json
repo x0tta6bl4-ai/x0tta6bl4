@@ -278,8 +278,8 @@
       "scripts/ops/smoke_ledger_event_trace_citation.py:356",
       "scripts/ops/smoke_ledger_event_trace_citation.py:383",
       "scripts/ops/smoke_ledger_event_trace_citation.py:400",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:650",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:810",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:652",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:815",
       "scripts/ops/smoke_ledger_event_trace_citation.py:426",
       "scripts/ops/smoke_ledger_event_trace_citation.py:461",
       "scripts/ops/smoke_ledger_event_trace_citation.py:506",
@@ -300,8 +300,7 @@
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:95",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:104",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:115",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:126",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:126",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:129",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:146",
       "tests/unit/services/test_share_to_earn_service_unit.py:89"
     ]

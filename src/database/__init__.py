@@ -6,7 +6,7 @@ SQLAlchemy ORM setup and database models.
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
@@ -17,6 +17,10 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from src.resilience.advanced_patterns import CircuitBreaker, CircuitBreakerConfig, CircuitState
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # Ensure DATABASE_URL from local .env is available before engine setup.
 load_dotenv(override=False)
@@ -64,7 +68,7 @@ def before_cursor_execute(conn, cursor, statement, parameters, context, executem
             if _lft is None:
                 open_duration = 0
             elif isinstance(_lft, datetime):
-                open_duration = (datetime.utcnow() - _lft).total_seconds()
+                open_duration = (_utc_now() - _lft).total_seconds()
             else:
                 import time
                 open_duration = time.time() - _lft
@@ -126,8 +130,8 @@ class User(Base):
     requests_count = Column(Integer, default=0)
     requests_limit = Column(Integer, default=10000)
     expires_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     sessions = relationship("Session", back_populates="user")
 
@@ -148,7 +152,7 @@ class MeshInstance(Base):
     join_token = Column(String)
     join_token_expires_at = Column(DateTime)
     status = Column(String, default="active", index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class ACLPolicy(Base):
@@ -159,7 +163,7 @@ class ACLPolicy(Base):
     source_tag = Column(String)
     target_tag = Column(String)
     action = Column(String, default="allow")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class MeshNode(Base):
@@ -174,7 +178,7 @@ class MeshNode(Base):
     hardware_id = Column(String, nullable=True)
     enclave_enabled = Column(Boolean, default=False)
     last_seen = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class MarketplaceListing(Base):
@@ -191,7 +195,7 @@ class MarketplaceListing(Base):
     status = Column(String, default="available", index=True)  # available, escrow, rented
     renter_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     mesh_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     escrows = relationship("MarketplaceEscrow", back_populates="listing")
 
@@ -207,7 +211,7 @@ class MarketplaceEscrow(Base):
     currency = Column(String, default="USD")  # USD or X0T
     status = Column(String, default="held", index=True)  # held, released, refunded, expired
     auto_renew = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
     expires_at = Column(DateTime, nullable=True, index=True)
     released_at = Column(DateTime, nullable=True)
 
@@ -227,7 +231,7 @@ class Invoice(Base):
     stripe_session_id = Column(String, unique=True, index=True, nullable=True)
     period_start = Column(DateTime)
     period_end = Column(DateTime)
-    issued_at = Column(DateTime, default=datetime.utcnow)
+    issued_at = Column(DateTime, default=_utc_now)
 
 
 class SignedPlaybook(Base):
@@ -240,7 +244,7 @@ class SignedPlaybook(Base):
     signature = Column(Text)
     algorithm = Column(String, default="ML-DSA-65")
     expires_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class Session(Base):
@@ -252,7 +256,7 @@ class Session(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     email = Column(String, index=True, nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     user = relationship("User", back_populates="sessions")
 
@@ -273,8 +277,8 @@ class Payment(Base):
         String, default="pending", index=True
     )  # "pending", "verified", "failed", "refunded"
     verified_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     user = relationship("User")
 
@@ -290,8 +294,8 @@ class License(Base):
     tier = Column(String, default="basic")  # "basic", "pro", "enterprise"
     is_active = Column(Boolean, default=True)
     expires_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     user = relationship("User")
 
@@ -307,7 +311,7 @@ class BillingWebhookEvent(Base):
     status = Column(String, default="processing", nullable=False)  # processing | done | failed
     response_json = Column(Text, nullable=True)
     last_error = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=_utc_now, nullable=False)
     processed_at = Column(DateTime, nullable=True)
 
 
@@ -321,7 +325,7 @@ class SBOMEntry(Base):
     checksum_sha256 = Column(String, nullable=False)
     attestation_json = Column(Text, nullable=True)   # Sigstore bundle JSON
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     node_attestations = relationship("NodeBinaryAttestation", back_populates="sbom")
 
@@ -336,7 +340,7 @@ class NodeBinaryAttestation(Base):
     agent_version = Column(String, nullable=False)
     checksum_sha256 = Column(String, nullable=False)
     status = Column(String, default="verified", index=True)  # verified, mismatch, unknown
-    verified_at = Column(DateTime, default=datetime.utcnow)
+    verified_at = Column(DateTime, default=_utc_now)
 
     sbom = relationship("SBOMEntry", back_populates="node_attestations")
 
@@ -348,7 +352,7 @@ class PlaybookAck(Base):
     playbook_id = Column(String, ForeignKey("signed_playbooks.id"), index=True)
     node_id = Column(String, nullable=False, index=True)
     status = Column(String, default="completed")  # completed, failed, partial
-    acknowledged_at = Column(DateTime, default=datetime.utcnow)
+    acknowledged_at = Column(DateTime, default=_utc_now)
 
 
 class GlobalConfig(Base):
@@ -357,7 +361,7 @@ class GlobalConfig(Base):
 
     key = Column(String, primary_key=True, index=True)
     value_json = Column(String, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
     updated_by = Column(String, ForeignKey("users.id"), nullable=True)
 
 
@@ -373,7 +377,7 @@ class GovernanceProposal(Base):
     created_by = Column(String, ForeignKey("users.id"), nullable=False)
     execution_hash = Column(String, nullable=True)  # Finality hash on execution
     executed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     votes = relationship("GovernanceVote", back_populates="proposal")
 
@@ -386,7 +390,7 @@ class GovernanceVote(Base):
     voter_id = Column(String, nullable=False, index=True)  # user email or id
     vote = Column(String, nullable=False)  # yes, no, abstain
     tokens = Column(Integer, nullable=False)  # raw voting power * 100 (cents)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     proposal = relationship("GovernanceProposal", back_populates="votes")
 
@@ -405,7 +409,7 @@ class AuditLog(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     correlation_id = Column(String, index=True, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 def get_required_schema_gaps() -> List[str]:
