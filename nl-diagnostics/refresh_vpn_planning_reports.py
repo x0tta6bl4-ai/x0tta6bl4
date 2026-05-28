@@ -21,6 +21,8 @@ DIAGNOSTICS_DIR = ROOT / "nl-diagnostics"
 SNAPSHOTS_DIR = DIAGNOSTICS_DIR / "snapshots"
 REFRESH_JSON = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 REFRESH_MARKDOWN = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.md"
+TIMELINE_JSONL = DIAGNOSTICS_DIR / "vpn-incident-timeline-2026-05-28.jsonl"
+TIMELINE_MARKDOWN = DIAGNOSTICS_DIR / "vpn-incident-timeline-2026-05-28.md"
 
 
 def latest_snapshot(snapshots_dir: Path) -> Path | None:
@@ -61,6 +63,49 @@ def readiness_audit_command(
         "outputs": [
             str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json"),
             str(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.md"),
+        ],
+    }
+
+
+def incident_timeline_command(
+    snapshot_dir: Path,
+    diagnostics_dir: Path = DIAGNOSTICS_DIR,
+) -> dict[str, Any]:
+    return {
+        "id": "incident_timeline",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "record_vpn_incident_timeline.py"),
+            "--snapshot",
+            str(snapshot_dir),
+            "--provider-packet",
+            provider_packet_paths(snapshot_dir, diagnostics_dir)[0],
+            "--jsonl-out",
+            str(diagnostics_dir / "vpn-incident-timeline-2026-05-28.jsonl"),
+            "--markdown-out",
+            str(diagnostics_dir / "vpn-incident-timeline-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "vpn-incident-timeline-2026-05-28.jsonl"),
+            str(diagnostics_dir / "vpn-incident-timeline-2026-05-28.md"),
+        ],
+    }
+
+
+def manual_failover_readiness_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "manual_failover_readiness",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "audit_manual_failover_readiness.py"),
+            "--json-out",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.md"),
         ],
     }
 
@@ -212,6 +257,7 @@ def command_plan(
                 str(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json"),
             ],
         },
+        manual_failover_readiness_command(diagnostics_dir),
         {
             "id": "operator_card",
             "command": [
@@ -230,6 +276,7 @@ def command_plan(
     ]
     if include_readiness_audit:
         plan.append(readiness_audit_command(diagnostics_dir, snapshot_dir))
+        plan.append(incident_timeline_command(snapshot_dir, diagnostics_dir))
     return plan
 
 
@@ -280,6 +327,24 @@ def read_json(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def latest_timeline_event(path: Path) -> tuple[dict[str, Any], int]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}, 0
+    events: list[dict[str, Any]] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            events.append(value)
+    return (events[-1], len(events)) if events else ({}, 0)
+
+
 def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     decision = read_json(diagnostics_dir / "current-vpn-decision-2026-05-28.json").get("decision") or {}
     boot_gap = read_json(diagnostics_dir / "boot-gap-watch-2026-05-28.json")
@@ -291,9 +356,11 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     transport_probe = read_json(diagnostics_dir / "nl-transport-probe-2026-05-28.json")
     uptime = read_json(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.json").get("summary") or {}
     secondary = read_json(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json")
+    failover_readiness = read_json(diagnostics_dir / "manual-failover-readiness-2026-05-28.json")
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
     readiness_summary = readiness.get("summary") or {}
+    timeline_event, timeline_count = latest_timeline_event(diagnostics_dir / "vpn-incident-timeline-2026-05-28.jsonl")
     return {
         "decision": decision.get("decision", "unknown"),
         "decision_confidence": decision.get("confidence", "unknown"),
@@ -307,6 +374,9 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "blocking_history_snapshot_count": history.get("snapshot_count", 0),
         "backlog_decision": backlog.get("decision", "unknown"),
         "manual_failover_status": failover.get("status", "unknown"),
+        "manual_failover_readiness_status": failover_readiness.get("status", "unknown"),
+        "manual_failover_probe_allowed": failover_readiness.get("manual_probe_allowed", "unknown"),
+        "manual_failover_switch_allowed": failover_readiness.get("manual_switch_allowed", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
         "nl_transport_uptime_status": uptime.get("status", "unknown"),
@@ -315,6 +385,9 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "secondary_probe_template_status": secondary.get("status", "unknown"),
         "readiness_audit_status": readiness.get("overall_status", "unknown"),
         "readiness_missing": readiness_summary.get("missing", "unknown"),
+        "incident_timeline_event_count": timeline_count,
+        "incident_timeline_latest_type": timeline_event.get("event_type", "unknown"),
+        "incident_timeline_latest_snapshot": timeline_event.get("snapshot_name", "unknown"),
         "nl_mutation_allowed": False,
         "spb_fallback_allowed": False,
         "automatic_failover_allowed": False,
@@ -360,6 +433,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"blocking_history_trend={summary.get('blocking_history_trend')}",
         f"blocking_history_snapshot_count={summary.get('blocking_history_snapshot_count')}",
         f"manual_failover_status={summary.get('manual_failover_status')}",
+        f"manual_failover_readiness_status={summary.get('manual_failover_readiness_status')}",
+        f"manual_failover_probe_allowed={summary.get('manual_failover_probe_allowed')}",
+        f"manual_failover_switch_allowed={summary.get('manual_failover_switch_allowed')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
         f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",
@@ -368,6 +444,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_probe_template_status={summary.get('secondary_probe_template_status')}",
         f"readiness_audit_status={summary.get('readiness_audit_status')}",
         f"readiness_missing={summary.get('readiness_missing')}",
+        f"incident_timeline_event_count={summary.get('incident_timeline_event_count')}",
+        f"incident_timeline_latest_type={summary.get('incident_timeline_latest_type')}",
+        f"incident_timeline_latest_snapshot={summary.get('incident_timeline_latest_snapshot')}",
         "nl_mutation_allowed=false",
         "spb_fallback_allowed=false",
         "automatic_failover_allowed=false",
@@ -411,6 +490,7 @@ def main() -> int:
         Path(args.markdown_out).write_text(render_markdown(payload), encoding="utf-8")
 
     rows.extend(run_plan([readiness_audit_command(snapshot_dir=snapshot_dir)], cwd=ROOT))
+    rows.extend(run_plan([incident_timeline_command(snapshot_dir=snapshot_dir)], cwd=ROOT))
     payload = build_payload(snapshot_dir, rows, DIAGNOSTICS_DIR)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

@@ -8,13 +8,13 @@ Current authoritative evidence:
 
 ```text
 incident entrypoint: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
-vpn snapshot: nl-diagnostics/snapshots/20260527T230246Z
+vpn snapshot: nl-diagnostics/snapshots/20260528T000600Z
 server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
 decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
 boot-gap watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
+provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
 improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
@@ -22,6 +22,7 @@ operator card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 NL transport probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
 NL transport uptime: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
 local uptime timer templates: infra/systemd/x0tta-vpn-nl-transport-uptime.service, infra/systemd/x0tta-vpn-nl-transport-uptime.timer
+incident timeline: nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 readiness audit: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 boot gap report: nl-diagnostics/boot-gap-2026-05-27-report.md
 P1 source promotion update: nl-diagnostics/nl-p1-source-promotion-update-2026-05-27.md
@@ -40,16 +41,18 @@ NL transport: healthy
 NL provider_status: recent_boot_gap
 current decision: observe, high confidence
 operator status: observe
-blocking probe history: stable_no_probe_evidence across 4 snapshots
+blocking probe history: stable_no_probe_evidence across 5 snapshots
 boot-gap watch: watch, boot_gap_seconds=21907
 provider packet: provider_watch, snapshot_stale=false
-freshness gate: snapshot_age_seconds=2519, max=3600
+freshness gate: snapshot_age_seconds=945, max=3600
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-outside-in NL transport uptime: stable_healthy, samples=2, bad_streak=0
+outside-in NL transport uptime: stable_healthy, samples=6, bad_streak=0
 local uptime scheduler templates: prepared only, not installed
-readiness audit: ready_local_with_future_blocks, ready_local=13, watch=1, missing=0
-blocked future items: GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
+incident timeline: event_count=4, latest_type=provider_watch
+manual failover readiness: blocked_no_incident_trigger, manual_switch_allowed=false
+readiness audit: ready_local_with_future_blocks, ready_local=13, blocked_future_approval=3, watch=1, missing=0
+blocked future items: FAILOVER-03 manual failover gate, GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 NL writes: 0
 ```
 
@@ -227,10 +230,11 @@ refresh_command: python3 nl-diagnostics/refresh_vpn_planning_reports.py --snapsh
 incident_entrypoint: VPN_ENABLE_BLOCKING_PROBES=1 nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 boot_gap_watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
+provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T000600Z.md
 freshness_rule: collect a fresh read-only snapshot if snapshot_age_seconds > 3600
 nl_transport_probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
 nl_transport_uptime: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
 local_uptime_scheduler_templates: prepared only, not installed
+incident_timeline: nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 readiness_audit: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 ```

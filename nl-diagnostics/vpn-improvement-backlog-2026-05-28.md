@@ -1,6 +1,6 @@
 # VPN Improvement Backlog
 
-generated_at: `2026-05-27T23:59:01.901364+00:00`
+generated_at: `2026-05-28T00:21:46.194382+00:00`
 
 ## Current Evidence
 
@@ -13,7 +13,7 @@ telegram_media_status=degraded
 provider_status=recent_boot_gap
 failure_domain=external_network
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=4
+blocking_history_snapshot_count=5
 promoted_source_count=22
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -68,7 +68,7 @@ Reason: Current app/path probe history does not prove an x-ui outage.
 
 Evidence:
 - blocking_history_trend=stable_no_probe_evidence
-- blocking_history_snapshot_count=4
+- blocking_history_snapshot_count=5
 
 Next steps:
 - keep nl-diagnostics/blocking_probe_targets.json as the default target set
