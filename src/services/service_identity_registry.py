@@ -130,6 +130,12 @@ KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
         "entrypoint": "src/api/maas_marketplace.py",
         "identity_source": "request_user_identity",
     },
+    {
+        "service_name": "maas-billing",
+        "layer": "billing_webhook_to_commerce_bridge",
+        "entrypoint": "src/api/maas_billing.py",
+        "identity_source": "stripe_webhook_metadata",
+    },
 )
 
 
