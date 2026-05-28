@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/audit_local_diagnostic_environment.py",
+  "generated_at": "2026-05-28T01:00:23.424754+00:00",
+  "status": "watch_root_full_tmpdir_available",
+  "ok": true,
+  "summary": {
+    "root_status": "critical_full",
+    "root_used_percent": 94.9,
+    "root_free_gib": 0.0,
+    "tmp_status": "critical_full",
+    "projects_status": "ok",
+    "projects_free_gib": 61.38,
+    "diagnostic_tmpdir": "/mnt/projects/.tmp",
+    "diagnostic_tmpdir_exists": true,
+    "diagnostic_tmpdir_writable": true,
+    "cleanup_required": true,
+    "recommended_tmpdir_prefix": "TMPDIR=/mnt/projects/.tmp",
+    "cleanup_candidate_count": 2,
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "disk": [
+    {
+      "path": "/",
+      "exists": true,
+      "status": "critical_full",
+      "total_bytes": 114303512576,
+      "used_bytes": 108529242112,
+      "free_bytes": 0,
+      "total_gib": 106.45,
+      "used_gib": 101.08,
+      "free_gib": 0.0,
+      "used_percent": 94.9
+    },
+    {
+      "path": "/tmp",
+      "exists": true,
+      "status": "critical_full",
+      "total_bytes": 114303512576,
+      "used_bytes": 108529242112,
+      "free_bytes": 0,
+      "total_gib": 106.45,
+      "used_gib": 101.08,
+      "free_gib": 0.0,
+      "used_percent": 94.9
+    },
+    {
+      "path": "/mnt/projects",
+      "exists": true,
+      "status": "ok",
+      "total_bytes": 499738734592,
+      "used_bytes": 433834909696,
+      "free_bytes": 65903824896,
+      "total_gib": 465.42,
+      "used_gib": 404.04,
+      "free_gib": 61.38,
+      "used_percent": 86.8
+    }
+  ],
+  "tmpdir_probe": {
+    "path": "/mnt/projects/.tmp",
+    "exists": true,
+    "is_dir": true,
+    "writable": true,
+    "error": ""
+  },
+  "cleanup_candidates": [
+    {
+      "path": "/tmp/antigravity_restore",
+      "exists": true,
+      "action": "manual_review_before_delete"
+    },
+    {
+      "path": "/tmp/antigravity_restore_correct",
+      "exists": true,
+      "action": "manual_review_before_delete"
+    }
+  ],
+  "recommended_local_command_prefix": "TMPDIR=/mnt/projects/.tmp",
+  "operator_notes": [
+    "Use TMPDIR=/mnt/projects/.tmp for local Python tests and report refreshes while / is full.",
+    "Do not delete /tmp/antigravity_restore* without separate local cleanup approval.",
+    "This audit performs no NL writes and does not use SPB."
+  ],
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

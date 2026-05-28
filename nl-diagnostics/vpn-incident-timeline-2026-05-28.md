@@ -1,6 +1,6 @@
 # VPN Incident Timeline
 
-event_count: `4`
+event_count: `9`
 
 ## Recent Events
 
@@ -10,6 +10,11 @@ event_count: `4`
 | `2026-05-28T00:06:42.524109+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T00:20:42.378899+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 | `2026-05-28T00:21:48.432834+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-05-28T00:31:39.763412+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-05-28T00:40:52.331614+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-05-28T00:51:53.635291+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-05-28T00:54:28.087674+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
+| `2026-05-28T01:00:24.127193+00:00` | `20260528T000600Z` | `provider_watch` | `observe` | `healthy` | `recent_boot_gap` | `21907` | keep provider boot gap on watch while transport is healthy |
 
 ## Guardrails
 

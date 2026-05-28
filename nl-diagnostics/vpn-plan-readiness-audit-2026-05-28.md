@@ -1,15 +1,15 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T00:24:08.561784+00:00`
+generated_at: `2026-05-28T01:02:44.818915+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=13
+ready_local=15
 blocked_future_approval=3
-watch=1
+watch=2
 missing=0
 decision=observe
 operator_status=observe
@@ -18,6 +18,11 @@ provider_packet_type=provider_watch
 provider_packet_stale=False
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_switch_allowed=False
+secondary_candidate_score_status=missing_candidates
+secondary_exit_requirements_status=requirements_ready_no_candidate
+local_diagnostic_environment_status=watch_root_full_tmpdir_available
+local_root_status=critical_full
+local_tmpdir_writable=True
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
 nl_write_allowed=false
@@ -35,8 +40,11 @@ automatic_failover_allowed=false
 | `PROVIDER-01` | `ready_local` | Provider packet is generated from the same read-only snapshot | use the packet for provider questions only when fresh evidence points to provider or host failure |
 | `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
+| `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
-| `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist |
+| `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
+| `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
+| `FAILOVER-04` | `ready_local` | Secondary exit requirements are documented without secrets | choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
@@ -45,7 +53,7 @@ automatic_failover_allowed=false
 | `GATE-01` | `blocked_future_approval` | Future NL write is blocked until the exact approval phrase | do not stage files to NL before the exact approval phrase is given |
 | `SPB-01` | `ready_local` | SPB remains excluded from recovery | keep SPB disabled until it has its own explicit reactivation plan |
 | `FAILOVER-01` | `ready_local` | Manual failover is documented but inactive | keep failover manual-only and require fresh evidence before any client switch |
-| `FAILOVER-02` | `blocked_future_approval` | Secondary exit probe is only a safe template until a new node exists | choose a new non-SPB provider/region before any emergency profile test |
+| `FAILOVER-02` | `blocked_future_approval` | Secondary exit probe is only a safe template until a new node exists | choose a new non-NL/non-SPB provider/region before any emergency profile test |
 
 ## Evidence
 
@@ -55,7 +63,7 @@ automatic_failover_allowed=false
 - refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
 - latest_snapshot=20260528T000600Z
 - snapshot_exists=true
-- snapshot_age_seconds=1088
+- snapshot_age_seconds=3404
 - fresh=true
 
 ### DECISION-01
@@ -96,6 +104,19 @@ automatic_failover_allowed=false
 - manual_failover_status=planning_not_active
 - safe_flags=true
 
+### LOCALENV-01
+
+- local_environment_status=watch_root_full_tmpdir_available
+- root_status=critical_full
+- root_used_percent=94.9
+- root_free_gib=0.0
+- tmp_status=critical_full
+- diagnostic_tmpdir=/mnt/projects/.tmp
+- diagnostic_tmpdir_writable=true
+- recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
+- cleanup_required=true
+- safe_flags=true
+
 ### OPERATOR-01
 
 - operator_status=observe
@@ -113,6 +134,24 @@ automatic_failover_allowed=false
 - spb_excluded=true
 - safe_flags=true
 
+### FAILOVER-05
+
+- secondary_candidate_score_status=missing_candidates
+- candidate_count=0
+- viable_count=0
+- rejected_count=0
+- top_candidate_label=none
+- safe_flags=true
+
+### FAILOVER-04
+
+- secondary_exit_requirements_status=requirements_ready_no_candidate
+- candidate_configured=false
+- missing_items=NET-01
+- blocked_items=none
+- manual_switch_allowed=false
+- safe_flags=true
+
 ### TRANSPORT-01
 
 - transport_probe_status=healthy
@@ -123,7 +162,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=6
+- sample_count=11
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true
@@ -133,6 +172,7 @@ automatic_failover_allowed=false
 - service_exists=true
 - timer_exists=true
 - expected_commands=true
+- tmpdir_environment=Environment=TMPDIR=/mnt/projects/.tmp
 - forbidden_word=none
 
 ### SOURCE-01

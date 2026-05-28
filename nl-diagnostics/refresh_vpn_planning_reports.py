@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 from typing import Any
@@ -23,6 +24,7 @@ REFRESH_JSON = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 REFRESH_MARKDOWN = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.md"
 TIMELINE_JSONL = DIAGNOSTICS_DIR / "vpn-incident-timeline-2026-05-28.jsonl"
 TIMELINE_MARKDOWN = DIAGNOSTICS_DIR / "vpn-incident-timeline-2026-05-28.md"
+DEFAULT_LOCAL_TMPDIR = ROOT / ".tmp"
 
 
 def latest_snapshot(snapshots_dir: Path) -> Path | None:
@@ -106,6 +108,60 @@ def manual_failover_readiness_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -
         "outputs": [
             str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
             str(diagnostics_dir / "manual-failover-readiness-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_exit_requirements_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_exit_requirements",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_requirements.py"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_candidate_score_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_candidate_score",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "score_secondary_exit_candidates.py"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.md"),
+        ],
+    }
+
+
+def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "local_diagnostic_environment",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "audit_local_diagnostic_environment.py"),
+            "--json-out",
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json"),
+            str(diagnostics_dir / "local-diagnostic-environment-2026-05-28.md"),
         ],
     }
 
@@ -258,6 +314,9 @@ def command_plan(
             ],
         },
         manual_failover_readiness_command(diagnostics_dir),
+        secondary_candidate_score_command(diagnostics_dir),
+        secondary_exit_requirements_command(diagnostics_dir),
+        local_diagnostic_environment_command(diagnostics_dir),
         {
             "id": "operator_card",
             "command": [
@@ -285,6 +344,16 @@ def command_is_local_only(command: list[str]) -> bool:
     return not any(Path(part).name in forbidden for part in command)
 
 
+def local_command_env(
+    base_env: dict[str, str] | None = None,
+    tmpdir: Path = DEFAULT_LOCAL_TMPDIR,
+) -> dict[str, str]:
+    env = dict(os.environ if base_env is None else base_env)
+    if "TMPDIR" not in env and tmpdir.is_dir():
+        env["TMPDIR"] = str(tmpdir)
+    return env
+
+
 def run_plan(
     plan: list[dict[str, Any]],
     *,
@@ -305,7 +374,15 @@ def run_plan(
                 }
             )
             continue
-        completed = runner(command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        completed = runner(
+            command,
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            env=local_command_env(),
+        )
         rows.append(
             {
                 "id": item["id"],
@@ -357,6 +434,12 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     uptime = read_json(diagnostics_dir / "nl-transport-uptime-summary-2026-05-28.json").get("summary") or {}
     secondary = read_json(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json")
     failover_readiness = read_json(diagnostics_dir / "manual-failover-readiness-2026-05-28.json")
+    secondary_score = read_json(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json")
+    secondary_score_summary = secondary_score.get("summary") or {}
+    secondary_requirements = read_json(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json")
+    secondary_requirements_summary = secondary_requirements.get("summary") or {}
+    local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
+    local_env_summary = local_env.get("summary") or {}
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
     readiness_summary = readiness.get("summary") or {}
@@ -377,6 +460,14 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "manual_failover_readiness_status": failover_readiness.get("status", "unknown"),
         "manual_failover_probe_allowed": failover_readiness.get("manual_probe_allowed", "unknown"),
         "manual_failover_switch_allowed": failover_readiness.get("manual_switch_allowed", "unknown"),
+        "secondary_candidate_score_status": secondary_score.get("status", "unknown"),
+        "secondary_candidate_viable_count": secondary_score_summary.get("viable_count", "unknown"),
+        "secondary_exit_requirements_status": secondary_requirements.get("status", "unknown"),
+        "secondary_exit_requirements_missing": ",".join(secondary_requirements_summary.get("missing_items") or []) or "none",
+        "local_diagnostic_environment_status": local_env.get("status", "unknown"),
+        "local_root_status": local_env_summary.get("root_status", "unknown"),
+        "local_tmpdir_writable": local_env_summary.get("diagnostic_tmpdir_writable", "unknown"),
+        "local_recommended_tmpdir_prefix": local_env_summary.get("recommended_tmpdir_prefix", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
         "nl_transport_uptime_status": uptime.get("status", "unknown"),
@@ -436,6 +527,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"manual_failover_readiness_status={summary.get('manual_failover_readiness_status')}",
         f"manual_failover_probe_allowed={summary.get('manual_failover_probe_allowed')}",
         f"manual_failover_switch_allowed={summary.get('manual_failover_switch_allowed')}",
+        f"secondary_candidate_score_status={summary.get('secondary_candidate_score_status')}",
+        f"secondary_candidate_viable_count={summary.get('secondary_candidate_viable_count')}",
+        f"secondary_exit_requirements_status={summary.get('secondary_exit_requirements_status')}",
+        f"secondary_exit_requirements_missing={summary.get('secondary_exit_requirements_missing')}",
+        f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
+        f"local_root_status={summary.get('local_root_status')}",
+        f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
+        f"local_recommended_tmpdir_prefix={summary.get('local_recommended_tmpdir_prefix')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
         f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",

@@ -45,6 +45,9 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
                 "nl_transport_uptime",
                 "secondary_probe_template_check",
                 "manual_failover_readiness",
+                "secondary_candidate_score",
+                "secondary_exit_requirements",
+                "local_diagnostic_environment",
                 "operator_card",
                 "readiness_audit",
                 "incident_timeline",
@@ -77,7 +80,10 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
         self.assertEqual(rows[0]["exit_code"], 126)
 
     def test_run_plan_records_successful_steps(self):
-        def runner(command, cwd, stdout, stderr, text, check):
+        seen_env = {}
+
+        def runner(command, cwd, stdout, stderr, text, check, env):
+            seen_env.update(env)
             return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
 
         rows = refresh.run_plan(
@@ -88,6 +94,18 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
 
         self.assertTrue(rows[0]["ok"])
         self.assertEqual(rows[0]["outputs"], ["out.json"])
+        self.assertEqual(seen_env.get("TMPDIR"), "/mnt/projects/.tmp")
+
+    def test_local_command_env_sets_project_tmpdir_without_overriding_user_value(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp) / ".tmp"
+            tmpdir.mkdir()
+
+            defaulted = refresh.local_command_env(base_env={}, tmpdir=tmpdir)
+            preserved = refresh.local_command_env(base_env={"TMPDIR": "/custom/tmp"}, tmpdir=tmpdir)
+
+        self.assertEqual(defaulted["TMPDIR"], str(tmpdir))
+        self.assertEqual(preserved["TMPDIR"], "/custom/tmp")
 
 
 if __name__ == "__main__":
