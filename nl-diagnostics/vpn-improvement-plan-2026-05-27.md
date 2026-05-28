@@ -730,7 +730,7 @@ fresh probe snapshot: nl-diagnostics/snapshots/20260528T025444Z
 fresh probe summary: no_probe_evidence, 8/8 targets ok direct and SOCKS
 probe history command added: nl-diagnostics/summarize_blocking_probe_history.py
 probe history report: nl-diagnostics/blocking-probe-history-2026-05-28.md
-probe history trend: stable_no_probe_evidence across 6 snapshots
+probe history trend: stable_no_probe_evidence across 8 snapshots
 incident entrypoint added: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 incident entrypoint behavior: collect read-only snapshot with blocking probes, then refresh local reports
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
