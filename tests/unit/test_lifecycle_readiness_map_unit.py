@@ -451,3 +451,27 @@ def test_lifecycle_map_tracks_ledger_api_route_only_runtime_readiness():
     assert "event_trace_index_ready" in source
     assert "event_trace_dependencies_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_maas_dashboard_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    dashboard = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-dashboard"
+    )
+    source = _module_path(dashboard["module"]).read_text(encoding="utf-8")
+
+    assert dashboard["lifecycle_binding"] == "route_import_only"
+    assert dashboard["registration_mode"] == "always"
+    assert dashboard["route_present_in_light_mode"] is True
+    assert dashboard["readiness_signal"] == "/api/v1/maas/dashboard/readiness"
+    assert dashboard["runtime_readiness_field"] == "dashboard_runtime_ready"
+    assert "MaaSAnalyticsService.get_mesh_timeseries" in dashboard["hidden_dependency"]
+    assert "without querying dashboard data" in dashboard["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "dashboard_runtime_ready" in source
+    assert "dashboard_db_ready" in source
+    assert "dashboard_models_ready" in source
+    assert "dashboard_auth_ready" in source
+    assert "dashboard_analytics_ready" in source
+    assert "dashboard_resilience_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
