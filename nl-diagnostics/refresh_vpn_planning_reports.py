@@ -148,6 +148,122 @@ def secondary_candidate_score_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -
     }
 
 
+def secondary_candidate_intake_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_candidate_intake",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_candidate_intake.py"),
+            "--candidate-file",
+            str(diagnostics_dir / "secondary-exit-candidates.example.json"),
+            "--candidate-score",
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json"),
+            "--requirements",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_provider_shortlist_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_provider_shortlist",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_provider_shortlist.py"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_provisioning_plan_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_provisioning_plan",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_provisioning_plan.py"),
+            "--provider-shortlist",
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.json"),
+            "--candidate-intake",
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json"),
+            "--requirements",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_exit_flow_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_exit_flow",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_flow.py"),
+            "--candidate-score",
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json"),
+            "--secondary-probe",
+            str(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json"),
+            "--failover-readiness",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            "--requirements",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.md"),
+        ],
+    }
+
+
+def secondary_manual_drill_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_manual_drill",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_manual_drill.py"),
+            "--failover-readiness",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            "--secondary-flow",
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.json"),
+            "--provisioning-plan",
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.md"),
+        ],
+    }
+
+
 def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
     return {
         "id": "local_diagnostic_environment",
@@ -336,6 +452,11 @@ def command_plan(
         manual_failover_readiness_command(diagnostics_dir),
         secondary_candidate_score_command(diagnostics_dir),
         secondary_exit_requirements_command(diagnostics_dir),
+        secondary_provider_shortlist_command(diagnostics_dir),
+        secondary_candidate_intake_command(diagnostics_dir),
+        secondary_provisioning_plan_command(diagnostics_dir),
+        secondary_exit_flow_command(diagnostics_dir),
+        secondary_manual_drill_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
         local_root_cleanup_plan_command(diagnostics_dir),
         {
@@ -459,6 +580,16 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     secondary_score_summary = secondary_score.get("summary") or {}
     secondary_requirements = read_json(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json")
     secondary_requirements_summary = secondary_requirements.get("summary") or {}
+    secondary_shortlist = read_json(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.json")
+    secondary_shortlist_summary = secondary_shortlist.get("summary") or {}
+    secondary_intake = read_json(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json")
+    secondary_intake_summary = secondary_intake.get("summary") or {}
+    secondary_provisioning = read_json(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.json")
+    secondary_provisioning_summary = secondary_provisioning.get("summary") or {}
+    secondary_flow = read_json(diagnostics_dir / "secondary-exit-flow-2026-05-28.json")
+    secondary_flow_summary = secondary_flow.get("summary") or {}
+    secondary_drill = read_json(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json")
+    secondary_drill_summary = secondary_drill.get("summary") or {}
     local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
     local_env_summary = local_env.get("summary") or {}
     cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
@@ -487,6 +618,23 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "secondary_candidate_viable_count": secondary_score_summary.get("viable_count", "unknown"),
         "secondary_exit_requirements_status": secondary_requirements.get("status", "unknown"),
         "secondary_exit_requirements_missing": ",".join(secondary_requirements_summary.get("missing_items") or []) or "none",
+        "secondary_provider_shortlist_status": secondary_shortlist.get("status", "unknown"),
+        "secondary_provider_shortlist_count": secondary_shortlist_summary.get("shortlist_count", "unknown"),
+        "secondary_provider_shortlist_endpoint_count": secondary_shortlist_summary.get("endpoint_count", "unknown"),
+        "secondary_candidate_intake_status": secondary_intake.get("status", "unknown"),
+        "secondary_candidate_intake_allowed_fields": secondary_intake_summary.get("allowed_field_count", "unknown"),
+        "secondary_provisioning_plan_status": secondary_provisioning.get("status", "unknown"),
+        "secondary_provisioning_external_action_required": secondary_provisioning_summary.get(
+            "external_action_required",
+            "unknown",
+        ),
+        "secondary_provisioning_endpoint_count": secondary_provisioning_summary.get("endpoint_count", "unknown"),
+        "secondary_exit_flow_status": secondary_flow.get("status", "unknown"),
+        "secondary_exit_flow_candidate_configured": secondary_flow_summary.get("candidate_configured", "unknown"),
+        "secondary_exit_flow_manual_switch_allowed": secondary_flow_summary.get("manual_switch_allowed", "unknown"),
+        "secondary_manual_drill_status": secondary_drill.get("status", "unknown"),
+        "secondary_manual_drill_test_scope": secondary_drill_summary.get("test_scope", "unknown"),
+        "secondary_manual_drill_rollback_required": secondary_drill_summary.get("rollback_required", "unknown"),
         "local_diagnostic_environment_status": local_env.get("status", "unknown"),
         "local_root_status": local_env_summary.get("root_status", "unknown"),
         "local_tmpdir_writable": local_env_summary.get("diagnostic_tmpdir_writable", "unknown"),
@@ -557,6 +705,20 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_candidate_viable_count={summary.get('secondary_candidate_viable_count')}",
         f"secondary_exit_requirements_status={summary.get('secondary_exit_requirements_status')}",
         f"secondary_exit_requirements_missing={summary.get('secondary_exit_requirements_missing')}",
+        f"secondary_provider_shortlist_status={summary.get('secondary_provider_shortlist_status')}",
+        f"secondary_provider_shortlist_count={summary.get('secondary_provider_shortlist_count')}",
+        f"secondary_provider_shortlist_endpoint_count={summary.get('secondary_provider_shortlist_endpoint_count')}",
+        f"secondary_candidate_intake_status={summary.get('secondary_candidate_intake_status')}",
+        f"secondary_candidate_intake_allowed_fields={summary.get('secondary_candidate_intake_allowed_fields')}",
+        f"secondary_provisioning_plan_status={summary.get('secondary_provisioning_plan_status')}",
+        f"secondary_provisioning_external_action_required={summary.get('secondary_provisioning_external_action_required')}",
+        f"secondary_provisioning_endpoint_count={summary.get('secondary_provisioning_endpoint_count')}",
+        f"secondary_exit_flow_status={summary.get('secondary_exit_flow_status')}",
+        f"secondary_exit_flow_candidate_configured={summary.get('secondary_exit_flow_candidate_configured')}",
+        f"secondary_exit_flow_manual_switch_allowed={summary.get('secondary_exit_flow_manual_switch_allowed')}",
+        f"secondary_manual_drill_status={summary.get('secondary_manual_drill_status')}",
+        f"secondary_manual_drill_test_scope={summary.get('secondary_manual_drill_test_scope')}",
+        f"secondary_manual_drill_rollback_required={summary.get('secondary_manual_drill_rollback_required')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
