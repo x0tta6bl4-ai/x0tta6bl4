@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import required components
 try:
-    from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE,
+    from src.security.pqc import (LIBOQS_AVAILABLE,
                                                   PQMeshSecurityLibOQS)
 
     PQC_AVAILABLE = LIBOQS_AVAILABLE
