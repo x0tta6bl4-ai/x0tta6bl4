@@ -140,3 +140,45 @@ def test_lifecycle_map_tracks_marketplace_route_only_write_readiness():
     assert '@router.get("/status")' in source
     assert "write_db_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_billing_route_only_stripe_readiness():
+    lifecycle_map = _load_map()
+    billing = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-billing"
+    )
+    source = _module_path(billing["module"]).read_text(encoding="utf-8")
+
+    assert billing["lifecycle_binding"] == "route_import_only"
+    assert billing["registration_mode"] == "always"
+    assert billing["route_present_in_light_mode"] is True
+    assert billing["readiness_signal"] == "/api/v1/maas/billing/readiness"
+    assert billing["runtime_readiness_field"] == "stripe_config_ready"
+    assert "Stripe configuration" in billing["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "stripe_config_ready" in source
+    assert "stripe_plans_ready" in source
+    assert "legacy_metering_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
+    lifecycle_map = _load_map()
+    governance = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-governance"
+    )
+    source = _module_path(governance["module"]).read_text(encoding="utf-8")
+
+    assert governance["lifecycle_binding"] == "route_import_only"
+    assert governance["registration_mode"] == "always"
+    assert governance["route_present_in_light_mode"] is True
+    assert governance["readiness_signal"] == "/api/v1/maas/governance/readiness"
+    assert governance["runtime_readiness_field"] == "control_plane_ready"
+    assert "EventBus trace publication" in governance["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "control_plane_ready" in source
+    assert "governance_db_ready" in source
+    assert "policy_engine_ready" in source
+    assert "safe_actuator_ready" in source
+    assert "service_identity_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source

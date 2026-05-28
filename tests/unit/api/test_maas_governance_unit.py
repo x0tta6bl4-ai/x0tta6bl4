@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import asyncio
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
+import src.api.maas_governance as gov_mod
 from src.api.maas_governance import (
     GovernanceAction,
     ProposalCreate,
@@ -19,6 +22,71 @@ from src.api.maas_governance import (
     _tally,
     get_gov_power,
 )
+
+
+# ---------------------------------------------------------------------------
+# readiness
+# ---------------------------------------------------------------------------
+
+
+class TestGovernanceReadiness:
+    def test_ready_when_db_and_control_plane_imports_are_available(self, monkeypatch):
+        db = MagicMock(spec=["query", "commit", "add"])
+        monkeypatch.delenv("X0TTA6BL4_MAAS_GOVERNANCE_POLICY_REQUIRED", raising=False)
+        monkeypatch.delenv("X0TTA6BL4_PRODUCTION", raising=False)
+
+        payload = gov_mod._governance_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["route_registered"] is True
+        assert payload["lifecycle_binding"] == "route_import_only"
+        assert payload["startup_hook_completed"] is None
+        assert payload["governance_db_ready"] is True
+        assert payload["control_plane_ready"] is True
+        assert payload["event_bus_ready"] is True
+        assert payload["safe_actuator_ready"] is True
+        assert payload["service_identity_ready"] is True
+        assert payload["policy_required"] is False
+        assert payload["policy_engine_ready"] is True
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_db_and_required_policy_engine_are_missing(self, monkeypatch):
+        monkeypatch.setenv("X0TTA6BL4_MAAS_GOVERNANCE_POLICY_REQUIRED", "true")
+        monkeypatch.setattr(gov_mod, "_default_policy_engine", lambda: None)
+        monkeypatch.setattr(gov_mod, "EventBus", None)
+        monkeypatch.setattr(gov_mod, "SafeActuator", None)
+        monkeypatch.setattr(gov_mod, "service_event_identity", None)
+
+        payload = gov_mod._governance_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["governance_db_ready"] is False
+        assert payload["control_plane_ready"] is False
+        assert payload["event_bus_ready"] is False
+        assert payload["safe_actuator_ready"] is False
+        assert payload["service_identity_ready"] is False
+        assert payload["policy_required"] is True
+        assert payload["policy_engine_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "event_bus",
+            "safe_actuator",
+            "service_identity",
+            "policy_engine",
+        ]
+        assert "external DAO chain finality" in payload["claim_boundary"]
+
+    def test_readiness_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        monkeypatch.setenv("X0TTA6BL4_MAAS_GOVERNANCE_POLICY_REQUIRED", "true")
+        monkeypatch.setattr(gov_mod, "_default_policy_engine", lambda: None)
+
+        request = SimpleNamespace(state=SimpleNamespace())
+        payload = asyncio.run(
+            gov_mod.governance_readiness(request=request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database", "policy_engine"}
 
 
 # ---------------------------------------------------------------------------

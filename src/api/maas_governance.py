@@ -15,13 +15,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.database import GovernanceProposal, GovernanceVote, User, GlobalConfig, get_db
 from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.core.reliability_policy import mark_degraded_dependency
 from src.integration.spine import SafeActuator, SafeActuatorResult
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
@@ -83,6 +84,91 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _governance_policy_required() -> bool:
+    return _env_bool("X0TTA6BL4_MAAS_GOVERNANCE_POLICY_REQUIRED", False) or _env_bool(
+        "X0TTA6BL4_PRODUCTION",
+        False,
+    )
+
+
+def _governance_db_session_available(db: Any) -> bool:
+    return hasattr(db, "query") and hasattr(db, "commit") and hasattr(db, "add")
+
+
+def _governance_readiness_status(db: Any) -> Dict[str, Any]:
+    db_ready = _governance_db_session_available(db)
+    event_bus_ready = bool(EventBus and get_event_bus)
+    safe_actuator_ready = bool(SafeActuator)
+    service_identity_ready = callable(service_event_identity)
+    policy_required = _governance_policy_required()
+    policy_engine_ready = True
+    if policy_required:
+        policy_engine_ready = _default_policy_engine() is not None
+
+    control_plane_ready = all(
+        [
+            event_bus_ready,
+            safe_actuator_ready,
+            service_identity_ready,
+            policy_engine_ready,
+        ]
+    )
+
+    degraded_dependencies = []
+    if not db_ready:
+        degraded_dependencies.append("database")
+    if not event_bus_ready:
+        degraded_dependencies.append("event_bus")
+    if not safe_actuator_ready:
+        degraded_dependencies.append("safe_actuator")
+    if not service_identity_ready:
+        degraded_dependencies.append("service_identity")
+    if not policy_engine_ready:
+        degraded_dependencies.append("policy_engine")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "governance_db_ready": db_ready,
+        "control_plane_ready": control_plane_ready,
+        "event_bus_ready": event_bus_ready,
+        "safe_actuator_ready": safe_actuator_ready,
+        "service_identity_ready": service_identity_ready,
+        "policy_required": policy_required,
+        "policy_engine_ready": policy_engine_ready,
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": "ready" if db_ready else "unavailable",
+            "proposal_vote_store": "database_required",
+            "event_bus": "imported" if event_bus_ready else "unavailable",
+            "safe_actuator": "imported" if safe_actuator_ready else "unavailable",
+            "service_identity": "imported" if service_identity_ready else "unavailable",
+            "policy_engine": "required" if policy_required else "optional",
+            "pqc_finality_attestation": "lazy_at_execute",
+        },
+        "claim_boundary": (
+            "Governance route readiness distinguishes route availability from "
+            "proposal/vote database writes, EventBus trace publication, service "
+            "identity resolution, policy evaluation, and SafeActuator dispatch. "
+            "It does not prove external DAO chain finality, production policy "
+            "correctness, or successful PQC attestation for a specific proposal."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def governance_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _governance_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 def _default_event_bus(project_root: str = ".") -> Optional[EventBus]:
@@ -287,8 +373,7 @@ def _execute_action(
     policy_required = (
         require_policy
         if require_policy is not None
-        else _env_bool("X0TTA6BL4_MAAS_GOVERNANCE_POLICY_REQUIRED", False)
-        or _env_bool("X0TTA6BL4_PRODUCTION", False)
+        else _governance_policy_required()
     )
     policy = policy_engine
     if policy is None and policy_required:
