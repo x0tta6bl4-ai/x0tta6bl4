@@ -88,6 +88,9 @@ refresh=/mnt/projects/nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 
 It collects a fresh read-only snapshot and rebuilds the local planning reports.
 It does not write to NL.
+When `/mnt/projects/.tmp` exists, the incident wrapper and refresh runner use it
+as `TMPDIR` for child commands so local diagnostics do not depend on `/tmp`
+having free space.
 
 ```bash
 /mnt/projects/nl-diagnostics/collect_vpn_readonly_snapshot.sh
@@ -165,22 +168,30 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=945
+provider_packet_snapshot_age_seconds=<varies with time; collect a fresh snapshot after 3600>
 blocking_history_trend=stable_no_probe_evidence
 blocking_history_snapshot_count=5
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
 manual_failover_switch_allowed=False
+secondary_candidate_score_status=missing_candidates
+secondary_candidate_viable_count=0
+secondary_exit_requirements_status=requirements_ready_no_candidate
+secondary_exit_requirements_missing=NET-01
+local_diagnostic_environment_status=watch_root_full_tmpdir_available
+local_root_status=critical_full
+local_tmpdir_writable=True
+local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=6
+nl_transport_uptime_samples=11
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=4
+incident_timeline_event_count=9
 incident_timeline_latest_type=provider_watch
 incident_timeline_latest_snapshot=20260528T000600Z
 nl_mutation_allowed=false
@@ -196,18 +207,41 @@ nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 Current audit summary:
 
 ```text
-ready_local=13
+ready_local=15
 blocked_future_approval=3
-watch=1
+watch=2
 missing=0
-watch_items=BOOT-01
+watch_items=BOOT-01, LOCALENV-01
 blocked_items=FAILOVER-03, GATE-01, FAILOVER-02
 ```
 
 Interpretation: the local observe-mode plan is usable now. Future NL writes and
 a real secondary exit node remain blocked until separate approval/setup. Manual
 failover is also blocked while the current decision is `observe` and no healthy
-non-SPB secondary node exists.
+non-NL/non-SPB secondary node exists.
+
+Local diagnostic environment:
+
+```text
+nl-diagnostics/local-diagnostic-environment-2026-05-28.md
+```
+
+Current rule:
+
+```text
+status=watch_root_full_tmpdir_available
+root_status=critical_full
+root_free_gib=0.0
+diagnostic_tmpdir=/mnt/projects/.tmp
+diagnostic_tmpdir_writable=true
+recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
+```
+
+Interpretation: local diagnostics can continue, but commands that create
+temporary files should be run with `TMPDIR=/mnt/projects/.tmp` until `/` is
+cleaned. The refresh runner now passes this `TMPDIR` to its child commands by
+default when the variable is not already set. Do not delete
+`/tmp/antigravity_restore*` without separate local cleanup approval.
 
 Outside-in NL transport probe:
 
@@ -236,7 +270,7 @@ Current result:
 
 ```text
 status=stable_healthy
-sample_count=6
+sample_count=11
 latest_status=healthy
 consecutive_non_healthy=0
 ```
@@ -253,6 +287,7 @@ What they would do if installed on the local host:
 ```text
 run the outside-in NL TCP probe every 5 minutes
 append/update local uptime evidence under /mnt/projects/nl-diagnostics/
+set TMPDIR=/mnt/projects/.tmp for local temporary files
 perform no SSH, no NL writes, no SPB fallback, and no service restart
 ```
 
@@ -294,7 +329,7 @@ Current packet:
 ```text
 packet_type=provider_watch
 snapshot_stale=false
-snapshot_age_seconds=945
+snapshot_age_seconds=<varies with time; collect fresh evidence after 3600>
 NL writes=0
 ```
 
@@ -307,7 +342,7 @@ nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 Current timeline:
 
 ```text
-event_count=4
+event_count=9
 latest_event_type=provider_watch
 latest_snapshot=20260528T000600Z
 ```
@@ -362,6 +397,8 @@ Manual failover planning:
 ```text
 nl-diagnostics/manual-failover-plan-2026-05-28.md
 nl-diagnostics/manual-failover-readiness-2026-05-28.md
+nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md
+nl-diagnostics/secondary-exit-requirements-2026-05-28.md
 ```
 
 Current rule:
@@ -371,9 +408,13 @@ manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_probe_allowed=false
 manual_switch_allowed=false
+secondary_candidate_score_status=missing_candidates
+secondary_candidate_viable_count=0
+secondary_exit_requirements_status=requirements_ready_no_candidate
+secondary_exit_requirements_missing=NET-01
 automatic_failover_allowed=false
 spb_fallback_allowed=false
-secondary exit node must be new provider/region, not SPB
+secondary exit node must be new provider/region, not NL and not SPB
 ```
 
 Secondary health probe template:

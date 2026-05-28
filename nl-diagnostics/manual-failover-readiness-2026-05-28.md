@@ -1,6 +1,6 @@
 # Manual Failover Readiness
 
-generated_at: `2026-05-28T00:23:28.937385+00:00`
+generated_at: `2026-05-28T01:00:22.395236+00:00`
 
 ## Status
 

@@ -144,6 +144,63 @@ def sample_failover_readiness() -> dict:
     }
 
 
+def sample_secondary_requirements() -> dict:
+    return {
+        "status": "requirements_ready_no_candidate",
+        "summary": {
+            "candidate_configured": False,
+            "missing_items": ["NET-01"],
+            "blocked_items": [],
+            "manual_switch_allowed": False,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_score() -> dict:
+    return {
+        "status": "missing_candidates",
+        "summary": {
+            "candidate_count": 0,
+            "viable_count": 0,
+            "rejected_count": 0,
+            "top_candidate_label": "none",
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_local_env(status: str = "watch_root_full_tmpdir_available", tmpdir_writable: bool = True) -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "root_status": "critical_full" if status == "watch_root_full_tmpdir_available" else "ok",
+            "root_used_percent": 100.0 if status == "watch_root_full_tmpdir_available" else 50.0,
+            "tmp_status": "critical_full" if status == "watch_root_full_tmpdir_available" else "ok",
+            "diagnostic_tmpdir": "/mnt/projects/.tmp",
+            "diagnostic_tmpdir_writable": tmpdir_writable,
+            "recommended_tmpdir_prefix": "TMPDIR=/mnt/projects/.tmp",
+            "cleanup_required": status != "ok",
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_transport_probe() -> dict:
     return {
         "status": "healthy",
@@ -217,6 +274,9 @@ def sample_inputs() -> dict:
         "operator_card": sample_operator_card(),
         "failover": sample_failover(),
         "failover_readiness": sample_failover_readiness(),
+        "secondary_score": sample_secondary_score(),
+        "secondary_requirements": sample_secondary_requirements(),
+        "local_env": sample_local_env(),
         "transport_probe": sample_transport_probe(),
         "transport_uptime": sample_transport_uptime(),
         "secondary": sample_secondary(),
@@ -236,6 +296,7 @@ def prepare_root(root: Path) -> None:
             [
                 "[Service]",
                 "Type=oneshot",
+                "Environment=TMPDIR=/mnt/projects/.tmp",
                 "ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/probe_nl_transport_ports.py",
                 "ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/record_nl_transport_uptime.py",
                 "",
@@ -257,6 +318,12 @@ def prepare_root(root: Path) -> None:
 
 
 class VpnPlanReadinessAuditTests(unittest.TestCase):
+    def test_default_provider_packet_matches_current_snapshot_bundle(self):
+        self.assertEqual(
+            audit.DEFAULT_PROVIDER_PACKET.name,
+            "provider-incident-packet-20260528T000600Z.json",
+        )
+
     def test_ready_audit_has_future_blocks_but_no_missing_items(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -267,15 +334,18 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["overall_status"], "ready_local_with_future_blocks")
         self.assertEqual(payload["summary"]["missing"], 0)
-        self.assertEqual(payload["summary"]["watch"], 1)
+        self.assertEqual(payload["summary"]["watch"], 2)
         self.assertGreaterEqual(payload["summary"]["ready_local"], 1)
         self.assertIn("BOOT-01", payload["summary"]["watch_items"])
+        self.assertIn("LOCALENV-01", payload["summary"]["watch_items"])
         self.assertIn("GATE-01", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-02", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-03", payload["summary"]["blocked_items"])
         self.assertEqual(payload["summary"]["boot_gap_watch_status"], "watch")
         self.assertEqual(payload["summary"]["provider_packet_type"], "provider_watch")
         self.assertFalse(payload["summary"]["provider_packet_stale"])
+        self.assertEqual(payload["summary"]["local_diagnostic_environment_status"], "watch_root_full_tmpdir_available")
+        self.assertTrue(payload["summary"]["local_tmpdir_writable"])
         self.assertEqual(payload["summary"]["transport_probe_status"], "healthy")
         self.assertEqual(payload["summary"]["transport_uptime_status"], "stable_healthy")
         self.assertFalse(payload["nl_mutation_allowed"])
@@ -297,6 +367,19 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         transport = next(item for item in payload["items"] if item["id"] == "TRANSPORT-01")
         self.assertEqual(transport["status"], audit.WATCH)
         self.assertTrue(payload["ok"])
+
+    def test_missing_project_tmpdir_makes_readiness_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["local_env"] = sample_local_env("missing_writable_temp", tmpdir_writable=False)
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        local_env = next(item for item in payload["items"] if item["id"] == "LOCALENV-01")
+        self.assertEqual(local_env["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

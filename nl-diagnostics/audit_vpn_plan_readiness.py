@@ -25,13 +25,16 @@ DEFAULT_BOOT_GAP = DIAGNOSTICS_DIR / "boot-gap-watch-2026-05-28.json"
 DEFAULT_PROVIDER_PACKET = (
     DIAGNOSTICS_DIR
     / "provider-incident-packets"
-    / "provider-incident-packet-20260527T230246Z.json"
+    / "provider-incident-packet-20260528T000600Z.json"
 )
 DEFAULT_HISTORY = DIAGNOSTICS_DIR / "blocking-probe-history-2026-05-28.json"
 DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 DEFAULT_OPERATOR_CARD = DIAGNOSTICS_DIR / "vpn-operator-card-2026-05-28.json"
 DEFAULT_FAILOVER = DIAGNOSTICS_DIR / "manual-failover-plan-2026-05-28.json"
 DEFAULT_FAILOVER_READINESS = DIAGNOSTICS_DIR / "manual-failover-readiness-2026-05-28.json"
+DEFAULT_SECONDARY_SCORE = DIAGNOSTICS_DIR / "secondary-exit-candidate-score-2026-05-28.json"
+DEFAULT_SECONDARY_REQUIREMENTS = DIAGNOSTICS_DIR / "secondary-exit-requirements-2026-05-28.json"
+DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
 DEFAULT_TRANSPORT_UPTIME = DIAGNOSTICS_DIR / "nl-transport-uptime-summary-2026-05-28.json"
 DEFAULT_SECONDARY = DIAGNOSTICS_DIR / "secondary-exit-probe-template-2026-05-28.json"
@@ -343,6 +346,47 @@ def audit_refresh(refresh: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def audit_local_diagnostic_environment(local_env: dict[str, Any]) -> dict[str, Any]:
+    status = str(local_env.get("status") or "missing")
+    summary = local_env.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(local_env, "nl_mutation_allowed"),
+            flag_is_false(local_env, "spb_fallback_allowed"),
+            flag_is_false(local_env, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    tmpdir_writable = summary.get("diagnostic_tmpdir_writable") is True
+    if status == "ok" and tmpdir_writable and safe:
+        item_status = READY
+    elif status in {"watch_root_full_tmpdir_available", "watch_disk_pressure"} and tmpdir_writable and safe:
+        item_status = WATCH
+    else:
+        item_status = MISSING
+
+    return item(
+        item_id="LOCALENV-01",
+        title="Local diagnostic host has a writable project temp directory",
+        status=item_status,
+        evidence=[
+            f"local_environment_status={status}",
+            f"root_status={summary.get('root_status', 'missing')}",
+            f"root_used_percent={summary.get('root_used_percent', 'missing')}",
+            f"root_free_gib={summary.get('root_free_gib', 'missing')}",
+            f"tmp_status={summary.get('tmp_status', 'missing')}",
+            f"diagnostic_tmpdir={summary.get('diagnostic_tmpdir', 'missing')}",
+            f"diagnostic_tmpdir_writable={str(tmpdir_writable).lower()}",
+            f"recommended_tmpdir_prefix={summary.get('recommended_tmpdir_prefix', 'missing')}",
+            f"cleanup_required={str(summary.get('cleanup_required')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval",
+    )
+
+
 def audit_operator_card(operator_card: dict[str, Any]) -> dict[str, Any]:
     operator = operator_card.get("operator") or {}
     state = operator_card.get("current_state") or {}
@@ -427,7 +471,7 @@ def audit_failover_plan(failover: dict[str, Any], secondary: dict[str, Any]) -> 
                 f"spb_fallback_allowed={str(secondary.get('spb_fallback_allowed')).lower()}",
                 f"automatic_failover_allowed={str(secondary.get('automatic_failover_allowed')).lower()}",
             ],
-            next_step="choose a new non-SPB provider/region before any emergency profile test",
+            next_step="choose a new non-NL/non-SPB provider/region before any emergency profile test",
         ),
     ]
 
@@ -464,7 +508,69 @@ def audit_manual_failover_readiness(failover_readiness: dict[str, Any]) -> dict[
             f"spb_excluded={str(summary.get('spb_excluded')).lower()}",
             f"safe_flags={str(safe).lower()}",
         ],
-        next_step="keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist",
+        next_step="keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist",
+    )
+
+
+def audit_secondary_exit_requirements(secondary_requirements: dict[str, Any]) -> dict[str, Any]:
+    status = str(secondary_requirements.get("status") or "missing")
+    summary = secondary_requirements.get("summary") or {}
+    missing_items = summary.get("missing_items") if isinstance(summary.get("missing_items"), list) else []
+    blocked_items = summary.get("blocked_items") if isinstance(summary.get("blocked_items"), list) else []
+    safe = all_false(
+        [
+            flag_is_false(secondary_requirements, "nl_mutation_allowed"),
+            flag_is_false(secondary_requirements, "spb_fallback_allowed"),
+            flag_is_false(secondary_requirements, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    ready = safe and status in {"requirements_ready_no_candidate", "requirements_ready_with_candidate"} and not blocked_items
+    return item(
+        item_id="FAILOVER-04",
+        title="Secondary exit requirements are documented without secrets",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_exit_requirements_status={status}",
+            f"candidate_configured={str(summary.get('candidate_configured')).lower()}",
+            f"missing_items={','.join(str(value) for value in missing_items) or 'none'}",
+            f"blocked_items={','.join(str(value) for value in blocked_items) or 'none'}",
+            f"manual_switch_allowed={str(summary.get('manual_switch_allowed')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata",
+    )
+
+
+def audit_secondary_candidate_score(secondary_score: dict[str, Any]) -> dict[str, Any]:
+    status = str(secondary_score.get("status") or "missing")
+    summary = secondary_score.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(secondary_score, "nl_mutation_allowed"),
+            flag_is_false(secondary_score, "spb_fallback_allowed"),
+            flag_is_false(secondary_score, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    ready = safe and status in {"missing_candidates", "candidate_pool_ready", "candidate_pool_no_viable"}
+    return item(
+        item_id="FAILOVER-05",
+        title="Secondary candidate scorer is available before provider choice",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_candidate_score_status={status}",
+            f"candidate_count={summary.get('candidate_count', 'missing')}",
+            f"viable_count={summary.get('viable_count', 'missing')}",
+            f"rejected_count={summary.get('rejected_count', 'missing')}",
+            f"top_candidate_label={summary.get('top_candidate_label', 'missing')}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="score only public metadata for non-NL/non-SPB candidates before generating a probe config",
     )
 
 
@@ -541,6 +647,7 @@ def audit_scheduler_templates(root: Path) -> dict[str, Any]:
     expected = (
         "probe_nl_transport_ports.py" in service_text
         and "record_nl_transport_uptime.py" in service_text
+        and "Environment=TMPDIR=/mnt/projects/.tmp" in service_text
         and "OnUnitActiveSec=5min" in timer_text
         and "Unit=x0tta-vpn-nl-transport-uptime.service" in timer_text
     )
@@ -554,6 +661,7 @@ def audit_scheduler_templates(root: Path) -> dict[str, Any]:
             f"service_exists={str(service.exists()).lower()}",
             f"timer_exists={str(timer.exists()).lower()}",
             f"expected_commands={str(expected).lower()}",
+            f"tmpdir_environment={'Environment=TMPDIR=/mnt/projects/.tmp' if 'Environment=TMPDIR=/mnt/projects/.tmp' in service_text else 'missing'}",
             f"forbidden_word={forbidden.group(1) if forbidden else 'none'}",
         ],
         next_step="install/enable the local timer only after separate local host approval",
@@ -711,6 +819,9 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     operator_card = inputs.get("operator_card") or {}
     failover = inputs.get("failover") or {}
     failover_readiness = inputs.get("failover_readiness") or {}
+    secondary_score = inputs.get("secondary_score") or {}
+    secondary_requirements = inputs.get("secondary_requirements") or {}
+    local_env = inputs.get("local_env") or {}
     transport_probe = inputs.get("transport_probe") or {}
     transport_uptime = inputs.get("transport_uptime") or {}
     secondary = inputs.get("secondary") or {}
@@ -726,8 +837,11 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_provider_packet(provider_packet, decision),
         audit_blocking_history(history, decision),
         audit_refresh(refresh),
+        audit_local_diagnostic_environment(local_env),
         audit_operator_card(operator_card),
         audit_manual_failover_readiness(failover_readiness),
+        audit_secondary_candidate_score(secondary_score),
+        audit_secondary_exit_requirements(secondary_requirements),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -765,6 +879,11 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "provider_packet_stale": provider_packet.get("snapshot_stale", "missing"),
             "manual_failover_readiness_status": failover_readiness.get("status", "missing"),
             "manual_failover_switch_allowed": failover_readiness.get("manual_switch_allowed", "missing"),
+            "secondary_candidate_score_status": secondary_score.get("status", "missing"),
+            "secondary_exit_requirements_status": secondary_requirements.get("status", "missing"),
+            "local_diagnostic_environment_status": local_env.get("status", "missing"),
+            "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
+            "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
             "transport_uptime_status": (transport_uptime.get("summary") or {}).get("status", "missing"),
             "nl_write_allowed": False,
@@ -802,6 +921,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"provider_packet_stale={summary.get('provider_packet_stale')}",
         f"manual_failover_readiness_status={summary.get('manual_failover_readiness_status')}",
         f"manual_failover_switch_allowed={summary.get('manual_failover_switch_allowed')}",
+        f"secondary_candidate_score_status={summary.get('secondary_candidate_score_status')}",
+        f"secondary_exit_requirements_status={summary.get('secondary_exit_requirements_status')}",
+        f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
+        f"local_root_status={summary.get('local_root_status')}",
+        f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
         f"transport_probe_status={summary.get('transport_probe_status')}",
         f"transport_uptime_status={summary.get('transport_uptime_status')}",
         "nl_write_allowed=false",
@@ -837,6 +961,9 @@ def main() -> int:
     parser.add_argument("--operator-card", default=str(DEFAULT_OPERATOR_CARD))
     parser.add_argument("--failover", default=str(DEFAULT_FAILOVER))
     parser.add_argument("--failover-readiness", default=str(DEFAULT_FAILOVER_READINESS))
+    parser.add_argument("--secondary-score", default=str(DEFAULT_SECONDARY_SCORE))
+    parser.add_argument("--secondary-requirements", default=str(DEFAULT_SECONDARY_REQUIREMENTS))
+    parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
     parser.add_argument("--transport-uptime", default=str(DEFAULT_TRANSPORT_UPTIME))
     parser.add_argument("--secondary", default=str(DEFAULT_SECONDARY))
@@ -861,6 +988,9 @@ def main() -> int:
         "operator_card": read_json(Path(args.operator_card)),
         "failover": read_json(Path(args.failover)),
         "failover_readiness": read_json(Path(args.failover_readiness)),
+        "secondary_score": read_json(Path(args.secondary_score)),
+        "secondary_requirements": read_json(Path(args.secondary_requirements)),
+        "local_env": read_json(Path(args.local_env)),
         "transport_probe": read_json(Path(args.transport_probe)),
         "transport_uptime": read_json(Path(args.transport_uptime)),
         "secondary": read_json(Path(args.secondary)),

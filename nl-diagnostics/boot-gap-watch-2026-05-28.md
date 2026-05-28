@@ -1,6 +1,6 @@
 # Boot Gap Watch
 
-generated_at: `2026-05-28T00:21:45.222833+00:00`
+generated_at: `2026-05-28T01:00:21.611535+00:00`
 snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z`
 
 ## Summary

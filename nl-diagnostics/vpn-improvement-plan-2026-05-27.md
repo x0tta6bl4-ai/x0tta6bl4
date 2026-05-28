@@ -748,22 +748,34 @@ planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
 incident timeline recorder added: nl-diagnostics/record_vpn_incident_timeline.py
 incident timeline report: nl-diagnostics/vpn-incident-timeline-2026-05-28.md
-incident timeline status: event_count=4, latest_type=provider_watch
+incident timeline status: event_count=9, latest_type=provider_watch
 manual failover readiness gate added: nl-diagnostics/audit_manual_failover_readiness.py
 manual failover readiness report: nl-diagnostics/manual-failover-readiness-2026-05-28.md
 manual failover readiness status: blocked_no_incident_trigger, manual_switch_allowed=false
+secondary candidate scorer added: nl-diagnostics/score_secondary_exit_candidates.py
+secondary candidate example list: nl-diagnostics/secondary-exit-candidates.example.json
+secondary candidate score report: nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md
+secondary candidate score status: missing_candidates, viable_count=0
+secondary exit requirements command added: nl-diagnostics/build_secondary_exit_requirements.py
+secondary exit requirements report: nl-diagnostics/secondary-exit-requirements-2026-05-28.md
+secondary exit requirements status: requirements_ready_no_candidate, missing=NET-01
 outside-in NL transport probe added: nl-diagnostics/probe_nl_transport_ports.py
 outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-28.md
 outside-in NL transport status: healthy, 3/3 ports ok
 outside-in NL transport uptime recorder added: nl-diagnostics/record_nl_transport_uptime.py
 outside-in NL transport uptime summary: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
-outside-in NL transport uptime status: stable_healthy, samples=6, bad_streak=0
+outside-in NL transport uptime status: stable_healthy, samples=11, bad_streak=0
 local uptime scheduler service template: infra/systemd/x0tta-vpn-nl-transport-uptime.service
 local uptime scheduler timer template: infra/systemd/x0tta-vpn-nl-transport-uptime.timer
 local uptime scheduler status: prepared only, not installed, no systemd command run
+local diagnostic environment audit added: nl-diagnostics/audit_local_diagnostic_environment.py
+local diagnostic environment report: nl-diagnostics/local-diagnostic-environment-2026-05-28.md
+local diagnostic environment status: watch_root_full_tmpdir_available, root_status=critical_full, TMPDIR=/mnt/projects/.tmp writable
+refresh TMPDIR guard added: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
-readiness audit status: ready_local_with_future_blocks, ready_local=13, blocked_future_approval=3, watch=1, missing=0
+readiness audit status: ready_local_with_future_blocks, ready_local=15, blocked_future_approval=3, watch=2, missing=0
+readiness watch items: BOOT-01, LOCALENV-01
 operator card added: nl-diagnostics/build_vpn_operator_card.py
 operator card report: nl-diagnostics/vpn-operator-card-2026-05-28.md
 operator status: observe
