@@ -264,6 +264,36 @@ def secondary_manual_drill_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> d
     }
 
 
+def secondary_selection_packet_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_selection_packet",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_selection_packet.py"),
+            "--provider-shortlist",
+            str(diagnostics_dir / "secondary-exit-provider-shortlist-2026-05-28.json"),
+            "--provisioning-plan",
+            str(diagnostics_dir / "secondary-exit-provisioning-plan-2026-05-28.json"),
+            "--candidate-intake",
+            str(diagnostics_dir / "secondary-exit-candidate-intake-2026-05-28.json"),
+            "--requirements",
+            str(diagnostics_dir / "secondary-exit-requirements-2026-05-28.json"),
+            "--secondary-flow",
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.json"),
+            "--manual-drill",
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.md"),
+        ],
+    }
+
+
 def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
     return {
         "id": "local_diagnostic_environment",
@@ -507,6 +537,7 @@ def command_plan(
         secondary_provisioning_plan_command(diagnostics_dir),
         secondary_exit_flow_command(diagnostics_dir),
         secondary_manual_drill_command(diagnostics_dir),
+        secondary_selection_packet_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
         local_root_cleanup_plan_command(diagnostics_dir),
         local_root_cleanup_approval_packet_command(diagnostics_dir),
@@ -642,6 +673,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     secondary_flow_summary = secondary_flow.get("summary") or {}
     secondary_drill = read_json(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json")
     secondary_drill_summary = secondary_drill.get("summary") or {}
+    secondary_selection = read_json(diagnostics_dir / "secondary-exit-selection-packet-2026-05-28.json")
+    secondary_selection_summary = secondary_selection.get("summary") or {}
     local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
     local_env_summary = local_env.get("summary") or {}
     cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
@@ -691,6 +724,14 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "secondary_manual_drill_status": secondary_drill.get("status", "unknown"),
         "secondary_manual_drill_test_scope": secondary_drill_summary.get("test_scope", "unknown"),
         "secondary_manual_drill_rollback_required": secondary_drill_summary.get("rollback_required", "unknown"),
+        "secondary_selection_packet_status": secondary_selection.get("status", "unknown"),
+        "secondary_selection_recommended_label": secondary_selection_summary.get("recommended_label", "unknown"),
+        "secondary_selection_backup_label": secondary_selection_summary.get("backup_label", "unknown"),
+        "secondary_selection_option_count": secondary_selection_summary.get("decision_option_count", "unknown"),
+        "secondary_selection_may_create_endpoint_now": secondary_selection_summary.get(
+            "may_create_endpoint_now",
+            "unknown",
+        ),
         "local_diagnostic_environment_status": local_env.get("status", "unknown"),
         "local_root_status": local_env_summary.get("root_status", "unknown"),
         "local_tmpdir_writable": local_env_summary.get("diagnostic_tmpdir_writable", "unknown"),
@@ -781,6 +822,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_manual_drill_status={summary.get('secondary_manual_drill_status')}",
         f"secondary_manual_drill_test_scope={summary.get('secondary_manual_drill_test_scope')}",
         f"secondary_manual_drill_rollback_required={summary.get('secondary_manual_drill_rollback_required')}",
+        f"secondary_selection_packet_status={summary.get('secondary_selection_packet_status')}",
+        f"secondary_selection_recommended_label={summary.get('secondary_selection_recommended_label')}",
+        f"secondary_selection_backup_label={summary.get('secondary_selection_backup_label')}",
+        f"secondary_selection_option_count={summary.get('secondary_selection_option_count')}",
+        f"secondary_selection_may_create_endpoint_now={summary.get('secondary_selection_may_create_endpoint_now')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
