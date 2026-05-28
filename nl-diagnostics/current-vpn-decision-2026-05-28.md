@@ -1,6 +1,6 @@
 # Current VPN Decision
 
-generated_at: `2026-05-27T23:53:08.041655+00:00`
+generated_at: `2026-05-27T23:59:01.300681+00:00`
 snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 
 ## Status

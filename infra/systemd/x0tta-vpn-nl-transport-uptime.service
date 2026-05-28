@@ -1,0 +1,12 @@
+[Unit]
+Description=Record outside-in NL VPN transport uptime
+Documentation=file:/mnt/projects/docs/runbooks/NL_VPN_HEALTH.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/mnt/projects
+Environment=PROJECT_DIR=/mnt/projects
+ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/probe_nl_transport_ports.py --json-out /mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.json --markdown-out /mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.md
+ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/record_nl_transport_uptime.py --probe-json /mnt/projects/nl-diagnostics/nl-transport-probe-2026-05-28.json --history /mnt/projects/nl-diagnostics/nl-transport-uptime-history.jsonl --json-out /mnt/projects/nl-diagnostics/nl-transport-uptime-summary-2026-05-28.json --markdown-out /mnt/projects/nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
