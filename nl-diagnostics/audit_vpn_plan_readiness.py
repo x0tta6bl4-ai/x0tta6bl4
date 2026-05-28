@@ -39,6 +39,7 @@ DEFAULT_SECONDARY_INTAKE = DIAGNOSTICS_DIR / "secondary-exit-candidate-intake-20
 DEFAULT_SECONDARY_PROVISIONING_PLAN = DIAGNOSTICS_DIR / "secondary-exit-provisioning-plan-2026-05-28.json"
 DEFAULT_SECONDARY_FLOW = DIAGNOSTICS_DIR / "secondary-exit-flow-2026-05-28.json"
 DEFAULT_SECONDARY_MANUAL_DRILL = DIAGNOSTICS_DIR / "secondary-exit-manual-drill-2026-05-28.json"
+DEFAULT_SECONDARY_SELECTION_PACKET = DIAGNOSTICS_DIR / "secondary-exit-selection-packet-2026-05-28.json"
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PACKET = DIAGNOSTICS_DIR / "local-root-cleanup-approval-packet-2026-05-28.json"
@@ -911,6 +912,45 @@ def audit_secondary_manual_drill(secondary_drill: dict[str, Any]) -> dict[str, A
     )
 
 
+def audit_secondary_selection_packet(selection_packet: dict[str, Any]) -> dict[str, Any]:
+    status = str(selection_packet.get("status") or "missing")
+    summary = selection_packet.get("summary") or {}
+    decision_option_count = int(summary.get("decision_option_count") or 0)
+    endpoint_count = int(summary.get("endpoint_count") or 0)
+    safe = all_false(
+        [
+            flag_is_false(selection_packet, "nl_mutation_allowed"),
+            flag_is_false(selection_packet, "spb_fallback_allowed"),
+            flag_is_false(selection_packet, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("may_create_endpoint_now") is False,
+            summary.get("external_action_required") is True,
+        ]
+    )
+    ready = (
+        safe
+        and status in {"selection_packet_ready_no_endpoint", "selection_packet_ready_review_endpoint"}
+        and decision_option_count > 0
+    )
+    return item(
+        item_id="FAILOVER-11",
+        title="Secondary provider selection packet gives a safe decision order",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_selection_packet_status={status}",
+            f"recommended_label={summary.get('recommended_label', 'missing')}",
+            f"backup_label={summary.get('backup_label', 'missing')}",
+            f"decision_option_count={decision_option_count}",
+            f"endpoint_count={endpoint_count}",
+            f"may_create_endpoint_now={str(summary.get('may_create_endpoint_now')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="pick the primary label externally, then store only public endpoint metadata after provisioning",
+    )
+
+
 def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     status = str(transport_probe.get("status") or "missing")
     ok_count = transport_probe.get("ok_count", "missing")
@@ -1163,6 +1203,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     secondary_provisioning_plan = inputs.get("secondary_provisioning_plan") or {}
     secondary_flow = inputs.get("secondary_flow") or {}
     secondary_manual_drill = inputs.get("secondary_manual_drill") or {}
+    secondary_selection_packet = inputs.get("secondary_selection_packet") or {}
     local_env = inputs.get("local_env") or {}
     local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     local_cleanup_packet = inputs.get("local_cleanup_packet") or {}
@@ -1195,6 +1236,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_secondary_provisioning_plan(secondary_provisioning_plan),
         audit_secondary_exit_flow(secondary_flow),
         audit_secondary_manual_drill(secondary_manual_drill),
+        audit_secondary_selection_packet(secondary_selection_packet),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -1263,6 +1305,19 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "secondary_manual_drill_rollback_required": (
                 secondary_manual_drill.get("summary") or {}
             ).get("rollback_required", "missing"),
+            "secondary_selection_packet_status": secondary_selection_packet.get("status", "missing"),
+            "secondary_selection_recommended_label": (
+                secondary_selection_packet.get("summary") or {}
+            ).get("recommended_label", "missing"),
+            "secondary_selection_backup_label": (
+                secondary_selection_packet.get("summary") or {}
+            ).get("backup_label", "missing"),
+            "secondary_selection_option_count": (
+                secondary_selection_packet.get("summary") or {}
+            ).get("decision_option_count", "missing"),
+            "secondary_selection_may_create_endpoint_now": (
+                secondary_selection_packet.get("summary") or {}
+            ).get("may_create_endpoint_now", "missing"),
             "local_diagnostic_environment_status": local_env.get("status", "missing"),
             "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
             "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
@@ -1339,6 +1394,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_manual_drill_status={summary.get('secondary_manual_drill_status')}",
         f"secondary_manual_drill_test_scope={summary.get('secondary_manual_drill_test_scope')}",
         f"secondary_manual_drill_rollback_required={summary.get('secondary_manual_drill_rollback_required')}",
+        f"secondary_selection_packet_status={summary.get('secondary_selection_packet_status')}",
+        f"secondary_selection_recommended_label={summary.get('secondary_selection_recommended_label')}",
+        f"secondary_selection_backup_label={summary.get('secondary_selection_backup_label')}",
+        f"secondary_selection_option_count={summary.get('secondary_selection_option_count')}",
+        f"secondary_selection_may_create_endpoint_now={summary.get('secondary_selection_may_create_endpoint_now')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
@@ -1393,6 +1453,7 @@ def main() -> int:
     parser.add_argument("--secondary-provisioning-plan", default=str(DEFAULT_SECONDARY_PROVISIONING_PLAN))
     parser.add_argument("--secondary-flow", default=str(DEFAULT_SECONDARY_FLOW))
     parser.add_argument("--secondary-manual-drill", default=str(DEFAULT_SECONDARY_MANUAL_DRILL))
+    parser.add_argument("--secondary-selection-packet", default=str(DEFAULT_SECONDARY_SELECTION_PACKET))
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--local-cleanup-packet", default=str(DEFAULT_LOCAL_CLEANUP_PACKET))
@@ -1411,6 +1472,7 @@ def main() -> int:
         Path(args.refresh).with_suffix(".md"),
         Path(args.operator_card).with_suffix(".md"),
         Path(args.incident_symptom_intake).with_suffix(".md"),
+        Path(args.secondary_selection_packet).with_suffix(".md"),
         Path(args.failover).with_suffix(".md"),
     ]
     inputs = {
@@ -1429,6 +1491,7 @@ def main() -> int:
         "secondary_provisioning_plan": read_json(Path(args.secondary_provisioning_plan)),
         "secondary_flow": read_json(Path(args.secondary_flow)),
         "secondary_manual_drill": read_json(Path(args.secondary_manual_drill)),
+        "secondary_selection_packet": read_json(Path(args.secondary_selection_packet)),
         "local_env": read_json(Path(args.local_env)),
         "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "local_cleanup_packet": read_json(Path(args.local_cleanup_packet)),
