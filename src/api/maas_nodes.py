@@ -33,7 +33,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Set
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -42,6 +42,7 @@ from src.database import (ACLPolicy, MarketplaceEscrow, MarketplaceListing,
 from src.core.rbac import MeshPermission, DEFAULT_ROLE_PERMISSIONS as ROLE_PERMISSIONS
 from src.api.maas_auth import require_role, require_mesh_access
 from src.api.maas_security import token_signer
+from src.core.reliability_policy import mark_degraded_dependency
 from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
@@ -404,6 +405,184 @@ except ImportError:
     MeshNetworkManager = None
     VerificationMode = None
     logger.debug("Mesh healing module not available - heal_node endpoint will return 503")
+
+
+def _node_db_session_available(db: Any) -> bool:
+    return all(
+        hasattr(db, attr)
+        for attr in ("query", "add", "commit", "delete")
+    )
+
+
+def _model_fields_available(model: Any, fields: tuple[str, ...]) -> bool:
+    return all(hasattr(model, field) for field in fields)
+
+
+def _node_models_available() -> bool:
+    return all(
+        (
+            _model_fields_available(
+                MeshNode,
+                ("id", "mesh_id", "device_class", "status", "acl_profile", "last_seen"),
+            ),
+            _model_fields_available(
+                MeshInstance,
+                ("id", "owner_id", "join_token", "join_token_expires_at", "status"),
+            ),
+            _model_fields_available(
+                ACLPolicy,
+                ("id", "mesh_id", "source_tag", "target_tag", "action"),
+            ),
+            _model_fields_available(
+                MarketplaceListing,
+                ("id", "node_id", "status", "renter_id"),
+            ),
+            _model_fields_available(
+                MarketplaceEscrow,
+                ("id", "listing_id", "status", "released_at"),
+            ),
+        )
+    )
+
+
+def _telemetry_bridge_available() -> bool:
+    return all(
+        callable(fn)
+        for fn in (
+            _set_external_telemetry,
+            _get_external_telemetry,
+            _get_external_telemetry_history,
+        )
+    )
+
+
+def _node_healing_available() -> bool:
+    return (
+        MESH_HEALING_AVAILABLE
+        and callable(MeshNetworkManager)
+        and VerificationMode is not None
+    )
+
+
+def _node_readiness_status(db: Any) -> Dict[str, Any]:
+    node_db_ready = _node_db_session_available(db)
+    node_model_ready = _node_models_available()
+    node_rbac_ready = callable(require_role) and callable(require_mesh_access)
+    token_signer_ready = callable(getattr(token_signer, "sign_token", None))
+    audit_log_ready = callable(record_audit_log)
+    telemetry_bridge_ready = _telemetry_bridge_available()
+    healing_service_ready = _node_healing_available()
+    node_runtime_ready = (
+        node_db_ready
+        and node_model_ready
+        and node_rbac_ready
+        and token_signer_ready
+        and audit_log_ready
+    )
+
+    degraded_dependencies = []
+    if not node_db_ready:
+        degraded_dependencies.append("database")
+    if not node_model_ready:
+        degraded_dependencies.append("node_models")
+    if not node_rbac_ready:
+        degraded_dependencies.append("rbac")
+    if not token_signer_ready:
+        degraded_dependencies.append("token_signing")
+    if not audit_log_ready:
+        degraded_dependencies.append("audit_log")
+    if not telemetry_bridge_ready:
+        degraded_dependencies.append("telemetry_bridge")
+    if not healing_service_ready:
+        degraded_dependencies.append("healing_service")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "node_runtime_ready": node_runtime_ready,
+        "node_db_ready": node_db_ready,
+        "node_model_ready": node_model_ready,
+        "node_rbac_ready": node_rbac_ready,
+        "token_signer_ready": token_signer_ready,
+        "audit_log_ready": audit_log_ready,
+        "telemetry_bridge_ready": telemetry_bridge_ready,
+        "healing_service_ready": healing_service_ready,
+        "legacy_route_shadowing": {
+            "shadowed_by_legacy": [
+                "POST /{mesh_id}/nodes/register",
+                "GET /{mesh_id}/nodes/pending",
+                "GET /{mesh_id}/nodes/all",
+                "GET /{mesh_id}/node-config/{node_id}",
+                "POST /{mesh_id}/nodes/{node_id}/approve",
+                "POST /{mesh_id}/nodes/{node_id}/revoke",
+            ],
+            "db_backed_routes_active": [
+                "POST /{mesh_id}/nodes/{node_id}/heartbeat",
+                "GET /{mesh_id}/nodes/{node_id}/telemetry",
+                "POST /{mesh_id}/nodes/check-access",
+                "DELETE /{mesh_id}/nodes/{node_id}",
+                "POST /{mesh_id}/nodes/{node_id}/heal",
+            ],
+            "boundary": (
+                "Legacy maas router is registered before maas_nodes, so register, "
+                "pending, approve, revoke, nodes/all, and node-config routes are "
+                "handled by legacy handlers. Heartbeat, telemetry, ACL check, "
+                "delete, and heal remain DB-backed in maas_nodes."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Node admission, heartbeat, telemetry readback, ACL checks, "
+                "escrow release, deletion, and healing require SQLAlchemy query "
+                "and write support."
+            ),
+            "node_models": (
+                "Runtime paths depend on MeshNode, MeshInstance, ACLPolicy, "
+                "MarketplaceListing, and MarketplaceEscrow columns."
+            ),
+            "rbac": (
+                "Operator and mesh-permission checks come from maas_auth "
+                "require_role and require_mesh_access."
+            ),
+            "token_signing": (
+                "Node approval returns a signed join token through maas_security."
+            ),
+            "audit_log": (
+                "Heartbeat-driven marketplace escrow release records an audit log."
+            ),
+            "telemetry_bridge": (
+                "Heartbeat export and telemetry readback bridge into maas_telemetry; "
+                "node control still works with reduced telemetry when unavailable."
+            ),
+            "healing_service": (
+                "Heal requests require src.mesh.network_manager at runtime and "
+                "return 503 when that service is unavailable."
+            ),
+        },
+        "claim_boundary": (
+            "Node readiness separates route availability from DB-backed node "
+            "runtime state, telemetry bridge availability, signed approval tokens, "
+            "audit logging, healing service availability, and legacy route "
+            "precedence. It does not prove that physical mesh agents are online."
+        ),
+    }
+
+
+@router.get("/nodes/readiness")
+async def node_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _node_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
 
 class NodeRegisterRequest(BaseModel):
     node_id: Optional[str] = None
