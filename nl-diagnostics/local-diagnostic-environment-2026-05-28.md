@@ -1,6 +1,6 @@
 # Local Diagnostic Environment Audit
 
-generated_at: `2026-05-28T01:11:30.539732+00:00`
+generated_at: `2026-05-28T01:17:09.195882+00:00`
 status: `watch_root_full_tmpdir_available`
 ok: `true`
 

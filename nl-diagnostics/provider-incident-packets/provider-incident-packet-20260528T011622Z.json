@@ -1,0 +1,141 @@
+{
+  "automatic_failover_allowed": false,
+  "classification": {
+    "blocking_assessment": {
+      "auto_profile_switch_allowed": false,
+      "category": "app_specific_degradation",
+      "confidence": "medium",
+      "mutation_allowed": false,
+      "nl_mutation_allowed": false,
+      "reason": "Telegram/media degraded while core transport is healthy/advisory",
+      "recommended_probe": "test Telegram media separately from core VPN; do not restart x-ui"
+    },
+    "blocking_probe_summary": {
+      "assessment": "no_probe_evidence",
+      "group_assessments": {
+        "ai": {
+          "ok": 1
+        },
+        "baseline": {
+          "ok": 1
+        },
+        "dev": {
+          "ok": 1
+        },
+        "ru": {
+          "ok": 1
+        },
+        "telegram": {
+          "ok": 2
+        },
+        "telegram_media": {
+          "ok": 2
+        }
+      },
+      "target_assessments": {
+        "ok": 8
+      },
+      "target_count": 8
+    },
+    "evidence": [
+      "local vpn_status_json overall=ok",
+      "route to VPN server bypasses singbox_tun",
+      "generic traffic routes through singbox_tun",
+      "external exit IP is VPN server",
+      "watchdog proxy healthy",
+      "packet_loss_percent=0",
+      "NL failed units are known non-critical: ifup@eth0.service",
+      "NL key services active",
+      "NL core listeners 443/2083/39829 present",
+      "NL transport_status=advisory",
+      "NL current boot reports previous journal uncleanly shut down"
+    ],
+    "failure_domain": "external_network",
+    "mutation_allowed": false,
+    "nl_mutation_allowed": false,
+    "overall_status": "advisory",
+    "problems": [],
+    "profile_switch_policy": {
+      "automatic_allowed": false,
+      "decision": "observe",
+      "manual_allowed": false,
+      "manual_review_required": false,
+      "nl_mutation_allowed": false,
+      "reason": "runtime_recommended_action=observe",
+      "requires_fresh_snapshot": false
+    },
+    "provider_status": "recent_boot_gap",
+    "recommended_action": "observe",
+    "runtime_mode": "degraded",
+    "runtime_recommended_action": "observe",
+    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z",
+    "telegram_media_status": "degraded",
+    "transport_status": "advisory",
+    "warnings": [
+      "NL non-critical failed units: ifup@eth0.service",
+      "NL boot gap seconds=21907",
+      "NL previous boot ended uncleanly"
+    ]
+  },
+  "decision_reason": "recent NL boot gap is present; current VPN transport is healthy",
+  "generated_at": "2026-05-28T01:17:07.447366+00:00",
+  "hostname": "01164.com",
+  "local_status": {
+    "exit_ip": "89.125.1.107",
+    "failure_domain": "none",
+    "overall_status": "ok",
+    "packet_loss_percent": 0,
+    "recommended_action": "observe",
+    "tcp_connections": {
+      "close_wait": 0,
+      "established": 7,
+      "fin_wait_2": 0
+    }
+  },
+  "mutation_allowed": false,
+  "nl_mutation_allowed": false,
+  "nl_runtime": {
+    "best_path_port": 2083,
+    "mode": "degraded",
+    "reason": "telegram media edges are slow from the current egress path",
+    "recommended_action": "observe",
+    "telegram_media_status": "degraded",
+    "transport_health_status": "advisory"
+  },
+  "nl_write_performed": false,
+  "packet_type": "provider_watch",
+  "provider_evidence": {
+    "boot_window": {
+      "current_boot_first_entry": "Wed 2026-05-27 14:58:37 UTC",
+      "previous_boot_first_entry": "Wed 2026-05-27 02:50:41 UTC",
+      "previous_boot_last_entry": "Wed 2026-05-27 08:53:30 UTC"
+    },
+    "current_cpu_steal_percent": 0.0,
+    "current_shutdown_lines": [],
+    "current_unclean_boot_lines": [
+      "May 27 14:58:38 01164.com systemd-journald[302]: File /var/log/journal/e4584c4328b15cd591d7d5c553802e8a/system.journal corrupted or uncleanly shut down, renaming and replacing."
+    ],
+    "historical_metrics": {
+      "max_cpu_steal": "43.78%",
+      "max_disk_await": "187 ms",
+      "max_load_average": "31.09"
+    },
+    "historical_shutdown_lines": [
+      "May 26 10:18:29 01164.com qemu-ga[785]: info: guest-shutdown called, mode: powerdown",
+      "May 26 10:19:14 01164.com systemd-logind[641]: System is powering down (hypervisor initiated shutdown)."
+    ],
+    "shutdown_lines": [
+      "May 26 10:18:29 01164.com qemu-ga[785]: info: guest-shutdown called, mode: powerdown",
+      "May 26 10:19:14 01164.com systemd-logind[641]: System is powering down (hypervisor initiated shutdown)."
+    ]
+  },
+  "provider_ticket_text": "Hello. Please check the host node for VPS 01164.com / IP 89.125.1.107.\n\nThe selected guest snapshot shows a boot gap, but no explicit hypervisor-initiated shutdown line was found in the available journal.\n\nHistorical related shutdown evidence from a previous incident:\n- May 26 10:18:29 01164.com qemu-ga[785]: info: guest-shutdown called, mode: powerdown\n- May 26 10:19:14 01164.com systemd-logind[641]: System is powering down (hypervisor initiated shutdown).\n\nThe current boot journal also reports an unclean previous shutdown:\n- May 27 14:58:38 01164.com systemd-journald[302]: File /var/log/journal/e4584c4328b15cd591d7d5c553802e8a/system.journal corrupted or uncleanly shut down, renaming and replacing.\n\nBoot window from guest journal:\n- previous boot last entry: Wed 2026-05-27 08:53:30 UTC\n- current boot first entry: Wed 2026-05-27 14:58:37 UTC\n\nHost-side degradation observed before shutdown:\n- CPU steal reached: 43.78%\n- load average reached: 31.09\n- vda disk await reached: 187 ms\n\nPlease confirm whether there was host maintenance, node overload, storage degradation, or an automated power action.",
+  "schema_version": 1,
+  "snapshot_age_seconds": 45,
+  "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z",
+  "snapshot_max_age_seconds": 3600,
+  "snapshot_stale": false,
+  "source": "nl-diagnostics/build_provider_incident_packet.py",
+  "spb_fallback_allowed": false,
+  "vpn_server": "89.125.1.107"
+}

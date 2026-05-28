@@ -1,6 +1,6 @@
 # Manual Failover Readiness
 
-generated_at: `2026-05-28T01:11:30.001460+00:00`
+generated_at: `2026-05-28T01:17:08.298938+00:00`
 
 ## Status
 
@@ -9,7 +9,7 @@ status=blocked_no_incident_trigger
 manual_probe_allowed=false
 manual_switch_allowed=false
 decision=observe
-transport_status=healthy
+transport_status=advisory
 failure_domain=external_network
 provider_status=recent_boot_gap
 manual_failover_status=planning_not_active
@@ -37,7 +37,7 @@ automatic_failover_allowed=false
 
 - decision=observe
 - failure_domain=external_network
-- transport_status=healthy
+- transport_status=advisory
 - provider_status=recent_boot_gap
 
 ### LOCAL-01
