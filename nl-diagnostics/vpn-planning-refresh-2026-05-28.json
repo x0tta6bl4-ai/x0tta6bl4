@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/refresh_vpn_planning_reports.py",
-  "generated_at": "2026-05-28T03:26:59.082048+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z",
+  "generated_at": "2026-05-28T03:42:31.210070+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
   "ok": true,
   "summary": {
     "decision": "observe",
@@ -12,9 +12,9 @@
     "boot_gap_seconds": 21907,
     "provider_packet_type": "provider_watch",
     "provider_packet_stale": false,
-    "provider_packet_snapshot_age_seconds": 40,
+    "provider_packet_snapshot_age_seconds": 57,
     "blocking_history_trend": "stable_no_probe_evidence",
-    "blocking_history_snapshot_count": 10,
+    "blocking_history_snapshot_count": 11,
     "backlog_decision": "observe",
     "manual_failover_status": "planning_not_active",
     "manual_failover_readiness_status": "blocked_no_incident_trigger",
@@ -46,12 +46,16 @@
     "secondary_public_metadata_template_status": "public_metadata_template_ready_no_endpoint",
     "secondary_public_metadata_selected_label": "upcloud-fi-hel",
     "secondary_public_metadata_candidate_file_update_allowed": false,
+    "secondary_post_provision_validation_status": "post_provision_validation_ready_waiting_endpoint",
+    "secondary_post_provision_can_generate_probe_config": false,
+    "secondary_post_provision_can_run_public_probe": false,
+    "secondary_post_provision_test_client_allowed": false,
     "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
     "local_root_status": "critical_full",
     "local_tmpdir_writable": true,
     "local_recommended_tmpdir_prefix": "TMPDIR=/mnt/projects/.tmp",
     "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
-    "local_root_cleanup_estimated_reclaim_gib": 3.25,
+    "local_root_cleanup_estimated_reclaim_gib": 3.24,
     "local_root_cleanup_execute_allowed": false,
     "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
     "local_root_cleanup_approval_required": true,
@@ -62,14 +66,14 @@
     "nl_transport_probe_status": "healthy",
     "nl_transport_probe_ok_count": "3/3",
     "nl_transport_uptime_status": "stable_healthy",
-    "nl_transport_uptime_samples": 23,
+    "nl_transport_uptime_samples": 24,
     "nl_transport_uptime_bad_streak": 0,
     "secondary_probe_template_status": "planning_template",
     "readiness_audit_status": "ready_local_with_future_blocks",
     "readiness_missing": 0,
-    "incident_timeline_event_count": 21,
+    "incident_timeline_event_count": 22,
     "incident_timeline_latest_type": "provider_watch",
-    "incident_timeline_latest_snapshot": "20260528T032605Z",
+    "incident_timeline_latest_snapshot": "20260528T034120Z",
     "nl_mutation_allowed": false,
     "spb_fallback_allowed": false,
     "automatic_failover_allowed": false
@@ -112,11 +116,11 @@
       "id": "provider_packet",
       "ok": true,
       "exit_code": 0,
-      "stdout_tail": "json: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T032605Z.json\nmarkdown: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T032605Z.md\n",
+      "stdout_tail": "json: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.json\nmarkdown: /mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.md\n",
       "stderr_tail": "",
       "outputs": [
-        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T032605Z.json",
-        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T032605Z.md"
+        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.json",
+        "/mnt/projects/nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.md"
       ]
     },
     {
@@ -282,6 +286,17 @@
       "outputs": [
         "/mnt/projects/nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.json",
         "/mnt/projects/nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md"
+      ]
+    },
+    {
+      "id": "secondary_post_provision_validation",
+      "ok": true,
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "outputs": [
+        "/mnt/projects/nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.json",
+        "/mnt/projects/nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md"
       ]
     },
     {
