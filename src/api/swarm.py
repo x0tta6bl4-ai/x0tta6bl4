@@ -18,6 +18,7 @@ Endpoints:
 
 import asyncio
 import hmac
+import importlib
 import logging
 import os
 from datetime import datetime
@@ -28,6 +29,8 @@ from fastapi import (APIRouter, Depends, File, Header, HTTPException, Request,
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,150 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
+
+
+def _swarm_registry_available() -> bool:
+    return isinstance(_swarms, dict) and all(
+        callable(getattr(_swarm_lock, attr, None))
+        for attr in ("acquire", "release", "locked")
+    )
+
+
+def _swarm_admin_token_configured() -> bool:
+    return bool(os.getenv("ADMIN_TOKEN"))
+
+
+def _swarm_limiter_available() -> bool:
+    return callable(getattr(limiter, "limit", None))
+
+
+def _swarm_orchestrator_available() -> bool:
+    try:
+        orchestrator = importlib.import_module("src.swarm.orchestrator")
+    except ImportError:
+        return False
+    return callable(getattr(orchestrator, "SwarmConfig", None)) and callable(
+        getattr(orchestrator, "SwarmOrchestrator", None)
+    )
+
+
+def _swarm_task_model_available() -> bool:
+    try:
+        swarm_module = importlib.import_module("src.swarm")
+    except ImportError:
+        return False
+    return callable(getattr(swarm_module, "Task", None))
+
+
+def _swarm_vision_engine_available() -> bool:
+    try:
+        vision_module = importlib.import_module("src.swarm.vision_coding")
+    except ImportError:
+        return False
+    return callable(getattr(vision_module, "get_vision_engine", None))
+
+
+def _swarm_registry_counts() -> Dict[str, Optional[int]]:
+    if not isinstance(_swarms, dict):
+        return {"active_swarms": None, "total_agents": None}
+    return {
+        "active_swarms": len(_swarms),
+        "total_agents": sum(
+            len(getattr(swarm, "agents", {})) for swarm in _swarms.values()
+        ),
+    }
+
+
+def _swarm_readiness_status() -> Dict[str, Any]:
+    registry_ready = _swarm_registry_available()
+    admin_token_ready = _swarm_admin_token_configured()
+    rate_limiter_ready = _swarm_limiter_available()
+    orchestrator_ready = _swarm_orchestrator_available()
+    task_model_ready = _swarm_task_model_available()
+    vision_engine_ready = _swarm_vision_engine_available()
+    swarm_runtime_ready = (
+        registry_ready
+        and admin_token_ready
+        and rate_limiter_ready
+        and orchestrator_ready
+        and task_model_ready
+        and vision_engine_ready
+    )
+
+    degraded_dependencies = []
+    if not registry_ready:
+        degraded_dependencies.append("registry")
+    if not admin_token_ready:
+        degraded_dependencies.append("admin_token")
+    if not rate_limiter_ready:
+        degraded_dependencies.append("rate_limiter")
+    if not orchestrator_ready:
+        degraded_dependencies.append("orchestrator")
+    if not task_model_ready:
+        degraded_dependencies.append("task_model")
+    if not vision_engine_ready:
+        degraded_dependencies.append("vision_engine")
+
+    counts = _swarm_registry_counts()
+    return {
+        "status": "healthy" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "swarm_runtime_ready": swarm_runtime_ready,
+        "registry_ready": registry_ready,
+        "admin_token_ready": admin_token_ready,
+        "rate_limiter_ready": rate_limiter_ready,
+        "orchestrator_ready": orchestrator_ready,
+        "task_model_ready": task_model_ready,
+        "vision_engine_ready": vision_engine_ready,
+        "active_swarms": counts["active_swarms"],
+        "total_agents": counts["total_agents"],
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/api/v3/swarm",
+            "boundary": (
+                "Swarm API routes use the fixed /api/v3/swarm prefix, so they "
+                "are outside legacy MaaS catch-all matching. They are still "
+                "full-mode-only because src.core.app only registers this router "
+                "when light mode is disabled."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "registry": (
+                "Swarm runtime state is held in the in-memory _swarms registry "
+                "and guarded by _swarm_lock during create/terminate operations."
+            ),
+            "admin_token": (
+                "Create, submit, control, scale, terminate, and vision routes fail "
+                "closed when ADMIN_TOKEN is missing."
+            ),
+            "rate_limiter": (
+                "Public status/list/metrics and admin mutation routes are decorated "
+                "with slowapi limiter rules."
+            ),
+            "orchestrator": (
+                "Swarm creation lazily imports SwarmConfig and SwarmOrchestrator "
+                "from src.swarm.orchestrator."
+            ),
+            "task_model": (
+                "Task submission lazily imports Task from src.swarm."
+            ),
+            "vision_engine": (
+                "Image analysis lazily imports get_vision_engine from "
+                "src.swarm.vision_coding and depends on its local image stack."
+            ),
+        },
+        "claim_boundary": (
+            "Swarm readiness proves that the route imports, registry shape, and "
+            "lazy module surfaces are present. It does not create a swarm, run "
+            "PARL, initialize agents, process images, or prove that existing "
+            "in-memory swarm objects are healthy."
+        ),
+    }
 
 
 # Request/Response Models
@@ -570,10 +717,9 @@ async def analyze_visual(
 
 # Health check for swarm subsystem
 @router.get("/health")
-async def swarm_health():
+async def swarm_health(request: Request):
     """Health check for swarm subsystem."""
-    return {
-        "status": "healthy",
-        "active_swarms": len(_swarms),
-        "total_agents": sum(len(s.agents) for s in _swarms.values()),
-    }
+    payload = _swarm_readiness_status()
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
