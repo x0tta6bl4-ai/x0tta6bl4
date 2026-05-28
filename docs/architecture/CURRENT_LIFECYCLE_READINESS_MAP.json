@@ -152,10 +152,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/playbooks",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/playbooks/readiness",
+      "runtime_readiness_field": "playbook_control_plane_ready",
+      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Signed playbook dispatch depends on in-memory per-node delivery queues, token_signer signing/verification, durable SignedPlaybook and PlaybookAck database state, and audit-log persistence. Readiness separates route availability from signed command dispatch, queue state, durable history, and acknowledgement persistence.",
       "source_refs": [
         "src/core/app.py:244",
-        "src/api/maas_playbooks.py:26"
+        "src/api/maas_playbooks.py:27",
+        "src/api/maas_playbooks.py:81",
+        "src/api/maas_playbooks.py:318"
       ]
     },
     {
