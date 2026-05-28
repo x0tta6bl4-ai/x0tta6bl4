@@ -1,13 +1,13 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T02:56:00.202733+00:00`
+generated_at: `2026-05-28T03:15:13.508135+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=21
+ready_local=22
 blocked_future_approval=4
 watch=3
 missing=0
@@ -33,6 +33,11 @@ secondary_exit_flow_manual_switch_allowed=False
 secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
 secondary_manual_drill_test_scope=single_client
 secondary_manual_drill_rollback_required=True
+secondary_selection_packet_status=selection_packet_ready_no_endpoint
+secondary_selection_recommended_label=upcloud-fi-hel
+secondary_selection_backup_label=ovhcloud-pl-waw
+secondary_selection_option_count=3
+secondary_selection_may_create_endpoint_now=False
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
@@ -75,6 +80,7 @@ automatic_failover_allowed=false
 | `FAILOVER-09` | `ready_local` | Secondary provisioning plan blocks secrets and automation | perform the provider-console provisioning step externally, then store only public endpoint metadata |
 | `FAILOVER-06` | `blocked_future_approval` | Secondary exit operating flow blocks unsafe activation | fill public metadata for a non-NL/non-SPB candidate, then generate and run the safe probe config |
 | `FAILOVER-10` | `ready_local` | Secondary manual drill is test-only and rollback-gated | after a secondary endpoint exists, run the drill on one test client and roll back to NL |
+| `FAILOVER-11` | `ready_local` | Secondary provider selection packet gives a safe decision order | pick the primary label externally, then store only public endpoint metadata after provisioning |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
@@ -89,11 +95,11 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
-- latest_snapshot=20260528T025444Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
+- latest_snapshot=20260528T031418Z
 - snapshot_exists=true
-- snapshot_age_seconds=76
+- snapshot_age_seconds=55
 - fresh=true
 
 ### DECISION-01
@@ -115,16 +121,16 @@ automatic_failover_allowed=false
 
 - provider_packet_type=provider_watch
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=8
+- snapshot_count=9
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T025444Z
+- latest_probe_snapshot=20260528T031418Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -264,6 +270,16 @@ automatic_failover_allowed=false
 - rollback_required=true
 - safe_flags=true
 
+### FAILOVER-11
+
+- secondary_selection_packet_status=selection_packet_ready_no_endpoint
+- recommended_label=upcloud-fi-hel
+- backup_label=ovhcloud-pl-waw
+- decision_option_count=3
+- endpoint_count=0
+- may_create_endpoint_now=false
+- safe_flags=true
+
 ### TRANSPORT-01
 
 - transport_probe_status=healthy
@@ -274,7 +290,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=21
+- sample_count=22
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

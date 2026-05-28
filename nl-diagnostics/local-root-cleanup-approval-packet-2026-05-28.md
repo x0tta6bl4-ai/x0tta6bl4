@@ -1,6 +1,6 @@
 # Local Root Cleanup Approval Packet
 
-generated_at: `2026-05-28T02:55:59.154537+00:00`
+generated_at: `2026-05-28T03:15:12.657076+00:00`
 status: `cleanup_approval_packet_ready`
 ok: `true`
 

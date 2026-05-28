@@ -1,6 +1,6 @@
 # Local Root Cleanup Plan
 
-generated_at: `2026-05-28T02:55:58.920060+00:00`
+generated_at: `2026-05-28T03:15:12.464292+00:00`
 status: `manual_cleanup_plan_ready`
 ok: `true`
 
