@@ -35,6 +35,8 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "swarm_layer_matches": True,
         "marketplace_event_id_matches": True,
         "marketplace_layer_matches": True,
+        "marketplace_api_event_id_matches": True,
+        "marketplace_api_layer_matches": True,
         "dao_event_id_matches": True,
         "dao_layer_matches": True,
         "recovery_event_id_matches": True,
@@ -60,6 +62,7 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert set(citations) == {
         "swarm-pbft",
         "maas-settlement",
+        "maas-marketplace",
         "dao-executor",
         "recovery-action-executor",
         "mesh-vpn-bridge",
@@ -85,6 +88,17 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert marketplace["layer"] == "commerce_settlement_to_events"
     assert marketplace["entrypoint"] == "src/services/marketplace_settlement.py"
     assert marketplace["redacted"] is True
+
+    marketplace_api = citations["maas-marketplace"]
+    assert marketplace_api["source"] == "EventBus"
+    assert marketplace_api["source_class"] == "event_trace"
+    assert marketplace_api["event_id"] == (
+        payload["events"]["maas-marketplace"]["event_id"]
+    )
+    assert marketplace_api["event_type"] == "marketplace.escrow.held"
+    assert marketplace_api["layer"] == "api_to_commerce"
+    assert marketplace_api["entrypoint"] == "src/api/maas_marketplace.py"
+    assert marketplace_api["redacted"] is True
 
     dao = citations["dao-executor"]
     assert dao["source"] == "EventBus"
