@@ -1,22 +1,22 @@
 # Blocking Probe History
 
-generated_at: `2026-05-27T23:59:01.108814+00:00`
+generated_at: `2026-05-28T00:21:44.391370+00:00`
 snapshots_dir: `nl-diagnostics/snapshots`
 
 ## Summary
 
 ```json
 {
-  "snapshot_count": 4,
+  "snapshot_count": 5,
   "trend": "stable_no_probe_evidence",
   "assessment_counts": {
-    "no_probe_evidence": 4
+    "no_probe_evidence": 5
   },
   "degraded_by_target": {},
   "degraded_by_group": {},
   "latest": {
-    "snapshot": "20260527T230246Z",
-    "generated_at": "2026-05-27T23:03:04.644379+00:00",
+    "snapshot": "20260528T000600Z",
+    "generated_at": "2026-05-28T00:06:22.909070+00:00",
     "assessment": "no_probe_evidence",
     "target_count": 8,
     "ok_count": 8,
@@ -58,6 +58,7 @@ snapshots_dir: `nl-diagnostics/snapshots`
 | `20260527T220219Z` | `no_probe_evidence` | 8/8 | - |
 | `20260527T221810Z` | `no_probe_evidence` | 8/8 | - |
 | `20260527T230246Z` | `no_probe_evidence` | 8/8 | - |
+| `20260528T000600Z` | `no_probe_evidence` | 8/8 | - |
 
 ## Interpretation
 

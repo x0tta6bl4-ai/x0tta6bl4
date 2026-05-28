@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-27T23:59:03.284069+00:00",
+  "generated_at": "2026-05-28T00:24:08.561784+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
     "ready_local": 13,
-    "blocked_future_approval": 2,
+    "blocked_future_approval": 3,
     "watch": 1,
     "missing": 0,
     "missing_items": [],
@@ -14,6 +14,7 @@
       "BOOT-01"
     ],
     "blocked_items": [
+      "FAILOVER-03",
       "GATE-01",
       "FAILOVER-02"
     ],
@@ -22,6 +23,8 @@
     "boot_gap_watch_status": "watch",
     "provider_packet_type": "provider_watch",
     "provider_packet_stale": false,
+    "manual_failover_readiness_status": "blocked_no_incident_trigger",
+    "manual_failover_switch_allowed": false,
     "transport_probe_status": "healthy",
     "transport_uptime_status": "stable_healthy",
     "nl_write_allowed": false,
@@ -35,11 +38,11 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
-        "refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
-        "latest_snapshot=20260527T230246Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
+        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
+        "latest_snapshot=20260528T000600Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=3377",
+        "snapshot_age_seconds=1088",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -79,8 +82,8 @@
       "evidence": [
         "provider_packet_type=provider_watch",
         "snapshot_stale=false",
-        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260527T230246Z",
-        "decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z",
+        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "same_snapshot=true",
         "safe_flags=true"
       ],
@@ -92,9 +95,9 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "snapshot_count=4",
+        "snapshot_count=5",
         "trend=stable_no_probe_evidence",
-        "latest_probe_snapshot=20260527T230246Z",
+        "latest_probe_snapshot=20260528T000600Z",
         "latest_targets_ok=8/8"
       ],
       "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
@@ -126,6 +129,22 @@
       "next_step": "start incidents from the operator card, then collect fresh evidence"
     },
     {
+      "id": "FAILOVER-03",
+      "title": "Manual failover readiness gate blocks unsafe switching",
+      "status": "blocked_future_approval",
+      "ok": true,
+      "evidence": [
+        "manual_failover_readiness_status=blocked_no_incident_trigger",
+        "manual_probe_allowed=false",
+        "manual_switch_allowed=false",
+        "secondary_probe_status=planning_template",
+        "candidate_configured=false",
+        "spb_excluded=true",
+        "safe_flags=true"
+      ],
+      "next_step": "keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist"
+    },
+    {
       "id": "TRANSPORT-01",
       "title": "Outside-in NL TCP port probe is available",
       "status": "ready_local",
@@ -145,7 +164,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=2",
+        "sample_count=6",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"

@@ -44,8 +44,10 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
                 "nl_transport_probe",
                 "nl_transport_uptime",
                 "secondary_probe_template_check",
+                "manual_failover_readiness",
                 "operator_card",
                 "readiness_audit",
+                "incident_timeline",
             ],
         )
         for item in plan:

@@ -31,6 +31,7 @@ DEFAULT_HISTORY = DIAGNOSTICS_DIR / "blocking-probe-history-2026-05-28.json"
 DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
 DEFAULT_OPERATOR_CARD = DIAGNOSTICS_DIR / "vpn-operator-card-2026-05-28.json"
 DEFAULT_FAILOVER = DIAGNOSTICS_DIR / "manual-failover-plan-2026-05-28.json"
+DEFAULT_FAILOVER_READINESS = DIAGNOSTICS_DIR / "manual-failover-readiness-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
 DEFAULT_TRANSPORT_UPTIME = DIAGNOSTICS_DIR / "nl-transport-uptime-summary-2026-05-28.json"
 DEFAULT_SECONDARY = DIAGNOSTICS_DIR / "secondary-exit-probe-template-2026-05-28.json"
@@ -431,6 +432,42 @@ def audit_failover_plan(failover: dict[str, Any], secondary: dict[str, Any]) -> 
     ]
 
 
+def audit_manual_failover_readiness(failover_readiness: dict[str, Any]) -> dict[str, Any]:
+    status = str(failover_readiness.get("status") or "missing")
+    summary = failover_readiness.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(failover_readiness, "nl_mutation_allowed"),
+            flag_is_false(failover_readiness, "spb_fallback_allowed"),
+            flag_is_false(failover_readiness, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("spb_excluded") is True,
+        ]
+    )
+    if status == "missing" or not safe:
+        item_status = MISSING
+    elif failover_readiness.get("manual_switch_allowed") is True:
+        item_status = READY
+    else:
+        item_status = BLOCKED
+    return item(
+        item_id="FAILOVER-03",
+        title="Manual failover readiness gate blocks unsafe switching",
+        status=item_status,
+        evidence=[
+            f"manual_failover_readiness_status={status}",
+            f"manual_probe_allowed={str(failover_readiness.get('manual_probe_allowed')).lower()}",
+            f"manual_switch_allowed={str(failover_readiness.get('manual_switch_allowed')).lower()}",
+            f"secondary_probe_status={summary.get('secondary_probe_status', 'missing')}",
+            f"candidate_configured={str(summary.get('candidate_configured')).lower()}",
+            f"spb_excluded={str(summary.get('spb_excluded')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist",
+    )
+
+
 def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     status = str(transport_probe.get("status") or "missing")
     ok_count = transport_probe.get("ok_count", "missing")
@@ -673,6 +710,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     refresh = inputs.get("refresh") or {}
     operator_card = inputs.get("operator_card") or {}
     failover = inputs.get("failover") or {}
+    failover_readiness = inputs.get("failover_readiness") or {}
     transport_probe = inputs.get("transport_probe") or {}
     transport_uptime = inputs.get("transport_uptime") or {}
     secondary = inputs.get("secondary") or {}
@@ -689,6 +727,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_blocking_history(history, decision),
         audit_refresh(refresh),
         audit_operator_card(operator_card),
+        audit_manual_failover_readiness(failover_readiness),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -724,6 +763,8 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "boot_gap_watch_status": boot_gap.get("status", "missing"),
             "provider_packet_type": provider_packet.get("packet_type", "missing"),
             "provider_packet_stale": provider_packet.get("snapshot_stale", "missing"),
+            "manual_failover_readiness_status": failover_readiness.get("status", "missing"),
+            "manual_failover_switch_allowed": failover_readiness.get("manual_switch_allowed", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
             "transport_uptime_status": (transport_uptime.get("summary") or {}).get("status", "missing"),
             "nl_write_allowed": False,
@@ -759,6 +800,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"boot_gap_watch_status={summary.get('boot_gap_watch_status')}",
         f"provider_packet_type={summary.get('provider_packet_type')}",
         f"provider_packet_stale={summary.get('provider_packet_stale')}",
+        f"manual_failover_readiness_status={summary.get('manual_failover_readiness_status')}",
+        f"manual_failover_switch_allowed={summary.get('manual_failover_switch_allowed')}",
         f"transport_probe_status={summary.get('transport_probe_status')}",
         f"transport_uptime_status={summary.get('transport_uptime_status')}",
         "nl_write_allowed=false",
@@ -793,6 +836,7 @@ def main() -> int:
     parser.add_argument("--refresh", default=str(DEFAULT_REFRESH))
     parser.add_argument("--operator-card", default=str(DEFAULT_OPERATOR_CARD))
     parser.add_argument("--failover", default=str(DEFAULT_FAILOVER))
+    parser.add_argument("--failover-readiness", default=str(DEFAULT_FAILOVER_READINESS))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
     parser.add_argument("--transport-uptime", default=str(DEFAULT_TRANSPORT_UPTIME))
     parser.add_argument("--secondary", default=str(DEFAULT_SECONDARY))
@@ -816,6 +860,7 @@ def main() -> int:
         "refresh": read_json(Path(args.refresh)),
         "operator_card": read_json(Path(args.operator_card)),
         "failover": read_json(Path(args.failover)),
+        "failover_readiness": read_json(Path(args.failover_readiness)),
         "transport_probe": read_json(Path(args.transport_probe)),
         "transport_uptime": read_json(Path(args.transport_uptime)),
         "secondary": read_json(Path(args.secondary)),
