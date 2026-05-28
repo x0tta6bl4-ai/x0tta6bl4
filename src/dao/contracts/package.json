@@ -14,6 +14,8 @@
     "deploy:polygon": "hardhat run scripts/deploy_x0t.js --network polygon",
     "deploy:base-testnet": "hardhat run scripts/deploy_x0t.js --network base_sepolia",
     "deploy:base": "hardhat run scripts/deploy_x0t.js --network base",
+    "deploy:bridge:local": "hardhat run scripts/deploy_bridge.js --network localhost",
+    "deploy:bridge:base-testnet": "hardhat run scripts/deploy_bridge.js --network base_sepolia",
     "node": "hardhat node"
   },
   "dependencies": {
