@@ -7,8 +7,11 @@ ERC-20 токен для mesh-сети x0tta6bl4.
 ```bash
 cd src/dao/contracts
 
+# Use the Hardhat-supported Node runtime from .nvmrc
+nvm use
+
 # Install dependencies
-npm install
+npm ci
 
 # Compile contracts
 npm run compile
@@ -16,11 +19,38 @@ npm run compile
 # Run tests
 npm test
 
+# Repo-level readiness evidence: run compile/test under Node 22 and retain artifacts
+cd ../../..
+python3 scripts/ops/verify_x0t_contract_build.py --write-json --write-md --require-verified
+python3 scripts/ops/check_x0t_contract_readiness.py --write-json --write-md
+
 # Start local node
+cd src/dao/contracts
 npm run node
 
 # Deploy to local node (in another terminal)
 npm run deploy:local
+```
+
+## Bridge Deployment
+
+`X0TBridge` escrows X0T on Base Sepolia for mesh deposits and releases escrowed
+X0T after operator-verified off-chain settlement. The deploy script is
+fail-closed for Base Sepolia and requires an explicit approval environment
+value before it can submit a transaction.
+
+```bash
+cd src/dao/contracts
+
+# Local Hardhat node
+X0T_TOKEN_ADDRESS=0x... npm run deploy:bridge:local
+
+# Base Sepolia; requires explicit operator approval and a real deployer key
+X0T_DEPLOY_BRIDGE_APPROVAL=deploy-bridge-base-sepolia \
+X0T_TOKEN_ADDRESS=0x... \
+X0T_BRIDGE_OPERATOR_ADDRESS=0x... \
+PRIVATE_KEY=0x... \
+npm run deploy:bridge:base-testnet
 ```
 
 ## Deployment
