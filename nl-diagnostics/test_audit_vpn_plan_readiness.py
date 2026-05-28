@@ -344,7 +344,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_default_provider_packet_matches_current_snapshot_bundle(self):
         self.assertEqual(
             audit.DEFAULT_PROVIDER_PACKET.name,
-            "provider-incident-packet-20260528T000600Z.json",
+            "provider-incident-packet-20260528T011622Z.json",
         )
 
     def test_ready_audit_has_future_blocks_but_no_missing_items(self):

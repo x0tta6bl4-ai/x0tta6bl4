@@ -1,6 +1,6 @@
 # Secondary Exit Candidate Score
 
-generated_at: `2026-05-28T01:11:30.200961+00:00`
+generated_at: `2026-05-28T01:17:08.369778+00:00`
 candidate_file: `/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json`
 
 ## Status

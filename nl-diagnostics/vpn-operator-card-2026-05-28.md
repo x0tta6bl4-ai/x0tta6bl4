@@ -1,7 +1,7 @@
 # VPN Operator Card
 
-generated_at: `2026-05-28T01:11:40.320530+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z`
+generated_at: `2026-05-28T01:17:17.777086+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z`
 
 ## Status
 
@@ -11,12 +11,12 @@ plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence duri
 decision=observe
 confidence=high
 overall_status=advisory
-transport_status=healthy
+transport_status=advisory
 telegram_media_status=degraded
 provider_status=recent_boot_gap
 failure_domain=external_network
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=5
+blocking_history_snapshot_count=6
 manual_failover_status=planning_not_active
 nl_mutation_allowed=false
 spb_fallback_allowed=false

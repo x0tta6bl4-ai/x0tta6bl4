@@ -25,7 +25,7 @@ DEFAULT_BOOT_GAP = DIAGNOSTICS_DIR / "boot-gap-watch-2026-05-28.json"
 DEFAULT_PROVIDER_PACKET = (
     DIAGNOSTICS_DIR
     / "provider-incident-packets"
-    / "provider-incident-packet-20260528T000600Z.json"
+    / "provider-incident-packet-20260528T011622Z.json"
 )
 DEFAULT_HISTORY = DIAGNOSTICS_DIR / "blocking-probe-history-2026-05-28.json"
 DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
