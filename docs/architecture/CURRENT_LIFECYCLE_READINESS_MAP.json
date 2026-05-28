@@ -344,10 +344,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/users",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/users/readiness",
+      "runtime_readiness_field": "users_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/users fixed prefix is outside legacy MaaS catch-all matching, but registration/login/profile/logout/stats/listing flows depend on SQLAlchemy User and Session models, a DB session, bcrypt hashing/checking, secrets and hmac token helpers, slowapi rate-limit decorators, request.state user identity propagation, and ADMIN_TOKEN for admin stats/list endpoints. The users_db dictionary is test-only and is intentionally excluded from runtime readiness.",
       "source_refs": [
         "src/core/app.py:257",
-        "src/api/users.py:22"
+        "src/api/users.py:23",
+        "src/api/users.py:282",
+        "src/api/users.py:381"
       ]
     },
     {
