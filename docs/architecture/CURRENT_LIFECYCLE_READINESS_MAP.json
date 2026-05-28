@@ -128,10 +128,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/compat/readiness",
+      "runtime_readiness_field": "compat_runtime_ready",
+      "hidden_dependency": "MaaS compatibility routes use a prefixless router with absolute hidden alias paths for /api/v3/maas/auth/register, /api/v1/maas/mesh/deploy, and /api/v1/maas/billing/pay. They are registered in light mode and do not have a production_lifespan startup hook, but they depend on canonical maas_auth register/current-user surfaces, maas_legacy deploy request/response/permission/deploy_mesh surfaces, maas_billing create_subscription_session, User identity/API-key fields, auth request/response models, and a DB session passed through to delegated handlers. Readiness exposes alias wiring without executing any delegated operation.",
       "source_refs": [
         "src/core/app.py:242",
-        "src/api/maas_compat.py:18"
+        "src/api/maas_compat.py:21",
+        "src/api/maas_compat.py:54",
+        "src/api/maas_compat.py:139"
       ]
     },
     {
@@ -266,10 +270,13 @@
       "router_prefix": "/api/v1/service-identity",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/service-identity/status",
+      "runtime_readiness_field": "service_identity_runtime_ready",
+      "hidden_dependency": "Always-registered route-import-only status API with no production_lifespan hook. Status, event-trace-filter, and event-traces routes depend on service_identity_registry_status, service_event_trace_filter, service_event_trace_history, EventBus, EventType, the static service identity registry payload shape, and recursive identity redaction. Readiness reports those local surfaces but does not prove live SPIFFE, DID, wallet, or EventBus producer identities exist.",
       "source_refs": [
         "src/core/app.py:250",
-        "src/api/service_identity_status.py:18",
-        "src/api/service_identity_status.py:21"
+        "src/api/service_identity_status.py:19",
+        "src/api/service_identity_status.py:31",
+        "src/api/service_identity_status.py:88"
       ]
     },
     {

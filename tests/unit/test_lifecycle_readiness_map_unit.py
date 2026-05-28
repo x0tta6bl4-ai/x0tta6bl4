@@ -214,6 +214,32 @@ def test_lifecycle_map_tracks_maas_auth_route_only_runtime_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_maas_compat_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    compat = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-compat"
+    )
+    source = _module_path(compat["module"]).read_text(encoding="utf-8")
+
+    assert compat["lifecycle_binding"] == "route_import_only"
+    assert compat["registration_mode"] == "always"
+    assert compat["route_present_in_light_mode"] is True
+    assert compat["readiness_signal"] == "/api/v1/maas/compat/readiness"
+    assert compat["runtime_readiness_field"] == "compat_runtime_ready"
+    assert "prefixless router with absolute hidden alias paths" in (
+        compat["hidden_dependency"]
+    )
+    assert "without executing any delegated operation" in compat["hidden_dependency"]
+    assert '@router.get("/api/v1/maas/compat/readiness"' in source
+    assert "compat_runtime_ready" in source
+    assert "compat_db_ready" in source
+    assert "auth_alias_ready" in source
+    assert "legacy_deploy_ready" in source
+    assert "billing_alias_ready" in source
+    assert "compat_models_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
     lifecycle_map = _load_map()
     governance = next(
@@ -538,6 +564,37 @@ def test_lifecycle_map_tracks_vision_analytics_route_only_runtime_readiness():
     assert "correction_surface_ready" in source
     assert "upload_surface_ready" in source
     assert "local_image_backend_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_service_identity_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    service_identity = next(
+        router
+        for router in lifecycle_map["routers"]
+        if router["id"] == "service-identity-status"
+    )
+    source = _module_path(service_identity["module"]).read_text(encoding="utf-8")
+
+    assert service_identity["lifecycle_binding"] == "route_import_only"
+    assert service_identity["registration_mode"] == "always"
+    assert service_identity["route_present_in_light_mode"] is True
+    assert service_identity["readiness_signal"] == "/api/v1/service-identity/status"
+    assert (
+        service_identity["runtime_readiness_field"]
+        == "service_identity_runtime_ready"
+    )
+    assert "service_event_trace_history" in service_identity["hidden_dependency"]
+    assert "does not prove live SPIFFE, DID, wallet" in (
+        service_identity["hidden_dependency"]
+    )
+    assert '@router.get("/status")' in source
+    assert "service_identity_runtime_ready" in source
+    assert "registry_surface_ready" in source
+    assert "trace_filter_ready" in source
+    assert "trace_history_ready" in source
+    assert "event_bus_surface_ready" in source
+    assert "registry_payload_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
