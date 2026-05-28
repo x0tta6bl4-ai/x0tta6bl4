@@ -352,6 +352,7 @@ async def _publish_trace_events(
     governance_event_id = governance_events[-1].event_id
 
     billing_db = _build_billing_session(temp_root)
+    billing_bind = billing_db.get_bind()
     billing_bridge = _SmokeBillingBridge()
     original_webhook_secret = maas_billing_api.STRIPE_WEBHOOK_SECRET
     original_construct_event = maas_billing_api.stripe.Webhook.construct_event
@@ -391,6 +392,7 @@ async def _publish_trace_events(
         maas_billing_api.stripe.Webhook.construct_event = original_construct_event
         maas_marketplace_api._get_token_bridge = original_token_bridge
         billing_db.close()
+        billing_bind.dispose()
     assert billing_result["status"] == "success"
     assert billing_bridge.mesh_token.calls == [
         ("billing-smoke-user", 1300.0, "stripe_payment_cs-billing-smoke-1")
@@ -723,7 +725,10 @@ def _prepare_smoke_root(root: Path) -> None:
 
 
 async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="ledger-event-trace-smoke-") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="ledger-event-trace-smoke-",
+        ignore_cleanup_errors=True,
+    ) as tmp:
         root = temp_root or Path(tmp)
         _prepare_smoke_root(root)
 
