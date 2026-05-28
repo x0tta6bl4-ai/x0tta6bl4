@@ -96,10 +96,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/billing",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/billing/readiness",
+      "runtime_readiness_field": "billing_api_runtime_ready",
+      "hidden_dependency": "Commercial billing routes are registered in light mode and do not have a production_lifespan startup hook, but checkout, Stripe webhook processing, order status, and revenue metrics require Stripe checkout/webhook configuration, SQLAlchemy billing models, DB write methods, httpx plus the Stripe circuit wrapper, VLESS link generation, and deferred provisioning imports. The readiness endpoint exposes these local dependency surfaces without making live Stripe or database calls.",
       "source_refs": [
         "src/core/app.py:240",
-        "src/api/billing.py:34"
+        "src/api/billing.py:36",
+        "src/api/billing.py:200",
+        "src/api/billing.py:311"
       ]
     },
     {
