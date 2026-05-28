@@ -208,11 +208,40 @@ def sample_inputs() -> dict:
     }
 
 
+def prepare_root(root: Path) -> None:
+    (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+    systemd = root / "infra" / "systemd"
+    systemd.mkdir(parents=True)
+    (systemd / "x0tta-vpn-nl-transport-uptime.service").write_text(
+        "\n".join(
+            [
+                "[Service]",
+                "Type=oneshot",
+                "ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/probe_nl_transport_ports.py",
+                "ExecStart=/usr/bin/python3 /mnt/projects/nl-diagnostics/record_nl_transport_uptime.py",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (systemd / "x0tta-vpn-nl-transport-uptime.timer").write_text(
+        "\n".join(
+            [
+                "[Timer]",
+                "OnUnitActiveSec=5min",
+                "Unit=x0tta-vpn-nl-transport-uptime.service",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_ready_audit_has_future_blocks_but_no_missing_items(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
 
             payload = audit.build_payload(sample_inputs(), root=root, now=FRESH_NOW)
 
@@ -235,7 +264,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_degraded_transport_probe_is_watch_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["transport_probe"] = {
                 **sample_transport_probe(),
@@ -252,7 +281,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_degraded_uptime_history_is_watch_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["transport_uptime"] = {
                 **sample_transport_uptime(),
@@ -273,7 +302,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_stale_snapshot_chain_is_watch_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
 
             payload = audit.build_payload(sample_inputs(), root=root, now=STALE_NOW)
 
@@ -284,7 +313,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_stale_provider_packet_is_watch_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["provider_packet"] = {
                 **sample_provider_packet(),
@@ -300,7 +329,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_spb_true_marker_makes_audit_fail(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["report_texts"] = ["spb_fallback_allowed=true"]
 
@@ -313,7 +342,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_spb_true_marker_with_colon_makes_audit_fail(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["report_texts"] = ['"spb_fallback_allowed": true']
 
@@ -326,7 +355,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_missing_approval_phrase_keeps_future_write_gate_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             inputs = sample_inputs()
             inputs["approval_text"] = "different text"
 
@@ -339,7 +368,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_markdown_renders_matrix_and_no_write_notice(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "nl-diagnostics" / "snapshots" / "20260527T230246Z").mkdir(parents=True)
+            prepare_root(root)
             payload = audit.build_payload(sample_inputs(), root=root, now=FRESH_NOW)
 
         markdown = audit.render_markdown(payload)
