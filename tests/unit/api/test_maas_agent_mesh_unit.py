@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api import maas_agent_mesh as mod
+from src.core.reliability_policy import get_degraded_dependencies
 
 
 class _StubBot:
     def __init__(self):
         self.calls = []
+        self.config = SimpleNamespace(
+            socks_host="127.0.0.1",
+            socks_port=1080,
+            health_urls=[],
+            allow_external_urls=False,
+            enable_execute=False,
+        )
+        self._history = []
 
     def run_once(self, *, auto_heal: bool, dry_run: bool):
         self.calls.append((auto_heal, dry_run))
@@ -40,7 +52,16 @@ def test_health_status_endpoint_runs_in_read_only_mode(monkeypatch):
 
     response = client.get("/api/v1/maas/agents/health/status")
     assert response.status_code == 200
-    assert response.json()["external_ai_providers_used"] is False
+    payload = response.json()
+    assert payload["external_ai_providers_used"] is False
+    assert payload["readiness_status"] == "ready"
+    assert payload["agent_mesh_runtime_ready"] is True
+    assert payload["health_bot_surface_ready"] is True
+    assert payload["health_bot_config_ready"] is True
+    assert payload["auth_dependency_ready"] is True
+    assert payload["status_payload_ready"] is True
+    assert payload["non_dry_run_guard_ready"] is True
+    assert payload["local_only_mode"] is True
     assert stub.calls[-1] == (False, True)
 
 
@@ -111,3 +132,29 @@ def test_health_status_requires_auth_when_dependency_not_overridden(monkeypatch)
 
     response = client.get("/api/v1/maas/agents/health/status")
     assert response.status_code == 401
+
+
+def test_agent_mesh_health_status_marks_degraded_runtime_dependencies(monkeypatch):
+    class _BrokenBot:
+        config = SimpleNamespace(enable_execute=True, allow_external_urls=True)
+
+        def run_once(self, *, auto_heal: bool, dry_run: bool):
+            return {"status": None}
+
+    monkeypatch.setattr(mod, "_health_bot", _BrokenBot())
+    monkeypatch.delenv("MAAS_AGENT_BOT_TOKEN", raising=False)
+    request = SimpleNamespace(state=SimpleNamespace())
+
+    payload = asyncio.run(mod.health_status(request, _user={"id": "u-test"}))
+
+    assert payload["readiness_status"] == "degraded"
+    assert payload["agent_mesh_runtime_ready"] is False
+    assert set(payload["degraded_dependencies"]) == {
+        "health_bot_surface",
+        "health_bot_config",
+        "status_payload",
+        "non_dry_run_guard",
+    }
+    assert get_degraded_dependencies(request) == sorted(
+        payload["degraded_dependencies"]
+    )

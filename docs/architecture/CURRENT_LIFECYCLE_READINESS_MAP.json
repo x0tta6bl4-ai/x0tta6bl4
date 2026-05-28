@@ -259,10 +259,13 @@
       "router_prefix": "/api/v1/maas/agents",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/maas/agents/health/status",
+      "runtime_readiness_field": "agent_mesh_runtime_ready",
+      "hidden_dependency": "Always-registered route-import-only health-bot API with no production_lifespan hook. Health status, health run, and history routes depend on the import-time MaasHealthBot instance, HealthBotConfig.from_env, local SOCKS probe configuration, local health URL configuration, get_current_user_from_maas auth dependency, dry-run status payload shape, history storage, and MAAS_AGENT_BOT_TOKEN when non-dry-run execution is enabled. Readiness reports those local surfaces and execution guard status but does not prove SOCKS, local health URLs, or self-heal commands are healthy.",
       "source_refs": [
         "src/core/app.py:249",
-        "src/api/maas_agent_mesh.py:14",
-        "src/api/maas_agent_mesh.py:42"
+        "src/api/maas_agent_mesh.py:16",
+        "src/api/maas_agent_mesh.py:51",
+        "src/api/maas_agent_mesh.py:134"
       ]
     },
     {

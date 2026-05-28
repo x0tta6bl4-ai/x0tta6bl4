@@ -626,6 +626,30 @@ def test_lifecycle_map_tracks_service_identity_route_only_runtime_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_agent_mesh_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    agent_mesh = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-agent-mesh"
+    )
+    source = _module_path(agent_mesh["module"]).read_text(encoding="utf-8")
+
+    assert agent_mesh["lifecycle_binding"] == "route_import_only"
+    assert agent_mesh["registration_mode"] == "always"
+    assert agent_mesh["route_present_in_light_mode"] is True
+    assert agent_mesh["readiness_signal"] == "/api/v1/maas/agents/health/status"
+    assert agent_mesh["runtime_readiness_field"] == "agent_mesh_runtime_ready"
+    assert "MAAS_AGENT_BOT_TOKEN" in agent_mesh["hidden_dependency"]
+    assert "does not prove SOCKS, local health URLs" in agent_mesh["hidden_dependency"]
+    assert '@router.get("/health/status")' in source
+    assert "agent_mesh_runtime_ready" in source
+    assert "health_bot_surface_ready" in source
+    assert "health_bot_config_ready" in source
+    assert "auth_dependency_ready" in source
+    assert "status_payload_ready" in source
+    assert "non_dry_run_guard_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_maas_dashboard_route_only_runtime_readiness():
     lifecycle_map = _load_map()
     dashboard = next(
