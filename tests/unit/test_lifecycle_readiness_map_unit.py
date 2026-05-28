@@ -240,6 +240,34 @@ def test_lifecycle_map_tracks_maas_compat_route_only_runtime_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_maas_legacy_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    legacy = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-legacy"
+    )
+    source = _module_path(legacy["module"]).read_text(encoding="utf-8")
+
+    assert legacy["lifecycle_binding"] == "route_import_only"
+    assert legacy["registration_mode"] == "always"
+    assert legacy["route_present_in_light_mode"] is True
+    assert legacy["readiness_signal"] == "/api/v1/maas/readiness"
+    assert legacy["runtime_readiness_field"] == "maas_legacy_runtime_ready"
+    assert "owns broad /api/v1/maas/{mesh_id}/... paths" in (
+        legacy["hidden_dependency"]
+    )
+    assert "without mutating mesh state" in legacy["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "maas_legacy_runtime_ready" in source
+    assert "legacy_db_ready" in source
+    assert "legacy_registries_ready" in source
+    assert "legacy_services_ready" in source
+    assert "legacy_auth_ready" in source
+    assert "legacy_security_ready" in source
+    assert "legacy_models_ready" in source
+    assert "registry_counts" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
     lifecycle_map = _load_map()
     governance = next(
