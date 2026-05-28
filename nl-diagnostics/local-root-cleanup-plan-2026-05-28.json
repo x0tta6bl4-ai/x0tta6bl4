@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "source": "nl-diagnostics/plan_local_root_cleanup.py",
+  "generated_at": "2026-05-28T01:11:40.051880+00:00",
+  "status": "manual_cleanup_plan_ready",
+  "ok": true,
+  "summary": {
+    "root_status": "critical_full",
+    "root_free_gib": 0.0,
+    "candidate_count": 5,
+    "existing_candidate_count": 5,
+    "estimated_reclaim_gib": 3.21,
+    "min_target_free_gib": 2.0,
+    "top_candidate_id": "APT-CACHE-01",
+    "top_candidate_size_gib": 0.85,
+    "cleanup_execute_allowed": false,
+    "nl_write_allowed": false,
+    "spb_fallback_allowed": false,
+    "automatic_failover_allowed": false
+  },
+  "candidates": [
+    {
+      "id": "TMP-ANTIGRAVITY-01",
+      "path": "/tmp/antigravity_restore",
+      "title": "Old Antigravity restore directory",
+      "risk": "medium_manual_review",
+      "action": "manual_review_before_delete",
+      "command_preview": "sudo rm -rf /tmp/antigravity_restore",
+      "approval": "separate local cleanup approval after reviewing directory contents",
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 724011432,
+      "size_gib": 0.67,
+      "error_count": 0,
+      "errors": []
+    },
+    {
+      "id": "TMP-ANTIGRAVITY-02",
+      "path": "/tmp/antigravity_restore_correct",
+      "title": "Old Antigravity restore correction directory",
+      "risk": "medium_manual_review",
+      "action": "manual_review_before_delete",
+      "command_preview": "sudo rm -rf /tmp/antigravity_restore_correct",
+      "approval": "separate local cleanup approval after reviewing directory contents",
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 647011013,
+      "size_gib": 0.6,
+      "error_count": 0,
+      "errors": []
+    },
+    {
+      "id": "APT-CACHE-01",
+      "path": "/var/cache/apt/archives",
+      "title": "APT package archive cache",
+      "risk": "low_standard_cache",
+      "action": "command_requires_approval",
+      "command_preview": "sudo apt-get clean",
+      "approval": "separate local cleanup approval",
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 912223922,
+      "size_gib": 0.85,
+      "error_count": 1,
+      "errors": [
+        "[Errno 13] Permission denied: '/var/cache/apt/archives/partial'"
+      ]
+    },
+    {
+      "id": "JOURNAL-01",
+      "path": "/var/log/journal",
+      "title": "Systemd persistent journal",
+      "risk": "medium_keep_recent_logs",
+      "action": "command_requires_approval",
+      "command_preview": "sudo journalctl --vacuum-size=500M",
+      "approval": "separate local cleanup approval; keep recent logs",
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 729829376,
+      "size_gib": 0.68,
+      "error_count": 0,
+      "errors": []
+    },
+    {
+      "id": "VARTMP-01",
+      "path": "/var/tmp",
+      "title": "Persistent temporary files",
+      "risk": "high_manual_review",
+      "action": "manual_review_before_delete",
+      "command_preview": "sudo find /var/tmp -mindepth 1 -maxdepth 1 -mtime +7 -print",
+      "approval": "review printed paths first; delete only explicitly approved items",
+      "exists": true,
+      "is_dir": true,
+      "size_bytes": 436332102,
+      "size_gib": 0.41,
+      "error_count": 12,
+      "errors": [
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-fwupd.service-wIowjo'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-systemd-logind.service-JXxTlv'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-power-profiles-daemon.service-QrHITr'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-polkit.service-eiwidx'",
+        "[Errno 13] Permission denied: '/var/tmp/systemd-private-3d7e23cf1a954bc3a0cae967d1925b06-bluetooth.service-FGiBGE'"
+      ]
+    }
+  ],
+  "review_order": [
+    "APT-CACHE-01",
+    "JOURNAL-01",
+    "TMP-ANTIGRAVITY-01",
+    "TMP-ANTIGRAVITY-02",
+    "VARTMP-01"
+  ],
+  "execution_rules": [
+    "This report does not delete files.",
+    "Run command previews only after separate local cleanup approval.",
+    "Review /tmp/antigravity_restore* contents before any rm -rf command.",
+    "Keep using TMPDIR=/mnt/projects/.tmp until root has free space again."
+  ],
+  "mutation_allowed": false,
+  "cleanup_execute_allowed": false,
+  "nl_mutation_allowed": false,
+  "spb_fallback_allowed": false,
+  "automatic_failover_allowed": false
+}

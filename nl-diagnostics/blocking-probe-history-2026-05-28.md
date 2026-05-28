@@ -1,6 +1,6 @@
 # Blocking Probe History
 
-generated_at: `2026-05-28T01:00:21.380300+00:00`
+generated_at: `2026-05-28T01:11:28.231057+00:00`
 snapshots_dir: `nl-diagnostics/snapshots`
 
 ## Summary

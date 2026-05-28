@@ -167,7 +167,7 @@ operator_status=observe
 boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
-provider_packet_stale=False
+provider_packet_stale=True
 provider_packet_snapshot_age_seconds=<varies with time; collect a fresh snapshot after 3600>
 blocking_history_trend=stable_no_probe_evidence
 blocking_history_snapshot_count=5
@@ -183,15 +183,18 @@ local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
+local_root_cleanup_plan_status=manual_cleanup_plan_ready
+local_root_cleanup_estimated_reclaim_gib=3.21
+local_root_cleanup_execute_allowed=False
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=11
+nl_transport_uptime_samples=12
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=9
+incident_timeline_event_count=10
 incident_timeline_latest_type=provider_watch
 incident_timeline_latest_snapshot=20260528T000600Z
 nl_mutation_allowed=false
@@ -207,18 +210,19 @@ nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 Current audit summary:
 
 ```text
-ready_local=15
+ready_local=13
 blocked_future_approval=3
-watch=2
+watch=5
 missing=0
-watch_items=BOOT-01, LOCALENV-01
+watch_items=EVIDENCE-01, BOOT-01, PROVIDER-01, LOCALENV-01, LOCALCLEAN-01
 blocked_items=FAILOVER-03, GATE-01, FAILOVER-02
 ```
 
-Interpretation: the local observe-mode plan is usable now. Future NL writes and
-a real secondary exit node remain blocked until separate approval/setup. Manual
-failover is also blocked while the current decision is `observe` and no healthy
-non-NL/non-SPB secondary node exists.
+Interpretation: the local observe-mode plan is usable now, but the current
+snapshot has aged into watch state. Future NL writes and a real secondary exit
+node remain blocked until separate approval/setup. Manual failover is also
+blocked while the current decision is `observe` and no healthy non-NL/non-SPB
+secondary node exists.
 
 Local diagnostic environment:
 
@@ -242,6 +246,23 @@ temporary files should be run with `TMPDIR=/mnt/projects/.tmp` until `/` is
 cleaned. The refresh runner now passes this `TMPDIR` to its child commands by
 default when the variable is not already set. Do not delete
 `/tmp/antigravity_restore*` without separate local cleanup approval.
+
+Local root cleanup plan:
+
+```text
+nl-diagnostics/local-root-cleanup-plan-2026-05-28.md
+```
+
+Current rule:
+
+```text
+status=manual_cleanup_plan_ready
+estimated_reclaim_gib=3.21
+cleanup_execute_allowed=false
+```
+
+Interpretation: this is a review plan only. It does not delete files and all
+command previews require separate local cleanup approval before execution.
 
 Outside-in NL transport probe:
 
@@ -270,7 +291,7 @@ Current result:
 
 ```text
 status=stable_healthy
-sample_count=11
+sample_count=12
 latest_status=healthy
 consecutive_non_healthy=0
 ```
@@ -328,7 +349,7 @@ Current packet:
 
 ```text
 packet_type=provider_watch
-snapshot_stale=false
+snapshot_stale=true
 snapshot_age_seconds=<varies with time; collect fresh evidence after 3600>
 NL writes=0
 ```
@@ -342,7 +363,7 @@ nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 Current timeline:
 
 ```text
-event_count=9
+event_count=10
 latest_event_type=provider_watch
 latest_snapshot=20260528T000600Z
 ```
