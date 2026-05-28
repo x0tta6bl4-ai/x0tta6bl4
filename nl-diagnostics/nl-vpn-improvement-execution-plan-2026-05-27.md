@@ -8,19 +8,20 @@ Current authoritative evidence:
 
 ```text
 incident entrypoint: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
-vpn snapshot: nl-diagnostics/snapshots/20260528T025444Z
+vpn snapshot: nl-diagnostics/snapshots/20260528T031418Z
 server profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 gap analysis: nl-diagnostics/nl-profile-gap-analysis-20260527T173222Z.md
 decision report: nl-diagnostics/current-vpn-decision-2026-05-28.md
 blocking probe history: nl-diagnostics/blocking-probe-history-2026-05-28.md
 boot-gap watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T025444Z.md
+provider packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T031418Z.md
 improvement backlog: nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
 manual failover plan: nl-diagnostics/manual-failover-plan-2026-05-28.md
 secondary candidate score: nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md
 secondary exit requirements: nl-diagnostics/secondary-exit-requirements-2026-05-28.md
 secondary provider shortlist: nl-diagnostics/secondary-exit-provider-shortlist-2026-05-28.md
 secondary provisioning plan: nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.md
+secondary selection packet: nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
 local diagnostic environment: nl-diagnostics/local-diagnostic-environment-2026-05-28.md
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 operator card: nl-diagnostics/vpn-operator-card-2026-05-28.md
@@ -48,15 +49,15 @@ outside-in NL transport: healthy
 NL provider_status: recent_boot_gap
 current decision: observe, high confidence
 operator status: observe
-blocking probe history: stable_no_probe_evidence across 8 snapshots
+blocking probe history: stable_no_probe_evidence across 9 snapshots
 boot-gap watch: watch, boot_gap_seconds=21907
 provider packet: provider_watch, snapshot_stale=false
 freshness gate: snapshot_age_seconds varies with time, max=3600
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-outside-in NL transport uptime: stable_healthy, samples=21, bad_streak=0
+outside-in NL transport uptime: stable_healthy, samples=22, bad_streak=0
 local uptime scheduler templates: prepared only, not installed
-incident timeline: event_count=19, latest_type=provider_watch
+incident timeline: event_count=20, latest_type=provider_watch
 manual failover readiness: blocked_no_incident_trigger, manual_switch_allowed=false
 secondary candidate score: missing_candidates, viable_count=0
 secondary exit requirements: requirements_ready_no_candidate, missing=NET-01
@@ -65,12 +66,13 @@ secondary provisioning plan: provisioning_plan_ready_no_endpoint, external_actio
 secondary candidate intake: awaiting_public_candidate_metadata, allowed_fields=7
 secondary exit flow: blocked_missing_candidate, candidate_configured=false, manual_switch_allowed=false
 secondary manual drill: drill_plan_ready_blocked_no_endpoint, test_scope=single_client, rollback_required=true
+secondary selection packet: selection_packet_ready_no_endpoint, primary=upcloud-fi-hel, backup=ovhcloud-pl-waw, may_create_endpoint_now=false
 local diagnostic environment: watch_root_full_tmpdir_available, root_status=critical_full, tmpdir=/mnt/projects/.tmp writable
 local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.23, cleanup_execute_allowed=false
 local root cleanup approval packet: cleanup_approval_packet_ready, approval_required=true, commands_executed=0
 refresh tmpdir guard: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
 incident symptom intake: symptom_intake_ready_observe, required_fields=12, forbidden_material=12
-readiness audit: ready_local_with_future_blocks, ready_local=21, blocked_future_approval=4, watch=3, missing=0
+readiness audit: ready_local_with_future_blocks, ready_local=22, blocked_future_approval=4, watch=3, missing=0
 blocked future items: FAILOVER-03 manual failover gate, FAILOVER-06 secondary exit flow, GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 watch items: BOOT-01 provider boot gap, LOCALENV-01 local root disk full but project tmpdir works, LOCALCLEAN-01 cleanup plan awaits approval
 NL writes: 0
@@ -253,6 +255,7 @@ secondary_provisioning_plan: nl-diagnostics/secondary-exit-provisioning-plan-202
 secondary_candidate_intake: nl-diagnostics/secondary-exit-candidate-intake-2026-05-28.md
 secondary_exit_flow: nl-diagnostics/secondary-exit-flow-2026-05-28.md
 secondary_manual_drill: nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md
+secondary_selection_packet: nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
 do_not_restart_nl: true
 do_not_deploy_to_nl: true
 next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
@@ -261,7 +264,7 @@ local_tmpdir_rule: use TMPDIR=/mnt/projects/.tmp while / has 0 free blocks
 incident_entrypoint: VPN_ENABLE_BLOCKING_PROBES=1 nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 operator_card: nl-diagnostics/vpn-operator-card-2026-05-28.md
 boot_gap_watch: nl-diagnostics/boot-gap-watch-2026-05-28.md
-provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T025444Z.md
+provider_packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T031418Z.md
 freshness_rule: collect a fresh read-only snapshot if snapshot_age_seconds > 3600
 nl_transport_probe: nl-diagnostics/nl-transport-probe-2026-05-28.md
 nl_transport_uptime: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md

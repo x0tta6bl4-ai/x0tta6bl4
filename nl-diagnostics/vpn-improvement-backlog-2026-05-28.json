@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_improvement_backlog.py",
-  "generated_at": "2026-05-28T02:55:35.474446+00:00",
+  "generated_at": "2026-05-28T03:14:58.130389+00:00",
   "summary": {
     "decision": "observe",
     "decision_confidence": "high",
@@ -11,7 +11,7 @@
     "provider_status": "recent_boot_gap",
     "failure_domain": "external_network",
     "blocking_history_trend": "stable_no_probe_evidence",
-    "blocking_history_snapshot_count": 8,
+    "blocking_history_snapshot_count": 9,
     "source_gap_summary": {
       "accepted_local_delta": 5,
       "redacted_review_only": 2,
@@ -68,7 +68,7 @@
       "reason": "Current app/path probe history does not prove an x-ui outage.",
       "evidence": [
         "blocking_history_trend=stable_no_probe_evidence",
-        "blocking_history_snapshot_count=8"
+        "blocking_history_snapshot_count=9"
       ],
       "next_steps": [
         "keep nl-diagnostics/blocking_probe_targets.json as the default target set",
