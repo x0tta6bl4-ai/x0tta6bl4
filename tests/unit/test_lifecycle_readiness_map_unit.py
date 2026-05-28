@@ -481,6 +481,39 @@ def test_lifecycle_map_tracks_ledger_api_route_only_runtime_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_swarm_orchestration_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    swarm_orchestration = next(
+        router
+        for router in lifecycle_map["routers"]
+        if router["id"] == "swarm-orchestration"
+    )
+    source = _module_path(swarm_orchestration["module"]).read_text(encoding="utf-8")
+
+    assert swarm_orchestration["lifecycle_binding"] == "route_import_only"
+    assert swarm_orchestration["registration_mode"] == "full_mode_only"
+    assert swarm_orchestration["route_present_in_light_mode"] is False
+    assert swarm_orchestration["readiness_signal"] == "/api/v1/swarm/readiness"
+    assert (
+        swarm_orchestration["runtime_readiness_field"]
+        == "swarm_orchestration_ready"
+    )
+    assert "/api/v1/swarm fixed prefix is outside legacy MaaS catch-all" in (
+        swarm_orchestration["hidden_dependency"]
+    )
+    assert "accepting /task is not the same as having an initialized agent" in (
+        swarm_orchestration["hidden_dependency"]
+    )
+    assert '@router.get("/readiness")' in source
+    assert "swarm_orchestration_ready" in source
+    assert "swarm_components_ready" in source
+    assert "orchestrator_surface_ready" in source
+    assert "orchestrator_state_ready" in source
+    assert "task_scheduler_ready" in source
+    assert "agents_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_maas_dashboard_route_only_runtime_readiness():
     lifecycle_map = _load_map()
     dashboard = next(
