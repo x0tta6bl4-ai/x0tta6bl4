@@ -45,8 +45,15 @@ except Exception as legacy_import_error:  # pragma: no cover - defensive runtime
 router = APIRouter(prefix="/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
 
-# Initialize XUI Client
-xui = XUIAPIClient()
+xui: Optional[XUIAPIClient] = None
+
+
+def _get_xui_client() -> XUIAPIClient:
+    """Initialize x-ui integration only when a VPN endpoint needs it."""
+    global xui
+    if xui is None:
+        xui = XUIAPIClient()
+    return xui
 
 
 class VPNConfigRequest(BaseModel):
@@ -557,7 +564,7 @@ async def _build_vpn_config(
         # Try XUI-backed provisioning first. If local x-ui storage is unavailable
         # (readonly DB, missing files), degrade gracefully to generated credentials.
         try:
-            vpn_info = xui.create_user(uid, u_email, remark=u_name)
+            vpn_info = _get_xui_client().create_user(uid, u_email, remark=u_name)
         except Exception as exc:
             logger.warning(
                 "x-ui provisioning unavailable for user_id=%s, using fallback config: %s",
@@ -646,7 +653,7 @@ async def _get_vpn_status_cached() -> Dict[str, Any]:
     port = _get_vpn_port()
 
     status = await _check_vpn_connectivity(server, port)
-    active_users = xui.get_active_users_count()
+    active_users = _get_xui_client().get_active_users_count()
     
     # Try to get uptime from system if possible
     try:
@@ -688,7 +695,8 @@ VPN_USERS_CACHE_KEY = "vpn:users:list"
 
 async def _fetch_vpn_users_from_xui() -> Dict[str, Any]:
     """Fetch all VPN users directly from x-ui database for admin list."""
-    if xui.simulated:
+    xui_client = _get_xui_client()
+    if xui_client.simulated:
         users = [
             {"user_id": 123, "username": "demo", "email": "demo@x0t.net", "vless_link": "vless://..."}
         ]
@@ -696,7 +704,7 @@ async def _fetch_vpn_users_from_xui() -> Dict[str, Any]:
 
     import sqlite3
     try:
-        conn = sqlite3.connect(xui.db_path)
+        conn = sqlite3.connect(xui_client.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
@@ -772,7 +780,7 @@ async def delete_vpn_user(
     Delete VPN user by email.
     """
     try:
-        if xui.delete_user(email):
+        if _get_xui_client().delete_user(email):
             await cache.delete(VPN_USERS_CACHE_KEY)
             return {"success": True, "message": f"User {email} removed from VPN"}
         else:
@@ -805,7 +813,7 @@ async def delete_vpn_user_by_id(
         user_email = getattr(db_user, "email", None)
         if user_email:
             try:
-                xui.delete_user(user_email)
+                _get_xui_client().delete_user(user_email)
             except Exception:
                 pass
 
