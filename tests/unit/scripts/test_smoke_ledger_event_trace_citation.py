@@ -47,6 +47,8 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "marketplace_api_layer_matches": True,
         "maas_governance_event_id_matches": True,
         "maas_governance_layer_matches": True,
+        "maas_billing_event_id_matches": True,
+        "maas_billing_layer_matches": True,
         "dao_event_id_matches": True,
         "dao_layer_matches": True,
         "recovery_event_id_matches": True,
@@ -74,6 +76,7 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "maas-settlement",
         "maas-marketplace",
         "maas-governance",
+        "maas-billing",
         "dao-executor",
         "recovery-action-executor",
         "mesh-vpn-bridge",
@@ -122,6 +125,15 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert maas_governance["layer"] == "api_to_control_plane"
     assert maas_governance["entrypoint"] == "src/api/maas_governance.py"
     assert maas_governance["redacted"] is True
+
+    maas_billing = citations["maas-billing"]
+    assert maas_billing["source"] == "EventBus"
+    assert maas_billing["source_class"] == "event_trace"
+    assert maas_billing["event_id"] == payload["events"]["maas-billing"]["event_id"]
+    assert maas_billing["event_type"] == "pipeline.stage_end"
+    assert maas_billing["layer"] == "billing_webhook_to_commerce_bridge"
+    assert maas_billing["entrypoint"] == "src/api/maas_billing.py"
+    assert maas_billing["redacted"] is True
 
     dao = citations["dao-executor"]
     assert dao["source"] == "EventBus"
