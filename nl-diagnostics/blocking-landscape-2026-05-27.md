@@ -1,6 +1,6 @@
 # Blocking Landscape: Russia And Global Context
 
-Status date: 2026-05-27.
+Status date: 2026-05-28.
 
 Scope: public reporting and technical monitoring on internet blocking,
 VPN/circumvention restrictions, outages, and shutdowns relevant to the NL VPN
@@ -9,6 +9,11 @@ plan.
 ## Russia
 
 Current direction: layered pressure rather than one simple VPN ban.
+
+Latest verification on 2026-05-28 did not change the engineering conclusion:
+the practical risk is a mix of Telegram/WhatsApp degradation, VPN fingerprint
+blocking, and Russian platforms rejecting VPN/proxy exits while the VPN tunnel
+itself may remain healthy.
 
 Observed layers:
 
@@ -25,6 +30,12 @@ Observed layers:
 - Reports describe plans/targets to increase VPN blocking efficiency by 2030.
 - Telegram and WhatsApp restrictions are part of the same trend: calls/media
   and service quality can degrade before a full block.
+- OSW reported that in April 2026 Russia sharply intensified Telegram and VPN
+  circumvention restrictions, and that more than 20 Russian websites/platforms
+  were pushed to restrict users coming through VPNs.
+- The Moscow Times confirmed visible VPN-user blocking on platforms such as
+  Ozon and Kinopoisk and reported similar app disruptions around banking and
+  ride-sharing services.
 - Cloudflare reported in June 2025 that Russian ISPs throttled Cloudflare-backed
   services, including a 16 KB content-transfer pattern and disruption across
   HTTP/1.1, HTTP/2, and HTTP/3/QUIC.
@@ -57,6 +68,17 @@ Recent indicators:
   restoration on May 26-27 after a near-three-month shutdown, with traffic still
   far below normal levels.
 
+Operational watch signals for our VPN:
+
+- one Russian platform rejects the VPN while generic HTTPS still works;
+- Telegram web/API works but calls/media are slow or fail;
+- mobile ISP and fixed-line ISP produce different results;
+- direct path and SOCKS/VPN path disagree for the same target;
+- Cloudflare/GitHub/OpenAI baseline targets all work but local Russian apps do
+  not;
+- NL transport ports fail from outside, which is a server/provider signal, not
+  an app-blocking signal.
+
 ## Design Consequences
 
 For the NL VPN plan, the important engineering points are:
@@ -88,6 +110,10 @@ For the NL VPN plan, the important engineering points are:
   https://rt.rbc.ru/technology_and_media/21/05/2026/69ea464b9a794749c77ddf5d
 - The Moscow Times, 2026-05-04:
   https://ru.themoscowtimes.com/2026/05/04/roskomnadzoru-postavili-zadachu-zablokirovat-92-vpn-k2030-godu-a194415
+- OSW, 2026-04-17:
+  https://www.osw.waw.pl/en/publikacje/analyses/2026-04-17/russia-blocks-telegram-and-cracks-down-vpns
+- The Moscow Times, 2026-04-15:
+  https://www.themoscowtimes.com/2026/04/15/russian-websites-begin-blocking-vpn-users-as-internet-controls-tighten-a92511
 - Cloudflare, Russia throttling report, 2025-06-26:
   https://blog.cloudflare.com/russian-internet-users-are-unable-to-access-the-open-internet/
 - Access Now/#KeepItOn, 2026-03-31:

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_operator_card.py",
-  "generated_at": "2026-05-28T02:55:59.326514+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z",
+  "generated_at": "2026-05-28T03:15:12.855735+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z",
   "operator": {
     "operator_status": "observe",
     "plain_action": "VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.",
@@ -17,7 +17,7 @@
     "provider_status": "recent_boot_gap",
     "failure_domain": "external_network",
     "blocking_history_trend": "stable_no_probe_evidence",
-    "blocking_history_snapshot_count": 8,
+    "blocking_history_snapshot_count": 9,
     "manual_failover_status": "planning_not_active",
     "secondary_probe_template_status": "planning_template"
   },
