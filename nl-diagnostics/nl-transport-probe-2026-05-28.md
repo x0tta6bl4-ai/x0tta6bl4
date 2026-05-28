@@ -1,6 +1,6 @@
 # NL Transport Probe
 
-generated_at: `2026-05-28T03:14:58.730583+00:00`
+generated_at: `2026-05-28T03:26:46.460375+00:00`
 host: `89.125.1.107`
 
 ## Summary
@@ -19,8 +19,8 @@ automatic_failover_allowed=false
 
 | Port | OK | Latency ms | Error |
 |---|---|---:|---|
-| `443` | `true` | `71.615` |  |
-| `2083` | `true` | `64.954` |  |
-| `39829` | `true` | `64.347` |  |
+| `443` | `true` | `76.095` |  |
+| `2083` | `true` | `69.279` |  |
+| `39829` | `true` | `70.229` |  |
 
 No NL or SPB writes were performed by this transport probe.

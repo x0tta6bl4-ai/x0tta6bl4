@@ -1,6 +1,6 @@
 # Secondary Exit Provider Shortlist
 
-generated_at: `2026-05-28T03:15:00.720627+00:00`
+generated_at: `2026-05-28T03:26:47.396012+00:00`
 source_check_date: `2026-05-28`
 status: `shortlist_ready_no_endpoint`
 ok: `true`

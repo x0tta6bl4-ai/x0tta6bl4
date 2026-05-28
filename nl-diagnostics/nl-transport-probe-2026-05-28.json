@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/probe_nl_transport_ports.py",
-  "generated_at": "2026-05-28T03:14:58.730583+00:00",
+  "generated_at": "2026-05-28T03:26:46.460375+00:00",
   "host": "89.125.1.107",
   "ports": [
     443,
@@ -16,21 +16,21 @@
       "host": "89.125.1.107",
       "port": 443,
       "ok": true,
-      "latency_ms": 71.615,
+      "latency_ms": 76.095,
       "error": ""
     },
     {
       "host": "89.125.1.107",
       "port": 2083,
       "ok": true,
-      "latency_ms": 64.954,
+      "latency_ms": 69.279,
       "error": ""
     },
     {
       "host": "89.125.1.107",
       "port": 39829,
       "ok": true,
-      "latency_ms": 64.347,
+      "latency_ms": 70.229,
       "error": ""
     }
   ],
