@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-05-27",
+  "captured_at": "2026-05-28",
   "status": "working_map_not_production_completion_proof",
   "scope": "Canonical import direction for libx0t and src.libx0t package surfaces.",
   "canonical_import_policy": {
@@ -17,7 +17,7 @@
       "libx0t"
     ],
     "repo_direct_import_statements": {
-      "libx0t": 97,
+      "libx0t": 96,
       "src.libx0t": 76
     },
     "src_libx0t_top_level_libx0t_import_statements": {
