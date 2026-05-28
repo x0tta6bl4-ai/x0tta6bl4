@@ -1,7 +1,7 @@
 # Boot Gap Watch
 
-generated_at: `2026-05-28T03:14:56.996780+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z`
+generated_at: `2026-05-28T03:26:45.403153+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z`
 
 ## Summary
 
@@ -9,7 +9,7 @@ snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z`
 status=watch
 boot_gap_seconds=21907
 overall_status=advisory
-transport_status=healthy
+transport_status=advisory
 provider_status=recent_boot_gap
 failure_domain=external_network
 recommended_action=observe provider signal; do not restart NL while transport is healthy/advisory
