@@ -1,7 +1,7 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T01:17:18.873760+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z`
+generated_at: `2026-05-28T02:19:13.912258+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z`
 ok: `true`
 
 ## Summary
@@ -14,9 +14,9 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=45
+provider_packet_snapshot_age_seconds=41
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=6
+blocking_history_snapshot_count=7
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -25,24 +25,38 @@ secondary_candidate_score_status=missing_candidates
 secondary_candidate_viable_count=0
 secondary_exit_requirements_status=requirements_ready_no_candidate
 secondary_exit_requirements_missing=NET-01
+secondary_provider_shortlist_status=shortlist_ready_no_endpoint
+secondary_provider_shortlist_count=5
+secondary_provider_shortlist_endpoint_count=0
+secondary_candidate_intake_status=awaiting_public_candidate_metadata
+secondary_candidate_intake_allowed_fields=7
+secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint
+secondary_provisioning_external_action_required=True
+secondary_provisioning_endpoint_count=0
+secondary_exit_flow_status=blocked_missing_candidate
+secondary_exit_flow_candidate_configured=False
+secondary_exit_flow_manual_switch_allowed=False
+secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
+secondary_manual_drill_test_scope=single_client
+secondary_manual_drill_rollback_required=True
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.25
+local_root_cleanup_estimated_reclaim_gib=3.26
 local_root_cleanup_execute_allowed=False
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=13
+nl_transport_uptime_samples=19
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=11
+incident_timeline_event_count=17
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T011622Z
+incident_timeline_latest_snapshot=20260528T021824Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -128,6 +142,41 @@ exit_code=0
 ```
 
 ### secondary_exit_requirements
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_provider_shortlist
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_candidate_intake
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_provisioning_plan
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_exit_flow
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_manual_drill
 
 ```text
 ok=true

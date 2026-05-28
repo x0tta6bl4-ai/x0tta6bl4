@@ -180,6 +180,116 @@ def sample_secondary_score() -> dict:
     }
 
 
+def sample_secondary_flow(status: str = "blocked_missing_candidate") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "candidate_score_status": "missing_candidates",
+            "candidate_viable_count": 0,
+            "top_candidate_label": "none",
+            "secondary_probe_status": "planning_template",
+            "candidate_configured": False,
+            "manual_probe_allowed": False,
+            "manual_switch_allowed": False,
+            "requirements_status": "requirements_ready_no_candidate",
+            "safe_flags": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_manual_drill(status: str = "drill_plan_ready_blocked_no_endpoint") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "manual_probe_allowed": False,
+            "manual_switch_allowed": False,
+            "candidate_configured": False,
+            "endpoint_count": 0,
+            "secondary_flow_status": "blocked_missing_candidate",
+            "secondary_probe_status": "planning_template",
+            "provisioning_plan_status": "provisioning_plan_ready_no_endpoint",
+            "test_scope": "single_client",
+            "bulk_user_switch_allowed": False,
+            "rollback_required": True,
+            "safe_flags": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_intake(status: str = "awaiting_public_candidate_metadata") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "candidate_file": "nl-diagnostics/secondary-exit-candidates.example.json",
+            "candidate_score_status": "missing_candidates",
+            "candidate_count": 0,
+            "viable_count": 0,
+            "allowed_field_count": 7,
+            "forbidden_material_count": 7,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_provider_shortlist(status: str = "shortlist_ready_no_endpoint") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "shortlist_count": 5,
+            "source_count": 9,
+            "endpoint_count": 0,
+            "candidate_configured": False,
+            "invalid_source_refs": [],
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_provisioning_plan(status: str = "provisioning_plan_ready_no_endpoint") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "shortlist_status": "shortlist_ready_no_endpoint",
+            "shortlist_count": 5,
+            "preferred_labels": ["upcloud-fi-hel", "ovhcloud-pl-waw", "hetzner-de-or-fi"],
+            "endpoint_count": 0,
+            "external_action_required": True,
+            "candidate_file": "/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+            "candidate_intake_status": "awaiting_public_candidate_metadata",
+            "requirements_status": "requirements_ready_no_candidate",
+            "safe_sources": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_local_env(status: str = "watch_root_full_tmpdir_available", tmpdir_writable: bool = True) -> dict:
     return {
         "status": status,
@@ -298,6 +408,11 @@ def sample_inputs() -> dict:
         "failover_readiness": sample_failover_readiness(),
         "secondary_score": sample_secondary_score(),
         "secondary_requirements": sample_secondary_requirements(),
+        "secondary_provider_shortlist": sample_secondary_provider_shortlist(),
+        "secondary_intake": sample_secondary_intake(),
+        "secondary_provisioning_plan": sample_secondary_provisioning_plan(),
+        "secondary_flow": sample_secondary_flow(),
+        "secondary_manual_drill": sample_secondary_manual_drill(),
         "local_env": sample_local_env(),
         "local_cleanup_plan": sample_local_cleanup_plan(),
         "transport_probe": sample_transport_probe(),
@@ -344,7 +459,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
     def test_default_provider_packet_matches_current_snapshot_bundle(self):
         self.assertEqual(
             audit.DEFAULT_PROVIDER_PACKET.name,
-            "provider-incident-packet-20260528T011622Z.json",
+            "provider-incident-packet-20260528T021824Z.json",
         )
 
     def test_ready_audit_has_future_blocks_but_no_missing_items(self):
@@ -365,10 +480,23 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertIn("GATE-01", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-02", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-03", payload["summary"]["blocked_items"])
+        self.assertIn("FAILOVER-06", payload["summary"]["blocked_items"])
         self.assertEqual(payload["summary"]["boot_gap_watch_status"], "watch")
         self.assertEqual(payload["summary"]["provider_packet_type"], "provider_watch")
         self.assertFalse(payload["summary"]["provider_packet_stale"])
         self.assertEqual(payload["summary"]["local_diagnostic_environment_status"], "watch_root_full_tmpdir_available")
+        self.assertEqual(payload["summary"]["secondary_provider_shortlist_status"], "shortlist_ready_no_endpoint")
+        self.assertEqual(payload["summary"]["secondary_provider_shortlist_count"], 5)
+        self.assertEqual(payload["summary"]["secondary_provider_shortlist_endpoint_count"], 0)
+        self.assertEqual(payload["summary"]["secondary_candidate_intake_status"], "awaiting_public_candidate_metadata")
+        self.assertEqual(payload["summary"]["secondary_provisioning_plan_status"], "provisioning_plan_ready_no_endpoint")
+        self.assertTrue(payload["summary"]["secondary_provisioning_external_action_required"])
+        self.assertEqual(payload["summary"]["secondary_provisioning_endpoint_count"], 0)
+        self.assertEqual(payload["summary"]["secondary_exit_flow_status"], "blocked_missing_candidate")
+        self.assertFalse(payload["summary"]["secondary_exit_flow_manual_switch_allowed"])
+        self.assertEqual(payload["summary"]["secondary_manual_drill_status"], "drill_plan_ready_blocked_no_endpoint")
+        self.assertEqual(payload["summary"]["secondary_manual_drill_test_scope"], "single_client")
+        self.assertTrue(payload["summary"]["secondary_manual_drill_rollback_required"])
         self.assertTrue(payload["summary"]["local_tmpdir_writable"])
         self.assertEqual(payload["summary"]["local_root_cleanup_plan_status"], "manual_cleanup_plan_ready")
         self.assertFalse(payload["summary"]["local_root_cleanup_execute_allowed"])
@@ -425,6 +553,103 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         cleanup_item = next(item for item in payload["items"] if item["id"] == "LOCALCLEAN-01")
         self.assertEqual(cleanup_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_flow_with_unsafe_flags_makes_readiness_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_flow"] = {
+                **sample_secondary_flow("unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_secondary_flow()["summary"],
+                    "safe_flags": False,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        flow_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-06")
+        self.assertEqual(flow_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_intake_with_unsafe_flags_makes_readiness_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_intake"] = {
+                **sample_secondary_intake("unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_secondary_intake()["summary"],
+                    "spb_fallback_allowed": True,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        intake_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-07")
+        self.assertEqual(intake_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_provider_shortlist_with_endpoint_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_provider_shortlist"] = {
+                **sample_secondary_provider_shortlist(),
+                "summary": {
+                    **sample_secondary_provider_shortlist()["summary"],
+                    "endpoint_count": 1,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        shortlist_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-08")
+        self.assertEqual(shortlist_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_provisioning_plan_with_endpoint_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_provisioning_plan"] = {
+                **sample_secondary_provisioning_plan(),
+                "summary": {
+                    **sample_secondary_provisioning_plan()["summary"],
+                    "endpoint_count": 1,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        provisioning_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-09")
+        self.assertEqual(provisioning_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_manual_drill_without_rollback_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_manual_drill"] = {
+                **sample_secondary_manual_drill(),
+                "summary": {
+                    **sample_secondary_manual_drill()["summary"],
+                    "rollback_required": False,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        drill_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-10")
+        self.assertEqual(drill_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):
