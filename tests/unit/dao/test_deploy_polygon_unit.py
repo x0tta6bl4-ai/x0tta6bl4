@@ -28,8 +28,6 @@ if "web3.middleware" not in sys.modules:
 
 import src.dao.deploy_polygon as mod
 
-HARDHAT_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
 
 # ---------------------------------------------------------------------------
 # Fake helpers
@@ -203,15 +201,15 @@ class TestHardhatKeyFallback:
                     reloaded = importlib.reload(mod)
                     return reloaded.PRIVATE_KEY
 
-    def test_no_key_with_127_uses_hardhat(self):
-        """No PRIVATE_KEY + 127.0.0.1 URL -> hardhat key."""
+    def test_no_key_with_127_stays_none(self):
+        """No PRIVATE_KEY + 127.0.0.1 URL -> no hardcoded deployer fallback."""
         result = self._reload_module_with_env(None, "http://127.0.0.1:8545")
-        assert result == HARDHAT_KEY
+        assert result is None
 
-    def test_no_key_with_localhost_uses_hardhat(self):
-        """No PRIVATE_KEY + localhost URL -> hardhat key."""
+    def test_no_key_with_localhost_stays_none(self):
+        """No PRIVATE_KEY + localhost URL -> no hardcoded deployer fallback."""
         result = self._reload_module_with_env(None, "http://localhost:8545")
-        assert result == HARDHAT_KEY
+        assert result is None
 
     def test_no_key_with_remote_rpc_stays_none(self):
         """No PRIVATE_KEY + remote RPC -> stays None (no fallback)."""
@@ -221,10 +219,7 @@ class TestHardhatKeyFallback:
     def test_user_key_preserved_with_localhost(self):
         """PRIVATE_KEY is set + localhost URL -> user key must be preserved.
 
-        The operator precedence bug was fixed by adding parentheses:
-            not PRIVATE_KEY and ("127.0.0.1" in RPC_URL or "localhost" in RPC_URL)
-
-        So when PRIVATE_KEY is set, the condition is False and the key is kept.
+        Localhost must not replace an explicitly supplied operator key.
         """
         user_key = "0xUSER_PROVIDED_KEY_SHOULD_BE_KEPT"
         result = self._reload_module_with_env(user_key, "http://localhost:8545")
