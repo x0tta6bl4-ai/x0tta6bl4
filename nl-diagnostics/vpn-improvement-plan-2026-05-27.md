@@ -748,7 +748,7 @@ planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
 incident timeline recorder added: nl-diagnostics/record_vpn_incident_timeline.py
 incident timeline report: nl-diagnostics/vpn-incident-timeline-2026-05-28.md
-incident timeline status: event_count=17, latest_type=provider_watch
+incident timeline status: event_count=18, latest_type=provider_watch
 manual failover readiness gate added: nl-diagnostics/audit_manual_failover_readiness.py
 manual failover readiness report: nl-diagnostics/manual-failover-readiness-2026-05-28.md
 manual failover readiness status: blocked_no_incident_trigger, manual_switch_allowed=false
@@ -779,7 +779,7 @@ outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-
 outside-in NL transport status: healthy, 3/3 ports ok
 outside-in NL transport uptime recorder added: nl-diagnostics/record_nl_transport_uptime.py
 outside-in NL transport uptime summary: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
-outside-in NL transport uptime status: stable_healthy, samples=19, bad_streak=0
+outside-in NL transport uptime status: stable_healthy, samples=20, bad_streak=0
 local uptime scheduler service template: infra/systemd/x0tta-vpn-nl-transport-uptime.service
 local uptime scheduler timer template: infra/systemd/x0tta-vpn-nl-transport-uptime.timer
 local uptime scheduler status: prepared only, not installed, no systemd command run
@@ -789,10 +789,13 @@ local diagnostic environment status: watch_root_full_tmpdir_available, root_stat
 refresh TMPDIR guard added: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
 local root cleanup planner added: nl-diagnostics/plan_local_root_cleanup.py
 local root cleanup plan report: nl-diagnostics/local-root-cleanup-plan-2026-05-28.md
-local root cleanup plan status: manual_cleanup_plan_ready, estimated_reclaim_gib=3.26, cleanup_execute_allowed=false
+local root cleanup plan status: manual_cleanup_plan_ready, estimated_reclaim_gib=3.25, cleanup_execute_allowed=false
+local root cleanup approval packet command added: nl-diagnostics/build_local_root_cleanup_approval_packet.py
+local root cleanup approval packet report: nl-diagnostics/local-root-cleanup-approval-packet-2026-05-28.md
+local root cleanup approval packet status: cleanup_approval_packet_ready, approval_required=true, commands_executed=0
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
-readiness audit status: ready_local_with_future_blocks, ready_local=19, blocked_future_approval=4, watch=3, missing=0
+readiness audit status: ready_local_with_future_blocks, ready_local=20, blocked_future_approval=4, watch=3, missing=0
 readiness watch items: BOOT-01, LOCALENV-01, LOCALCLEAN-01
 readiness blocked items include: FAILOVER-03, FAILOVER-06, GATE-01, FAILOVER-02
 operator card added: nl-diagnostics/build_vpn_operator_card.py

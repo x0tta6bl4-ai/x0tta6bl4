@@ -1,6 +1,6 @@
 # Local Diagnostic Environment Audit
 
-generated_at: `2026-05-28T02:19:07.634043+00:00`
+generated_at: `2026-05-28T02:35:34.008080+00:00`
 status: `watch_root_full_tmpdir_available`
 ok: `true`
 
@@ -12,7 +12,7 @@ root_used_percent=94.9
 root_free_gib=0.0
 tmp_status=critical_full
 projects_status=ok
-projects_free_gib=61.28
+projects_free_gib=61.26
 diagnostic_tmpdir=/mnt/projects/.tmp
 diagnostic_tmpdir_exists=true
 diagnostic_tmpdir_writable=true
@@ -29,7 +29,7 @@ automatic_failover_allowed=false
 |---|---|---:|---:|
 | `/` | `critical_full` | 94.9% | 0.0 |
 | `/tmp` | `critical_full` | 94.9% | 0.0 |
-| `/mnt/projects` | `ok` | 86.8% | 61.28 |
+| `/mnt/projects` | `ok` | 86.8% | 61.26 |
 
 ## Cleanup Candidates
 
