@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from src.coordination.events import EventBus, EventType
+
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -24,6 +26,12 @@ def _load_module():
 @pytest.mark.asyncio
 async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     smoke = _load_module()
+    stale_bus = EventBus(str(tmp_path))
+    stale_bus.publish(
+        EventType.SYSTEM_ALERT,
+        "stale-source",
+        {"spiffe_id": "spiffe://secret/stale-history"},
+    )
 
     payload = await smoke.run_smoke(temp_root=tmp_path)
 
@@ -75,6 +83,7 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "pqc-rotator",
         "pqc-zero-trust-healer",
     }
+    assert "stale-source" not in citations
 
     swarm = citations["swarm-pbft"]
     assert swarm["source"] == "EventBus"
