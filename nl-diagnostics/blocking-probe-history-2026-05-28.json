@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/summarize_blocking_probe_history.py",
-  "generated_at": "2026-05-28T01:11:28.231057+00:00",
+  "generated_at": "2026-05-28T01:17:06.664176+00:00",
   "snapshots_dir": "nl-diagnostics/snapshots",
   "summary": {
-    "snapshot_count": 5,
+    "snapshot_count": 6,
     "trend": "stable_no_probe_evidence",
     "assessment_counts": {
-      "no_probe_evidence": 5
+      "no_probe_evidence": 6
     },
     "degraded_by_target": {},
     "degraded_by_group": {},
     "latest": {
-      "snapshot": "20260528T000600Z",
-      "generated_at": "2026-05-28T00:06:22.909070+00:00",
+      "snapshot": "20260528T011622Z",
+      "generated_at": "2026-05-28T01:16:47.893996+00:00",
       "assessment": "no_probe_evidence",
       "target_count": 8,
       "ok_count": 8,
@@ -162,6 +162,39 @@
     {
       "snapshot": "20260528T000600Z",
       "generated_at": "2026-05-28T00:06:22.909070+00:00",
+      "assessment": "no_probe_evidence",
+      "target_count": 8,
+      "ok_count": 8,
+      "degraded_count": 0,
+      "group_assessments": {
+        "ai": {
+          "ok": 1
+        },
+        "baseline": {
+          "ok": 1
+        },
+        "dev": {
+          "ok": 1
+        },
+        "ru": {
+          "ok": 1
+        },
+        "telegram": {
+          "ok": 2
+        },
+        "telegram_media": {
+          "ok": 2
+        }
+      },
+      "degraded_targets": [],
+      "socks_proxy_detected": true,
+      "socks_port": 10918,
+      "http_proxy_configured": false,
+      "targets_source": "/mnt/projects/nl-diagnostics/blocking_probe_targets.json"
+    },
+    {
+      "snapshot": "20260528T011622Z",
+      "generated_at": "2026-05-28T01:16:47.893996+00:00",
       "assessment": "no_probe_evidence",
       "target_count": 8,
       "ok_count": 8,

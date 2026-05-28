@@ -1,7 +1,7 @@
 # Current VPN Decision
 
-generated_at: `2026-05-28T01:11:28.511582+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z`
+generated_at: `2026-05-28T01:17:06.910151+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z`
 
 ## Status
 
@@ -13,14 +13,14 @@ reason: core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS
 
 ```text
 overall_status=advisory
-transport_status=healthy
+transport_status=advisory
 telegram_media_status=degraded
 provider_status=recent_boot_gap
 failure_domain=external_network
 recommended_action=observe
 blocking_category=app_specific_degradation
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshots=5
+blocking_history_snapshots=6
 nl_mutation_allowed=false
 auto_profile_switch_allowed=false
 spb_fallback_allowed=false
@@ -61,15 +61,15 @@ spb_fallback_allowed=false
 - NL failed units are known non-critical: ifup@eth0.service
 - NL key services active
 - NL core listeners 443/2083/39829 present
-- NL transport_status=healthy
+- NL transport_status=advisory
 - NL current boot reports previous journal uncleanly shut down
 
 ## Blocking Probe History
 
 ```text
-snapshot_count=5
+snapshot_count=6
 trend=stable_no_probe_evidence
-latest_snapshot=20260528T000600Z
+latest_snapshot=20260528T011622Z
 latest_targets_ok=8/8
 latest_degraded_targets=0
 ```
