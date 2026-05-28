@@ -324,6 +324,34 @@ def local_root_cleanup_approval_packet_command(diagnostics_dir: Path = DIAGNOSTI
     }
 
 
+def incident_symptom_intake_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "incident_symptom_intake",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_vpn_incident_symptom_intake.py"),
+            "--decision",
+            str(diagnostics_dir / "current-vpn-decision-2026-05-28.json"),
+            "--operator-card",
+            str(diagnostics_dir / "vpn-operator-card-2026-05-28.json"),
+            "--history",
+            str(diagnostics_dir / "blocking-probe-history-2026-05-28.json"),
+            "--transport-probe",
+            str(diagnostics_dir / "nl-transport-probe-2026-05-28.json"),
+            "--failover-readiness",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            "--json-out",
+            str(diagnostics_dir / "vpn-incident-symptom-intake-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "vpn-incident-symptom-intake-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "vpn-incident-symptom-intake-2026-05-28.json"),
+            str(diagnostics_dir / "vpn-incident-symptom-intake-2026-05-28.md"),
+        ],
+    }
+
+
 def command_plan(
     snapshot_dir: Path,
     diagnostics_dir: Path = DIAGNOSTICS_DIR,
@@ -497,6 +525,7 @@ def command_plan(
                 str(diagnostics_dir / "vpn-operator-card-2026-05-28.md"),
             ],
         },
+        incident_symptom_intake_command(diagnostics_dir),
     ]
     if include_readiness_audit:
         plan.append(readiness_audit_command(diagnostics_dir, snapshot_dir))
@@ -620,6 +649,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     cleanup_packet = read_json(diagnostics_dir / "local-root-cleanup-approval-packet-2026-05-28.json")
     cleanup_packet_summary = cleanup_packet.get("summary") or {}
     operator = read_json(diagnostics_dir / "vpn-operator-card-2026-05-28.json").get("operator") or {}
+    symptom_intake = read_json(diagnostics_dir / "vpn-incident-symptom-intake-2026-05-28.json")
+    symptom_intake_summary = symptom_intake.get("summary") or {}
     readiness = read_json(diagnostics_dir / "vpn-plan-readiness-audit-2026-05-28.json")
     readiness_summary = readiness.get("summary") or {}
     timeline_event, timeline_count = latest_timeline_event(diagnostics_dir / "vpn-incident-timeline-2026-05-28.jsonl")
@@ -670,6 +701,9 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "local_root_cleanup_approval_packet_status": cleanup_packet.get("status", "unknown"),
         "local_root_cleanup_approval_required": cleanup_packet_summary.get("approval_required", "unknown"),
         "local_root_cleanup_commands_executed": cleanup_packet_summary.get("commands_executed", "unknown"),
+        "incident_symptom_intake_status": symptom_intake.get("status", "unknown"),
+        "incident_symptom_required_fields": symptom_intake_summary.get("required_field_count", "unknown"),
+        "incident_symptom_forbidden_material": symptom_intake_summary.get("forbidden_material_count", "unknown"),
         "nl_transport_probe_status": transport_probe.get("status", "unknown"),
         "nl_transport_probe_ok_count": f"{transport_probe.get('ok_count', 'unknown')}/{transport_probe.get('port_count', 'unknown')}",
         "nl_transport_uptime_status": uptime.get("status", "unknown"),
@@ -757,6 +791,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"local_root_cleanup_approval_packet_status={summary.get('local_root_cleanup_approval_packet_status')}",
         f"local_root_cleanup_approval_required={summary.get('local_root_cleanup_approval_required')}",
         f"local_root_cleanup_commands_executed={summary.get('local_root_cleanup_commands_executed')}",
+        f"incident_symptom_intake_status={summary.get('incident_symptom_intake_status')}",
+        f"incident_symptom_required_fields={summary.get('incident_symptom_required_fields')}",
+        f"incident_symptom_forbidden_material={summary.get('incident_symptom_forbidden_material')}",
         f"nl_transport_probe_status={summary.get('nl_transport_probe_status')}",
         f"nl_transport_probe_ok_count={summary.get('nl_transport_probe_ok_count')}",
         f"nl_transport_uptime_status={summary.get('nl_transport_uptime_status')}",
