@@ -25,7 +25,7 @@
     "source": "EventBus",
     "source_class": "event_trace",
     "relative_path": ".agent_coordination/events.log",
-    "redaction_contract": "service_event_trace_history returns payload-level redacted=true and event-level redacted=true after recursive redaction of spiffe_id, did, and wallet_address.",
+    "redaction_contract": "service_event_trace_history returns payload-level redacted=true and event-level redacted=true after recursive redaction of identity values plus common token/API-key fields.",
     "metadata_fields": [
       "event_id",
       "event_type",
@@ -207,6 +207,11 @@
         "event_type": "marketplace.escrow.held"
       },
       {
+        "service_name": "maas-governance",
+        "layer": "api_to_control_plane",
+        "event_type": "pipeline.stage_end"
+      },
+      {
         "service_name": "dao-executor",
         "layer": "dao_to_control_plane",
         "event_type": "task.blocked"
@@ -249,27 +254,29 @@
       }
     ],
     "proves": [
-      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, route-only marketplace API, DAO executor, self-healing recovery, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
-      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, route-only marketplace API, dangerous-action executor, recovery-action, PQC zero-trust healer, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
+      "POST /api/v1/ledger/event-traces/index can index redacted EventBus traces from swarm, commerce settlement, route-only marketplace API, route-only governance API, DAO executor, self-healing recovery, self-healing PQC identity, mesh network reward, share-to-earn network usage reward, MPTCP network control, security identity, and security service layers",
+      "POST /api/v1/ledger/search can return metadata.citations for swarm, commerce settlement, route-only marketplace API, route-only governance API, dangerous-action executor, recovery-action, PQC zero-trust healer, mesh reward, share-to-earn reward, MPTCP manager, SPIRE server-client, and PQC rotator event traces",
       "citations preserve event_id, source_agent, layer, source_class=event_trace, and redacted=true",
-      "raw spiffe_id, did, and wallet_address values are absent from the search response"
+      "raw spiffe_id, did, wallet_address, and api_token values are absent from the search response"
     ],
     "source_refs": [
       "scripts/ops/smoke_ledger_event_trace_citation.py:150",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:165",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:188",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:203",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:220",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:251",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:283",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:307",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:325",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:342",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:389",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:427",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:448",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:475",
-      "scripts/ops/smoke_ledger_event_trace_citation.py:590",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:176",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:214",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:229",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:246",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:267",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:291",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:309",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:341",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:356",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:383",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:400",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:426",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:461",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:506",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:607",
+      "scripts/ops/smoke_ledger_event_trace_citation.py:653",
       "src/self_healing/pqc_zero_trust_healer.py:458",
       "src/self_healing/pqc_zero_trust_healer.py:597",
       "src/self_healing/pqc_zero_trust_healer.py:706",
@@ -280,10 +287,11 @@
       "src/services/share_to_earn_service.py:97",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:24",
       "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:62",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:92",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:103",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:112",
-      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:141",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:86",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:95",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:106",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:117",
+      "tests/unit/scripts/test_smoke_ledger_event_trace_citation.py:137",
       "tests/unit/services/test_share_to_earn_service_unit.py:89"
     ]
   },

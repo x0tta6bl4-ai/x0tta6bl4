@@ -32,6 +32,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api import ledger_endpoints
+from src.api.maas_governance import _execute_action as execute_maas_governance_action
 from src.coordination.events import EventBus, EventType
 from src.dao.executor_webhook import DAOExecutor
 from src.dao.token_rewards import TokenRewards
@@ -60,6 +61,9 @@ MARKETPLACE_SERVICE_NAME = "maas-settlement"
 MARKETPLACE_SERVICE_LAYER = "commerce_settlement_to_events"
 MARKETPLACE_API_SERVICE_NAME = "maas-marketplace"
 MARKETPLACE_API_SERVICE_LAYER = "api_to_commerce"
+MAAS_GOVERNANCE_SERVICE_NAME = "maas-governance"
+MAAS_GOVERNANCE_SERVICE_LAYER = "api_to_control_plane"
+MAAS_GOVERNANCE_UPDATE_CONFIG_RESOURCE = "api:maas_governance:update_config"
 DAO_SERVICE_NAME = "dao-executor"
 DAO_SERVICE_LAYER = "dao_to_control_plane"
 RECOVERY_SERVICE_NAME = "recovery-action-executor"
@@ -82,8 +86,9 @@ PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
 PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
 PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
 SEARCH_QUERY = (
-    "swarm-pbft maas-settlement maas-marketplace dao-executor recovery-action-executor "
-    "mesh-vpn-bridge share-to-earn mptcp-manager spire-server-client "
+    "swarm-pbft maas-settlement maas-marketplace maas-governance "
+    "dao-executor recovery-action-executor mesh-vpn-bridge share-to-earn "
+    "mptcp-manager spire-server-client "
     "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
 )
 SECRET_VALUES = (
@@ -91,6 +96,8 @@ SECRET_VALUES = (
     "did:mesh:secret",
     "0xffffffffffffffffffffffffffffffffffffffff",
 )
+LEAK_SENTINEL = "secret-value-that-must-not-leak"
+REDACTION_SENTINELS = (*SECRET_VALUES, LEAK_SENTINEL)
 
 
 class _SmokeRAG:
@@ -128,6 +135,27 @@ class _SmokeRAG:
             retrieval_time_ms=0.0,
             rerank_time_ms=0.0,
         )
+
+
+class _SmokeGovernanceDB:
+    def __init__(self) -> None:
+        self.added: list[Any] = []
+        self.commits = 0
+
+    def query(self, _model: Any) -> "_SmokeGovernanceDB":
+        return self
+
+    def filter(self, *_args: Any, **_kwargs: Any) -> "_SmokeGovernanceDB":
+        return self
+
+    def first(self) -> None:
+        return None
+
+    def add(self, item: Any) -> None:
+        self.added.append(item)
+
+    def commit(self) -> None:
+        self.commits += 1
 
 
 def _build_ledger(temp_root: Path) -> LedgerRAGSearch:
@@ -237,6 +265,38 @@ async def _publish_trace_events(
     )
     assert marketplace_api_event_id is not None
 
+    governance_db = _SmokeGovernanceDB()
+    governance_result = execute_maas_governance_action(
+        {
+            "type": "update_config",
+            "params": {
+                "key": "global_price_multiplier",
+                "value": 1.25,
+                "api_token": LEAK_SENTINEL,
+            },
+        },
+        governance_db,
+        event_bus=bus,
+        policy_engine=_allow_policy(
+            SECRET_VALUES[0],
+            MAAS_GOVERNANCE_UPDATE_CONFIG_RESOURCE,
+        ),
+        require_policy=True,
+        spiffe_id=SECRET_VALUES[0],
+        did=SECRET_VALUES[1],
+        wallet_address=SECRET_VALUES[2],
+        proposal_id="proposal-smoke-1",
+        user_id="user-smoke-1",
+    )
+    assert governance_result["success"] is True
+    assert governance_db.commits == 1
+    governance_events = bus.get_event_history(
+        event_type=EventType.PIPELINE_STAGE_END,
+        source_agent=MAAS_GOVERNANCE_SERVICE_NAME,
+    )
+    assert governance_events
+    governance_event_id = governance_events[-1].event_id
+
     dao_executor = DAOExecutor.__new__(DAOExecutor)
     dao_executor.event_bus = bus
     dao_executor.source_agent = DAO_SERVICE_NAME
@@ -255,7 +315,7 @@ async def _publish_trace_events(
             "proposal_id": 404,
             "title": "HELM_UPGRADE smoke denied",
             "script_path": "scripts/release_to_main.sh",
-            "api_token": "secret-value-that-must-not-leak",
+            "api_token": LEAK_SENTINEL,
         },
         success=False,
         reason="policy denied in ledger event trace citation smoke",
@@ -287,7 +347,7 @@ async def _publish_trace_events(
         context={
             "node_id": "node-smoke-1",
             "reason": "ledger event trace citation smoke",
-            "api_token": "secret-value-that-must-not-leak",
+            "api_token": LEAK_SENTINEL,
         },
         stage="policy_denied",
         result=recovery_result,
@@ -406,7 +466,7 @@ async def _publish_trace_events(
         signer_cmd=(
             "pqc_signer",
             "--private-key",
-            "secret-value-that-must-not-leak",
+            LEAK_SENTINEL,
         ),
         report_generator=None,
         event_bus=bus,
@@ -450,7 +510,7 @@ async def _publish_trace_events(
             "actions": ["full health check"],
             "priority": "medium",
             "estimated_duration": 5,
-            "plan_data": {"api_token": "secret-value-that-must-not-leak"},
+            "plan_data": {"api_token": LEAK_SENTINEL},
         }
     )
     assert pqc_healer_result["success"] is True
@@ -476,6 +536,11 @@ async def _publish_trace_events(
             "event_id": marketplace_api_event_id,
             "layer": MARKETPLACE_API_SERVICE_LAYER,
             "event_type": EventType.MARKETPLACE_ESCROW_HELD.value,
+        },
+        MAAS_GOVERNANCE_SERVICE_NAME: {
+            "event_id": governance_event_id,
+            "layer": MAAS_GOVERNANCE_SERVICE_LAYER,
+            "event_type": EventType.PIPELINE_STAGE_END.value,
         },
         DAO_SERVICE_NAME: {
             "event_id": dao_event_id,
@@ -541,10 +606,16 @@ def _restore_ledger_endpoint_dependencies(
     ledger_endpoints.EventBus = original_event_bus
 
 
+def _prepare_smoke_root(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    event_log = root / ".agent_coordination" / "events.log"
+    event_log.unlink(missing_ok=True)
+
+
 async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ledger-event-trace-smoke-") as tmp:
         root = temp_root or Path(tmp)
-        root.mkdir(parents=True, exist_ok=True)
+        _prepare_smoke_root(root)
 
         bus = EventBus(project_root=str(root))
         expected_events = await _publish_trace_events(bus, root)
@@ -589,7 +660,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
 
         assertions = {
             "indexed_successfully": index_body.get("status") == "success",
-            "citations_present": len(citations_by_service) >= 11,
+            "citations_present": len(citations_by_service) >= 12,
             "swarm_event_id_matches": (
                 citations_by_service.get(SWARM_SERVICE_NAME, {}).get("event_id")
                 == expected_events[SWARM_SERVICE_NAME]["event_id"]
@@ -615,6 +686,16 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "marketplace_api_layer_matches": (
                 citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {}).get("layer")
                 == MARKETPLACE_API_SERVICE_LAYER
+            ),
+            "maas_governance_event_id_matches": (
+                citations_by_service.get(MAAS_GOVERNANCE_SERVICE_NAME, {}).get(
+                    "event_id"
+                )
+                == expected_events[MAAS_GOVERNANCE_SERVICE_NAME]["event_id"]
+            ),
+            "maas_governance_layer_matches": (
+                citations_by_service.get(MAAS_GOVERNANCE_SERVICE_NAME, {}).get("layer")
+                == MAAS_GOVERNANCE_SERVICE_LAYER
             ),
             "dao_event_id_matches": (
                 citations_by_service.get(DAO_SERVICE_NAME, {}).get("event_id")
@@ -697,7 +778,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
                 for citation in citations_by_service.values()
             ),
             "secret_values_absent": all(
-                secret not in response_text for secret in SECRET_VALUES
+                secret not in response_text for secret in REDACTION_SENTINELS
             ),
         }
 
