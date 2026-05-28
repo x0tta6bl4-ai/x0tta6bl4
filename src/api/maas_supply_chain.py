@@ -12,11 +12,12 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.maas_auth import get_current_user_from_maas, require_role
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import MeshNode, NodeBinaryAttestation, SBOMEntry, User, get_db
 from src.utils.audit import record_audit_log
 
@@ -86,6 +87,85 @@ class BinaryVerifyRequest(BaseModel):
 
 def _db_session_available(db: Any) -> bool:
     return hasattr(db, "query") and hasattr(db, "commit")
+
+
+def _ebpf_attestation_filter_available() -> bool:
+    try:
+        from src.network.ebpf.map_manager import EBPFMapManager
+
+        return callable(getattr(EBPFMapManager, "update_attestation", None))
+    except Exception:
+        return False
+
+
+def _supply_chain_readiness_status(db: Any) -> Dict[str, Any]:
+    attestation_store_ready = _db_session_available(db)
+    sbom_registry_ready = bool(_sbom_registry)
+    audit_log_ready = attestation_store_ready and callable(record_audit_log)
+    ebpf_filter_adapter_ready = _ebpf_attestation_filter_available()
+    persistent_supply_chain_ready = (
+        attestation_store_ready
+        and audit_log_ready
+        and sbom_registry_ready
+    )
+
+    degraded_dependencies = []
+    if not attestation_store_ready:
+        degraded_dependencies.append("database")
+    if not sbom_registry_ready:
+        degraded_dependencies.append("legacy_sbom_registry")
+    if not audit_log_ready:
+        degraded_dependencies.append("audit_log")
+    if not ebpf_filter_adapter_ready:
+        degraded_dependencies.append("ebpf_attestation_filter")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "persistent_supply_chain_ready": persistent_supply_chain_ready,
+        "attestation_store_ready": attestation_store_ready,
+        "sbom_registry_ready": sbom_registry_ready,
+        "audit_log_ready": audit_log_ready,
+        "ebpf_filter_adapter_ready": ebpf_filter_adapter_ready,
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "SBOMEntry and NodeBinaryAttestation persistence require a "
+                "real SQLAlchemy session."
+            ),
+            "legacy_sbom_registry": (
+                "In-memory SBOM registry keeps compatibility verification alive "
+                "when the database path is absent."
+            ),
+            "audit_log": (
+                "SBOM registration audit evidence is persisted only when the "
+                "database-backed audit path is available."
+            ),
+            "ebpf_attestation_filter": (
+                "Binary verification can update the eBPF attestation adapter, "
+                "but readiness does not execute bpftool or prove a kernel map is loaded."
+            ),
+        },
+        "claim_boundary": (
+            "Supply-chain readiness distinguishes route availability from durable "
+            "SBOM and binary-attestation evidence. It does not prove external "
+            "Sigstore transparency, kernel eBPF map state, or production artifact "
+            "provenance beyond the local backing services listed above."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def supply_chain_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _supply_chain_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 def _coerce_components(components: List[Any]) -> List[Dict[str, Any]]:
