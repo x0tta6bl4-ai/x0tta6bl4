@@ -114,10 +114,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/readiness",
+      "runtime_readiness_field": "maas_legacy_runtime_ready",
+      "hidden_dependency": "The legacy MaaS router is registered in light mode before the modular MaaS routers and owns broad /api/v1/maas/{mesh_id}/... paths. It has no production_lifespan startup hook, but auth, mesh lifecycle, node approval/reissue, billing webhook, usage, telemetry, ACL, audit, MAPE-K, and pending-approval flows depend on module-level in-memory registries guarded by _registry_lock, MeshProvisioner, BillingService, UsageMeteringService, AuthService, SQLAlchemy User/BillingWebhookEvent/DBMeshInstance models, DB session methods, token_signer, AttestationService, optional PQC identity, local X-API-Key auth, MaaS auth RBAC dependencies, OIDC helpers, and dashboard static files with JSON fallback. Readiness exposes those local surfaces without mutating mesh state.",
       "source_refs": [
         "src/core/app.py:241",
-        "src/api/maas_legacy.py:67"
+        "src/api/maas_legacy.py:67",
+        "src/api/maas_legacy.py:809",
+        "src/api/maas_legacy.py:914"
       ]
     },
     {
