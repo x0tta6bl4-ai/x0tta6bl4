@@ -17,7 +17,7 @@ This document records the current code-level links between major x0tta6bl4 layer
 - Component registry drift-check: `tests/unit/test_component_registry_unit.py`.
 - Lifecycle readiness map: `docs/architecture/CURRENT_LIFECYCLE_READINESS_MAP.json`.
 - Lifecycle readiness drift-check: `tests/unit/test_lifecycle_readiness_map_unit.py`.
-- Runtime readiness flags: `/edge/health` and `/events/health` expose `startup_hook_completed`; `/api/v1/maas/marketplace/status` exposes `write_db_ready` for a route-only commerce module.
+- Runtime readiness flags: `/edge/health` and `/events/health` expose `startup_hook_completed`; `/api/v1/maas/marketplace/status` exposes `write_db_ready`; `/api/v1/maas/billing/readiness` exposes `stripe_config_ready`; `/api/v1/maas/governance/readiness` exposes `control_plane_ready` for route-only commerce, billing, and governance modules.
 - Namespace convergence map: `docs/architecture/CURRENT_NAMESPACE_CONVERGENCE_MAP.json`.
 - Namespace convergence drift-check: `tests/unit/test_namespace_convergence_map_unit.py`.
 - Canonical import direction map: `docs/architecture/CURRENT_CANONICAL_IMPORT_MAP.json`.
@@ -95,7 +95,7 @@ Local control/evidence plane
 
 7. Production lifecycle and API route inclusion are not the same thing. `src/core/app.py` includes `src.edge.api` and `src.event_sourcing.api` routers in all modes, but their startup/shutdown hooks are only called by `src/core/production_lifespan.py` when production lifespan is active.
 
-   Current lifecycle map details: 23 router registrations are tracked. `edge-computing` and `event-sourcing` are the only tracked routers with explicit `production_lifespan` startup/shutdown hooks, and both routes are still present in light mode where that lifespan is not attached. Their health payloads now expose `startup_hook_completed` so operators can separate route reachability from startup completion. The route-only marketplace API now exposes `write_db_ready` so operators can separate route availability from database-backed escrow/listing write readiness.
+   Current lifecycle map details: 23 router registrations are tracked. `edge-computing` and `event-sourcing` are the only tracked routers with explicit `production_lifespan` startup/shutdown hooks, and both routes are still present in light mode where that lifespan is not attached. Their health payloads now expose `startup_hook_completed` so operators can separate route reachability from startup completion. Route-only marketplace, billing, and governance APIs now expose runtime readiness fields so operators can separate route availability from database-backed writes, Stripe configuration, and local control-plane dispatch readiness.
 
 8. There are parallel package surfaces: `src/libx0t/...` and top-level `libx0t/...`. Current namespace map shows 154 top-level `libx0t` Python files, 114 `src/libx0t` Python files, 82 common paths, only 14 byte-identical common paths, and 68 differing common paths. This is a compatibility asset, but also a drift risk unless one surface is declared canonical.
 
@@ -135,7 +135,7 @@ Local control/evidence plane
 |---|---|---|
 | MaaS catch-all route shadowing class | Billing status shadowing was fixed by registering `src.api.maas_billing` before `src.api.maas_legacy` (`src/core/app.py:237-242`) and adding a direct route-match test. A light-mode audit checked 92 MaaS routes and found 0 shadowed routes after the fix. | Keep the route-audit command as a regression check, and add targeted tests when new fixed-prefix MaaS routers are introduced. |
 | Duplicate package surfaces | Namespace map shows `libx0t` and `src/libx0t` are not mirrors: 82 common Python paths, 68 differing common paths. Canonical import map now tracks 0 direct top-level imports inside `src/libx0t` and records five bridge modules for top-level-only network implementations. | Decide whether to migrate yggdrasil/byzantine/eBPF implementations behind the bridges or keep top-level `libx0t.network` as their source of truth. |
-| Runtime route without lifecycle | Lifecycle map tracks 23 router registrations. `edge-computing` and `event-sourcing` have explicit production hooks, but both routes are present in light mode where `production_lifespan` is not attached. Their health payloads now report `startup_hook_completed`. `maas-marketplace` remains route-import-only and now reports `write_db_ready` at `/api/v1/maas/marketplace/status`. | Extend this readiness distinction to the next route-only module with external backing state, such as billing/Stripe. |
+| Runtime route without lifecycle | Lifecycle map tracks 23 router registrations. `edge-computing` and `event-sourcing` have explicit production hooks, but both routes are present in light mode where `production_lifespan` is not attached. Their health payloads now report `startup_hook_completed`. `maas-marketplace` remains route-import-only and reports `write_db_ready` at `/api/v1/maas/marketplace/status`. `maas-billing` remains route-import-only and reports `stripe_config_ready` at `/api/v1/maas/billing/readiness`. `maas-governance` remains route-import-only and reports `control_plane_ready` at `/api/v1/maas/governance/readiness`. | Extend this readiness distinction to another route-only module with external backing state, such as supply-chain. |
 | Local evidence vs production settlement | Integration wiring report says `NOT_COMPLETE` for live settlement | Keep local wiring, live RPC receipt, and operator evidence as separate gates. |
 | Background service identity drift | 21 services call `service_event_identity()` and are now registered in `src/services/service_identity_registry.py`. | Keep the registry drift-check aligned with new service identity callers, and extend the status payload only with redacted metadata. |
 | Event/control-plane drift | Event map tracks 37 `src` files touching EventBus, service identity, event helpers, SafeActuator, AsyncSafeActuator, identity status, service trace filters, or EventBus-to-Ledger indexing. | Keep `tests/unit/test_event_control_plane_map_unit.py` as the guard when adding new event publishers, action executors, trace filters, or trace-memory bridges. |
@@ -160,6 +160,8 @@ Local control/evidence plane
    - Done: drift-check verifies all 23 app router registrations are covered and explicit hook claims are still true.
    - Done: `/edge/health` and `/events/health` expose `startup_hook_completed`.
    - Done: `/api/v1/maas/marketplace/status` exposes `write_db_ready` and degraded database dependency metadata for a route-only commerce module with escrow/listing write state.
+   - Done: `/api/v1/maas/billing/readiness` exposes `stripe_config_ready`, `stripe_plans_ready`, `write_db_ready`, and `legacy_metering_ready` for route-only billing with Stripe and invoice write state.
+   - Done: `/api/v1/maas/governance/readiness` exposes `control_plane_ready`, `governance_db_ready`, `policy_engine_ready`, `safe_actuator_ready`, and `service_identity_ready` for route-only governance action dispatch.
    - Next: extend the same readiness distinction to another route-only module with external backing state.
 
 4. Namespace convergence:
