@@ -318,6 +318,38 @@ def secondary_public_metadata_template_command(diagnostics_dir: Path = DIAGNOSTI
     }
 
 
+def secondary_post_provision_validation_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
+    return {
+        "id": "secondary_post_provision_validation",
+        "command": [
+            "python3",
+            str(diagnostics_dir / "build_secondary_exit_post_provision_validation.py"),
+            "--public-template",
+            str(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.json"),
+            "--candidate-score",
+            str(diagnostics_dir / "secondary-exit-candidate-score-2026-05-28.json"),
+            "--secondary-probe",
+            str(diagnostics_dir / "secondary-exit-probe-template-2026-05-28.json"),
+            "--failover-readiness",
+            str(diagnostics_dir / "manual-failover-readiness-2026-05-28.json"),
+            "--secondary-flow",
+            str(diagnostics_dir / "secondary-exit-flow-2026-05-28.json"),
+            "--manual-drill",
+            str(diagnostics_dir / "secondary-exit-manual-drill-2026-05-28.json"),
+            "--candidate-file",
+            str(diagnostics_dir / "secondary-exit-candidates.example.json"),
+            "--json-out",
+            str(diagnostics_dir / "secondary-exit-post-provision-validation-2026-05-28.json"),
+            "--markdown-out",
+            str(diagnostics_dir / "secondary-exit-post-provision-validation-2026-05-28.md"),
+        ],
+        "outputs": [
+            str(diagnostics_dir / "secondary-exit-post-provision-validation-2026-05-28.json"),
+            str(diagnostics_dir / "secondary-exit-post-provision-validation-2026-05-28.md"),
+        ],
+    }
+
+
 def local_diagnostic_environment_command(diagnostics_dir: Path = DIAGNOSTICS_DIR) -> dict[str, Any]:
     return {
         "id": "local_diagnostic_environment",
@@ -563,6 +595,7 @@ def command_plan(
         secondary_manual_drill_command(diagnostics_dir),
         secondary_selection_packet_command(diagnostics_dir),
         secondary_public_metadata_template_command(diagnostics_dir),
+        secondary_post_provision_validation_command(diagnostics_dir),
         local_diagnostic_environment_command(diagnostics_dir),
         local_root_cleanup_plan_command(diagnostics_dir),
         local_root_cleanup_approval_packet_command(diagnostics_dir),
@@ -702,6 +735,8 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
     secondary_selection_summary = secondary_selection.get("summary") or {}
     secondary_public_template = read_json(diagnostics_dir / "secondary-exit-public-metadata-template-2026-05-28.json")
     secondary_public_template_summary = secondary_public_template.get("summary") or {}
+    secondary_post_provision = read_json(diagnostics_dir / "secondary-exit-post-provision-validation-2026-05-28.json")
+    secondary_post_provision_summary = secondary_post_provision.get("summary") or {}
     local_env = read_json(diagnostics_dir / "local-diagnostic-environment-2026-05-28.json")
     local_env_summary = local_env.get("summary") or {}
     cleanup_plan = read_json(diagnostics_dir / "local-root-cleanup-plan-2026-05-28.json")
@@ -763,6 +798,19 @@ def build_summary(diagnostics_dir: Path) -> dict[str, Any]:
         "secondary_public_metadata_selected_label": secondary_public_template_summary.get("selected_label", "unknown"),
         "secondary_public_metadata_candidate_file_update_allowed": secondary_public_template_summary.get(
             "candidate_file_update_allowed",
+            "unknown",
+        ),
+        "secondary_post_provision_validation_status": secondary_post_provision.get("status", "unknown"),
+        "secondary_post_provision_can_generate_probe_config": secondary_post_provision_summary.get(
+            "can_generate_probe_config",
+            "unknown",
+        ),
+        "secondary_post_provision_can_run_public_probe": secondary_post_provision_summary.get(
+            "can_run_public_probe",
+            "unknown",
+        ),
+        "secondary_post_provision_test_client_allowed": secondary_post_provision_summary.get(
+            "test_client_allowed",
             "unknown",
         ),
         "local_diagnostic_environment_status": local_env.get("status", "unknown"),
@@ -863,6 +911,10 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_public_metadata_template_status={summary.get('secondary_public_metadata_template_status')}",
         f"secondary_public_metadata_selected_label={summary.get('secondary_public_metadata_selected_label')}",
         f"secondary_public_metadata_candidate_file_update_allowed={summary.get('secondary_public_metadata_candidate_file_update_allowed')}",
+        f"secondary_post_provision_validation_status={summary.get('secondary_post_provision_validation_status')}",
+        f"secondary_post_provision_can_generate_probe_config={summary.get('secondary_post_provision_can_generate_probe_config')}",
+        f"secondary_post_provision_can_run_public_probe={summary.get('secondary_post_provision_can_run_public_probe')}",
+        f"secondary_post_provision_test_client_allowed={summary.get('secondary_post_provision_test_client_allowed')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
