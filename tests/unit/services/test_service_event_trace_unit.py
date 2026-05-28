@@ -7,7 +7,7 @@ from src.services.service_event_trace import (
     service_event_trace_history,
     service_event_trace_filter,
 )
-from src.services.service_identity_registry import KNOWN_EVENT_IDENTITY_SERVICES
+from src.services.service_identity_registry import KNOWN_EVENT_TRACE_SERVICES
 
 
 def _source_agent(service: dict[str, str]) -> str:
@@ -19,7 +19,7 @@ def test_service_event_trace_filter_maps_layer_to_registered_source_agents():
 
     expected = sorted(
         _source_agent(service)
-        for service in KNOWN_EVENT_IDENTITY_SERVICES
+        for service in KNOWN_EVENT_TRACE_SERVICES
         if service["layer"] == "dao_to_control_plane"
     )
     assert trace_filter["status"] == "ok"
@@ -34,6 +34,16 @@ def test_service_event_trace_filter_reports_unknown_without_values():
     assert trace_filter["status"] == "unknown_filter"
     assert trace_filter["source_agents"] == []
     assert trace_filter["services"] == []
+
+
+def test_service_event_trace_filter_includes_route_only_marketplace_api():
+    trace_filter = service_event_trace_filter(service_name="maas-marketplace")
+
+    assert trace_filter["status"] == "ok"
+    assert trace_filter["source_agents"] == ["maas-marketplace"]
+    assert trace_filter["services"][0]["layer"] == "api_to_commerce"
+    assert trace_filter["services"][0]["entrypoint"] == "src/api/maas_marketplace.py"
+    assert trace_filter["services"][0]["identity_source"] == "request_user_identity"
 
 
 def test_service_event_trace_filter_uses_source_agent_alias():

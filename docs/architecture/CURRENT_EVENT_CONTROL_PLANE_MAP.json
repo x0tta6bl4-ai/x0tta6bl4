@@ -1,11 +1,12 @@
 {
-  "captured_at": "2026-05-27",
+  "captured_at": "2026-05-28",
   "status": "working_map_not_production_completion_proof",
   "scope": "EventBus, service identity, and SafeActuator cross-layer control plane surface.",
   "current_scan": {
     "scanned_root": "src",
     "event_surface_files": 39,
     "service_identity_services": 21,
+    "event_trace_services": 22,
     "event_type_values": 31,
     "markers": [
       "EventBus",
@@ -105,7 +106,7 @@
         "/api/v1/ledger/event-traces/status"
       ],
       "cli_surface": "python -m src.coordination.cli events --service-name <service> --layer <layer> --replay-agent <agent>",
-      "contract": "Maps registered service names, optional source_agent aliases, and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
+      "contract": "Maps trace-registered service/API names, optional source_agent aliases, and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
       "source_refs": [
         "src/services/service_event_trace.py:12",
         "src/services/service_event_trace.py:18",
@@ -792,7 +793,7 @@
     },
     {
       "id": "registered-service-trace-filter",
-      "summary": "Event history/replay can now be filtered through the same service identity registry, so operators can trace EventBus activity by registered service name or layer instead of raw source_agent strings. The HTTP trace surface redacts SPIFFE, DID, and wallet fields before returning event data.",
+      "summary": "Event history/replay can now be filtered through the trace registry, so operators can trace EventBus activity by registered service/API name or layer instead of raw source_agent strings. The HTTP trace surface redacts SPIFFE, DID, and wallet fields before returning event data.",
       "source_refs": [
         "src/services/service_event_trace.py:35",
         "src/services/service_event_trace.py:87",
@@ -803,6 +804,15 @@
         "src/coordination/events.py:282",
         "src/coordination/cli.py:213",
         "src/api/service_identity_status.py:36"
+      ]
+    },
+    {
+      "id": "route-only-marketplace-api-is-trace-visible",
+      "summary": "maas-marketplace emits escrow EventBus events from route-only API paths with request-user identity fields, so it is trace-registered separately from background services that call service_event_identity().",
+      "source_refs": [
+        "src/api/maas_marketplace.py:755",
+        "src/services/service_identity_registry.py:125",
+        "src/services/service_event_trace.py:27"
       ]
     },
     {

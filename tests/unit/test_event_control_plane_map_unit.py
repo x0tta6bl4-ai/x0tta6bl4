@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.services.service_identity_registry import KNOWN_EVENT_IDENTITY_SERVICES
+from src.services.service_identity_registry import (
+    KNOWN_EVENT_IDENTITY_SERVICES,
+    KNOWN_EVENT_TRACE_SERVICES,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -109,6 +112,14 @@ def test_event_control_plane_map_tracks_service_identity_registry_size():
     assert (
         event_map["shared_contracts"]["service_identity_status"]["services_total"]
         == services_total
+    )
+
+
+def test_event_control_plane_map_tracks_event_trace_registry_size():
+    event_map = _load_map()
+
+    assert event_map["current_scan"]["event_trace_services"] == len(
+        KNOWN_EVENT_TRACE_SERVICES
     )
 
 
