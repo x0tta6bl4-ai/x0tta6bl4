@@ -9,10 +9,11 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from src.coordination.events import EventBus, EventType
+from src.core.reliability_policy import mark_degraded_dependency
 from src.ledger.rag_search import get_ledger_rag
 from src.services.service_event_trace import service_event_trace_history
 
@@ -119,6 +120,146 @@ def _metadata_with_citations(
     if citations:
         response_metadata["citations"] = citations
     return response_metadata
+
+
+def _ledger_rag_surface_available(ledger_rag: Any) -> bool:
+    return all(
+        callable(getattr(ledger_rag, attr, None))
+        for attr in ("is_indexed", "index_ledger", "query")
+    )
+
+
+def _ledger_continuity_file_available(ledger_rag: Any) -> bool:
+    continuity_file = getattr(ledger_rag, "continuity_file", None)
+    return continuity_file is not None and callable(
+        getattr(continuity_file, "exists", None)
+    )
+
+
+def _ledger_verification_evidence_available(ledger_rag: Any) -> bool:
+    return all(
+        callable(getattr(ledger_rag, attr, None))
+        for attr in (
+            "is_verification_indexed",
+            "index_verification_evidence",
+            "verification_evidence_status",
+        )
+    )
+
+
+def _ledger_event_trace_index_available(ledger_rag: Any) -> bool:
+    return all(
+        callable(getattr(ledger_rag, attr, None))
+        for attr in ("index_event_traces", "event_trace_status")
+    )
+
+
+def _ledger_event_trace_dependencies_available() -> bool:
+    return callable(EventBus) and callable(service_event_trace_history) and bool(
+        getattr(EventType, "__members__", None)
+    )
+
+
+def _safe_file_exists(ledger_rag: Any) -> bool:
+    continuity_file = getattr(ledger_rag, "continuity_file", None)
+    exists = getattr(continuity_file, "exists", None)
+    if not callable(exists):
+        return False
+    return bool(exists())
+
+
+def _safe_is_indexed(ledger_rag: Any) -> bool:
+    is_indexed = getattr(ledger_rag, "is_indexed", None)
+    if not callable(is_indexed):
+        return False
+    return bool(is_indexed())
+
+
+def _ledger_readiness_status(ledger_rag: Any) -> Dict[str, Any]:
+    rag_surface_ready = _ledger_rag_surface_available(ledger_rag)
+    continuity_file_ready = _ledger_continuity_file_available(ledger_rag)
+    verification_evidence_ready = _ledger_verification_evidence_available(ledger_rag)
+    event_trace_index_ready = _ledger_event_trace_index_available(ledger_rag)
+    event_trace_dependencies_ready = _ledger_event_trace_dependencies_available()
+    file_exists = _safe_file_exists(ledger_rag)
+    indexed = _safe_is_indexed(ledger_rag)
+    ledger_runtime_ready = (
+        rag_surface_ready
+        and continuity_file_ready
+        and file_exists
+        and verification_evidence_ready
+        and event_trace_index_ready
+        and event_trace_dependencies_ready
+    )
+
+    degraded_dependencies = []
+    if not rag_surface_ready:
+        degraded_dependencies.append("rag")
+    if not continuity_file_ready or not file_exists:
+        degraded_dependencies.append("continuity_file")
+    if not verification_evidence_ready:
+        degraded_dependencies.append("verification_evidence")
+    if not event_trace_index_ready:
+        degraded_dependencies.append("event_trace_index")
+    if not event_trace_dependencies_ready:
+        degraded_dependencies.append("event_trace_dependencies")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "ledger_runtime_ready": ledger_runtime_ready,
+        "indexed": indexed,
+        "continuity_file": str(getattr(ledger_rag, "continuity_file", "")),
+        "file_exists": file_exists,
+        "rag_surface_ready": rag_surface_ready,
+        "continuity_file_ready": continuity_file_ready,
+        "verification_evidence_ready": verification_evidence_ready,
+        "event_trace_index_ready": event_trace_index_ready,
+        "event_trace_dependencies_ready": event_trace_dependencies_ready,
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/api/v1/ledger",
+            "boundary": (
+                "Ledger routes use the fixed /api/v1/ledger prefix, so they are "
+                "outside legacy MaaS catch-all matching. They are still "
+                "full-mode-only because src.core.app only registers this router "
+                "when light mode is disabled."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "rag": (
+                "Search and indexing depend on get_ledger_rag exposing is_indexed, "
+                "index_ledger, and query."
+            ),
+            "continuity_file": (
+                "The base ledger index is anchored on ledger_rag.continuity_file "
+                "and its exists() check."
+            ),
+            "verification_evidence": (
+                "Verification evidence indexing/status depends on the ledger RAG "
+                "verification evidence methods."
+            ),
+            "event_trace_index": (
+                "Runtime EventBus traces are indexed through ledger_rag "
+                "event-trace methods."
+            ),
+            "event_trace_dependencies": (
+                "Event trace indexing depends on EventBus, EventType, and "
+                "service_event_trace_history."
+            ),
+        },
+        "claim_boundary": (
+            "Ledger readiness proves that the API can see the local RAG surfaces, "
+            "continuity file handle, verification evidence methods, and EventBus "
+            "trace indexing surfaces. It does not perform indexing, execute a "
+            "semantic query, or prove the vector store contains fresh data."
+        ),
+    }
 
 
 def _search_response_from_result(query: str, result: Any) -> SearchResponse:
@@ -241,17 +382,16 @@ async def index_ledger(force: bool = False, include_verification: bool = False):
 
 
 @router.get("/status")
-async def ledger_status():
+async def ledger_status(request: Request):
     """
     Статус индексирования ledger.
     """
     try:
         ledger_rag = get_ledger_rag()
-        return {
-            "indexed": ledger_rag.is_indexed(),
-            "continuity_file": str(ledger_rag.continuity_file),
-            "file_exists": ledger_rag.continuity_file.exists(),
-        }
+        payload = _ledger_readiness_status(ledger_rag)
+        for dependency in payload["degraded_dependencies"]:
+            mark_degraded_dependency(request, dependency)
+        return payload
     except Exception as e:
         logger.error(f"Ошибка при получении статуса: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
