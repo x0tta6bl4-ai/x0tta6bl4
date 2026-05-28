@@ -80,6 +80,26 @@ def test_lifecycle_readiness_source_refs_resolve_to_existing_files_and_lines():
         assert 1 <= int(line_text) <= line_count, source_ref
 
 
+def test_route_import_only_routers_expose_runtime_readiness_contracts():
+    lifecycle_map = _load_map()
+
+    route_only = [
+        router
+        for router in lifecycle_map["routers"]
+        if router["lifecycle_binding"] == "route_import_only"
+    ]
+    assert route_only
+
+    for router in route_only:
+        assert router.get("readiness_signal") not in {None, "none_explicit"}, router["id"]
+        assert router.get("runtime_readiness_field"), router["id"]
+        assert router["runtime_readiness_field"] in _module_path(
+            router["module"]
+        ).read_text(encoding="utf-8"), router["id"]
+        assert "hidden_dependency" in router, router["id"]
+        assert len(router["hidden_dependency"]) >= 80, router["id"]
+
+
 def test_lifecycle_hooks_are_declared_in_router_modules_and_called_by_lifespan():
     lifecycle_map = _load_map()
     lifespan_source = LIFESPAN_PATH.read_text(encoding="utf-8")
