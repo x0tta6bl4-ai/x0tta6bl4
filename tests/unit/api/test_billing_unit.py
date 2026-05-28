@@ -4,11 +4,13 @@ Tests _verify_stripe_signature (HMAC-SHA256), _get_env, _require_env,
 billing_config, checkout-session, webhook email extraction, and event filtering.
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
 import os
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -31,10 +33,17 @@ pytestmark = pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi not avail
 # ---------------------------------------------------------------------------
 
 try:
-    from src.api.billing import (CheckoutSessionRequest, _get_env,
-                                 _require_env, _verify_stripe_signature,
-                                 billing_config, create_checkout_session,
-                                 router, stripe_webhook)
+    import src.api.billing as billing_mod
+    from src.api.billing import (
+        CheckoutSessionRequest,
+        _get_env,
+        _require_env,
+        _verify_stripe_signature,
+        billing_config,
+        create_checkout_session,
+        router,
+        stripe_webhook,
+    )
 
     BILLING_AVAILABLE = True
 except ImportError:
@@ -207,6 +216,146 @@ class TestBillingConfig:
         assert body["configured"] is True
         assert body["publishable_key"] == "pk_test_123"
         assert body["price_id"] == "price_123"
+
+
+# ===========================================================================
+# TestBillingReadiness
+# ===========================================================================
+
+
+def _model_with_attrs(**attrs):
+    return type("Model", (), attrs)
+
+
+def _force_billing_api_dependencies_ready(monkeypatch):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_PRICE_ID", "price_123")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    monkeypatch.setattr(
+        billing_mod,
+        "httpx",
+        SimpleNamespace(AsyncClient=object),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "stripe_circuit",
+        SimpleNamespace(call=lambda operation: operation()),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "generate_vless_link",
+        lambda *_args, **_kwargs: "",
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "_billing_api_provisioning_imports_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "BillingWebhookEvent",
+        _model_with_attrs(
+            event_id="",
+            event_type="",
+            payload_hash="",
+            status="",
+            response_json="",
+            created_at="",
+        ),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "User",
+        _model_with_attrs(
+            email="",
+            plan="",
+            vpn_uuid="",
+            stripe_customer_id="",
+            stripe_subscription_id="",
+        ),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "License",
+        _model_with_attrs(token="", user_id="", tier="", is_active=""),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "Payment",
+        _model_with_attrs(status="", amount=0),
+    )
+    monkeypatch.setattr(
+        billing_mod,
+        "Invoice",
+        _model_with_attrs(status="", total_amount=0),
+    )
+
+
+class TestBillingReadiness:
+    def test_router_has_readiness_route(self):
+        route_paths = [r.path for r in router.routes]
+        assert "/api/v1/billing/readiness" in route_paths
+
+    def test_ready_when_local_dependencies_are_available(self, monkeypatch):
+        _force_billing_api_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query", "add", "commit", "rollback"])
+
+        payload = billing_mod._billing_api_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["billing_api_runtime_ready"] is True
+        assert payload["billing_api_db_ready"] is True
+        assert payload["stripe_checkout_config_ready"] is True
+        assert payload["stripe_webhook_config_ready"] is True
+        assert payload["stripe_transport_ready"] is True
+        assert payload["billing_models_ready"] is True
+        assert payload["vless_link_ready"] is True
+        assert payload["provisioning_imports_ready"] is True
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+        monkeypatch.delenv("STRIPE_PRICE_ID", raising=False)
+        monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+        monkeypatch.setattr(billing_mod, "httpx", SimpleNamespace(AsyncClient=None))
+        monkeypatch.setattr(billing_mod, "stripe_circuit", SimpleNamespace(call=None))
+        monkeypatch.setattr(billing_mod, "generate_vless_link", None)
+        monkeypatch.setattr(
+            billing_mod,
+            "_billing_api_provisioning_imports_available",
+            lambda: False,
+        )
+        monkeypatch.setattr(
+            billing_mod,
+            "BillingWebhookEvent",
+            _model_with_attrs(event_id=""),
+        )
+
+        payload = billing_mod._billing_api_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["billing_api_runtime_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "stripe_checkout_config",
+            "stripe_webhook_config",
+            "stripe_transport",
+            "billing_models",
+            "vless_link_generator",
+            "provisioning_imports",
+        ]
+        assert "does not call Stripe" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_billing_api_dependencies_ready(monkeypatch)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            billing_mod.billing_api_readiness(request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database"}
 
 
 # ===========================================================================
