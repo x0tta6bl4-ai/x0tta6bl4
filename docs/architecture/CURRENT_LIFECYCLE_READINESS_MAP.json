@@ -166,10 +166,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/supply-chain",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/supply-chain/readiness",
+      "runtime_readiness_field": "persistent_supply_chain_ready",
+      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Durable SBOM and binary attestation evidence depend on database-backed SBOMEntry and NodeBinaryAttestation state, audit-log persistence, a legacy in-memory SBOM registry for compatibility verification, and a lazy eBPF attestation filter adapter. Readiness separates route availability from persistent supply-chain evidence and kernel-filter adapter availability.",
       "source_refs": [
         "src/core/app.py:245",
-        "src/api/maas_supply_chain.py:25"
+        "src/api/maas_supply_chain.py:26",
+        "src/api/maas_supply_chain.py:101",
+        "src/api/maas_supply_chain.py:160"
       ]
     },
     {
@@ -216,10 +220,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/analytics",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/analytics/readiness",
+      "runtime_readiness_field": "analytics_runtime_ready",
+      "hidden_dependency": "Route is registered in light mode without a production_lifespan hook. Analytics summary, timeseries, and ROI routes depend on database-backed mesh, node, invoice, and listing state through MaaSAnalyticsService, with optional Redis real-time telemetry for traffic and latency enrichment. Readiness separates route availability from DB aggregation readiness and Redis telemetry degradation.",
       "source_refs": [
         "src/core/app.py:248",
-        "src/api/maas_analytics.py:24"
+        "src/api/maas_analytics.py:26",
+        "src/api/maas_analytics.py:56",
+        "src/api/maas_analytics.py:108"
       ]
     },
     {

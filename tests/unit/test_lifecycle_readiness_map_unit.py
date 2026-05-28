@@ -182,3 +182,46 @@ def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
     assert "safe_actuator_ready" in source
     assert "service_identity_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_supply_chain_route_only_evidence_readiness():
+    lifecycle_map = _load_map()
+    supply_chain = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-supply-chain"
+    )
+    source = _module_path(supply_chain["module"]).read_text(encoding="utf-8")
+
+    assert supply_chain["lifecycle_binding"] == "route_import_only"
+    assert supply_chain["registration_mode"] == "always"
+    assert supply_chain["route_present_in_light_mode"] is True
+    assert supply_chain["readiness_signal"] == "/api/v1/maas/supply-chain/readiness"
+    assert supply_chain["runtime_readiness_field"] == "persistent_supply_chain_ready"
+    assert "database-backed SBOMEntry and NodeBinaryAttestation state" in supply_chain["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "persistent_supply_chain_ready" in source
+    assert "attestation_store_ready" in source
+    assert "audit_log_ready" in source
+    assert "ebpf_filter_adapter_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_analytics_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    analytics = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "maas-analytics"
+    )
+    source = _module_path(analytics["module"]).read_text(encoding="utf-8")
+
+    assert analytics["lifecycle_binding"] == "route_import_only"
+    assert analytics["registration_mode"] == "always"
+    assert analytics["route_present_in_light_mode"] is True
+    assert analytics["readiness_signal"] == "/api/v1/maas/analytics/readiness"
+    assert analytics["runtime_readiness_field"] == "analytics_runtime_ready"
+    assert "MaaSAnalyticsService" in analytics["hidden_dependency"]
+    assert "Redis real-time telemetry" in analytics["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "analytics_runtime_ready" in source
+    assert "analytics_db_ready" in source
+    assert "analytics_service_ready" in source
+    assert "realtime_telemetry_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
