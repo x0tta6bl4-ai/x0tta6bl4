@@ -367,10 +367,13 @@
       "router_prefix": "/api/v3/swarm",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v3/swarm/health",
+      "runtime_readiness_field": "swarm_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v3/swarm fixed prefix is outside legacy MaaS catch-all matching, but create/submit/control/scale/terminate/vision flows depend on the in-memory _swarms registry, _swarm_lock, ADMIN_TOKEN, slowapi rate limits, lazy SwarmConfig/SwarmOrchestrator imports, lazy src.swarm.Task import, and lazy get_vision_engine import with its local image-processing stack. Health readiness reports registry counts but does not create or validate live swarms.",
       "source_refs": [
         "src/core/app.py:258",
-        "src/api/swarm.py:34",
-        "src/api/swarm.py:572"
+        "src/api/swarm.py:37",
+        "src/api/swarm.py:111",
+        "src/api/swarm.py:719"
       ]
     },
     {
@@ -382,10 +385,13 @@
       "router_prefix": "/api/v1/ledger",
       "lifecycle_binding": "route_import_only",
       "readiness_signal": "/api/v1/ledger/status",
+      "runtime_readiness_field": "ledger_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/ledger fixed prefix is outside legacy MaaS catch-all matching, but search/index/status/evidence/event-trace flows depend on get_ledger_rag, the CONTINUITY ledger file handle and exists() check, RAG search/index/query methods, verification evidence indexing/status methods, EventBus trace indexing/status methods, EventBus/EventType, and service_event_trace_history. Status readiness reports those local surfaces but does not run indexing or prove vector data is fresh.",
       "source_refs": [
         "src/core/app.py:259",
-        "src/api/ledger_endpoints.py:18",
-        "src/api/ledger_endpoints.py:119"
+        "src/api/ledger_endpoints.py:22",
+        "src/api/ledger_endpoints.py:178",
+        "src/api/ledger_endpoints.py:384"
       ]
     },
     {

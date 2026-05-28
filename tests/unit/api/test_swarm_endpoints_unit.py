@@ -28,6 +28,13 @@ def _fake_swarm(
     )
 
 
+def _force_swarm_dependencies_ready(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "expected-token")
+    monkeypatch.setattr(swarm_api, "_swarm_orchestrator_available", lambda: True)
+    monkeypatch.setattr(swarm_api, "_swarm_task_model_available", lambda: True)
+    monkeypatch.setattr(swarm_api, "_swarm_vision_engine_available", lambda: True)
+
+
 @pytest.mark.asyncio
 async def test_verify_admin_token_requires_configuration(monkeypatch):
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
@@ -103,3 +110,62 @@ async def test_terminate_swarm_removes_registry_entry(monkeypatch):
     assert response.json()["status"] == "terminated"
     assert "s-1" not in swarms
     target_swarm.terminate.assert_awaited_once_with(graceful=False)
+
+
+def test_swarm_readiness_ready_when_core_dependencies_are_available(monkeypatch):
+    _force_swarm_dependencies_ready(monkeypatch)
+    monkeypatch.setattr(swarm_api, "_swarms", {"s-1": _fake_swarm()})
+
+    payload = swarm_api._swarm_readiness_status()
+
+    assert payload["status"] == "healthy"
+    assert payload["swarm_runtime_ready"] is True
+    assert payload["registry_ready"] is True
+    assert payload["admin_token_ready"] is True
+    assert payload["rate_limiter_ready"] is True
+    assert payload["orchestrator_ready"] is True
+    assert payload["task_model_ready"] is True
+    assert payload["vision_engine_ready"] is True
+    assert payload["active_swarms"] == 1
+    assert payload["total_agents"] == 0
+    assert payload["degraded_dependencies"] == []
+
+
+def test_swarm_readiness_degraded_when_dependencies_are_missing(monkeypatch):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.setattr(swarm_api, "_swarms", [])
+    monkeypatch.setattr(swarm_api, "_swarm_lock", SimpleNamespace())
+    monkeypatch.setattr(swarm_api, "limiter", SimpleNamespace(limit=None))
+    monkeypatch.setattr(swarm_api, "_swarm_orchestrator_available", lambda: False)
+    monkeypatch.setattr(swarm_api, "_swarm_task_model_available", lambda: False)
+    monkeypatch.setattr(swarm_api, "_swarm_vision_engine_available", lambda: False)
+
+    payload = swarm_api._swarm_readiness_status()
+
+    assert payload["status"] == "degraded"
+    assert payload["swarm_runtime_ready"] is False
+    assert payload["active_swarms"] is None
+    assert payload["total_agents"] is None
+    assert payload["degraded_dependencies"] == [
+        "registry",
+        "admin_token",
+        "rate_limiter",
+        "orchestrator",
+        "task_model",
+        "vision_engine",
+    ]
+    assert "in-memory _swarms registry" in payload["backing_state"]["registry"]
+    assert "does not create a swarm" in payload["claim_boundary"]
+
+
+@pytest.mark.asyncio
+async def test_swarm_health_marks_degraded_dependencies(monkeypatch):
+    _force_swarm_dependencies_ready(monkeypatch)
+    monkeypatch.setattr(swarm_api, "_swarms", [])
+    monkeypatch.setattr(swarm_api, "_swarm_lock", SimpleNamespace())
+    request = SimpleNamespace(state=SimpleNamespace())
+
+    payload = await swarm_api.swarm_health(request)
+
+    assert payload["status"] == "degraded"
+    assert request.state.degraded_dependencies == {"registry"}
