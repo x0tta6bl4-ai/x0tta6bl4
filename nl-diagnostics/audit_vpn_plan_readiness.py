@@ -43,6 +43,9 @@ DEFAULT_SECONDARY_SELECTION_PACKET = DIAGNOSTICS_DIR / "secondary-exit-selection
 DEFAULT_SECONDARY_PUBLIC_METADATA_TEMPLATE = (
     DIAGNOSTICS_DIR / "secondary-exit-public-metadata-template-2026-05-28.json"
 )
+DEFAULT_SECONDARY_POST_PROVISION_VALIDATION = (
+    DIAGNOSTICS_DIR / "secondary-exit-post-provision-validation-2026-05-28.json"
+)
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PACKET = DIAGNOSTICS_DIR / "local-root-cleanup-approval-packet-2026-05-28.json"
@@ -998,6 +1001,48 @@ def audit_secondary_public_metadata_template(public_template: dict[str, Any]) ->
     )
 
 
+def audit_secondary_post_provision_validation(post_validation: dict[str, Any]) -> dict[str, Any]:
+    status = str(post_validation.get("status") or "missing")
+    summary = post_validation.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(post_validation, "nl_mutation_allowed"),
+            flag_is_false(post_validation, "spb_fallback_allowed"),
+            flag_is_false(post_validation, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("safe_flags") is True,
+        ]
+    )
+    ready = safe and status in {
+        "post_provision_validation_ready_waiting_endpoint",
+        "post_provision_validation_score_public_metadata",
+        "post_provision_validation_ready_for_probe_config",
+        "post_provision_validation_public_probe_needed",
+        "post_provision_validation_endpoint_ready_no_incident",
+        "post_provision_validation_test_client_ready",
+        "post_provision_validation_manual_switch_ready",
+    }
+    return item(
+        item_id="FAILOVER-13",
+        title="Secondary post-provision validation is ordered before client tests",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_post_provision_validation_status={status}",
+            f"selected_label={summary.get('selected_label', 'missing')}",
+            f"candidate_score_status={summary.get('candidate_score_status', 'missing')}",
+            f"viable_count={summary.get('viable_count', 'missing')}",
+            f"secondary_probe_status={summary.get('secondary_probe_status', 'missing')}",
+            f"can_generate_probe_config={str(summary.get('can_generate_probe_config')).lower()}",
+            f"can_run_public_probe={str(summary.get('can_run_public_probe')).lower()}",
+            f"test_client_allowed={str(summary.get('test_client_allowed')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="after endpoint provisioning, score public metadata, generate probe config, and run public probe first",
+    )
+
+
 def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     status = str(transport_probe.get("status") or "missing")
     ok_count = transport_probe.get("ok_count", "missing")
@@ -1252,6 +1297,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     secondary_manual_drill = inputs.get("secondary_manual_drill") or {}
     secondary_selection_packet = inputs.get("secondary_selection_packet") or {}
     secondary_public_metadata_template = inputs.get("secondary_public_metadata_template") or {}
+    secondary_post_provision_validation = inputs.get("secondary_post_provision_validation") or {}
     local_env = inputs.get("local_env") or {}
     local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     local_cleanup_packet = inputs.get("local_cleanup_packet") or {}
@@ -1286,6 +1332,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_secondary_manual_drill(secondary_manual_drill),
         audit_secondary_selection_packet(secondary_selection_packet),
         audit_secondary_public_metadata_template(secondary_public_metadata_template),
+        audit_secondary_post_provision_validation(secondary_post_provision_validation),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -1374,6 +1421,16 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "secondary_public_metadata_candidate_file_update_allowed": (
                 secondary_public_metadata_template.get("summary") or {}
             ).get("candidate_file_update_allowed", "missing"),
+            "secondary_post_provision_validation_status": secondary_post_provision_validation.get("status", "missing"),
+            "secondary_post_provision_can_generate_probe_config": (
+                secondary_post_provision_validation.get("summary") or {}
+            ).get("can_generate_probe_config", "missing"),
+            "secondary_post_provision_can_run_public_probe": (
+                secondary_post_provision_validation.get("summary") or {}
+            ).get("can_run_public_probe", "missing"),
+            "secondary_post_provision_test_client_allowed": (
+                secondary_post_provision_validation.get("summary") or {}
+            ).get("test_client_allowed", "missing"),
             "local_diagnostic_environment_status": local_env.get("status", "missing"),
             "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
             "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
@@ -1458,6 +1515,10 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"secondary_public_metadata_template_status={summary.get('secondary_public_metadata_template_status')}",
         f"secondary_public_metadata_selected_label={summary.get('secondary_public_metadata_selected_label')}",
         f"secondary_public_metadata_candidate_file_update_allowed={summary.get('secondary_public_metadata_candidate_file_update_allowed')}",
+        f"secondary_post_provision_validation_status={summary.get('secondary_post_provision_validation_status')}",
+        f"secondary_post_provision_can_generate_probe_config={summary.get('secondary_post_provision_can_generate_probe_config')}",
+        f"secondary_post_provision_can_run_public_probe={summary.get('secondary_post_provision_can_run_public_probe')}",
+        f"secondary_post_provision_test_client_allowed={summary.get('secondary_post_provision_test_client_allowed')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
@@ -1514,6 +1575,7 @@ def main() -> int:
     parser.add_argument("--secondary-manual-drill", default=str(DEFAULT_SECONDARY_MANUAL_DRILL))
     parser.add_argument("--secondary-selection-packet", default=str(DEFAULT_SECONDARY_SELECTION_PACKET))
     parser.add_argument("--secondary-public-metadata-template", default=str(DEFAULT_SECONDARY_PUBLIC_METADATA_TEMPLATE))
+    parser.add_argument("--secondary-post-provision-validation", default=str(DEFAULT_SECONDARY_POST_PROVISION_VALIDATION))
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--local-cleanup-packet", default=str(DEFAULT_LOCAL_CLEANUP_PACKET))
@@ -1534,6 +1596,7 @@ def main() -> int:
         Path(args.incident_symptom_intake).with_suffix(".md"),
         Path(args.secondary_selection_packet).with_suffix(".md"),
         Path(args.secondary_public_metadata_template).with_suffix(".md"),
+        Path(args.secondary_post_provision_validation).with_suffix(".md"),
         Path(args.failover).with_suffix(".md"),
     ]
     inputs = {
@@ -1554,6 +1617,7 @@ def main() -> int:
         "secondary_manual_drill": read_json(Path(args.secondary_manual_drill)),
         "secondary_selection_packet": read_json(Path(args.secondary_selection_packet)),
         "secondary_public_metadata_template": read_json(Path(args.secondary_public_metadata_template)),
+        "secondary_post_provision_validation": read_json(Path(args.secondary_post_provision_validation)),
         "local_env": read_json(Path(args.local_env)),
         "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "local_cleanup_packet": read_json(Path(args.local_cleanup_packet)),
