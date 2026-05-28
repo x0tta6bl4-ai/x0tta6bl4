@@ -37,6 +37,8 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "marketplace_layer_matches": True,
         "marketplace_api_event_id_matches": True,
         "marketplace_api_layer_matches": True,
+        "maas_governance_event_id_matches": True,
+        "maas_governance_layer_matches": True,
         "dao_event_id_matches": True,
         "dao_layer_matches": True,
         "recovery_event_id_matches": True,
@@ -63,6 +65,7 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
         "swarm-pbft",
         "maas-settlement",
         "maas-marketplace",
+        "maas-governance",
         "dao-executor",
         "recovery-action-executor",
         "mesh-vpn-bridge",
@@ -99,6 +102,17 @@ async def test_smoke_returns_event_backed_ledger_citation(tmp_path):
     assert marketplace_api["layer"] == "api_to_commerce"
     assert marketplace_api["entrypoint"] == "src/api/maas_marketplace.py"
     assert marketplace_api["redacted"] is True
+
+    maas_governance = citations["maas-governance"]
+    assert maas_governance["source"] == "EventBus"
+    assert maas_governance["source_class"] == "event_trace"
+    assert maas_governance["event_id"] == (
+        payload["events"]["maas-governance"]["event_id"]
+    )
+    assert maas_governance["event_type"] == "pipeline.stage_end"
+    assert maas_governance["layer"] == "api_to_control_plane"
+    assert maas_governance["entrypoint"] == "src/api/maas_governance.py"
+    assert maas_governance["redacted"] is True
 
     dao = citations["dao-executor"]
     assert dao["source"] == "EventBus"

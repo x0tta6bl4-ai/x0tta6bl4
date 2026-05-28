@@ -106,7 +106,7 @@
         "/api/v1/ledger/event-traces/status"
       ],
       "cli_surface": "python -m src.coordination.cli events --service-name <service> --layer <layer> --replay-agent <agent>",
-      "contract": "Maps trace-registered service/API names, optional source_agent aliases, and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact spiffe_id, did, and wallet_address values and do not authenticate events.",
+      "contract": "Maps trace-registered service/API names, optional source_agent aliases, and layers to EventBus source_agent filters for history/replay; HTTP trace output and Ledger RAG indexing recursively redact identity values plus common token/API-key fields and do not authenticate events.",
       "source_refs": [
         "src/services/service_event_trace.py:12",
         "src/services/service_event_trace.py:18",
