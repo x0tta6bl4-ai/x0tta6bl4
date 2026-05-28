@@ -354,6 +354,167 @@ class NodeUptimeTracker:
 uptime_tracker = NodeUptimeTracker()
 
 
+def _telemetry_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "commit"))
+
+
+def _mesh_node_model_available() -> bool:
+    return all(
+        hasattr(MeshNode, attr)
+        for attr in ("id", "mesh_id", "status", "last_seen", "ip_address", "device_class")
+    )
+
+
+def _redis_persistence_ready() -> bool:
+    return REDIS_AVAILABLE and r_client is not None
+
+
+def _fallback_cache_available() -> bool:
+    return all(
+        callable(getattr(_LOCAL_TELEMETRY_FALLBACK, attr, None))
+        for attr in ("get", "set", "get_stats")
+    )
+
+
+def _uptime_tracker_available() -> bool:
+    return all(
+        callable(getattr(uptime_tracker, attr, None))
+        for attr in ("record_heartbeat", "get_uptime_percent")
+    )
+
+
+def _reputation_system_available() -> bool:
+    return all(
+        callable(getattr(reputation_system, attr, None))
+        for attr in ("record_proxy_result", "get_proxy_trust")
+    )
+
+
+def _telemetry_readiness_status(db: Any) -> Dict[str, Any]:
+    telemetry_db_ready = _telemetry_db_session_available(db)
+    mesh_node_model_ready = _mesh_node_model_available()
+    redis_persistence_ready = _redis_persistence_ready()
+    fallback_cache_ready = _fallback_cache_available()
+    uptime_tracker_ready = _uptime_tracker_available()
+    settlement_uptime_ready = redis_persistence_ready and uptime_tracker_ready
+    reputation_system_ready = _reputation_system_available()
+    metrics_export_ready = callable(_record_heartbeat_metric)
+    auth_dependency_ready = callable(get_current_user_from_maas)
+    telemetry_runtime_ready = (
+        telemetry_db_ready
+        and mesh_node_model_ready
+        and fallback_cache_ready
+        and uptime_tracker_ready
+        and reputation_system_ready
+        and metrics_export_ready
+        and auth_dependency_ready
+    )
+
+    degraded_dependencies = []
+    if not telemetry_db_ready:
+        degraded_dependencies.append("database")
+    if not mesh_node_model_ready:
+        degraded_dependencies.append("mesh_node_model")
+    if not redis_persistence_ready:
+        degraded_dependencies.append("redis")
+    if not fallback_cache_ready:
+        degraded_dependencies.append("fallback_cache")
+    if not uptime_tracker_ready:
+        degraded_dependencies.append("uptime_tracker")
+    if not reputation_system_ready:
+        degraded_dependencies.append("reputation_system")
+    if not metrics_export_ready:
+        degraded_dependencies.append("heartbeat_metrics")
+    if not auth_dependency_ready:
+        degraded_dependencies.append("auth")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "telemetry_runtime_ready": telemetry_runtime_ready,
+        "telemetry_db_ready": telemetry_db_ready,
+        "mesh_node_model_ready": mesh_node_model_ready,
+        "redis_persistence_ready": redis_persistence_ready,
+        "fallback_cache_ready": fallback_cache_ready,
+        "uptime_tracker_ready": uptime_tracker_ready,
+        "settlement_uptime_ready": settlement_uptime_ready,
+        "reputation_system_ready": reputation_system_ready,
+        "metrics_export_ready": metrics_export_ready,
+        "auth_dependency_ready": auth_dependency_ready,
+        "legacy_route_shadowing": {
+            "shadowed_by_legacy": [
+                "POST /heartbeat",
+                "GET /{mesh_id}/topology",
+            ],
+            "import_level_runtime_users": [
+                "src.api.maas_nodes",
+                "src.services.marketplace_settlement",
+            ],
+            "boundary": (
+                "Legacy maas router is registered before maas_telemetry, so "
+                "HTTP heartbeat and topology requests are handled by legacy "
+                "routes. The Redis/fallback telemetry helpers and uptime tracker "
+                "remain active for maas_nodes imports and marketplace settlement."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Telemetry heartbeat updates MeshNode status, last_seen, and "
+                "observed IP address through SQLAlchemy."
+            ),
+            "mesh_node_model": (
+                "Topology and heartbeat paths depend on MeshNode identity, mesh, "
+                "status, last_seen, IP, and device class fields."
+            ),
+            "redis": (
+                "Redis is the durable high-frequency telemetry and uptime store. "
+                "Snapshot/history helpers fall back to local memory, but settlement "
+                "uptime uses the Redis-backed uptime tracker."
+            ),
+            "fallback_cache": (
+                "LRU fallback keeps node telemetry snapshots/history bounded when "
+                "Redis is unavailable."
+            ),
+            "uptime_tracker": (
+                "Marketplace settlement imports uptime_tracker and requires uptime "
+                "samples to decide escrow release/refund."
+            ),
+            "reputation_system": (
+                "Heartbeat processing feeds proxy success and latency into "
+                "ReputationScoringSystem."
+            ),
+            "heartbeat_metrics": (
+                "Heartbeat processing exports MaaS heartbeat metrics."
+            ),
+            "auth": (
+                "Topology route depends on maas_auth.get_current_user_from_maas."
+            ),
+        },
+        "claim_boundary": (
+            "Telemetry readiness separates route availability from Redis-backed "
+            "persistence, bounded local fallback, DB MeshNode updates, reputation "
+            "scoring, metrics export, settlement uptime, and legacy route precedence. "
+            "It does not prove that agents are actively sending fresh telemetry."
+        ),
+    }
+
+
+@router.get("/telemetry/readiness")
+async def telemetry_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _telemetry_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
+
+
 @router.post("/heartbeat")
 async def heartbeat(
     req: NodeHeartbeatRequest,

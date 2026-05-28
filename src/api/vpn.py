@@ -19,6 +19,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.core.cache import cache, cached
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import User, get_db
 from src.api.maas_auth import require_permission, get_current_user_from_maas
 from vpn_config_generator import XUIAPIClient
@@ -54,6 +55,196 @@ def _get_xui_client() -> XUIAPIClient:
     if xui is None:
         xui = XUIAPIClient()
     return xui
+
+
+def _vpn_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "commit"))
+
+
+def _vpn_user_model_available() -> bool:
+    return all(hasattr(User, attr) for attr in ("id", "email", "plan", "vpn_uuid"))
+
+
+def _vpn_config_generators_available() -> bool:
+    return all(
+        callable(fn)
+        for fn in (
+            generate_vless_link,
+            generate_config_text,
+            generate_experimental_link,
+            generate_experimental_text,
+        )
+    )
+
+
+def _vpn_cache_available() -> bool:
+    return all(callable(getattr(cache, attr, None)) for attr in ("get", "set", "delete"))
+
+
+def _vpn_auth_dependencies_available() -> bool:
+    return callable(require_permission) and callable(get_current_user_from_maas)
+
+
+def _vpn_legacy_admin_token_configured() -> bool:
+    return bool(os.getenv("ADMIN_TOKEN"))
+
+
+def _vpn_zkp_legacy_db_available() -> bool:
+    if _legacy_user_db is None:
+        return False
+    return all(
+        callable(getattr(_legacy_user_db, attr, None))
+        for attr in ("get_user", "is_user_active", "update_user")
+    )
+
+
+def _vpn_zkp_attestor_available() -> bool:
+    return callable(getattr(NIZKPAttestor, "verify_identity_proof", None))
+
+
+def _vpn_production_env_ready() -> bool:
+    if os.getenv("ENVIRONMENT", "development").lower() != "production":
+        return True
+    return all(
+        bool(os.getenv(name))
+        for name in (
+            "VPN_SERVER",
+            "VPN_PORT",
+            "VPN_SESSION_TOKEN",
+            "VPN_REALITY_PUBLIC_KEY",
+        )
+    )
+
+
+def _vpn_readiness_status(db: Any) -> Dict[str, Any]:
+    vpn_db_ready = _vpn_db_session_available(db)
+    user_model_ready = _vpn_user_model_available()
+    config_generators_ready = _vpn_config_generators_available()
+    xui_client_factory_ready = callable(XUIAPIClient)
+    cache_ready = _vpn_cache_available()
+    auth_dependency_ready = _vpn_auth_dependencies_available()
+    legacy_admin_token_ready = _vpn_legacy_admin_token_configured()
+    zkp_legacy_db_ready = _vpn_zkp_legacy_db_available()
+    zkp_attestor_ready = _vpn_zkp_attestor_available()
+    production_env_ready = _vpn_production_env_ready()
+    experimental_generator_ready = EXPERIMENTAL_AVAILABLE
+    vpn_runtime_ready = (
+        vpn_db_ready
+        and user_model_ready
+        and config_generators_ready
+        and xui_client_factory_ready
+        and cache_ready
+        and auth_dependency_ready
+        and zkp_legacy_db_ready
+        and zkp_attestor_ready
+        and production_env_ready
+    )
+
+    degraded_dependencies = []
+    if not vpn_db_ready:
+        degraded_dependencies.append("database")
+    if not user_model_ready:
+        degraded_dependencies.append("user_model")
+    if not config_generators_ready:
+        degraded_dependencies.append("vpn_config_generators")
+    if not xui_client_factory_ready:
+        degraded_dependencies.append("xui_client")
+    if not cache_ready:
+        degraded_dependencies.append("cache")
+    if not auth_dependency_ready:
+        degraded_dependencies.append("auth")
+    if not legacy_admin_token_ready:
+        degraded_dependencies.append("legacy_admin_token")
+    if not zkp_legacy_db_ready:
+        degraded_dependencies.append("zkp_legacy_db")
+    if not zkp_attestor_ready:
+        degraded_dependencies.append("zkp_attestor")
+    if not production_env_ready:
+        degraded_dependencies.append("production_vpn_env")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "vpn_runtime_ready": vpn_runtime_ready,
+        "vpn_db_ready": vpn_db_ready,
+        "user_model_ready": user_model_ready,
+        "config_generators_ready": config_generators_ready,
+        "xui_client_factory_ready": xui_client_factory_ready,
+        "cache_ready": cache_ready,
+        "auth_dependency_ready": auth_dependency_ready,
+        "legacy_admin_token_ready": legacy_admin_token_ready,
+        "zkp_legacy_db_ready": zkp_legacy_db_ready,
+        "zkp_attestor_ready": zkp_attestor_ready,
+        "production_env_ready": production_env_ready,
+        "experimental_generator_ready": experimental_generator_ready,
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/vpn",
+            "boundary": (
+                "VPN routes use the /vpn prefix, so MaaS legacy catch-all routes "
+                "do not shadow them. The router is still full-mode-only and has "
+                "no production_lifespan startup hook."
+            ),
+        },
+        "backing_state": {
+            "database": (
+                "VPN user listing and local revoke compatibility paths query and "
+                "update User rows."
+            ),
+            "user_model": (
+                "VPN routes depend on User id, email, plan, and vpn_uuid fields."
+            ),
+            "vpn_config_generators": (
+                "Config routes require VLESS link and Xray config text generators."
+            ),
+            "xui_client": (
+                "Config/status/admin routes lazily instantiate XUIAPIClient for "
+                "x-ui backed provisioning and active-user data."
+            ),
+            "cache": (
+                "Status and user-list routes use shared async cache get/set/delete."
+            ),
+            "auth": (
+                "Authenticated VPN access depends on MaaS permission checks; "
+                "legacy admin endpoints can also use X-Admin-Token."
+            ),
+            "legacy_admin_token": (
+                "X-Admin-Token admin compatibility requires ADMIN_TOKEN. MaaS "
+                "vpn:admin auth can still be used when configured."
+            ),
+            "zkp_legacy_db": (
+                "ZKP /vpn/authenticate binds proof public keys to the legacy user "
+                "database and checks subscription activity."
+            ),
+            "production_vpn_env": (
+                "Production secure config requires VPN_SERVER, VPN_PORT, "
+                "VPN_SESSION_TOKEN, and VPN_REALITY_PUBLIC_KEY."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "claim_boundary": (
+            "VPN readiness separates /vpn route reachability from lazy x-ui access, "
+            "config generation, local User DB state, cache, MaaS auth, legacy admin "
+            "token compatibility, ZKP legacy subscription checks, and production-only "
+            "VPN environment requirements. It does not prove that the VPN server is "
+            "currently reachable or that a generated credential can connect."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def vpn_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _vpn_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 class VPNConfigRequest(BaseModel):

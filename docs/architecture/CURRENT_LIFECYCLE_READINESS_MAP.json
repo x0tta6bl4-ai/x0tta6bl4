@@ -272,10 +272,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/maas",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/nodes/readiness",
+      "runtime_readiness_field": "node_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow POST /{mesh_id}/nodes/register, GET /{mesh_id}/nodes/pending, GET /{mesh_id}/nodes/all, GET /{mesh_id}/node-config/{node_id}, POST /{mesh_id}/nodes/{node_id}/approve, and POST /{mesh_id}/nodes/{node_id}/revoke. The DB-backed maas_nodes runtime still owns heartbeat, telemetry readback, ACL check, delete, and heal routes, which depend on SQLAlchemy MeshNode/MeshInstance/ACLPolicy/marketplace state, RBAC, signed join tokens, audit logging, optional maas_telemetry bridges, and optional healing service availability.",
       "source_refs": [
         "src/core/app.py:253",
-        "src/api/maas_nodes.py:49"
+        "src/api/maas_nodes.py:50",
+        "src/api/maas_nodes.py:467",
+        "src/api/maas_nodes.py:576"
       ]
     },
     {
@@ -304,10 +308,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/maas",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/telemetry/readiness",
+      "runtime_readiness_field": "telemetry_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. Legacy maas routes are registered earlier and shadow POST /heartbeat and GET /{mesh_id}/topology, but maas_telemetry helpers still back maas_nodes telemetry export/readback and marketplace settlement uptime checks. Readiness exposes DB MeshNode update readiness, Redis persistent telemetry and uptime state, bounded in-memory fallback, ReputationScoringSystem, heartbeat metrics export, auth dependency, and the legacy route-precedence boundary.",
       "source_refs": [
         "src/core/app.py:255",
-        "src/api/maas_telemetry.py:30"
+        "src/api/maas_telemetry.py:30",
+        "src/api/maas_telemetry.py:393",
+        "src/api/maas_telemetry.py:507"
       ]
     },
     {
@@ -318,10 +326,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/vpn",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/vpn/readiness",
+      "runtime_readiness_field": "vpn_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /vpn fixed prefix is not shadowed by legacy MaaS catch-all routes, but config/status/admin/ZKP flows depend on local User database state, VLESS/Xray config generators, lazy XUIAPIClient access, shared cache, MaaS permission checks, legacy X-Admin-Token compatibility, legacy ZKP subscription database helpers, NIZKPAttestor, and production-only VPN_SERVER/VPN_PORT/VPN_SESSION_TOKEN/VPN_REALITY_PUBLIC_KEY configuration.",
       "source_refs": [
         "src/core/app.py:256",
-        "src/api/vpn.py:45"
+        "src/api/vpn.py:46",
+        "src/api/vpn.py:119",
+        "src/api/vpn.py:239"
       ]
     },
     {
