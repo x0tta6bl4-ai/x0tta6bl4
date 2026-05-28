@@ -25,7 +25,7 @@ DEFAULT_BOOT_GAP = DIAGNOSTICS_DIR / "boot-gap-watch-2026-05-28.json"
 DEFAULT_PROVIDER_PACKET = (
     DIAGNOSTICS_DIR
     / "provider-incident-packets"
-    / "provider-incident-packet-20260528T011622Z.json"
+    / "provider-incident-packet-20260528T021824Z.json"
 )
 DEFAULT_HISTORY = DIAGNOSTICS_DIR / "blocking-probe-history-2026-05-28.json"
 DEFAULT_REFRESH = DIAGNOSTICS_DIR / "vpn-planning-refresh-2026-05-28.json"
@@ -34,6 +34,11 @@ DEFAULT_FAILOVER = DIAGNOSTICS_DIR / "manual-failover-plan-2026-05-28.json"
 DEFAULT_FAILOVER_READINESS = DIAGNOSTICS_DIR / "manual-failover-readiness-2026-05-28.json"
 DEFAULT_SECONDARY_SCORE = DIAGNOSTICS_DIR / "secondary-exit-candidate-score-2026-05-28.json"
 DEFAULT_SECONDARY_REQUIREMENTS = DIAGNOSTICS_DIR / "secondary-exit-requirements-2026-05-28.json"
+DEFAULT_SECONDARY_PROVIDER_SHORTLIST = DIAGNOSTICS_DIR / "secondary-exit-provider-shortlist-2026-05-28.json"
+DEFAULT_SECONDARY_INTAKE = DIAGNOSTICS_DIR / "secondary-exit-candidate-intake-2026-05-28.json"
+DEFAULT_SECONDARY_PROVISIONING_PLAN = DIAGNOSTICS_DIR / "secondary-exit-provisioning-plan-2026-05-28.json"
+DEFAULT_SECONDARY_FLOW = DIAGNOSTICS_DIR / "secondary-exit-flow-2026-05-28.json"
+DEFAULT_SECONDARY_MANUAL_DRILL = DIAGNOSTICS_DIR / "secondary-exit-manual-drill-2026-05-28.json"
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
 DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
@@ -619,6 +624,204 @@ def audit_secondary_candidate_score(secondary_score: dict[str, Any]) -> dict[str
     )
 
 
+def audit_secondary_candidate_intake(secondary_intake: dict[str, Any]) -> dict[str, Any]:
+    status = str(secondary_intake.get("status") or "missing")
+    summary = secondary_intake.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(secondary_intake, "nl_mutation_allowed"),
+            flag_is_false(secondary_intake, "spb_fallback_allowed"),
+            flag_is_false(secondary_intake, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    ready = safe and status in {
+        "awaiting_public_candidate_metadata",
+        "candidate_metadata_needs_fix",
+        "candidate_metadata_ready",
+        "candidate_file_needs_secret_cleanup",
+    }
+    return item(
+        item_id="FAILOVER-07",
+        title="Secondary candidate intake checklist exists without secrets",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_candidate_intake_status={status}",
+            f"candidate_file={summary.get('candidate_file', 'missing')}",
+            f"candidate_count={summary.get('candidate_count', 'missing')}",
+            f"viable_count={summary.get('viable_count', 'missing')}",
+            f"allowed_field_count={summary.get('allowed_field_count', 'missing')}",
+            f"forbidden_material_count={summary.get('forbidden_material_count', 'missing')}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="fill only public metadata in the local candidate file, then rerun scorer and refresh",
+    )
+
+
+def audit_secondary_provider_shortlist(provider_shortlist: dict[str, Any]) -> dict[str, Any]:
+    status = str(provider_shortlist.get("status") or "missing")
+    summary = provider_shortlist.get("summary") or {}
+    shortlist_count = int(summary.get("shortlist_count") or 0)
+    endpoint_count = int(summary.get("endpoint_count") or 0)
+    invalid_source_refs = summary.get("invalid_source_refs") if isinstance(summary.get("invalid_source_refs"), list) else []
+    safe = all_false(
+        [
+            flag_is_false(provider_shortlist, "nl_mutation_allowed"),
+            flag_is_false(provider_shortlist, "spb_fallback_allowed"),
+            flag_is_false(provider_shortlist, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    ready = (
+        safe
+        and status == "shortlist_ready_no_endpoint"
+        and shortlist_count > 0
+        and endpoint_count == 0
+        and not invalid_source_refs
+    )
+    return item(
+        item_id="FAILOVER-08",
+        title="Secondary provider shortlist exists without endpoint secrets",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_provider_shortlist_status={status}",
+            f"shortlist_count={shortlist_count}",
+            f"source_count={summary.get('source_count', 'missing')}",
+            f"endpoint_count={endpoint_count}",
+            f"candidate_configured={str(summary.get('candidate_configured')).lower()}",
+            f"invalid_source_refs={','.join(str(value) for value in invalid_source_refs) or 'none'}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="provision one shortlisted non-NL/non-SPB option, then add only public host/IP metadata",
+    )
+
+
+def audit_secondary_provisioning_plan(provisioning_plan: dict[str, Any]) -> dict[str, Any]:
+    status = str(provisioning_plan.get("status") or "missing")
+    summary = provisioning_plan.get("summary") or {}
+    endpoint_count = int(summary.get("endpoint_count") or 0)
+    preferred_labels = summary.get("preferred_labels") if isinstance(summary.get("preferred_labels"), list) else []
+    safe = all_false(
+        [
+            flag_is_false(provisioning_plan, "nl_mutation_allowed"),
+            flag_is_false(provisioning_plan, "spb_fallback_allowed"),
+            flag_is_false(provisioning_plan, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("safe_sources") is True,
+        ]
+    )
+    ready = (
+        safe
+        and status == "provisioning_plan_ready_no_endpoint"
+        and summary.get("external_action_required") is True
+        and endpoint_count == 0
+        and bool(preferred_labels)
+    )
+    return item(
+        item_id="FAILOVER-09",
+        title="Secondary provisioning plan blocks secrets and automation",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_provisioning_plan_status={status}",
+            f"preferred_labels={','.join(str(value) for value in preferred_labels) or 'none'}",
+            f"endpoint_count={endpoint_count}",
+            f"external_action_required={str(summary.get('external_action_required')).lower()}",
+            f"candidate_file={summary.get('candidate_file', 'missing')}",
+            f"safe_sources={str(summary.get('safe_sources')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="perform the provider-console provisioning step externally, then store only public endpoint metadata",
+    )
+
+
+def audit_secondary_exit_flow(secondary_flow: dict[str, Any]) -> dict[str, Any]:
+    status = str(secondary_flow.get("status") or "missing")
+    summary = secondary_flow.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(secondary_flow, "nl_mutation_allowed"),
+            flag_is_false(secondary_flow, "spb_fallback_allowed"),
+            flag_is_false(secondary_flow, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("safe_flags") is True,
+        ]
+    )
+    if not safe or status == "missing":
+        item_status = MISSING
+    elif status == "ready_for_manual_switch":
+        item_status = READY
+    elif status in {
+        "blocked_missing_candidate",
+        "candidate_ready_probe_config_needed",
+        "candidate_configured_probe_needed",
+    }:
+        item_status = BLOCKED
+    else:
+        item_status = WATCH
+
+    return item(
+        item_id="FAILOVER-06",
+        title="Secondary exit operating flow blocks unsafe activation",
+        status=item_status,
+        evidence=[
+            f"secondary_exit_flow_status={status}",
+            f"candidate_viable_count={summary.get('candidate_viable_count', 'missing')}",
+            f"candidate_configured={str(summary.get('candidate_configured')).lower()}",
+            f"secondary_probe_status={summary.get('secondary_probe_status', 'missing')}",
+            f"manual_probe_allowed={str(summary.get('manual_probe_allowed')).lower()}",
+            f"manual_switch_allowed={str(summary.get('manual_switch_allowed')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="fill public metadata for a non-NL/non-SPB candidate, then generate and run the safe probe config",
+    )
+
+
+def audit_secondary_manual_drill(secondary_drill: dict[str, Any]) -> dict[str, Any]:
+    status = str(secondary_drill.get("status") or "missing")
+    summary = secondary_drill.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(secondary_drill, "nl_mutation_allowed"),
+            flag_is_false(secondary_drill, "spb_fallback_allowed"),
+            flag_is_false(secondary_drill, "automatic_failover_allowed"),
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+            summary.get("safe_flags") is True,
+            summary.get("bulk_user_switch_allowed") is False,
+            summary.get("rollback_required") is True,
+        ]
+    )
+    ready = safe and status in {
+        "drill_plan_ready_blocked_no_endpoint",
+        "drill_ready_for_test_client_only",
+        "drill_ready_for_manual_switch",
+    }
+    return item(
+        item_id="FAILOVER-10",
+        title="Secondary manual drill is test-only and rollback-gated",
+        status=READY if ready else MISSING,
+        evidence=[
+            f"secondary_manual_drill_status={status}",
+            f"manual_probe_allowed={str(summary.get('manual_probe_allowed')).lower()}",
+            f"manual_switch_allowed={str(summary.get('manual_switch_allowed')).lower()}",
+            f"test_scope={summary.get('test_scope', 'missing')}",
+            f"bulk_user_switch_allowed={str(summary.get('bulk_user_switch_allowed')).lower()}",
+            f"rollback_required={str(summary.get('rollback_required')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="after a secondary endpoint exists, run the drill on one test client and roll back to NL",
+    )
+
+
 def audit_transport_probe(transport_probe: dict[str, Any]) -> dict[str, Any]:
     status = str(transport_probe.get("status") or "missing")
     ok_count = transport_probe.get("ok_count", "missing")
@@ -866,6 +1069,11 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     failover_readiness = inputs.get("failover_readiness") or {}
     secondary_score = inputs.get("secondary_score") or {}
     secondary_requirements = inputs.get("secondary_requirements") or {}
+    secondary_provider_shortlist = inputs.get("secondary_provider_shortlist") or {}
+    secondary_intake = inputs.get("secondary_intake") or {}
+    secondary_provisioning_plan = inputs.get("secondary_provisioning_plan") or {}
+    secondary_flow = inputs.get("secondary_flow") or {}
+    secondary_manual_drill = inputs.get("secondary_manual_drill") or {}
     local_env = inputs.get("local_env") or {}
     local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     transport_probe = inputs.get("transport_probe") or {}
@@ -889,6 +1097,11 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_manual_failover_readiness(failover_readiness),
         audit_secondary_candidate_score(secondary_score),
         audit_secondary_exit_requirements(secondary_requirements),
+        audit_secondary_provider_shortlist(secondary_provider_shortlist),
+        audit_secondary_candidate_intake(secondary_intake),
+        audit_secondary_provisioning_plan(secondary_provisioning_plan),
+        audit_secondary_exit_flow(secondary_flow),
+        audit_secondary_manual_drill(secondary_manual_drill),
         audit_transport_probe(transport_probe),
         audit_transport_uptime(transport_uptime),
         audit_scheduler_templates(root),
@@ -928,6 +1141,35 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "manual_failover_switch_allowed": failover_readiness.get("manual_switch_allowed", "missing"),
             "secondary_candidate_score_status": secondary_score.get("status", "missing"),
             "secondary_exit_requirements_status": secondary_requirements.get("status", "missing"),
+            "secondary_provider_shortlist_status": secondary_provider_shortlist.get("status", "missing"),
+            "secondary_provider_shortlist_count": (
+                secondary_provider_shortlist.get("summary") or {}
+            ).get("shortlist_count", "missing"),
+            "secondary_provider_shortlist_endpoint_count": (
+                secondary_provider_shortlist.get("summary") or {}
+            ).get("endpoint_count", "missing"),
+            "secondary_candidate_intake_status": secondary_intake.get("status", "missing"),
+            "secondary_provisioning_plan_status": secondary_provisioning_plan.get("status", "missing"),
+            "secondary_provisioning_external_action_required": (
+                secondary_provisioning_plan.get("summary") or {}
+            ).get("external_action_required", "missing"),
+            "secondary_provisioning_endpoint_count": (
+                secondary_provisioning_plan.get("summary") or {}
+            ).get("endpoint_count", "missing"),
+            "secondary_exit_flow_status": secondary_flow.get("status", "missing"),
+            "secondary_exit_flow_candidate_configured": (
+                secondary_flow.get("summary") or {}
+            ).get("candidate_configured", "missing"),
+            "secondary_exit_flow_manual_switch_allowed": (
+                secondary_flow.get("summary") or {}
+            ).get("manual_switch_allowed", "missing"),
+            "secondary_manual_drill_status": secondary_manual_drill.get("status", "missing"),
+            "secondary_manual_drill_test_scope": (
+                secondary_manual_drill.get("summary") or {}
+            ).get("test_scope", "missing"),
+            "secondary_manual_drill_rollback_required": (
+                secondary_manual_drill.get("summary") or {}
+            ).get("rollback_required", "missing"),
             "local_diagnostic_environment_status": local_env.get("status", "missing"),
             "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
             "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
@@ -977,6 +1219,19 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"manual_failover_switch_allowed={summary.get('manual_failover_switch_allowed')}",
         f"secondary_candidate_score_status={summary.get('secondary_candidate_score_status')}",
         f"secondary_exit_requirements_status={summary.get('secondary_exit_requirements_status')}",
+        f"secondary_provider_shortlist_status={summary.get('secondary_provider_shortlist_status')}",
+        f"secondary_provider_shortlist_count={summary.get('secondary_provider_shortlist_count')}",
+        f"secondary_provider_shortlist_endpoint_count={summary.get('secondary_provider_shortlist_endpoint_count')}",
+        f"secondary_candidate_intake_status={summary.get('secondary_candidate_intake_status')}",
+        f"secondary_provisioning_plan_status={summary.get('secondary_provisioning_plan_status')}",
+        f"secondary_provisioning_external_action_required={summary.get('secondary_provisioning_external_action_required')}",
+        f"secondary_provisioning_endpoint_count={summary.get('secondary_provisioning_endpoint_count')}",
+        f"secondary_exit_flow_status={summary.get('secondary_exit_flow_status')}",
+        f"secondary_exit_flow_candidate_configured={summary.get('secondary_exit_flow_candidate_configured')}",
+        f"secondary_exit_flow_manual_switch_allowed={summary.get('secondary_exit_flow_manual_switch_allowed')}",
+        f"secondary_manual_drill_status={summary.get('secondary_manual_drill_status')}",
+        f"secondary_manual_drill_test_scope={summary.get('secondary_manual_drill_test_scope')}",
+        f"secondary_manual_drill_rollback_required={summary.get('secondary_manual_drill_rollback_required')}",
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
@@ -1020,6 +1275,11 @@ def main() -> int:
     parser.add_argument("--failover-readiness", default=str(DEFAULT_FAILOVER_READINESS))
     parser.add_argument("--secondary-score", default=str(DEFAULT_SECONDARY_SCORE))
     parser.add_argument("--secondary-requirements", default=str(DEFAULT_SECONDARY_REQUIREMENTS))
+    parser.add_argument("--secondary-provider-shortlist", default=str(DEFAULT_SECONDARY_PROVIDER_SHORTLIST))
+    parser.add_argument("--secondary-intake", default=str(DEFAULT_SECONDARY_INTAKE))
+    parser.add_argument("--secondary-provisioning-plan", default=str(DEFAULT_SECONDARY_PROVISIONING_PLAN))
+    parser.add_argument("--secondary-flow", default=str(DEFAULT_SECONDARY_FLOW))
+    parser.add_argument("--secondary-manual-drill", default=str(DEFAULT_SECONDARY_MANUAL_DRILL))
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
     parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
@@ -1048,6 +1308,11 @@ def main() -> int:
         "failover_readiness": read_json(Path(args.failover_readiness)),
         "secondary_score": read_json(Path(args.secondary_score)),
         "secondary_requirements": read_json(Path(args.secondary_requirements)),
+        "secondary_provider_shortlist": read_json(Path(args.secondary_provider_shortlist)),
+        "secondary_intake": read_json(Path(args.secondary_intake)),
+        "secondary_provisioning_plan": read_json(Path(args.secondary_provisioning_plan)),
+        "secondary_flow": read_json(Path(args.secondary_flow)),
+        "secondary_manual_drill": read_json(Path(args.secondary_manual_drill)),
         "local_env": read_json(Path(args.local_env)),
         "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "transport_probe": read_json(Path(args.transport_probe)),
