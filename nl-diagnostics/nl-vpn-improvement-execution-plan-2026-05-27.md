@@ -23,6 +23,7 @@ secondary provider shortlist: nl-diagnostics/secondary-exit-provider-shortlist-2
 secondary provisioning plan: nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.md
 secondary selection packet: nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
 secondary public metadata template: nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md
+secondary post-provision validation: nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md
 local diagnostic environment: nl-diagnostics/local-diagnostic-environment-2026-05-28.md
 planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 operator card: nl-diagnostics/vpn-operator-card-2026-05-28.md
@@ -69,6 +70,7 @@ secondary exit flow: blocked_missing_candidate, candidate_configured=false, manu
 secondary manual drill: drill_plan_ready_blocked_no_endpoint, test_scope=single_client, rollback_required=true
 secondary selection packet: selection_packet_ready_no_endpoint, primary=upcloud-fi-hel, backup=ovhcloud-pl-waw, may_create_endpoint_now=false
 secondary public metadata template: public_metadata_template_ready_no_endpoint, selected=upcloud-fi-hel, candidate_file_update_allowed=false
+secondary post-provision validation: post_provision_validation_ready_waiting_endpoint, can_generate_probe_config=false, can_run_public_probe=false, test_client_allowed=false
 local diagnostic environment: watch_root_full_tmpdir_available, root_status=critical_full, tmpdir=/mnt/projects/.tmp writable
 local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.24, cleanup_execute_allowed=false
 local root cleanup approval packet: cleanup_approval_packet_ready, approval_required=true, commands_executed=0
@@ -259,6 +261,7 @@ secondary_exit_flow: nl-diagnostics/secondary-exit-flow-2026-05-28.md
 secondary_manual_drill: nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md
 secondary_selection_packet: nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
 secondary_public_metadata_template: nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md
+secondary_post_provision_validation: nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md
 do_not_restart_nl: true
 do_not_deploy_to_nl: true
 next_best_work: keep local evidence/backlog current; prepare failover requirements without using SPB
