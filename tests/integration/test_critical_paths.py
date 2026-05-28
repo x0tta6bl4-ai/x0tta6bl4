@@ -60,11 +60,11 @@ def test_mesh_network_integration():
 
 def test_pqc_integration():
     """Test post-quantum cryptography integration"""
-    from src.security.post_quantum import PQMeshSecurityLibOQS
+    from src.security.pqc import PQMeshSecurityLibOQS
 
     # Skip if liboqs is not available (staging environment)
     try:
-        from src.security.post_quantum import LIBOQS_AVAILABLE
+        from src.security.pqc import LIBOQS_AVAILABLE
 
         if not LIBOQS_AVAILABLE:
             pytest.skip("liboqs not available in staging")

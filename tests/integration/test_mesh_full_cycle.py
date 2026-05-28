@@ -16,7 +16,7 @@ try:
     from src.consensus.raft_consensus import RaftNode
     from src.data_sync.crdt_sync import CRDTSync
     from src.network.batman.node_manager import NodeManager
-    from src.security.post_quantum_liboqs import (LIBOQS_AVAILABLE,
+    from src.security.pqc import (LIBOQS_AVAILABLE,
                                                   PQMeshSecurityLibOQS)
     from src.self_healing.mape_k import MAPEKLoop
 
