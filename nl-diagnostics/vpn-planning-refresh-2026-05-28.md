@@ -1,7 +1,7 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T02:35:43.285406+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z`
+generated_at: `2026-05-28T02:56:00.498254+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z`
 ok: `true`
 
 ## Summary
@@ -14,9 +14,9 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=1028
+provider_packet_snapshot_age_seconds=51
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=7
+blocking_history_snapshot_count=8
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -44,22 +44,25 @@ local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.25
+local_root_cleanup_estimated_reclaim_gib=3.23
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
 local_root_cleanup_approval_required=True
 local_root_cleanup_commands_executed=0
+incident_symptom_intake_status=symptom_intake_ready_observe
+incident_symptom_required_fields=12
+incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=20
+nl_transport_uptime_samples=21
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=18
+incident_timeline_event_count=19
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T021824Z
+incident_timeline_latest_snapshot=20260528T025444Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -208,6 +211,13 @@ exit_code=0
 ```
 
 ### operator_card
+
+```text
+ok=true
+exit_code=0
+```
+
+### incident_symptom_intake
 
 ```text
 ok=true

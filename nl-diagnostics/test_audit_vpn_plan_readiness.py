@@ -357,6 +357,26 @@ def sample_local_cleanup_packet(status: str = "cleanup_approval_packet_ready") -
     }
 
 
+def sample_symptom_intake(status: str = "symptom_intake_ready_observe") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "decision": "observe",
+            "operator_status": "observe",
+            "failure_domain": "external_network",
+            "transport_status": "healthy",
+            "required_field_count": 12,
+            "forbidden_material_count": 12,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_transport_probe() -> dict:
     return {
         "status": "healthy",
@@ -440,6 +460,7 @@ def sample_inputs() -> dict:
         "local_env": sample_local_env(),
         "local_cleanup_plan": sample_local_cleanup_plan(),
         "local_cleanup_packet": sample_local_cleanup_packet(),
+        "symptom_intake": sample_symptom_intake(),
         "transport_probe": sample_transport_probe(),
         "transport_uptime": sample_transport_uptime(),
         "secondary": sample_secondary(),
@@ -528,6 +549,9 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["local_root_cleanup_approval_packet_status"], "cleanup_approval_packet_ready")
         self.assertTrue(payload["summary"]["local_root_cleanup_approval_required"])
         self.assertEqual(payload["summary"]["local_root_cleanup_commands_executed"], 0)
+        self.assertEqual(payload["summary"]["incident_symptom_intake_status"], "symptom_intake_ready_observe")
+        self.assertEqual(payload["summary"]["incident_symptom_required_fields"], 12)
+        self.assertEqual(payload["summary"]["incident_symptom_forbidden_material"], 12)
         self.assertEqual(payload["summary"]["transport_probe_status"], "healthy")
         self.assertEqual(payload["summary"]["transport_uptime_status"], "stable_healthy")
         self.assertFalse(payload["nl_mutation_allowed"])
@@ -600,6 +624,26 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         packet_item = next(item for item in payload["items"] if item["id"] == "LOCALCLEAN-02")
         self.assertEqual(packet_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_symptom_intake_with_unsafe_flags_makes_readiness_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["symptom_intake"] = {
+                **sample_symptom_intake("symptom_intake_unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_symptom_intake()["summary"],
+                    "spb_fallback_allowed": True,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        symptom_item = next(item for item in payload["items"] if item["id"] == "INCIDENT-01")
+        self.assertEqual(symptom_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_secondary_flow_with_unsafe_flags_makes_readiness_missing(self):

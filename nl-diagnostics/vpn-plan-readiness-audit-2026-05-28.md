@@ -1,13 +1,13 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T02:35:42.920492+00:00`
+generated_at: `2026-05-28T02:56:00.202733+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=20
+ready_local=21
 blocked_future_approval=4
 watch=3
 missing=0
@@ -37,11 +37,14 @@ local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.25
+local_root_cleanup_estimated_reclaim_gib=3.23
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
 local_root_cleanup_approval_required=True
 local_root_cleanup_commands_executed=0
+incident_symptom_intake_status=symptom_intake_ready_observe
+incident_symptom_required_fields=12
+incident_symptom_forbidden_material=12
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
 nl_write_allowed=false
@@ -63,6 +66,7 @@ automatic_failover_allowed=false
 | `LOCALCLEAN-01` | `watch` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
 | `LOCALCLEAN-02` | `ready_local` | Local cleanup approval packet is prepared without executing commands | run only prechecks now; execute cleanup previews only after separate local cleanup approval |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
+| `INCIDENT-01` | `ready_local` | Incident symptom intake is safe to use without collecting secrets | use this template for user-visible symptoms and reject any pasted VPN secrets |
 | `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
 | `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
 | `FAILOVER-04` | `ready_local` | Secondary exit requirements are documented without secrets | choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata |
@@ -85,17 +89,17 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
-- latest_snapshot=20260528T021824Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
+- latest_snapshot=20260528T025444Z
 - snapshot_exists=true
-- snapshot_age_seconds=1038
+- snapshot_age_seconds=76
 - fresh=true
 
 ### DECISION-01
 
 - decision=observe
-- transport_status=advisory
+- transport_status=healthy
 - failure_domain=external_network
 - safe_flags=true
 
@@ -104,23 +108,23 @@ automatic_failover_allowed=false
 - boot_gap_watch_status=watch
 - boot_gap_seconds=21907
 - provider_status=recent_boot_gap
-- transport_status=advisory
+- transport_status=healthy
 - safe_flags=true
 
 ### PROVIDER-01
 
 - provider_packet_type=provider_watch
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=7
+- snapshot_count=8
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T021824Z
+- latest_probe_snapshot=20260528T025444Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -149,7 +153,7 @@ automatic_failover_allowed=false
 - root_status=critical_full
 - root_free_gib=0.0
 - existing_candidate_count=5
-- estimated_reclaim_gib=3.25
+- estimated_reclaim_gib=3.23
 - top_candidate_id=APT-CACHE-01
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -169,6 +173,17 @@ automatic_failover_allowed=false
 - operator_status=observe
 - plain_action=VPN core is healthy. Do not restart NL; collect fresh evidence during the next visible outage.
 - blocking_history_trend=stable_no_probe_evidence
+- safe_flags=true
+
+### INCIDENT-01
+
+- incident_symptom_intake_status=symptom_intake_ready_observe
+- decision=observe
+- operator_status=observe
+- failure_domain=external_network
+- transport_status=healthy
+- required_field_count=12
+- forbidden_material_count=12
 - safe_flags=true
 
 ### FAILOVER-03
@@ -259,7 +274,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=20
+- sample_count=21
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true
