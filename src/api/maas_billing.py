@@ -9,7 +9,7 @@ import logging
 import os
 import uuid
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 import stripe
@@ -39,6 +39,10 @@ BILLING_WEBHOOK_CLAIM_BOUNDARY = (
     "database/audit state changes, and optional local X0T bridge intent; it does "
     "not prove live Stripe settlement, bank settlement, or on-chain finality."
 )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # --- Stripe Configuration ---
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
@@ -593,9 +597,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     currency=currency,
                     status="paid",
                     stripe_session_id=session_id,
-                    period_start=datetime.utcnow(),
-                    period_end=datetime.utcnow() + timedelta(days=30),
-                    issued_at=datetime.utcnow(),
+                    period_start=_utc_now(),
+                    period_end=_utc_now() + timedelta(days=30),
+                    issued_at=_utc_now(),
                 )
                 db.add(new_invoice)
 
