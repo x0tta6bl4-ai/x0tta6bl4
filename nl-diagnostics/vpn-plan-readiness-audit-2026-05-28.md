@@ -1,6 +1,6 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-27T23:59:03.284069+00:00`
+generated_at: `2026-05-28T00:24:08.561784+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
@@ -8,7 +8,7 @@ ok: `true`
 
 ```text
 ready_local=13
-blocked_future_approval=2
+blocked_future_approval=3
 watch=1
 missing=0
 decision=observe
@@ -16,6 +16,8 @@ operator_status=observe
 boot_gap_watch_status=watch
 provider_packet_type=provider_watch
 provider_packet_stale=False
+manual_failover_readiness_status=blocked_no_incident_trigger
+manual_failover_switch_allowed=False
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
 nl_write_allowed=false
@@ -34,6 +36,7 @@ automatic_failover_allowed=false
 | `EVIDENCE-02` | `ready_local` | Blocking/app probe history is available as trend evidence | use probes as app/path evidence, not as an x-ui restart trigger |
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
+| `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
@@ -48,11 +51,11 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z
-- refresh_snapshot=nl-diagnostics/snapshots/20260527T230246Z
-- latest_snapshot=20260527T230246Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
+- latest_snapshot=20260528T000600Z
 - snapshot_exists=true
-- snapshot_age_seconds=3377
+- snapshot_age_seconds=1088
 - fresh=true
 
 ### DECISION-01
@@ -74,16 +77,16 @@ automatic_failover_allowed=false
 
 - provider_packet_type=provider_watch
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260527T230246Z
-- decision_snapshot=nl-diagnostics/snapshots/20260527T230246Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=4
+- snapshot_count=5
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260527T230246Z
+- latest_probe_snapshot=20260528T000600Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -100,6 +103,16 @@ automatic_failover_allowed=false
 - blocking_history_trend=stable_no_probe_evidence
 - safe_flags=true
 
+### FAILOVER-03
+
+- manual_failover_readiness_status=blocked_no_incident_trigger
+- manual_probe_allowed=false
+- manual_switch_allowed=false
+- secondary_probe_status=planning_template
+- candidate_configured=false
+- spb_excluded=true
+- safe_flags=true
+
 ### TRANSPORT-01
 
 - transport_probe_status=healthy
@@ -110,7 +123,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=2
+- sample_count=6
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

@@ -126,6 +126,24 @@ def sample_failover() -> dict:
     }
 
 
+def sample_failover_readiness() -> dict:
+    return {
+        "status": "blocked_no_incident_trigger",
+        "manual_probe_allowed": False,
+        "manual_switch_allowed": False,
+        "summary": {
+            "secondary_probe_status": "planning_template",
+            "candidate_configured": False,
+            "spb_excluded": True,
+            "nl_write_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_transport_probe() -> dict:
     return {
         "status": "healthy",
@@ -198,6 +216,7 @@ def sample_inputs() -> dict:
         "refresh": sample_refresh(),
         "operator_card": sample_operator_card(),
         "failover": sample_failover(),
+        "failover_readiness": sample_failover_readiness(),
         "transport_probe": sample_transport_probe(),
         "transport_uptime": sample_transport_uptime(),
         "secondary": sample_secondary(),
@@ -253,6 +272,7 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertIn("BOOT-01", payload["summary"]["watch_items"])
         self.assertIn("GATE-01", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-02", payload["summary"]["blocked_items"])
+        self.assertIn("FAILOVER-03", payload["summary"]["blocked_items"])
         self.assertEqual(payload["summary"]["boot_gap_watch_status"], "watch")
         self.assertEqual(payload["summary"]["provider_packet_type"], "provider_watch")
         self.assertFalse(payload["summary"]["provider_packet_stale"])

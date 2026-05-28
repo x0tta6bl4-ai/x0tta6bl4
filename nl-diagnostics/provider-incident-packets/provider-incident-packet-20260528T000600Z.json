@@ -68,7 +68,7 @@
     "recommended_action": "observe",
     "runtime_mode": "degraded",
     "runtime_recommended_action": "observe",
-    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260527T230246Z",
+    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
     "telegram_media_status": "degraded",
     "transport_status": "healthy",
     "warnings": [
@@ -78,7 +78,7 @@
     ]
   },
   "decision_reason": "recent NL boot gap is present; current VPN transport is healthy",
-  "generated_at": "2026-05-28T00:05:21.086872+00:00",
+  "generated_at": "2026-05-28T00:21:45.927404+00:00",
   "hostname": "01164.com",
   "local_status": {
     "exit_ip": "89.125.1.107",
@@ -88,7 +88,7 @@
     "recommended_action": "observe",
     "tcp_connections": {
       "close_wait": 0,
-      "established": 11,
+      "established": 5,
       "fin_wait_2": 0
     }
   },
@@ -131,10 +131,10 @@
   },
   "provider_ticket_text": "Hello. Please check the host node for VPS 01164.com / IP 89.125.1.107.\n\nThe selected guest snapshot shows a boot gap, but no explicit hypervisor-initiated shutdown line was found in the available journal.\n\nHistorical related shutdown evidence from a previous incident:\n- May 26 10:18:29 01164.com qemu-ga[785]: info: guest-shutdown called, mode: powerdown\n- May 26 10:19:14 01164.com systemd-logind[641]: System is powering down (hypervisor initiated shutdown).\n\nThe current boot journal also reports an unclean previous shutdown:\n- May 27 14:58:38 01164.com systemd-journald[302]: File /var/log/journal/e4584c4328b15cd591d7d5c553802e8a/system.journal corrupted or uncleanly shut down, renaming and replacing.\n\nBoot window from guest journal:\n- previous boot last entry: Wed 2026-05-27 08:53:30 UTC\n- current boot first entry: Wed 2026-05-27 14:58:37 UTC\n\nHost-side degradation observed before shutdown:\n- CPU steal reached: 43.78%\n- load average reached: 31.09\n- vda disk await reached: 187 ms\n\nPlease confirm whether there was host maintenance, node overload, storage degradation, or an automated power action.",
   "schema_version": 1,
-  "snapshot_age_seconds": 3755,
-  "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260527T230246Z",
+  "snapshot_age_seconds": 945,
+  "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
   "snapshot_max_age_seconds": 3600,
-  "snapshot_stale": true,
+  "snapshot_stale": false,
   "source": "nl-diagnostics/build_provider_incident_packet.py",
   "spb_fallback_allowed": false,
   "vpn_server": "89.125.1.107"
