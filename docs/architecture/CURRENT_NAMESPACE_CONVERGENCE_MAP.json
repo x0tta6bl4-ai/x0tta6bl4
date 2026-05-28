@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-05-27",
+  "captured_at": "2026-05-28",
   "status": "working_map_not_production_completion_proof",
   "scope": "Namespace convergence map for top-level libx0t and src/libx0t.",
   "surfaces": {
@@ -29,7 +29,7 @@
       "libx0t"
     ],
     "direct_import_statements": {
-      "libx0t": 97,
+      "libx0t": 96,
       "src.libx0t": 76
     }
   },
