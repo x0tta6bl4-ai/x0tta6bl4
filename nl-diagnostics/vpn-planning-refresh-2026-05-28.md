@@ -1,7 +1,7 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T03:15:13.682618+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z`
+generated_at: `2026-05-28T03:26:59.082048+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z`
 ok: `true`
 
 ## Summary
@@ -14,9 +14,9 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=39
+provider_packet_snapshot_age_seconds=40
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=9
+blocking_history_snapshot_count=10
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -44,12 +44,15 @@ secondary_selection_recommended_label=upcloud-fi-hel
 secondary_selection_backup_label=ovhcloud-pl-waw
 secondary_selection_option_count=3
 secondary_selection_may_create_endpoint_now=False
+secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint
+secondary_public_metadata_selected_label=upcloud-fi-hel
+secondary_public_metadata_candidate_file_update_allowed=False
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.23
+local_root_cleanup_estimated_reclaim_gib=3.25
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
 local_root_cleanup_approval_required=True
@@ -60,14 +63,14 @@ incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=22
+nl_transport_uptime_samples=23
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=20
+incident_timeline_event_count=21
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T031418Z
+incident_timeline_latest_snapshot=20260528T032605Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -195,6 +198,13 @@ exit_code=0
 ```
 
 ### secondary_selection_packet
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_public_metadata_template
 
 ```text
 ok=true
