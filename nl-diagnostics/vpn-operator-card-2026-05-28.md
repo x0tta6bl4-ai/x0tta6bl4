@@ -1,6 +1,6 @@
 # VPN Operator Card
 
-generated_at: `2026-05-27T23:53:10.079981+00:00`
+generated_at: `2026-05-27T23:59:02.956764+00:00`
 snapshot: `nl-diagnostics/snapshots/20260527T230246Z`
 
 ## Status

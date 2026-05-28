@@ -73,6 +73,22 @@ When NL must not be changed, use the local collector. It writes only under
 `/mnt/projects/nl-diagnostics/snapshots/` and sends only read-only commands to
 NL: `systemctl`, `ss`, `sqlite3 -readonly`, `journalctl`, `cat`, `df`, `free`.
 
+For an incident, prefer the one-command read-only refresh:
+
+```bash
+VPN_ENABLE_BLOCKING_PROBES=1 /mnt/projects/nl-diagnostics/run_vpn_incident_readonly_refresh.sh
+```
+
+Expected:
+
+```text
+snapshot=/mnt/projects/nl-diagnostics/snapshots/<timestamp>
+refresh=/mnt/projects/nl-diagnostics/vpn-planning-refresh-2026-05-28.md
+```
+
+It collects a fresh read-only snapshot and rebuilds the local planning reports.
+It does not write to NL.
+
 ```bash
 /mnt/projects/nl-diagnostics/collect_vpn_readonly_snapshot.sh
 ```
@@ -118,13 +134,171 @@ python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
 Current local trend:
 
 ```text
-snapshot_count=3
+snapshot_count=4
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T221810Z
+latest_snapshot=20260527T230246Z
 latest_targets_ok=8/8
 ```
 
 Build the current operator decision from the latest snapshot and probe history:
+
+To refresh all local planning reports from an existing snapshot:
+
+```bash
+python3 /mnt/projects/nl-diagnostics/refresh_vpn_planning_reports.py \
+  --snapshot /mnt/projects/nl-diagnostics/snapshots/<timestamp>
+```
+
+Current refresh report:
+
+```text
+nl-diagnostics/vpn-planning-refresh-2026-05-28.md
+```
+
+Expected:
+
+```text
+ok=true
+decision=observe
+operator_status=observe
+boot_gap_watch_status=watch
+boot_gap_seconds=21907
+provider_packet_type=provider_watch
+provider_packet_stale=False
+provider_packet_snapshot_age_seconds=2519
+nl_transport_probe_status=healthy
+nl_transport_probe_ok_count=3/3
+nl_transport_uptime_status=stable_healthy
+nl_transport_uptime_samples=2
+nl_transport_uptime_bad_streak=0
+secondary_probe_template_status=planning_template
+readiness_audit_status=ready_local_with_future_blocks
+readiness_missing=0
+nl_mutation_allowed=false
+spb_fallback_allowed=false
+```
+
+Readiness audit:
+
+```text
+nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
+```
+
+Current audit summary:
+
+```text
+ready_local=13
+blocked_future_approval=2
+watch=1
+missing=0
+watch_items=BOOT-01
+blocked_items=GATE-01, FAILOVER-02
+```
+
+Interpretation: the local observe-mode plan is usable now. Future NL writes and
+a real secondary exit node remain blocked until separate approval/setup.
+
+Outside-in NL transport probe:
+
+```text
+nl-diagnostics/nl-transport-probe-2026-05-28.md
+```
+
+Current result:
+
+```text
+89.125.1.107:443 ok
+89.125.1.107:2083 ok
+89.125.1.107:39829 ok
+status=healthy
+recommended_action=observe
+```
+
+Transport uptime history:
+
+```text
+nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
+nl-diagnostics/nl-transport-uptime-history.jsonl
+```
+
+Current result:
+
+```text
+status=stable_healthy
+sample_count=2
+latest_status=healthy
+consecutive_non_healthy=0
+```
+
+Local uptime scheduler templates are prepared but not installed:
+
+```text
+infra/systemd/x0tta-vpn-nl-transport-uptime.service
+infra/systemd/x0tta-vpn-nl-transport-uptime.timer
+```
+
+What they would do if installed on the local host:
+
+```text
+run the outside-in NL TCP probe every 5 minutes
+append/update local uptime evidence under /mnt/projects/nl-diagnostics/
+perform no SSH, no NL writes, no SPB fallback, and no service restart
+```
+
+Future local-host install commands, only after separate local approval:
+
+```bash
+sudo install -m 0644 infra/systemd/x0tta-vpn-nl-transport-uptime.service /etc/systemd/system/
+sudo install -m 0644 infra/systemd/x0tta-vpn-nl-transport-uptime.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now x0tta-vpn-nl-transport-uptime.timer
+```
+
+These commands are for the local diagnostic host, not for NL.
+
+Boot-gap watch:
+
+```text
+nl-diagnostics/boot-gap-watch-2026-05-28.md
+```
+
+Current result:
+
+```text
+status=watch
+boot_gap_seconds=21907
+provider_status=recent_boot_gap
+transport_status=healthy
+recommended_action=observe provider signal; do not restart NL while transport is healthy/advisory
+```
+
+Provider packet for the same snapshot:
+
+```text
+nl-diagnostics/provider-incident-packets/provider-incident-packet-20260527T230246Z.md
+```
+
+Current packet:
+
+```text
+packet_type=provider_watch
+snapshot_stale=false
+snapshot_age_seconds=2519
+NL writes=0
+```
+
+Freshness rule:
+
+```text
+snapshot_age_seconds <= 3600 -> fresh evidence
+snapshot_age_seconds > 3600 -> collect a new read-only snapshot before action
+```
+
+For the shortest incident checklist, open:
+
+```text
+nl-diagnostics/vpn-operator-card-2026-05-28.md
+```
 
 ```bash
 python3 /mnt/projects/nl-diagnostics/build_vpn_decision_report.py \
@@ -140,6 +314,67 @@ decision=observe
 confidence=high
 reason=core VPN is healthy/advisory and blocking probes show no direct-vs-SOCKS failure
 ```
+
+Build the improvement backlog from the same evidence:
+
+```bash
+python3 /mnt/projects/nl-diagnostics/build_vpn_improvement_backlog.py \
+  --json-out /mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.json \
+  --markdown-out /mnt/projects/nl-diagnostics/vpn-improvement-backlog-2026-05-28.md
+```
+
+Current backlog split:
+
+```text
+local_now: LOCAL-01, LOCAL-02, LOCAL-03, LOCAL-04
+future_nl_write: NL-FUTURE-01, NL-FUTURE-02
+future_resilience: FUTURE-RESILIENCE-01
+spb_fallback_allowed=false
+```
+
+Manual failover planning:
+
+```text
+nl-diagnostics/manual-failover-plan-2026-05-28.md
+```
+
+Current rule:
+
+```text
+manual_failover_status=planning_not_active
+automatic_failover_allowed=false
+spb_fallback_allowed=false
+secondary exit node must be new provider/region, not SPB
+```
+
+Secondary health probe template:
+
+```bash
+python3 /mnt/projects/nl-diagnostics/create_secondary_exit_config.py \
+  --label emergency-1 \
+  --provider <new-provider> \
+  --region <new-region> \
+  --host <secondary-host-or-ip> \
+  --tcp-port 443 \
+  --out /tmp/secondary-exit-probe.json
+```
+
+```bash
+python3 /mnt/projects/nl-diagnostics/probe_secondary_exit.py \
+  --config /tmp/secondary-exit-probe.json
+```
+
+Expected template result before a secondary node exists:
+
+```text
+status=planning_template
+candidate_configured=false
+nl_mutation_allowed=false
+spb_fallback_allowed=false
+```
+
+The config generator rejects the current NL IP, SPB markers, VPN URIs, UUIDs,
+private keys, and bot tokens.
 
 Expected healthy/advisory output shape:
 
