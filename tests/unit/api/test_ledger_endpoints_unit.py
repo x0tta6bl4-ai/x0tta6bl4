@@ -5,6 +5,7 @@ Tests ledger search, index, and status endpoints.
 
 import os
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -227,6 +228,11 @@ class TestLedgerStatus:
         assert "indexed" in body
         assert "continuity_file" in body
         assert "file_exists" in body
+        assert body["ledger_runtime_ready"] is True
+        assert body["rag_surface_ready"] is True
+        assert body["verification_evidence_ready"] is True
+        assert body["event_trace_index_ready"] is True
+        assert body["event_trace_dependencies_ready"] is True
 
     @pytest.mark.asyncio
     async def test_status_error(self, app_and_rag):
@@ -236,3 +242,41 @@ class TestLedgerStatus:
         async with _make_client(app) as tc:
             resp = await tc.get("/api/v1/ledger/status")
         assert resp.status_code == 500
+
+    def test_readiness_degraded_when_surfaces_are_missing(self):
+        from src.api import ledger_endpoints as ledger_api
+
+        payload = ledger_api._ledger_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["ledger_runtime_ready"] is False
+        assert payload["indexed"] is False
+        assert payload["file_exists"] is False
+        assert payload["degraded_dependencies"] == [
+            "rag",
+            "continuity_file",
+            "verification_evidence",
+            "event_trace_index",
+        ]
+        assert "does not perform indexing" in payload["claim_boundary"]
+
+    @pytest.mark.asyncio
+    async def test_status_marks_degraded_dependencies(self, monkeypatch):
+        from src.api import ledger_endpoints as ledger_api
+
+        request = SimpleNamespace(state=SimpleNamespace())
+        monkeypatch.setattr(
+            ledger_api,
+            "get_ledger_rag",
+            lambda: SimpleNamespace(),
+        )
+
+        payload = await ledger_api.ledger_status(request)
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {
+            "rag",
+            "continuity_file",
+            "verification_evidence",
+            "event_trace_index",
+        }
