@@ -58,6 +58,8 @@ SWARM_SERVICE_NAME = "swarm-pbft"
 SWARM_SERVICE_LAYER = "swarm_consensus_to_control_plane"
 MARKETPLACE_SERVICE_NAME = "maas-settlement"
 MARKETPLACE_SERVICE_LAYER = "commerce_settlement_to_events"
+MARKETPLACE_API_SERVICE_NAME = "maas-marketplace"
+MARKETPLACE_API_SERVICE_LAYER = "api_to_commerce"
 DAO_SERVICE_NAME = "dao-executor"
 DAO_SERVICE_LAYER = "dao_to_control_plane"
 RECOVERY_SERVICE_NAME = "recovery-action-executor"
@@ -80,7 +82,7 @@ PQC_HEALER_SOURCE_AGENT = "pqc-zero-trust-healer"
 PQC_HEALER_SERVICE_LAYER = "self_healing_pqc_identity"
 PQC_HEALER_HEALTH_RESOURCE = "self_healing:pqc:perform_health_check"
 SEARCH_QUERY = (
-    "swarm-pbft maas-settlement dao-executor recovery-action-executor "
+    "swarm-pbft maas-settlement maas-marketplace dao-executor recovery-action-executor "
     "mesh-vpn-bridge share-to-earn mptcp-manager spire-server-client "
     "pqc-rotator pqc-zero-trust-executor pqc-zero-trust-healer event trace"
 )
@@ -215,6 +217,25 @@ async def _publish_trace_events(
         event_bus=bus,
     )
     assert marketplace_event_id is not None
+    marketplace_api_event_id = publish_marketplace_escrow_event(
+        transition="held",
+        source_agent=MARKETPLACE_API_SERVICE_NAME,
+        escrow_id="escrow-api-smoke-1",
+        listing_id="listing-api-smoke-1",
+        renter_id="renter-api-smoke-1",
+        actor_id="request-user",
+        currency="USD",
+        status="held",
+        node_id="node-api-smoke-1",
+        mesh_id="mesh-api-smoke-1",
+        spiffe_id=SECRET_VALUES[0],
+        did=SECRET_VALUES[1],
+        wallet_address=SECRET_VALUES[2],
+        amount_cents=2500,
+        reason="route-only marketplace API event trace citation smoke",
+        event_bus=bus,
+    )
+    assert marketplace_api_event_id is not None
 
     dao_executor = DAOExecutor.__new__(DAOExecutor)
     dao_executor.event_bus = bus
@@ -451,6 +472,11 @@ async def _publish_trace_events(
             "layer": MARKETPLACE_SERVICE_LAYER,
             "event_type": EventType.MARKETPLACE_ESCROW_RELEASED.value,
         },
+        MARKETPLACE_API_SERVICE_NAME: {
+            "event_id": marketplace_api_event_id,
+            "layer": MARKETPLACE_API_SERVICE_LAYER,
+            "event_type": EventType.MARKETPLACE_ESCROW_HELD.value,
+        },
         DAO_SERVICE_NAME: {
             "event_id": dao_event_id,
             "layer": DAO_SERVICE_LAYER,
@@ -563,7 +589,7 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
 
         assertions = {
             "indexed_successfully": index_body.get("status") == "success",
-            "citations_present": len(citations_by_service) >= 10,
+            "citations_present": len(citations_by_service) >= 11,
             "swarm_event_id_matches": (
                 citations_by_service.get(SWARM_SERVICE_NAME, {}).get("event_id")
                 == expected_events[SWARM_SERVICE_NAME]["event_id"]
@@ -579,6 +605,16 @@ async def run_smoke(temp_root: Path | None = None) -> dict[str, Any]:
             "marketplace_layer_matches": (
                 citations_by_service.get(MARKETPLACE_SERVICE_NAME, {}).get("layer")
                 == MARKETPLACE_SERVICE_LAYER
+            ),
+            "marketplace_api_event_id_matches": (
+                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {}).get(
+                    "event_id"
+                )
+                == expected_events[MARKETPLACE_API_SERVICE_NAME]["event_id"]
+            ),
+            "marketplace_api_layer_matches": (
+                citations_by_service.get(MARKETPLACE_API_SERVICE_NAME, {}).get("layer")
+                == MARKETPLACE_API_SERVICE_LAYER
             ),
             "dao_event_id_matches": (
                 citations_by_service.get(DAO_SERVICE_NAME, {}).get("event_id")

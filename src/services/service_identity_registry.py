@@ -1,4 +1,4 @@
-"""Registry of event-producing services that resolve canonical identity."""
+"""Registry of event-producing services and trace-visible source agents."""
 
 from __future__ import annotations
 
@@ -119,6 +119,16 @@ KNOWN_EVENT_IDENTITY_SERVICES: Tuple[Dict[str, str], ...] = (
         "service_name": "swarm-pbft",
         "layer": "swarm_consensus_to_control_plane",
         "entrypoint": "src/swarm/pbft.py",
+    },
+)
+
+KNOWN_EVENT_TRACE_SERVICES: Tuple[Dict[str, str], ...] = (
+    *KNOWN_EVENT_IDENTITY_SERVICES,
+    {
+        "service_name": "maas-marketplace",
+        "layer": "api_to_commerce",
+        "entrypoint": "src/api/maas_marketplace.py",
+        "identity_source": "request_user_identity",
     },
 )
 
