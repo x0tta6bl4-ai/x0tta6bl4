@@ -109,6 +109,25 @@ def _clear_global_multiplier() -> None:
         db.close()
 
 
+class _FakeTokenBridge:
+    async def lock_escrow_on_chain(self, escrow_id: str, user_id: str, amount: float) -> str:
+        return f"test-lock-{escrow_id}"
+
+    async def release_escrow_on_chain(self, escrow_id: str) -> bool:
+        return True
+
+    async def refund_escrow_on_chain(self, escrow_id: str) -> bool:
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _mock_marketplace_token_bridge(monkeypatch):
+    import src.api.maas_marketplace as marketplace_mod
+
+    monkeypatch.setattr(marketplace_mod, "_token_bridge", None)
+    monkeypatch.setattr(marketplace_mod, "_get_token_bridge", lambda: _FakeTokenBridge())
+
+
 # ---------------------------------------------------------------------------
 # Create Listing
 # ---------------------------------------------------------------------------

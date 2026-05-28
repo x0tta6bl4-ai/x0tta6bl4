@@ -10,7 +10,7 @@ import os
 import uuid
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -59,6 +59,64 @@ if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
 router = APIRouter(prefix="/api/v1/maas/billing", tags=["MaaS Billing"])
+
+
+def _billing_db_session_available(db: Any) -> bool:
+    return hasattr(db, "query") and hasattr(db, "commit") and hasattr(db, "add")
+
+
+def _billing_readiness_status(db: Any) -> dict[str, Any]:
+    db_ready = _billing_db_session_available(db)
+    stripe_secret_ready = bool(STRIPE_SECRET_KEY)
+    stripe_plans_ready = not _missing_plans
+    legacy_metering_ready = bool(usage_metering_service and _get_mesh_or_404)
+
+    degraded_dependencies = []
+    if not db_ready:
+        degraded_dependencies.append("database")
+    if not stripe_secret_ready:
+        degraded_dependencies.append("stripe")
+    if not stripe_plans_ready:
+        degraded_dependencies.append("stripe_plans")
+    if not legacy_metering_ready:
+        degraded_dependencies.append("legacy_maas_metering")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "write_db_ready": db_ready,
+        "stripe_config_ready": stripe_secret_ready,
+        "stripe_plans_ready": stripe_plans_ready,
+        "legacy_metering_ready": legacy_metering_ready,
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": "ready" if db_ready else "unavailable",
+            "stripe_secret": "configured" if stripe_secret_ready else "missing",
+            "stripe_plans": "configured" if stripe_plans_ready else "missing",
+            "legacy_mesh_lookup": "imported" if legacy_metering_ready else "unavailable",
+            "subscription_sync": "stripe_required",
+            "invoice_generation": "database_and_legacy_metering_required",
+        },
+        "claim_boundary": (
+            "Billing route readiness distinguishes route availability from "
+            "Stripe configuration, invoice database writes, and legacy MaaS "
+            "metering imports. It does not prove live Stripe API reachability, "
+            "webhook signature validity, or successful customer payment state."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def billing_readiness(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    payload = _billing_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 async def _execute_stripe_call(
