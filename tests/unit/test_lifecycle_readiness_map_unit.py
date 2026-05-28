@@ -398,3 +398,56 @@ def test_lifecycle_map_tracks_users_route_only_runtime_readiness():
     assert "rate_limiter_ready" in source
     assert "admin_token_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_swarm_api_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    swarm = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "swarm-api"
+    )
+    source = _module_path(swarm["module"]).read_text(encoding="utf-8")
+
+    assert swarm["lifecycle_binding"] == "route_import_only"
+    assert swarm["registration_mode"] == "full_mode_only"
+    assert swarm["route_present_in_light_mode"] is False
+    assert swarm["readiness_signal"] == "/api/v3/swarm/health"
+    assert swarm["runtime_readiness_field"] == "swarm_runtime_ready"
+    assert "/api/v3/swarm fixed prefix is outside legacy MaaS catch-all" in (
+        swarm["hidden_dependency"]
+    )
+    assert "in-memory _swarms registry" in swarm["hidden_dependency"]
+    assert '@router.get("/health")' in source
+    assert "swarm_runtime_ready" in source
+    assert "registry_ready" in source
+    assert "admin_token_ready" in source
+    assert "rate_limiter_ready" in source
+    assert "orchestrator_ready" in source
+    assert "task_model_ready" in source
+    assert "vision_engine_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_ledger_api_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    ledger = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "ledger-api"
+    )
+    source = _module_path(ledger["module"]).read_text(encoding="utf-8")
+
+    assert ledger["lifecycle_binding"] == "route_import_only"
+    assert ledger["registration_mode"] == "full_mode_only"
+    assert ledger["route_present_in_light_mode"] is False
+    assert ledger["readiness_signal"] == "/api/v1/ledger/status"
+    assert ledger["runtime_readiness_field"] == "ledger_runtime_ready"
+    assert "/api/v1/ledger fixed prefix is outside legacy MaaS catch-all" in (
+        ledger["hidden_dependency"]
+    )
+    assert "service_event_trace_history" in ledger["hidden_dependency"]
+    assert '@router.get("/status")' in source
+    assert "ledger_runtime_ready" in source
+    assert "rag_surface_ready" in source
+    assert "continuity_file_ready" in source
+    assert "verification_evidence_ready" in source
+    assert "event_trace_index_ready" in source
+    assert "event_trace_dependencies_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
