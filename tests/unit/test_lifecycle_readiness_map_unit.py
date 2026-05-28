@@ -348,3 +348,29 @@ def test_lifecycle_map_tracks_vpn_route_only_runtime_readiness():
     assert "zkp_legacy_db_ready" in source
     assert "production_env_ready" in source
     assert "mark_degraded_dependency(request, dependency)" in source
+
+
+def test_lifecycle_map_tracks_users_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    users = next(router for router in lifecycle_map["routers"] if router["id"] == "users")
+    source = _module_path(users["module"]).read_text(encoding="utf-8")
+
+    assert users["lifecycle_binding"] == "route_import_only"
+    assert users["registration_mode"] == "full_mode_only"
+    assert users["route_present_in_light_mode"] is False
+    assert users["readiness_signal"] == "/api/v1/users/readiness"
+    assert users["runtime_readiness_field"] == "users_runtime_ready"
+    assert "/api/v1/users fixed prefix is outside legacy MaaS catch-all" in (
+        users["hidden_dependency"]
+    )
+    assert "users_db dictionary is test-only" in users["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "users_runtime_ready" in source
+    assert "users_db_ready" in source
+    assert "user_model_ready" in source
+    assert "session_model_ready" in source
+    assert "password_hashing_ready" in source
+    assert "token_generation_ready" in source
+    assert "rate_limiter_ready" in source
+    assert "admin_token_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source

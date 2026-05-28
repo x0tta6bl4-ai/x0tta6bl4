@@ -7,7 +7,7 @@ import hmac
 import os
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import bcrypt
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -16,6 +16,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from src.core.reliability_policy import mark_degraded_dependency
 from src.database import Session as DB_Session
 from src.database import User, get_db
 
@@ -228,6 +229,161 @@ async def verify_admin_token(x_admin_token: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail="Admin token not configured")
     if not x_admin_token or not hmac.compare_digest(x_admin_token, admin_token):
         raise HTTPException(status_code=403, detail="Admin access required")
+
+
+def _users_db_session_available(db: Any) -> bool:
+    return all(hasattr(db, attr) for attr in ("query", "add", "commit", "refresh"))
+
+
+def _user_model_available() -> bool:
+    return all(
+        hasattr(User, attr)
+        for attr in (
+            "id",
+            "email",
+            "password_hash",
+            "full_name",
+            "company",
+            "plan",
+            "api_key",
+            "requests_count",
+            "requests_limit",
+            "created_at",
+        )
+    )
+
+
+def _session_model_available() -> bool:
+    return all(
+        hasattr(DB_Session, attr)
+        for attr in ("token", "user_id", "email", "expires_at", "created_at")
+    )
+
+
+def _password_hashing_available() -> bool:
+    return all(
+        callable(getattr(bcrypt, attr, None))
+        for attr in ("hashpw", "checkpw", "gensalt")
+    )
+
+
+def _token_generation_available() -> bool:
+    return callable(secrets.token_urlsafe) and callable(hmac.compare_digest)
+
+
+def _users_limiter_available() -> bool:
+    return callable(getattr(limiter, "limit", None))
+
+
+def _users_admin_token_configured() -> bool:
+    return bool(os.getenv("ADMIN_TOKEN"))
+
+
+def _users_readiness_status(db: Any) -> Dict[str, Any]:
+    users_db_ready = _users_db_session_available(db)
+    user_model_ready = _user_model_available()
+    session_model_ready = _session_model_available()
+    password_hashing_ready = _password_hashing_available()
+    token_generation_ready = _token_generation_available()
+    rate_limiter_ready = _users_limiter_available()
+    admin_token_ready = _users_admin_token_configured()
+    users_runtime_ready = (
+        users_db_ready
+        and user_model_ready
+        and session_model_ready
+        and password_hashing_ready
+        and token_generation_ready
+        and rate_limiter_ready
+        and admin_token_ready
+    )
+
+    degraded_dependencies = []
+    if not users_db_ready:
+        degraded_dependencies.append("database")
+    if not user_model_ready:
+        degraded_dependencies.append("user_model")
+    if not session_model_ready:
+        degraded_dependencies.append("session_model")
+    if not password_hashing_ready:
+        degraded_dependencies.append("password_hashing")
+    if not token_generation_ready:
+        degraded_dependencies.append("token_generation")
+    if not rate_limiter_ready:
+        degraded_dependencies.append("rate_limiter")
+    if not admin_token_ready:
+        degraded_dependencies.append("admin_token")
+
+    return {
+        "status": "ready" if not degraded_dependencies else "degraded",
+        "route_registered": True,
+        "registration_mode": "full_mode_only",
+        "route_present_in_light_mode": False,
+        "lifecycle_binding": "route_import_only",
+        "startup_hook_completed": None,
+        "users_runtime_ready": users_runtime_ready,
+        "users_db_ready": users_db_ready,
+        "user_model_ready": user_model_ready,
+        "session_model_ready": session_model_ready,
+        "password_hashing_ready": password_hashing_ready,
+        "token_generation_ready": token_generation_ready,
+        "rate_limiter_ready": rate_limiter_ready,
+        "admin_token_ready": admin_token_ready,
+        "route_precedence": {
+            "shadowed_by_legacy": [],
+            "fixed_prefix": "/api/v1/users",
+            "boundary": (
+                "Users routes use the fixed /api/v1/users prefix, so they are "
+                "outside legacy MaaS catch-all matching. They are still "
+                "full-mode-only because src.core.app only registers this router "
+                "when light mode is disabled."
+            ),
+        },
+        "degraded_dependencies": degraded_dependencies,
+        "backing_state": {
+            "database": (
+                "Registration, login, profile lookup, logout, stats, and user "
+                "listing require a SQLAlchemy session with query/add/commit/refresh."
+            ),
+            "user_model": (
+                "User rows carry credentials, profile fields, API keys, plan, and "
+                "request quota state."
+            ),
+            "session_model": (
+                "Session rows back bearer-token login and current-user lookup."
+            ),
+            "password_hashing": (
+                "Registration and login depend on bcrypt hashpw/checkpw/gensalt."
+            ),
+            "token_generation": (
+                "API keys, sessions, and admin-token comparison depend on secrets "
+                "and hmac helpers."
+            ),
+            "rate_limiter": (
+                "Public auth and admin routes are decorated with slowapi limiter rules."
+            ),
+            "admin_token": (
+                "Stats and user-list endpoints fail closed when ADMIN_TOKEN is missing."
+            ),
+            "test_store": (
+                "users_db is a test-only in-memory store and is intentionally not a "
+                "runtime readiness dependency."
+            ),
+        },
+        "claim_boundary": (
+            "Users readiness proves that the route imports and local dependency "
+            "surfaces are present. It does not query the database, validate that "
+            "bcrypt can verify every stored password, or prove that existing "
+            "session tokens are unexpired."
+        ),
+    }
+
+
+@router.get("/readiness")
+async def users_readiness(request: Request, db: Session = Depends(get_db)):
+    payload = _users_readiness_status(db)
+    for dependency in payload["degraded_dependencies"]:
+        mark_degraded_dependency(request, dependency)
+    return payload
 
 
 @router.get("/stats")

@@ -6,8 +6,10 @@ admin token verification, and router metadata.
 All database interactions are mocked.
 """
 
+import asyncio
 import os
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,10 +19,19 @@ os.environ.setdefault("X0TTA6BL4_FORCE_MOCK_SPIFFE", "true")
 os.environ.setdefault("ADMIN_TOKEN", "test-admin-token")
 
 try:
-    from src.api.users import (SessionResponse, UserCreate, UserLogin,
-                               UserResponse, generate_api_key,
-                               generate_session_token, hash_password, router,
-                               users_db, verify_admin_token)
+    import src.api.users as users_mod
+    from src.api.users import (
+        SessionResponse,
+        UserCreate,
+        UserLogin,
+        UserResponse,
+        generate_api_key,
+        generate_session_token,
+        hash_password,
+        router,
+        users_db,
+        verify_admin_token,
+    )
 
     USERS_AVAILABLE = True
 except ImportError as exc:
@@ -171,3 +182,84 @@ class TestUsersRouter:
     def test_router_has_login_route(self):
         route_paths = [r.path for r in router.routes]
         assert any("/login" in p for p in route_paths)
+
+    def test_router_has_readiness_route(self):
+        route_paths = [r.path for r in router.routes]
+        assert any("/readiness" in p for p in route_paths)
+
+
+def _force_users_dependencies_ready(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "test-admin-token")
+    monkeypatch.setattr(
+        users_mod,
+        "bcrypt",
+        SimpleNamespace(
+            hashpw=lambda *_args: b"hash",
+            checkpw=lambda *_args: True,
+            gensalt=lambda: b"salt",
+        ),
+    )
+    monkeypatch.setattr(
+        users_mod,
+        "limiter",
+        SimpleNamespace(limit=lambda *_args, **_kwargs: lambda fn: fn),
+    )
+
+
+class TestUsersReadiness:
+    def test_ready_when_core_dependencies_are_available(self, monkeypatch):
+        _force_users_dependencies_ready(monkeypatch)
+        db = MagicMock(spec=["query", "add", "commit", "refresh"])
+
+        payload = users_mod._users_readiness_status(db)
+
+        assert payload["status"] == "ready"
+        assert payload["users_runtime_ready"] is True
+        assert payload["users_db_ready"] is True
+        assert payload["user_model_ready"] is True
+        assert payload["session_model_ready"] is True
+        assert payload["password_hashing_ready"] is True
+        assert payload["token_generation_ready"] is True
+        assert payload["rate_limiter_ready"] is True
+        assert payload["admin_token_ready"] is True
+        assert payload["degraded_dependencies"] == []
+
+    def test_degraded_when_dependencies_are_missing(self, monkeypatch):
+        monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+        monkeypatch.setattr(users_mod, "User", SimpleNamespace(id="id"))
+        monkeypatch.setattr(users_mod, "DB_Session", SimpleNamespace(token="token"))
+        monkeypatch.setattr(
+            users_mod,
+            "bcrypt",
+            SimpleNamespace(hashpw=None, checkpw=None, gensalt=None),
+        )
+        monkeypatch.setattr(users_mod, "limiter", SimpleNamespace(limit=None))
+
+        payload = users_mod._users_readiness_status(SimpleNamespace())
+
+        assert payload["status"] == "degraded"
+        assert payload["users_runtime_ready"] is False
+        assert payload["degraded_dependencies"] == [
+            "database",
+            "user_model",
+            "session_model",
+            "password_hashing",
+            "rate_limiter",
+            "admin_token",
+        ]
+        assert (
+            "users_db is a test-only in-memory store"
+            in payload["backing_state"]["test_store"]
+        )
+        assert "does not query the database" in payload["claim_boundary"]
+
+    def test_endpoint_marks_degraded_dependencies(self, monkeypatch):
+        _force_users_dependencies_ready(monkeypatch)
+        request = SimpleNamespace(state=SimpleNamespace())
+
+        payload = asyncio.run(
+            users_mod.users_readiness(request, db=SimpleNamespace())
+        )
+
+        assert payload["status"] == "degraded"
+        assert request.state.degraded_dependencies == {"database"}
