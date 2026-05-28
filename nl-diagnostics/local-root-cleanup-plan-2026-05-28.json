@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/plan_local_root_cleanup.py",
-  "generated_at": "2026-05-28T02:19:13.136574+00:00",
+  "generated_at": "2026-05-28T02:35:38.659017+00:00",
   "status": "manual_cleanup_plan_ready",
   "ok": true,
   "summary": {
@@ -9,7 +9,7 @@
     "root_free_gib": 0.0,
     "candidate_count": 5,
     "existing_candidate_count": 5,
-    "estimated_reclaim_gib": 3.26,
+    "estimated_reclaim_gib": 3.25,
     "min_target_free_gib": 2.0,
     "top_candidate_id": "APT-CACHE-01",
     "top_candidate_size_gib": 0.85,
@@ -76,8 +76,8 @@
       "approval": "separate local cleanup approval; keep recent logs",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 780161024,
-      "size_gib": 0.73,
+      "size_bytes": 771772416,
+      "size_gib": 0.72,
       "error_count": 0,
       "errors": []
     },

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_local_root_cleanup_approval_packet.py",
-  "generated_at": "2026-05-28T02:34:21.760601+00:00",
+  "generated_at": "2026-05-28T02:35:39.038340+00:00",
   "status": "cleanup_approval_packet_ready",
   "ok": true,
   "summary": {
@@ -11,7 +11,7 @@
     "diagnostic_tmpdir_writable": true,
     "cleanup_plan_status": "manual_cleanup_plan_ready",
     "existing_candidate_count": 5,
-    "estimated_reclaim_gib": 3.26,
+    "estimated_reclaim_gib": 3.25,
     "first_review_id": "APT-CACHE-01",
     "command_preview_count": 5,
     "approval_required": true,
@@ -39,7 +39,7 @@
     {
       "id": "JOURNAL-01",
       "path": "/var/log/journal",
-      "size_gib": 0.73,
+      "size_gib": 0.72,
       "risk": "medium_keep_recent_logs",
       "approval_level": "confirm_log_retention_approval",
       "command_preview": "sudo journalctl --vacuum-size=500M",
