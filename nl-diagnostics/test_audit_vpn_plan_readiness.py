@@ -279,6 +279,60 @@ def sample_secondary_public_metadata_template(status: str = "public_metadata_tem
     }
 
 
+def sample_secondary_post_provision_validation(
+    status: str = "post_provision_validation_ready_waiting_endpoint",
+) -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "selected_label": "upcloud-fi-hel",
+            "candidate_score_status": "missing_candidates",
+            "viable_count": 0,
+            "secondary_probe_status": "planning_template",
+            "can_generate_probe_config": False,
+            "can_run_public_probe": False,
+            "test_client_allowed": False,
+            "safe_flags": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_secondary_post_provision_validation(
+    status: str = "post_provision_validation_ready_waiting_endpoint",
+) -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "selected_label": "upcloud-fi-hel",
+            "candidate_file": "/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
+            "endpoint_count": 0,
+            "candidate_score_status": "missing_candidates",
+            "candidate_count": 0,
+            "viable_count": 0,
+            "secondary_probe_status": "planning_template",
+            "candidate_configured": False,
+            "manual_probe_allowed": False,
+            "manual_switch_allowed": False,
+            "can_generate_probe_config": False,
+            "can_run_public_probe": False,
+            "test_client_allowed": False,
+            "safe_flags": True,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
 def sample_secondary_intake(status: str = "awaiting_public_candidate_metadata") -> dict:
     return {
         "status": status,
@@ -510,6 +564,7 @@ def sample_inputs() -> dict:
         "secondary_manual_drill": sample_secondary_manual_drill(),
         "secondary_selection_packet": sample_secondary_selection_packet(),
         "secondary_public_metadata_template": sample_secondary_public_metadata_template(),
+        "secondary_post_provision_validation": sample_secondary_post_provision_validation(),
         "local_env": sample_local_env(),
         "local_cleanup_plan": sample_local_cleanup_plan(),
         "local_cleanup_packet": sample_local_cleanup_packet(),
@@ -607,6 +662,13 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         )
         self.assertEqual(payload["summary"]["secondary_public_metadata_selected_label"], "upcloud-fi-hel")
         self.assertFalse(payload["summary"]["secondary_public_metadata_candidate_file_update_allowed"])
+        self.assertEqual(
+            payload["summary"]["secondary_post_provision_validation_status"],
+            "post_provision_validation_ready_waiting_endpoint",
+        )
+        self.assertFalse(payload["summary"]["secondary_post_provision_can_generate_probe_config"])
+        self.assertFalse(payload["summary"]["secondary_post_provision_can_run_public_probe"])
+        self.assertFalse(payload["summary"]["secondary_post_provision_test_client_allowed"])
         self.assertTrue(payload["summary"]["local_tmpdir_writable"])
         self.assertEqual(payload["summary"]["local_root_cleanup_plan_status"], "manual_cleanup_plan_ready")
         self.assertFalse(payload["summary"]["local_root_cleanup_execute_allowed"])
@@ -845,6 +907,27 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         public_template_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-12")
         self.assertEqual(public_template_item["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_secondary_post_provision_validation_with_unsafe_flags_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["secondary_post_provision_validation"] = {
+                **sample_secondary_post_provision_validation("post_provision_validation_unsafe_flags"),
+                "spb_fallback_allowed": True,
+                "summary": {
+                    **sample_secondary_post_provision_validation()["summary"],
+                    "spb_fallback_allowed": True,
+                    "safe_flags": False,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        validation_item = next(item for item in payload["items"] if item["id"] == "FAILOVER-13")
+        self.assertEqual(validation_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):
