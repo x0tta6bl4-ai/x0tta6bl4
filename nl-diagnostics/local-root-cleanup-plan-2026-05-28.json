@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/plan_local_root_cleanup.py",
-  "generated_at": "2026-05-28T02:55:58.920060+00:00",
+  "generated_at": "2026-05-28T03:15:12.464292+00:00",
   "status": "manual_cleanup_plan_ready",
   "ok": true,
   "summary": {
@@ -76,7 +76,7 @@
       "approval": "separate local cleanup approval; keep recent logs",
       "exists": true,
       "is_dir": true,
-      "size_bytes": 746606592,
+      "size_bytes": 754995200,
       "size_gib": 0.7,
       "error_count": 0,
       "errors": []

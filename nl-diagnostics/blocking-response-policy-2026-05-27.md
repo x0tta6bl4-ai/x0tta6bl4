@@ -118,12 +118,28 @@ python3 nl-diagnostics/summarize_blocking_probe_history.py \
 Latest history result:
 
 ```text
-snapshot_count=4
+snapshot_count=9
 trend=stable_no_probe_evidence
-latest_snapshot=20260527T230246Z
+latest_snapshot=20260528T031418Z
 latest_targets_ok=8/8
 degraded_targets=0
 ```
+
+For the first user report, use the local symptom-intake checklist before any
+technical action:
+
+```text
+nl-diagnostics/vpn-incident-symptom-intake-2026-05-28.md
+status=symptom_intake_ready_observe
+required_field_count=12
+forbidden_material_count=12
+```
+
+This checklist allows only visible symptoms such as affected app/site, network
+type, ISP/mobile operator, client name, and direct-vs-VPN result. It forbids raw
+VPN URIs, UUIDs, private keys, bot tokens, subscription links, passwords,
+billing data, private chats, screenshots with private data, and NL/SPB
+endpoints.
 
 ## What Not To Do
 
@@ -147,6 +163,7 @@ blocking_assessment.category=app_specific_degradation
 blocking_assessment.recommended_probe=test Telegram media separately from core VPN; do not restart x-ui
 blocking_probe_history.trend=stable_no_probe_evidence
 current_vpn_decision=observe
+incident_symptom_intake=symptom_intake_ready_observe
 ```
 
 No NL or SPB writes were performed.

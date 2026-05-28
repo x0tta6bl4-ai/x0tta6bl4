@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-28T02:56:00.202733+00:00",
+  "generated_at": "2026-05-28T03:15:13.508135+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 21,
+    "ready_local": 22,
     "blocked_future_approval": 4,
     "watch": 3,
     "missing": 0,
@@ -43,6 +43,11 @@
     "secondary_manual_drill_status": "drill_plan_ready_blocked_no_endpoint",
     "secondary_manual_drill_test_scope": "single_client",
     "secondary_manual_drill_rollback_required": true,
+    "secondary_selection_packet_status": "selection_packet_ready_no_endpoint",
+    "secondary_selection_recommended_label": "upcloud-fi-hel",
+    "secondary_selection_backup_label": "ovhcloud-pl-waw",
+    "secondary_selection_option_count": 3,
+    "secondary_selection_may_create_endpoint_now": false,
     "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
     "local_root_status": "critical_full",
     "local_tmpdir_writable": true,
@@ -68,11 +73,11 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z",
-        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z",
-        "latest_snapshot=20260528T025444Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z",
+        "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z",
+        "latest_snapshot=20260528T031418Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=76",
+        "snapshot_age_seconds=55",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -112,8 +117,8 @@
       "evidence": [
         "provider_packet_type=provider_watch",
         "snapshot_stale=false",
-        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z",
-        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z",
+        "packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z",
+        "decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z",
         "same_snapshot=true",
         "safe_flags=true"
       ],
@@ -125,9 +130,9 @@
       "status": "ready_local",
       "ok": true,
       "evidence": [
-        "snapshot_count=8",
+        "snapshot_count=9",
         "trend=stable_no_probe_evidence",
-        "latest_probe_snapshot=20260528T025444Z",
+        "latest_probe_snapshot=20260528T031418Z",
         "latest_targets_ok=8/8"
       ],
       "next_step": "use probes as app/path evidence, not as an x-ui restart trigger"
@@ -354,6 +359,22 @@
       "next_step": "after a secondary endpoint exists, run the drill on one test client and roll back to NL"
     },
     {
+      "id": "FAILOVER-11",
+      "title": "Secondary provider selection packet gives a safe decision order",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_selection_packet_status=selection_packet_ready_no_endpoint",
+        "recommended_label=upcloud-fi-hel",
+        "backup_label=ovhcloud-pl-waw",
+        "decision_option_count=3",
+        "endpoint_count=0",
+        "may_create_endpoint_now=false",
+        "safe_flags=true"
+      ],
+      "next_step": "pick the primary label externally, then store only public endpoint metadata after provisioning"
+    },
+    {
       "id": "TRANSPORT-01",
       "title": "Outside-in NL TCP port probe is available",
       "status": "ready_local",
@@ -373,7 +394,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=21",
+        "sample_count=22",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"

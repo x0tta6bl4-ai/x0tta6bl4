@@ -1,7 +1,7 @@
 # VPN Planning Refresh
 
-generated_at: `2026-05-28T02:56:00.498254+00:00`
-snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T025444Z`
+generated_at: `2026-05-28T03:15:13.682618+00:00`
+snapshot: `/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z`
 ok: `true`
 
 ## Summary
@@ -14,9 +14,9 @@ boot_gap_watch_status=watch
 boot_gap_seconds=21907
 provider_packet_type=provider_watch
 provider_packet_stale=False
-provider_packet_snapshot_age_seconds=51
+provider_packet_snapshot_age_seconds=39
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=8
+blocking_history_snapshot_count=9
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -39,6 +39,11 @@ secondary_exit_flow_manual_switch_allowed=False
 secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
 secondary_manual_drill_test_scope=single_client
 secondary_manual_drill_rollback_required=True
+secondary_selection_packet_status=selection_packet_ready_no_endpoint
+secondary_selection_recommended_label=upcloud-fi-hel
+secondary_selection_backup_label=ovhcloud-pl-waw
+secondary_selection_option_count=3
+secondary_selection_may_create_endpoint_now=False
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
@@ -55,14 +60,14 @@ incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=21
+nl_transport_uptime_samples=22
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=19
+incident_timeline_event_count=20
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T025444Z
+incident_timeline_latest_snapshot=20260528T031418Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 automatic_failover_allowed=false
@@ -183,6 +188,13 @@ exit_code=0
 ```
 
 ### secondary_manual_drill
+
+```text
+ok=true
+exit_code=0
+```
+
+### secondary_selection_packet
 
 ```text
 ok=true

@@ -695,8 +695,8 @@ nl-diagnostics/blocking-response-policy-2026-05-27.md
 Latest provider packet:
 
 ```text
-snapshot: nl-diagnostics/snapshots/20260528T025444Z
-packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T025444Z.md
+snapshot: nl-diagnostics/snapshots/20260528T031418Z
+packet: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T031418Z.md
 packet_type: provider_watch
 snapshot_stale: false
 current_cpu_steal_percent: 0.0
@@ -726,11 +726,11 @@ classifier now emits blocking_assessment
 latest snapshot category: app_specific_degradation
 app/path probe command added: nl-diagnostics/probe_blocking_paths.py
 default target config: nl-diagnostics/blocking_probe_targets.json
-fresh probe snapshot: nl-diagnostics/snapshots/20260528T025444Z
+fresh probe snapshot: nl-diagnostics/snapshots/20260528T031418Z
 fresh probe summary: no_probe_evidence, 8/8 targets ok direct and SOCKS
 probe history command added: nl-diagnostics/summarize_blocking_probe_history.py
 probe history report: nl-diagnostics/blocking-probe-history-2026-05-28.md
-probe history trend: stable_no_probe_evidence across 8 snapshots
+probe history trend: stable_no_probe_evidence across 9 snapshots
 incident entrypoint added: nl-diagnostics/run_vpn_incident_readonly_refresh.sh
 incident entrypoint behavior: collect read-only snapshot with blocking probes, then refresh local reports
 decision report command added: nl-diagnostics/build_vpn_decision_report.py
@@ -740,7 +740,7 @@ boot-gap watch command added: nl-diagnostics/build_boot_gap_watch_report.py
 boot-gap watch report: nl-diagnostics/boot-gap-watch-2026-05-28.md
 boot-gap watch status: watch, boot_gap_seconds=21907
 provider packet refresh added: nl-diagnostics/build_provider_incident_packet.py
-provider packet report: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T025444Z.md
+provider packet report: nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T031418Z.md
 provider packet status: provider_watch, snapshot_stale=false
 freshness gate added: snapshot_age_seconds <= 3600 is fresh; older evidence becomes watch
 planning refresh command added: nl-diagnostics/refresh_vpn_planning_reports.py
@@ -748,7 +748,7 @@ planning refresh report: nl-diagnostics/vpn-planning-refresh-2026-05-28.md
 planning refresh status: ok=true
 incident timeline recorder added: nl-diagnostics/record_vpn_incident_timeline.py
 incident timeline report: nl-diagnostics/vpn-incident-timeline-2026-05-28.md
-incident timeline status: event_count=19, latest_type=provider_watch
+incident timeline status: event_count=20, latest_type=provider_watch
 manual failover readiness gate added: nl-diagnostics/audit_manual_failover_readiness.py
 manual failover readiness report: nl-diagnostics/manual-failover-readiness-2026-05-28.md
 manual failover readiness status: blocked_no_incident_trigger, manual_switch_allowed=false
@@ -774,12 +774,15 @@ secondary exit flow status: blocked_missing_candidate, candidate_configured=fals
 secondary manual drill command added: nl-diagnostics/build_secondary_exit_manual_drill.py
 secondary manual drill report: nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md
 secondary manual drill status: drill_plan_ready_blocked_no_endpoint, test_scope=single_client, rollback_required=true
+secondary selection packet command added: nl-diagnostics/build_secondary_exit_selection_packet.py
+secondary selection packet report: nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
+secondary selection packet status: selection_packet_ready_no_endpoint, primary=upcloud-fi-hel, backup=ovhcloud-pl-waw, may_create_endpoint_now=false
 outside-in NL transport probe added: nl-diagnostics/probe_nl_transport_ports.py
 outside-in NL transport probe report: nl-diagnostics/nl-transport-probe-2026-05-28.md
 outside-in NL transport status: healthy, 3/3 ports ok
 outside-in NL transport uptime recorder added: nl-diagnostics/record_nl_transport_uptime.py
 outside-in NL transport uptime summary: nl-diagnostics/nl-transport-uptime-summary-2026-05-28.md
-outside-in NL transport uptime status: stable_healthy, samples=21, bad_streak=0
+outside-in NL transport uptime status: stable_healthy, samples=22, bad_streak=0
 local uptime scheduler service template: infra/systemd/x0tta-vpn-nl-transport-uptime.service
 local uptime scheduler timer template: infra/systemd/x0tta-vpn-nl-transport-uptime.timer
 local uptime scheduler status: prepared only, not installed, no systemd command run
@@ -795,7 +798,7 @@ local root cleanup approval packet report: nl-diagnostics/local-root-cleanup-app
 local root cleanup approval packet status: cleanup_approval_packet_ready, approval_required=true, commands_executed=0
 readiness audit command added: nl-diagnostics/audit_vpn_plan_readiness.py
 readiness audit report: nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
-readiness audit status: ready_local_with_future_blocks, ready_local=21, blocked_future_approval=4, watch=3, missing=0
+readiness audit status: ready_local_with_future_blocks, ready_local=22, blocked_future_approval=4, watch=3, missing=0
 readiness watch items: BOOT-01, LOCALENV-01, LOCALCLEAN-01
 readiness blocked items include: FAILOVER-03, FAILOVER-06, GATE-01, FAILOVER-02
 operator card added: nl-diagnostics/build_vpn_operator_card.py
@@ -823,7 +826,7 @@ This is only a local reviewed-source patch. It has not been copied to NL.
 Fresh read-only refresh:
 
 ```text
-snapshot: nl-diagnostics/snapshots/20260528T025444Z
+snapshot: nl-diagnostics/snapshots/20260528T031418Z
 profile: nl-diagnostics/nl-server-profile/20260527T173222Z
 overall_status: advisory
 transport_status: advisory
