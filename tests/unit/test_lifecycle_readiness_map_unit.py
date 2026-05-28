@@ -514,6 +514,33 @@ def test_lifecycle_map_tracks_swarm_orchestration_route_only_runtime_readiness()
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_vision_analytics_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    vision = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "vision-analytics"
+    )
+    source = _module_path(vision["module"]).read_text(encoding="utf-8")
+
+    assert vision["lifecycle_binding"] == "route_import_only"
+    assert vision["registration_mode"] == "full_mode_only"
+    assert vision["route_present_in_light_mode"] is False
+    assert vision["readiness_signal"] == "/api/v1/vision/readiness"
+    assert vision["runtime_readiness_field"] == "vision_runtime_ready"
+    assert "/api/v1/vision fixed prefix is outside legacy MaaS catch-all" in (
+        vision["hidden_dependency"]
+    )
+    assert "does not process an image" in vision["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "vision_runtime_ready" in source
+    assert "vision_components_ready" in source
+    assert "processor_surface_ready" in source
+    assert "topology_surface_ready" in source
+    assert "correction_surface_ready" in source
+    assert "upload_surface_ready" in source
+    assert "local_image_backend_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_maas_dashboard_route_only_runtime_readiness():
     lifecycle_map = _load_map()
     dashboard = next(

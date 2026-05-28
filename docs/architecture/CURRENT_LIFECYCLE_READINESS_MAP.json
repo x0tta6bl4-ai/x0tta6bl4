@@ -424,10 +424,14 @@
       "route_present_in_light_mode": false,
       "router_prefix": "/api/v1/vision",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/vision/readiness",
+      "runtime_readiness_field": "vision_runtime_ready",
+      "hidden_dependency": "Full-mode-only route registration with no production_lifespan hook. The /api/v1/vision fixed prefix is outside legacy MaaS catch-all matching, but topology/debug upload flows depend on import-time VisionProcessor, MeshTopologyAnalyzer, and SelfCorrectionEngine construction, local Pillow-backed image parsing, processor process_image/extract_text methods, topology analyze_bytes/analyze/clear_cache methods, correction debug_bytes/debug_visually methods, FastAPI file upload parsing, and app-level rate-limit overrides for CPU-heavy vision endpoints. Readiness reports those local surfaces but does not process an image, prove OCR is installed, or prove an external vision provider is configured.",
       "source_refs": [
         "src/core/app.py:261",
-        "src/api/vision_endpoints.py:13"
+        "src/api/vision_endpoints.py:16",
+        "src/api/vision_endpoints.py:73",
+        "src/api/vision_endpoints.py:142"
       ]
     },
     {
