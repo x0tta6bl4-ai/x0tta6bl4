@@ -1,13 +1,13 @@
 # NL Transport Uptime Summary
 
-generated_at: `2026-05-28T00:21:47.286269+00:00`
+generated_at: `2026-05-28T01:00:22.260462+00:00`
 history: `/mnt/projects/nl-diagnostics/nl-transport-uptime-history.jsonl`
 
 ## Summary
 
 ```text
 status=stable_healthy
-sample_count=6
+sample_count=11
 latest_status=healthy
 latest_ok_count=3/3
 consecutive_non_healthy=0
@@ -19,7 +19,7 @@ automatic_failover_allowed=false
 Recent statuses:
 
 ```text
-healthy healthy healthy healthy healthy healthy
+healthy healthy healthy healthy healthy healthy healthy healthy healthy healthy healthy
 ```
 
 No NL or SPB writes were performed by this uptime recorder.

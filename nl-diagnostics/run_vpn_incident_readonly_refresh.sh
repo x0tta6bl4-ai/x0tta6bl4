@@ -7,6 +7,9 @@ COLLECTOR="${COLLECTOR:-$ROOT_DIR/nl-diagnostics/collect_vpn_readonly_snapshot.s
 REFRESH="${REFRESH:-$ROOT_DIR/nl-diagnostics/refresh_vpn_planning_reports.py}"
 
 export VPN_ENABLE_BLOCKING_PROBES="${VPN_ENABLE_BLOCKING_PROBES:-1}"
+if [ -d "$ROOT_DIR/.tmp" ]; then
+    export TMPDIR="${TMPDIR:-$ROOT_DIR/.tmp}"
+fi
 
 snapshot_dir="$("$COLLECTOR" | tail -n 1)"
 case "$snapshot_dir" in
