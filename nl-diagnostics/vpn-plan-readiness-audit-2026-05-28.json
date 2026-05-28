@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-28T02:19:13.795626+00:00",
+  "generated_at": "2026-05-28T02:35:42.920492+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 19,
+    "ready_local": 20,
     "blocked_future_approval": 4,
     "watch": 3,
     "missing": 0,
@@ -47,8 +47,11 @@
     "local_root_status": "critical_full",
     "local_tmpdir_writable": true,
     "local_root_cleanup_plan_status": "manual_cleanup_plan_ready",
-    "local_root_cleanup_estimated_reclaim_gib": 3.26,
+    "local_root_cleanup_estimated_reclaim_gib": 3.25,
     "local_root_cleanup_execute_allowed": false,
+    "local_root_cleanup_approval_packet_status": "cleanup_approval_packet_ready",
+    "local_root_cleanup_approval_required": true,
+    "local_root_cleanup_commands_executed": 0,
     "transport_probe_status": "healthy",
     "transport_uptime_status": "stable_healthy",
     "nl_write_allowed": false,
@@ -66,7 +69,7 @@
         "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z",
         "latest_snapshot=20260528T021824Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=49",
+        "snapshot_age_seconds=1038",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -168,12 +171,28 @@
         "root_status=critical_full",
         "root_free_gib=0.0",
         "existing_candidate_count=5",
-        "estimated_reclaim_gib=3.26",
+        "estimated_reclaim_gib=3.25",
         "top_candidate_id=APT-CACHE-01",
         "cleanup_execute_allowed=false",
         "safe_flags=true"
       ],
       "next_step": "review local cleanup candidates and execute cleanup only after separate local approval"
+    },
+    {
+      "id": "LOCALCLEAN-02",
+      "title": "Local cleanup approval packet is prepared without executing commands",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "cleanup_approval_packet_status=cleanup_approval_packet_ready",
+        "first_review_id=APT-CACHE-01",
+        "command_preview_count=5",
+        "approval_required=true",
+        "commands_executed=0",
+        "cleanup_execute_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "run only prechecks now; execute cleanup previews only after separate local cleanup approval"
     },
     {
       "id": "OPERATOR-01",
@@ -334,7 +353,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=19",
+        "sample_count=20",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"
