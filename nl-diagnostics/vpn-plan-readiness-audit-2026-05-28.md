@@ -1,13 +1,13 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T02:19:13.795626+00:00`
+generated_at: `2026-05-28T02:35:42.920492+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=19
+ready_local=20
 blocked_future_approval=4
 watch=3
 missing=0
@@ -37,8 +37,11 @@ local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.26
+local_root_cleanup_estimated_reclaim_gib=3.25
 local_root_cleanup_execute_allowed=False
+local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
+local_root_cleanup_approval_required=True
+local_root_cleanup_commands_executed=0
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
 nl_write_allowed=false
@@ -58,6 +61,7 @@ automatic_failover_allowed=false
 | `REFRESH-01` | `ready_local` | One refresh command rebuilds the local planning reports | run refresh after every new snapshot before deciding on action |
 | `LOCALENV-01` | `watch` | Local diagnostic host has a writable project temp directory | keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval |
 | `LOCALCLEAN-01` | `watch` | Local root cleanup plan is prepared but execution is blocked | review local cleanup candidates and execute cleanup only after separate local approval |
+| `LOCALCLEAN-02` | `ready_local` | Local cleanup approval packet is prepared without executing commands | run only prechecks now; execute cleanup previews only after separate local cleanup approval |
 | `OPERATOR-01` | `ready_local` | Short incident card exists for the next outage | start incidents from the operator card, then collect fresh evidence |
 | `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
 | `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
@@ -85,7 +89,7 @@ automatic_failover_allowed=false
 - refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
 - latest_snapshot=20260528T021824Z
 - snapshot_exists=true
-- snapshot_age_seconds=49
+- snapshot_age_seconds=1038
 - fresh=true
 
 ### DECISION-01
@@ -145,8 +149,18 @@ automatic_failover_allowed=false
 - root_status=critical_full
 - root_free_gib=0.0
 - existing_candidate_count=5
-- estimated_reclaim_gib=3.26
+- estimated_reclaim_gib=3.25
 - top_candidate_id=APT-CACHE-01
+- cleanup_execute_allowed=false
+- safe_flags=true
+
+### LOCALCLEAN-02
+
+- cleanup_approval_packet_status=cleanup_approval_packet_ready
+- first_review_id=APT-CACHE-01
+- command_preview_count=5
+- approval_required=true
+- commands_executed=0
 - cleanup_execute_allowed=false
 - safe_flags=true
 
@@ -245,7 +259,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=19
+- sample_count=20
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

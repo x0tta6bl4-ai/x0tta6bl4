@@ -54,6 +54,7 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
                 "secondary_manual_drill",
                 "local_diagnostic_environment",
                 "local_root_cleanup_plan",
+                "local_root_cleanup_approval_packet",
                 "operator_card",
                 "readiness_audit",
                 "incident_timeline",

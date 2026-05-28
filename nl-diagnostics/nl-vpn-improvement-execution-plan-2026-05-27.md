@@ -53,9 +53,9 @@ provider packet: provider_watch, snapshot_stale=false
 freshness gate: snapshot_age_seconds varies with time, max=3600
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-outside-in NL transport uptime: stable_healthy, samples=19, bad_streak=0
+outside-in NL transport uptime: stable_healthy, samples=20, bad_streak=0
 local uptime scheduler templates: prepared only, not installed
-incident timeline: event_count=17, latest_type=provider_watch
+incident timeline: event_count=18, latest_type=provider_watch
 manual failover readiness: blocked_no_incident_trigger, manual_switch_allowed=false
 secondary candidate score: missing_candidates, viable_count=0
 secondary exit requirements: requirements_ready_no_candidate, missing=NET-01
@@ -65,9 +65,10 @@ secondary candidate intake: awaiting_public_candidate_metadata, allowed_fields=7
 secondary exit flow: blocked_missing_candidate, candidate_configured=false, manual_switch_allowed=false
 secondary manual drill: drill_plan_ready_blocked_no_endpoint, test_scope=single_client, rollback_required=true
 local diagnostic environment: watch_root_full_tmpdir_available, root_status=critical_full, tmpdir=/mnt/projects/.tmp writable
-local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.26, cleanup_execute_allowed=false
+local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.25, cleanup_execute_allowed=false
+local root cleanup approval packet: cleanup_approval_packet_ready, approval_required=true, commands_executed=0
 refresh tmpdir guard: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
-readiness audit: ready_local_with_future_blocks, ready_local=19, blocked_future_approval=4, watch=3, missing=0
+readiness audit: ready_local_with_future_blocks, ready_local=20, blocked_future_approval=4, watch=3, missing=0
 blocked future items: FAILOVER-03 manual failover gate, FAILOVER-06 secondary exit flow, GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
 watch items: BOOT-01 provider boot gap, LOCALENV-01 local root disk full but project tmpdir works, LOCALCLEAN-01 cleanup plan awaits approval
 NL writes: 0
