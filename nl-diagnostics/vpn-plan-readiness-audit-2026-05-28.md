@@ -1,13 +1,13 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T03:15:13.508135+00:00`
+generated_at: `2026-05-28T03:26:58.933383+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=22
+ready_local=23
 blocked_future_approval=4
 watch=3
 missing=0
@@ -38,11 +38,14 @@ secondary_selection_recommended_label=upcloud-fi-hel
 secondary_selection_backup_label=ovhcloud-pl-waw
 secondary_selection_option_count=3
 secondary_selection_may_create_endpoint_now=False
+secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint
+secondary_public_metadata_selected_label=upcloud-fi-hel
+secondary_public_metadata_candidate_file_update_allowed=False
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.23
+local_root_cleanup_estimated_reclaim_gib=3.25
 local_root_cleanup_execute_allowed=False
 local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
 local_root_cleanup_approval_required=True
@@ -81,6 +84,7 @@ automatic_failover_allowed=false
 | `FAILOVER-06` | `blocked_future_approval` | Secondary exit operating flow blocks unsafe activation | fill public metadata for a non-NL/non-SPB candidate, then generate and run the safe probe config |
 | `FAILOVER-10` | `ready_local` | Secondary manual drill is test-only and rollback-gated | after a secondary endpoint exists, run the drill on one test client and roll back to NL |
 | `FAILOVER-11` | `ready_local` | Secondary provider selection packet gives a safe decision order | pick the primary label externally, then store only public endpoint metadata after provisioning |
+| `FAILOVER-12` | `ready_local` | Secondary public metadata template is ready without secrets | after external provisioning, replace only host with public IP/DNS and rerun scorer |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
@@ -95,17 +99,17 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
-- latest_snapshot=20260528T031418Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z
+- latest_snapshot=20260528T032605Z
 - snapshot_exists=true
-- snapshot_age_seconds=55
+- snapshot_age_seconds=53
 - fresh=true
 
 ### DECISION-01
 
 - decision=observe
-- transport_status=healthy
+- transport_status=advisory
 - failure_domain=external_network
 - safe_flags=true
 
@@ -114,23 +118,23 @@ automatic_failover_allowed=false
 - boot_gap_watch_status=watch
 - boot_gap_seconds=21907
 - provider_status=recent_boot_gap
-- transport_status=healthy
+- transport_status=advisory
 - safe_flags=true
 
 ### PROVIDER-01
 
 - provider_packet_type=provider_watch
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T031418Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=9
+- snapshot_count=10
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T031418Z
+- latest_probe_snapshot=20260528T032605Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -159,7 +163,7 @@ automatic_failover_allowed=false
 - root_status=critical_full
 - root_free_gib=0.0
 - existing_candidate_count=5
-- estimated_reclaim_gib=3.23
+- estimated_reclaim_gib=3.25
 - top_candidate_id=APT-CACHE-01
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -187,7 +191,7 @@ automatic_failover_allowed=false
 - decision=observe
 - operator_status=observe
 - failure_domain=external_network
-- transport_status=healthy
+- transport_status=advisory
 - required_field_count=12
 - forbidden_material_count=12
 - safe_flags=true
@@ -280,6 +284,17 @@ automatic_failover_allowed=false
 - may_create_endpoint_now=false
 - safe_flags=true
 
+### FAILOVER-12
+
+- secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint
+- selected_label=upcloud-fi-hel
+- selected_provider=UpCloud
+- candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json
+- template_candidate_count=1
+- candidate_file_update_allowed=false
+- forbidden_material_count=11
+- safe_flags=true
+
 ### TRANSPORT-01
 
 - transport_probe_status=healthy
@@ -290,7 +305,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=22
+- sample_count=23
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true

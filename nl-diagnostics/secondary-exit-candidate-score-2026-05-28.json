@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/score_secondary_exit_candidates.py",
-  "generated_at": "2026-05-28T03:14:59.759331+00:00",
+  "generated_at": "2026-05-28T03:26:46.810011+00:00",
   "candidate_file": "/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json",
   "status": "missing_candidates",
   "summary": {

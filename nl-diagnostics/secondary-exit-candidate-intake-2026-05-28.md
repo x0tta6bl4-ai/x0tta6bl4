@@ -1,6 +1,6 @@
 # Secondary Exit Candidate Intake
 
-generated_at: `2026-05-28T03:15:00.962645+00:00`
+generated_at: `2026-05-28T03:26:47.483844+00:00`
 status: `awaiting_public_candidate_metadata`
 ok: `true`
 
