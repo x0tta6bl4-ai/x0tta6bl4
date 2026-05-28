@@ -46,21 +46,22 @@ current decision: observe, high confidence
 operator status: observe
 blocking probe history: stable_no_probe_evidence across 5 snapshots
 boot-gap watch: watch, boot_gap_seconds=21907
-provider packet: provider_watch, snapshot_stale=false
+provider packet: provider_watch, snapshot_stale=true
 freshness gate: snapshot_age_seconds varies with time, max=3600
 planning refresh: ok=true
 outside-in NL transport probe: healthy, 3/3 ports ok
-outside-in NL transport uptime: stable_healthy, samples=11, bad_streak=0
+outside-in NL transport uptime: stable_healthy, samples=12, bad_streak=0
 local uptime scheduler templates: prepared only, not installed
-incident timeline: event_count=9, latest_type=provider_watch
+incident timeline: event_count=10, latest_type=provider_watch
 manual failover readiness: blocked_no_incident_trigger, manual_switch_allowed=false
 secondary candidate score: missing_candidates, viable_count=0
 secondary exit requirements: requirements_ready_no_candidate, missing=NET-01
 local diagnostic environment: watch_root_full_tmpdir_available, root_status=critical_full, tmpdir=/mnt/projects/.tmp writable
+local root cleanup plan: manual_cleanup_plan_ready, estimated_reclaim_gib=3.21, cleanup_execute_allowed=false
 refresh tmpdir guard: refresh runner passes TMPDIR=/mnt/projects/.tmp to child commands when unset
-readiness audit: ready_local_with_future_blocks, ready_local=15, blocked_future_approval=3, watch=2, missing=0
+readiness audit: ready_local_with_future_blocks, ready_local=13, blocked_future_approval=3, watch=5, missing=0
 blocked future items: FAILOVER-03 manual failover gate, GATE-01 future NL write approval, FAILOVER-02 real secondary exit node
-watch items: BOOT-01 provider boot gap, LOCALENV-01 local root disk full but project tmpdir works
+watch items: EVIDENCE-01 stale snapshot, BOOT-01 provider boot gap, PROVIDER-01 stale provider packet, LOCALENV-01 local root disk full but project tmpdir works, LOCALCLEAN-01 cleanup plan awaits approval
 NL writes: 0
 ```
 
@@ -188,6 +189,7 @@ local-only uptime systemd templates: infra/systemd/x0tta-vpn-nl-transport-uptime
 safe secondary config generator: nl-diagnostics/create_secondary_exit_config.py
 example secondary probe config: nl-diagnostics/manual-failover-secondary.example.json
 local diagnostic environment audit: nl-diagnostics/audit_local_diagnostic_environment.py
+local root cleanup plan: nl-diagnostics/plan_local_root_cleanup.py
 local refresh tmpdir guard: nl-diagnostics/refresh_vpn_planning_reports.py
 alert when boot gap appears after an unclean shutdown
 ```

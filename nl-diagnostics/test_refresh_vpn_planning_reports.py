@@ -48,6 +48,7 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
                 "secondary_candidate_score",
                 "secondary_exit_requirements",
                 "local_diagnostic_environment",
+                "local_root_cleanup_plan",
                 "operator_card",
                 "readiness_audit",
                 "incident_timeline",

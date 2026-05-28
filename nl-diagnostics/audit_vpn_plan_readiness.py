@@ -35,6 +35,7 @@ DEFAULT_FAILOVER_READINESS = DIAGNOSTICS_DIR / "manual-failover-readiness-2026-0
 DEFAULT_SECONDARY_SCORE = DIAGNOSTICS_DIR / "secondary-exit-candidate-score-2026-05-28.json"
 DEFAULT_SECONDARY_REQUIREMENTS = DIAGNOSTICS_DIR / "secondary-exit-requirements-2026-05-28.json"
 DEFAULT_LOCAL_ENV = DIAGNOSTICS_DIR / "local-diagnostic-environment-2026-05-28.json"
+DEFAULT_LOCAL_CLEANUP_PLAN = DIAGNOSTICS_DIR / "local-root-cleanup-plan-2026-05-28.json"
 DEFAULT_TRANSPORT_PROBE = DIAGNOSTICS_DIR / "nl-transport-probe-2026-05-28.json"
 DEFAULT_TRANSPORT_UPTIME = DIAGNOSTICS_DIR / "nl-transport-uptime-summary-2026-05-28.json"
 DEFAULT_SECONDARY = DIAGNOSTICS_DIR / "secondary-exit-probe-template-2026-05-28.json"
@@ -384,6 +385,50 @@ def audit_local_diagnostic_environment(local_env: dict[str, Any]) -> dict[str, A
             f"safe_flags={str(safe).lower()}",
         ],
         next_step="keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval",
+    )
+
+
+def audit_local_root_cleanup_plan(cleanup_plan: dict[str, Any]) -> dict[str, Any]:
+    status = str(cleanup_plan.get("status") or "missing")
+    summary = cleanup_plan.get("summary") or {}
+    safe = all_false(
+        [
+            flag_is_false(cleanup_plan, "cleanup_execute_allowed"),
+            flag_is_false(cleanup_plan, "nl_mutation_allowed"),
+            flag_is_false(cleanup_plan, "spb_fallback_allowed"),
+            flag_is_false(cleanup_plan, "automatic_failover_allowed"),
+            summary.get("cleanup_execute_allowed") is False,
+            summary.get("nl_write_allowed") is False,
+            summary.get("spb_fallback_allowed") is False,
+            summary.get("automatic_failover_allowed") is False,
+        ]
+    )
+    if status == "no_cleanup_needed" and safe:
+        item_status = READY
+    elif status in {
+        "manual_cleanup_plan_ready",
+        "manual_cleanup_plan_low_reclaim",
+        "manual_cleanup_plan_no_candidates",
+    } and safe:
+        item_status = WATCH
+    else:
+        item_status = MISSING
+
+    return item(
+        item_id="LOCALCLEAN-01",
+        title="Local root cleanup plan is prepared but execution is blocked",
+        status=item_status,
+        evidence=[
+            f"cleanup_plan_status={status}",
+            f"root_status={summary.get('root_status', 'missing')}",
+            f"root_free_gib={summary.get('root_free_gib', 'missing')}",
+            f"existing_candidate_count={summary.get('existing_candidate_count', 'missing')}",
+            f"estimated_reclaim_gib={summary.get('estimated_reclaim_gib', 'missing')}",
+            f"top_candidate_id={summary.get('top_candidate_id', 'missing')}",
+            f"cleanup_execute_allowed={str(summary.get('cleanup_execute_allowed')).lower()}",
+            f"safe_flags={str(safe).lower()}",
+        ],
+        next_step="review local cleanup candidates and execute cleanup only after separate local approval",
     )
 
 
@@ -822,6 +867,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
     secondary_score = inputs.get("secondary_score") or {}
     secondary_requirements = inputs.get("secondary_requirements") or {}
     local_env = inputs.get("local_env") or {}
+    local_cleanup_plan = inputs.get("local_cleanup_plan") or {}
     transport_probe = inputs.get("transport_probe") or {}
     transport_uptime = inputs.get("transport_uptime") or {}
     secondary = inputs.get("secondary") or {}
@@ -838,6 +884,7 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
         audit_blocking_history(history, decision),
         audit_refresh(refresh),
         audit_local_diagnostic_environment(local_env),
+        audit_local_root_cleanup_plan(local_cleanup_plan),
         audit_operator_card(operator_card),
         audit_manual_failover_readiness(failover_readiness),
         audit_secondary_candidate_score(secondary_score),
@@ -884,6 +931,13 @@ def build_payload(inputs: dict[str, Any], *, root: Path = ROOT, now: datetime | 
             "local_diagnostic_environment_status": local_env.get("status", "missing"),
             "local_root_status": (local_env.get("summary") or {}).get("root_status", "missing"),
             "local_tmpdir_writable": (local_env.get("summary") or {}).get("diagnostic_tmpdir_writable", "missing"),
+            "local_root_cleanup_plan_status": local_cleanup_plan.get("status", "missing"),
+            "local_root_cleanup_estimated_reclaim_gib": (
+                local_cleanup_plan.get("summary") or {}
+            ).get("estimated_reclaim_gib", "missing"),
+            "local_root_cleanup_execute_allowed": (
+                local_cleanup_plan.get("summary") or {}
+            ).get("cleanup_execute_allowed", "missing"),
             "transport_probe_status": transport_probe.get("status", "missing"),
             "transport_uptime_status": (transport_uptime.get("summary") or {}).get("status", "missing"),
             "nl_write_allowed": False,
@@ -926,6 +980,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"local_diagnostic_environment_status={summary.get('local_diagnostic_environment_status')}",
         f"local_root_status={summary.get('local_root_status')}",
         f"local_tmpdir_writable={summary.get('local_tmpdir_writable')}",
+        f"local_root_cleanup_plan_status={summary.get('local_root_cleanup_plan_status')}",
+        f"local_root_cleanup_estimated_reclaim_gib={summary.get('local_root_cleanup_estimated_reclaim_gib')}",
+        f"local_root_cleanup_execute_allowed={summary.get('local_root_cleanup_execute_allowed')}",
         f"transport_probe_status={summary.get('transport_probe_status')}",
         f"transport_uptime_status={summary.get('transport_uptime_status')}",
         "nl_write_allowed=false",
@@ -964,6 +1021,7 @@ def main() -> int:
     parser.add_argument("--secondary-score", default=str(DEFAULT_SECONDARY_SCORE))
     parser.add_argument("--secondary-requirements", default=str(DEFAULT_SECONDARY_REQUIREMENTS))
     parser.add_argument("--local-env", default=str(DEFAULT_LOCAL_ENV))
+    parser.add_argument("--local-cleanup-plan", default=str(DEFAULT_LOCAL_CLEANUP_PLAN))
     parser.add_argument("--transport-probe", default=str(DEFAULT_TRANSPORT_PROBE))
     parser.add_argument("--transport-uptime", default=str(DEFAULT_TRANSPORT_UPTIME))
     parser.add_argument("--secondary", default=str(DEFAULT_SECONDARY))
@@ -991,6 +1049,7 @@ def main() -> int:
         "secondary_score": read_json(Path(args.secondary_score)),
         "secondary_requirements": read_json(Path(args.secondary_requirements)),
         "local_env": read_json(Path(args.local_env)),
+        "local_cleanup_plan": read_json(Path(args.local_cleanup_plan)),
         "transport_probe": read_json(Path(args.transport_probe)),
         "transport_uptime": read_json(Path(args.transport_uptime)),
         "secondary": read_json(Path(args.secondary)),
