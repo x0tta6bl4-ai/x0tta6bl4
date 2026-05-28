@@ -1,14 +1,14 @@
 # VPN Plan Readiness Audit
 
-generated_at: `2026-05-28T01:17:18.486858+00:00`
+generated_at: `2026-05-28T02:19:13.795626+00:00`
 overall_status: `ready_local_with_future_blocks`
 ok: `true`
 
 ## Summary
 
 ```text
-ready_local=15
-blocked_future_approval=3
+ready_local=19
+blocked_future_approval=4
 watch=3
 missing=0
 decision=observe
@@ -20,11 +20,24 @@ manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_switch_allowed=False
 secondary_candidate_score_status=missing_candidates
 secondary_exit_requirements_status=requirements_ready_no_candidate
+secondary_provider_shortlist_status=shortlist_ready_no_endpoint
+secondary_provider_shortlist_count=5
+secondary_provider_shortlist_endpoint_count=0
+secondary_candidate_intake_status=awaiting_public_candidate_metadata
+secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint
+secondary_provisioning_external_action_required=True
+secondary_provisioning_endpoint_count=0
+secondary_exit_flow_status=blocked_missing_candidate
+secondary_exit_flow_candidate_configured=False
+secondary_exit_flow_manual_switch_allowed=False
+secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
+secondary_manual_drill_test_scope=single_client
+secondary_manual_drill_rollback_required=True
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.25
+local_root_cleanup_estimated_reclaim_gib=3.26
 local_root_cleanup_execute_allowed=False
 transport_probe_status=healthy
 transport_uptime_status=stable_healthy
@@ -49,6 +62,11 @@ automatic_failover_allowed=false
 | `FAILOVER-03` | `blocked_future_approval` | Manual failover readiness gate blocks unsafe switching | keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist |
 | `FAILOVER-05` | `ready_local` | Secondary candidate scorer is available before provider choice | score only public metadata for non-NL/non-SPB candidates before generating a probe config |
 | `FAILOVER-04` | `ready_local` | Secondary exit requirements are documented without secrets | choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata |
+| `FAILOVER-08` | `ready_local` | Secondary provider shortlist exists without endpoint secrets | provision one shortlisted non-NL/non-SPB option, then add only public host/IP metadata |
+| `FAILOVER-07` | `ready_local` | Secondary candidate intake checklist exists without secrets | fill only public metadata in the local candidate file, then rerun scorer and refresh |
+| `FAILOVER-09` | `ready_local` | Secondary provisioning plan blocks secrets and automation | perform the provider-console provisioning step externally, then store only public endpoint metadata |
+| `FAILOVER-06` | `blocked_future_approval` | Secondary exit operating flow blocks unsafe activation | fill public metadata for a non-NL/non-SPB candidate, then generate and run the safe probe config |
+| `FAILOVER-10` | `ready_local` | Secondary manual drill is test-only and rollback-gated | after a secondary endpoint exists, run the drill on one test client and roll back to NL |
 | `TRANSPORT-01` | `ready_local` | Outside-in NL TCP port probe is available | if any public NL port fails, collect a fresh read-only snapshot and compare listeners |
 | `UPTIME-01` | `ready_local` | Outside-in NL TCP uptime history is recorded locally | if uptime history becomes watch, collect a fresh read-only snapshot and provider packet |
 | `SCHEDULER-01` | `ready_local` | Local uptime systemd timer templates are prepared but not installed | install/enable the local timer only after separate local host approval |
@@ -63,11 +81,11 @@ automatic_failover_allowed=false
 
 ### EVIDENCE-01
 
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
-- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
-- latest_snapshot=20260528T011622Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
+- refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
+- latest_snapshot=20260528T021824Z
 - snapshot_exists=true
-- snapshot_age_seconds=56
+- snapshot_age_seconds=49
 - fresh=true
 
 ### DECISION-01
@@ -89,16 +107,16 @@ automatic_failover_allowed=false
 
 - provider_packet_type=provider_watch
 - snapshot_stale=false
-- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
-- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T011622Z
+- packet_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
+- decision_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T021824Z
 - same_snapshot=true
 - safe_flags=true
 
 ### EVIDENCE-02
 
-- snapshot_count=6
+- snapshot_count=7
 - trend=stable_no_probe_evidence
-- latest_probe_snapshot=20260528T011622Z
+- latest_probe_snapshot=20260528T021824Z
 - latest_targets_ok=8/8
 
 ### REFRESH-01
@@ -127,7 +145,7 @@ automatic_failover_allowed=false
 - root_status=critical_full
 - root_free_gib=0.0
 - existing_candidate_count=5
-- estimated_reclaim_gib=3.25
+- estimated_reclaim_gib=3.26
 - top_candidate_id=APT-CACHE-01
 - cleanup_execute_allowed=false
 - safe_flags=true
@@ -167,6 +185,56 @@ automatic_failover_allowed=false
 - manual_switch_allowed=false
 - safe_flags=true
 
+### FAILOVER-08
+
+- secondary_provider_shortlist_status=shortlist_ready_no_endpoint
+- shortlist_count=5
+- source_count=9
+- endpoint_count=0
+- candidate_configured=false
+- invalid_source_refs=none
+- safe_flags=true
+
+### FAILOVER-07
+
+- secondary_candidate_intake_status=awaiting_public_candidate_metadata
+- candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json
+- candidate_count=0
+- viable_count=0
+- allowed_field_count=7
+- forbidden_material_count=7
+- safe_flags=true
+
+### FAILOVER-09
+
+- secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint
+- preferred_labels=upcloud-fi-hel,ovhcloud-pl-waw,hetzner-de-or-fi
+- endpoint_count=0
+- external_action_required=true
+- candidate_file=/mnt/projects/nl-diagnostics/secondary-exit-candidates.example.json
+- safe_sources=true
+- safe_flags=true
+
+### FAILOVER-06
+
+- secondary_exit_flow_status=blocked_missing_candidate
+- candidate_viable_count=0
+- candidate_configured=false
+- secondary_probe_status=planning_template
+- manual_probe_allowed=false
+- manual_switch_allowed=false
+- safe_flags=true
+
+### FAILOVER-10
+
+- secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
+- manual_probe_allowed=false
+- manual_switch_allowed=false
+- test_scope=single_client
+- bulk_user_switch_allowed=false
+- rollback_required=true
+- safe_flags=true
+
 ### TRANSPORT-01
 
 - transport_probe_status=healthy
@@ -177,7 +245,7 @@ automatic_failover_allowed=false
 ### UPTIME-01
 
 - uptime_status=stable_healthy
-- sample_count=13
+- sample_count=19
 - latest_status=healthy
 - consecutive_non_healthy=0
 - safe_flags=true
