@@ -430,10 +430,14 @@
       "route_present_in_light_mode": true,
       "router_prefix": "/api/v1/maas/dashboard",
       "lifecycle_binding": "route_import_only",
-      "readiness_signal": "none_explicit",
+      "readiness_signal": "/api/v1/maas/dashboard/readiness",
+      "runtime_readiness_field": "dashboard_runtime_ready",
+      "hidden_dependency": "MaaS dashboard routes are registered in light mode and do not have a production_lifespan startup hook, but summary, analytics, and node views require SQLAlchemy dashboard models, a DB query session, require_permission RBAC dependencies, MaaSAnalyticsService.get_mesh_timeseries, and lazy resilience imports for db_circuit_breaker, get_cache, and CircuitState. The readiness endpoint exposes those local dependency surfaces without querying dashboard data or calling Redis.",
       "source_refs": [
         "src/core/app.py:263",
-        "src/api/maas_dashboard.py:21"
+        "src/api/maas_dashboard.py:24",
+        "src/api/maas_dashboard.py:121",
+        "src/api/maas_dashboard.py:202"
       ]
     },
     {
