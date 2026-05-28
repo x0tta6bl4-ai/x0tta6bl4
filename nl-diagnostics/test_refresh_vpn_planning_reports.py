@@ -53,6 +53,7 @@ class RefreshVpnPlanningReportsTests(unittest.TestCase):
                 "secondary_exit_flow",
                 "secondary_manual_drill",
                 "secondary_selection_packet",
+                "secondary_public_metadata_template",
                 "local_diagnostic_environment",
                 "local_root_cleanup_plan",
                 "local_root_cleanup_approval_packet",
