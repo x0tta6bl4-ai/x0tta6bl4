@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_secondary_exit_requirements.py",
-  "generated_at": "2026-05-28T03:26:46.990811+00:00",
+  "generated_at": "2026-05-28T03:42:21.104955+00:00",
   "status": "requirements_ready_no_candidate",
   "summary": {
     "requirement_count": 8,

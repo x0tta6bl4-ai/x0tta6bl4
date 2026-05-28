@@ -1,6 +1,6 @@
 # VPN Improvement Backlog
 
-generated_at: `2026-05-28T03:26:45.873940+00:00`
+generated_at: `2026-05-28T03:42:17.995694+00:00`
 
 ## Current Evidence
 
@@ -8,12 +8,12 @@ generated_at: `2026-05-28T03:26:45.873940+00:00`
 decision=observe
 decision_confidence=high
 overall_status=advisory
-transport_status=advisory
+transport_status=healthy
 telegram_media_status=degraded
 provider_status=recent_boot_gap
 failure_domain=external_network
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=10
+blocking_history_snapshot_count=11
 promoted_source_count=22
 nl_write_allowed=false
 spb_fallback_allowed=false
@@ -38,7 +38,7 @@ Reason: Fresh evidence prevents restarting NL for app-only or provider symptoms.
 
 Evidence:
 - decision=observe
-- transport_status=advisory
+- transport_status=healthy
 - collector=nl-diagnostics/collect_vpn_readonly_snapshot.sh
 
 Next steps:
@@ -68,7 +68,7 @@ Reason: Current app/path probe history does not prove an x-ui outage.
 
 Evidence:
 - blocking_history_trend=stable_no_probe_evidence
-- blocking_history_snapshot_count=10
+- blocking_history_snapshot_count=11
 
 Next steps:
 - keep nl-diagnostics/blocking_probe_targets.json as the default target set

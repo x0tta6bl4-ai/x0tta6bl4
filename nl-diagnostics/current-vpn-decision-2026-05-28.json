@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/build_vpn_decision_report.py",
-  "generated_at": "2026-05-28T03:26:45.222779+00:00",
-  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z",
+  "generated_at": "2026-05-28T03:42:16.470375+00:00",
+  "snapshot": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
   "decision": {
     "decision": "observe",
     "confidence": "high",
@@ -23,7 +23,7 @@
       "overall_status": "advisory",
       "failure_domain": "external_network",
       "recommended_action": "observe",
-      "transport_status": "advisory",
+      "transport_status": "healthy",
       "provider_status": "recent_boot_gap",
       "blocking_category": "app_specific_degradation",
       "profile_policy_decision": "observe",
@@ -35,9 +35,9 @@
     "spb_fallback_allowed": false
   },
   "classification": {
-    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T032605Z",
+    "snapshot_dir": "/mnt/projects/nl-diagnostics/snapshots/20260528T034120Z",
     "overall_status": "advisory",
-    "transport_status": "advisory",
+    "transport_status": "healthy",
     "telegram_media_status": "degraded",
     "provider_status": "recent_boot_gap",
     "runtime_mode": "degraded",
@@ -62,7 +62,7 @@
       "NL failed units are known non-critical: ifup@eth0.service",
       "NL key services active",
       "NL core listeners 443/2083/39829 present",
-      "NL transport_status=advisory",
+      "NL transport_status=healthy",
       "NL current boot reports previous journal uncleanly shut down"
     ],
     "blocking_probe_summary": {
@@ -112,16 +112,16 @@
     }
   },
   "blocking_probe_history_summary": {
-    "snapshot_count": 10,
+    "snapshot_count": 11,
     "trend": "stable_no_probe_evidence",
     "assessment_counts": {
-      "no_probe_evidence": 10
+      "no_probe_evidence": 11
     },
     "degraded_by_target": {},
     "degraded_by_group": {},
     "latest": {
-      "snapshot": "20260528T032605Z",
-      "generated_at": "2026-05-28T03:26:27.505751+00:00",
+      "snapshot": "20260528T034120Z",
+      "generated_at": "2026-05-28T03:41:45.251876+00:00",
       "assessment": "no_probe_evidence",
       "target_count": 8,
       "ok_count": 8,
