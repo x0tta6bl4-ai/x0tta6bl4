@@ -186,6 +186,7 @@ def sample_local_env(status: str = "watch_root_full_tmpdir_available", tmpdir_wr
         "summary": {
             "root_status": "critical_full" if status == "watch_root_full_tmpdir_available" else "ok",
             "root_used_percent": 100.0 if status == "watch_root_full_tmpdir_available" else 50.0,
+            "root_free_gib": 0.0 if status == "watch_root_full_tmpdir_available" else 10.0,
             "tmp_status": "critical_full" if status == "watch_root_full_tmpdir_available" else "ok",
             "diagnostic_tmpdir": "/mnt/projects/.tmp",
             "diagnostic_tmpdir_writable": tmpdir_writable,
@@ -195,6 +196,27 @@ def sample_local_env(status: str = "watch_root_full_tmpdir_available", tmpdir_wr
             "spb_fallback_allowed": False,
             "automatic_failover_allowed": False,
         },
+        "nl_mutation_allowed": False,
+        "spb_fallback_allowed": False,
+        "automatic_failover_allowed": False,
+    }
+
+
+def sample_local_cleanup_plan(status: str = "manual_cleanup_plan_ready") -> dict:
+    return {
+        "status": status,
+        "summary": {
+            "root_status": "critical_full",
+            "root_free_gib": 0.0,
+            "existing_candidate_count": 2,
+            "estimated_reclaim_gib": 1.38,
+            "top_candidate_id": "TMP-ANTIGRAVITY-01",
+            "cleanup_execute_allowed": False,
+            "nl_write_allowed": False,
+            "spb_fallback_allowed": False,
+            "automatic_failover_allowed": False,
+        },
+        "cleanup_execute_allowed": False,
         "nl_mutation_allowed": False,
         "spb_fallback_allowed": False,
         "automatic_failover_allowed": False,
@@ -277,6 +299,7 @@ def sample_inputs() -> dict:
         "secondary_score": sample_secondary_score(),
         "secondary_requirements": sample_secondary_requirements(),
         "local_env": sample_local_env(),
+        "local_cleanup_plan": sample_local_cleanup_plan(),
         "transport_probe": sample_transport_probe(),
         "transport_uptime": sample_transport_uptime(),
         "secondary": sample_secondary(),
@@ -334,10 +357,11 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["overall_status"], "ready_local_with_future_blocks")
         self.assertEqual(payload["summary"]["missing"], 0)
-        self.assertEqual(payload["summary"]["watch"], 2)
+        self.assertEqual(payload["summary"]["watch"], 3)
         self.assertGreaterEqual(payload["summary"]["ready_local"], 1)
         self.assertIn("BOOT-01", payload["summary"]["watch_items"])
         self.assertIn("LOCALENV-01", payload["summary"]["watch_items"])
+        self.assertIn("LOCALCLEAN-01", payload["summary"]["watch_items"])
         self.assertIn("GATE-01", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-02", payload["summary"]["blocked_items"])
         self.assertIn("FAILOVER-03", payload["summary"]["blocked_items"])
@@ -346,6 +370,8 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
         self.assertFalse(payload["summary"]["provider_packet_stale"])
         self.assertEqual(payload["summary"]["local_diagnostic_environment_status"], "watch_root_full_tmpdir_available")
         self.assertTrue(payload["summary"]["local_tmpdir_writable"])
+        self.assertEqual(payload["summary"]["local_root_cleanup_plan_status"], "manual_cleanup_plan_ready")
+        self.assertFalse(payload["summary"]["local_root_cleanup_execute_allowed"])
         self.assertEqual(payload["summary"]["transport_probe_status"], "healthy")
         self.assertEqual(payload["summary"]["transport_uptime_status"], "stable_healthy")
         self.assertFalse(payload["nl_mutation_allowed"])
@@ -379,6 +405,26 @@ class VpnPlanReadinessAuditTests(unittest.TestCase):
 
         local_env = next(item for item in payload["items"] if item["id"] == "LOCALENV-01")
         self.assertEqual(local_env["status"], audit.MISSING)
+        self.assertFalse(payload["ok"])
+
+    def test_cleanup_plan_with_execution_enabled_makes_readiness_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_root(root)
+            inputs = sample_inputs()
+            inputs["local_cleanup_plan"] = {
+                **sample_local_cleanup_plan(),
+                "cleanup_execute_allowed": True,
+                "summary": {
+                    **sample_local_cleanup_plan()["summary"],
+                    "cleanup_execute_allowed": True,
+                },
+            }
+
+            payload = audit.build_payload(inputs, root=root, now=FRESH_NOW)
+
+        cleanup_item = next(item for item in payload["items"] if item["id"] == "LOCALCLEAN-01")
+        self.assertEqual(cleanup_item["status"], audit.MISSING)
         self.assertFalse(payload["ok"])
 
     def test_degraded_uptime_history_is_watch_not_missing(self):
