@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
   "source": "nl-diagnostics/audit_vpn_plan_readiness.py",
-  "generated_at": "2026-05-28T00:24:08.561784+00:00",
+  "generated_at": "2026-05-28T01:02:44.818915+00:00",
   "overall_status": "ready_local_with_future_blocks",
   "ok": true,
   "summary": {
-    "ready_local": 13,
+    "ready_local": 15,
     "blocked_future_approval": 3,
-    "watch": 1,
+    "watch": 2,
     "missing": 0,
     "missing_items": [],
     "watch_items": [
-      "BOOT-01"
+      "BOOT-01",
+      "LOCALENV-01"
     ],
     "blocked_items": [
       "FAILOVER-03",
@@ -25,6 +26,11 @@
     "provider_packet_stale": false,
     "manual_failover_readiness_status": "blocked_no_incident_trigger",
     "manual_failover_switch_allowed": false,
+    "secondary_candidate_score_status": "missing_candidates",
+    "secondary_exit_requirements_status": "requirements_ready_no_candidate",
+    "local_diagnostic_environment_status": "watch_root_full_tmpdir_available",
+    "local_root_status": "critical_full",
+    "local_tmpdir_writable": true,
     "transport_probe_status": "healthy",
     "transport_uptime_status": "stable_healthy",
     "nl_write_allowed": false,
@@ -42,7 +48,7 @@
         "refresh_snapshot=/mnt/projects/nl-diagnostics/snapshots/20260528T000600Z",
         "latest_snapshot=20260528T000600Z",
         "snapshot_exists=true",
-        "snapshot_age_seconds=1088",
+        "snapshot_age_seconds=3404",
         "fresh=true"
       ],
       "next_step": "collect a fresh read-only snapshot during the next visible outage"
@@ -116,6 +122,25 @@
       "next_step": "run refresh after every new snapshot before deciding on action"
     },
     {
+      "id": "LOCALENV-01",
+      "title": "Local diagnostic host has a writable project temp directory",
+      "status": "watch",
+      "ok": true,
+      "evidence": [
+        "local_environment_status=watch_root_full_tmpdir_available",
+        "root_status=critical_full",
+        "root_used_percent=94.9",
+        "root_free_gib=0.0",
+        "tmp_status=critical_full",
+        "diagnostic_tmpdir=/mnt/projects/.tmp",
+        "diagnostic_tmpdir_writable=true",
+        "recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp",
+        "cleanup_required=true",
+        "safe_flags=true"
+      ],
+      "next_step": "keep using TMPDIR=/mnt/projects/.tmp and clean / only after separate local cleanup approval"
+    },
+    {
       "id": "OPERATOR-01",
       "title": "Short incident card exists for the next outage",
       "status": "ready_local",
@@ -142,7 +167,37 @@
         "spb_excluded=true",
         "safe_flags=true"
       ],
-      "next_step": "keep manual switch blocked until a fresh incident trigger and healthy non-SPB secondary exist"
+      "next_step": "keep manual switch blocked until a fresh incident trigger and healthy non-NL/non-SPB secondary exist"
+    },
+    {
+      "id": "FAILOVER-05",
+      "title": "Secondary candidate scorer is available before provider choice",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_candidate_score_status=missing_candidates",
+        "candidate_count=0",
+        "viable_count=0",
+        "rejected_count=0",
+        "top_candidate_label=none",
+        "safe_flags=true"
+      ],
+      "next_step": "score only public metadata for non-NL/non-SPB candidates before generating a probe config"
+    },
+    {
+      "id": "FAILOVER-04",
+      "title": "Secondary exit requirements are documented without secrets",
+      "status": "ready_local",
+      "ok": true,
+      "evidence": [
+        "secondary_exit_requirements_status=requirements_ready_no_candidate",
+        "candidate_configured=false",
+        "missing_items=NET-01",
+        "blocked_items=none",
+        "manual_switch_allowed=false",
+        "safe_flags=true"
+      ],
+      "next_step": "choose a real non-NL/non-SPB provider/region and fill only public endpoint metadata"
     },
     {
       "id": "TRANSPORT-01",
@@ -164,7 +219,7 @@
       "ok": true,
       "evidence": [
         "uptime_status=stable_healthy",
-        "sample_count=6",
+        "sample_count=11",
         "latest_status=healthy",
         "consecutive_non_healthy=0",
         "safe_flags=true"
@@ -180,6 +235,7 @@
         "service_exists=true",
         "timer_exists=true",
         "expected_commands=true",
+        "tmpdir_environment=Environment=TMPDIR=/mnt/projects/.tmp",
         "forbidden_word=none"
       ],
       "next_step": "install/enable the local timer only after separate local host approval"
@@ -263,7 +319,7 @@
         "spb_fallback_allowed=false",
         "automatic_failover_allowed=false"
       ],
-      "next_step": "choose a new non-SPB provider/region before any emergency profile test"
+      "next_step": "choose a new non-NL/non-SPB provider/region before any emergency profile test"
     }
   ],
   "mutation_allowed": false,
