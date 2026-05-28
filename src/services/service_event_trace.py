@@ -15,7 +15,26 @@ EVENT_TRACE_CLAIM_BOUNDARY = (
     "or prove live SPIRE/chain state."
 )
 
-REDACTED_IDENTITY_FIELDS = frozenset({"spiffe_id", "did", "wallet_address"})
+REDACTED_EVENT_TRACE_FIELDS = frozenset(
+    {
+        "api_key",
+        "api_token",
+        "access_token",
+        "refresh_token",
+        "bot_token",
+        "did",
+        "password",
+        "private_key",
+        "raw_vpn_uri",
+        "secret",
+        "subscription_link",
+        "token",
+        "uuid",
+        "vpn_uri",
+        "wallet_address",
+        "spiffe_id",
+    }
+)
 REDACTED_IDENTITY_VALUE = "[redacted]"
 
 
@@ -133,7 +152,7 @@ def _redact_identity_values(value: Any) -> Any:
         redacted: Dict[str, Any] = {}
         for key, child in value.items():
             key_text = str(key)
-            if key_text.lower() in REDACTED_IDENTITY_FIELDS and child is not None:
+            if key_text.lower() in REDACTED_EVENT_TRACE_FIELDS and child is not None:
                 redacted[key_text] = REDACTED_IDENTITY_VALUE
             else:
                 redacted[key_text] = _redact_identity_values(child)
