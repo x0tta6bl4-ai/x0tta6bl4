@@ -137,9 +137,9 @@ python3 /mnt/projects/nl-diagnostics/summarize_blocking_probe_history.py \
 Current local trend:
 
 ```text
-snapshot_count=6
+snapshot_count=11
 trend=stable_no_probe_evidence
-latest_snapshot=20260528T011622Z
+latest_snapshot=20260528T034120Z
 latest_targets_ok=8/8
 ```
 
@@ -170,7 +170,7 @@ provider_packet_type=provider_watch
 provider_packet_stale=False
 provider_packet_snapshot_age_seconds=<varies with time; collect a fresh snapshot after 3600>
 blocking_history_trend=stable_no_probe_evidence
-blocking_history_snapshot_count=6
+blocking_history_snapshot_count=11
 manual_failover_status=planning_not_active
 manual_failover_readiness_status=blocked_no_incident_trigger
 manual_failover_probe_allowed=False
@@ -179,24 +179,56 @@ secondary_candidate_score_status=missing_candidates
 secondary_candidate_viable_count=0
 secondary_exit_requirements_status=requirements_ready_no_candidate
 secondary_exit_requirements_missing=NET-01
+secondary_provider_shortlist_status=shortlist_ready_no_endpoint
+secondary_provider_shortlist_count=5
+secondary_provider_shortlist_endpoint_count=0
+secondary_candidate_intake_status=awaiting_public_candidate_metadata
+secondary_candidate_intake_allowed_fields=7
+secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint
+secondary_provisioning_external_action_required=True
+secondary_provisioning_endpoint_count=0
+secondary_exit_flow_status=blocked_missing_candidate
+secondary_exit_flow_candidate_configured=False
+secondary_exit_flow_manual_switch_allowed=False
+secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
+secondary_manual_drill_test_scope=single_client
+secondary_manual_drill_rollback_required=True
+secondary_selection_packet_status=selection_packet_ready_no_endpoint
+secondary_selection_recommended_label=upcloud-fi-hel
+secondary_selection_backup_label=ovhcloud-pl-waw
+secondary_selection_option_count=3
+secondary_selection_may_create_endpoint_now=False
+secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint
+secondary_public_metadata_selected_label=upcloud-fi-hel
+secondary_public_metadata_candidate_file_update_allowed=False
+secondary_post_provision_validation_status=post_provision_validation_ready_waiting_endpoint
+secondary_post_provision_can_generate_probe_config=False
+secondary_post_provision_can_run_public_probe=False
+secondary_post_provision_test_client_allowed=False
 local_diagnostic_environment_status=watch_root_full_tmpdir_available
 local_root_status=critical_full
 local_tmpdir_writable=True
 local_recommended_tmpdir_prefix=TMPDIR=/mnt/projects/.tmp
 local_root_cleanup_plan_status=manual_cleanup_plan_ready
-local_root_cleanup_estimated_reclaim_gib=3.25
+local_root_cleanup_estimated_reclaim_gib=3.24
 local_root_cleanup_execute_allowed=False
+local_root_cleanup_approval_packet_status=cleanup_approval_packet_ready
+local_root_cleanup_approval_required=True
+local_root_cleanup_commands_executed=0
+incident_symptom_intake_status=symptom_intake_ready_observe
+incident_symptom_required_fields=12
+incident_symptom_forbidden_material=12
 nl_transport_probe_status=healthy
 nl_transport_probe_ok_count=3/3
 nl_transport_uptime_status=stable_healthy
-nl_transport_uptime_samples=13
+nl_transport_uptime_samples=24
 nl_transport_uptime_bad_streak=0
 secondary_probe_template_status=planning_template
 readiness_audit_status=ready_local_with_future_blocks
 readiness_missing=0
-incident_timeline_event_count=11
+incident_timeline_event_count=22
 incident_timeline_latest_type=provider_watch
-incident_timeline_latest_snapshot=20260528T011622Z
+incident_timeline_latest_snapshot=20260528T034120Z
 nl_mutation_allowed=false
 spb_fallback_allowed=false
 ```
@@ -210,19 +242,18 @@ nl-diagnostics/vpn-plan-readiness-audit-2026-05-28.md
 Current audit summary:
 
 ```text
-ready_local=15
-blocked_future_approval=3
+ready_local=24
+blocked_future_approval=4
 watch=3
 missing=0
 watch_items=BOOT-01, LOCALENV-01, LOCALCLEAN-01
-blocked_items=FAILOVER-03, GATE-01, FAILOVER-02
+blocked_items=FAILOVER-03, FAILOVER-06, GATE-01, FAILOVER-02
 ```
 
-Interpretation: the local observe-mode plan is usable now, but the current
-snapshot has aged into watch state. Future NL writes and a real secondary exit
-node remain blocked until separate approval/setup. Manual failover is also
-blocked while the current decision is `observe` and no healthy non-NL/non-SPB
-secondary node exists.
+Interpretation: the local observe-mode plan is usable now. Future NL writes and
+a real secondary exit node remain blocked until separate approval/setup. Manual
+failover is also blocked while the current decision is `observe` and no healthy
+non-NL/non-SPB secondary node exists.
 
 Local diagnostic environment:
 
@@ -251,14 +282,18 @@ Local root cleanup plan:
 
 ```text
 nl-diagnostics/local-root-cleanup-plan-2026-05-28.md
+nl-diagnostics/local-root-cleanup-approval-packet-2026-05-28.md
 ```
 
 Current rule:
 
 ```text
 status=manual_cleanup_plan_ready
-estimated_reclaim_gib=3.25
+estimated_reclaim_gib=3.24
 cleanup_execute_allowed=false
+approval_packet_status=cleanup_approval_packet_ready
+approval_required=true
+commands_executed=0
 ```
 
 Interpretation: this is a review plan only. It does not delete files and all
@@ -291,7 +326,7 @@ Current result:
 
 ```text
 status=stable_healthy
-sample_count=13
+sample_count=24
 latest_status=healthy
 consecutive_non_healthy=0
 ```
@@ -342,7 +377,7 @@ recommended_action=observe provider signal; do not restart NL while transport is
 Provider packet for the same snapshot:
 
 ```text
-nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T011622Z.md
+nl-diagnostics/provider-incident-packets/provider-incident-packet-20260528T034120Z.md
 ```
 
 Current packet:
@@ -363,9 +398,9 @@ nl-diagnostics/vpn-incident-timeline-2026-05-28.md
 Current timeline:
 
 ```text
-event_count=11
+event_count=22
 latest_event_type=provider_watch
-latest_snapshot=20260528T011622Z
+latest_snapshot=20260528T034120Z
 ```
 
 Freshness rule:
@@ -379,6 +414,7 @@ For the shortest incident checklist, open:
 
 ```text
 nl-diagnostics/vpn-operator-card-2026-05-28.md
+nl-diagnostics/vpn-incident-symptom-intake-2026-05-28.md
 ```
 
 ```bash
@@ -420,6 +456,13 @@ nl-diagnostics/manual-failover-plan-2026-05-28.md
 nl-diagnostics/manual-failover-readiness-2026-05-28.md
 nl-diagnostics/secondary-exit-candidate-score-2026-05-28.md
 nl-diagnostics/secondary-exit-requirements-2026-05-28.md
+nl-diagnostics/secondary-exit-provider-shortlist-2026-05-28.md
+nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.md
+nl-diagnostics/secondary-exit-flow-2026-05-28.md
+nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md
+nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
+nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md
+nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md
 ```
 
 Current rule:
@@ -433,9 +476,54 @@ secondary_candidate_score_status=missing_candidates
 secondary_candidate_viable_count=0
 secondary_exit_requirements_status=requirements_ready_no_candidate
 secondary_exit_requirements_missing=NET-01
+secondary_provider_shortlist_status=shortlist_ready_no_endpoint
+secondary_provider_shortlist_count=5
+secondary_provider_shortlist_endpoint_count=0
+secondary_candidate_intake_status=awaiting_public_candidate_metadata
+secondary_candidate_intake_allowed_fields=7
+secondary_provisioning_plan_status=provisioning_plan_ready_no_endpoint
+secondary_provisioning_external_action_required=true
+secondary_provisioning_endpoint_count=0
+secondary_exit_flow_status=blocked_missing_candidate
+secondary_exit_flow_candidate_configured=false
+secondary_exit_flow_manual_switch_allowed=false
+secondary_manual_drill_status=drill_plan_ready_blocked_no_endpoint
+secondary_manual_drill_test_scope=single_client
+secondary_manual_drill_rollback_required=true
+secondary_selection_packet_status=selection_packet_ready_no_endpoint
+secondary_selection_recommended_label=upcloud-fi-hel
+secondary_selection_backup_label=ovhcloud-pl-waw
+secondary_selection_option_count=3
+secondary_selection_may_create_endpoint_now=false
+secondary_public_metadata_template_status=public_metadata_template_ready_no_endpoint
+secondary_public_metadata_selected_label=upcloud-fi-hel
+secondary_public_metadata_candidate_file_update_allowed=false
+secondary_post_provision_validation_status=post_provision_validation_ready_waiting_endpoint
+secondary_post_provision_can_generate_probe_config=false
+secondary_post_provision_can_run_public_probe=false
+secondary_post_provision_test_client_allowed=false
 automatic_failover_allowed=false
 spb_fallback_allowed=false
 secondary exit node must be new provider/region, not NL and not SPB
+```
+
+Secondary exit flow:
+
+```text
+provider_shortlist_report=nl-diagnostics/secondary-exit-provider-shortlist-2026-05-28.md
+provisioning_plan_report=nl-diagnostics/secondary-exit-provisioning-plan-2026-05-28.md
+intake_report=nl-diagnostics/secondary-exit-candidate-intake-2026-05-28.md
+manual_drill_report=nl-diagnostics/secondary-exit-manual-drill-2026-05-28.md
+selection_packet_report=nl-diagnostics/secondary-exit-selection-packet-2026-05-28.md
+public_metadata_template_report=nl-diagnostics/secondary-exit-public-metadata-template-2026-05-28.md
+post_provision_validation_report=nl-diagnostics/secondary-exit-post-provision-validation-2026-05-28.md
+status=blocked_missing_candidate
+post_provision_status=post_provision_validation_ready_waiting_endpoint
+selection=primary upcloud-fi-hel, backup ovhcloud-pl-waw, fallback review hetzner-de-or-fi
+validation=score metadata -> generate probe config -> run public probe -> test client gate -> manual switch gate
+phases=CANDIDATE-01 blocked, CONFIG-01 blocked, PROBE-01 blocked, CLIENT-01 blocked, SWITCH-01 blocked
+safe_config_command=create_secondary_exit_config.py -> /mnt/projects/.tmp/secondary-exit-probe.json
+safe_probe_command=probe_secondary_exit.py --config /mnt/projects/.tmp/secondary-exit-probe.json
 ```
 
 Secondary health probe template:
