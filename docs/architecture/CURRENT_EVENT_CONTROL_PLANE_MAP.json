@@ -4,9 +4,9 @@
   "scope": "EventBus, service identity, and SafeActuator cross-layer control plane surface.",
   "current_scan": {
     "scanned_root": "src",
-    "event_surface_files": 39,
+    "event_surface_files": 40,
     "service_identity_services": 21,
-    "event_trace_services": 22,
+    "event_trace_services": 23,
     "event_type_values": 31,
     "markers": [
       "EventBus",
@@ -141,6 +141,21 @@
     }
   },
   "event_surface_files": [
+    {
+      "path": "src/api/maas_billing.py",
+      "layer": "billing_webhook_to_commerce_bridge",
+      "role": "MaaS billing webhook emits local Stripe webhook state transitions into EventBus so Ledger trace citations can connect Stripe webhook handling, DB/audit state, and optional X0T bridge intent.",
+      "markers": [
+        "event_bus"
+      ],
+      "source_refs": [
+        "src/api/maas_billing.py:20",
+        "src/api/maas_billing.py:118",
+        "src/api/maas_billing.py:131",
+        "src/api/maas_billing.py:629",
+        "src/api/maas_billing.py:663"
+      ]
+    },
     {
       "path": "src/api/maas_governance.py",
       "layer": "api_to_control_plane",
@@ -813,6 +828,17 @@
         "src/api/maas_marketplace.py:755",
         "src/services/service_identity_registry.py:125",
         "src/services/service_event_trace.py:27"
+      ]
+    },
+    {
+      "id": "billing-webhook-bridges-stripe-db-token-evidence",
+      "summary": "maas-billing is route-only but trace-visible: Stripe webhook handling now emits EventBus evidence for local DB/audit mutation and optional X0T bridge intent without claiming live Stripe or chain finality.",
+      "source_refs": [
+        "src/api/maas_billing.py:37",
+        "src/api/maas_billing.py:131",
+        "src/api/maas_billing.py:604",
+        "src/api/maas_billing.py:629",
+        "src/services/service_identity_registry.py:133"
       ]
     },
     {

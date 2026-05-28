@@ -116,6 +116,7 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert covered_services["maas-settlement"] == "commerce_settlement_to_events"
     assert covered_services["maas-marketplace"] == "api_to_commerce"
     assert covered_services["maas-governance"] == "api_to_control_plane"
+    assert covered_services["maas-billing"] == "billing_webhook_to_commerce_bridge"
     assert covered_services["dao-executor"] == "dao_to_control_plane"
     assert (
         covered_services["recovery-action-executor"]
@@ -140,6 +141,8 @@ def test_evidence_runtime_bridge_claims_match_code_markers():
     assert "marketplace_api_event_id_matches" in smoke_source
     assert "execute_maas_governance_action" in smoke_source
     assert "maas_governance_event_id_matches" in smoke_source
+    assert "maas_billing_api.stripe_webhook" in smoke_source
+    assert "maas_billing_event_id_matches" in smoke_source
     assert "TokenRewards" in smoke_source
     assert "reward_relay" in smoke_source
     assert "mesh_reward_event_id_matches" in smoke_source
