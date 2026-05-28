@@ -162,6 +162,30 @@ def test_lifecycle_map_tracks_billing_route_only_stripe_readiness():
     assert "mark_degraded_dependency(request, dependency)" in source
 
 
+def test_lifecycle_map_tracks_billing_api_route_only_runtime_readiness():
+    lifecycle_map = _load_map()
+    billing = next(
+        router for router in lifecycle_map["routers"] if router["id"] == "billing-api"
+    )
+    source = _module_path(billing["module"]).read_text(encoding="utf-8")
+
+    assert billing["lifecycle_binding"] == "route_import_only"
+    assert billing["registration_mode"] == "always"
+    assert billing["route_present_in_light_mode"] is True
+    assert billing["readiness_signal"] == "/api/v1/billing/readiness"
+    assert billing["runtime_readiness_field"] == "billing_api_runtime_ready"
+    assert "checkout, Stripe webhook processing" in billing["hidden_dependency"]
+    assert '@router.get("/readiness")' in source
+    assert "billing_api_runtime_ready" in source
+    assert "stripe_checkout_config_ready" in source
+    assert "stripe_webhook_config_ready" in source
+    assert "stripe_transport_ready" in source
+    assert "billing_models_ready" in source
+    assert "vless_link_ready" in source
+    assert "provisioning_imports_ready" in source
+    assert "mark_degraded_dependency(request, dependency)" in source
+
+
 def test_lifecycle_map_tracks_governance_route_only_control_plane_readiness():
     lifecycle_map = _load_map()
     governance = next(
