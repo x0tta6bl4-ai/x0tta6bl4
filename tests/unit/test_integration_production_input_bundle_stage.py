@@ -36,9 +36,9 @@ def _base_sources(root: Path, *, ready: bool) -> None:
                 "external_artifacts_operator_required": 0 if ready else 1,
                 "external_settlement_live_rpc_ready": ready,
                 "external_settlement_live_rpc_checked": ready,
-                "secret_scan_decision": "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR",
-                "secret_scan_findings": 0,
-                "secret_scan_source_errors": 0,
+                "content_scan_decision": "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR",
+                "content_scan_findings": 0,
+                "content_scan_source_errors": 0,
             },
             "evidence_key_acceptance": [
                 {
