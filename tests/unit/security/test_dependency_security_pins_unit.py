@@ -10,7 +10,9 @@ from packaging.utils import canonicalize_name
 ROOT = Path(__file__).resolve().parents[3]
 
 SECURITY_PIN_FIXES = {
+    "authlib": "1.6.12",
     "gitpython": "3.1.50",
+    "idna": "3.15",
     "mako": "1.3.12",
     "python-multipart": "0.0.27",
     "urllib3": "2.7.0",
@@ -50,3 +52,4 @@ def test_staging_and_pyproject_keep_security_floor_versions() -> None:
     assert str(staging["python-multipart"].specifier) == ">=0.0.27"
     assert str(project_requirements["python-multipart"].specifier) == ">=0.0.27"
     assert str(project_requirements["urllib3"].specifier) == ">=2.7.0"
+    assert str(project_requirements["idna"].specifier) == ">=3.15"
