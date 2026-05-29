@@ -30,6 +30,10 @@ REMOVED_DEPENDABOT_MANIFESTS = (
     "другие проекты/базис-веб/requirements-neural.txt",
 )
 
+REMOVED_UNPATCHED_DEPENDENCIES = (
+    "paramiko",
+)
+
 
 def _requirements(path: Path) -> dict[str, Requirement]:
     parsed: dict[str, Requirement] = {}
@@ -78,3 +82,23 @@ def test_removed_dependabot_manifests_stay_absent() -> None:
             f"{manifest} was removed from the current baseline. If it is restored, "
             "add it back to the dependency security pins before merging."
         )
+
+
+def test_removed_unpatched_dependencies_stay_out_of_runtime_baseline() -> None:
+    requirements = _requirements(ROOT / "requirements.txt")
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project_requirements = {
+        canonicalize_name(req.name): req
+        for req in (
+            Requirement(item)
+            for item in pyproject["project"]["dependencies"]
+        )
+    }
+    skill_update_script = (
+        ROOT / "x0tta6bl4-core-skill/x0tta6bl4-core/scripts/update_dependencies.sh"
+    ).read_text(encoding="utf-8").lower()
+
+    for package in REMOVED_UNPATCHED_DEPENDENCIES:
+        assert package not in requirements
+        assert package not in project_requirements
+        assert package not in skill_update_script
