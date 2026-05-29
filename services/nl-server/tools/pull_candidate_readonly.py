@@ -132,6 +132,13 @@ def write_quarantine(candidate: dict, data: bytes, batch_id: str, host: str) -> 
     return target
 
 
+def safe_candidate_label(candidate: dict) -> str:
+    """Return a non-secret candidate label for operator logs."""
+    component = str(candidate.get("component") or "unknown")
+    local_name = Path(str(candidate.get("intended_local_path") or "candidate")).name
+    return f"{component}/{local_name}"
+
+
 def list_candidates(candidates: list[dict]) -> None:
     for idx, item in enumerate(candidates, start=1):
         print(
@@ -180,11 +187,14 @@ def main() -> int:
         hits = scan_for_secrets(data)
         if hits:
             blocked += 1
-            print(f"BLOCKED {remote_path}: secret-pattern hits={','.join(hits)}", file=sys.stderr)
+            print(
+                f"BLOCKED {safe_candidate_label(candidate)}: secret-pattern hits={len(hits)}",
+                file=sys.stderr,
+            )
             continue
         target = write_quarantine(candidate, data, batch_id, args.host)
         accepted += 1
-        print(f"ACCEPTED {remote_path} -> {target.relative_to(ROOT)}")
+        print(f"ACCEPTED {safe_candidate_label(candidate)} -> {target.relative_to(ROOT)}")
 
     print(f"batch={batch_id} accepted={accepted} blocked={blocked}")
     return 1 if blocked else 0

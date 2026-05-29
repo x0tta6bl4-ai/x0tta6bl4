@@ -49,17 +49,13 @@ def _walk_strings(value: Any, path: str = "$") -> List[Dict[str, str]]:
 def _findings(text: str, parsed: Optional[Any]) -> List[Dict[str, str]]:
     rows = _walk_strings(parsed) if parsed is not None else [{"path": "$", "value": text}]
     findings: List[Dict[str, str]] = []
+    seen: set[str] = set()
     for row in rows:
         value = row["value"]
         for label, pattern in SECRET_PATTERNS:
-            if pattern.search(value):
-                findings.append(
-                    {
-                        "kind": label,
-                        "path": row["path"],
-                        "redacted_preview": value[:8] + "...",
-                    }
-                )
+            if pattern.search(value) and label not in seen:
+                findings.append({"kind": label})
+                seen.add(label)
     return findings
 
 
