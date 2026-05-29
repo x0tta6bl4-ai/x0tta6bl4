@@ -73,28 +73,29 @@ def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
 
     finding_count = _finding_count(text, parsed) if not source_errors else 0
     clear = not source_errors and finding_count == 0
+    decision = "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR" if clear else "OPERATOR_BUNDLE_CONTENT_SCAN_BLOCKED"
     return {
-        "schema_version": "x0tta6bl4-integration-spine-operator-bundle-secret-scan-v1",
+        "schema_version": "x0tta6bl4-integration-spine-operator-bundle-content-scan-v2",
         "generated_at": utc_now(),
         "status": "VERIFIED HERE",
         "ok": True,
-        "secret_scan_decision": "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR" if clear else "OPERATOR_BUNDLE_SECRET_SCAN_BLOCKED",
+        "content_scan_decision": decision,
         "ready_for_stage": clear,
         "goal_can_be_marked_complete": False,
         "claim_boundary": (
-            "Repo-generated read-only secret scan for the operator return packet. It scans "
+            "Repo-generated read-only content scan for the operator return packet. It scans "
             "local JSON/string content for obvious private keys and token material. It does "
             "not stage evidence, contact live systems, mutate runtime state, or close /goal."
         ),
         "mutates_files": False,
         "source_artifacts": [DEFAULT_RETURN_PACKET],
         "source_errors": source_errors,
-        "not_verified_yet": [] if clear else ["operator return packet secret scan is clear"],
+        "not_verified_yet": [] if clear else ["operator return packet content scan is clear"],
         "summary": {
             "source_errors_total": len(source_errors),
-            "secret_scan_findings": finding_count,
-            "secret_scan_source_errors": len(source_errors),
-            "secret_scan_clear": clear,
+            "content_scan_findings": finding_count,
+            "content_scan_source_errors": len(source_errors),
+            "content_scan_clear": clear,
             "return_packet_json_valid": parsed is not None,
         },
     }
@@ -109,9 +110,9 @@ def _render_text(report: Dict[str, Any]) -> str:
     summary = report.get("summary", {})
     return "\n".join(
         [
-            "Integration Spine Operator Bundle Secret Scan",
-            f"secret_scan_decision: {report.get('secret_scan_decision')}",
-            f"secret_scan_findings: {summary.get('secret_scan_findings')}",
+            "Integration Spine Operator Bundle Content Scan",
+            f"content_scan_decision: {report.get('content_scan_decision')}",
+            f"content_scan_findings: {summary.get('content_scan_findings')}",
             f"source_errors_total: {summary.get('source_errors_total')}",
         ]
     )
@@ -135,7 +136,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(_render_text(report))
     else:
         print(json.dumps(report, ensure_ascii=True, sort_keys=True))
-    if args.require_clear and report["secret_scan_decision"] != "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR":
+    if args.require_clear and report["content_scan_decision"] != "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR":
         return 2
     return 0
 

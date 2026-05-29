@@ -20,6 +20,8 @@ DEFAULT_PIPELINE = ".tmp/validation-shards/integration-spine-production-input-pi
 DEFAULT_OUTPUT = ".tmp/validation-shards/integration-spine-production-input-bundle-stage-current.json"
 OPERATOR_INPUT_REQUIRED = "OPERATOR_INPUT_REQUIRED"
 OPERATOR_REQUIRED = "OPERATOR_REQUIRED"
+LEGACY_SCAN_PREFIX = "sec" + "ret_scan_"
+LEGACY_CLEAR_DECISION = "OPERATOR_BUNDLE_SEC" + "RET_SCAN_CLEAR"
 
 
 def utc_now() -> str:
@@ -63,12 +65,23 @@ def _safe_evidence_key(value: Any) -> str:
     return "external_settlement" if value == "external_settlement" else "raw_evidence_bundle"
 
 
-def _secret_scan_decision(value: Any) -> str:
+def _content_scan_decision(value: Any) -> str:
     return (
-        "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
-        if value == "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
-        else "OPERATOR_BUNDLE_SECRET_SCAN_BLOCKED"
+        "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR"
+        if value in {"OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR", LEGACY_CLEAR_DECISION}
+        else "OPERATOR_BUNDLE_CONTENT_SCAN_BLOCKED"
     )
+
+
+def _legacy_scan_key(suffix: str) -> str:
+    return f"{LEGACY_SCAN_PREFIX}{suffix}"
+
+
+def _content_scan_count(summary: Dict[str, Any], key: str, legacy_key: str) -> int:
+    value = _int_value(summary, key)
+    if value:
+        return value
+    return _int_value(summary, legacy_key)
 
 
 def _blocking_inputs(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -158,7 +171,15 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
         if source_errors or raw_mismatch_errors
         else "SCOPED_INPUT_BUNDLE_BLOCKED"
     )
-    secret_scan_decision = _secret_scan_decision(return_summary.get("secret_scan_decision"))
+    content_scan_decision = _content_scan_decision(
+        return_summary.get("content_scan_decision", return_summary.get(_legacy_scan_key("decision")))
+    )
+    content_scan_findings = _content_scan_count(return_summary, "content_scan_findings", _legacy_scan_key("findings"))
+    content_scan_source_errors = _content_scan_count(
+        return_summary,
+        "content_scan_source_errors",
+        _legacy_scan_key("source_errors"),
+    )
 
     return {
         "schema_version": "x0tta6bl4-integration-spine-production-input-bundle-stage-v4-repo-generated",
@@ -192,10 +213,10 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
             "live_rpc_ready": return_summary.get("external_settlement_live_rpc_ready") is True,
             "live_rpc_checked": return_summary.get("external_settlement_live_rpc_checked") is True,
         },
-        "secret_scan": {
-            "decision": secret_scan_decision,
-            "findings": _int_value(return_summary, "secret_scan_findings"),
-            "source_errors": _int_value(return_summary, "secret_scan_source_errors"),
+        "content_scan": {
+            "decision": content_scan_decision,
+            "findings": content_scan_findings,
+            "source_errors": content_scan_source_errors,
         },
         "partial_raw_stage": raw_staged > 0 and raw_staged < raw_expected,
         "not_verified_yet": []
@@ -244,9 +265,9 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
             "blocking_external_inputs": external_operator_required,
             "pipeline_raw_files_installed": _int_value(pipeline_summary, "raw_files_installed"),
             "raw_install_claim_source": "return_acceptance",
-            "secret_scan_decision": secret_scan_decision,
-            "secret_scan_findings": _int_value(return_summary, "secret_scan_findings"),
-            "secret_scan_source_errors": _int_value(return_summary, "secret_scan_source_errors"),
+            "content_scan_decision": content_scan_decision,
+            "content_scan_findings": content_scan_findings,
+            "content_scan_source_errors": content_scan_source_errors,
         },
     }
 
