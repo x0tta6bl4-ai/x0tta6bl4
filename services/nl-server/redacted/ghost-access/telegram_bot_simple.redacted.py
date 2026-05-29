@@ -1784,11 +1784,13 @@ def create_cardlink_payment(user_id: int, plan_key: str) -> dict:
 
 
 def verify_cardlink_signature(out_sum: str, inv_id: str, signature: str) -> bool:
-    """Verify CardLink webhook signature: MD5(OutSum:InvId:apiToken)."""
-    import hashlib
+    """Fail closed in the redacted review copy.
 
-    expected = hashlib.md5(f"{out_sum}:{inv_id}:{CARDLINK_API_TOKEN}".encode()).hexdigest().upper()
-    return expected == (signature or "").upper()
+    The live source uses a provider-specific legacy signature scheme. This
+    repository file is explicitly non-deployable, so it does not retain that
+    token-bearing implementation.
+    """
+    return False
 
 
 def parse_cardlink_order_id(payment: dict | None) -> str | None:
@@ -11001,10 +11003,13 @@ def parse_vpn_client_ua(ua: str) -> dict[str, str]:
         if linux_ver:
             result["os_version"] = linux_ver.group(1)
 
-    # Device model (from parentheses, common in mobile UAs)
-    model_match = re.search(r";\s*([A-Za-z][\w\s\-]+?)(?:\s+Build|\))", ua)
-    if model_match:
-        result["device_model"] = model_match.group(1).strip()
+    # Device model (from parentheses, common in mobile UAs). Keep this parser
+    # deliberately simple to avoid regex backtracking on arbitrary user agents.
+    for segment in ua.split(";")[1:]:
+        candidate = segment.split("Build", 1)[0].split(")", 1)[0].strip()
+        if candidate and candidate[0].isalpha():
+            result["device_model"] = candidate[:80]
+            break
 
     # Build display string
     parts = []
