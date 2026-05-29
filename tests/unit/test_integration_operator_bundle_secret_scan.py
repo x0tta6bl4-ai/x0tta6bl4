@@ -17,8 +17,8 @@ def test_secret_scan_accepts_clean_return_packet(tmp_path):
 
     assert report["status"] == "VERIFIED HERE"
     assert report["ok"] is True
-    assert report["secret_scan_decision"] == "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
-    assert report["summary"]["secret_scan_findings"] == 0
+    assert report["content_scan_decision"] == "OPERATOR_BUNDLE_CONTENT_SCAN_CLEAR"
+    assert report["summary"]["content_scan_findings"] == 0
     assert report["ready_for_stage"] is True
     assert report["mutates_files"] is False
 
@@ -29,8 +29,8 @@ def test_secret_scan_blocks_obvious_private_key(tmp_path):
 
     report = build_report(tmp_path, packet)
 
-    assert report["secret_scan_decision"] == "OPERATOR_BUNDLE_SECRET_SCAN_BLOCKED"
-    assert report["summary"]["secret_scan_findings"] == 1
+    assert report["content_scan_decision"] == "OPERATOR_BUNDLE_CONTENT_SCAN_BLOCKED"
+    assert report["summary"]["content_scan_findings"] == 1
     assert report["ready_for_stage"] is False
 
 
@@ -51,4 +51,4 @@ def test_secret_scan_cli_require_clear_returns_two_when_blocked(tmp_path):
 
     payload = json.loads(output_json.read_text(encoding="utf-8"))
     assert exit_code == 2
-    assert payload["summary"]["secret_scan_findings"] == 1
+    assert payload["summary"]["content_scan_findings"] == 1
