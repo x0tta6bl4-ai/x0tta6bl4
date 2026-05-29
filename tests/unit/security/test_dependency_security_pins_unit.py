@@ -20,6 +20,7 @@ SECURITY_PIN_FIXES = {
 
 CORE_DEPENDENCY_MANIFESTS = (
     "requirements.txt",
+    "requirements.lock",
     "requirements-staging.txt",
     "requirements-dev.txt",
     "docker/mesh-node/requirements.txt",
@@ -57,6 +58,15 @@ def test_requirements_txt_keeps_sbom_security_fix_pins() -> None:
     for package, version in SECURITY_PIN_FIXES.items():
         req = requirements[package]
         assert str(req.specifier) == f"=={version}"
+
+
+def test_requirements_lock_matches_requirements_txt_pins() -> None:
+    requirements = _requirements(ROOT / "requirements.txt")
+    lock = _requirements(ROOT / "requirements.lock")
+
+    for package, req in requirements.items():
+        assert package in lock
+        assert str(lock[package].specifier) == str(req.specifier)
 
 
 def test_staging_and_pyproject_keep_security_floor_versions() -> None:

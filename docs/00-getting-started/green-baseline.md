@@ -22,12 +22,14 @@ Run these from the repository root:
 
 ```bash
 python3 -m pytest tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
+python3 scripts/check_requirements_lock_sync.py
 git diff --check
 ```
 
 The dependency security test verifies that:
 
 - core dependency manifests parse as Python requirements;
+- `requirements.lock` carries the same direct pins as `requirements.txt`;
 - root pinned packages stay at or above known Dependabot patched versions;
 - staging and `pyproject.toml` floors match the security baseline;
 - removed Dependabot manifests and unpatched unused dependencies stay absent
