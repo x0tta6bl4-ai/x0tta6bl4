@@ -60,8 +60,7 @@ def _status_counts(items: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def _safe_evidence_key(value: Any) -> str:
-    key = str(value or "")
-    return key if key == "external_settlement" else "raw_evidence_bundle"
+    return "external_settlement" if value == "external_settlement" else "raw_evidence_bundle"
 
 
 def _secret_scan_decision(value: Any) -> str:
