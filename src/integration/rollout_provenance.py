@@ -23,7 +23,7 @@ DEFAULT_OUTPUT = ".tmp/validation-shards/live-rollout-image-digests-closure-atte
 DEFAULT_OUTPUT_MD = "docs/verification/live-rollout-image-digest-provenance-gate-2026-05-20.md"
 DEFAULT_EXPECTED_OPERATOR_EVIDENCE = ".tmp/production-raw-evidence-operator-bundle/live-rollout/image-digests.json"
 
-DIGEST_REF = re.compile(r"^[^\s@:]+(?:/[^\s@:]+)*@sha256:[a-f0-9]{64}$")
+DIGEST_REF = re.compile(r"^[^\s@:]+@sha256:[a-f0-9]{64}$")
 
 
 def utc_now() -> str:

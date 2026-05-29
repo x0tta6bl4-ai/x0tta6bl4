@@ -59,12 +59,25 @@ def _status_counts(items: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _safe_evidence_key(value: Any) -> str:
+    key = str(value or "")
+    return key if key == "external_settlement" else "raw_evidence_bundle"
+
+
+def _secret_scan_decision(value: Any) -> str:
+    return (
+        "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
+        if value == "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"
+        else "OPERATOR_BUNDLE_SECRET_SCAN_BLOCKED"
+    )
+
+
 def _blocking_inputs(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
     blocking: List[Dict[str, Any]] = []
     for item in _dicts(acceptance.get("evidence_key_acceptance")):
         if item.get("ready_to_stage") is True:
             continue
-        evidence_key = str(item.get("evidence_key", ""))
+        evidence_key = _safe_evidence_key(item.get("evidence_key"))
         blocking.append(
             {
                 "evidence_key": evidence_key,
@@ -74,7 +87,7 @@ def _blocking_inputs(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "files_staged": _int_value(item, "files_staged"),
                 "files_ready_to_stage": _int_value(item, "files_ready_to_stage"),
                 "files_blocked": _int_value(item, "files_blocked"),
-                "errors": [str(error) for error in item.get("errors", []) if isinstance(error, str)][:10],
+                "errors_total": len([error for error in item.get("errors", []) if isinstance(error, str)]),
             }
         )
     return blocking
@@ -83,7 +96,7 @@ def _blocking_inputs(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
 def _raw_file_rows(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for item in _dicts(acceptance.get("evidence_key_acceptance")):
-        evidence_key = str(item.get("evidence_key", ""))
+        evidence_key = _safe_evidence_key(item.get("evidence_key"))
         if evidence_key == "external_settlement":
             continue
         rows.append(
@@ -95,7 +108,7 @@ def _raw_file_rows(acceptance: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "files_operator_required": _int_value(item, "files_operator_required"),
                 "files_blocked": _int_value(item, "files_blocked"),
                 "ready_to_stage": item.get("ready_to_stage") is True,
-                "statuses": item.get("statuses", {}) if isinstance(item.get("statuses"), dict) else {},
+                "statuses_total": len(item.get("statuses", {})) if isinstance(item.get("statuses"), dict) else 0,
             }
         )
     return rows
@@ -146,6 +159,7 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
         if source_errors or raw_mismatch_errors
         else "SCOPED_INPUT_BUNDLE_BLOCKED"
     )
+    secret_scan_decision = _secret_scan_decision(return_summary.get("secret_scan_decision"))
 
     return {
         "schema_version": "x0tta6bl4-integration-spine-production-input-bundle-stage-v4-repo-generated",
@@ -180,7 +194,7 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
             "live_rpc_checked": return_summary.get("external_settlement_live_rpc_checked") is True,
         },
         "secret_scan": {
-            "decision": return_summary.get("secret_scan_decision", "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"),
+            "decision": secret_scan_decision,
             "findings": _int_value(return_summary, "secret_scan_findings"),
             "source_errors": _int_value(return_summary, "secret_scan_source_errors"),
         },
@@ -231,7 +245,7 @@ def build_report(root: Path, return_acceptance_path: Path, pipeline_path: Path) 
             "blocking_external_inputs": external_operator_required,
             "pipeline_raw_files_installed": _int_value(pipeline_summary, "raw_files_installed"),
             "raw_install_claim_source": "return_acceptance",
-            "secret_scan_decision": return_summary.get("secret_scan_decision", "OPERATOR_BUNDLE_SECRET_SCAN_CLEAR"),
+            "secret_scan_decision": secret_scan_decision,
             "secret_scan_findings": _int_value(return_summary, "secret_scan_findings"),
             "secret_scan_source_errors": _int_value(return_summary, "secret_scan_source_errors"),
         },
