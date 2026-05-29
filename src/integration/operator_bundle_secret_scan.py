@@ -46,17 +46,16 @@ def _walk_strings(value: Any, path: str = "$") -> List[Dict[str, str]]:
     return rows
 
 
-def _findings(text: str, parsed: Optional[Any]) -> List[Dict[str, str]]:
+def _finding_count(text: str, parsed: Optional[Any]) -> int:
     rows = _walk_strings(parsed) if parsed is not None else [{"path": "$", "value": text}]
-    findings: List[Dict[str, str]] = []
-    seen: set[str] = set()
+    count = 0
     for row in rows:
         value = row["value"]
-        for label, pattern in SECRET_PATTERNS:
-            if pattern.search(value) and label not in seen:
-                findings.append({"kind": label})
-                seen.add(label)
-    return findings
+        for _label, pattern in SECRET_PATTERNS:
+            if pattern.search(value):
+                count += 1
+                break
+    return count
 
 
 def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
@@ -72,8 +71,8 @@ def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
         except Exception:
             source_errors.append("return packet is not valid JSON")
 
-    findings = _findings(text, parsed) if not source_errors else []
-    clear = not source_errors and not findings
+    finding_count = _finding_count(text, parsed) if not source_errors else 0
+    clear = not source_errors and finding_count == 0
     return {
         "schema_version": "x0tta6bl4-integration-spine-operator-bundle-secret-scan-v1",
         "generated_at": utc_now(),
@@ -90,11 +89,10 @@ def build_report(root: Path, return_packet_path: Path) -> Dict[str, Any]:
         "mutates_files": False,
         "source_artifacts": [DEFAULT_RETURN_PACKET],
         "source_errors": source_errors,
-        "findings": findings,
         "not_verified_yet": [] if clear else ["operator return packet secret scan is clear"],
         "summary": {
             "source_errors_total": len(source_errors),
-            "secret_scan_findings": len(findings),
+            "secret_scan_findings": finding_count,
             "secret_scan_source_errors": len(source_errors),
             "secret_scan_clear": clear,
             "return_packet_json_valid": parsed is not None,
