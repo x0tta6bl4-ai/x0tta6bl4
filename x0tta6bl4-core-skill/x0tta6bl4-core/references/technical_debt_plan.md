@@ -77,7 +77,6 @@
 |-------|----------------|-----|---------------------|-------------|
 | aiohttp | 3.13.1 | 8 CVE (DoS, request smuggling) | 3.13.3 | 🔴 HIGH |
 | certifi | 2023.11.17 | CVE-2024-39689 | 2024.7.4 | 🔴 HIGH |
-| paramiko | 2.12.0 | CVE-2023-48795 (Terrapin) | 3.4.0 | 🔴 HIGH |
 | Jinja2 | 3.1.2 | CVE-2024-34064 | 3.1.6 | 🟡 MEDIUM |
 | pillow | 10.2.0 | CVE-2024-28219 | 10.3.0 | 🟡 MEDIUM |
 | setuptools | 68.1.2 | CVE-2024-6345, CVE-2022-40897 | 78.1.1 | 🔴 HIGH |
@@ -88,6 +87,7 @@
 | pip | 24.0 | CVE-2024-37891 | 25.3 | 🟡 MEDIUM |
 
 **Без исправления (мониторинг):**
+- paramiko - удалён из baseline-зависимостей, потому что runtime-код проекта его не импортирует, а для GHSA-r374-rxx8-8654 нет patched release
 - orjson 3.11.3 - CVE (recursion DoS) - нет фикса
 - protobuf 6.33.4 - CVE (recursion DoS) - нет фикса
 
@@ -95,9 +95,9 @@
 
 ```bash
 # Немедленное обновление критических пакетов
-pip install --upgrade aiohttp>=3.13.3 certifi>=2024.7.4 paramiko>=3.4.0 \
-    Jinja2>=3.1.6 pillow>=10.3.0 setuptools>=78.1.1 urllib3>=2.6.3 \
-    python-multipart>=0.0.22 filelock>=3.20.3 configobj>=5.0.9 pip>=25.3
+pip install --upgrade "aiohttp>=3.13.3" "certifi>=2024.7.4" \
+    "Jinja2>=3.1.6" "pillow>=10.3.0" "setuptools>=78.1.1" "urllib3>=2.7.0" \
+    "python-multipart>=0.0.27" "filelock>=3.20.3" "configobj>=5.0.9" "pip>=25.3"
 ```
 
 **Критерии приёмки:**

@@ -7,12 +7,14 @@ before feature work or larger refactors.
 ## Current Baseline
 
 - Branch: `main`
-- Baseline commit after dependency cleanup: `efad70e0743ecf6fd807828a65e20138fb4f5783`
 - Root dependency security pins are guarded by
   `tests/unit/security/test_dependency_security_pins_unit.py`.
 - The legacy manifest `другие проекты/базис-веб/requirements-neural.txt` is not
   present in the current tree. If a neural requirements manifest is restored,
   it must be added to the dependency security pin guard before merge.
+- `paramiko` is not part of the runtime dependency baseline because the current
+  tree has no runtime imports for it and GHSA-r374-rxx8-8654 has no patched
+  release in Dependabot metadata.
 
 ## Local Checks
 
@@ -28,8 +30,8 @@ The dependency security test verifies that:
 - core dependency manifests parse as Python requirements;
 - root pinned packages stay at or above known Dependabot patched versions;
 - staging and `pyproject.toml` floors match the security baseline;
-- removed Dependabot manifests stay absent unless they are intentionally
-  reintroduced with security pins.
+- removed Dependabot manifests and unpatched unused dependencies stay absent
+  unless they are intentionally reintroduced with security pins.
 
 ## GitHub Checks
 
@@ -42,11 +44,11 @@ For PRs that touch dependencies or baseline documentation, wait for:
 
 ## Known Remaining Security State
 
-As of 2026-05-29, GitHub Dependabot still reports:
+As of 2026-05-29, GitHub Dependabot state was cleaned as follows:
 
-- `requirements.txt`: one low-severity `paramiko` alert with no patched version
-  in the Dependabot metadata.
-- Deleted neural manifest alerts may remain visible until GitHub's dependency
-  graph refreshes or the stale alerts are dismissed with evidence that the
-  manifest is absent from `main`.
-
+- Deleted neural manifest alerts were stale because the manifest is absent from
+  `main`; they can be dismissed with evidence from the Git tree and GitHub
+  Contents API.
+- The low-severity `paramiko` alert has no patched version in Dependabot
+  metadata. The package is removed from the runtime baseline instead of pinned
+  to another vulnerable release.
