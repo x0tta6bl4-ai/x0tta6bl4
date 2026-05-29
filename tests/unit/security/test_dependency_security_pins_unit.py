@@ -18,6 +18,18 @@ SECURITY_PIN_FIXES = {
     "urllib3": "2.7.0",
 }
 
+CORE_DEPENDENCY_MANIFESTS = (
+    "requirements.txt",
+    "requirements-staging.txt",
+    "requirements-dev.txt",
+    "docker/mesh-node/requirements.txt",
+    "monitoring/geo-leak-detector/requirements.txt",
+)
+
+REMOVED_DEPENDABOT_MANIFESTS = (
+    "другие проекты/базис-веб/requirements-neural.txt",
+)
+
 
 def _requirements(path: Path) -> dict[str, Requirement]:
     parsed: dict[str, Requirement] = {}
@@ -28,6 +40,11 @@ def _requirements(path: Path) -> dict[str, Requirement]:
         req = Requirement(line)
         parsed[canonicalize_name(req.name)] = req
     return parsed
+
+
+def test_core_dependency_manifests_parse_as_requirements() -> None:
+    for manifest in CORE_DEPENDENCY_MANIFESTS:
+        _requirements(ROOT / manifest)
 
 
 def test_requirements_txt_keeps_sbom_security_fix_pins() -> None:
@@ -53,3 +70,11 @@ def test_staging_and_pyproject_keep_security_floor_versions() -> None:
     assert str(project_requirements["python-multipart"].specifier) == ">=0.0.27"
     assert str(project_requirements["urllib3"].specifier) == ">=2.7.0"
     assert str(project_requirements["idna"].specifier) == ">=3.15"
+
+
+def test_removed_dependabot_manifests_stay_absent() -> None:
+    for manifest in REMOVED_DEPENDABOT_MANIFESTS:
+        assert not (ROOT / manifest).exists(), (
+            f"{manifest} was removed from the current baseline. If it is restored, "
+            "add it back to the dependency security pins before merging."
+        )
