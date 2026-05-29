@@ -497,19 +497,6 @@ def _execute_action(
     return result
 
 
-def _public_action_result(result: Dict[str, Any]) -> Dict[str, Any]:
-    """Return only stable, non-sensitive action fields to API callers."""
-    public: Dict[str, Any] = {
-        "action": str(result.get("action", "unknown")),
-        "success": result.get("success") is True,
-    }
-    if result.get("simulated") is True:
-        public["simulated"] = True
-    if result.get("policy_required") is True:
-        public["policy_required"] = True
-    return public
-
-
 def _tally(proposal: GovernanceProposal) -> Dict[str, float]:
     tally: Dict[str, float] = {"yes": 0.0, "no": 0.0, "abstain": 0.0}
     for v in proposal.votes:
@@ -638,13 +625,13 @@ async def execute_maas_proposal(
         payload={"proposal_id": proposal_id, "hash": finality_hash, "pqc": pqc_attestation},
         status_code=200
     )
-    public_results = [_public_action_result(result) for result in results]
     return {
         "status": "executed",
         "proposal_id": proposal_id,
         "finality_hash": finality_hash,
         "pqc_attestation": pqc_attestation,
-        "results": public_results,
+        "actions_total": len(results),
+        "actions_succeeded": sum(1 for result in results if result.get("success") is True),
     }
 
 @router.get("/proposals")
