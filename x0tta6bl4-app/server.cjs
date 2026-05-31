@@ -113,14 +113,17 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
-// 3. CONTROL
-app.post('/api/vpn/toggle', auth, (req, res) => {
+// 3. CONTROL: local TUN mesh protection
+function toggleMeshProtection(req, res) {
   const { active } = req.body;
   const script = active ? 'stop_vpn_protection.py' : 'start_vpn_protection.py';
   exec(`python3 ${path.join(ROOT, script)}`, (err, stdout) => {
     res.json({ success: true, output: stdout });
   });
-});
+}
+
+app.post('/api/mesh/toggle', auth, toggleMeshProtection);
+app.post('/api/vpn/toggle', auth, toggleMeshProtection);
 
 // 4. WALLET & MARKETPLACE (Real DB calls)
 app.get('/api/wallet/balance', auth, async (req, res) => {

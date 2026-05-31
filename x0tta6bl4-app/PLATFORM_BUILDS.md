@@ -1,0 +1,31 @@
+# x0tta6bl4 Platform Builds
+
+This app uses one React/Vite UI and native wrappers per platform:
+
+- Android/iOS: Capacitor, app id `net.x0tta6bl4.mesh`
+- Ubuntu/Windows desktop: Tauri v2, app id `net.x0tta6bl4.mesh`
+
+## Local Ubuntu Host Status
+
+Verified on the local Linux host:
+
+```bash
+npm run build
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/usr/lib/android-sdk ANDROID_SDK_ROOT=/usr/lib/android-sdk npm run android:build
+npm run ios:sync
+npm run desktop:build:linux
+npm run lint
+```
+
+Built artifacts:
+
+- Android debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Ubuntu deb: `../src-tauri/target/release/bundle/deb/x0tta6bl4_0.1.0_amd64.deb`
+- Ubuntu AppImage: `../src-tauri/target/release/bundle/appimage/x0tta6bl4_0.1.0_amd64.AppImage`
+
+## Platform Notes
+
+- Android builds locally after installing JDK 21 and Android SDK platform/build tools.
+- Ubuntu builds locally with Tauri v2 and WebKitGTK 4.1.
+- iOS sync works locally, but a real iOS archive requires macOS, Xcode, CocoaPods, and Apple signing.
+- Windows MSI requires a Windows build host. On Linux, Tauri exposes only Linux bundle targets such as `deb`, `rpm`, and `appimage`.

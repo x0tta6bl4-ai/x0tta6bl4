@@ -21,7 +21,7 @@ const API_URL = (import.meta.env.VITE_API_BASE || '/api').replace(/\/$/, '');
 
 const App: React.FC = () => {
   const [active, setActive] = useState(false);
-  const [tab, setTab] = useState('vpn');
+  const [tab, setTab] = useState('mesh');
   const [loading, setLoading] = useState(false);
   const [nodes, setNodes] = useState<MeshNode[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -88,7 +88,7 @@ const App: React.FC = () => {
   const toggleConnection = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/vpn/toggle`, {
+      const res = await fetch(`${API_URL}/mesh/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active })
@@ -105,7 +105,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch(tab) {
-      case 'vpn':
+      case 'mesh':
         return (
           <>
             <button 
@@ -120,7 +120,7 @@ const App: React.FC = () => {
             
             <div style={{ marginTop: '30px', textAlign: 'center' }}>
               <div style={{ fontSize: '1.2rem', color: active ? 'var(--accent-color)' : 'var(--error-color)' }}>
-                {loading ? 'Routing Traffic...' : active ? 'Secure Mesh Active' : 'Shields Offline'}
+                {loading ? 'Converging Mesh...' : active ? 'Autonomous Mesh Active' : 'Mesh Offline'}
               </div>
               <button onClick={() => setShowQR(!showQR)} style={{
                 background: 'transparent',
@@ -131,7 +131,7 @@ const App: React.FC = () => {
                 cursor: 'pointer',
                 marginTop: '10px'
               }}>
-                {showQR ? 'Hide Config' : 'Generate Mobile Config (QR)'}
+                {showQR ? 'Hide Config' : 'Generate Node Config (QR)'}
               </button>
             </div>
 
@@ -282,7 +282,7 @@ const App: React.FC = () => {
       </main>
 
       <nav className="nav-bar">
-        <div className={`nav-item ${tab === 'vpn' ? 'active' : ''}`} onClick={() => setTab('vpn')}>SHIELD</div>
+        <div className={`nav-item ${tab === 'mesh' ? 'active' : ''}`} onClick={() => setTab('mesh')}>MESH</div>
         <div className={`nav-item ${tab === 'maas' ? 'active' : ''}`} onClick={() => setTab('maas')}>MARKET</div>
         <div className={`nav-item ${tab === 'billing' ? 'active' : ''}`} onClick={() => setTab('billing')}>BILLING</div>
         <div className={`nav-item ${tab === 'wallet' ? 'active' : ''}`} onClick={() => setTab('wallet')}>WALLET</div>

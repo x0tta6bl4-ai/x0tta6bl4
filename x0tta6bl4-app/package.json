@@ -6,10 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "mobile:sync": "npm run build && cap sync",
+    "android:sync": "npm run build && cap sync android",
+    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "ios:sync": "npm run build && cap sync ios",
+    "desktop:dev": "cd .. && x0tta6bl4-app/node_modules/.bin/tauri dev",
+    "desktop:build": "cd .. && x0tta6bl4-app/node_modules/.bin/tauri build",
+    "desktop:build:linux": "cd .. && x0tta6bl4-app/node_modules/.bin/tauri build --bundles deb appimage",
+    "desktop:build:windows": "cd .. && x0tta6bl4-app/node_modules/.bin/tauri build --bundles msi",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.5",
+    "@capacitor/core": "^7.6.5",
+    "@capacitor/ios": "^7.6.5",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-basic-auth": "^1.2.1",
@@ -20,7 +31,9 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.5",
     "@eslint/js": "^9.39.1",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
