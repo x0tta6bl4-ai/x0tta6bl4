@@ -420,6 +420,45 @@ def _write_valid_trust_finality_event(root: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
+def _write_valid_customer_traffic_event(root: Path) -> None:
+    event_log = root / ".agent_coordination/events.log"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "event_id": "customer-traffic-event-1",
+        "event_type": "pipeline.stage_end",
+        "source_agent": "customer-traffic-probe",
+        "timestamp": "2026-05-31T00:00:00",
+        "target_agents": None,
+        "priority": 6,
+        "requires_ack": False,
+        "acked_by": [],
+        "data": {
+            "component": "scripts.ops.customer_traffic_probe",
+            "operation": "end_to_end_customer_path_probe",
+            "production_customer_traffic_confirmed": True,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+            "claim_boundary": (
+                "End-to-end customer traffic evidence only; not production "
+                "readiness, settlement finality, or trust finality proof."
+            ),
+            "customer_traffic_claim_gate": {
+                "schema": "x0tta6bl4.customer_traffic.claim_gate.v1",
+                "customer_traffic_claim_allowed": True,
+                "production_customer_traffic_confirmed": True,
+                "production_readiness_claim_allowed": False,
+                "external_settlement_finality_claim_allowed": False,
+                "raw_identifiers_redacted": True,
+                "payloads_redacted": True,
+                "claim_boundary": "Bounded customer traffic gate metadata only.",
+                "redacted": True,
+            },
+        },
+    }
+    with event_log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+
+
 def _write_valid_economy_boundary_event(root: Path) -> None:
     event_log = root / ".agent_coordination/events.log"
     event_log.parent.mkdir(parents=True, exist_ok=True)
@@ -498,6 +537,7 @@ def _write_map(
     production_flags: bool = False,
     settlement_flags: bool = False,
     trust_flags: bool = False,
+    customer_flags: bool = False,
 ) -> None:
     architecture = root / "docs/architecture"
     architecture.mkdir(parents=True, exist_ok=True)
@@ -520,7 +560,7 @@ def _write_map(
                     "local_observed_state": True,
                     "eventbus_evidence": True,
                     "dataplane_confirmed": production_flags or dataplane_flags,
-                    "production_customer_traffic_confirmed": False,
+                    "production_customer_traffic_confirmed": customer_flags,
                 },
             },
             {
@@ -764,6 +804,60 @@ def test_gate_allows_trust_finality_only_with_verified_eventbus_artifact(
     assert artifact["selected_event"]["event_id"] == "trust-finality-event-1"
     assert artifact["selected_event"]["redacted"] is True
     assert "dataplane delivery" in artifact["claim_boundary"]
+
+
+def test_gate_blocks_customer_traffic_when_map_flags_are_true_but_event_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, customer_flags=True)
+
+    report = build_report(tmp_path, claims=("customer_traffic",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [customer] = report["claim_results"]
+    assert customer["allowed"] is False
+    assert customer["missing_true_flags"] == []
+    assert "customer_traffic_eventbus_artifact_not_verified" in customer["blockers"]
+    artifact = customer["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "customer_traffic_event_log_missing" in artifact["blockers"]
+
+
+def test_gate_blocks_customer_traffic_when_only_dataplane_artifact_exists(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, customer_flags=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("customer_traffic",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    [customer] = report["claim_results"]
+    assert "customer_traffic_eventbus_artifact_not_verified" in customer["blockers"]
+    artifact = customer["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "verified_customer_traffic_event_not_found" in artifact["blockers"]
+
+
+def test_gate_allows_customer_traffic_only_with_verified_customer_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, customer_flags=True)
+    _write_valid_customer_traffic_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("customer_traffic",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    assert report["allowed"] is True
+    [customer] = report["claim_results"]
+    assert customer["allowed"] is True
+    assert customer["blockers"] == []
+    artifact = customer["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "customer-traffic-event-1"
+    assert artifact["selected_event"]["production_customer_traffic_confirmed"] is True
+    assert "Dataplane probes" in artifact["claim_boundary"]
 
 
 def test_gate_blocks_production_readiness_when_map_flags_are_true_but_imported_artifact_is_missing(

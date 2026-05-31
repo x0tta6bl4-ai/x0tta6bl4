@@ -80,6 +80,12 @@ TRUST_FINALITY_SOURCE_AGENTS = (
     "spiffe-mapek-loop",
     "spiffe-workload-api",
 )
+CUSTOMER_TRAFFIC_CLAIM_ID = "customer_traffic"
+CUSTOMER_TRAFFIC_SOURCE_AGENTS = (
+    "customer-traffic-probe",
+    "maas-customer-traffic",
+    "production-customer-traffic",
+)
 REQUIRED_PLANES = {
     "data_plane",
     "control_plane",
@@ -577,6 +583,103 @@ def trust_finality_artifact_evidence(root: Path) -> dict[str, Any]:
         return result
 
     result["blockers"].append("verified_trust_finality_event_not_found")
+    return result
+
+
+def _customer_traffic_candidate_blockers(event: Mapping[str, Any]) -> list[str]:
+    data = _mapping(event.get("data"))
+    gate = _mapping(data.get("claim_gate")) or _mapping(
+        data.get("customer_traffic_claim_gate")
+    )
+    evidence = _mapping(data.get("evidence")) or _mapping(data.get("downstream_evidence"))
+    blockers: list[str] = []
+    customer_confirmed = any(
+        value is True
+        for value in (
+            data.get("production_customer_traffic_confirmed"),
+            data.get("live_customer_traffic_confirmed"),
+            data.get("customer_traffic_confirmed"),
+            gate.get("production_customer_traffic_confirmed"),
+            gate.get("live_customer_traffic_confirmed"),
+            gate.get("customer_traffic_claim_allowed"),
+            gate.get("customer_traffic_delivery_claim_allowed"),
+        )
+    )
+    redacted = any(
+        value is True
+        for value in (
+            data.get("raw_identifiers_redacted"),
+            data.get("raw_values_redacted"),
+            data.get("payloads_redacted"),
+            gate.get("raw_identifiers_redacted"),
+            gate.get("payloads_redacted"),
+            evidence.get("redacted"),
+        )
+    )
+
+    if not gate:
+        blockers.append("customer_traffic_claim_gate_missing")
+    if not customer_confirmed:
+        blockers.append("customer_traffic_not_confirmed")
+    if not redacted:
+        blockers.append("customer_traffic_evidence_not_redacted")
+    if not (data.get("claim_boundary") or gate.get("claim_boundary")):
+        blockers.append("customer_traffic_claim_boundary_missing")
+    if data.get("production_readiness_claim_allowed") is True or gate.get("production_readiness_claim_allowed") is True:
+        blockers.append("customer_traffic_event_overpromotes_production_readiness")
+    if data.get("settlement_finality_confirmed") is True or gate.get("external_settlement_finality_claim_allowed") is True:
+        blockers.append("customer_traffic_event_overpromotes_settlement_finality")
+    return blockers
+
+
+def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
+    path = resolve_path(root, EVENTBUS_LOG)
+    result: dict[str, Any] = {
+        "claim_id": CUSTOMER_TRAFFIC_CLAIM_ID,
+        "required_for_claim": "customer_traffic",
+        "valid": False,
+        "event_log_path": EVENTBUS_LOG.as_posix(),
+        "event_log_exists": path.is_file(),
+        "events_scanned_limit": EVENTBUS_TAIL_SCAN_LIMIT,
+        "candidate_source_agents": sorted(CUSTOMER_TRAFFIC_SOURCE_AGENTS),
+        "matching_events": 0,
+        "selected_event": None,
+        "candidate_blockers": [],
+        "blockers": [],
+        "claim_boundary": (
+            "A retained EventBus customer-traffic event can support a bounded "
+            "production customer traffic claim only when a redacted end-to-end "
+            "customer-path claim gate allows it. Dataplane probes, mesh peer "
+            "observations, billing lifecycle, trust finality, or settlement "
+            "events do not prove customer traffic by themselves."
+        ),
+    }
+    if not path.is_file():
+        result["blockers"].append("customer_traffic_event_log_missing")
+        return result
+
+    for event in reversed(_bounded_event_log_entries(path, limit=EVENTBUS_TAIL_SCAN_LIMIT)):
+        if str(event.get("source_agent") or "") not in CUSTOMER_TRAFFIC_SOURCE_AGENTS:
+            continue
+        candidate_blockers = _customer_traffic_candidate_blockers(event)
+        if candidate_blockers:
+            for blocker in candidate_blockers:
+                if blocker not in result["candidate_blockers"] and len(result["candidate_blockers"]) < 20:
+                    result["candidate_blockers"].append(blocker)
+            continue
+        result["matching_events"] += 1
+        result["selected_event"] = {
+            "event_id": str(event.get("event_id") or ""),
+            "event_type": str(event.get("event_type") or ""),
+            "source_agent": str(event.get("source_agent") or ""),
+            "timestamp": str(event.get("timestamp") or ""),
+            "production_customer_traffic_confirmed": True,
+            "redacted": True,
+        }
+        result["valid"] = True
+        return result
+
+    result["blockers"].append("verified_customer_traffic_event_not_found")
     return result
 
 
@@ -1546,6 +1649,10 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("trust_finality_eventbus_artifact_not_verified")
+    elif claim_id == "customer_traffic":
+        claim_artifact_evidence = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("customer_traffic_eventbus_artifact_not_verified")
     elif claim_id == "dpi_bypass":
         claim_artifact_evidence = (artifact_evidence or {}).get(DPI_LAB_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -1625,6 +1732,8 @@ def build_report(
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
+    if "customer_traffic" in claims:
+        artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic_artifact_evidence(root)
     if any(claim in claims for claim in ("settlement_finality", "production_readiness")):
         artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary_artifact_evidence(root)
     if "dpi_bypass" in claims:
