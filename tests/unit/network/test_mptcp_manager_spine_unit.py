@@ -65,6 +65,19 @@ def test_enable_mptcp_publishes_identity_policy_and_safe_actuator_events(tmp_pat
     assert payload["context"]["enabled"] is True
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["mptcp-manager"]
+    assert metadata["claim_gate"]["schema"] == (
+        "x0tta6bl4.network_mptcp.safe_actuator_claim_gate.v1"
+    )
+    assert metadata["claim_gate"]["local_mptcp_configuration_claim_allowed"] is True
+    assert metadata["claim_gate"]["dataplane_delivery_claim_allowed"] is False
+    assert metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
+    assert metadata["claim_gate"]["production_readiness_claim_allowed"] is False
+    assert metadata["evidence"]["action"] == "sysctl_set"
+    assert metadata["evidence"]["sysctl_key_present"] is True
+    assert metadata["evidence"]["outputs_redacted"] is True
     assert payload["claim_boundary"]
 
 
@@ -157,6 +170,13 @@ def test_configure_endpoints_runs_ip_mptcp_through_safe_actuator(tmp_path):
     assert payload["context"]["add_addr_accepted"] == 2
     assert payload["policy_allowed"] is True
     assert payload["safe_actuator"] is True
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["claim_gate"]["local_endpoint_limit_claim_allowed"] is True
+    assert metadata["claim_gate"]["throughput_claim_allowed"] is False
+    assert metadata["claim_gate"]["remote_path_quality_claim_allowed"] is False
+    assert metadata["evidence"]["action"] == "ip_mptcp_limits_set"
+    assert metadata["evidence"]["interface_count"] == 2
+    assert metadata["evidence"]["raw_interfaces_redacted"] is True
 
 
 def test_configure_endpoints_unsupported_kernel_fails_closed(tmp_path):
@@ -179,6 +199,11 @@ def test_configure_endpoints_unsupported_kernel_fails_closed(tmp_path):
     assert failed[-1].data["success"] is False
     assert failed[-1].data["simulated"] is False
     assert "not supported" in failed[-1].data["reason"]
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    assert metadata["claim_gate"]["local_mptcp_configuration_claim_allowed"] is False
+    assert metadata["claim_gate"]["throughput_claim_allowed"] is False
+    assert metadata["evidence"]["kernel_supported"] is False
+    assert metadata["evidence"]["raw_interfaces_redacted"] is True
 
 
 def test_configure_endpoints_uses_explicit_limits(tmp_path):

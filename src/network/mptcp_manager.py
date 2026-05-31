@@ -14,7 +14,11 @@ import time
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -38,6 +42,12 @@ MPTCP_STATUS_CLAIM_BOUNDARY = (
     "and bounded ip mptcp limits command metadata; it does not prove live "
     "multipath traffic, throughput, remote path quality, or production field "
     "validation."
+)
+MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY = (
+    "MPTCP SafeActuator metadata records only local kernel/network configuration "
+    "action shape and redacted bounded inputs. It does not prove live multipath "
+    "traffic, throughput, remote path quality, customer traffic delivery, "
+    "production SLOs, or production readiness."
 )
 
 
@@ -251,6 +261,66 @@ class MPTCPManager:
         return {**payload, "evidence": cls._status_evidence_metadata(event_id)}
 
     @classmethod
+    def _control_action_claim_gate(
+        cls,
+        *,
+        operation: str,
+        success: bool,
+    ) -> Dict[str, Any]:
+        return {
+            "schema": "x0tta6bl4.network_mptcp.safe_actuator_claim_gate.v1",
+            "operation": operation,
+            "local_mptcp_configuration_claim_allowed": bool(success),
+            "local_kernel_setting_claim_allowed": bool(
+                success and operation == "enable_mptcp"
+            ),
+            "local_endpoint_limit_claim_allowed": bool(
+                success and operation == "configure_endpoints"
+            ),
+            "dataplane_delivery_claim_allowed": False,
+            "traffic_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "remote_path_quality_claim_allowed": False,
+            "throughput_claim_allowed": False,
+            "production_slo_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "blockers": [
+                "live_multipath_traffic_requires_separate_dataplane_proof",
+                "throughput_requires_separate_benchmark_evidence",
+                "customer_traffic_requires_separate_end_to_end_proof",
+            ],
+            "claim_boundary": MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+            "redacted": True,
+        }
+
+    @classmethod
+    def _safe_actuator_evidence_metadata(
+        cls,
+        *,
+        operation: str,
+        success: bool,
+        evidence: Dict[str, Any],
+    ) -> SafeActuatorEvidenceMetadata:
+        return SafeActuatorEvidenceMetadata.from_value(
+            {
+                "claim_gate": cls._control_action_claim_gate(
+                    operation=operation,
+                    success=success,
+                ),
+                "evidence": {
+                    "source_agents": [_SERVICE_AGENT],
+                    "event_ids": [],
+                    "events_total": 0,
+                    **dict(evidence),
+                    "redacted": True,
+                },
+                "source_agents": [_SERVICE_AGENT],
+                "claim_boundary": MPTCP_SAFE_ACTUATOR_CLAIM_BOUNDARY,
+                "redacted": True,
+            }
+        )
+
+    @classmethod
     def _publish_status_observation(
         cls,
         *,
@@ -373,6 +443,7 @@ class MPTCPManager:
         policy_decision: Any = None,
         success: Optional[bool] = None,
         simulated: Optional[bool] = None,
+        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if event_bus is None:
             return None
@@ -400,6 +471,11 @@ class MPTCPManager:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "safe_actuator_evidence_metadata": (
+                safe_actuator_evidence_metadata.to_dict()
+                if safe_actuator_evidence_metadata is not None
+                else SafeActuatorEvidenceMetadata().to_dict()
+            ),
             "claim_boundary": MPTCP_MANAGER_CLAIM_BOUNDARY,
         }
         try:
@@ -545,6 +621,7 @@ class MPTCPManager:
             policy_decision=decision,
             success=success and not simulated,
             simulated=simulated,
+            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return success and not simulated
 
@@ -581,6 +658,16 @@ class MPTCPManager:
             return SafeActuatorResult(
                 True,
                 f"MPTCP {'enabled' if enabled else 'disabled'} globally",
+                evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
+                    operation="enable_mptcp",
+                    success=True,
+                    evidence={
+                        "action": "sysctl_set",
+                        "sysctl_key_present": True,
+                        "enabled": enabled,
+                        "outputs_redacted": True,
+                    },
+                ),
             )
 
         return MPTCPManager._run_control_action(
@@ -637,7 +724,21 @@ class MPTCPManager:
                 logger.warning(
                     "⚠️ MPTCP not supported by kernel, skipping endpoint config"
                 )
-                return SafeActuatorResult(False, "MPTCP not supported by kernel")
+                return SafeActuatorResult(
+                    False,
+                    "MPTCP not supported by kernel",
+                    evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
+                        operation="configure_endpoints",
+                        success=False,
+                        evidence={
+                            "action": "ip_mptcp_limits_set",
+                            "kernel_supported": False,
+                            "interface_count": len(interface_list),
+                            "raw_interfaces_redacted": True,
+                            "outputs_redacted": True,
+                        },
+                    ),
+                )
             # Clear existing limits/endpoints for fresh config
             subprocess.run(["ip", "mptcp", "endpoint", "flush"], capture_output=True)
             subprocess.run(
@@ -660,7 +761,22 @@ class MPTCPManager:
                 # Simplified: assuming 'ip mptcp endpoint add' logic
                 logger.info(f"🔧 Configured {iface} as MPTCP subflow endpoint")
 
-            return SafeActuatorResult(True, "MPTCP endpoints configured")
+            return SafeActuatorResult(
+                True,
+                "MPTCP endpoints configured",
+                evidence_metadata=MPTCPManager._safe_actuator_evidence_metadata(
+                    operation="configure_endpoints",
+                    success=True,
+                    evidence={
+                        "action": "ip_mptcp_limits_set",
+                        "interface_count": len(interface_list),
+                        "subflow_limit": resolved_subflow_limit,
+                        "add_addr_accepted": resolved_add_addr_accepted,
+                        "raw_interfaces_redacted": True,
+                        "outputs_redacted": True,
+                    },
+                ),
+            )
 
         return MPTCPManager._run_control_action(
             operation="configure_endpoints",
