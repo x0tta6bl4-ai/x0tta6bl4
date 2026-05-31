@@ -5,8 +5,8 @@
     file_server
 
     # Reverse Proxy for API Bridge (Node.js)
-    handle_path /api/* {
-        reverse_proxy localhost:3001
+    handle /api/* {
+        reverse_proxy localhost:8081
     }
 
     # SPA Routing support

@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
+type MeshNode = {
+  id: string;
+  region: string;
+  price?: string | number;
+  rental_price?: string | number;
+  status: string;
+};
+
+type Payment = {
+  id: number;
+  email: string;
+  amount: string | number;
+  status: string;
+  created_at: string;
+};
+
+const API_URL = (import.meta.env.VITE_API_BASE || '/api').replace(/\/$/, '');
+
 const App: React.FC = () => {
   const [active, setActive] = useState(false);
   const [tab, setTab] = useState('vpn');
   const [loading, setLoading] = useState(false);
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [nodes, setNodes] = useState<MeshNode[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [showQR, setShowQR] = useState(false);
   const [stats, setStats] = useState({
     latency: '--',
@@ -16,8 +34,6 @@ const App: React.FC = () => {
     balance: '42.08 X0T',
     logs: [] as string[]
   });
-
-  const API_URL = `${window.location.protocol}//${window.location.host}/api`;
 
   useEffect(() => {
     const fetchStatus = () => {
@@ -32,14 +48,14 @@ const App: React.FC = () => {
     const fetchNodes = () => {
       fetch(`${API_URL}/maas/nodes`)
         .then(res => res.json())
-        .then(setNodes)
+        .then((data: MeshNode[]) => setNodes(data))
         .catch(console.error);
     };
 
     const fetchPayments = () => {
       fetch(`${API_URL}/admin/payments`)
         .then(res => res.json())
-        .then(setPayments)
+        .then((data: Payment[]) => setPayments(data))
         .catch(console.error);
     };
 
@@ -64,7 +80,7 @@ const App: React.FC = () => {
       if (data.success) {
         alert("Payment Approved & Tokens Credited!");
       }
-    } catch (e) {
+    } catch {
       alert("Approval failed");
     }
   };
@@ -81,7 +97,7 @@ const App: React.FC = () => {
       if (data.success) {
         setActive(!active);
       }
-    } catch (e) {
+    } catch {
       alert('Connection failed: Mesh Backend unreachable');
     }
     setLoading(false);
@@ -183,7 +199,7 @@ const App: React.FC = () => {
                   <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>ID: {node.id}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: 'var(--accent-color)' }}>${node.price}</div>
+                  <div style={{ color: 'var(--accent-color)' }}>${node.price ?? node.rental_price ?? '0'}</div>
                   <button style={{ 
                     background: 'transparent', 
                     border: '1px solid var(--accent-color)', 
