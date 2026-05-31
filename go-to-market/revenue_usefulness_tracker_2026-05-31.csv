@@ -1,0 +1,5 @@
+date,channel,lead,segment,status,next_action,price_rub,paid_rub,reply,refusal_reason,problem_words,result_note
+2026-05-31,direct,slot-01,individual,not_contacted,send_dm,3000,0,,,,
+2026-05-31,direct,slot-02,individual,not_contacted,send_dm,3000,0,,,,
+2026-05-31,direct,slot-03,individual,not_contacted,send_dm,3000,0,,,,
+2026-05-31,direct,team-01,small_team,not_contacted,send_team_offer,15000,0,,,,
