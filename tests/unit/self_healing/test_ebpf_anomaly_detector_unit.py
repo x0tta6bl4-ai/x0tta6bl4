@@ -87,6 +87,28 @@ def test_executor_publishes_events_with_identity(tmp_path):
     assert payload["resource"] == "self_healing:ebpf:adjust_route_weights"
     assert payload["context"]["api_token"] == "<redacted>"
     assert payload["claim_boundary"]
+    assert payload["claim_gate"]["schema"] == (
+        "x0tta6bl4.self_healing.ebpf_recovery_claim_gate.v1"
+    )
+    assert payload["claim_gate"]["claim_allowed"] == {
+        "local_ebpf_recovery_lifecycle": True,
+        "local_safe_actuator_success": True,
+        "restored_dataplane": False,
+        "route_convergence": False,
+        "kernel_forwarding_correctness": False,
+        "dataplane_delivery": False,
+        "traffic_delivery": False,
+        "live_customer_traffic": False,
+        "external_dpi_bypass": False,
+        "settlement_finality": False,
+        "production_readiness": False,
+    }
+    assert payload["restored_dataplane_claim_allowed"] is False
+    assert payload["route_convergence_claim_allowed"] is False
+    assert payload["kernel_forwarding_correctness_claim_allowed"] is False
+    assert payload["dataplane_delivery_claim_allowed"] is False
+    assert payload["traffic_delivery_claim_allowed"] is False
+    assert payload["production_readiness_claim_allowed"] is False
 
 
 def test_executor_policy_denied_blocks_safe_actuator(tmp_path):

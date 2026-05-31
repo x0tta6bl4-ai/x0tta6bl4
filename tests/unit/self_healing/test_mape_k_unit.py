@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.coordination.events import EventBus
 from src.self_healing.mape_k import (
     MAPEKAnalyzer,
     MAPEKExecutor,
@@ -849,6 +850,20 @@ class TestMAPEKExecutor:
         ):
             executor = MAPEKExecutor()
         assert executor.use_recovery_executor is True
+
+    def test_init_passes_event_bus_to_recovery_executor(self, tmp_path):
+        bus = EventBus(project_root=str(tmp_path))
+        mock_executor = MagicMock()
+        mock_module = MagicMock()
+        mock_module.RecoveryActionExecutor.return_value = mock_executor
+
+        with patch.dict(
+            "sys.modules", {"src.self_healing.recovery_actions": mock_module}
+        ):
+            executor = MAPEKExecutor(event_bus=bus)
+
+        assert executor.use_recovery_executor is True
+        mock_module.RecoveryActionExecutor.assert_called_once_with(event_bus=bus)
 
     def test_init_without_recovery_executor(self):
         with patch.dict("sys.modules", {"src.self_healing.recovery_actions": None}):

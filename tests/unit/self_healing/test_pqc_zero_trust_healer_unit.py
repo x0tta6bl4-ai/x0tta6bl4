@@ -718,6 +718,23 @@ class TestPQCZeroTrustExecutor:
         assert payload["context"]["plan_data"]["api_token"] == "<redacted>"
         assert payload["resource"] == "self_healing:pqc:alert_security_team"
         assert payload["claim_boundary"]
+        assert payload["claim_gate"]["schema"] == (
+            "x0tta6bl4.self_healing.pqc_recovery_claim_gate.v1"
+        )
+        assert payload["claim_gate"]["claim_allowed"] == {
+            "local_pqc_recovery_lifecycle": True,
+            "live_pqc_trust_finality": False,
+            "live_spiffe_svid": False,
+            "dataplane_delivery": False,
+            "traffic_delivery": False,
+            "external_settlement_finality": False,
+            "production_readiness": False,
+        }
+        assert payload["live_pqc_trust_finality_claim_allowed"] is False
+        assert payload["live_spiffe_svid_claim_allowed"] is False
+        assert payload["dataplane_delivery_claim_allowed"] is False
+        assert payload["traffic_delivery_claim_allowed"] is False
+        assert payload["production_readiness_claim_allowed"] is False
 
     @pytest.mark.asyncio
     async def test_execute_policy_denied_blocks_action(self, _import_module, tmp_path):

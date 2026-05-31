@@ -1,8 +1,7 @@
 """
-Compatibility shim for Swarm Intelligence.
-Moved to src.swarm.intelligence package.
+Swarm Intelligence Module.
 """
-from .intelligence import (
+from .types import (
     DecisionPriority,
     DecisionType,
     ConsensusStatus,
@@ -10,11 +9,10 @@ from .intelligence import (
     SwarmAction,
     DecisionResult,
     SwarmNodeInfo,
-    MAPEKIntegration,
-    KimiK25Integration,
-    SwarmIntelligence,
-    create_swarm_intelligence,
 )
+from .mapek import MAPEKIntegration
+from .llm import KimiK25Integration
+from .core import SwarmIntelligence, create_swarm_intelligence
 
 __all__ = [
     "DecisionPriority",

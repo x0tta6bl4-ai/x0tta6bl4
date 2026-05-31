@@ -482,7 +482,7 @@ class TestExecutorExecute:
         mock_sleep.assert_any_call(0.5)
         mock_sleep.assert_any_call(1.0)
 
-    def test_execute_publishes_recovery_events_with_identity(self, tmp_path):
+    def test_execute_publishes_redacted_recovery_event_evidence(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))
         ex = RecoveryActionExecutor(
             node_id="node-recovery-1",
@@ -497,7 +497,14 @@ class TestExecutorExecute:
             wallet_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         )
 
-        assert ex.execute("Clear cache", {"cache_type": "all"}) is True
+        assert ex.execute(
+            "Clear cache for secret-service",
+            {
+                "cache_type": "cache-secret",
+                "node_id": "raw-node-secret",
+                "target": "10.0.0.1",
+            },
+        ) is True
 
         events = bus.get_event_history(limit=10)
         event_types = [event.event_type for event in events]
@@ -505,16 +512,150 @@ class TestExecutorExecute:
         assert EventType.PIPELINE_STAGE_START in event_types
         assert EventType.PIPELINE_STAGE_END in event_types
         completed = [event for event in events if event.event_type == EventType.PIPELINE_STAGE_END][-1]
+        payload_text = str(completed.data)
+
         assert completed.source_agent == "self-healing-test"
         assert completed.data["component"] == "self_healing.recovery_actions"
+        assert completed.data["resource"] == "self_healing:recovery:clear_cache"
+        assert completed.data["layer"] == "self_healing_recovery_control_action"
+        assert completed.data["claim_boundary"]
         assert completed.data["identity"] == {
-            "node_id": "node-recovery-1",
-            "spiffe_id": "spiffe://x0tta6bl4.mesh/workload/recovery",
-            "did": "did:mesh:pqc:recovery",
-            "wallet_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "node_id_configured": True,
+            "spiffe_id_configured": True,
+            "did_configured": True,
+            "wallet_address_configured": True,
+            "raw_identity_redacted": True,
+            "redacted": True,
         }
-        assert completed.data["context"] == {"cache_type": "all"}
+        assert completed.data["action"]["redacted"] is True
+        assert completed.data["action"]["chars"] > 0
+        assert completed.data["action"]["sha256"]
+        assert completed.data["context"] == {
+            "keys": ["cache_type", "node_id", "target"],
+            "items_total": 3,
+            "values_redacted": True,
+            "raw_context_redacted": True,
+            "redacted": True,
+        }
+        assert completed.data["details"]["keys"] == ["cache_type"]
+        assert completed.data["details"]["values_redacted"] is True
         assert completed.data["success"] is True
+        assert completed.data["payloads_redacted"] is True
+        assert completed.data["control_action"] is True
+        assert completed.data["safe_actuator"] is True
+        assert completed.data["dataplane_confirmed"] is False
+        assert completed.data["post_action_dataplane_revalidated"] is False
+        assert completed.data["restored_dataplane_claim_allowed"] is False
+        assert completed.data["production_readiness_claim_allowed"] is False
+        assert completed.data["live_customer_traffic_confirmed"] is False
+        assert completed.data["external_dpi_bypass_confirmed"] is False
+        assert completed.data["settlement_finality_confirmed"] is False
+        assert completed.data["post_action_dataplane_revalidation"]["status"] == (
+            "not_required"
+        )
+        assert completed.data["post_action_dataplane_revalidation"]["reason"] == (
+            "action_type_not_dataplane_restoration"
+        )
+        assert completed.data["post_action_dataplane_revalidation"][
+            "restored_dataplane_claim_allowed"
+        ] is False
+        assert completed.data["claim_gate"]["claim_allowed"] == {
+            "local_recovery_lifecycle": True,
+            "restored_dataplane": False,
+            "production_readiness": False,
+            "live_customer_traffic": False,
+            "external_dpi_bypass": False,
+            "settlement_finality": False,
+        }
+        assert "node-recovery-1" not in payload_text
+        assert "spiffe://x0tta6bl4.mesh/workload/recovery" not in payload_text
+        assert "did:mesh:pqc:recovery" not in payload_text
+        assert "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" not in payload_text
+        assert "secret-service" not in payload_text
+        assert "cache-secret" not in payload_text
+        assert "raw-node-secret" not in payload_text
+        assert "10.0.0.1" not in payload_text
+
+    def test_execute_can_attach_bounded_post_action_dataplane_probe_evidence(
+        self,
+        tmp_path,
+    ):
+        bus = EventBus(project_root=str(tmp_path))
+
+        class ProbeProvider:
+            def __init__(self):
+                self.targets = []
+
+            def probe_peer(self, target):
+                self.targets.append(target)
+                return {
+                    "status": "ok",
+                    "latency_ms": 12.5,
+                    "packet_loss_percent": 0.0,
+                    "evidence": {
+                        "source_agents": ["mesh-real-network-adapter"],
+                        "event_ids": ["event-probe-1"],
+                        "events_total": 1,
+                        "redacted": True,
+                    },
+                    "claim_boundary": "bounded fake dataplane probe",
+                    "redacted": True,
+                }
+
+        provider = ProbeProvider()
+        ex = RecoveryActionExecutor(
+            node_id="node-recovery-1",
+            enable_circuit_breaker=False,
+            enable_rate_limiting=False,
+            max_retries=1,
+            retry_delay=0.0,
+            event_bus=bus,
+            enable_post_action_dataplane_probe=True,
+            post_action_dataplane_probe_provider=provider,
+        )
+        ex._available_backends = {"systemctl": False, "docker": False, "kubectl": False}
+
+        assert ex.execute(
+            "Restart service",
+            {
+                "service_name": "secret-service",
+                "post_action_dataplane_probe_target": "203.0.113.10",
+            },
+        ) is True
+
+        completed = [
+            event
+            for event in bus.get_event_history(
+                event_type=EventType.PIPELINE_STAGE_END,
+                source_agent="recovery-action-executor",
+                limit=10,
+            )
+            if event.data.get("action_type") == "restart_service"
+        ][-1]
+        data = completed.data
+        payload_text = str(data)
+        revalidation = data["post_action_dataplane_revalidation"]
+
+        assert provider.targets == ["203.0.113.10"]
+        assert data["dataplane_confirmed"] is True
+        assert data["post_action_dataplane_revalidated"] is True
+        assert data["restored_dataplane_claim_allowed"] is True
+        assert revalidation["status"] == "success"
+        assert revalidation["reason"] == "bounded_dataplane_probe_succeeded"
+        assert revalidation["probe_attempted"] is True
+        assert revalidation["probe_target_hash"]
+        assert revalidation["probe_target_redacted"] is True
+        assert revalidation["probe_result"]["latency_ms"] == 12.5
+        assert revalidation["claim_gate"]["restored_dataplane_claim_allowed"] is True
+        assert revalidation["evidence"]["source_agents"] == [
+            "mesh-real-network-adapter"
+        ]
+        assert revalidation["evidence"]["event_ids_count"] == 1
+        assert data["claim_gate"]["claim_allowed"]["restored_dataplane"] is True
+        assert data["claim_gate"]["claim_allowed"]["production_readiness"] is False
+        assert data["production_readiness_claim_allowed"] is False
+        assert "203.0.113.10" not in payload_text
+        assert "secret-service" not in payload_text
 
     def test_execute_policy_denied_blocks_before_action(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))
