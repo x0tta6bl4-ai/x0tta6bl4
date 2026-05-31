@@ -7,6 +7,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SERVER_SPIFFE_ID="spiffe://x0tta6bl4.mesh/agent/local"
 WORKLOAD_SPIFFE_ID="spiffe://x0tta6bl4.mesh/workload/local-test"
 DOCKER_HOST="${DOCKER_HOST:-unix:///run/docker.sock}"
+DEFAULT_SOCKET_BASE="${XDG_RUNTIME_DIR:-/tmp}"
+SPIRE_AGENT_SOCKET_DIR="${X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR:-${SPIRE_AGENT_SOCKET_DIR:-${DEFAULT_SOCKET_BASE}/x0tta6bl4-spire-agent}}"
+export SPIRE_AGENT_SOCKET_DIR
 
 echo "Starting SPIRE infrastructure..."
 
@@ -26,9 +29,12 @@ if ! DOCKER_HOST="$DOCKER_HOST" docker info &> /dev/null; then
     exit 1
 fi
 
-# Create necessary directories
-mkdir -p /tmp/spire-agent/public
-chmod 777 /tmp/spire-agent/public
+# Create a private Workload API socket directory.
+#
+# The SPIRE agent socket is a trust boundary: any local process that can talk to
+# it may receive workload identity material for selectors it can satisfy. Keep
+# the host bind mount owner-only instead of world-writable.
+install -d -m 700 "$SPIRE_AGENT_SOCKET_DIR"
 
 # Start SPIRE server
 echo "Starting SPIRE server..."
@@ -91,7 +97,7 @@ echo "Waiting for SPIRE services to be ready..."
 RETRIES=0
 
 while [ $RETRIES -lt $MAX_RETRIES ]; do
-    if [ -S /tmp/spire-agent/public/api.sock ]; then
+    if [ -S "$SPIRE_AGENT_SOCKET_DIR/api.sock" ]; then
         echo "SPIRE agent socket is available"
         break
     fi
@@ -148,6 +154,7 @@ for UID_SELECTOR in "$CURRENT_UID" "0" "1001"; do
 done
 
 echo "SPIRE infrastructure is ready!"
+echo "SPIRE agent socket directory: $SPIRE_AGENT_SOCKET_DIR"
 echo ""
 echo "To stop SPIRE:"
 echo "  DOCKER_HOST=$DOCKER_HOST ${COMPOSE_CMD[*]} -f docker-compose.spire.yml down"

@@ -25,6 +25,15 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+def default_spire_workload_socket() -> str:
+    socket_dir = (
+        os.getenv("SPIRE_AGENT_SOCKET_DIR")
+        or os.getenv("X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR")
+        or str(Path(os.getenv("XDG_RUNTIME_DIR") or "/tmp") / "x0tta6bl4-spire-agent")
+    )
+    return str(Path(socket_dir) / "api.sock")
+
+
 @dataclass
 class SPIREConfig:
     """Production SPIRE configuration"""
@@ -33,8 +42,8 @@ class SPIREConfig:
     server_address: str = os.getenv("SPIRE_SERVER_ADDRESS", "127.0.0.1:8081")
     agent_address: str = os.getenv("SPIRE_AGENT_ADDRESS", "127.0.0.1:8082")
     workload_socket: str = os.getenv(
-        "SPIRE_WORKLOAD_SOCKET", "/tmp/spire-agent/public/api.sock"
-    )  # nosec B108
+        "SPIRE_WORKLOAD_SOCKET", default_spire_workload_socket()
+    )
 
     # Trust domain
     trust_domain: str = os.getenv("SPIRE_TRUST_DOMAIN", "x0tta6bl4.mesh")

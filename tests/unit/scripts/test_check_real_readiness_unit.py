@@ -44,6 +44,56 @@ services:
     )
     _write(
         root,
+        "docker-compose.spire.yml",
+        """
+services:
+  spire-agent:
+    volumes:
+      - ${SPIRE_AGENT_SOCKET_DIR:-/tmp/x0tta6bl4-spire-agent}:/spire-agent-socket-dir
+  x0tta6bl4-test:
+    environment:
+      SPIFFE_ENDPOINT_SOCKET: unix:///spire-agent-socket-dir/api.sock
+    volumes:
+      - ${SPIRE_AGENT_SOCKET_DIR:-/tmp/x0tta6bl4-spire-agent}:/spire-agent-socket-dir:ro
+""",
+    )
+    _write(
+        root,
+        "scripts/spire/start-spire.sh",
+        """
+SPIRE_AGENT_SOCKET_DIR="${X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR:-${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}}"
+install -d -m 700 "$SPIRE_AGENT_SOCKET_DIR"
+if [ -S "$SPIRE_AGENT_SOCKET_DIR/api.sock" ]; then echo ready; fi
+""",
+    )
+    _write(
+        root,
+        "scripts/spire/SPIRE_SETUP.md",
+        """
+The socket directory is private.
+mode
+`0700`
+install -d -m 700 "${SPIRE_AGENT_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/x0tta6bl4-spire-agent}"
+""",
+    )
+    _write(
+        root,
+        "src/security/spire_integration.py",
+        """
+def default_spire_agent_socket_path():
+    return "x0tta6bl4-spire-agent/api.sock"
+""",
+    )
+    _write(
+        root,
+        "src/security/spiffe/production_integration.py",
+        """
+def default_spire_workload_socket():
+    return "x0tta6bl4-spire-agent/api.sock"
+""",
+    )
+    _write(
+        root,
         "Dockerfile.vpn",
         "COPY services/nl-server/ghost-vpn/ghost_vpn_protocol.py src/network/ghost_vpn_protocol.py\n",
     )
@@ -6641,6 +6691,37 @@ def test_command_failure_blocks_readiness(tmp_path: Path) -> None:
 
     blocker_ids = {item["check_id"] for item in report["blockers"]}
     assert "compose_app_config" in blocker_ids
+    assert report["ready"] is False
+
+
+def test_spire_local_socket_boundary_blocks_world_writable_setup(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "scripts/spire/start-spire.sh",
+        """
+mkdir -p /tmp/spire-agent/public
+chmod 777 /tmp/spire-agent/public
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "spire_local_socket_boundary_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "spire_local_socket_boundary_contract"
+    ]
+    assert "chmod 777" in blocker["details"]
+    assert "/tmp/spire-agent/public" in blocker["details"]
     assert report["ready"] is False
 
 

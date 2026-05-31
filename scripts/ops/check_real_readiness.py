@@ -968,6 +968,94 @@ def check_service_identity_trust_claim_gate_contract(root: Path) -> list[CheckRe
     ]
 
 
+def check_spire_local_socket_boundary_contract(root: Path) -> list[CheckResult]:
+    paths = {
+        "start": "scripts/spire/start-spire.sh",
+        "setup": "scripts/spire/SPIRE_SETUP.md",
+        "compose": "docker-compose.spire.yml",
+        "integration": "src/security/spire_integration.py",
+        "production": "src/security/spiffe/production_integration.py",
+    }
+    missing_files = [
+        relative for relative in paths.values() if not _exists(root, relative)
+    ]
+    if missing_files:
+        return [
+            fail_check(
+                "spire_local_socket_boundary_contract",
+                "SPIRE local socket boundary files are missing: "
+                + ", ".join(missing_files),
+                "SPIRE static file scan",
+            )
+        ]
+
+    contents = {name: _read(root, relative) for name, relative in paths.items()}
+    forbidden: list[str] = []
+    for name, text in contents.items():
+        relative = paths[name]
+        if "chmod 777" in text:
+            forbidden.append(f"{relative}:chmod 777")
+        if "/tmp/spire-agent/public" in text:
+            forbidden.append(f"{relative}:/tmp/spire-agent/public")
+
+    required = {
+        "start_script_private_socket_dir": (
+            "SPIRE_AGENT_SOCKET_DIR=" in contents["start"]
+            and "X0TTA6BL4_SPIRE_AGENT_SOCKET_DIR" in contents["start"]
+            and 'install -d -m 700 "$SPIRE_AGENT_SOCKET_DIR"'
+            in contents["start"]
+        ),
+        "compose_uses_private_socket_dir_env": (
+            "${SPIRE_AGENT_SOCKET_DIR:-/tmp/x0tta6bl4-spire-agent}"
+            in contents["compose"]
+            and "SPIFFE_ENDPOINT_SOCKET: unix:///spire-agent-socket-dir/api.sock"
+            in contents["compose"]
+        ),
+        "runtime_default_helper_avoids_world_public_tmp": (
+            "def default_spire_agent_socket_path()" in contents["integration"]
+            and "x0tta6bl4-spire-agent" in contents["integration"]
+        ),
+        "production_default_helper_avoids_world_public_tmp": (
+            "def default_spire_workload_socket()" in contents["production"]
+            and "x0tta6bl4-spire-agent" in contents["production"]
+        ),
+        "docs_show_owner_only_directory": (
+            "mode\n`0700`" in contents["setup"]
+            and "install -d -m 700" in contents["setup"]
+        ),
+    }
+    missing_contract = [name for name, ok in required.items() if not ok]
+    if forbidden or missing_contract:
+        details: list[str] = []
+        if forbidden:
+            details.append("forbidden=" + ", ".join(forbidden[:8]))
+        if missing_contract:
+            details.append("missing=" + ", ".join(missing_contract))
+        return [
+            fail_check(
+                "spire_local_socket_boundary_contract",
+                (
+                    "SPIRE Workload API socket must use a private local "
+                    "directory and must not rely on world-writable temp paths: "
+                    + "; ".join(details)
+                ),
+                "SPIRE static file scan",
+            )
+        ]
+
+    return [
+        pass_check(
+            "spire_local_socket_boundary_contract",
+            (
+                "SPIRE local Workload API socket uses a private configurable "
+                "directory, compose propagates SPIFFE_ENDPOINT_SOCKET, and docs "
+                "avoid world-writable socket setup"
+            ),
+            "scripts/spire; docker-compose.spire.yml; src/security/spire_integration.py",
+        )
+    ]
+
+
 def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
     maas_telemetry = _read_with_optional(
         root,
@@ -5367,6 +5455,7 @@ def build_report(
         checks.extend(check_mesh_metric_policy_contract(root))
         checks.extend(check_yggdrasil_observed_state_contract(root))
         checks.extend(check_service_identity_trust_claim_gate_contract(root))
+        checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_maas_telemetry_claim_gate_contract(root))
         checks.extend(check_mesh_api_claim_gate_contract(root))
         checks.extend(check_status_api_claim_gate_contract(root))

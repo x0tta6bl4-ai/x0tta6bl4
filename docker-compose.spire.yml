@@ -22,7 +22,7 @@ services:
       - spire-server
     volumes:
       - ./scripts/spire/agent-config.conf:/etc/spire/agent.conf:ro
-      - /tmp/spire-agent/public:/spire-agent-socket-dir
+      - ${SPIRE_AGENT_SOCKET_DIR:-/tmp/x0tta6bl4-spire-agent}:/spire-agent-socket-dir
       - spire-agent-data:/spire/data/agent
     command:
       - -config=/etc/spire/agent.conf
@@ -40,8 +40,9 @@ services:
       - spire-agent
     environment:
       SPIRE_AGENT_ADDRESS: unix:///spire-agent-socket-dir/api.sock
+      SPIFFE_ENDPOINT_SOCKET: unix:///spire-agent-socket-dir/api.sock
     volumes:
-      - /tmp/spire-agent/public:/spire-agent-socket-dir:ro
+      - ${SPIRE_AGENT_SOCKET_DIR:-/tmp/x0tta6bl4-spire-agent}:/spire-agent-socket-dir:ro
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
     networks:
