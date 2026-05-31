@@ -42,6 +42,20 @@ Set these repository secrets to produce signed Android release APK/AAB artifacts
 - `X0T_ANDROID_KEY_ALIAS`: key alias inside the keystore
 - `X0T_ANDROID_KEY_PASSWORD`: key password
 
+If this is the first Android release key for the project, generate it locally and upload the required GitHub secrets without printing private values:
+
+```bash
+python3 scripts/ops/prepare_android_signing_secrets.py \
+  --generate \
+  --write-local-env \
+  --set-github-secrets \
+  --repo x0tta6bl4-ai/x0tta6bl4 \
+  --json \
+  --output .tmp/native-signing/android/android-signing-setup.json
+```
+
+The generated keystore and local env file are written under `.tmp/native-signing/android/` with owner-only permissions. Keep them backed up in a private password manager or secure vault. Losing the Android signing key can prevent users from upgrading already-installed release builds.
+
 Local signed build:
 
 ```bash
