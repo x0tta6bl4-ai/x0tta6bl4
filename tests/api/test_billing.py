@@ -141,10 +141,11 @@ async def test_create_checkout_session_success(client: AsyncClient, mocker):
         json={"email": "user@example.com", "plan": "pro", "quantity": 1},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "id": mock_stripe_response["id"],
-        "url": mock_stripe_response["url"],
-    }
+    payload = response.json()
+    assert payload["id"] == mock_stripe_response["id"]
+    assert payload["url"] == mock_stripe_response["url"]
+    assert payload["claim_gate"]["checkout_intent_claim_allowed"] is True
+    assert payload["claim_gate"]["external_settlement_finality_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
