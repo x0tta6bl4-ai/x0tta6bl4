@@ -69,7 +69,7 @@ def test_autonomous_mesh_reality_map_names_next_control_spine_improvement() -> N
     payload = _load_map()
     next_step = payload["next_best_code_improvement"]
 
-    assert next_step["id"] == "safeactuator_evidence_metadata_adoption_for_high_risk_callers"
+    assert next_step["id"] == "self_healing_mapek_safeactuator_evidence_metadata_adoption"
     assert "MAPE-K" in next_step["description"]
-    assert "SafeActuator" in next_step["description"]
+    assert "MeshActionEnforcer" in next_step["description"]
     assert "claim/evidence" in next_step["description"]

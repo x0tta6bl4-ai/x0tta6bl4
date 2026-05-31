@@ -126,7 +126,7 @@
       "verified_contours": [
         {
           "id": "event_control_plane",
-          "what_is_proven": "EventBus, service identity, service trace filters, and SafeActuator surfaces form a shared event/control vocabulary; SafeActuatorResult can now carry typed redacted claim/evidence metadata for guarded actions.",
+          "what_is_proven": "EventBus, service identity, service trace filters, and SafeActuator surfaces form a shared event/control vocabulary; SafeActuatorResult can now carry typed redacted claim/evidence metadata for guarded actions, and MeshActionEnforcer adopts it for local yggdrasilctl restart metadata.",
           "source_refs": [
             "src/coordination/events.py",
             "src/services/service_event_trace.py",
@@ -245,8 +245,8 @@
     {
       "id": "post_action_dataplane_probe_operationalization",
       "severity": "tracked_risk",
-      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, core MAPE-K healing action summaries are re-normalized through the same helper, restored-dataplane promotion uses one typed evidence/redaction rule, and SafeActuatorResult can carry typed redacted evidence metadata. The remaining risk is adoption breadth: not every SafeActuator caller attaches or consumes this typed metadata yet.",
-      "next_improvement": "Adopt SafeActuatorEvidenceMetadata across the next high-risk guarded action path, starting with MeshActionEnforcer or self-healing MAPE-K manager when concurrent edits there settle.",
+      "gap": "Recovery evidence now has explicit optional post-action dataplane proof gates, the shared recovery dataplane adapter is used by self-healing executor and MeshNetworkManager, the MaaS heal surface re-sanitizes EventBus revalidation through the shared claim-gate helper, core MAPE-K healing action summaries are re-normalized through the same helper, MeshActionEnforcer restart commands carry typed SafeActuator evidence metadata, restored-dataplane promotion uses one typed evidence/redaction rule, and SafeActuatorResult can carry typed redacted evidence metadata. The remaining risk is adoption breadth: not every SafeActuator caller attaches or consumes this typed metadata yet.",
+      "next_improvement": "Adopt SafeActuatorEvidenceMetadata in the self-healing MAPE-K manager once the concurrent edits in that file settle, then reconcile the Event Control Plane map drift.",
       "source_refs": [
         "src/mesh/recovery_contracts.py",
         "src/mesh/recovery_dataplane_probe.py",
@@ -256,8 +256,10 @@
         "src/self_healing/recovery/executor.py",
         "src/core/mape_k_loop.py",
         "src/integration/spine.py",
+        "src/mesh/action_enforcer.py",
         "tests/unit/mesh/test_recovery_contracts_unit.py",
         "tests/unit/mesh/test_network_manager_unit.py",
+        "tests/unit/mesh/test_action_enforcer_unit.py",
         "tests/unit/self_healing/test_recovery_actions_unit.py",
         "tests/unit/api/test_maas_healing_post_action_dataplane_unit.py",
         "tests/unit/core/test_mape_k_loop_unit.py",
@@ -267,7 +269,7 @@
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "Recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MaaS heal routes, EventBus traces, recovery dataplane proof adapters, and SafeActuatorResult now share more claim/evidence semantics, but several SafeActuator callers still do not pass typed evidence metadata through the result.",
+      "gap": "Recovery contracts, self-healing executor post-action proof, MeshNetworkManager post-heal proof, MAPE-K, MeshActionEnforcer, MaaS heal routes, EventBus traces, recovery dataplane proof adapters, and SafeActuatorResult now share more claim/evidence semantics, but several SafeActuator callers still do not pass typed evidence metadata through the result.",
       "next_improvement": "Extend the typed SafeActuator evidence metadata path to additional high-risk callers and keep blocked production/dataplane/customer claims false unless the matching evidence contract is present.",
       "source_refs": [
         "src/integration/spine.py",
@@ -313,17 +315,19 @@
     ]
   },
   "next_best_code_improvement": {
-    "id": "safeactuator_evidence_metadata_adoption_for_high_risk_callers",
-    "description": "Adopt SafeActuatorEvidenceMetadata in the next high-risk guarded action path so MAPE-K, MeshActionEnforcer, and self-healing managers carry one sanitized claim/evidence dialect.",
-    "blocked_by": "Partially constrained by concurrent edits in self-healing and MaaS API files; prefer a narrow clean target such as src/mesh/action_enforcer.py unless those files settle.",
+    "id": "self_healing_mapek_safeactuator_evidence_metadata_adoption",
+    "description": "Adopt SafeActuatorEvidenceMetadata in the self-healing MAPE-K manager so the recommended runtime manager, core MAPE-K, and MeshActionEnforcer carry one sanitized claim/evidence dialect.",
+    "blocked_by": "Currently constrained by concurrent edits in src/self_healing/mape_k/manager.py; if that remains dirty, reconcile the Event Control Plane map drift first.",
     "safe_files_to_touch_later": [
       "src/integration/spine.py",
       "src/core/mape_k_loop.py",
       "src/mesh/action_enforcer.py",
+      "src/self_healing/mape_k/manager.py",
       "src/mesh/recovery_contracts.py",
       "tests/unit/core/test_mape_k_loop_unit.py",
       "tests/unit/integration/test_spine_unit.py",
       "tests/unit/mesh/test_action_enforcer_unit.py",
+      "tests/unit/self_healing/test_mape_k_manager_unit.py",
       "tests/unit/test_event_control_plane_map_unit.py"
     ]
   }

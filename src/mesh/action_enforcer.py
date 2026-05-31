@@ -17,7 +17,11 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.mesh.metric_evidence_policy import (
     mesh_metric_policy_allows_high_risk,
     safe_mesh_metric_evidence_policy,
@@ -33,6 +37,7 @@ _RESOURCE = "mesh:action_enforcer:recommendations"
 _KNOWN_ACTIONS = {"refresh", "investigate"}
 _ROUTE_HASH_LIMIT = 20
 _COMMAND_METADATA_LIMIT = 20
+_SAFE_ACTUATOR_EVIDENCE_METADATA_LIMIT = 20
 _CLAIM_BOUNDARY_LIMIT = 8
 _CLAIM_BOUNDARY_TEXT_LIMIT = 400
 _APPLY_ENV_VAR = "X0TTA6BL4_MESH_ACTION_ENFORCER_APPLY"
@@ -52,6 +57,13 @@ POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY = (
     "Post-action dataplane revalidation metadata only. A local restart/refresh "
     "result is not treated as dataplane proof unless a bounded dataplane probe is "
     "attempted and recorded separately."
+)
+SAFE_ACTUATOR_COMMAND_CLAIM_BOUNDARY = (
+    "MeshActionEnforcer SafeActuator metadata records only local yggdrasilctl "
+    "command execution shape, redacted output hashes, return codes, and whether "
+    "the local command pair completed. It does not prove restored dataplane, "
+    "remote peer quality, customer traffic delivery, production SLOs, or "
+    "production readiness."
 )
 
 
@@ -118,6 +130,35 @@ def _bounded_output_metadata(
         "stdout_sha256": _sha256_text(safe_stdout),
         "stderr_sha256": _sha256_text(safe_stderr),
         "output_redacted": True,
+    }
+
+
+def _safe_actuator_command_claim_gate(
+    *,
+    success: bool,
+    command_attempts: int,
+    command_successes: int,
+) -> Dict[str, Any]:
+    return {
+        "schema": "x0tta6bl4.mesh_action_enforcer.safe_actuator_claim_gate.v1",
+        "action": "restart_yggdrasil_peer",
+        "local_command_execution_claim_allowed": bool(command_attempts > 0),
+        "local_yggdrasil_reconfiguration_claim_allowed": bool(success),
+        "restored_dataplane_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "traffic_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "external_reachability_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "command_attempts": int(command_attempts),
+        "command_successes": int(command_successes),
+        "blockers": [
+            "dataplane_requires_post_action_probe",
+            "customer_traffic_requires_separate_end_to_end_proof",
+        ],
+        "claim_boundary": SAFE_ACTUATOR_COMMAND_CLAIM_BOUNDARY,
+        "redacted": True,
     }
 
 
@@ -323,11 +364,13 @@ def _result_summary(
     command_attempts: int = 0,
     command_successes: int = 0,
     command_metadata: Optional[List[Dict[str, Any]]] = None,
+    safe_actuator_evidence_metadata: Optional[List[Dict[str, Any]]] = None,
     post_action_probe_enabled: bool = False,
     post_action_probe_target_present: bool = False,
     post_action_probe_result: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     safe_command_metadata = list(command_metadata or [])
+    safe_evidence_metadata = list(safe_actuator_evidence_metadata or [])
     post_action_revalidation = _post_action_dataplane_revalidation_summary(
         refresh_requests=refresh_requests,
         blocked_by_metric_evidence_policy=blocked_by_metric_evidence_policy,
@@ -356,6 +399,16 @@ def _result_summary(
         "command_metadata_limit": _COMMAND_METADATA_LIMIT,
         "command_metadata_truncated": (
             len(safe_command_metadata) > _COMMAND_METADATA_LIMIT
+        ),
+        "safe_actuator_evidence_metadata": safe_evidence_metadata[
+            -_SAFE_ACTUATOR_EVIDENCE_METADATA_LIMIT:
+        ],
+        "safe_actuator_evidence_metadata_total": len(safe_evidence_metadata),
+        "safe_actuator_evidence_metadata_limit": (
+            _SAFE_ACTUATOR_EVIDENCE_METADATA_LIMIT
+        ),
+        "safe_actuator_evidence_metadata_truncated": (
+            len(safe_evidence_metadata) > _SAFE_ACTUATOR_EVIDENCE_METADATA_LIMIT
         ),
         "safe_actuator": True,
         "apply_env_var": _APPLY_ENV_VAR,
@@ -630,6 +683,7 @@ class MeshActionEnforcer:
         command_attempts = 0
         command_successes = 0
         command_metadata: List[Dict[str, Any]] = []
+        safe_actuator_evidence_metadata: List[Dict[str, Any]] = []
         restart_outcomes: Counter = Counter()
         post_action_probe_target: Optional[str] = None
         post_action_probe_result: Optional[Dict[str, Any]] = None
@@ -673,6 +727,11 @@ class MeshActionEnforcer:
                     command_successes += int(
                         restart_result.get("command_successes", 0)
                     )
+                    restart_evidence = restart_result.get(
+                        "safe_actuator_evidence_metadata"
+                    )
+                    if isinstance(restart_evidence, dict):
+                        safe_actuator_evidence_metadata.append(restart_evidence)
                     for output in restart_result.get("output", []):
                         if isinstance(output, dict):
                             command_metadata.append(
@@ -730,6 +789,7 @@ class MeshActionEnforcer:
                 command_attempts=command_attempts,
                 command_successes=command_successes,
                 command_metadata=command_metadata,
+                safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                 post_action_probe_enabled=post_action_probe_enabled,
                 post_action_probe_target_present=post_action_probe_target is not None,
                 post_action_probe_result=post_action_probe_result,
@@ -770,6 +830,7 @@ class MeshActionEnforcer:
                 command_attempts=command_attempts,
                 command_successes=command_successes,
                 command_metadata=command_metadata,
+                safe_actuator_evidence_metadata=safe_actuator_evidence_metadata,
                 post_action_probe_enabled=self._post_action_probe_enabled(),
                 post_action_probe_target_present=post_action_probe_target is not None,
                 post_action_probe_result=post_action_probe_result,
@@ -935,9 +996,33 @@ class MeshActionEnforcer:
             success = len(returncodes) == len(commands) and all(
                 returncode == 0 for returncode in returncodes
             )
+            command_successes = sum(1 for returncode in returncodes if returncode == 0)
             return SafeActuatorResult(
                 success,
                 "" if success else "yggdrasilctl peer restart failed",
+                evidence_metadata=SafeActuatorEvidenceMetadata.from_value(
+                    {
+                        "claim_gate": _safe_actuator_command_claim_gate(
+                            success=success,
+                            command_attempts=len(returncodes),
+                            command_successes=command_successes,
+                        ),
+                        "evidence": {
+                            "source_agents": [_SERVICE_AGENT],
+                            "event_ids": [],
+                            "events_total": 0,
+                            "command_attempts": len(returncodes),
+                            "command_successes": command_successes,
+                            "commands": [command[1] for command in commands],
+                            "returncodes": returncodes,
+                            "outputs_redacted": True,
+                            "redacted": True,
+                        },
+                        "source_agents": [_SERVICE_AGENT],
+                        "claim_boundary": SAFE_ACTUATOR_COMMAND_CLAIM_BOUNDARY,
+                        "redacted": True,
+                    }
+                ),
             )
 
         actuator_context: Dict[str, Any] = {}
@@ -960,6 +1045,9 @@ class MeshActionEnforcer:
             "commands": commands,
             "returncodes": returncodes,
             "output": output,
+            "safe_actuator_evidence_metadata": (
+                actuator_result.evidence_metadata.to_dict()
+            ),
         }
 
 

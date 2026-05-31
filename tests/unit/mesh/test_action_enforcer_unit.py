@@ -346,6 +346,20 @@ class TestMeshActionEnforcer:
         assert data["result"]["command_metadata_total"] == 2
         assert data["result"]["command_metadata"][0]["command"] == "removePeer"
         assert data["result"]["command_metadata"][0]["stdout_sha256"]
+        safe_metadata = data["result"]["safe_actuator_evidence_metadata"][0]
+        assert safe_metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+        assert safe_metadata["source_agents"] == ["mesh-action-enforcer"]
+        assert safe_metadata["event_ids"] == []
+        assert safe_metadata["claim_gate"]["schema"] == (
+            "x0tta6bl4.mesh_action_enforcer.safe_actuator_claim_gate.v1"
+        )
+        assert safe_metadata["claim_gate"][
+            "local_yggdrasil_reconfiguration_claim_allowed"
+        ] is True
+        assert safe_metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
+        assert safe_metadata["claim_gate"]["customer_traffic_claim_allowed"] is False
+        assert safe_metadata["evidence"]["commands"] == ["removePeer", "addPeer"]
+        assert safe_metadata["evidence"]["outputs_redacted"] is True
         assert data["result"]["metric_evidence_policy"]["decision_basis"] == (
             "dataplane_confirmed"
         )
@@ -654,6 +668,14 @@ class TestRestartPeer:
         assert result["returncodes"] == [0, 0]
         assert result["commands"] == ["removePeer", "addPeer"]
         assert result["output"][0]["stdout_sha256"]
+        safe_metadata = result["safe_actuator_evidence_metadata"]
+        assert safe_metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+        assert safe_metadata["claim_gate"][
+            "local_yggdrasil_reconfiguration_claim_allowed"
+        ] is True
+        assert safe_metadata["claim_gate"]["restored_dataplane_claim_allowed"] is False
+        assert safe_metadata["evidence"]["returncodes"] == [0, 0]
+        assert safe_metadata["redacted"] is True
         assert "10.0.0.1" not in str(result)
 
     def test_restart_peer_records_command_failure_without_raw_output(
@@ -691,4 +713,11 @@ class TestRestartPeer:
         assert result["returncodes"] == [17, 17]
         assert result["command_successes"] == 0
         assert result["output"][0]["stderr_sha256"]
+        safe_metadata = result["safe_actuator_evidence_metadata"]
+        assert safe_metadata["claim_gate"][
+            "local_yggdrasil_reconfiguration_claim_allowed"
+        ] is False
+        assert safe_metadata["claim_gate"]["command_attempts"] == 2
+        assert safe_metadata["claim_gate"]["command_successes"] == 0
+        assert safe_metadata["claim_boundary"]
         assert "10.0.0.1" not in str(result)

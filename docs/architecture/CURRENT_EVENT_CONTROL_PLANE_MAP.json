@@ -1853,7 +1853,7 @@
     {
       "path": "src/mesh/action_enforcer.py",
       "layer": "mesh_action_enforcer_control_action",
-      "role": "MeshActionEnforcer emits local optimization-enforcement evidence with service identity, recommendation action counts, hashed route/peer selectors, fail-closed restart gates, the shared mesh_metric_evidence_policy guard for refresh/restart actions, TASK_BLOCKED outcomes when policy is missing or denied, optional SafeActuator-backed yggdrasilctl removePeer/addPeer command metadata, duration, success/failure, and explicit boundaries around live reconfiguration claims.",
+      "role": "MeshActionEnforcer emits local optimization-enforcement evidence with service identity, recommendation action counts, hashed route/peer selectors, fail-closed restart gates, the shared mesh_metric_evidence_policy guard for refresh/restart actions, TASK_BLOCKED outcomes when policy is missing or denied, optional SafeActuator-backed yggdrasilctl removePeer/addPeer command metadata, typed SafeActuatorEvidenceMetadata for local restart command claims, duration, success/failure, post-action dataplane revalidation gates, and explicit boundaries around live reconfiguration claims.",
       "markers": [
         "event_bus",
         "service_identity"
@@ -1864,14 +1864,15 @@
         "src/mesh/action_enforcer.py:17",
         "src/mesh/action_enforcer.py:21",
         "src/mesh/action_enforcer.py:31",
-        "src/mesh/action_enforcer.py:123",
-        "src/mesh/action_enforcer.py:158",
-        "src/mesh/action_enforcer.py:202",
-        "src/mesh/action_enforcer.py:259",
-        "src/mesh/action_enforcer.py:311",
-        "src/mesh/action_enforcer.py:361",
-        "src/mesh/action_enforcer.py:429",
-        "src/mesh/action_enforcer.py:476"
+        "src/mesh/action_enforcer.py:40",
+        "src/mesh/action_enforcer.py:55",
+        "src/mesh/action_enforcer.py:136",
+        "src/mesh/action_enforcer.py:352",
+        "src/mesh/action_enforcer.py:403",
+        "src/mesh/action_enforcer.py:730",
+        "src/mesh/action_enforcer.py:947",
+        "src/mesh/action_enforcer.py:1000",
+        "src/mesh/action_enforcer.py:1048"
       ]
     },
     {
@@ -4550,7 +4551,7 @@
     },
     {
       "id": "core-mapek-execute-links-downstream-action-evidence",
-      "summary": "Core MAPE-K execute events now snapshot downstream EventBus history before and after each safe-actuated action, then attach only bounded event IDs from mesh-network-manager, mesh-yggdrasil-optimizer, mesh-action-enforcer, and dao-governance terminal events. YggdrasilOptimizer can publish a redacted heuristic recommendation event before enforcement, MeshNetworkManager and MeshActionEnforcer publish their own redacted local control-action summaries: the core loop emits TASK_BLOCKED evidence when an explicit shared mesh_metric_evidence_policy forbids high-risk healing or optimizer enforcement, passes allowed policy to MeshActionEnforcer, and MeshActionEnforcer independently fails closed with TASK_BLOCKED when refresh/restart recommendations arrive without an allowed dataplane or explicit estimate/fallback policy. Route preference, healing, optimizer enforcement, blocked-policy outcomes, and fail-closed Yggdrasil peer restart decisions are traceable without copying raw route IDs, peer URIs, node IDs, DAO payloads, or downstream payload bodies.",
+      "summary": "Core MAPE-K execute events now snapshot downstream EventBus history before and after each safe-actuated action, then attach only bounded event IDs from mesh-network-manager, mesh-yggdrasil-optimizer, mesh-action-enforcer, and dao-governance terminal events. YggdrasilOptimizer can publish a redacted heuristic recommendation event before enforcement, MeshNetworkManager and MeshActionEnforcer publish their own redacted local control-action summaries: the core loop emits TASK_BLOCKED evidence when an explicit shared mesh_metric_evidence_policy forbids high-risk healing or optimizer enforcement, passes allowed policy to MeshActionEnforcer, and MeshActionEnforcer independently fails closed with TASK_BLOCKED when refresh/restart recommendations arrive without an allowed dataplane or explicit estimate/fallback policy. MeshActionEnforcer restart commands now also carry typed SafeActuatorEvidenceMetadata for local command claims while keeping dataplane/customer/production claims blocked. Route preference, healing, optimizer enforcement, blocked-policy outcomes, and fail-closed Yggdrasil peer restart decisions are traceable without copying raw route IDs, peer URIs, node IDs, DAO payloads, or downstream payload bodies.",
       "source_refs": [
         "src/mesh/yggdrasil_optimizer.py:233",
         "src/mesh/yggdrasil_optimizer.py:650",
