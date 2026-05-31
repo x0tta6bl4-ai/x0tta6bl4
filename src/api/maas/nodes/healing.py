@@ -9,6 +9,7 @@ from fastapi import HTTPException, Request, status
 
 from src.coordination.events import EventType, get_event_bus
 from src.database import MeshNode
+from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from .security import ensure_mesh_visibility_with_permission
 from src.core.rbac import MeshPermission
 
@@ -108,47 +109,24 @@ def _safe_claim_gate(value: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(value, dict):
         return None
 
-    blockers = [
-        str(blocker)
-        for blocker in value.get("blockers", [])
-        if str(blocker).strip()
+    shared_gate = build_post_action_dataplane_claim_gate(
+        probe_required=bool(
+            value.get("requires_post_action_dataplane_revalidation", True)
+        ),
+        probe_enabled=bool(value.get("post_action_probe_enabled")),
+        probe_target_present=bool(value.get("post_action_probe_target_present")),
+        probe_attempted=bool(value.get("post_action_probe_attempted")),
+        dataplane_confirmed=bool(value.get("dataplane_confirmed")),
+        evidence=_safe_evidence(value.get("evidence")),
+        claim_boundary=str(value.get("claim_boundary") or ""),
+        local_action_applied=bool(value.get("local_action_applied", True)),
+    ).model_dump(mode="json")
+    shared_gate["schema"] = str(value.get("schema") or shared_gate["schema"])
+    shared_gate["blockers"] = [
+        str(blocker) for blocker in shared_gate.get("blockers", []) if str(blocker)
     ][:10]
-    return {
-        "schema": str(value.get("schema") or ""),
-        "decision": str(value.get("decision") or ""),
-        "post_action_probe_enabled": bool(value.get("post_action_probe_enabled")),
-        "post_action_probe_target_present": bool(
-            value.get("post_action_probe_target_present")
-        ),
-        "post_action_probe_attempted": bool(value.get("post_action_probe_attempted")),
-        "post_action_dataplane_revalidated": bool(
-            value.get("post_action_dataplane_revalidated")
-        ),
-        "dataplane_confirmed": bool(value.get("dataplane_confirmed")),
-        "restored_dataplane_claim_allowed": bool(
-            value.get("restored_dataplane_claim_allowed")
-        ),
-        "traffic_delivery_claim_allowed": bool(
-            value.get("traffic_delivery_claim_allowed")
-        ),
-        "customer_traffic_claim_allowed": bool(
-            value.get("customer_traffic_claim_allowed")
-        ),
-        "external_reachability_claim_allowed": bool(
-            value.get("external_reachability_claim_allowed")
-        ),
-        "production_slo_claim_allowed": bool(value.get("production_slo_claim_allowed")),
-        "production_readiness_claim_allowed": bool(
-            value.get("production_readiness_claim_allowed")
-        ),
-        "requires_post_action_dataplane_revalidation": bool(
-            value.get("requires_post_action_dataplane_revalidation")
-        ),
-        "blockers": blockers,
-        "evidence": _safe_evidence(value.get("evidence")),
-        "claim_boundary": str(value.get("claim_boundary") or ""),
-        "redacted": True,
-    }
+    shared_gate["redacted"] = True
+    return shared_gate
 
 
 def _latest_post_action_dataplane_revalidation(

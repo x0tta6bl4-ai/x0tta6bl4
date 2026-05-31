@@ -15,6 +15,8 @@ from src.mesh.recovery_contracts import (
     PostActionDataplaneClaimGate,
     PostActionDataplaneRevalidation,
     RecoveryEvidenceV1,
+    build_dataplane_evidence_ref,
+    build_post_action_dataplane_claim_gate,
     generate_node_id_hash,
 )
 from src.mesh.recovery_policy import RecoveryPolicyManager
@@ -35,10 +37,6 @@ MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY = (
     "as restored dataplane unless a bounded, redacted dataplane proof event is "
     "attached. Customer traffic still requires a separate end-to-end proof."
 )
-_CUSTOMER_TRAFFIC_PROOF_BLOCKER = (
-    "customer_traffic_requires_separate_end_to_end_proof"
-)
-
 
 class MeshRecoveryOrchestrator:
     """Run observe -> policy -> action -> revalidate -> evidence."""
@@ -270,7 +268,9 @@ class MeshRecoveryOrchestrator:
             status=status,
             reason=reason,
             probe_attempted=True,
-            post_action_dataplane_revalidated=dataplane_confirmed,
+            post_action_dataplane_revalidated=(
+                gate.post_action_dataplane_revalidated
+            ),
             dataplane_confirmed=dataplane_confirmed,
             restored_dataplane_claim_allowed=gate.restored_dataplane_claim_allowed,
             claim_gate=gate,
@@ -310,48 +310,7 @@ class MeshRecoveryOrchestrator:
 
     @classmethod
     def _dataplane_evidence_ref(cls, value: Any) -> DataplaneEvidenceRef:
-        evidence = value if isinstance(value, dict) else {}
-        event_ids = (
-            [
-                str(event_id)
-                for event_id in evidence.get("event_ids", [])
-                if str(event_id)
-            ]
-            if isinstance(evidence.get("event_ids"), list)
-            else []
-        )
-        source_agents = (
-            [
-                str(source_agent)
-                for source_agent in evidence.get("source_agents", [])
-                if str(source_agent)
-            ]
-            if isinstance(evidence.get("source_agents"), list)
-            else []
-        )
-        claim_boundaries = []
-        raw_boundaries = evidence.get("claim_boundaries")
-        if isinstance(raw_boundaries, list):
-            claim_boundaries = [
-                str(boundary) for boundary in raw_boundaries if str(boundary)
-            ]
-        elif evidence.get("claim_boundary"):
-            claim_boundaries = [str(evidence.get("claim_boundary"))]
-        return DataplaneEvidenceRef(
-            source_agents=source_agents,
-            event_ids=event_ids,
-            events_total=cls._safe_nonnegative_int(
-                evidence.get("events_total"),
-                default=len(event_ids),
-            ),
-            event_ids_count=len(event_ids),
-            claim_boundaries=claim_boundaries,
-            claim_boundaries_total=cls._safe_nonnegative_int(
-                evidence.get("claim_boundaries_total"),
-                default=len(claim_boundaries),
-            ),
-            redacted=evidence.get("redacted") is True,
-        )
+        return build_dataplane_evidence_ref(value)
 
     @staticmethod
     def _dataplane_claim_gate(
@@ -360,42 +319,13 @@ class MeshRecoveryOrchestrator:
         dataplane_confirmed: bool,
         evidence: DataplaneEvidenceRef,
     ) -> PostActionDataplaneClaimGate:
-        blockers: list[str] = []
-        if not probe_attempted:
-            blockers.append("no_bounded_post_action_dataplane_probe_attached")
-        elif not dataplane_confirmed:
-            blockers.append("bounded_dataplane_probe_not_confirmed")
-        if probe_attempted and (
-            evidence.events_total <= 0 or evidence.event_ids_count <= 0
-        ):
-            blockers.append("post_action_probe_evidence_missing")
-        if probe_attempted and not evidence.source_agents:
-            blockers.append("post_action_probe_source_agent_missing")
-        if evidence.redacted is not True:
-            blockers.append("post_action_probe_evidence_not_redacted")
-
-        return PostActionDataplaneClaimGate(
-            restored_dataplane_claim_allowed=not blockers,
-            customer_traffic_claim_allowed=False,
-            customer_traffic_claim_blockers=[_CUSTOMER_TRAFFIC_PROOF_BLOCKER],
-            blockers=blockers,
-            required_evidence={
-                "probe_attempted": True,
-                "dataplane_confirmed": True,
-                "redacted_evidence": True,
-                "event_ids_count_min": 1,
-                "events_total_min": 1,
-                "source_agents_min": 1,
-            },
-            observed_evidence={
-                "probe_attempted": probe_attempted,
-                "dataplane_confirmed": dataplane_confirmed,
-                "redacted_evidence": evidence.redacted is True,
-                "event_ids_count": evidence.event_ids_count,
-                "events_total": evidence.events_total,
-                "source_agents_count": len(evidence.source_agents),
-            },
-            post_action_probe_attempted=probe_attempted,
+        return build_post_action_dataplane_claim_gate(
+            probe_required=True,
+            probe_enabled=True,
+            probe_target_present=True,
+            probe_attempted=probe_attempted,
+            dataplane_confirmed=dataplane_confirmed,
+            evidence=evidence,
             claim_boundary=MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY,
         )
 

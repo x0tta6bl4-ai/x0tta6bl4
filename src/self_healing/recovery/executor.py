@@ -25,6 +25,7 @@ from src.mesh.recovery_dataplane_probe import (
     build_recovery_dataplane_ping_probe,
     normalize_recovery_dataplane_probe_result,
 )
+from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -154,7 +155,7 @@ def _evidence_summary(evidence: Any) -> Dict[str, Any]:
         "event_ids": event_ids,
         "events_total": int(evidence.get("events_total", len(event_ids)) or 0),
         "event_ids_count": len(event_ids),
-        "redacted": True,
+        "redacted": evidence.get("redacted") is True,
     }
 
 
@@ -195,49 +196,21 @@ def _post_action_dataplane_claim_gate(
     dataplane_confirmed: bool,
     evidence: Dict[str, Any],
     required: bool,
+    probe_enabled: bool,
+    probe_target_present: bool,
+    local_action_applied: bool,
 ) -> Dict[str, Any]:
-    blockers: List[str] = []
-    events_total = int(evidence.get("events_total", 0) or 0)
-    event_ids_count = int(evidence.get("event_ids_count", 0) or 0)
-    source_agents = evidence.get("source_agents", [])
-    if not required:
-        blockers.append("action_type_does_not_require_dataplane_restoration_claim")
-    if required and not probe_attempted:
-        blockers.append("no_bounded_post_action_dataplane_probe_attached")
-    elif required and not dataplane_confirmed:
-        blockers.append("bounded_dataplane_probe_not_confirmed")
-    if required and probe_attempted and (events_total <= 0 or event_ids_count <= 0):
-        blockers.append("post_action_probe_evidence_missing")
-    if required and probe_attempted and not source_agents:
-        blockers.append("post_action_probe_source_agent_missing")
-    if evidence.get("redacted") is not True:
-        blockers.append("post_action_probe_evidence_not_redacted")
-
-    return {
-        "required_for_restored_dataplane_claim": required,
-        "restored_dataplane_claim_allowed": required and not blockers,
-        "blockers": blockers,
-        "required_evidence": {
-            "probe_attempted": True,
-            "dataplane_confirmed": True,
-            "redacted_evidence": True,
-            "event_ids_count_min": 1,
-            "events_total_min": 1,
-            "source_agents_min": 1,
-        },
-        "observed_evidence": {
-            "probe_attempted": probe_attempted,
-            "dataplane_confirmed": dataplane_confirmed,
-            "redacted_evidence": evidence.get("redacted") is True,
-            "event_ids_count": event_ids_count,
-            "events_total": events_total,
-            "source_agents_count": len(source_agents)
-            if isinstance(source_agents, list)
-            else 0,
-        },
-        "claim_boundary": POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY,
-        "redacted": True,
-    }
+    gate = build_post_action_dataplane_claim_gate(
+        probe_required=required,
+        probe_enabled=probe_enabled,
+        probe_target_present=probe_target_present,
+        probe_attempted=probe_attempted,
+        dataplane_confirmed=dataplane_confirmed,
+        evidence=evidence,
+        local_action_applied=local_action_applied,
+        claim_boundary=POST_ACTION_DATAPLANE_REVALIDATION_CLAIM_BOUNDARY,
+    )
+    return gate.model_dump(mode="json")
 
 
 def _post_action_dataplane_revalidation_summary(
@@ -263,6 +236,9 @@ def _post_action_dataplane_revalidation_summary(
         dataplane_confirmed=dataplane_confirmed,
         evidence=evidence,
         required=required,
+        probe_enabled=probe_enabled,
+        probe_target_present=probe_target_present,
+        local_action_applied=result_success,
     )
     if not required:
         status = "not_required"
@@ -276,7 +252,7 @@ def _post_action_dataplane_revalidation_summary(
     elif not probe_target_present:
         status = "not_attempted"
         reason = "no_post_action_dataplane_probe_target"
-    elif dataplane_confirmed:
+    elif claim_gate["restored_dataplane_claim_allowed"]:
         status = "success"
         reason = "bounded_dataplane_probe_succeeded"
     else:
@@ -292,7 +268,9 @@ def _post_action_dataplane_revalidation_summary(
         "probe_target_hash": probe_target_hash,
         "probe_target_redacted": True,
         "probe_attempted": probe_attempted,
-        "post_action_dataplane_revalidated": dataplane_confirmed,
+        "post_action_dataplane_revalidated": claim_gate[
+            "post_action_dataplane_revalidated"
+        ],
         "dataplane_confirmed": dataplane_confirmed,
         "required_for_restored_dataplane_claim": required,
         "restored_dataplane_claim_allowed": claim_gate[

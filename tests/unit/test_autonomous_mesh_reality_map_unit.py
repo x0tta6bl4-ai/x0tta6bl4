@@ -69,7 +69,7 @@ def test_autonomous_mesh_reality_map_names_next_control_spine_improvement() -> N
     payload = _load_map()
     next_step = payload["next_best_code_improvement"]
 
-    assert next_step["id"] == "shared_post_action_dataplane_claim_gate_contract"
-    assert "MeshRecoveryOrchestrator" in next_step["description"]
-    assert "RecoveryActionExecutor" in next_step["description"]
-    assert "MeshNetworkManager" in next_step["description"]
+    assert next_step["id"] == "mapek_safeactuator_recovery_evidence_adapter"
+    assert "MAPE-K" in next_step["description"]
+    assert "SafeActuator" in next_step["description"]
+    assert "post-action dataplane claim-gate" in next_step["description"]

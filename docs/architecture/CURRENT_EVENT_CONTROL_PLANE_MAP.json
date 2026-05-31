@@ -1802,7 +1802,7 @@
     {
       "path": "src/mesh/recovery_orchestrator.py",
       "layer": "mesh_recovery_control_spine",
-      "role": "MeshRecoveryOrchestrator publishes bounded mesh_node_degradation_recovery evidence through source_agent=mesh-recovery-orchestrator. It records HMAC-redacted node identity, policy allow/cooldown/safe-mode decisions, restart return code, local before/after node state, local claim gates, optional post-action dataplane proof-gate metadata, and TASK_BLOCKED outcomes for blocked recovery, failed local revalidation, or failed opted-in dataplane proof without copying raw node IDs, incident keys, command output, raw probe targets, or claiming customer traffic restoration.",
+      "role": "MeshRecoveryOrchestrator publishes bounded mesh_node_degradation_recovery evidence through source_agent=mesh-recovery-orchestrator. It records HMAC-redacted node identity, policy allow/cooldown/safe-mode decisions, restart return code, local before/after node state, local claim gates, optional post-action dataplane proof-gate metadata from the shared post-action dataplane claim-gate contract, and TASK_BLOCKED outcomes for blocked recovery, failed local revalidation, or failed opted-in dataplane proof without copying raw node IDs, incident keys, command output, raw probe targets, or claiming customer traffic restoration.",
       "markers": [
         "event_bus"
       ],
@@ -1819,6 +1819,7 @@
         "src/mesh/recovery_contracts.py:41",
         "src/mesh/recovery_contracts.py:68",
         "src/mesh/recovery_contracts.py:102",
+        "src/mesh/recovery_contracts.py:201",
         "src/services/service_identity_registry.py:462"
       ]
     },

@@ -215,4 +215,7 @@ def test_post_action_revalidation_does_not_overclaim_when_gate_denies(tmp_path) 
     assert result["post_action_dataplane_revalidated"] is False
     assert result["restored_dataplane_claim_allowed"] is False
     assert result["claim_gate"]["restored_dataplane_claim_allowed"] is False
-    assert result["claim_gate"]["blockers"] == ["post_action_probe_evidence_missing"]
+    assert result["claim_gate"]["blockers"] == [
+        "post_action_probe_evidence_missing",
+        "post_action_probe_source_agent_missing",
+    ]

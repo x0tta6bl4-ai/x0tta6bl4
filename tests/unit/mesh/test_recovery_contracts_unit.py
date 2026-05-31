@@ -4,7 +4,11 @@ import json
 from unittest.mock import Mock
 
 from src.coordination.events import EventBus, EventType
-from src.mesh.recovery_contracts import NodeState, generate_node_id_hash
+from src.mesh.recovery_contracts import (
+    NodeState,
+    build_post_action_dataplane_claim_gate,
+    generate_node_id_hash,
+)
 from src.mesh.recovery_orchestrator import (
     MESH_RECOVERY_SOURCE_AGENT,
     MeshRecoveryOrchestrator,
@@ -70,6 +74,71 @@ def test_node_id_hash_uses_hmac_and_does_not_expose_node_id() -> None:
     assert len(digest) == 64
     assert node_id not in digest
     assert digest != generate_node_id_hash(node_id, "different-local-secret")
+
+
+def test_shared_post_action_dataplane_claim_gate_requires_redacted_event_evidence() -> None:
+    gate = build_post_action_dataplane_claim_gate(
+        probe_attempted=True,
+        dataplane_confirmed=True,
+        evidence={
+            "source_agents": ["real-network-adapter"],
+            "event_ids": ["evt-proof-1"],
+            "events_total": 1,
+            "event_ids_count": 1,
+            "redacted": True,
+        },
+        claim_boundary="bounded dataplane proof only",
+    )
+
+    assert gate.schema == "x0tta6bl4.post_action_dataplane_claim_gate.v1"
+    assert gate.decision == "RESTORED_DATAPLANE_CLAIM_ALLOWED"
+    assert gate.restored_dataplane_claim_allowed is True
+    assert gate.post_action_dataplane_revalidated is True
+    assert gate.traffic_delivery_claim_allowed is False
+    assert gate.customer_traffic_claim_allowed is False
+    assert gate.external_reachability_claim_allowed is False
+    assert gate.production_readiness_claim_allowed is False
+    assert gate.blockers == []
+
+
+def test_shared_post_action_dataplane_claim_gate_blocks_overclaim_without_evidence() -> None:
+    gate = build_post_action_dataplane_claim_gate(
+        probe_attempted=True,
+        dataplane_confirmed=True,
+        evidence={
+            "source_agents": [],
+            "event_ids": [],
+            "events_total": 0,
+            "event_ids_count": 0,
+            "redacted": True,
+        },
+        claim_boundary="bounded dataplane proof only",
+    )
+
+    assert gate.decision == "LOCAL_RECOVERY_LIFECYCLE_ONLY"
+    assert gate.dataplane_confirmed is True
+    assert gate.restored_dataplane_claim_allowed is False
+    assert gate.post_action_dataplane_revalidated is False
+    assert "post_action_probe_evidence_missing" in gate.blockers
+    assert "post_action_probe_source_agent_missing" in gate.blockers
+
+
+def test_shared_post_action_dataplane_claim_gate_blocks_non_dataplane_actions() -> None:
+    gate = build_post_action_dataplane_claim_gate(
+        probe_required=False,
+        probe_enabled=False,
+        probe_target_present=False,
+        probe_attempted=False,
+        dataplane_confirmed=False,
+        evidence={},
+        claim_boundary="bounded dataplane proof only",
+    )
+
+    assert gate.required_for_restored_dataplane_claim is False
+    assert gate.restored_dataplane_claim_allowed is False
+    assert gate.blockers == [
+        "action_type_does_not_require_dataplane_restoration_claim"
+    ]
 
 
 def test_first_restart_allowed_and_records_bounded_evidence() -> None:

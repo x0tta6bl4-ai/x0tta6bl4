@@ -34,6 +34,7 @@ from src.mesh.recovery_dataplane_probe import (
     build_recovery_dataplane_ping_probe,
     normalize_recovery_dataplane_probe_result,
 )
+from src.mesh.recovery_contracts import build_post_action_dataplane_claim_gate
 from src.services.service_event_identity import service_event_identity
 
 logger = logging.getLogger(__name__)
@@ -277,57 +278,32 @@ def _healing_claim_gate(
     dataplane_confirmed = bool(
         probe_attempted and probe_result["dataplane_confirmed"]
     )
-    blockers: List[str] = []
-    if not post_action_probe_enabled:
-        blockers.append("no_bounded_post_action_dataplane_probe_attached")
-    elif not post_action_probe_target_present:
-        blockers.append("no_post_action_dataplane_probe_target")
-    elif not probe_attempted:
-        blockers.append("no_bounded_post_action_dataplane_probe_attached")
-    elif not dataplane_confirmed:
-        blockers.append("bounded_dataplane_probe_not_confirmed")
-    if probe_attempted and (
-        int(evidence.get("events_total", 0) or 0) <= 0
-        or int(evidence.get("event_ids_count", 0) or 0) <= 0
-    ):
-        blockers.append("post_action_probe_evidence_missing")
-    if probe_attempted and not evidence.get("source_agents"):
-        blockers.append("post_action_probe_source_agent_missing")
-    if probe_attempted and evidence.get("redacted") is not True:
-        blockers.append("post_action_probe_evidence_not_redacted")
-    if int(healed) <= 0 and dataplane_confirmed:
-        blockers.append("no_local_healing_action_applied")
-
-    restored_dataplane_claim_allowed = not blockers
-    return {
-        "schema": "x0tta6bl4.mesh_network_manager.healing_claim_gate.v1",
-        "decision": (
-            "RESTORED_DATAPLANE_CLAIM_ALLOWED"
-            if restored_dataplane_claim_allowed
-            else "LOCAL_HEALING_LIFECYCLE_ONLY"
-        ),
-        "local_healing_lifecycle_claim_allowed": True,
-        "local_node_verification_claim_allowed": verification_evidence_events > 0,
-        "local_healed_count": int(healed),
-        "verification_evidence_events": int(verification_evidence_events),
-        "post_action_probe_enabled": post_action_probe_enabled,
-        "post_action_probe_target_present": post_action_probe_target_present,
-        "post_action_probe_attempted": probe_attempted,
-        "post_action_dataplane_revalidated": dataplane_confirmed,
-        "dataplane_confirmed": dataplane_confirmed,
-        "restored_dataplane_claim_allowed": restored_dataplane_claim_allowed,
-        "traffic_delivery_claim_allowed": False,
-        "customer_traffic_claim_allowed": False,
-        "external_reachability_claim_allowed": False,
-        "production_slo_claim_allowed": False,
-        "production_readiness_claim_allowed": False,
-        "requires_post_action_dataplane_revalidation": True,
-        "blockers": blockers,
-        "probe_result": probe_result if probe_attempted else None,
-        "evidence": evidence,
-        "claim_boundary": MESH_NETWORK_MANAGER_HEALING_CLAIM_BOUNDARY,
-        "redacted": True,
-    }
+    shared_gate = build_post_action_dataplane_claim_gate(
+        probe_required=True,
+        probe_enabled=post_action_probe_enabled,
+        probe_target_present=post_action_probe_target_present,
+        probe_attempted=probe_attempted,
+        dataplane_confirmed=dataplane_confirmed,
+        evidence=evidence,
+        local_action_applied=int(healed) > 0,
+        claim_boundary=MESH_NETWORK_MANAGER_HEALING_CLAIM_BOUNDARY,
+    ).model_dump(mode="json")
+    shared_gate.update(
+        {
+            "schema": "x0tta6bl4.mesh_network_manager.healing_claim_gate.v1",
+            "decision": (
+                "RESTORED_DATAPLANE_CLAIM_ALLOWED"
+                if shared_gate["restored_dataplane_claim_allowed"]
+                else "LOCAL_HEALING_LIFECYCLE_ONLY"
+            ),
+            "local_healing_lifecycle_claim_allowed": True,
+            "local_node_verification_claim_allowed": verification_evidence_events > 0,
+            "local_healed_count": int(healed),
+            "verification_evidence_events": int(verification_evidence_events),
+            "probe_result": probe_result if probe_attempted else None,
+        }
+    )
+    return shared_gate
 
 
 def _safe_claim_gate(gate: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
