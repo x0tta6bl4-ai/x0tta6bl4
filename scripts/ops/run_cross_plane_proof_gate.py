@@ -1538,6 +1538,10 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("dataplane_delivery_eventbus_artifact_not_verified")
+    elif claim_id == "traffic_delivery":
+        claim_artifact_evidence = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
+        if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
+            blockers.append("traffic_delivery_dataplane_artifact_not_verified")
     elif claim_id == "trust_finality":
         claim_artifact_evidence = (artifact_evidence or {}).get(TRUST_FINALITY_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
@@ -1617,7 +1621,7 @@ def build_report(
     context = map_context(root, resolved_map, resolved_audit, evidence_map)
     flag_index = collect_flag_index(evidence_map or {})
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
-    if "dataplane_delivery" in claims:
+    if any(claim in claims for claim in ("dataplane_delivery", "traffic_delivery")):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)

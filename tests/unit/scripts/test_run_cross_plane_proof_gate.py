@@ -832,6 +832,43 @@ def test_gate_blocks_dataplane_delivery_when_map_flags_are_true_but_eventbus_art
     assert "dataplane_event_log_missing" in artifact["blockers"]
 
 
+def test_gate_blocks_traffic_delivery_when_map_flags_are_true_but_artifact_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+
+    report = build_report(tmp_path, claims=("traffic_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [traffic] = report["claim_results"]
+    assert traffic["allowed"] is False
+    assert traffic["missing_any_flag_groups"] == []
+    assert "traffic_delivery_dataplane_artifact_not_verified" in traffic["blockers"]
+    artifact = traffic["required_artifact_evidence"]
+    assert artifact["valid"] is False
+    assert "dataplane_event_log_missing" in artifact["blockers"]
+
+
+def test_gate_allows_traffic_delivery_only_with_verified_dataplane_artifact(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, dataplane_flags=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("traffic_delivery",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_ALLOWED"
+    assert report["allowed"] is True
+    [traffic] = report["claim_results"]
+    assert traffic["allowed"] is True
+    assert traffic["blockers"] == []
+    artifact = traffic["required_artifact_evidence"]
+    assert artifact["valid"] is True
+    assert artifact["selected_event"]["event_id"] == "dataplane-event-1"
+    assert artifact["selected_event"]["restored_dataplane_claim_allowed"] is True
+
+
 def test_gate_allows_dataplane_delivery_only_with_map_flags_and_verified_eventbus_artifact(
     tmp_path: Path,
 ) -> None:
