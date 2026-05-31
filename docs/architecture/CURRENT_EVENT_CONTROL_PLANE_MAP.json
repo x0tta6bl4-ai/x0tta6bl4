@@ -1800,21 +1800,23 @@
     {
       "path": "src/mesh/recovery_orchestrator.py",
       "layer": "mesh_recovery_control_spine",
-      "role": "MeshRecoveryOrchestrator publishes bounded mesh_node_degradation_recovery evidence through source_agent=mesh-recovery-orchestrator. It records HMAC-redacted node identity, policy allow/cooldown/safe-mode decisions, restart return code, local before/after node state, local claim gates, and TASK_BLOCKED outcomes for blocked or failed revalidation without copying raw node IDs, incident keys, command output, or claiming customer traffic restoration.",
+      "role": "MeshRecoveryOrchestrator publishes bounded mesh_node_degradation_recovery evidence through source_agent=mesh-recovery-orchestrator. It records HMAC-redacted node identity, policy allow/cooldown/safe-mode decisions, restart return code, local before/after node state, local claim gates, optional post-action dataplane proof-gate metadata, and TASK_BLOCKED outcomes for blocked recovery, failed local revalidation, or failed opted-in dataplane proof without copying raw node IDs, incident keys, command output, raw probe targets, or claiming customer traffic restoration.",
       "markers": [
         "event_bus"
       ],
       "source_refs": [
         "src/mesh/recovery_orchestrator.py:10",
-        "src/mesh/recovery_orchestrator.py:22",
-        "src/mesh/recovery_orchestrator.py:43",
-        "src/mesh/recovery_orchestrator.py:89",
+        "src/mesh/recovery_orchestrator.py:25",
+        "src/mesh/recovery_orchestrator.py:52",
+        "src/mesh/recovery_orchestrator.py:96",
         "src/mesh/recovery_orchestrator.py:116",
-        "src/mesh/recovery_orchestrator.py:119",
-        "src/mesh/recovery_orchestrator.py:123",
-        "src/mesh/recovery_orchestrator.py:130",
-        "src/mesh/recovery_orchestrator.py:141",
-        "src/mesh/recovery_orchestrator.py:153",
+        "src/mesh/recovery_orchestrator.py:147",
+        "src/mesh/recovery_orchestrator.py:208",
+        "src/mesh/recovery_orchestrator.py:232",
+        "src/mesh/recovery_orchestrator.py:303",
+        "src/mesh/recovery_contracts.py:41",
+        "src/mesh/recovery_contracts.py:68",
+        "src/mesh/recovery_contracts.py:102",
         "src/services/service_identity_registry.py:462"
       ]
     },

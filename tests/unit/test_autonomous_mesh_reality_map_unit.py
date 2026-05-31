@@ -69,6 +69,6 @@ def test_autonomous_mesh_reality_map_names_next_control_spine_improvement() -> N
     payload = _load_map()
     next_step = payload["next_best_code_improvement"]
 
-    assert next_step["id"] == "mesh_recovery_dataplane_probe_gate"
-    assert "RecoveryEvidenceV1" in next_step["description"]
-    assert "dataplane proof" in next_step["description"]
+    assert next_step["id"] == "mesh_recovery_dataplane_provider_adapter"
+    assert "MeshRecoveryOrchestrator.dataplane_probe" in next_step["description"]
+    assert "EventBus proof references" in next_step["description"]

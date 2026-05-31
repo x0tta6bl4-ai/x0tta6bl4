@@ -57,7 +57,7 @@
         },
         {
           "id": "bounded_mesh_recovery_contract",
-          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action revalidation, machine-readable evidence, and redacted EventBus publication through a dedicated trace-registered source_agent.",
+          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action local revalidation, optional post-action dataplane proof gating, machine-readable evidence, and redacted EventBus publication through a dedicated trace-registered source_agent. Customer-traffic claims remain blocked even when a local dataplane proof is attached.",
           "source_refs": [
             "src/mesh/recovery_contracts.py",
             "src/mesh/recovery_policy.py",
@@ -237,18 +237,20 @@
     {
       "id": "post_action_dataplane_probe_operationalization",
       "severity": "tracked_risk",
-      "gap": "Post-action dataplane proof remains operator-controlled and opt-in; local recovery evidence must not be promoted to traffic delivery.",
-      "next_improvement": "Wire an explicit opt-in dataplane proof result into recovery evidence as a separate nested claim gate.",
+      "gap": "Recovery evidence now has an explicit optional post-action dataplane proof gate, but the concrete runtime probe provider is not wired by default.",
+      "next_improvement": "Connect the existing bounded dataplane evidence collector or real-network probe path to MeshRecoveryOrchestrator.dataplane_probe without making it mandatory or leaking raw targets.",
       "source_refs": [
         "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
-        "src/mesh/recovery_orchestrator.py"
+        "src/mesh/recovery_contracts.py",
+        "src/mesh/recovery_orchestrator.py",
+        "tests/unit/mesh/test_recovery_contracts_unit.py"
       ]
     },
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, and EventBus traces are closer together, but not yet one fully unified runtime spine with dataplane proof promotion.",
-      "next_improvement": "Feed an explicit opt-in dataplane proof result into the mesh recovery evidence as a separate nested claim gate before allowing any traffic-restored claim.",
+      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, and EventBus traces are closer together, but not yet one fully unified runtime spine with a concrete recovery dataplane probe provider.",
+      "next_improvement": "Wire the recovery proof gate into the same bounded dataplane evidence source used by mesh action enforcement and readiness evidence.",
       "source_refs": [
         "src/integration/spine.py",
         "src/core/mape_k_loop.py",
@@ -289,12 +291,13 @@
     ]
   },
   "next_best_code_improvement": {
-    "id": "mesh_recovery_dataplane_probe_gate",
-    "description": "Extend RecoveryEvidenceV1 with an explicit optional post-action dataplane proof gate so local recovery can remain separate from customer-traffic restoration unless a dedicated dataplane proof artifact exists.",
-    "blocked_by": "Requires choosing the concrete dataplane probe source and keeping it opt-in so recovery does not over-claim live customer traffic.",
+    "id": "mesh_recovery_dataplane_provider_adapter",
+    "description": "Connect MeshRecoveryOrchestrator.dataplane_probe to an existing bounded dataplane evidence source so the new post-action proof gate can consume real EventBus proof references without raw target leakage.",
+    "blocked_by": "Requires choosing the concrete probe source while other agents are editing adjacent MaaS/runtime files.",
     "safe_files_to_touch_later": [
-      "src/mesh/recovery_contracts.py",
       "src/mesh/recovery_orchestrator.py",
+      "src/mesh/real_network_adapter.py",
+      "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
       "tests/unit/mesh/test_recovery_contracts_unit.py"
     ]
   }

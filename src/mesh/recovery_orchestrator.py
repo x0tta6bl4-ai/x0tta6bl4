@@ -5,12 +5,15 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from typing import Callable
+from typing import Any, Callable, Mapping
 
 from src.coordination.events import EventBus, EventType
 from src.mesh.recovery_contracts import (
     BoundedClaims,
+    DataplaneEvidenceRef,
     NodeState,
+    PostActionDataplaneClaimGate,
+    PostActionDataplaneRevalidation,
     RecoveryEvidenceV1,
     generate_node_id_hash,
 )
@@ -27,6 +30,14 @@ MESH_RECOVERY_CLAIM_BOUNDARY = (
     "prove bounded node-state changes, but it does not prove customer traffic, "
     "remote peer authenticity, external dataplane delivery, or production readiness."
 )
+MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY = (
+    "Post-action dataplane proof metadata only. Local recovery is not treated "
+    "as restored dataplane unless a bounded, redacted dataplane proof event is "
+    "attached. Customer traffic still requires a separate end-to-end proof."
+)
+_CUSTOMER_TRAFFIC_PROOF_BLOCKER = (
+    "customer_traffic_requires_separate_end_to_end_proof"
+)
 
 
 class MeshRecoveryOrchestrator:
@@ -40,6 +51,7 @@ class MeshRecoveryOrchestrator:
         policy_manager: RecoveryPolicyManager,
         restart_action: Callable[[], int],
         get_node_state: Callable[[], NodeState],
+        dataplane_probe: Callable[[], Mapping[str, Any]] | None = None,
         event_bus: EventBus | None = None,
         source_agent: str = MESH_RECOVERY_SOURCE_AGENT,
         post_action_wait_seconds: float = 15.0,
@@ -51,6 +63,7 @@ class MeshRecoveryOrchestrator:
         self.policy_manager = policy_manager
         self.restart_action = restart_action
         self.get_node_state = get_node_state
+        self.dataplane_probe = dataplane_probe
         self.event_bus = event_bus
         self.source_agent = source_agent
         self.post_action_wait_seconds = post_action_wait_seconds
@@ -82,6 +95,9 @@ class MeshRecoveryOrchestrator:
                 before=before_state,
                 after=before_state,
                 claim_gate=self._unproven_claims(),
+                post_action_dataplane_revalidation=self._dataplane_not_attempted(
+                    reason="recovery_action_not_allowed"
+                ),
                 duration_ms=self._duration_ms(started),
                 return_code=1,
                 escalation_required=True,
@@ -94,10 +110,23 @@ class MeshRecoveryOrchestrator:
         self._sleeper(self.post_action_wait_seconds)
         after_state = self.get_node_state()
         claim_gate = self._build_claims(before_state, after_state)
+        local_revalidation_passed = (
+            return_code == 0
+            and claim_gate.local_peer_visible == "PROVEN"
+            and claim_gate.packet_loss_metric_decreased == "PROVEN"
+        )
+        post_action_dataplane_revalidation = self._dataplane_revalidation(
+            local_revalidation_passed=local_revalidation_passed
+        )
+        dataplane_probe_failed = (
+            post_action_dataplane_revalidation.probe_attempted
+            and not post_action_dataplane_revalidation.restored_dataplane_claim_allowed
+        )
         escalation_required = (
             return_code != 0
             or claim_gate.local_peer_visible != "PROVEN"
             or claim_gate.packet_loss_metric_decreased != "PROVEN"
+            or dataplane_probe_failed
         )
 
         evidence = RecoveryEvidenceV1(
@@ -109,6 +138,7 @@ class MeshRecoveryOrchestrator:
             before=before_state,
             after=after_state,
             claim_gate=claim_gate,
+            post_action_dataplane_revalidation=post_action_dataplane_revalidation,
             duration_ms=self._duration_ms(started),
             return_code=return_code,
             escalation_required=escalation_required,
@@ -177,6 +207,21 @@ class MeshRecoveryOrchestrator:
             "before": evidence.before.model_dump(mode="json"),
             "after": evidence.after.model_dump(mode="json"),
             "claim_gate": evidence.claim_gate.model_dump(mode="json"),
+            "post_action_dataplane_revalidation": (
+                evidence.post_action_dataplane_revalidation.model_dump(mode="json")
+                if evidence.post_action_dataplane_revalidation is not None
+                else None
+            ),
+            "post_action_dataplane_revalidated": (
+                evidence.post_action_dataplane_revalidation.post_action_dataplane_revalidated
+                if evidence.post_action_dataplane_revalidation is not None
+                else False
+            ),
+            "dataplane_confirmed": (
+                evidence.post_action_dataplane_revalidation.dataplane_confirmed
+                if evidence.post_action_dataplane_revalidation is not None
+                else False
+            ),
             "customer_traffic_restored": (
                 evidence.claim_gate.customer_traffic_restored
             ),
@@ -185,6 +230,174 @@ class MeshRecoveryOrchestrator:
             "payloads_redacted": True,
             "claim_boundary": MESH_RECOVERY_CLAIM_BOUNDARY,
         }
+
+    def _dataplane_revalidation(
+        self,
+        *,
+        local_revalidation_passed: bool,
+    ) -> PostActionDataplaneRevalidation:
+        if self.dataplane_probe is None:
+            return self._dataplane_not_attempted(
+                reason="no_post_action_dataplane_probe_configured"
+            )
+        if not local_revalidation_passed:
+            return self._dataplane_not_attempted(reason="local_revalidation_failed")
+
+        try:
+            raw_result = dict(self.dataplane_probe())
+        except Exception as exc:
+            logger.error("Failed to run mesh recovery dataplane probe: %s", exc)
+            raw_result = {
+                "status": "error",
+                "dataplane_confirmed": False,
+                "evidence": {},
+            }
+
+        evidence = self._dataplane_evidence_ref(raw_result.get("evidence"))
+        dataplane_confirmed = bool(raw_result.get("dataplane_confirmed"))
+        gate = self._dataplane_claim_gate(
+            probe_attempted=True,
+            dataplane_confirmed=dataplane_confirmed,
+            evidence=evidence,
+        )
+        status = "success" if gate.restored_dataplane_claim_allowed else "failed"
+        reason = (
+            "bounded_dataplane_probe_succeeded"
+            if gate.restored_dataplane_claim_allowed
+            else "bounded_dataplane_probe_failed"
+        )
+        return PostActionDataplaneRevalidation(
+            status=status,
+            reason=reason,
+            probe_attempted=True,
+            post_action_dataplane_revalidated=dataplane_confirmed,
+            dataplane_confirmed=dataplane_confirmed,
+            restored_dataplane_claim_allowed=gate.restored_dataplane_claim_allowed,
+            claim_gate=gate,
+            evidence=evidence,
+            claim_boundary=MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY,
+        )
+
+    def _dataplane_not_attempted(
+        self,
+        *,
+        reason: str,
+    ) -> PostActionDataplaneRevalidation:
+        evidence = self._dataplane_evidence_ref({})
+        gate = self._dataplane_claim_gate(
+            probe_attempted=False,
+            dataplane_confirmed=False,
+            evidence=evidence,
+        )
+        return PostActionDataplaneRevalidation(
+            status="not_attempted",
+            reason=reason,
+            probe_attempted=False,
+            post_action_dataplane_revalidated=False,
+            dataplane_confirmed=False,
+            restored_dataplane_claim_allowed=False,
+            claim_gate=gate,
+            evidence=evidence,
+            claim_boundary=MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY,
+        )
+
+    @staticmethod
+    def _safe_nonnegative_int(value: Any, default: int = 0) -> int:
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return default
+
+    @classmethod
+    def _dataplane_evidence_ref(cls, value: Any) -> DataplaneEvidenceRef:
+        evidence = value if isinstance(value, dict) else {}
+        event_ids = (
+            [
+                str(event_id)
+                for event_id in evidence.get("event_ids", [])
+                if str(event_id)
+            ]
+            if isinstance(evidence.get("event_ids"), list)
+            else []
+        )
+        source_agents = (
+            [
+                str(source_agent)
+                for source_agent in evidence.get("source_agents", [])
+                if str(source_agent)
+            ]
+            if isinstance(evidence.get("source_agents"), list)
+            else []
+        )
+        claim_boundaries = []
+        raw_boundaries = evidence.get("claim_boundaries")
+        if isinstance(raw_boundaries, list):
+            claim_boundaries = [
+                str(boundary) for boundary in raw_boundaries if str(boundary)
+            ]
+        elif evidence.get("claim_boundary"):
+            claim_boundaries = [str(evidence.get("claim_boundary"))]
+        return DataplaneEvidenceRef(
+            source_agents=source_agents,
+            event_ids=event_ids,
+            events_total=cls._safe_nonnegative_int(
+                evidence.get("events_total"),
+                default=len(event_ids),
+            ),
+            event_ids_count=len(event_ids),
+            claim_boundaries=claim_boundaries,
+            claim_boundaries_total=cls._safe_nonnegative_int(
+                evidence.get("claim_boundaries_total"),
+                default=len(claim_boundaries),
+            ),
+            redacted=evidence.get("redacted") is True,
+        )
+
+    @staticmethod
+    def _dataplane_claim_gate(
+        *,
+        probe_attempted: bool,
+        dataplane_confirmed: bool,
+        evidence: DataplaneEvidenceRef,
+    ) -> PostActionDataplaneClaimGate:
+        blockers: list[str] = []
+        if not probe_attempted:
+            blockers.append("no_bounded_post_action_dataplane_probe_attached")
+        elif not dataplane_confirmed:
+            blockers.append("bounded_dataplane_probe_not_confirmed")
+        if probe_attempted and (
+            evidence.events_total <= 0 or evidence.event_ids_count <= 0
+        ):
+            blockers.append("post_action_probe_evidence_missing")
+        if probe_attempted and not evidence.source_agents:
+            blockers.append("post_action_probe_source_agent_missing")
+        if evidence.redacted is not True:
+            blockers.append("post_action_probe_evidence_not_redacted")
+
+        return PostActionDataplaneClaimGate(
+            restored_dataplane_claim_allowed=not blockers,
+            customer_traffic_claim_allowed=False,
+            customer_traffic_claim_blockers=[_CUSTOMER_TRAFFIC_PROOF_BLOCKER],
+            blockers=blockers,
+            required_evidence={
+                "probe_attempted": True,
+                "dataplane_confirmed": True,
+                "redacted_evidence": True,
+                "event_ids_count_min": 1,
+                "events_total_min": 1,
+                "source_agents_min": 1,
+            },
+            observed_evidence={
+                "probe_attempted": probe_attempted,
+                "dataplane_confirmed": dataplane_confirmed,
+                "redacted_evidence": evidence.redacted is True,
+                "event_ids_count": evidence.event_ids_count,
+                "events_total": evidence.events_total,
+                "source_agents_count": len(evidence.source_agents),
+            },
+            post_action_probe_attempted=probe_attempted,
+            claim_boundary=MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY,
+        )
 
     @staticmethod
     def _new_event_id() -> str:

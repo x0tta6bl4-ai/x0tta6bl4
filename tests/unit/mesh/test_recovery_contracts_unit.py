@@ -45,6 +45,7 @@ def build_orchestrator(
     restart_mock: Mock,
     clock: FakeClock,
     *,
+    dataplane_probe: Mock | None = None,
     event_bus: EventBus | None = None,
 ):
     policy_manager = RecoveryPolicyManager(cooldown_seconds=600, clock=clock)
@@ -54,6 +55,7 @@ def build_orchestrator(
         policy_manager=policy_manager,
         restart_action=restart_mock,
         get_node_state=state_mock,
+        dataplane_probe=dataplane_probe,
         event_bus=event_bus,
         sleeper=lambda seconds: clock.advance(seconds),
         clock=clock,
@@ -96,6 +98,16 @@ def test_first_restart_allowed_and_records_bounded_evidence() -> None:
     assert evidence.escalation_required is False
     assert restart_mock.call_count == 1
     assert evidence.raw_values_redacted is True
+    assert evidence.post_action_dataplane_revalidation is not None
+    assert evidence.post_action_dataplane_revalidation.status == "not_attempted"
+    assert (
+        evidence.post_action_dataplane_revalidation.restored_dataplane_claim_allowed
+        is False
+    )
+    assert (
+        evidence.post_action_dataplane_revalidation.customer_traffic_claim_allowed
+        is False
+    )
 
 
 def test_recovery_success_publishes_redacted_eventbus_evidence(tmp_path) -> None:
@@ -124,6 +136,14 @@ def test_recovery_success_publishes_redacted_eventbus_evidence(tmp_path) -> None
     assert event.data["node_id_hash"] == evidence.node_id_hash
     assert event.data["policy_allowed"] is True
     assert event.data["success"] is True
+    assert event.data["dataplane_confirmed"] is False
+    assert event.data["post_action_dataplane_revalidated"] is False
+    assert (
+        event.data["post_action_dataplane_revalidation"][
+            "restored_dataplane_claim_allowed"
+        ]
+        is False
+    )
     assert (
         event.data["claim_gate"]["customer_traffic_restored"]
         == "UNPROVEN_AWAITING_DATAPLANE_PROOF"
@@ -162,6 +182,119 @@ def test_recovery_eventbus_source_is_visible_through_service_trace(tmp_path) -> 
     assert summary["runtime_evidence"]["bool_fields"]["policy_allowed"] is True
     assert summary["runtime_evidence"]["bool_fields"]["safe_mode_required"] is False
     assert summary["identity_evidence"]["hash_fields"] == ["node_id_hash"]
+
+
+def test_recovery_dataplane_probe_can_allow_restored_dataplane_claim(
+    tmp_path,
+) -> None:
+    clock = FakeClock()
+    event_bus = EventBus(project_root=str(tmp_path))
+    restart_mock = Mock(return_value=0)
+    dataplane_probe = Mock(
+        return_value={
+            "status": "ok",
+            "dataplane_confirmed": True,
+            "evidence": {
+                "source_agents": ["bounded-dataplane-probe"],
+                "event_ids": ["evt-proof-01"],
+                "events_total": 1,
+                "claim_boundary": "bounded dataplane probe evidence only",
+                "redacted": True,
+            },
+        }
+    )
+    state_mock = Mock(side_effect=[degraded_state(), healthy_state()])
+    orchestrator, _policy_manager = build_orchestrator(
+        state_mock,
+        restart_mock,
+        clock,
+        dataplane_probe=dataplane_probe,
+        event_bus=event_bus,
+    )
+
+    evidence = orchestrator.run_recovery_flow(
+        incident_id="inc-01",
+        incident_key="incident-vpn-loss",
+    )
+
+    revalidation = evidence.post_action_dataplane_revalidation
+    assert revalidation is not None
+    assert revalidation.status == "success"
+    assert revalidation.dataplane_confirmed is True
+    assert revalidation.restored_dataplane_claim_allowed is True
+    assert revalidation.customer_traffic_claim_allowed is False
+    assert (
+        evidence.claim_gate.customer_traffic_restored
+        == "UNPROVEN_AWAITING_DATAPLANE_PROOF"
+    )
+    assert evidence.escalation_required is False
+    assert dataplane_probe.call_count == 1
+
+    event = event_bus.get_event_history(source_agent=MESH_RECOVERY_SOURCE_AGENT)[0]
+    assert event.event_type == EventType.PIPELINE_STAGE_END
+    assert event.data["dataplane_confirmed"] is True
+    assert event.data["post_action_dataplane_revalidated"] is True
+    assert event.data["post_action_dataplane_revalidation"]["claim_gate"][
+        "customer_traffic_claim_allowed"
+    ] is False
+
+    trace = service_event_trace_history(
+        event_bus,
+        service_name=MESH_RECOVERY_SOURCE_AGENT,
+    )
+    summary = trace["events"][0]["evidence_summary"]
+    post_action = summary["post_action_dataplane_revalidation"]
+    assert post_action["dataplane_confirmed"] is True
+    assert post_action["restored_dataplane_claim_allowed"] is True
+    assert (
+        summary["cross_plane_evidence_profile"]["dataplane_confirmed"] is True
+    )
+
+
+def test_recovery_dataplane_probe_without_redacted_event_evidence_escalates(
+    tmp_path,
+) -> None:
+    clock = FakeClock()
+    event_bus = EventBus(project_root=str(tmp_path))
+    restart_mock = Mock(return_value=0)
+    dataplane_probe = Mock(
+        return_value={
+            "status": "ok",
+            "dataplane_confirmed": True,
+            "evidence": {
+                "source_agents": [],
+                "event_ids": [],
+                "events_total": 0,
+                "redacted": True,
+            },
+        }
+    )
+    state_mock = Mock(side_effect=[degraded_state(), healthy_state()])
+    orchestrator, _policy_manager = build_orchestrator(
+        state_mock,
+        restart_mock,
+        clock,
+        dataplane_probe=dataplane_probe,
+        event_bus=event_bus,
+    )
+
+    evidence = orchestrator.run_recovery_flow(
+        incident_id="inc-01",
+        incident_key="incident-vpn-loss",
+    )
+
+    revalidation = evidence.post_action_dataplane_revalidation
+    assert revalidation is not None
+    assert revalidation.status == "failed"
+    assert revalidation.dataplane_confirmed is True
+    assert revalidation.restored_dataplane_claim_allowed is False
+    assert "post_action_probe_evidence_missing" in revalidation.claim_gate.blockers
+    assert "post_action_probe_source_agent_missing" in revalidation.claim_gate.blockers
+    assert evidence.escalation_required is True
+
+    event = event_bus.get_event_history(source_agent=MESH_RECOVERY_SOURCE_AGENT)[0]
+    assert event.event_type == EventType.TASK_BLOCKED
+    assert event.data["stage"] == "recovery_escalated"
 
 
 def test_second_restart_forbidden_and_requires_safe_mode() -> None:
