@@ -20,12 +20,23 @@ npm run lint
 Built artifacts:
 
 - Android debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Android unsigned release APK: `android/app/build/outputs/apk/release/*.apk`
 - Ubuntu deb: `../src-tauri/target/release/bundle/deb/x0tta6bl4_0.1.0_amd64.deb`
 - Ubuntu AppImage: `../src-tauri/target/release/bundle/appimage/x0tta6bl4_0.1.0_amd64.AppImage`
+
+## GitHub Actions Status
+
+The `Native App Builds` workflow builds and uploads:
+
+- Android debug/release APKs, plus signed release AAB when Android signing secrets are configured.
+- Windows MSI on a Windows runner.
+- Ubuntu deb/AppImage on an Ubuntu runner.
+- iOS simulator app on a macOS runner, plus signed device `.ipa` when Apple signing secrets are configured.
 
 ## Platform Notes
 
 - Android builds locally after installing JDK 21 and Android SDK platform/build tools.
 - Ubuntu builds locally with Tauri v2 and WebKitGTK 4.1.
-- iOS sync works locally, but a real iOS archive requires macOS, Xcode, CocoaPods, and Apple signing.
+- iOS sync works locally, but a real device `.ipa` requires macOS, Xcode, CocoaPods, and Apple signing secrets.
 - Windows MSI requires a Windows build host. On Linux, Tauri exposes only Linux bundle targets such as `deb`, `rpm`, and `appimage`.
+- Signing setup is documented in `SIGNING.md`.

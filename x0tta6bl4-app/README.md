@@ -1,73 +1,59 @@
-# React + TypeScript + Vite
+# x0tta6bl4 App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`x0tta6bl4-app` is the shared React/Vite interface for the native x0tta6bl4 mesh clients.
 
-Currently, two official plugins are available:
+Native wrappers:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Android and iOS: Capacitor, app id `net.x0tta6bl4.mesh`
+- Windows and Ubuntu: Tauri v2, app id `net.x0tta6bl4.mesh`
 
-## React Compiler
+## Common Checks
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run build
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Android
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+ANDROID_HOME=/usr/lib/android-sdk \
+ANDROID_SDK_ROOT=/usr/lib/android-sdk \
+npm run android:build
 ```
+
+Unsigned release APK:
+
+```bash
+npm run android:release:unsigned
+```
+
+Signed release APK/AAB requires Android signing variables. See `SIGNING.md`.
+
+## iOS
+
+Linux can sync the native project:
+
+```bash
+npm run ios:sync
+```
+
+Real iOS builds require macOS/Xcode. The GitHub workflow builds an iOS simulator app by default and a signed device `.ipa` when Apple signing secrets are configured. See `SIGNING.md`.
+
+## Desktop
+
+Ubuntu:
+
+```bash
+npm run desktop:build:linux
+```
+
+Windows MSI:
+
+```bash
+npm run desktop:build:windows
+```
+
+The Windows command must run on a Windows host or CI runner.

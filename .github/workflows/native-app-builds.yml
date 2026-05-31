@@ -19,6 +19,11 @@ jobs:
   android:
     name: Android APK
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.X0T_ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.X0T_ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.X0T_ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.X0T_ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,11 +50,50 @@ jobs:
           chmod +x android/gradlew
           npm run android:build
 
-      - name: Upload Android APK
+      - name: Build unsigned Android release APK
+        working-directory: x0tta6bl4-app
+        run: |
+          chmod +x android/gradlew
+          npm run android:release:unsigned
+
+      - name: Decode Android release keystore
+        id: android_signing
+        working-directory: x0tta6bl4-app
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && \
+             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && \
+             [ -n "$ANDROID_KEY_ALIAS" ] && \
+             [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            mkdir -p android/app/signing
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/signing/release.keystore
+            echo "ANDROID_KEYSTORE_PATH=$PWD/android/app/signing/release.keystore" >> "$GITHUB_ENV"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Android release signing secrets are not configured; signed release build skipped."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed Android release APK and AAB
+        if: steps.android_signing.outputs.enabled == 'true'
+        working-directory: x0tta6bl4-app
+        run: |
+          chmod +x android/gradlew
+          npm run android:release:signed
+
+      - name: Upload Android APKs
         uses: actions/upload-artifact@v4
         with:
-          name: x0tta6bl4-android-debug-apk
-          path: x0tta6bl4-app/android/app/build/outputs/apk/debug/app-debug.apk
+          name: x0tta6bl4-android-apks
+          path: |
+            x0tta6bl4-app/android/app/build/outputs/apk/debug/*.apk
+            x0tta6bl4-app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload signed Android release bundle
+        if: steps.android_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-android-release-aab
+          path: x0tta6bl4-app/android/app/build/outputs/bundle/release/*.aab
 
   ubuntu-desktop:
     name: Ubuntu Desktop
@@ -157,3 +201,113 @@ jobs:
         with:
           name: x0tta6bl4-ios-simulator-app
           path: x0tta6bl4-app/ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+
+      - name: Check iOS device signing inputs
+        id: ios_signing
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+        run: |
+          if [ -n "$X0T_IOS_CERTIFICATE_P12_BASE64" ] && \
+             [ -n "$X0T_IOS_CERTIFICATE_PASSWORD" ] && \
+             [ -n "$X0T_IOS_PROVISIONING_PROFILE_BASE64" ] && \
+             [ -n "$X0T_IOS_TEAM_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "iOS device signing secrets are not configured; signed IPA build skipped."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import iOS signing material
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+          X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+          X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/x0tta6bl4-ios-signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/x0tta6bl4.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/x0tta6bl4.mobileprovision.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/x0tta6bl4-signing.keychain-db"
+
+          echo "$X0T_IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$X0T_IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$X0T_IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "X0T_IOS_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "X0T_IOS_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Build signed iOS device archive
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/x0tta6bl4.xcarchive \
+            DEVELOPMENT_TEAM="$X0T_IOS_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$X0T_IOS_BUNDLE_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$X0T_IOS_PROFILE_NAME" \
+            archive
+
+      - name: Export signed iOS IPA
+        if: steps.ios_signing.outputs.enabled == 'true'
+        env:
+          X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+          X0T_IOS_BUNDLE_ID: ${{ secrets.X0T_IOS_BUNDLE_ID || 'net.x0tta6bl4.mesh' }}
+          X0T_IOS_EXPORT_METHOD: ${{ secrets.X0T_IOS_EXPORT_METHOD || 'ad-hoc' }}
+        working-directory: x0tta6bl4-app/ios/App
+        run: |
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>$X0T_IOS_EXPORT_METHOD</string>
+            <key>teamID</key>
+            <string>$X0T_IOS_TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$X0T_IOS_BUNDLE_ID</key>
+              <string>$X0T_IOS_PROFILE_NAME</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/x0tta6bl4.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Upload signed iOS IPA
+        if: steps.ios_signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-ios-signed-ipa
+          path: x0tta6bl4-app/ios/App/build/ipa/*.ipa

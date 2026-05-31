@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+def androidReleaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
+def androidReleaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def androidReleaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def androidReleaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+def androidReleaseSigningConfigured = [
+    androidReleaseStoreFile,
+    androidReleaseStorePassword,
+    androidReleaseKeyAlias,
+    androidReleaseKeyPassword
+].every { it != null && it.trim() } && file(androidReleaseStoreFile ?: "").exists()
+
 android {
     namespace "net.x0tta6bl4.mesh"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,8 +27,21 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (androidReleaseSigningConfigured) {
+                storeFile file(androidReleaseStoreFile)
+                storePassword androidReleaseStorePassword
+                keyAlias androidReleaseKeyAlias
+                keyPassword androidReleaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (androidReleaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -51,4 +75,15 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+tasks.register("requireReleaseSigning") {
+    doLast {
+        if (!androidReleaseSigningConfigured) {
+            throw new GradleException(
+                "Android release signing is not configured. Set ANDROID_KEYSTORE_PATH, " +
+                "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD."
+            )
+        }
+    }
 }

@@ -9,6 +9,8 @@
     "mobile:sync": "npm run build && cap sync",
     "android:sync": "npm run build && cap sync android",
     "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:release:unsigned": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "android:release:signed": "npm run android:sync && cd android && ./gradlew requireReleaseSigning assembleRelease bundleRelease",
     "ios:sync": "npm run build && cap sync ios",
     "desktop:dev": "cd .. && tauri dev",
     "desktop:build": "cd .. && tauri build",
