@@ -219,7 +219,10 @@ def run(
 
     keystore = Path(args.keystore)
     store_password = password_factory()
-    key_password = password_factory()
+    # Android Gradle reads PKCS12 keys most reliably when the key password
+    # matches the store password. Separate key passwords can produce
+    # "Given final block not properly padded" at packageRelease time.
+    key_password = store_password
     generated, error = _generate_keystore(
         keystore=keystore,
         alias=args.alias,
@@ -233,6 +236,7 @@ def run(
     report["status"] = "GENERATED" if generated else "FAILED"
     report["keystore_generated"] = generated
     report["keystore_exists"] = keystore.exists()
+    report["key_password_matches_store_password"] = True
     if keystore.exists():
         report["keystore_size_bytes"] = keystore.stat().st_size
     if error:

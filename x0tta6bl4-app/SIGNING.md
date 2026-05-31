@@ -56,6 +56,8 @@ python3 scripts/ops/prepare_android_signing_secrets.py \
 
 The generated keystore and local env file are written under `.tmp/native-signing/android/` with owner-only permissions. Keep them backed up in a private password manager or secure vault. Losing the Android signing key can prevent users from upgrading already-installed release builds.
 
+The helper intentionally uses the same password for the PKCS12 keystore and key entry. This matches Android Gradle signing behavior and avoids release packaging failures when Gradle opens the key.
+
 Local signed build:
 
 ```bash

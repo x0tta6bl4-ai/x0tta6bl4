@@ -65,9 +65,7 @@ def test_generate_writes_owner_only_env_without_printing_values(tmp_path: Path) 
             str(env_path),
         ]
     )
-    passwords = iter(["store-secret", "key-secret"])
-
-    report = module.run(args, runner=runner, password_factory=lambda: next(passwords))
+    report = module.run(args, runner=runner, password_factory=lambda: "store-secret")
     rendered = json.dumps(report, sort_keys=True)
 
     assert report["status"] == "GENERATED"
@@ -76,8 +74,9 @@ def test_generate_writes_owner_only_env_without_printing_values(tmp_path: Path) 
     assert stat.S_IMODE(keystore.stat().st_mode) == 0o600
     assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
     assert "store-secret" not in rendered
-    assert "key-secret" not in rendered
     assert "store-secret" in env_path.read_text(encoding="utf-8")
+    assert "ANDROID_KEY_PASSWORD=store-secret" in env_path.read_text(encoding="utf-8")
+    assert report["key_password_matches_store_password"] is True
     assert calls and calls[0][0][0].endswith("keytool")
 
 
@@ -108,9 +107,7 @@ def test_set_github_secrets_uses_stdin_not_command_args(tmp_path: Path) -> None:
             "x0tta6bl4-ai/x0tta6bl4",
         ]
     )
-    passwords = iter(["store-secret", "key-secret"])
-
-    report = module.run(args, runner=runner, password_factory=lambda: next(passwords))
+    report = module.run(args, runner=runner, password_factory=lambda: "store-secret")
     gh_calls = [call for call in calls if call[0][:3] == ["gh", "secret", "set"]]
 
     assert report["github_secrets_ready"] is True
@@ -119,7 +116,6 @@ def test_set_github_secrets_uses_stdin_not_command_args(tmp_path: Path) -> None:
         rendered_command = " ".join(command)
         assert "--repo x0tta6bl4-ai/x0tta6bl4" in rendered_command
         assert "store-secret" not in rendered_command
-        assert "key-secret" not in rendered_command
         assert stdin_value
 
 
