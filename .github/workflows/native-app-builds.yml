@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
 
       - uses: actions/setup-java@v4
         with:
@@ -35,7 +37,7 @@ jobs:
 
       - name: Install web dependencies
         working-directory: x0tta6bl4-app
-        run: npm install
+        run: npm ci
 
       - name: Build Android debug APK
         working-directory: x0tta6bl4-app
@@ -56,6 +58,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -69,7 +73,7 @@ jobs:
 
       - name: Install web dependencies
         working-directory: x0tta6bl4-app
-        run: npm install
+        run: npm ci
 
       - name: Build Ubuntu desktop bundles
         working-directory: x0tta6bl4-app
@@ -92,12 +96,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install web dependencies
         working-directory: x0tta6bl4-app
-        run: npm install
+        run: npm ci
 
       - name: Build Windows MSI
         working-directory: x0tta6bl4-app
@@ -118,13 +124,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: x0tta6bl4-app/package-lock.json
 
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
       - name: Install web dependencies
         working-directory: x0tta6bl4-app
-        run: npm install
+        run: npm ci
 
       - name: Sync iOS native project
         working-directory: x0tta6bl4-app
