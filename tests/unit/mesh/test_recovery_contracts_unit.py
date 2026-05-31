@@ -220,6 +220,63 @@ def test_recovery_success_publishes_redacted_eventbus_evidence(tmp_path) -> None
     assert "node-uuid-4444-8888" not in json.dumps(event.data, sort_keys=True)
 
 
+def test_recovery_eventbus_records_service_identity_presence_without_values(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "MESH_RECOVERY_ORCHESTRATOR_SPIFFE_ID",
+        "spiffe://x0tta6bl4.mesh/workload/mesh-recovery-orchestrator",
+    )
+    monkeypatch.setenv(
+        "MESH_RECOVERY_ORCHESTRATOR_DID",
+        "did:mesh:recovery:orchestrator",
+    )
+    monkeypatch.setenv(
+        "MESH_RECOVERY_ORCHESTRATOR_WALLET_ADDRESS",
+        "0xRecoveryWallet",
+    )
+    clock = FakeClock()
+    event_bus = EventBus(project_root=str(tmp_path))
+    restart_mock = Mock(return_value=0)
+    state_mock = Mock(side_effect=[degraded_state(), healthy_state()])
+    orchestrator, _policy_manager = build_orchestrator(
+        state_mock,
+        restart_mock,
+        clock,
+        event_bus=event_bus,
+    )
+
+    orchestrator.run_recovery_flow(
+        incident_id="inc-01",
+        incident_key="incident-vpn-loss",
+    )
+
+    payload = event_bus.get_event_history(
+        source_agent=MESH_RECOVERY_SOURCE_AGENT,
+    )[0].data
+    assert payload["service_identity"] == {
+        "service_name": MESH_RECOVERY_SOURCE_AGENT,
+        "spiffe_id_configured": True,
+        "did_configured": True,
+        "wallet_address_configured": True,
+        "redacted": True,
+    }
+    assert payload["identity_fields_present"] == {
+        "node_id_hash": True,
+        "spiffe_id": True,
+        "did": True,
+        "wallet_address": True,
+    }
+    serialized = json.dumps(payload, sort_keys=True)
+    assert (
+        "spiffe://x0tta6bl4.mesh/workload/mesh-recovery-orchestrator"
+        not in serialized
+    )
+    assert "did:mesh:recovery:orchestrator" not in serialized
+    assert "0xRecoveryWallet" not in serialized
+
+
 def test_recovery_eventbus_source_is_visible_through_service_trace(tmp_path) -> None:
     clock = FakeClock()
     event_bus = EventBus(project_root=str(tmp_path))

@@ -34,6 +34,7 @@ from ..mesh.metric_evidence_policy import (
 )
 from ..mesh.network_manager import MeshNetworkManager
 from ..mesh.recovery_contracts import build_post_action_dataplane_claim_gate
+from ..mesh.recovery_orchestrator import MeshRecoveryOrchestrator
 from ..monitoring.prometheus_client import PrometheusExporter
 from ..security.zero_trust import ZeroTrustValidator
 from ..services.service_event_identity import service_event_identity

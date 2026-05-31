@@ -20,6 +20,7 @@ from src.mesh.recovery_contracts import (
     generate_node_id_hash,
 )
 from src.mesh.recovery_policy import RecoveryPolicyManager
+from src.services.service_event_identity import service_event_identity
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,18 @@ MESH_RECOVERY_DATAPLANE_CLAIM_BOUNDARY = (
     "as restored dataplane unless a bounded, redacted dataplane proof event is "
     "attached. Customer traffic still requires a separate end-to-end proof."
 )
+
+
+def _identity_metadata(service_name: str) -> dict[str, object]:
+    identity = service_event_identity(service_name=service_name)
+    return {
+        "service_name": service_name,
+        "spiffe_id_configured": bool(identity.get("spiffe_id")),
+        "did_configured": bool(identity.get("did")),
+        "wallet_address_configured": bool(identity.get("wallet_address")),
+        "redacted": True,
+    }
+
 
 class MeshRecoveryOrchestrator:
     """Run observe -> policy -> action -> revalidate -> evidence."""
@@ -177,6 +190,7 @@ class MeshRecoveryOrchestrator:
             status = "failed"
 
         policy = evidence.policy_decision
+        service_identity = _identity_metadata(self.source_agent)
         return {
             "schema": MESH_RECOVERY_EVENTBUS_SCHEMA,
             "recovery_evidence_schema": evidence.schema,
@@ -202,6 +216,14 @@ class MeshRecoveryOrchestrator:
             "escalation_required": evidence.escalation_required,
             "node_id_hash": evidence.node_id_hash,
             "identity": {"node_id_hash": evidence.node_id_hash},
+            "identity_fields_present": {
+                "node_id_hash": bool(evidence.node_id_hash),
+                "spiffe_id": bool(service_identity["spiffe_id_configured"]),
+                "did": bool(service_identity["did_configured"]),
+                "wallet_address": bool(service_identity["wallet_address_configured"]),
+            },
+            "service_identity": service_identity,
+            "observed_state": True,
             "before": evidence.before.model_dump(mode="json"),
             "after": evidence.after.model_dump(mode="json"),
             "claim_gate": evidence.claim_gate.model_dump(mode="json"),
