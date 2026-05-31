@@ -9,7 +9,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +67,48 @@ class SafeSubprocess:
         "where",
         "echo",
         "cat",
+        "ipconfig",
+        "iptables",
         "ls",
         "pwd",
+        "resolvectl",
+        "scutil",
         "sleep",
+        "systemctl",
         "false",
         "true",
         "test",
     }
 
+    TRUSTED_COMMAND_DIRS = {
+        "/bin",
+        "/usr/bin",
+        "/usr/local/bin",
+        "/sbin",
+        "/usr/sbin",
+    }
+
+    REDACTED = "[REDACTED]"
+    SENSITIVE_ARG_NAMES = {
+        "--password",
+        "--passwd",
+        "--token",
+        "--access-token",
+        "--refresh-token",
+        "--secret",
+        "--client-secret",
+        "--api-key",
+        "--key",
+        "--private-key",
+    }
+    STDIN_SECRET_FLAGS = {"--password-stdin"}
+    SENSITIVE_VALUE_PATTERN = re.compile(
+        r"(?i)\b([a-z0-9_.-]*(?:password|passwd|token|secret|api[_-]?key|"
+        r"access[_-]?key|private[_-]?key|credential)[a-z0-9_.-]*)(=|:)[^\s,]+"
+    )
+
     # Разрешённые символы в строковых параметрах
-    SAFE_STRING_PATTERN = re.compile(r"^[a-zA-Z0-9._:@/=-]+$")
+    SAFE_STRING_PATTERN = re.compile(r"^[a-zA-Z0-9._:@/+=~,()-]+$")
 
     # Максимальная длина параметра
     MAX_PARAM_LENGTH = 200
@@ -113,7 +145,8 @@ class SafeSubprocess:
         if not cls.SAFE_STRING_PATTERN.match(value):
             raise ValidationError(
                 f"{param_name} contains unsafe characters: {value!r}. "
-                f"Only alphanumeric, dot, dash, underscore, colon, @, / allowed"
+                "Only alphanumeric, dot, dash, underscore, colon, @, /, "
+                "=, +, ~, comma, and parentheses allowed"
             )
 
         # Проверка на опасные последовательности
@@ -148,17 +181,14 @@ class SafeSubprocess:
             ValidationError: Если команда не прошла валидацию
             SecurityError: Если команда не в whitelist
         """
-        if not cmd:
-            raise ValidationError("Command cannot be empty")
-
         if not isinstance(cmd, list):
             raise ValidationError("Command must be a list of strings")
 
-        # Проверка базовой команды
-        base_cmd = cmd[0]
+        if not cmd:
+            raise ValidationError("Command cannot be empty")
 
-        # Извлекаем имя команды из пути
-        cmd_name = base_cmd.split("/")[-1]
+        # Проверка базовой команды
+        cmd_name = cls._resolve_command_name(cmd[0])
 
         if cmd_name not in cls.ALLOWED_COMMANDS:
             raise SecurityError(
@@ -169,6 +199,81 @@ class SafeSubprocess:
         # Валидация всех аргументов
         for i, arg in enumerate(cmd[1:], 1):
             cls.validate_safe_string(arg, f"arg[{i}]")
+
+    @classmethod
+    def _resolve_command_name(cls, base_cmd: str) -> str:
+        if not isinstance(base_cmd, str):
+            raise ValidationError(
+                f"Command executable must be string, got {type(base_cmd)}"
+            )
+
+        if not base_cmd:
+            raise ValidationError("Command executable cannot be empty")
+
+        if "/" in base_cmd or "\\" in base_cmd:
+            normalized_path = os.path.normpath(base_cmd)
+            command_dir = os.path.dirname(normalized_path)
+            cmd_name = os.path.basename(normalized_path)
+            if (
+                not os.path.isabs(normalized_path)
+                or command_dir not in cls.TRUSTED_COMMAND_DIRS
+            ):
+                raise SecurityError(
+                    "Command path is not trusted. Use a bare executable name "
+                    f"or one of: {', '.join(sorted(cls.TRUSTED_COMMAND_DIRS))}"
+                )
+        else:
+            cmd_name = base_cmd
+
+        cls.validate_safe_string(cmd_name, "command")
+        return cmd_name
+
+    @classmethod
+    def redact_sensitive_text(cls, value: object) -> str:
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="replace")
+        elif not isinstance(value, str):
+            value = str(value)
+
+        return cls.SENSITIVE_VALUE_PATTERN.sub(
+            lambda match: f"{match.group(1)}{match.group(2)}{cls.REDACTED}",
+            value,
+        )
+
+    @classmethod
+    def sanitize_command_for_log(cls, cmd: Sequence[str]) -> str:
+        sanitized: List[str] = []
+        redact_next = False
+
+        for raw_arg in cmd:
+            arg = str(raw_arg)
+            lower_arg = arg.lower()
+
+            if redact_next:
+                sanitized.append(cls.REDACTED)
+                redact_next = False
+                continue
+
+            if lower_arg in cls.STDIN_SECRET_FLAGS:
+                sanitized.append(arg)
+                continue
+
+            if lower_arg in cls.SENSITIVE_ARG_NAMES:
+                sanitized.append(arg)
+                redact_next = True
+                continue
+
+            if any(
+                lower_arg.startswith(f"{flag}=")
+                for flag in cls.SENSITIVE_ARG_NAMES | cls.STDIN_SECRET_FLAGS
+            ):
+                key, _value = arg.split("=", 1)
+                sanitized.append(f"{key}={cls.REDACTED}")
+                continue
+
+            sanitized.append(cls.redact_sensitive_text(arg))
+
+        return " ".join(sanitized)
 
     @classmethod
     def run(
@@ -215,8 +320,9 @@ class SafeSubprocess:
             env["LC_ALL"] = "C"
             env["LANG"] = "C"
 
-        # Логирование (безопасное)
-        logger.info(f"Executing: {' '.join(cmd)}")
+        # Логирование без раскрытия токенов, паролей и ключей.
+        safe_command_for_log = cls.sanitize_command_for_log(cmd)
+        logger.info(f"Executing: {safe_command_for_log}")
 
         try:
             result = subprocess.run(
@@ -235,12 +341,15 @@ class SafeSubprocess:
 
             if not success:
                 logger.warning(
-                    f"Command failed with code {result.returncode}: {' '.join(cmd)}"
+                    f"Command failed with code {result.returncode}: "
+                    f"{safe_command_for_log}"
                 )
                 if result.stderr:
-                    logger.warning(f"Stderr: {result.stderr[:500]}")
+                    logger.warning(
+                        f"Stderr: {cls.redact_sensitive_text(result.stderr[:500])}"
+                    )
             else:
-                logger.debug(f"Command succeeded: {' '.join(cmd)}")
+                logger.debug(f"Command succeeded: {safe_command_for_log}")
 
             if check and not success:
                 raise subprocess.CalledProcessError(
@@ -256,10 +365,12 @@ class SafeSubprocess:
             )
 
         except subprocess.TimeoutExpired:
-            logger.error(f"Command timeout after {timeout}s: {' '.join(cmd)}")
+            logger.error(f"Command timeout after {timeout}s: {safe_command_for_log}")
             raise
         except Exception as e:
-            logger.error(f"Command execution failed: {e}")
+            logger.error(
+                "Command execution failed: %s", cls.redact_sensitive_text(str(e))
+            )
             raise
 
     @classmethod
