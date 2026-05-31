@@ -6,12 +6,14 @@ on:
     branches: [ main, develop, "sync-main-*" ]
     paths:
       - ".github/workflows/native-app-builds.yml"
+      - "scripts/ops/check_native_signing_readiness.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
   pull_request:
     branches: [ main, develop, "sync-main-*" ]
     paths:
       - ".github/workflows/native-app-builds.yml"
+      - "scripts/ops/check_native_signing_readiness.py"
       - "src-tauri/**"
       - "x0tta6bl4-app/**"
 
@@ -19,6 +21,34 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  signing-readiness:
+    name: Native Signing Readiness
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.X0T_ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.X0T_ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.X0T_ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.X0T_ANDROID_KEY_PASSWORD }}
+      X0T_IOS_CERTIFICATE_P12_BASE64: ${{ secrets.X0T_IOS_CERTIFICATE_P12_BASE64 }}
+      X0T_IOS_CERTIFICATE_PASSWORD: ${{ secrets.X0T_IOS_CERTIFICATE_PASSWORD }}
+      X0T_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.X0T_IOS_PROVISIONING_PROFILE_BASE64 }}
+      X0T_IOS_TEAM_ID: ${{ secrets.X0T_IOS_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check native signing readiness
+        run: |
+          python3 scripts/ops/check_native_signing_readiness.py \
+            --source env-ci \
+            --json \
+            --output .tmp/native-signing-readiness/native-signing-readiness.json
+
+      - name: Upload native signing readiness report
+        uses: actions/upload-artifact@v4
+        with:
+          name: x0tta6bl4-native-signing-readiness
+          path: .tmp/native-signing-readiness/native-signing-readiness.json
+
   android:
     name: Android APK
     runs-on: ubuntu-latest
