@@ -181,11 +181,17 @@
     },
     "safe_actuator": {
       "path": "src/integration/spine.py",
-      "contract": "SafeActuator and AsyncSafeActuator normalize action execution results before control-plane components treat actions as applied.",
+      "contract": "SafeActuator and AsyncSafeActuator normalize action execution results before control-plane components treat actions as applied, and SafeActuatorResult now carries typed redacted SafeActuatorEvidenceMetadata for claim gates, cross-plane gates, bounded evidence refs, source agents, event IDs, and claim boundaries.",
       "source_refs": [
-        "src/integration/spine.py:85",
-        "src/integration/spine.py:123",
-        "src/integration/spine.py:155"
+        "src/integration/spine.py:31",
+        "src/integration/spine.py:162",
+        "src/integration/spine.py:174",
+        "src/integration/spine.py:212",
+        "src/integration/spine.py:225",
+        "src/integration/spine.py:271",
+        "src/integration/spine.py:299",
+        "src/integration/spine.py:304",
+        "src/integration/spine.py:334"
       ]
     }
   },
@@ -1733,7 +1739,7 @@
     {
       "path": "src/integration/spine.py",
       "layer": "control_plane",
-      "role": "Local control spine publishes staged outcomes and owns SafeActuator classes reused by other layers.",
+      "role": "Local control spine publishes staged outcomes and owns SafeActuator classes reused by other layers; SafeActuatorResult now carries typed redacted evidence metadata so guarded actions can move claim gates and bounded evidence references through the actuator result instead of caller-specific side channels.",
       "markers": [
         "event_bus",
         "safe_actuator",
@@ -1741,9 +1747,11 @@
       ],
       "source_refs": [
         "src/integration/spine.py:14",
-        "src/integration/spine.py:123",
-        "src/integration/spine.py:155",
-        "src/integration/spine.py:511"
+        "src/integration/spine.py:162",
+        "src/integration/spine.py:225",
+        "src/integration/spine.py:271",
+        "src/integration/spine.py:304",
+        "src/integration/spine.py:646"
       ]
     },
     {
@@ -4302,9 +4310,10 @@
     },
     {
       "id": "safe-actuator-is-cross-layer-not-local",
-      "summary": "SafeActuator is defined in IntegrationSpine but reused by API, DAO, network, security, self-healing, server, and swarm components.",
+      "summary": "SafeActuator is defined in IntegrationSpine but reused by API, DAO, network, security, self-healing, server, and swarm components. SafeActuatorResult now has a typed redacted evidence metadata field, but adoption is still incremental across those callers.",
       "source_refs": [
-        "src/integration/spine.py:123",
+        "src/integration/spine.py:225",
+        "src/integration/spine.py:271",
         "src/api/maas_governance.py:364",
         "src/network/mptcp_manager.py:445",
         "src/security/spiffe/agent/manager.py:337",

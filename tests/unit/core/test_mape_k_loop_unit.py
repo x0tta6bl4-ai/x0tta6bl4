@@ -619,6 +619,71 @@ class TestExecutePhase:
         assert gate["production_readiness_claim_allowed"] is False
 
     @pytest.mark.asyncio
+    async def test_run_control_action_prefers_safe_actuator_typed_claim_gate(self, loop):
+        from src.core.mape_k_loop import _local_healing_post_action_claim_gate
+        from src.integration.spine import (
+            SafeActuatorEvidenceMetadata,
+            SafeActuatorResult,
+        )
+        from src.mesh.recovery_contracts import (
+            build_post_action_dataplane_claim_gate,
+        )
+
+        typed_gate = build_post_action_dataplane_claim_gate(
+            probe_required=True,
+            probe_enabled=True,
+            probe_target_present=True,
+            probe_attempted=True,
+            dataplane_confirmed=True,
+            evidence={
+                "event_ids": ["evt-probe-1"],
+                "source_agents": ["recovery-dataplane-probe"],
+                "events_total": 1,
+                "redacted": True,
+            },
+            claim_boundary="bounded test dataplane proof only",
+            local_action_applied=True,
+        ).model_dump(mode="json")
+        typed_gate["operation"] = "trigger_aggressive_healing"
+
+        async def executor():
+            return SafeActuatorResult(
+                success=True,
+                evidence_metadata=SafeActuatorEvidenceMetadata.from_value(
+                    {
+                        "claim_gate": typed_gate,
+                        "evidence": typed_gate["evidence"],
+                        "claim_boundary": typed_gate["claim_boundary"],
+                        "redacted": True,
+                    }
+                ),
+            )
+
+        await loop._run_control_action(
+            "trigger_aggressive_healing",
+            {"healing_mode": "aggressive"},
+            executor,
+            directives={"mesh_metric_evidence_policy": _mesh_metric_policy()},
+            claim_gate=_local_healing_post_action_claim_gate(
+                "trigger_aggressive_healing"
+            ),
+        )
+
+        event = _latest_core_mapek_event(
+            loop.event_bus,
+            operation="trigger_aggressive_healing",
+        )
+        revalidation = event.data["post_action_dataplane_revalidation"]
+        gate = revalidation["claim_gate"]
+
+        assert revalidation["post_action_dataplane_revalidated"] is True
+        assert revalidation["restored_dataplane_claim_allowed"] is True
+        assert gate["operation"] == "trigger_aggressive_healing"
+        assert gate["decision"] == "RESTORED_DATAPLANE_CLAIM_ALLOWED"
+        assert gate["evidence"]["event_ids"] == ["evt-probe-1"]
+        assert gate["evidence"]["source_agents"] == ["recovery-dataplane-probe"]
+
+    @pytest.mark.asyncio
     async def test_execute_preemptive_healing(self, loop):
         directives = {
             "preemptive_healing": True,

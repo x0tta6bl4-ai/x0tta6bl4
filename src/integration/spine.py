@@ -28,6 +28,19 @@ SPINE_STRONG_CLAIM_IDS = (
     "dpi_bypass",
     "settlement_finality",
 )
+SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA = (
+    "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+)
+
+
+def _safe_string_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _safe_dict(value: Any) -> Dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _spine_claim_gate(
@@ -147,10 +160,76 @@ class SpineRequest:
 
 
 @dataclass(frozen=True)
+class SafeActuatorEvidenceMetadata:
+    """Redacted claim/evidence metadata carried by guarded action results."""
+
+    claim_gate: Dict[str, Any] = field(default_factory=dict)
+    cross_plane_claim_gate: Dict[str, Any] = field(default_factory=dict)
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    source_agents: List[str] = field(default_factory=list)
+    event_ids: List[str] = field(default_factory=list)
+    claim_boundary: str = ""
+    redacted: bool = True
+
+    @classmethod
+    def from_value(cls, value: Any) -> "SafeActuatorEvidenceMetadata":
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, dict):
+            return cls()
+
+        envelope = value.get("safe_actuator_evidence") or value.get(
+            "evidence_metadata"
+        )
+        raw = envelope if isinstance(envelope, dict) else value
+        evidence = _safe_dict(raw.get("evidence"))
+        claim_gate = _safe_dict(raw.get("claim_gate"))
+        cross_plane_claim_gate = _safe_dict(raw.get("cross_plane_claim_gate"))
+
+        event_ids = _safe_string_list(raw.get("event_ids")) or _safe_string_list(
+            evidence.get("event_ids")
+        )
+        source_agents = _safe_string_list(
+            raw.get("source_agents")
+        ) or _safe_string_list(evidence.get("source_agents"))
+        claim_boundary = str(
+            raw.get("claim_boundary")
+            or claim_gate.get("claim_boundary")
+            or evidence.get("claim_boundary")
+            or ""
+        )
+
+        return cls(
+            claim_gate=claim_gate,
+            cross_plane_claim_gate=cross_plane_claim_gate,
+            evidence=evidence,
+            source_agents=source_agents,
+            event_ids=event_ids,
+            claim_boundary=claim_boundary,
+            redacted=raw.get("redacted") is not False,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schema": SAFE_ACTUATOR_EVIDENCE_METADATA_SCHEMA,
+            "claim_gate": dict(self.claim_gate),
+            "cross_plane_claim_gate": dict(self.cross_plane_claim_gate),
+            "evidence": dict(self.evidence),
+            "source_agents": list(self.source_agents),
+            "event_ids": list(self.event_ids),
+            "claim_boundary": self.claim_boundary,
+            "redacted": self.redacted,
+        }
+
+
+@dataclass(frozen=True)
 class SafeActuatorResult:
     success: bool
     reason: str = ""
     simulated: bool = False
+    evidence_metadata: SafeActuatorEvidenceMetadata = field(
+        default_factory=SafeActuatorEvidenceMetadata
+    )
 
 
 @dataclass(frozen=True)
@@ -217,6 +296,7 @@ class SafeActuator:
                 success=bool(raw.get("success", raw.get("ok", False))),
                 reason=str(raw.get("reason", "")),
                 simulated=bool(raw.get("simulated", simulated)),
+                evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
         return SafeActuatorResult(bool(raw), simulated=simulated)
 
@@ -251,6 +331,7 @@ class AsyncSafeActuator:
                 success=bool(raw.get("success", raw.get("ok", False))),
                 reason=str(raw.get("reason", raw.get("error", "")) or ""),
                 simulated=bool(raw.get("simulated", simulated)),
+                evidence_metadata=SafeActuatorEvidenceMetadata.from_value(raw),
             )
         return SafeActuatorResult(bool(raw), simulated=simulated)
 

@@ -20,7 +20,11 @@ warnings.warn(
 
 from ..coordination.events import EventBus, EventType, get_event_bus
 from ..dao.ipfs_logger import DAOAuditLogger
-from ..integration.spine import AsyncSafeActuator, SafeActuatorResult
+from ..integration.spine import (
+    AsyncSafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from ..mesh.metric_evidence_policy import (
     MESH_METRIC_POLICY_KEY,
     build_mesh_metric_evidence_policy,
@@ -400,6 +404,7 @@ def _safe_result_summary(raw: Any) -> Dict[str, Any]:
             "success": bool(raw.success),
             "simulated": bool(raw.simulated),
             "reason_redacted": bool(raw.reason),
+            "evidence_metadata": raw.evidence_metadata.to_dict(),
         }
     if hasattr(raw, "success"):
         return {
@@ -469,6 +474,15 @@ def _safe_post_action_claim_gate(gate: Dict[str, Any] | None) -> Dict[str, Any] 
     )
     normalized["redacted"] = True
     return normalized
+
+
+def _safe_actuator_claim_gate(
+    actuator_result: SafeActuatorResult,
+    fallback_claim_gate: Dict[str, Any] | None,
+) -> Dict[str, Any] | None:
+    if actuator_result.evidence_metadata.claim_gate:
+        return actuator_result.evidence_metadata.claim_gate
+    return fallback_claim_gate
 
 
 def _raw_success(raw: Any) -> bool:
@@ -1071,7 +1085,25 @@ class MAPEKLoop:
             if inspect.isawaitable(raw):
                 raw = await raw
             raw_holder["raw"] = raw
-            return SafeActuatorResult(success=_raw_success(raw))
+            if isinstance(raw, SafeActuatorResult):
+                return raw
+            evidence_metadata = SafeActuatorEvidenceMetadata.from_value(raw)
+            if not evidence_metadata.claim_gate and claim_gate:
+                evidence_metadata = SafeActuatorEvidenceMetadata.from_value(
+                    {
+                        "claim_gate": claim_gate,
+                        "claim_boundary": (
+                            str(claim_gate.get("claim_boundary", ""))
+                            if isinstance(claim_gate, dict)
+                            else ""
+                        ),
+                        "redacted": True,
+                    }
+                )
+            return SafeActuatorResult(
+                success=_raw_success(raw),
+                evidence_metadata=evidence_metadata,
+            )
 
         actuator_result = await AsyncSafeActuator(_executor).execute(operation, context)
         duration_ms = (time.monotonic() - started) * 1000
@@ -1112,7 +1144,7 @@ class MAPEKLoop:
             ),
             reason=actuator_result.reason,
             error_type=None if success else "SafeActuatorFailure",
-            claim_gate=claim_gate,
+            claim_gate=_safe_actuator_claim_gate(actuator_result, claim_gate),
         )
         return raw_result, actuator_result
 
