@@ -1177,6 +1177,63 @@ def check_ebpf_telemetry_loss_fail_closed_contract(root: Path) -> list[CheckResu
     ]
 
 
+def check_ebpf_map_freeze_guard_contract(root: Path) -> list[CheckResult]:
+    guard = _read(root, "src/network/ebpf/map_freeze_guard.py")
+    required = {
+        "claim_boundary": (
+            "EBPF_MAP_FREEZE_CLAIM_BOUNDARY" in guard
+            and "Local eBPF map-freeze action evidence only" in guard
+        ),
+        "shell_free_command_builder": (
+            "def build_bpftool_map_freeze_command(" in guard
+            and '["bpftool", "map", "freeze", "name", map_name]' in guard
+        ),
+        "map_name_validation": (
+            "def _validate_map_name(" in guard
+            and "invalid_map_name" in guard
+        ),
+        "shell_disabled": (
+            "subprocess.run(" in guard
+            and "shell=False" in guard
+            and "shell=True" not in guard
+        ),
+        "fail_closed_errors": (
+            "bpftool_unavailable" in guard
+            and "bpftool_timeout" in guard
+            and "bpftool_freeze_failed" in guard
+        ),
+        "claim_gate_blocks_overclaims": (
+            '"map_poisoning_prevention_claim_allowed": False' in guard
+            and '"complete_kernel_tamper_resistance_claim_allowed": False' in guard
+            and '"production_security_coverage_claim_allowed": False' in guard
+            and '"fail_closed": True' in guard
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "ebpf_map_freeze_guard_contract",
+                (
+                    "eBPF map-freeze guard must validate map names, call "
+                    "bpftool without a shell, fail closed, and block broad "
+                    "production security claims: " + ", ".join(missing)
+                ),
+                "src/network/ebpf/map_freeze_guard.py",
+            )
+        ]
+    return [
+        pass_check(
+            "ebpf_map_freeze_guard_contract",
+            (
+                "eBPF map-freeze guard validates map names, uses shell-free "
+                "bpftool freeze, fails closed, and keeps claims bounded"
+            ),
+            "src/network/ebpf/map_freeze_guard.py",
+        )
+    ]
+
+
 def check_maas_telemetry_claim_gate_contract(root: Path) -> list[CheckResult]:
     maas_telemetry = _read_with_optional(
         root,
@@ -5579,6 +5636,7 @@ def build_report(
         checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
+        checks.extend(check_ebpf_map_freeze_guard_contract(root))
         checks.extend(check_maas_telemetry_claim_gate_contract(root))
         checks.extend(check_mesh_api_claim_gate_contract(root))
         checks.extend(check_status_api_claim_gate_contract(root))

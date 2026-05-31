@@ -141,6 +141,43 @@ class EBPFTelemetryCollector:
     )
     _write(
         root,
+        "src/network/ebpf/map_freeze_guard.py",
+        """
+import subprocess
+
+EBPF_MAP_FREEZE_CLAIM_BOUNDARY = "Local eBPF map-freeze action evidence only"
+
+def _validate_map_name(map_name):
+    return bool(map_name)
+
+def build_bpftool_map_freeze_command(map_name):
+    if not _validate_map_name(map_name):
+        raise ValueError("invalid_map_name")
+    return ["bpftool", "map", "freeze", "name", map_name]
+
+def freeze_map_by_name(map_name):
+    try:
+        subprocess.run(
+            build_bpftool_map_freeze_command(map_name),
+            shell=False,
+            check=False,
+        )
+    except FileNotFoundError:
+        reason = "bpftool_unavailable"
+    except TimeoutError:
+        reason = "bpftool_timeout"
+    except Exception:
+        reason = "bpftool_freeze_failed"
+    return {
+        "map_poisoning_prevention_claim_allowed": False,
+        "complete_kernel_tamper_resistance_claim_allowed": False,
+        "production_security_coverage_claim_allowed": False,
+        "fail_closed": True,
+    }
+""",
+    )
+    _write(
+        root,
         "Dockerfile.vpn",
         "COPY services/nl-server/ghost-vpn/ghost_vpn_protocol.py src/network/ghost_vpn_protocol.py\n",
     )
@@ -6880,6 +6917,39 @@ class PerfBufferReader:
     ]
     assert "dropped/overflowed" in blocker["details"]
     assert "unparseable events" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_ebpf_map_freeze_guard_contract_blocks_unsafe_wrapper(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/network/ebpf/map_freeze_guard.py",
+        """
+import subprocess
+
+def freeze_map_by_name(map_name):
+    return subprocess.run("bpftool map freeze name " + map_name, shell=True)
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "ebpf_map_freeze_guard_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "ebpf_map_freeze_guard_contract"
+    ]
+    assert "validate map names" in blocker["details"]
+    assert "without a shell" in blocker["details"]
     assert report["ready"] is False
 
 
