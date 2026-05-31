@@ -296,10 +296,12 @@ class RegisterResponse(BaseModel):
 
 class UserProfileResponse(BaseModel):
     """User profile response."""
+    id: Optional[str] = None
     user_id: str
     email: str
     name: Optional[str] = None
     plan: str
+    requests_count: int = 0
     created_at: Optional[str] = None
 
 
@@ -311,6 +313,7 @@ class ApiKeyRotateRequest(BaseModel):
 class ApiKeyRotateResponse(BaseModel):
     """API key rotation response."""
     api_key: str
+    created_at: Optional[str] = None
     message: str
 
 

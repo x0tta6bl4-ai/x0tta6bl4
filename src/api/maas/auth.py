@@ -63,6 +63,16 @@ class UserContext:
             self.authenticated_at = datetime.utcnow()
 
     @property
+    def id(self) -> str:
+        """Compatibility alias for DB-backed helpers that expect User.id."""
+        return self.user_id
+
+    @property
+    def role(self) -> str:
+        """Compatibility role for owner-scoped modular MaaS helpers."""
+        return "user"
+
+    @property
     def is_authenticated(self) -> bool:
         """Check if user is authenticated."""
         return bool(self.user_id)
@@ -123,7 +133,7 @@ async def get_current_user(
     """
     auth_service = get_auth_service()
 
-    # Try API Key first
+    # Try API Key first (or session token in X-API-Key header for compatibility)
     if api_key:
         key_data = auth_service.validate_api_key(api_key)
         if key_data:
@@ -132,9 +142,20 @@ async def get_current_user(
                 plan=key_data["plan"],
                 api_key=api_key,
             )
+
+        # Backward compatibility: check if it's a session token
+        session = auth_service.validate_session(api_key)
+        if session:
+            return UserContext(
+                user_id=session["user_id"],
+                plan=session.get("plan", "unknown"),
+                api_key=None,
+                session_token=api_key,
+            )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
+            detail="Invalid API key or session token",
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
@@ -144,7 +165,7 @@ async def get_current_user(
         if session:
             return UserContext(
                 user_id=session["user_id"],
-                plan="unknown",  # Plan from session or lookup
+                plan=session.get("plan", "unknown"),
                 session_token=bearer.credentials,
             )
         raise HTTPException(
@@ -193,7 +214,7 @@ async def get_optional_user(
         if session:
             return UserContext(
                 user_id=session["user_id"],
-                plan="unknown",
+                plan=session.get("plan", "unknown"),
                 session_token=bearer.credentials,
             )
 

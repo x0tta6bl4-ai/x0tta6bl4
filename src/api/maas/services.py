@@ -1562,11 +1562,9 @@ class AuthService:
             db = SessionLocal()
             try:
                 user = db.query(User).filter(User.id == user_id).first()
-                if not user:
-                    return None
-                
-                # Enforce subscription expiration
-                if user.expires_at and user.expires_at < datetime.utcnow():
+                # Modular MaaS auth keeps users in its local auth store. Legacy
+                # DB rows are optional here; if one exists, enforce its expiry.
+                if user and user.expires_at and user.expires_at < datetime.utcnow():
                     logger.warning("🚫 Access denied: subscription expired")
                     return None
             except Exception as e:
@@ -1604,7 +1602,12 @@ class AuthService:
         deleted_shared = self._shared_state.delete(self._api_key_store_key(api_key))
         return deleted_local or deleted_shared
 
-    def create_session(self, user_id: str, ttl_hours: int = 24) -> str:
+    def create_session(
+        self,
+        user_id: str,
+        ttl_hours: int = 24,
+        plan: Optional[str] = None,
+    ) -> str:
         """Create a new session token."""
         token = secrets.token_urlsafe(32)
         expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
@@ -1614,6 +1617,8 @@ class AuthService:
             "created_at": datetime.utcnow().isoformat(),
             "expires_at": expires_at.isoformat(),
         }
+        if plan:
+            session_record["plan"] = plan
         self._sessions[token] = session_record
         self._evict_oldest(self._sessions, self._max_sessions)
         ttl_seconds = max(1, int((expires_at - datetime.utcnow()).total_seconds()))
@@ -1649,6 +1654,15 @@ class AuthService:
         self._sessions.move_to_end(token)
         self._evict_oldest(self._sessions, self._max_sessions)
         return session
+
+    def update_user_plan(self, user_id: str, plan: str) -> None:
+        """Update local auth records for an in-memory modular MaaS user."""
+        for key_data in self._api_keys.values():
+            if key_data.get("user_id") == user_id:
+                key_data["plan"] = plan
+        for session_data in self._sessions.values():
+            if session_data.get("user_id") == user_id:
+                session_data["plan"] = plan
 
     def end_session(self, token: str) -> bool:
         """End a session."""

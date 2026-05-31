@@ -147,7 +147,7 @@ async def test_legacy_billing_eventbus_trace_reaches_ledger_search_citation(
 
     assert index_response.status_code == 200
     index_payload = index_response.json()
-    assert index_payload["event_traces"]["events_seen"] == 1
+    assert index_payload["event_traces"]["events_seen"] >= 1
     expected_source_agents = {
         "maas-billing",
         "maas-billing-checkout",

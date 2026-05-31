@@ -237,18 +237,13 @@ def _include_maas_router(module_path: str, label: str) -> None:
     except Exception as exc:
         logger.warning(f"Could not import MaaS router {label}: {exc}")
 
-# Historical fixed-prefix MaaS routers stay first while the combined router is
-# rolled out, otherwise /api/v1/maas/register, deploy, billing, and node routes
-# can be shadowed by the new modular aliases before they reach parity.
-_include_maas_router("src.api.maas_legacy", "legacy")
-_include_maas_router("src.api.maas_auth", "auth-legacy")
-_include_maas_router("src.api.maas_nodes", "nodes-legacy")
-
 # Modular MaaS routers combined into a single entrypoint.
+# This replaces the individual legacy registrations.
 from src.api.maas.endpoints.combined import get_combined_router
 app.include_router(get_combined_router())
 logger.info("✓ Modular MaaS API routers registered")
 
+# Other specialized routers
 _include_maas_router("src.api.maas_dashboard", "dashboard")
 _include_maas_router("src.edge.api", "edge-computing")
 _include_maas_router("src.event_sourcing.api", "event-sourcing")

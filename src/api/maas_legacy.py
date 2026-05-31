@@ -2756,8 +2756,6 @@ def get_node_config(
         result_summary=_node_config_summary_for_evidence(response),
     )
     return response
-
-
 def heartbeat(
     req: NodeHeartbeatRequest,
     current_user: Optional[User] = None,
@@ -3539,388 +3537,21 @@ def _legacy_readiness_status(db: Any) -> Dict[str, Any]:
     }
 
 
-
-@router.get("/readiness")
-async def maas_legacy_readiness(request: Request, db: Session = Depends(get_db)):
-    """Return local dependency readiness for legacy MaaS."""
-    payload = _legacy_readiness_status(db)
-    for dependency in payload["degraded_dependencies"]:
-        mark_degraded_dependency(request, dependency)
-    return payload
-
-
-@router.post("/register", response_model=TokenResponse)
-async def legacy_register(req: UserRegisterRequest, db: Session = Depends(get_db)):
-    user = auth_service.register(db, req)
-    return {
-        "access_token": auth_service._shared.issued_api_key(user),
-        "token_type": "api_key",
-        "expires_in": 31536000,
-    }
-
-
-@router.post("/login", response_model=TokenResponse)
-async def legacy_login(req: UserLoginRequest, db: Session = Depends(get_db)):
-    api_key = auth_service.login(db, req)
-    return {
-        "access_token": api_key,
-        "token_type": "api_key",
-        "expires_in": 31536000,
-    }
-
-
-@router.post("/api-key", response_model=ApiKeyResponse)
-async def legacy_rotate_api_key(
-    current_user: User = Depends(get_current_user_from_maas),
-    db: Session = Depends(get_db),
-):
-    new_key, rotated_at = auth_service.rotate_api_key(db, current_user)
-    return {"api_key": new_key, "created_at": rotated_at}
-
-
-@router.get("/me")
-async def legacy_me(current_user: User = Depends(get_current_user_from_maas)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "role": current_user.role,
-        "plan": current_user.plan,
-        "requests_count": getattr(current_user, "requests_count", 0) or 0,
-        "requests_limit": getattr(current_user, "requests_limit", None),
-        "full_name": getattr(current_user, "full_name", None),
-        "company": getattr(current_user, "company", None),
-    }
-
-
-@router.post("/deploy", response_model=MeshDeployResponse)
-async def legacy_deploy_mesh_route(
-    req: MeshDeployRequest,
-    request: Request,
-    current_user: User = Depends(require_permission("mesh:create")),
-    db: Session = Depends(get_db),
-):
-    return await deploy_mesh(req=req, current_user=current_user, db=db, request=request)
-
-
-@router.get("/list")
-async def legacy_list_meshes(
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    meshes = []
-    seen_mesh_ids: set[str] = set()
-    for instance in mesh_provisioner.list_for_owner(current_user.id):
-        seen_mesh_ids.add(instance.mesh_id)
-        meshes.append({
-            "mesh_id": instance.mesh_id,
-            "name": instance.name,
-            "status": instance.status,
-            "nodes_total": len(instance.node_instances),
-            "nodes_healthy": sum(
-                1
-                for node in instance.node_instances.values()
-                if node.get("status") in {"healthy", "approved"}
-            ),
-            "created_at": instance.created_at.isoformat(),
-        })
-    try:
-        from src.api.maas.registry import get_all_meshes as get_modular_meshes
-
-        for instance in get_modular_meshes().values():
-            if instance.mesh_id in seen_mesh_ids:
-                continue
-            if str(getattr(instance, "owner_id", "")) != str(current_user.id):
-                continue
-            if getattr(instance, "status", "") == "terminated":
-                continue
-            seen_mesh_ids.add(instance.mesh_id)
-            nodes = getattr(instance, "node_instances", {}) or {}
-            meshes.append({
-                "mesh_id": instance.mesh_id,
-                "name": getattr(instance, "name", instance.mesh_id),
-                "status": getattr(instance, "status", "unknown"),
-                "nodes_total": len(nodes),
-                "nodes_healthy": sum(
-                    1
-                    for node in nodes.values()
-                    if node.get("status") in {"healthy", "approved"}
-                ),
-                "created_at": (
-                    instance.created_at.isoformat()
-                    if getattr(instance, "created_at", None)
-                    else ""
-                ),
-            })
-    except Exception:
-        pass
-    summary = _mesh_list_summary_for_evidence(meshes)
-    _publish_legacy_lifecycle_read_event(
-        request,
-        operation="legacy_mesh_list_read",
-        stage="list_read",
-        status="success",
-        current_user=current_user,
-        owner_id=_current_user_id(current_user),
-        read_scope="account_mesh_list",
-        mesh_count=summary["mesh_count"],
-        node_count=summary["total_nodes"],
-        healthy_node_count=summary["healthy_nodes"],
-        registry_source="legacy_and_modular_registry",
-        result_summary=summary,
-    )
-    return {"meshes": meshes, "count": len(meshes)}
-
-
-@router.get("/{mesh_id}/status", response_model=MeshStatusResponse)
-async def legacy_mesh_status(
-    mesh_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    try:
-        instance = _require_owner(mesh_id, current_user)
-    except HTTPException:
-        _publish_legacy_lifecycle_read_event(
-            request,
-            operation="legacy_mesh_status_read",
-            stage="access_denied",
-            status="denied",
-            current_user=current_user,
-            mesh_id=mesh_id,
-            read_scope="single_mesh_status",
-            registry_source="legacy_or_modular_registry",
-            reason="mesh_not_found_or_forbidden",
-        )
-        raise
-    nodes = instance.node_instances
-    response = MeshStatusResponse(
-        mesh_id=mesh_id,
-        status=instance.status,
-        nodes_total=len(nodes),
-        nodes_healthy=sum(
-            1 for node in nodes.values() if node.get("status") in {"healthy", "approved"}
-        ),
-        uptime_seconds=instance.get_uptime(),
-        pqc_enabled=instance.pqc_enabled,
-        obfuscation=instance.obfuscation,
-        traffic_profile=instance.traffic_profile,
-        peers=[
-            {
-                "node_id": node_id,
-                "status": node.get("status", "unknown"),
-            }
-            for node_id, node in nodes.items()
-        ],
-        health_score=instance.get_health_score(),
-    )
-    summary = _mesh_status_summary_for_evidence(response)
-    _publish_legacy_lifecycle_read_event(
-        request,
-        operation="legacy_mesh_status_read",
-        stage="status_read",
-        status="success",
-        current_user=current_user,
-        mesh_id=mesh_id,
-        owner_id=getattr(instance, "owner_id", None),
-        read_scope="single_mesh_status",
-        node_count=summary["nodes_total"],
-        healthy_node_count=summary["nodes_healthy"],
-        registry_source="legacy_or_modular_registry",
-        result_summary=summary,
-    )
-    return response
-
-
-@router.get("/{mesh_id}/metrics", response_model=MeshMetricsResponse)
-async def legacy_mesh_metrics(
-    mesh_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    try:
-        instance = _require_owner(mesh_id, current_user)
-    except HTTPException:
-        _publish_legacy_lifecycle_read_event(
-            request,
-            operation="legacy_mesh_metrics_read",
-            stage="access_denied",
-            status="denied",
-            current_user=current_user,
-            mesh_id=mesh_id,
-            read_scope="single_mesh_metrics",
-            registry_source="legacy_or_modular_registry",
-            reason="mesh_not_found_or_forbidden",
-        )
-        raise
-    response = MeshMetricsResponse(
-        mesh_id=mesh_id,
-        consciousness=instance.get_consciousness_metrics(),
-        mape_k=instance.get_mape_k_state(),
-        network=instance.get_network_metrics(),
-        mesh_metrics_claim_gate=_legacy_mesh_metrics_claim_gate(),
-        cross_plane_claim_gate=cross_plane_claim_gate_metadata(
-            _LEGACY_MESH_METRICS_CROSS_PLANE_CLAIMS,
-            surface="legacy_maas_mesh.metrics",
-        ),
-        timestamp=datetime.utcnow().isoformat(),
-    )
-    summary = _mesh_metrics_summary_for_evidence(response)
-    _publish_legacy_lifecycle_read_event(
-        request,
-        operation="legacy_mesh_metrics_read",
-        stage="metrics_read",
-        status="success",
-        current_user=current_user,
-        mesh_id=mesh_id,
-        owner_id=getattr(instance, "owner_id", None),
-        read_scope="single_mesh_metrics",
-        registry_source="legacy_or_modular_registry",
-        result_summary=summary,
-    )
-    return response
-
-
-@router.get("/{mesh_id}/policies")
-async def legacy_list_policies_route(
-    mesh_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    try:
-        instance = _require_owner(mesh_id, current_user)
-    except HTTPException:
-        _publish_legacy_policy_read_event(
-            request,
-            operation="legacy_policy_list_read",
-            stage="access_denied",
-            status="denied",
-            current_user=current_user,
-            mesh_id=mesh_id,
-            read_scope="mesh_policy_list",
-            reason="mesh_not_found_or_forbidden",
-        )
-        raise
-    policies = list(_mesh_policies.get(mesh_id, []))
-    _publish_legacy_policy_read_event(
-        request,
-        operation="legacy_policy_list_read",
-        stage="policy_list_read",
-        status="success",
-        current_user=current_user,
-        mesh_id=mesh_id,
-        owner_id=getattr(instance, "owner_id", None),
-        read_scope="mesh_policy_list",
-        result_summary=_policy_list_summary_for_evidence(policies),
-    )
-    return {"policies": policies}
-
-
-@router.post("/{mesh_id}/policies", response_model=PolicyResponse)
-async def legacy_create_policy_route(
-    mesh_id: str,
-    req: PolicyRequest,
-    request: Request,
-    current_user: User = Depends(require_permission("policy:create")),
-):
-    return await create_policy(mesh_id, req, current_user, request=request)
-
-
-@router.post("/{mesh_id}/nodes/register")
-async def legacy_register_node_route(
-    mesh_id: str,
-    req: NodeRegisterRequest,
-    request: Request,
-):
-    return await register_node(mesh_id, req, request=request)
-
-
-@router.get("/{mesh_id}/nodes/pending")
-async def legacy_list_pending_nodes_route(
-    mesh_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return list_pending_nodes(mesh_id, current_user, request=request)
-
-
-@router.post("/{mesh_id}/nodes/{node_id}/approve")
-async def legacy_approve_node_route(
-    mesh_id: str,
-    node_id: str,
-    req: NodeApproveRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return await approve_node(mesh_id, node_id, req, current_user, request=request)
-
-
-@router.post("/{mesh_id}/nodes/revoke")
-async def legacy_revoke_node_by_body_route(
-    mesh_id: str,
-    req: NodeRevokeRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    if not req.node_id:
-        raise HTTPException(status_code=400, detail="node_id is required")
-    return await revoke_node(mesh_id, req.node_id, req, current_user, request=request)
-
-
-@router.post("/{mesh_id}/nodes/{node_id}/revoke")
-async def legacy_revoke_node_route(
-    mesh_id: str,
-    node_id: str,
-    req: NodeRevokeRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return await revoke_node(mesh_id, node_id, req, current_user, request=request)
-
-
-@router.post("/{mesh_id}/nodes/{node_id}/reissue-token")
-async def legacy_reissue_node_token_route(
-    mesh_id: str,
-    node_id: str,
-    req: NodeReissueTokenRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return await reissue_node_token(mesh_id, node_id, req, current_user, request=request)
-
-
-@router.post("/heartbeat")
-async def legacy_heartbeat_route(
-    req: NodeHeartbeatRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return heartbeat(req, current_user, request=request)
-
-
-@router.get("/{mesh_id}/mapek/events")
-async def legacy_mapek_events_route(
-    mesh_id: str,
-    request: Request,
-    limit: int = 100,
-    current_user: User = Depends(get_current_user_from_maas),
-):
-    return list_mapek_events(
-        mesh_id,
-        limit=limit,
-        current_user=current_user,
-        request=request,
-    )
-
-
-@router.post("/billing/webhook")
 async def legacy_billing_webhook(
     req: BillingWebhookRequest,
     request: Request,
     db: Session = Depends(get_db),
-    x_billing_webhook_secret: Optional[str] = Header(default=None),
-    x_billing_timestamp: Optional[str] = Header(default=None),
-    x_billing_signature: Optional[str] = Header(default=None),
+    x_billing_webhook_secret: Optional[str] = None,
+    x_billing_timestamp: Optional[str] = None,
+    x_billing_signature: Optional[str] = None,
 ):
+    """Legacy billing webhook compatibility entrypoint.
+
+    The HTTP route is served by the modular billing router, but direct callers
+    and citation tests still rely on the legacy function to emit the historical
+    maas-legacy-billing EventBus evidence shape.
+    """
+
     _verify_billing_webhook_secret(x_billing_webhook_secret)
     raw_payload = await request.body()
     _verify_billing_webhook_hmac(
@@ -3994,7 +3625,9 @@ async def legacy_billing_webhook(
             "user_id": user.id,
             "plan_before": plan_before,
             "plan_after": plan_after,
-            "requests_limit": PLAN_REQUEST_LIMITS.get(plan_after, PLAN_REQUEST_LIMITS["starter"]),
+            "requests_limit": PLAN_REQUEST_LIMITS.get(
+                plan_after, PLAN_REQUEST_LIMITS["starter"]
+            ),
             "idempotent_replay": False,
         }
         _finalize_billing_event_processing(db, event_id, response_payload)
@@ -4028,65 +3661,52 @@ async def legacy_billing_webhook(
         raise
 
 
-@router.get("/billing/usage/{mesh_id}")
-async def legacy_mesh_usage(
+@router.get("/{mesh_id}/metrics", response_model=MeshMetricsResponse)
+async def legacy_mesh_metrics(
     mesh_id: str,
     request: Request,
-    current_user: User = Depends(require_permission("billing:view")),
+    current_user: User = Depends(get_current_user_from_maas),
 ):
-    started = time.monotonic()
-    owner_id = getattr(current_user, "id", None)
+    """Return legacy local mesh metrics with explicit fail-closed claim gates."""
     try:
-        instance = _get_mesh_or_404(mesh_id, owner_id)
-        usage = usage_metering_service.get_mesh_usage(instance)
-        _publish_legacy_billing_usage_observation(
+        instance = _require_owner(mesh_id, current_user)
+    except HTTPException:
+        _publish_legacy_lifecycle_read_event(
             request,
-            scope="mesh",
-            owner_id=owner_id,
+            operation="legacy_mesh_metrics_read",
+            stage="access_denied",
+            status="denied",
+            current_user=current_user,
             mesh_id=mesh_id,
-            usage=usage,
-            duration_ms=(time.monotonic() - started) * 1000.0,
-        )
-        return usage
-    except Exception as exc:
-        reason = getattr(exc, "detail", type(exc).__name__)
-        _publish_legacy_billing_usage_observation(
-            request,
-            scope="mesh",
-            owner_id=owner_id,
-            mesh_id=mesh_id,
-            status="failed",
-            duration_ms=(time.monotonic() - started) * 1000.0,
-            reason=reason if isinstance(reason, str) else type(exc).__name__,
+            read_scope="single_mesh_metrics",
+            registry_source="legacy_or_modular_registry",
+            reason="mesh_not_found_or_forbidden",
         )
         raise
 
-
-@router.get("/billing/usage")
-async def legacy_account_usage(
-    request: Request,
-    current_user: User = Depends(require_permission("billing:view")),
-):
-    started = time.monotonic()
-    owner_id = getattr(current_user, "id", None)
-    try:
-        usage = usage_metering_service.get_account_usage(owner_id)
-        _publish_legacy_billing_usage_observation(
-            request,
-            scope="account",
-            owner_id=owner_id,
-            usage=usage,
-            duration_ms=(time.monotonic() - started) * 1000.0,
-        )
-        return usage
-    except Exception as exc:
-        reason = getattr(exc, "detail", type(exc).__name__)
-        _publish_legacy_billing_usage_observation(
-            request,
-            scope="account",
-            owner_id=owner_id,
-            status="failed",
-            duration_ms=(time.monotonic() - started) * 1000.0,
-            reason=reason if isinstance(reason, str) else type(exc).__name__,
-        )
-        raise
+    response = MeshMetricsResponse(
+        mesh_id=mesh_id,
+        consciousness=instance.get_consciousness_metrics(),
+        mape_k=instance.get_mape_k_state(),
+        network=instance.get_network_metrics(),
+        mesh_metrics_claim_gate=_legacy_mesh_metrics_claim_gate(),
+        cross_plane_claim_gate=cross_plane_claim_gate_metadata(
+            _LEGACY_MESH_METRICS_CROSS_PLANE_CLAIMS,
+            surface="legacy_maas_mesh.metrics",
+        ),
+        timestamp=datetime.utcnow().isoformat(),
+    )
+    summary = _mesh_metrics_summary_for_evidence(response)
+    _publish_legacy_lifecycle_read_event(
+        request,
+        operation="legacy_mesh_metrics_read",
+        stage="metrics_read",
+        status="success",
+        current_user=current_user,
+        mesh_id=mesh_id,
+        owner_id=getattr(instance, "owner_id", None),
+        read_scope="single_mesh_metrics",
+        registry_source="legacy_or_modular_registry",
+        result_summary=summary,
+    )
+    return response

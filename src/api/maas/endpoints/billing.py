@@ -5,17 +5,22 @@ Provides REST API endpoints for billing webhooks and usage reports.
 """
 
 import hashlib
+import hmac
+import json
 import logging
+import os
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
-from ..auth import UserContext, get_current_user
+from ..auth import UserContext, get_auth_service, get_current_user
 from ..billing_helpers import (
     generate_invoice,
     verify_webhook_with_timestamp,
 )
+from ..constants import PLAN_REQUEST_LIMITS
 from ..services import BillingService, UsageMeteringService
 from src.coordination.events import EventBus, EventType, get_event_bus
 
@@ -52,6 +57,7 @@ _MODULAR_BILLING_READ_OPERATIONS = frozenset(
 # Service instances
 _billing_service: Optional[BillingService] = None
 _usage_service: Optional[UsageMeteringService] = None
+_LEGACY_COMPAT_BILLING_EVENTS: Dict[str, Dict[str, Any]] = {}
 
 
 def _modular_billing_event_bus_from_request(request: Request | None) -> EventBus | None:
@@ -659,6 +665,216 @@ async def create_payment(
         "plan": plan,
     }
 
+
+def _legacy_billing_tolerance_seconds() -> int:
+    raw = os.getenv("X0T_BILLING_WEBHOOK_TOLERANCE_SEC", "300").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 300
+    return max(30, min(value, 3600))
+
+
+def _verify_legacy_billing_secret(provided_secret: Optional[str]) -> None:
+    expected_secret = os.getenv("X0T_BILLING_WEBHOOK_SECRET", "").strip()
+    if not expected_secret:
+        return
+    if not provided_secret or not hmac.compare_digest(provided_secret, expected_secret):
+        raise HTTPException(status_code=401, detail="Invalid billing webhook secret")
+
+
+def _verify_legacy_billing_hmac(
+    payload: bytes,
+    timestamp_header: Optional[str],
+    signature_header: Optional[str],
+) -> None:
+    secret = os.getenv("X0T_BILLING_WEBHOOK_HMAC_SECRET", "").strip()
+    if not secret:
+        return
+    if not timestamp_header or not signature_header:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing HMAC headers: X-Billing-Timestamp and X-Billing-Signature",
+        )
+    try:
+        timestamp_value = int(timestamp_header)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid X-Billing-Timestamp") from exc
+    if abs(int(time.time()) - timestamp_value) > _legacy_billing_tolerance_seconds():
+        raise HTTPException(status_code=401, detail="Billing webhook timestamp expired")
+
+    signed_payload = f"{timestamp_header}.".encode("utf-8") + payload
+    expected = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    provided = signature_header.strip()
+    if provided.startswith("sha256="):
+        provided = provided[7:]
+    if not hmac.compare_digest(expected, provided):
+        raise HTTPException(status_code=401, detail="Invalid billing webhook signature")
+
+
+def _is_legacy_billing_payload(data: Any) -> bool:
+    return isinstance(data, dict) and (
+        "event_type" in data
+        or "event_id" in data
+        or "customer_id" in data
+        or "subscription_id" in data
+    )
+
+
+def _legacy_billing_event_id(data: Dict[str, Any]) -> str:
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    event_id = data.get("event_id") or metadata.get("event_id") or metadata.get("id")
+    if not isinstance(event_id, str) or not event_id.strip():
+        raise HTTPException(status_code=400, detail="event_id is required for idempotency")
+    return event_id.strip()
+
+
+def _legacy_billing_plan(value: Any, fallback: str = "starter") -> str:
+    plan = str(value or fallback).strip().lower()
+    return plan if plan in PLAN_REQUEST_LIMITS else fallback
+
+
+def _process_legacy_compat_billing_webhook(
+    *,
+    body: bytes,
+    data: Dict[str, Any],
+    x_billing_webhook_secret: Optional[str],
+    x_billing_timestamp: Optional[str],
+    x_billing_signature: Optional[str],
+) -> Dict[str, Any]:
+    _verify_legacy_billing_secret(x_billing_webhook_secret)
+    _verify_legacy_billing_hmac(body, x_billing_timestamp, x_billing_signature)
+
+    event_id = _legacy_billing_event_id(data)
+    event_type = str(data.get("event_type") or "").strip()
+    payload_hash = hashlib.sha256(body).hexdigest()
+    cached = _LEGACY_COMPAT_BILLING_EVENTS.get(event_id)
+    if cached is not None:
+        if cached.get("payload_hash") != payload_hash:
+            raise HTTPException(
+                status_code=409,
+                detail="Billing webhook event_id payload mismatch",
+            )
+        response = dict(cached["response"])
+        response["idempotent_replay"] = True
+        return response
+
+    email = data.get("email")
+    user_id = data.get("user_id")
+    from .auth import _normalize_email, _user_store
+
+    matched_user_id = None
+    user_data = None
+    if isinstance(user_id, str) and user_id in _user_store:
+        matched_user_id = user_id
+        user_data = _user_store[user_id]
+    elif isinstance(email, str):
+        normalized_email = _normalize_email(email)
+        for candidate_id, candidate_data in _user_store.items():
+            if candidate_data.get("email") == normalized_email:
+                matched_user_id = candidate_id
+                user_data = candidate_data
+                break
+
+    if not matched_user_id or user_data is None:
+        raise HTTPException(status_code=404, detail="Billing user not found")
+
+    plan_before = _legacy_billing_plan(user_data.get("plan"))
+    if event_type in {"subscription.canceled", "subscription.deleted"}:
+        plan_after = "starter"
+    else:
+        plan_after = _legacy_billing_plan(data.get("plan"), plan_before)
+
+    user_data["plan"] = plan_after
+    if data.get("customer_id"):
+        user_data["customer_id"] = data.get("customer_id")
+    if data.get("subscription_id"):
+        user_data["subscription_id"] = data.get("subscription_id")
+    get_auth_service().update_user_plan(matched_user_id, plan_after)
+
+    response = {
+        "processed": True,
+        "event_id": event_id,
+        "event_type": event_type,
+        "user_id": matched_user_id,
+        "plan_before": plan_before,
+        "plan_after": plan_after,
+        "requests_limit": PLAN_REQUEST_LIMITS.get(plan_after, PLAN_REQUEST_LIMITS["starter"]),
+        "idempotent_replay": False,
+    }
+    _LEGACY_COMPAT_BILLING_EVENTS[event_id] = {
+        "payload_hash": payload_hash,
+        "response": dict(response),
+    }
+    return response
+
+
+def _node_started_at_hours(started_at: Any) -> float:
+    if not isinstance(started_at, str) or not started_at:
+        return 0.0
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.utcnow() - started).total_seconds() / 3600.0)
+
+
+def _mesh_node_hours_report(mesh_id: str) -> Optional[Dict[str, Any]]:
+    from ..registry import get_mesh
+
+    instance = get_mesh(mesh_id)
+    if instance is None:
+        return None
+
+    nodes = []
+    total_node_hours = 0.0
+    for node_id, node in (getattr(instance, "node_instances", {}) or {}).items():
+        if not isinstance(node, dict):
+            continue
+        hours = _node_started_at_hours(node.get("started_at"))
+        total_node_hours += hours
+        nodes.append({
+            "node_id": node_id,
+            "status": node.get("status", "unknown"),
+            "node_hours": round(hours, 4),
+        })
+
+    return {
+        "mesh_id": mesh_id,
+        "active_nodes": len(nodes),
+        "total_node_hours": round(total_node_hours, 4),
+        "nodes": nodes,
+    }
+
+
+def _account_node_hours_report(owner_id: str) -> Dict[str, Any]:
+    from ..registry import get_all_meshes
+
+    meshes = []
+    total_node_hours = 0.0
+    for mesh_id, instance in get_all_meshes().items():
+        if str(getattr(instance, "owner_id", "")) != str(owner_id):
+            continue
+        if getattr(instance, "status", "") == "terminated":
+            continue
+        report = _mesh_node_hours_report(mesh_id)
+        if report is None:
+            continue
+        total_node_hours += float(report.get("total_node_hours") or 0.0)
+        meshes.append({
+            "mesh_id": mesh_id,
+            "active_nodes": report["active_nodes"],
+            "total_node_hours": report["total_node_hours"],
+        })
+
+    return {
+        "owner_id": owner_id,
+        "mesh_count": len(meshes),
+        "total_node_hours": round(total_node_hours, 4),
+        "meshes": meshes,
+    }
+
+
 @router.post(
     "/webhook",
     status_code=status.HTTP_200_OK,
@@ -667,9 +883,21 @@ async def create_payment(
 )
 async def billing_webhook(
     request: Request,
-    x_signature: str = Header(..., alias="X-Signature"),
-    x_timestamp: str = Header(..., alias="X-Timestamp"),
-    x_event_id: str = Header(..., alias="X-Event-Id"),
+    x_signature: Optional[str] = Header(default=None, alias="X-Signature"),
+    x_timestamp: Optional[str] = Header(default=None, alias="X-Timestamp"),
+    x_event_id: Optional[str] = Header(default=None, alias="X-Event-Id"),
+    x_billing_webhook_secret: Optional[str] = Header(
+        default=None,
+        alias="X-Billing-Webhook-Secret",
+    ),
+    x_billing_timestamp: Optional[str] = Header(
+        default=None,
+        alias="X-Billing-Timestamp",
+    ),
+    x_billing_signature: Optional[str] = Header(
+        default=None,
+        alias="X-Billing-Signature",
+    ),
 ) -> Dict[str, Any]:
     """
     Handle billing webhook from payment provider.
@@ -679,8 +907,26 @@ async def billing_webhook(
     billing = get_billing_service()
     started = time.monotonic()
 
-    # Read raw body for signature verification
     body = await request.body()
+    try:
+        data = await request.json()
+    except Exception:
+        data = None
+
+    if _is_legacy_billing_payload(data):
+        return _process_legacy_compat_billing_webhook(
+            body=body,
+            data=data,
+            x_billing_webhook_secret=x_billing_webhook_secret,
+            x_billing_timestamp=x_billing_timestamp,
+            x_billing_signature=x_billing_signature,
+        )
+
+    if not x_signature or not x_timestamp or not x_event_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing required webhook headers",
+        )
 
     # Verify signature
     if not verify_webhook_with_timestamp(
@@ -717,10 +963,7 @@ async def billing_webhook(
             detail="Invalid webhook signature",
         )
 
-    # Parse JSON body
-    try:
-        data = await request.json()
-    except Exception:
+    if not isinstance(data, dict):
         _publish_modular_billing_event(
             request,
             source_agent=_MODULAR_BILLING_WEBHOOK_SOURCE_AGENT,
@@ -832,6 +1075,44 @@ async def billing_webhook(
 
 
 @router.get(
+    "/usage",
+    summary="Get account usage report",
+    description="Get node-hour usage metrics for the authenticated account.",
+)
+async def get_account_usage_report(
+    user: UserContext = Depends(get_current_user),
+    request: Request = None,
+) -> Dict[str, Any]:
+    """Get account-level node-hour usage for modular MaaS meshes."""
+    started = time.monotonic()
+    report = _account_node_hours_report(user.user_id)
+    _publish_modular_billing_event(
+        request,
+        source_agent=_MODULAR_BILLING_USAGE_SOURCE_AGENT,
+        layer=_MODULAR_BILLING_USAGE_LAYER,
+        stage="account_usage_report_read",
+        operation="get_usage_report",
+        status_value="success",
+        duration_ms=(time.monotonic() - started) * 1000,
+        provider="local_usage_metering",
+        user=user,
+        http_status_code=status.HTTP_200_OK,
+        result_summary={
+            "payload_type": "dict",
+            "payload_field_count": len(report),
+            "mesh_count": report["mesh_count"],
+            "total_node_hours_present": True,
+            "raw_identifiers_redacted": True,
+            "payloads_redacted": True,
+        },
+        reason="account_usage_report_read",
+        read_only=True,
+        control_action=False,
+    )
+    return report
+
+
+@router.get(
     "/usage/{mesh_id}",
     summary="Get usage report",
     description="Get usage metrics for a mesh.",
@@ -884,6 +1165,9 @@ async def get_usage_report(
     usage = get_usage_service()
     try:
         report = usage.get_usage_report(mesh_id)
+        node_hours_report = _mesh_node_hours_report(mesh_id)
+        if node_hours_report:
+            report.update(node_hours_report)
     except Exception as exc:
         _publish_modular_billing_event(
             request,

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.orm import Session
 from src.api.cross_plane_claim_gate import cross_plane_claim_gate_metadata
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.database import MeshInstance as DBMeshInstance, get_db
+from src.database import MeshInstance as DBMeshInstance, User as DBUser, get_db
 from src.mesh.metric_evidence_policy import latest_mesh_metric_policy_evidence
 
 from ..auth import UserContext, get_current_user, require_mesh_access
@@ -30,7 +30,7 @@ from ..services import MeshProvisioner
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/mesh", tags=["mesh"])
+router = APIRouter(tags=["mesh"])
 
 
 # Service instance (can be overridden for testing)
@@ -1136,6 +1136,14 @@ async def deploy_mesh(
                 traffic_profile=getattr(instance, "traffic_profile", request.traffic_profile),
             )
             db.add(db_mesh)
+            # P1 Q2: Update user's plan in real DB
+            try:
+                db_user = db.query(DBUser).filter(DBUser.id == user.user_id).first()
+                if db_user:
+                    db_user.plan = instance.plan
+            except Exception as user_err:
+                logger.warning(f"Failed to update user plan in DB: {user_err}")
+
             db.commit()
         except Exception as db_err:
             db.rollback()
@@ -1194,13 +1202,19 @@ async def deploy_mesh(
             mesh_id=instance.mesh_id,
             join_config={
                 "enrollment_token": str(getattr(instance, "join_token", "")),
+                "token": str(getattr(instance, "join_token", "")),
                 "ttl_sec": request.join_token_ttl_sec,
             },
             dashboard_url=f"/api/v1/maas/mesh/{instance.mesh_id}/status",
             status=instance.status,
             pqc_identity={
                 "enabled": bool(getattr(instance, "pqc_enabled", request.pqc_enabled)),
+                "did": f"did:x0t:{instance.mesh_id}",
                 "profile": str(getattr(instance, "pqc_profile", "edge")),
+                "keys": {
+                    "sig_alg": "ML-DSA-65",
+                    "kem_alg": "ML-KEM-768",
+                },
             },
             pqc_enabled=bool(getattr(instance, "pqc_enabled", request.pqc_enabled)),
             created_at=(

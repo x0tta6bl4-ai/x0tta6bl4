@@ -399,14 +399,14 @@ async def register(
     _user_store[user_id] = {
         "email": normalized_email,
         "name": request.name,
-        "plan": "free",
+        "plan": "starter",
         "password_hash": _hash_password(request.password),
         "created_at": __import__("datetime").datetime.utcnow().isoformat(),
     }
 
     # Generate API key
     auth = get_auth_service()
-    api_key = auth.generate_api_key(user_id, "free")
+    api_key = auth.generate_api_key(user_id, "starter")
     _publish_modular_auth_event(
         http_request=http_request,
         source_agent=_MODULAR_AUTH_REGISTER_SOURCE_AGENT,
@@ -544,7 +544,10 @@ async def login(
 
     # Create session
     auth = get_auth_service()
-    session_token = auth.create_session(user_id)
+    session_token = auth.create_session(
+        user_id,
+        plan=str(user_data.get("plan") or "starter"),
+    )
     _publish_modular_auth_event(
         http_request=http_request,
         source_agent=_MODULAR_AUTH_LOGIN_SOURCE_AGENT,
@@ -623,6 +626,7 @@ async def rotate_api_key(
 
     return ApiKeyRotateResponse(
         api_key=new_key,
+        created_at=__import__("datetime").datetime.utcnow().isoformat(),
         message="API key rotated successfully",
     )
 
@@ -659,10 +663,12 @@ async def get_profile(
     )
 
     return UserProfileResponse(
+        id=user.user_id,
         user_id=user.user_id,
         email=user_data.get("email", "unknown"),
         name=user_data.get("name"),
-        plan=user.plan,
+        plan=str(user_data.get("plan") or user.plan),
+        requests_count=0,
         created_at=user_data.get("created_at"),
     )
 

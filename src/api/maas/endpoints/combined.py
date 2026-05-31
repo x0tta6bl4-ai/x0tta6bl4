@@ -12,6 +12,7 @@ from .batman import router as batman_router
 from .billing import router as billing_router
 from .mesh import router as mesh_router
 from .nodes import router as nodes_router
+from .nodes_legacy import router as legacy_nodes_router
 from .pilot import router as pilot_router
 from .playbooks import router as playbooks_router
 from .provisioning import router as provisioning_router
@@ -71,6 +72,7 @@ def get_combined_router(
 
     if include_nodes:
         router.include_router(nodes_router)
+        router.include_router(legacy_nodes_router)
 
     if include_billing:
         router.include_router(billing_router)

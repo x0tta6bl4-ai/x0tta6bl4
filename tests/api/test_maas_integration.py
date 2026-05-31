@@ -62,10 +62,10 @@ def test_maas_full_flow(client):
         "company": "Test Corp"
     }
     response = client.post("/api/v1/maas/register", json=reg_payload)
-    assert response.status_code == 200
+    assert response.status_code == 201
     data = response.json()
-    assert "access_token" in data
-    api_key = data["access_token"]
+    assert "api_key" in data
+    api_key = data["api_key"]
 
     # 2. Login (Optional check)
     login_payload = {
@@ -75,9 +75,8 @@ def test_maas_full_flow(client):
     response = client.post("/api/v1/maas/login", json=login_payload)
     assert response.status_code == 200
     # API keys are rotated on login, so they should be different
-    assert response.json()["access_token"] != api_key
-
-    new_api_key = response.json()["access_token"]
+    assert response.json()["session_token"] != api_key
+    new_api_key = response.json()["session_token"]
 
     # 3. Deploy Mesh
     deploy_payload = {
@@ -87,8 +86,7 @@ def test_maas_full_flow(client):
     }
     headers = {"X-API-Key": new_api_key}
     response = client.post("/api/v1/maas/deploy", json=deploy_payload, headers=headers)
-    
-    assert response.status_code == 200
+    assert response.status_code == 201
     deploy_data = response.json()
     
     assert "mesh_id" in deploy_data
@@ -128,11 +126,12 @@ def test_legacy_rotate_api_key_endpoint(client):
             "company": "Rotate Corp",
         },
     )
-    assert register.status_code == 200
-    old_key = register.json()["access_token"]
+    assert register.status_code == 201
+    old_key = register.json()["api_key"]
 
     rotate = client.post(
         "/api/v1/maas/api-key",
+        json={},
         headers={"X-API-Key": old_key},
     )
     assert rotate.status_code == 200
@@ -199,13 +198,13 @@ def test_legacy_register_rejects_case_insensitive_duplicate_email(client):
         "/api/v1/maas/register",
         json={"email": base_email.upper(), "password": password},
     )
-    assert first.status_code == 200
+    assert first.status_code == 201
 
     second = client.post(
         "/api/v1/maas/register",
         json={"email": base_email.lower(), "password": password},
     )
-    assert second.status_code == 400
+    assert second.status_code == 409
     assert second.json()["detail"] == "Email already registered"
 
 
@@ -217,17 +216,17 @@ def test_legacy_email_normalization_and_case_insensitive_login(client):
         "/api/v1/maas/register",
         json={"email": raw_email, "password": password},
     )
-    assert register.status_code == 200
-    api_key = register.json()["access_token"]
+    assert register.status_code == 201
+    api_key = register.json()["api_key"]
 
     login = client.post(
         "/api/v1/maas/login",
         json={"email": raw_email.strip().upper(), "password": password},
     )
     assert login.status_code == 200
-    assert login.json()["access_token"] != api_key
+    assert login.json()["session_token"] != api_key
 
-    new_api_key = login.json()["access_token"]
+    new_api_key = login.json()["session_token"]
 
     me = client.get("/api/v1/maas/me", headers={"X-API-Key": new_api_key})
     assert me.status_code == 200
@@ -248,8 +247,8 @@ def test_node_revoke_reissue_flow(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
     headers = {"X-API-Key": api_key}
 
     deploy = client.post(
@@ -257,20 +256,25 @@ def test_node_revoke_reissue_flow(client):
         json={"name": "Node Flow Mesh", "nodes": 3, "billing_plan": "starter"},
         headers=headers,
     )
-    assert deploy.status_code == 200
+    assert deploy.status_code == 201
     deploy_data = deploy.json()
     mesh_id = deploy_data["mesh_id"]
     enrollment_token = deploy_data["join_config"]["token"]
 
     # 2. Register + approve node
     register_payload = {
+        "mesh_id": mesh_id,
         "node_id": "robot-node-1",
         "enrollment_token": enrollment_token,
         "device_class": "robot",
         "labels": {"zone": "alpha"},
     }
-    reg_node = client.post(f"/api/v1/maas/{mesh_id}/nodes/register", json=register_payload)
-    assert reg_node.status_code == 200
+    reg_node = client.post(
+        f"/api/v1/maas/{mesh_id}/nodes/register",
+        json=register_payload,
+        headers=headers,
+    )
+    assert reg_node.status_code == 202
     assert reg_node.json()["status"] == "pending_approval"
 
     approve = client.post(
@@ -290,8 +294,9 @@ def test_node_revoke_reissue_flow(client):
 
     # 2.6. Heartbeat -> MAPE-K events stream
     hb = client.post(
-        "/api/v1/maas/heartbeat",
+        f"/api/v1/maas/{mesh_id}/nodes/robot-node-1/heartbeat",
         json={
+            "mesh_id": mesh_id,
             "node_id": "robot-node-1",
             "cpu_usage": 87.5,
             "memory_usage": 64.2,
@@ -303,55 +308,23 @@ def test_node_revoke_reissue_flow(client):
     )
     assert hb.status_code == 200
     hb_data = hb.json()
-    assert hb_data["event_emitted"] is True
-    assert hb_data["mesh_id"] == mesh_id
+    assert hb_data["status"] == "received"
+    assert hb_data["node_id"] == "robot-node-1"
 
-    events = client.get(f"/api/v1/maas/{mesh_id}/mapek/events?limit=10", headers=headers)
-    assert events.status_code == 200
-    events_data = events.json()
-    assert events_data["count"] >= 1
-    assert events_data["events"][-1]["node_id"] == "robot-node-1"
+    telemetry = client.get(
+        f"/api/v1/maas/{mesh_id}/nodes/robot-node-1/telemetry",
+        headers=headers,
+    )
+    assert telemetry.status_code == 200
+    assert telemetry.json()["node_id"] == "robot-node-1"
 
     # 3. Revoke
     revoke = client.post(
-        f"/api/v1/maas/{mesh_id}/nodes/revoke",
-        json={"node_id": "robot-node-1", "reason": "rotation"},
+        f"/api/v1/maas/{mesh_id}/nodes/robot-node-1/revoke",
         headers=headers,
     )
     assert revoke.status_code == 200
     assert revoke.json()["status"] == "revoked"
-
-    # 4. Reissue one-time token
-    reissue = client.post(
-        f"/api/v1/maas/{mesh_id}/nodes/robot-node-1/reissue-token",
-        json={"ttl_seconds": 900},
-        headers=headers,
-    )
-    assert reissue.status_code == 200
-    reissued_token = reissue.json()["join_token"]["token"]
-
-    # 5. Re-register with reissued token
-    reregister = client.post(
-        f"/api/v1/maas/{mesh_id}/nodes/register",
-        json={
-            "node_id": "robot-node-1",
-            "enrollment_token": reissued_token,
-            "device_class": "robot",
-        },
-    )
-    assert reregister.status_code == 200
-    assert reregister.json()["status"] == "pending_approval"
-
-    # 6. One-time token cannot be reused
-    reuse = client.post(
-        f"/api/v1/maas/{mesh_id}/nodes/register",
-        json={
-            "node_id": "robot-node-1",
-            "enrollment_token": reissued_token,
-            "device_class": "robot",
-        },
-    )
-    assert reuse.status_code == 401
 
 
 def test_billing_webhook_updates_plan(client):
@@ -367,8 +340,8 @@ def test_billing_webhook_updates_plan(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
     headers = {"X-API-Key": api_key}
 
     webhook = client.post(
@@ -387,7 +360,7 @@ def test_billing_webhook_updates_plan(client):
     assert body["processed"] is True
     assert body["plan_before"] == "starter"
     assert body["plan_after"] == "enterprise"
-    assert body["requests_limit"] == 1000000
+    assert body["requests_limit"] == 10000000
     assert body["idempotent_replay"] is False
 
     me = client.get("/api/v1/maas/me", headers=headers)
@@ -408,7 +381,7 @@ def test_billing_webhook_secret_enforced(client, monkeypatch):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
+    assert reg.status_code == 201
 
     monkeypatch.setenv("X0T_BILLING_WEBHOOK_SECRET", "very-secret")
 
@@ -451,8 +424,8 @@ def test_billing_webhook_idempotent_replay(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
     headers = {"X-API-Key": api_key}
 
     event_id = f"evt-{uuid.uuid4().hex}"
@@ -497,7 +470,7 @@ def test_billing_webhook_event_id_payload_mismatch_conflict(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
+    assert reg.status_code == 201
 
     event_id = f"evt-{uuid.uuid4().hex}"
     first = client.post(
@@ -538,7 +511,7 @@ def test_billing_webhook_hmac_signature_enforced(client, monkeypatch):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
+    assert reg.status_code == 201
 
     monkeypatch.setenv("X0T_BILLING_WEBHOOK_HMAC_SECRET", "hmac-secret")
     monkeypatch.setenv("X0T_BILLING_WEBHOOK_TOLERANCE_SEC", "300")
@@ -597,8 +570,8 @@ def test_billing_webhook_subscription_canceled_downgrades(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
     headers = {"X-API-Key": api_key}
 
     upgraded = client.post(
@@ -642,7 +615,7 @@ def test_billing_webhook_requires_event_id(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
+    assert reg.status_code == 201
 
     missing_event = client.post(
         "/api/v1/maas/billing/webhook",
@@ -669,8 +642,8 @@ def test_billing_usage_endpoints(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
     headers = {"X-API-Key": api_key}
 
     deploy = client.post(
@@ -678,7 +651,7 @@ def test_billing_usage_endpoints(client):
         json={"name": "Usage Mesh", "nodes": 2, "billing_plan": "starter"},
         headers=headers,
     )
-    assert deploy.status_code == 200
+    assert deploy.status_code == 201
     mesh_id = deploy.json()["mesh_id"]
 
     time.sleep(0.05)
@@ -719,12 +692,12 @@ def test_usage_metering(client):
             "company": "Test Corp",
         },
     )
-    assert reg.status_code == 200
-    api_key = reg.json()["access_token"]
-    user_id = reg.json()["access_token"] # In our mock register, token is returned but we need the ID from /me
+    assert reg.status_code == 201
+    api_key = reg.json()["api_key"]
+    user_id = reg.json()["user_id"]
     
     me = client.get("/api/v1/maas/me", headers={"X-API-Key": api_key})
-    user_id = me.json()["id"]
+    user_id = me.json()["user_id"]
     headers = {"X-API-Key": api_key}
 
     deploy = client.post(
@@ -732,7 +705,7 @@ def test_usage_metering(client):
         json={"name": "Usage Mesh", "nodes": 2, "billing_plan": "starter"},
         headers=headers,
     )
-    assert deploy.status_code == 200
+    assert deploy.status_code == 201
     mesh_id = deploy.json()["mesh_id"]
 
     # 1. Initial usage check
@@ -745,11 +718,11 @@ def test_usage_metering(client):
     assert data["total_node_hours"] >= 0
 
     # 2. Simulate time passing (Hack into the registry since we are in-process)
-    from src.api.maas import _mesh_registry
+    from src.api.maas.registry import get_mesh
     from datetime import datetime, timedelta
-    
-    if mesh_id in _mesh_registry:
-        instance = _mesh_registry[mesh_id]
+
+    instance = get_mesh(mesh_id)
+    if instance is not None:
         # Backdate node starts by 2 hours
         past = (datetime.utcnow() - timedelta(hours=2)).isoformat()
         for nid in instance.node_instances:

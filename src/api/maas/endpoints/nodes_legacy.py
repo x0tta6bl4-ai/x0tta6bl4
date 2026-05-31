@@ -708,6 +708,7 @@ async def node_heartbeat(
 
     telemetry_payload = {
         "mesh_id": request.mesh_id,
+        "node_id": request.node_id,
         "cpu_percent": cpu_percent,
         "memory_percent": memory_percent,
         "active_connections": (
