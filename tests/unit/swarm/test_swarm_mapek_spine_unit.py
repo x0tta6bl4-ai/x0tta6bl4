@@ -107,6 +107,32 @@ async def test_mapek_execute_publishes_identity_policy_and_safe_actuator_events(
     assert payload["safe_actuator"] is True
     assert payload["context"]["parameters"]["api_token"] == "<redacted>"
     assert payload["claim_boundary"]
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["swarm-mapek"]
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == "x0tta6bl4.swarm_mapek.safe_actuator_claim_gate.v1"
+    assert claim_gate["local_swarm_action_observed_claim_allowed"] is True
+    assert claim_gate["local_swarm_decision_result_claim_allowed"] is True
+    assert claim_gate["cluster_wide_consensus_finality_claim_allowed"] is False
+    assert claim_gate["production_action_applied_claim_allowed"] is False
+    assert claim_gate["restored_dataplane_claim_allowed"] is False
+    assert claim_gate["customer_traffic_restored_claim_allowed"] is False
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    cross_plane = metadata["cross_plane_claim_gate"]
+    assert cross_plane["allowed"] is False
+    evidence = metadata["evidence"]
+    assert evidence["action_type"] == "healing"
+    assert evidence["action_resource"] == "healing"
+    assert evidence["decision_result_present"] is True
+    assert evidence["decision_approved"] is True
+    assert evidence["consensus_mode"] == "simple"
+    assert evidence["parameters_redacted"] is True
+    assert evidence["identity_values_redacted"] is True
+    assert "secret-token" not in str(metadata)
+    assert result["safe_actuator_evidence_metadata"]["claim_gate"] == claim_gate
 
 
 @pytest.mark.asyncio
@@ -172,3 +198,9 @@ async def test_mapek_simulated_safe_actuator_fails_closed(tmp_path):
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["success"] is False
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_swarm_action_observed_claim_allowed"] is True
+    assert claim_gate["local_swarm_decision_result_claim_allowed"] is False
+    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
