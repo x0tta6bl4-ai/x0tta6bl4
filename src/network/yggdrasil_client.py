@@ -28,6 +28,9 @@ YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY = (
     "it does not expose raw mesh stdout/stderr or prove remote peer authenticity, "
     "route quality, or live packet reachability."
 )
+YGGDRASIL_OBSERVED_STATE_CLAIM_GATE_SCHEMA = (
+    "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1"
+)
 _YGGDRASIL_OUTPUT_FAILURE_MARKERS = (
     "fatal error:",
     "panic:",
@@ -111,6 +114,47 @@ def _bounded_output_metadata(
     }
 
 
+def _observation_claim_gate(
+    *,
+    status: str,
+    source_mode: str,
+    returncode: Optional[int],
+) -> Dict[str, Any]:
+    real_command_succeeded = (
+        status == "succeeded"
+        and source_mode == "real_command"
+        and returncode == 0
+    )
+    mock_observation = source_mode == "mock"
+    local_observed_state_allowed = real_command_succeeded or mock_observation
+    blockers: List[str] = []
+    if not local_observed_state_allowed:
+        blockers.append("yggdrasil_observed_state_not_confirmed")
+    if mock_observation:
+        blockers.append("mock_source_mode_not_live_mesh_evidence")
+
+    return {
+        "schema": YGGDRASIL_OBSERVED_STATE_CLAIM_GATE_SCHEMA,
+        "decision": (
+            "LOCAL_YGGDRASIL_OBSERVED_STATE_ONLY"
+            if local_observed_state_allowed
+            else "YGGDRASIL_OBSERVED_STATE_UNPROVEN"
+        ),
+        "local_observed_state_claim_allowed": local_observed_state_allowed,
+        "real_yggdrasil_daemon_observed": real_command_succeeded,
+        "mock_source_mode": mock_observation,
+        "return_code_observed": returncode is not None,
+        "remote_peer_authenticity_claim_allowed": False,
+        "route_quality_claim_allowed": False,
+        "live_packet_reachability_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": blockers,
+        "claim_boundary": YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY,
+        "redacted": True,
+    }
+
+
 def _event_bus_or_none(
     event_bus: Optional[EventBus],
     event_project_root: str,
@@ -144,6 +188,7 @@ def _publish_yggdrasil_observation(
     if bus is None:
         return None
 
+    identity = _identity_metadata()
     payload: Dict[str, Any] = {
         "component": "network.yggdrasil_client",
         "stage": "observed_state",
@@ -151,11 +196,12 @@ def _publish_yggdrasil_observation(
         "resource": _YGGDRASIL_RESOURCES[operation],
         "service_name": _SERVICE_AGENT,
         "layer": _SERVICE_LAYER,
-        "identity": _identity_metadata(),
+        "identity": identity,
         "command": [os.path.basename(command[0]), *command[1:]] if command else [],
         "status": status,
         "source_mode": source_mode,
         "returncode": returncode,
+        "return_code": returncode,
         "duration_ms": round(duration_ms or 0.0, 3),
         "read_only": True,
         "observed_state": True,
@@ -166,6 +212,14 @@ def _publish_yggdrasil_observation(
             stderr,
             preview_limit=output_preview_limit,
         ),
+        "claim_gate": _observation_claim_gate(
+            status=status,
+            source_mode=source_mode,
+            returncode=returncode,
+        ),
+        "service_identity": identity,
+        "raw_values_redacted": True,
+        "payloads_redacted": True,
         "claim_boundary": YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY,
     }
     if error_type:

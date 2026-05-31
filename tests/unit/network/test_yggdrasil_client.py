@@ -94,12 +94,34 @@ def test_yggdrasil_status_publishes_bounded_observed_state(monkeypatch, tmp_path
     assert data["safe_actuator"] is False
     assert data["source_mode"] == "real_command"
     assert data["returncode"] == 0
+    assert data["return_code"] == 0
     assert data["duration_ms"] >= 0
     assert data["identity"]["service_name"] == "yggdrasil-client"
     assert data["identity"]["redacted"] is True
+    assert data["service_identity"] == data["identity"]
+    assert data["raw_values_redacted"] is True
+    assert data["payloads_redacted"] is True
     assert data["output"]["output_redacted"] is True
     assert data["output"]["stdout_chars"] > 0
     assert data["output"]["stdout_sha256"]
+    assert data["claim_gate"] == {
+        "schema": "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1",
+        "decision": "LOCAL_YGGDRASIL_OBSERVED_STATE_ONLY",
+        "local_observed_state_claim_allowed": True,
+        "real_yggdrasil_daemon_observed": True,
+        "mock_source_mode": False,
+        "return_code_observed": True,
+        "remote_peer_authenticity_claim_allowed": False,
+        "route_quality_claim_allowed": False,
+        "live_packet_reachability_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": [],
+        "claim_boundary": (
+            yggdrasil_client.YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY
+        ),
+        "redacted": True,
+    }
     assert "TESTKEY" not in event_text
     assert "200:dead:beef" not in event_text
 
@@ -156,6 +178,10 @@ def test_yggdrasil_peers_publishes_bounded_observed_state(monkeypatch, tmp_path)
         "peer_count": 2,
         "protocols": ["tcp"],
     }
+    assert data["claim_gate"]["local_observed_state_claim_allowed"] is True
+    assert data["claim_gate"]["remote_peer_authenticity_claim_allowed"] is False
+    assert data["claim_gate"]["live_packet_reachability_claim_allowed"] is False
+    assert data["claim_gate"]["production_readiness_claim_allowed"] is False
     assert data["output"]["stdout_chars"] > 0
     assert data["output"]["stdout_sha256"]
     assert "10.0.0.1" not in event_text
@@ -184,7 +210,15 @@ def test_yggdrasil_peers_fatal_output_is_failed_even_with_zero_returncode(
     assert peers["error"] == "yggdrasilctl reported fatal error"
     assert data["status"] == "failed"
     assert data["returncode"] == 0
+    assert data["return_code"] == 0
     assert data["parsed_summary"] == {"status": "failed", "output_failure": True}
+    assert data["claim_gate"]["decision"] == "YGGDRASIL_OBSERVED_STATE_UNPROVEN"
+    assert (
+        data["claim_gate"]["local_observed_state_claim_allowed"] is False
+    )
+    assert "yggdrasil_observed_state_not_confirmed" in (
+        data["claim_gate"]["blockers"]
+    )
     assert data["error"] == {
         "type": "YggdrasilCommandOutputError",
         "message_redacted": True,
@@ -265,3 +299,9 @@ def test_yggdrasil_mock_status_publishes_source_mode(monkeypatch, tmp_path):
     assert data["source_mode"] == "mock"
     assert data["status"] == "mock"
     assert data["returncode"] == 0
+    assert data["return_code"] == 0
+    assert data["claim_gate"]["mock_source_mode"] is True
+    assert data["claim_gate"]["real_yggdrasil_daemon_observed"] is False
+    assert "mock_source_mode_not_live_mesh_evidence" in data["claim_gate"][
+        "blockers"
+    ]
