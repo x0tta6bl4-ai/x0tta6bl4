@@ -22,6 +22,7 @@ Run these from the repository root:
 
 ```bash
 python3 -m pytest --confcutdir=tests/unit/security tests/unit/security/test_dependency_security_pins_unit.py -q -o addopts=''
+python3 scripts/check_env_security_defaults.py
 python3 scripts/check_requirements_lock_sync.py
 git diff --check
 ```
@@ -34,6 +35,10 @@ The dependency security test verifies that:
 - staging and `pyproject.toml` floors match the security baseline;
 - removed Dependabot manifests and unpatched unused dependencies stay absent
   unless they are intentionally reintroduced with security pins.
+
+The env security defaults audit verifies that sensitive env vars do not gain
+hardcoded non-empty fallbacks and that production-sensitive boolean defaults
+stay fail-closed.
 
 ## GitHub Checks
 
