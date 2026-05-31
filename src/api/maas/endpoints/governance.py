@@ -36,7 +36,7 @@ from src.utils.audit import record_audit_log
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas/governance", tags=["MaaS Governance"])
+router = APIRouter(prefix="/governance", tags=["MaaS Governance"])
 
 _SERVICE_AGENT = "maas-governance"
 _PROPOSAL_CREATE_SOURCE_AGENT = "maas-governance-proposal-create"

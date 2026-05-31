@@ -33,7 +33,7 @@ from ..models import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # In-memory user store (replace with database in production)

@@ -26,7 +26,7 @@ from src.core.reliability_policy import mark_degraded_dependency
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas/provisioning", tags=["MaaS Provisioning"])
+router = APIRouter(prefix="/provisioning", tags=["MaaS Provisioning"])
 
 _PROVISIONING_SETUP_SOURCE_AGENT = "maas-provisioning-setup-generate"
 _PROVISIONING_LAYER = "api_provisioning_node_join_control_action"

@@ -1,9 +1,9 @@
 """
-MaaS Combined Router - Assembles all endpoint routers.
+MaaS Combined Router - Assembles MaaS v1 endpoint routers.
 
-Provides a single router that combines all domain-specific routers.
+Provides a single router that combines all MaaS-specific routers
+under the /api/v1/maas prefix.
 """
-
 
 from fastapi import APIRouter
 
@@ -60,7 +60,7 @@ def get_combined_router(
     include_service_identity: bool = True,
 ) -> APIRouter:
     """
-    Create a combined router with all MaaS endpoints.
+    Create a combined router with all MaaS v1 endpoints.
     """
     router = APIRouter(prefix=prefix)
 
@@ -68,7 +68,7 @@ def get_combined_router(
         router.include_router(auth_router)
 
     if include_mesh:
-        router.include_router(mesh_router)
+        router.include_router(mesh_router, prefix="/mesh")
 
     if include_nodes:
         router.include_router(nodes_router)
@@ -139,6 +139,5 @@ def get_combined_router(
 
 # Default combined router
 router = get_combined_router()
-
 
 __all__ = ["get_combined_router", "router"]

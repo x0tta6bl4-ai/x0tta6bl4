@@ -24,7 +24,7 @@ from src.database import ACLPolicy, User, get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Policies"])
+router = APIRouter(tags=["MaaS Policies"])
 
 _POLICY_LIST_SOURCE_AGENT = "maas-policies-list-read"
 _POLICY_LIST_LAYER = "api_policy_acl_observed_state"

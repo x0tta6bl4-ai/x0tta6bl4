@@ -30,7 +30,7 @@ from src.network.reputation_scoring import ReputationScoringSystem
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas", tags=["MaaS Telemetry"])
+router = APIRouter(tags=["MaaS Telemetry"])
 _SERVICE_AGENT = "maas-telemetry"
 _TELEMETRY_LAYER = "api_telemetry_observed_state"
 _TELEMETRY_CLAIM_BOUNDARY = (

@@ -27,7 +27,7 @@ from src.services.maas_analytics_service import MaaSAnalyticsService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/maas/analytics", tags=["MaaS Analytics"])
+router = APIRouter(prefix="/analytics", tags=["MaaS Analytics"])
 
 # Redis for real-time telemetry (optional)
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")

@@ -17,7 +17,7 @@ from src.api.maas_auth import get_current_user_from_maas
 from src.coordination.events import EventBus, EventType, get_event_bus
 from src.core.reliability_policy import mark_degraded_dependency
 
-router = APIRouter(prefix="/api/v1/maas/agents", tags=["MaaS Agent Mesh"])
+router = APIRouter(prefix="/agents", tags=["MaaS Agent Mesh"])
 _health_bot = MaasHealthBot(HealthBotConfig.from_env())
 
 _HEALTH_STATUS_SOURCE_AGENT = "maas-agent-health-status-read"

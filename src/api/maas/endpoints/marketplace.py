@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Global resilient executor for marketplace operations (P2 Reliability)
 marketplace_executor = get_resilient_executor()
 
-router = APIRouter(prefix="/api/v1/maas/marketplace", tags=["MaaS Marketplace"])
+router = APIRouter(prefix="/marketplace", tags=["MaaS Marketplace"])
 _MARKETPLACE_API_SOURCE_AGENT = "maas-marketplace"
 _MARKETPLACE_API_LAYER = "api_to_commerce"
 _MARKETPLACE_API_CLAIM_BOUNDARY = (
