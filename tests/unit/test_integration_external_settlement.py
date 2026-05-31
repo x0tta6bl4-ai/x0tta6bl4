@@ -101,11 +101,19 @@ def test_validate_evidence_accepts_real_shaped_receipt(tmp_path):
     _write_json(evidence_path, _valid_receipt())
 
     result = validate_evidence_file(evidence_path)
+    report = result.report()
 
     assert result.valid is True
     assert result.transaction_hash == TX_HASH
     assert result.destination_chain == "base-sepolia"
     assert result.expected_chain_id == 84532
+    assert report["claim_gate"]["retained_evidence_claim_allowed"] is True
+    assert report["claim_gate"]["live_rpc_receipt_claim_allowed"] is False
+    assert (
+        report["claim_gate"]["external_settlement_finality_claim_allowed"]
+        is False
+    )
+    assert "live_rpc_receipt_not_verified" in report["claim_gate"]["blockers"]
 
 
 def test_validate_evidence_rejects_packet_hash_mismatch(tmp_path):
@@ -163,9 +171,19 @@ def test_live_rpc_gate_stays_blocked_without_rpc_url(tmp_path):
     assert rpc_report["rpc_endpoint_present"] is False
     assert rpc_report["rpc_endpoint_redacted"] is True
     assert rpc_report["summary"]["x0t_external_settlement_live_rpc_ready"] is False
+    assert rpc_report["claim_gate"]["retained_evidence_claim_allowed"] is True
+    assert rpc_report["claim_gate"]["live_rpc_receipt_claim_allowed"] is False
+    assert (
+        rpc_report["claim_gate"]["external_settlement_finality_claim_allowed"]
+        is False
+    )
     assert blocker["decision"] == "BLOCKED_ON_REAL_SETTLEMENT_RECEIPT"
     assert blocker["summary"]["evidence_file_valid"] is True
     assert blocker["summary"]["live_rpc_ready"] is False
+    assert (
+        blocker["claim_gate"]["external_settlement_finality_claim_allowed"]
+        is False
+    )
 
 
 def test_capture_evidence_from_rpc_builds_valid_receipt(monkeypatch, tmp_path):
@@ -310,6 +328,15 @@ def test_cli_capture_writes_evidence_and_gate_reports(monkeypatch, tmp_path):
     assert rpc_report["rpc_endpoint_hash"]
     assert rpc_report["rpc_endpoint_redacted"] is True
     assert "https://rpc.example" not in json.dumps(rpc_report)
+    assert rpc_report["claim_gate"]["retained_evidence_claim_allowed"] is True
+    assert rpc_report["claim_gate"]["live_rpc_receipt_claim_allowed"] is True
+    assert (
+        rpc_report["claim_gate"]["external_settlement_finality_claim_allowed"]
+        is True
+    )
+    assert rpc_report["claim_gate"]["customer_traffic_claim_allowed"] is False
+    assert blocker["claim_gate"]["external_settlement_finality_claim_allowed"] is True
+    assert blocker["claim_gate"]["production_readiness_claim_allowed"] is False
 
 
 def test_cli_writes_fail_closed_current_artifacts_when_receipt_is_missing(tmp_path):

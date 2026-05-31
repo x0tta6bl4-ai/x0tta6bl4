@@ -44,6 +44,16 @@ EXPLORER_URLS = {
     "base-mainnet": "https://basescan.org/tx/",
     "base": "https://basescan.org/tx/",
 }
+EXTERNAL_SETTLEMENT_CLAIM_GATE_SCHEMA = (
+    "x0tta6bl4.external_settlement.claim_gate.v1"
+)
+EXTERNAL_SETTLEMENT_CLAIM_GATE_BOUNDARY = (
+    "External X0T settlement claim gate. Retained evidence can prove only a "
+    "locally validated receipt packet. External settlement finality is allowed "
+    "only when retained evidence is valid and the matching live RPC receipt is "
+    "verified. It does not prove customer traffic, dataplane delivery, bank "
+    "settlement, revenue recognition, production SLOs, or production readiness."
+)
 
 
 def utc_now() -> str:
@@ -141,6 +151,38 @@ def _redacted_rpc_endpoint_metadata(rpc_url: Optional[str]) -> Dict[str, Any]:
         if endpoint
         else None,
         "rpc_endpoint_redacted": True,
+    }
+
+
+def _external_settlement_claim_gate(
+    *,
+    surface: str,
+    retained_evidence_ready: bool,
+    live_rpc_ready: bool,
+) -> Dict[str, Any]:
+    blockers: List[str] = []
+    if not retained_evidence_ready:
+        blockers.append("retained_settlement_receipt_missing_or_invalid")
+    if not live_rpc_ready:
+        blockers.append("live_rpc_receipt_not_verified")
+
+    external_finality_allowed = retained_evidence_ready and live_rpc_ready
+    return {
+        "schema": EXTERNAL_SETTLEMENT_CLAIM_GATE_SCHEMA,
+        "surface": surface,
+        "retained_evidence_claim_allowed": retained_evidence_ready,
+        "live_rpc_receipt_claim_allowed": live_rpc_ready,
+        "external_settlement_finality_claim_allowed": external_finality_allowed,
+        "economy_finality_claim_allowed": external_finality_allowed,
+        "bank_settlement_claim_allowed": False,
+        "revenue_recognition_claim_allowed": False,
+        "dataplane_delivery_claim_allowed": False,
+        "customer_traffic_claim_allowed": False,
+        "production_slo_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "blockers": blockers,
+        "claim_boundary": EXTERNAL_SETTLEMENT_CLAIM_GATE_BOUNDARY,
+        "redacted": True,
     }
 
 
@@ -431,6 +473,11 @@ class EvidenceGateResult:
                 "fake_external_settlement_prevention_enforced": True,
                 "x0t_external_settlement_ready": self.valid,
             },
+            "claim_gate": _external_settlement_claim_gate(
+                surface="external_settlement.retained_evidence_gate",
+                retained_evidence_ready=self.valid,
+                live_rpc_ready=False,
+            ),
             "x0t_external_settlement_decision": "READY" if self.valid else "BLOCKED",
             "goal_can_be_marked_complete": False,
             "not_verified_yet": [] if self.valid else [
@@ -630,6 +677,11 @@ def verify_live_rpc(evidence: EvidenceGateResult, rpc_url: Optional[str]) -> Dic
             "fake_external_settlement_prevention_enforced": True,
             "x0t_external_settlement_live_rpc_ready": ready,
         },
+        "claim_gate": _external_settlement_claim_gate(
+            surface="external_settlement.live_rpc_gate",
+            retained_evidence_ready=evidence.valid,
+            live_rpc_ready=ready,
+        ),
         "x0t_external_settlement_live_rpc_decision": "READY" if ready else (
             "BLOCKED_ON_EVIDENCE" if not evidence.valid else "BLOCKED_ON_RPC"
         ),
@@ -681,6 +733,11 @@ def build_blocker_report(evidence_report: Dict[str, Any], rpc_report: Dict[str, 
             "fake_external_settlement_prevention_enforced": True,
             "x0t_external_settlement_ready": ready,
         },
+        "claim_gate": _external_settlement_claim_gate(
+            surface="external_settlement.current_blocker_rollup",
+            retained_evidence_ready=evidence_ready,
+            live_rpc_ready=live_ready,
+        ),
         "blocking_reasons": blocking_reasons,
         "required_next_evidence": [] if ready else [
             "real submitted X0T settlement transaction hash",
