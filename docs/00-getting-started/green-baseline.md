@@ -37,8 +37,12 @@ The dependency security test verifies that:
 
 ## GitHub Checks
 
+The local baseline checks are enforced by the `Green Baseline` workflow in
+`.github/workflows/green-baseline.yml`.
+
 For PRs that touch dependencies or baseline documentation, wait for:
 
+- `Green Baseline`
 - `dependency-review`
 - `Analyze (python)`
 - `submit-pypi`
