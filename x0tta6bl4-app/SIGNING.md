@@ -9,6 +9,30 @@ The native build workflow always verifies installable development artifacts:
 
 Production Android and iOS device artifacts require private signing material. Do not commit private keys, certificates, provisioning profiles, or passwords. Store them only as GitHub Actions secrets or local environment variables.
 
+## Signing Readiness Preflight
+
+Use the preflight command before expecting signed release artifacts. It reports only whether required values are present; it never prints secret values.
+
+Check local Android/iOS environment variables:
+
+```bash
+python3 scripts/ops/check_native_signing_readiness.py --source env-local
+```
+
+Check GitHub repository secrets:
+
+```bash
+python3 scripts/ops/check_native_signing_readiness.py --source github --repo x0tta6bl4-ai/x0tta6bl4
+```
+
+Fail closed when a signed release is required:
+
+```bash
+python3 scripts/ops/check_native_signing_readiness.py --source github --repo x0tta6bl4-ai/x0tta6bl4 --require-ready
+```
+
+The `Native App Builds` workflow uploads `x0tta6bl4-native-signing-readiness/native-signing-readiness.json` on every run. If it says `ready: false`, Android/iOS signed release artifacts are intentionally skipped.
+
 ## Android Release Signing
 
 Set these repository secrets to produce signed Android release APK/AAB artifacts:
