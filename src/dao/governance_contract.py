@@ -6,12 +6,17 @@ Provides Python interface to MeshGovernance smart contract.
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from src.coordination.events import EventBus, EventType, get_event_bus
-from src.integration.spine import SafeActuator, SafeActuatorResult
+from src.integration.spine import (
+    SafeActuator,
+    SafeActuatorEvidenceMetadata,
+    SafeActuatorResult,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -22,6 +27,14 @@ from src.services.service_event_identity import service_event_identity
 logger = logging.getLogger(__name__)
 
 _SERVICE_AGENT = "governance-contract"
+_GOVERNANCE_CONTRACT_STRONG_CLAIM_IDS = (
+    "external_settlement_finality",
+    "governance_execution_finality",
+    "production_governance_execution",
+    "production_readiness",
+    "dataplane_delivery",
+    "customer_traffic",
+)
 
 GOVERNANCE_CONTRACT_CLAIM_BOUNDARY = (
     "GovernanceContract chain-write event only. It records local identity, "
@@ -260,6 +273,118 @@ class GovernanceContract:
         }
 
     @staticmethod
+    def _chain_write_cross_plane_claim_gate() -> Dict[str, Any]:
+        return {
+            "schema": "x0tta6bl4.cross_plane_proof_gate.v1",
+            "surface": "dao.governance_contract.chain_write.safe_actuator",
+            "decision": "CROSS_PLANE_CLAIMS_BLOCKED",
+            "allowed": False,
+            "requested_claim_ids": list(_GOVERNANCE_CONTRACT_STRONG_CLAIM_IDS),
+            "blockers": ["governance_contract_local_chain_write_only"],
+            "claim_boundary": (
+                "GovernanceContract metadata records local guarded transaction "
+                "submission state only. External settlement finality, governance "
+                "finality, production execution, dataplane, and customer traffic "
+                "claims need independent cross-plane evidence."
+            ),
+        }
+
+    @classmethod
+    def _chain_write_claim_gate(
+        cls,
+        *,
+        operation: str,
+        success: bool,
+        simulated: bool,
+        transaction_hash: Optional[str],
+        operation_recognized: bool,
+    ) -> Dict[str, Any]:
+        submitted_transaction = bool(transaction_hash and success and not simulated)
+        blockers = [
+            "external_settlement_finality_requires_verified_live_receipt",
+            "governance_execution_finality_requires_chain_state_evidence",
+            "production_governance_execution_requires_runtime_post_action_evidence",
+            "production_readiness_requires_cross_plane_proof",
+            "dataplane_claim_requires_dedicated_dataplane_probe",
+        ]
+        if not operation_recognized:
+            blockers.append("unknown_governance_contract_operation")
+        if simulated:
+            blockers.append("safe_actuator_result_simulated")
+        if not success:
+            blockers.append("chain_write_not_successful")
+        if not transaction_hash:
+            blockers.append("transaction_hash_missing")
+
+        return {
+            "schema": "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1",
+            "surface": "dao.governance_contract.chain_write",
+            "operation": str(operation or ""),
+            "local_transaction_submission_claim_allowed": submitted_transaction,
+            "transaction_hash_observed_claim_allowed": bool(transaction_hash),
+            "external_settlement_finality_claim_allowed": False,
+            "governance_execution_finality_claim_allowed": False,
+            "production_governance_execution_claim_allowed": False,
+            "production_readiness_claim_allowed": False,
+            "dataplane_delivery_claim_allowed": False,
+            "customer_traffic_claim_allowed": False,
+            "blocked_claim_ids": list(_GOVERNANCE_CONTRACT_STRONG_CLAIM_IDS),
+            "blockers": blockers,
+            "claim_boundary": (
+                "GovernanceContract SafeActuator metadata proves only a local "
+                "guarded chain-write attempt and bounded transaction-hash "
+                "observation. It does not prove external settlement finality, DAO "
+                "governance finality, production governance execution, production "
+                "readiness, dataplane delivery, or customer traffic."
+            ),
+        }
+
+    @classmethod
+    def _chain_write_evidence_metadata(
+        cls,
+        *,
+        operation: str,
+        context: Dict[str, Any],
+        success: bool,
+        simulated: bool = False,
+        transaction_hash: Optional[str] = None,
+        operation_recognized: bool = True,
+        duration_ms: Optional[int] = None,
+    ) -> SafeActuatorEvidenceMetadata:
+        claim_gate = cls._chain_write_claim_gate(
+            operation=operation,
+            success=success,
+            simulated=simulated,
+            transaction_hash=transaction_hash,
+            operation_recognized=operation_recognized,
+        )
+        evidence = {
+            "source_agents": [_SERVICE_AGENT],
+            "event_ids": [],
+            "operation": str(operation or ""),
+            "operation_resource": cls._operation_resource_name(operation),
+            "context_keys": sorted(str(key) for key in context.keys()),
+            "context_values_redacted": True,
+            "transaction_hash_present": bool(transaction_hash),
+            "transaction_hash_redacted": bool(transaction_hash),
+            "submitted_transaction": bool(transaction_hash and success and not simulated),
+            "duration_ms": int(duration_ms or 0),
+            "simulated": bool(simulated),
+            "raw_values_redacted": True,
+        }
+        return SafeActuatorEvidenceMetadata.from_value(
+            {
+                "claim_gate": claim_gate,
+                "cross_plane_claim_gate": cls._chain_write_cross_plane_claim_gate(),
+                "evidence": evidence,
+                "source_agents": [_SERVICE_AGENT],
+                "event_ids": [],
+                "claim_boundary": claim_gate["claim_boundary"],
+                "redacted": True,
+            }
+        )
+
+    @staticmethod
     def _operation_resource_name(operation: str) -> str:
         operation_lower = str(operation or "unknown_operation").lower().strip()
         slug = "".join(
@@ -282,6 +407,7 @@ class GovernanceContract:
         success: Optional[bool] = None,
         transaction_hash: Optional[str] = None,
         simulated: Optional[bool] = None,
+        safe_actuator_evidence_metadata: Optional[SafeActuatorEvidenceMetadata] = None,
     ) -> Optional[str]:
         if self.event_bus is None:
             return None
@@ -317,6 +443,11 @@ class GovernanceContract:
             if policy_decision is not None
             else [],
             "safe_actuator": True,
+            "safe_actuator_evidence_metadata": (
+                safe_actuator_evidence_metadata.to_dict()
+                if safe_actuator_evidence_metadata is not None
+                else SafeActuatorEvidenceMetadata().to_dict()
+            ),
             "claim_boundary": GOVERNANCE_CONTRACT_CLAIM_BOUNDARY,
         }
         try:
@@ -371,6 +502,7 @@ class GovernanceContract:
     ) -> SafeActuatorResult:
         self._last_chain_write_result = None
         self._last_chain_write_exception = None
+        start = time.monotonic()
         try:
             if operation == "create_proposal":
                 raw = self._create_proposal_internal(
@@ -386,15 +518,44 @@ class GovernanceContract:
             elif operation == "execute_proposal":
                 raw = self._execute_proposal_internal(int(context.get("proposal_id", 0)))
             else:
-                return SafeActuatorResult(False, f"unknown GovernanceContract operation: {operation}")
+                return SafeActuatorResult(
+                    False,
+                    f"unknown GovernanceContract operation: {operation}",
+                    evidence_metadata=self._chain_write_evidence_metadata(
+                        operation=operation,
+                        context=context,
+                        success=False,
+                        operation_recognized=False,
+                    ),
+                )
         except BaseException as exc:
             self._last_chain_write_exception = exc
-            return SafeActuatorResult(False, str(exc))
+            duration_ms = int((time.monotonic() - start) * 1000)
+            return SafeActuatorResult(
+                False,
+                str(exc),
+                evidence_metadata=self._chain_write_evidence_metadata(
+                    operation=operation,
+                    context=context,
+                    success=False,
+                    duration_ms=duration_ms,
+                ),
+            )
 
         self._last_chain_write_result = raw
+        success = self._chain_write_success(raw)
+        transaction_hash = self._chain_write_transaction_hash(raw)
+        duration_ms = int((time.monotonic() - start) * 1000)
         return SafeActuatorResult(
-            self._chain_write_success(raw),
-            "" if self._chain_write_success(raw) else f"{operation} returned no transaction result",
+            success,
+            "" if success else f"{operation} returned no transaction result",
+            evidence_metadata=self._chain_write_evidence_metadata(
+                operation=operation,
+                context=context,
+                success=success,
+                transaction_hash=transaction_hash,
+                duration_ms=duration_ms,
+            ),
         )
 
     def _run_chain_write(self, operation: str, context: Dict[str, Any]) -> Any:
@@ -431,6 +592,19 @@ class GovernanceContract:
         actuator_result = self.safe_actuator.execute(operation, context)
         raw = self._last_chain_write_result
         transaction_hash = self._chain_write_transaction_hash(raw)
+        if not actuator_result.evidence_metadata.claim_gate:
+            actuator_result = SafeActuatorResult(
+                success=actuator_result.success,
+                reason=actuator_result.reason,
+                simulated=actuator_result.simulated,
+                evidence_metadata=self._chain_write_evidence_metadata(
+                    operation=operation,
+                    context=context,
+                    success=actuator_result.success,
+                    simulated=actuator_result.simulated,
+                    transaction_hash=transaction_hash,
+                ),
+            )
         if self._last_chain_write_exception is not None:
             self._publish_chain_write_event(
                 EventType.TASK_FAILED,
@@ -442,6 +616,7 @@ class GovernanceContract:
                 success=False,
                 transaction_hash=None,
                 simulated=False,
+                safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
             )
             raise self._last_chain_write_exception
 
@@ -456,6 +631,7 @@ class GovernanceContract:
                 success=False,
                 transaction_hash=None,
                 simulated=True,
+                safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
             )
             raise RuntimeError(actuator_result.reason or "safe actuator returned simulated result")
 
@@ -470,6 +646,7 @@ class GovernanceContract:
                 success=False,
                 transaction_hash=None,
                 simulated=False,
+                safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
             )
             raise RuntimeError(actuator_result.reason or f"{operation} failed")
 
@@ -483,6 +660,7 @@ class GovernanceContract:
             success=True,
             transaction_hash=transaction_hash,
             simulated=False,
+            safe_actuator_evidence_metadata=actuator_result.evidence_metadata,
         )
         return raw
 

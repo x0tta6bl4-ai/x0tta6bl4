@@ -100,6 +100,31 @@ def test_governance_contract_create_proposal_emits_identity_policy_and_actuator_
     assert payload["submitted_transaction"] is True
     assert payload["transaction_hash"] == "0xcreate123"
     assert payload["claim_boundary"]
+    metadata = payload["safe_actuator_evidence_metadata"]
+    assert metadata["schema"] == "x0tta6bl4.safe_actuator.evidence_metadata.v1"
+    assert metadata["source_agents"] == ["governance-contract"]
+    assert metadata["redacted"] is True
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["schema"] == (
+        "x0tta6bl4.governance_contract.safe_actuator_claim_gate.v1"
+    )
+    assert claim_gate["local_transaction_submission_claim_allowed"] is True
+    assert claim_gate["transaction_hash_observed_claim_allowed"] is True
+    assert claim_gate["external_settlement_finality_claim_allowed"] is False
+    assert claim_gate["governance_execution_finality_claim_allowed"] is False
+    assert claim_gate["production_governance_execution_claim_allowed"] is False
+    assert claim_gate["production_readiness_claim_allowed"] is False
+    assert claim_gate["dataplane_delivery_claim_allowed"] is False
+    assert claim_gate["customer_traffic_claim_allowed"] is False
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
+    evidence = metadata["evidence"]
+    assert evidence["operation"] == "create_proposal"
+    assert evidence["operation_resource"] == "create_proposal"
+    assert evidence["context_values_redacted"] is True
+    assert evidence["transaction_hash_present"] is True
+    assert evidence["transaction_hash_redacted"] is True
+    assert evidence["submitted_transaction"] is True
+    assert "0xcreate123" not in str(metadata)
 
 
 def test_governance_contract_policy_denial_blocks_before_raw_transaction(tmp_path):
@@ -160,3 +185,9 @@ def test_governance_contract_simulated_actuator_blocks_execution(tmp_path):
     )
     assert failed[-1].data["stage"] == "actuator_simulated"
     assert failed[-1].data["submitted_transaction"] is False
+    metadata = failed[-1].data["safe_actuator_evidence_metadata"]
+    claim_gate = metadata["claim_gate"]
+    assert claim_gate["local_transaction_submission_claim_allowed"] is False
+    assert "safe_actuator_result_simulated" in claim_gate["blockers"]
+    assert "transaction_hash_missing" in claim_gate["blockers"]
+    assert metadata["cross_plane_claim_gate"]["allowed"] is False
