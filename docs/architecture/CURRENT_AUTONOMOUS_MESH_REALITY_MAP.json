@@ -1,0 +1,297 @@
+{
+  "schema": "x0tta6bl4.autonomous_mesh_reality_map.v1",
+  "captured_at": "2026-05-31",
+  "status": "working_map_not_production_completion_proof",
+  "scope": "Current reality map for x0tta6bl4 as an autonomous mesh system. This separates verified local contours from research, marketing, or unproven production claims.",
+  "claim_boundary": "This map is an architectural evidence index. It does not prove live customer traffic, external DPI bypass, payment settlement finality, production SLOs, or production readiness.",
+  "authoritative_companions": [
+    "docs/architecture/CURRENT_CROSS_PLANE_EVIDENCE_MAP.json",
+    "docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json",
+    "docs/architecture/CURRENT_EVIDENCE_RUNTIME_BRIDGE_MAP.json",
+    "docs/architecture/CURRENT_POLICY_ENFORCEMENT_MAP.json",
+    "docs/architecture/CURRENT_COMPONENT_REGISTRY.json",
+    "docs/architecture/CURRENT_ACTIVE_GOAL_GAP_AUDIT.md"
+  ],
+  "system_formula": "Identity + Mesh + Observability + Policy + Safe Automation + Evidence",
+  "operational_loop": "Observe -> Bound Claim -> Decide by Policy -> Act Safely -> Revalidate -> Record Evidence",
+  "planes": {
+    "data_plane": {
+      "role": "Mesh transport, local network observations, packet-loss metrics, peer state, and bounded dataplane probes.",
+      "verified_contours": [
+        {
+          "id": "yggdrasil_observed_state",
+          "what_is_proven": "Local Yggdrasil getSelf/getPeers state can be captured as bounded observed-state evidence with redacted metadata.",
+          "source_refs": [
+            "src/network/yggdrasil_client.py",
+            "src/libx0t/network/yggdrasil_client.py",
+            "src/mesh/telemetry_collector.py",
+            "src/mesh/network_manager.py"
+          ]
+        },
+        {
+          "id": "dataplane_delivery_collector",
+          "what_is_proven": "Opt-in local collector can emit proof-gate-compatible dataplane delivery evidence while keeping production and customer-traffic claims false.",
+          "source_refs": [
+            "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py"
+          ]
+        }
+      ],
+      "unproven_or_blocked_claims": [
+        "live customer traffic delivery",
+        "remote peer authenticity from local status alone",
+        "external DPI bypass",
+        "production dataplane SLOs"
+      ]
+    },
+    "control_plane": {
+      "role": "MAPE-K, policy enforcement, SafeActuator guarded actions, route/API control, and bounded recovery contracts.",
+      "verified_contours": [
+        {
+          "id": "metric_evidence_policy",
+          "what_is_proven": "High-risk mesh actions have a shared metric-evidence quality gate and cannot promote restored-dataplane claims from estimates alone.",
+          "source_refs": [
+            "src/mesh/metric_evidence_policy.py",
+            "src/mesh/action_enforcer.py",
+            "src/core/mape_k_loop.py"
+          ]
+        },
+        {
+          "id": "bounded_mesh_recovery_contract",
+          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action revalidation, and machine-readable evidence.",
+          "source_refs": [
+            "src/mesh/recovery_contracts.py",
+            "src/mesh/recovery_policy.py",
+            "src/mesh/recovery_orchestrator.py",
+            "tests/unit/mesh/test_recovery_contracts_unit.py"
+          ]
+        },
+        {
+          "id": "policy_decision_normalization",
+          "what_is_proven": "Zero-trust and ABAC policy decision dialects are normalized before guarded runtime actions interpret allow/deny state.",
+          "source_refs": [
+            "src/security/policy_decision_adapter.py",
+            "docs/architecture/CURRENT_POLICY_ENFORCEMENT_MAP.json"
+          ]
+        }
+      ],
+      "unproven_or_blocked_claims": [
+        "all high-risk actions are covered by one dynamic runtime spine",
+        "local restart proves restored dataplane",
+        "local health proves production readiness"
+      ]
+    },
+    "trust_plane": {
+      "role": "SPIFFE/SPIRE identity, service identity metadata, PQC identity lifecycle, and redacted trust evidence.",
+      "verified_contours": [
+        {
+          "id": "service_identity_status",
+          "what_is_proven": "Services expose redacted identity configuration metadata without leaking SPIFFE IDs, DIDs, wallet addresses, or raw identity values.",
+          "source_refs": [
+            "src/services/service_event_identity.py",
+            "src/services/service_identity_registry.py",
+            "src/api/service_identity_status.py"
+          ]
+        },
+        {
+          "id": "spire_socket_boundary",
+          "what_is_proven": "SPIRE socket and join-token guard contracts exist for local identity bootstrap boundaries.",
+          "source_refs": [
+            "scripts/spire",
+            "docker-compose.spire.yml",
+            "src/security/spire_integration.py",
+            "src/security/spiffe/agent/join_token_guard.py",
+            "src/security/spiffe/agent/manager.py"
+          ]
+        }
+      ],
+      "unproven_or_blocked_claims": [
+        "live SVID possession for every runtime action",
+        "DID ownership finality",
+        "wallet control finality",
+        "chain identity finality"
+      ]
+    },
+    "evidence_plane": {
+      "role": "EventBus traces, verification artifacts, proof gates, claim hygiene, Ledger/RAG evidence search, and current readiness maps.",
+      "verified_contours": [
+        {
+          "id": "event_control_plane",
+          "what_is_proven": "EventBus, service identity, service trace filters, and SafeActuator surfaces form a shared event/control vocabulary.",
+          "source_refs": [
+            "src/coordination/events.py",
+            "src/services/service_event_trace.py",
+            "src/integration/spine.py",
+            "docs/architecture/CURRENT_EVENT_CONTROL_PLANE_MAP.json"
+          ]
+        },
+        {
+          "id": "evidence_runtime_bridge",
+          "what_is_proven": "Verification artifacts and redacted EventBus traces can be indexed into the Ledger/RAG runtime surface with source metadata and citation boundaries.",
+          "source_refs": [
+            "src/api/ledger_endpoints.py",
+            "src/ledger/rag_search.py",
+            "docs/architecture/CURRENT_EVIDENCE_RUNTIME_BRIDGE_MAP.json"
+          ]
+        },
+        {
+          "id": "real_readiness_gate",
+          "what_is_proven": "The real-readiness script statically checks local contracts and current cross-plane evidence context, but it is not live external-world proof.",
+          "source_refs": [
+            "scripts/ops/check_real_readiness.py",
+            "scripts/ops/run_cross_plane_proof_gate.py"
+          ]
+        }
+      ],
+      "unproven_or_blocked_claims": [
+        "historical docs are current proof",
+        "RAG citation is production proof",
+        "green local static gate proves live customer traffic"
+      ]
+    },
+    "economy_plane": {
+      "role": "Billing, invoice, marketplace, escrow, reward, token bridge, and settlement-boundary evidence.",
+      "verified_contours": [
+        {
+          "id": "billing_and_provisioning_boundaries",
+          "what_is_proven": "Billing and provisioning surfaces expose local lifecycle evidence while blocking payment settlement, access, dataplane, and production promotion.",
+          "source_refs": [
+            "src/api/maas_billing.py",
+            "src/services/provisioning_service.py",
+            "src/api/maas_compat.py"
+          ]
+        },
+        {
+          "id": "reward_and_marketplace_event_boundaries",
+          "what_is_proven": "Reward and marketplace events are local lifecycle/accounting evidence and do not prove traffic delivery or settlement finality.",
+          "source_refs": [
+            "src/services/share_to_earn_service.py",
+            "src/services/marketplace_events.py",
+            "src/dao/token_rewards.py",
+            "src/dao/token_bridge.py"
+          ]
+        }
+      ],
+      "unproven_or_blocked_claims": [
+        "payment provider settlement finality",
+        "bank settlement finality",
+        "token finality",
+        "paid customer serviceability from billing state alone"
+      ]
+    }
+  },
+  "cross_plane_links": [
+    {
+      "id": "mesh_observation_to_evidence_memory",
+      "from": ["data_plane"],
+      "to": ["evidence_plane"],
+      "verified_path": "Local observed-state can become redacted EventBus evidence and operator-searchable Ledger/RAG context.",
+      "boundary": "Observed-state is not customer traffic proof.",
+      "source_refs": [
+        "src/network/yggdrasil_client.py",
+        "src/services/service_event_trace.py",
+        "src/api/ledger_endpoints.py"
+      ]
+    },
+    {
+      "id": "policy_to_safe_action_to_revalidation",
+      "from": ["control_plane", "data_plane"],
+      "to": ["evidence_plane"],
+      "verified_path": "The bounded recovery contract records policy decision, safe action return code, post-action node state, and claim gate.",
+      "boundary": "A local action can prove only local recovery claims until a separate dataplane proof allows stronger claims.",
+      "source_refs": [
+        "src/mesh/recovery_orchestrator.py",
+        "src/mesh/recovery_contracts.py",
+        "tests/unit/mesh/test_recovery_contracts_unit.py"
+      ]
+    },
+    {
+      "id": "service_identity_to_event_evidence",
+      "from": ["trust_plane"],
+      "to": ["evidence_plane", "control_plane"],
+      "verified_path": "Service identity presence and source metadata are retained in event/control traces with sensitive values redacted.",
+      "boundary": "Identity metadata presence is not live SVID proof.",
+      "source_refs": [
+        "src/services/service_event_identity.py",
+        "src/services/service_identity_registry.py",
+        "src/services/service_event_trace.py"
+      ]
+    },
+    {
+      "id": "economy_lifecycle_to_dataplane_boundary",
+      "from": ["economy_plane"],
+      "to": ["data_plane", "evidence_plane"],
+      "verified_path": "Billing, reward, marketplace, and token lifecycle events are kept as local accounting/lifecycle evidence.",
+      "boundary": "Economy lifecycle is not customer VPN reachability, traffic delivery, or settlement finality.",
+      "source_refs": [
+        "src/api/maas_billing.py",
+        "src/services/share_to_earn_service.py",
+        "src/services/marketplace_events.py"
+      ]
+    }
+  ],
+  "architectural_gaps": [
+    {
+      "id": "post_action_dataplane_probe_operationalization",
+      "severity": "tracked_risk",
+      "gap": "Post-action dataplane proof remains operator-controlled and opt-in; local recovery evidence must not be promoted to traffic delivery.",
+      "next_improvement": "Wire an explicit opt-in dataplane proof result into recovery evidence as a separate nested claim gate.",
+      "source_refs": [
+        "scripts/ops/collect_dataplane_delivery_eventbus_evidence.py",
+        "src/mesh/recovery_orchestrator.py"
+      ]
+    },
+    {
+      "id": "control_spine_fragmentation",
+      "severity": "tracked_risk",
+      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, and EventBus traces are present but not yet one fully unified runtime spine.",
+      "next_improvement": "Register mesh recovery evidence as an EventBus source_agent and include it in service_event_trace and Ledger event-trace indexing.",
+      "source_refs": [
+        "src/integration/spine.py",
+        "src/core/mape_k_loop.py",
+        "src/mesh/recovery_orchestrator.py",
+        "src/services/service_event_trace.py"
+      ]
+    },
+    {
+      "id": "economy_dataplane_separation_still_manual",
+      "severity": "tracked_risk",
+      "gap": "Economy and dataplane evidence remain intentionally separate, but future feature work can accidentally over-claim customer delivery from billing state.",
+      "next_improvement": "Keep economy route tests asserting payment/access/dataplane/settlement claim gates stay false unless a dedicated proof artifact exists.",
+      "source_refs": [
+        "src/api/maas_billing.py",
+        "src/api/maas_compat.py",
+        "tests/unit/api/test_maas_billing_checkout_evidence_unit.py"
+      ]
+    },
+    {
+      "id": "historical_claim_ingestion_risk",
+      "severity": "tracked_risk",
+      "gap": "Older docs and marketing matrices may contain stronger claims than current source-backed evidence proves.",
+      "next_improvement": "Prefer this map plus current proof gates over historical prose when answering readiness or product claims.",
+      "source_refs": [
+        "docs/marketing/product_hunt_launch/CLAIMS_EVIDENCE_MATRIX_MAAS_v3_4_0.md",
+        "scripts/claim_hygiene_scan.py"
+      ]
+    }
+  ],
+  "not_a_vpn_mvp": {
+    "reason": "The current system surface spans mesh/dataplane observation, MAPE-K/control policy, service identity/trust, evidence/RAG memory, and economy/settlement boundaries. VPN is one product-facing surface, not the architectural center.",
+    "required_planes_present": [
+      "data_plane",
+      "control_plane",
+      "trust_plane",
+      "evidence_plane",
+      "economy_plane"
+    ]
+  },
+  "next_best_code_improvement": {
+    "id": "mesh_recovery_eventbus_bridge",
+    "description": "Publish RecoveryEvidenceV1 packets to EventBus through a dedicated source_agent and register that source in service_event_trace so recovery evidence becomes part of the same evidence-driven control spine as other runtime traces.",
+    "blocked_by": "Avoid touching active MaaS auth/mesh files while other agents are editing them.",
+    "safe_files_to_touch_later": [
+      "src/mesh/recovery_orchestrator.py",
+      "src/services/service_event_trace.py",
+      "tests/unit/mesh/test_recovery_contracts_unit.py"
+    ]
+  }
+}
