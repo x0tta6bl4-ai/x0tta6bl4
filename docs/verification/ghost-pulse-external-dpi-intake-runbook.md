@@ -54,6 +54,8 @@ python3 scripts/ops/verify_ghost_pulse_external_evidence_intake.py --write-repor
 python3 scripts/ops/run_ghost_pulse_verification_suite.py
 python3 scripts/ops/run_ghost_pulse_proof_gate.py --json
 python3 scripts/ops/verify_ghost_pulse_external_evidence_inventory.py --write-report --json
+python3 scripts/ops/run_ghost_pulse_verification_suite.py
+python3 scripts/ops/run_ghost_pulse_proof_gate.py --json
 python3 scripts/ops/verify_ghost_pulse_artifact_chain.py --write-report --json
 python3 scripts/ops/verify_ghost_pulse_goal_state.py --write-report --json
 ```

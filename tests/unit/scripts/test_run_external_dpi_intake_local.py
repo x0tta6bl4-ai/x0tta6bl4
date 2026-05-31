@@ -75,6 +75,7 @@ def test_cancelled_run_does_not_prompt_for_private_values(monkeypatch) -> None:
 
 
 def test_cli_dry_run_json_is_machine_readable() -> None:
+    module = _load()
     result = subprocess.run(
         [sys.executable, str(RUNNER), "--dry-run", "--json"],
         cwd=ROOT,
@@ -94,6 +95,13 @@ def test_cli_dry_run_json_is_machine_readable() -> None:
         "--candidate",
         "docs/verification/incoming/dpi_lab.json",
         "--require-ready",
+        "--json",
+    ]
+    assert report["post_import_refresh_commands"] == module._post_import_refresh_commands()
+    assert report["post_import_refresh_commands"][-1] == [
+        "python3",
+        "scripts/ops/verify_ghost_pulse_goal_state.py",
+        "--write-report",
         "--json",
     ]
 
@@ -181,6 +189,7 @@ def test_ready_run_redacts_child_reports_without_hiding_collector_inputs(monkeyp
         "production_ready": False,
         "raw_private_values_retained": False,
     }
+    assert report["post_import_refresh_commands"] == module._post_import_refresh_commands()
     assert module.REDACTED_LOCAL_INPUT in rendered
     for value in private.values():
         if value != module.CONFIRM_PHRASE:
@@ -252,6 +261,7 @@ def test_not_ready_run_does_not_write_and_redacts_failures(monkeypatch) -> None:
         "import_preflight_not_ready",
         "write_import_not_performed",
     ]
+    assert report["post_import_refresh_commands"] == module._post_import_refresh_commands()
     assert len(importer.calls) == 1
     assert "--treatment-proxy" not in collector.calls[0]
     assert module.REDACTED_LOCAL_INPUT in rendered

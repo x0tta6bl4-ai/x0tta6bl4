@@ -105,6 +105,47 @@ def _collector_shape(output: Path, artifact_dir: Path) -> list[str]:
     ]
 
 
+def _post_import_refresh_commands() -> list[list[str]]:
+    return [
+        [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence.py",
+            "--claim",
+            "dpi_lab",
+            "--require-pass",
+            "--json",
+        ],
+        [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence_intake.py",
+            "--write-report",
+            "--json",
+        ],
+        ["python3", "scripts/ops/run_ghost_pulse_verification_suite.py"],
+        ["python3", "scripts/ops/run_ghost_pulse_proof_gate.py", "--json"],
+        [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_external_evidence_inventory.py",
+            "--write-report",
+            "--json",
+        ],
+        ["python3", "scripts/ops/run_ghost_pulse_verification_suite.py"],
+        ["python3", "scripts/ops/run_ghost_pulse_proof_gate.py", "--json"],
+        [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_artifact_chain.py",
+            "--write-report",
+            "--json",
+        ],
+        [
+            "python3",
+            "scripts/ops/verify_ghost_pulse_goal_state.py",
+            "--write-report",
+            "--json",
+        ],
+    ]
+
+
 def _redact_string(value: str, private_values: tuple[str, ...]) -> str:
     for private_value in sorted(private_values, key=len, reverse=True):
         if value == private_value:
@@ -176,6 +217,7 @@ def _plan(args: argparse.Namespace) -> dict[str, Any]:
             "--write",
             "--json",
         ],
+        "post_import_refresh_commands": _post_import_refresh_commands(),
         "raw_private_values_in_report": False,
     }
 
@@ -386,6 +428,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "validator_report": validator_report,
         "import_preflight_report": import_report,
         "write_report": write_report,
+        "post_import_refresh_commands": _post_import_refresh_commands(),
         "claim_boundary": {
             "local_runner_completed": True,
             "external_dpi_tested": collector_report.get("status") == "VERIFIED",
