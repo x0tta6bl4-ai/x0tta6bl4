@@ -69,6 +69,6 @@ def test_autonomous_mesh_reality_map_names_next_control_spine_improvement() -> N
     payload = _load_map()
     next_step = payload["next_best_code_improvement"]
 
-    assert next_step["id"] == "mesh_recovery_runtime_flow_binding"
-    assert "MeshRecoveryOrchestrator" in next_step["description"]
+    assert next_step["id"] == "maas_healing_post_action_probe_target_binding"
+    assert "RecoveryActionExecutor" in next_step["description"]
     assert "build_recovery_dataplane_ping_probe" in next_step["description"]

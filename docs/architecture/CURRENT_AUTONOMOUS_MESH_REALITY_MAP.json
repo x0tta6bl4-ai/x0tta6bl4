@@ -57,15 +57,17 @@
         },
         {
           "id": "bounded_mesh_recovery_contract",
-          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action local revalidation, optional post-action dataplane proof gating, a recovery-compatible adapter around the shared real-network dataplane probe, machine-readable evidence, and redacted EventBus publication through a dedicated trace-registered source_agent. Customer-traffic claims remain blocked even when a local dataplane proof is attached.",
+          "what_is_proven": "A local mesh recovery vertical now has typed contracts, HMAC-redacted node IDs, cooldown policy, post-action local revalidation, optional post-action dataplane proof gating, a recovery-compatible adapter around the shared real-network dataplane probe, self-healing executor runtime binding for redacted post-action probe targets, machine-readable evidence, and redacted EventBus publication through dedicated trace-registered source_agents. Customer-traffic claims remain blocked even when a local dataplane proof is attached.",
           "source_refs": [
             "src/mesh/recovery_contracts.py",
             "src/mesh/recovery_dataplane_probe.py",
             "src/mesh/recovery_policy.py",
             "src/mesh/recovery_orchestrator.py",
+            "src/self_healing/recovery/executor.py",
             "src/services/service_identity_registry.py",
             "src/services/service_event_trace.py",
-            "tests/unit/mesh/test_recovery_contracts_unit.py"
+            "tests/unit/mesh/test_recovery_contracts_unit.py",
+            "tests/unit/self_healing/test_recovery_actions_unit.py"
           ]
         },
         {
@@ -238,26 +240,29 @@
     {
       "id": "post_action_dataplane_probe_operationalization",
       "severity": "tracked_risk",
-      "gap": "Recovery evidence now has an explicit optional post-action dataplane proof gate and adapter for the shared real-network probe, but no higher-level runtime flow automatically chooses the probe target.",
-      "next_improvement": "Bind the recovery orchestrator adapter into the concrete MAPE-K/healing runtime that owns a redacted post-action probe target, without making dataplane proof mandatory.",
+      "gap": "Recovery evidence now has an explicit optional post-action dataplane proof gate, adapter for the shared real-network probe, and self-healing executor binding when a redacted post-action probe target is present. The MaaS/API healing route still needs a clean ownership boundary for selecting that target.",
+      "next_improvement": "Bind the MaaS/API healing flow to pass a redacted post-action probe target into the recovery executor only when the route owns that evidence boundary, without making dataplane proof mandatory.",
       "source_refs": [
         "src/mesh/recovery_contracts.py",
         "src/mesh/recovery_dataplane_probe.py",
         "src/mesh/recovery_orchestrator.py",
         "src/mesh/real_network_adapter.py",
-        "tests/unit/mesh/test_recovery_contracts_unit.py"
+        "src/self_healing/recovery/executor.py",
+        "tests/unit/mesh/test_recovery_contracts_unit.py",
+        "tests/unit/self_healing/test_recovery_actions_unit.py"
       ]
     },
     {
       "id": "control_spine_fragmentation",
       "severity": "tracked_risk",
-      "gap": "SafeActuator, recovery contracts, MAPE-K, MaaS heal routes, EventBus traces, and recovery dataplane proof adapters are closer together, but not yet one fully unified runtime spine.",
-      "next_improvement": "Make the actual MAPE-K/healing flow instantiate MeshRecoveryOrchestrator with a redacted post-action probe target and adapter.",
+      "gap": "SafeActuator, recovery contracts, self-healing executor post-action proof, MAPE-K, MaaS heal routes, EventBus traces, and recovery dataplane proof adapters are closer together, but not yet one fully unified runtime spine.",
+      "next_improvement": "Finish the MaaS/API healing route binding so the concrete route can pass redacted post-action proof intent into the already-bound self-healing executor.",
       "source_refs": [
         "src/integration/spine.py",
         "src/core/mape_k_loop.py",
         "src/mesh/recovery_dataplane_probe.py",
         "src/mesh/recovery_orchestrator.py",
+        "src/self_healing/recovery/executor.py",
         "src/services/service_event_trace.py"
       ]
     },
@@ -294,15 +299,13 @@
     ]
   },
   "next_best_code_improvement": {
-    "id": "mesh_recovery_runtime_flow_binding",
-    "description": "Instantiate MeshRecoveryOrchestrator in the concrete MAPE-K/healing runtime with build_recovery_dataplane_ping_probe only when that runtime owns a redacted post-action probe target.",
-    "blocked_by": "Requires editing adjacent MAPE-K/MaaS healing runtime files that are currently being modified by other agents.",
+    "id": "maas_healing_post_action_probe_target_binding",
+    "description": "Bind the MaaS/API healing route to pass a redacted post-action dataplane probe target into RecoveryActionExecutor only when the route owns that evidence boundary; the executor default path already uses build_recovery_dataplane_ping_probe.",
+    "blocked_by": "Requires editing adjacent MaaS healing runtime files that are currently being modified by other agents.",
     "safe_files_to_touch_later": [
-      "src/mesh/recovery_orchestrator.py",
-      "src/mesh/recovery_dataplane_probe.py",
-      "src/self_healing/mape_k/manager.py",
       "src/api/maas/nodes/healing.py",
-      "tests/unit/mesh/test_recovery_dataplane_probe_unit.py"
+      "tests/api/test_maas_autonomous_mesh_loop.py",
+      "scripts/ops/verify_maas_heal_post_action_dataplane_probe.py"
     ]
   }
 }

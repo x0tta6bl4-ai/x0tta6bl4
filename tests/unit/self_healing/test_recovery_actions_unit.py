@@ -657,6 +657,85 @@ class TestExecutorExecute:
         assert "203.0.113.10" not in payload_text
         assert "secret-service" not in payload_text
 
+    def test_execute_default_dataplane_probe_uses_recovery_adapter(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        bus = EventBus(project_root=str(tmp_path))
+        calls = []
+
+        def fake_probe_builder(target, **kwargs):
+            calls.append({"target": target, **kwargs})
+
+            def _probe():
+                return {
+                    "status": "ok",
+                    "dataplane_confirmed": True,
+                    "latency_ms": 9.5,
+                    "evidence": {
+                        "source_agents": ["real-network-adapter"],
+                        "event_ids": ["event-probe-adapter-1"],
+                        "events_total": 1,
+                        "redacted": True,
+                    },
+                    "claim_boundary": "bounded adapter dataplane probe",
+                    "raw_target_redacted": True,
+                    "redacted": True,
+                }
+
+            return _probe
+
+        monkeypatch.setattr(
+            "src.self_healing.recovery.executor.build_recovery_dataplane_ping_probe",
+            fake_probe_builder,
+        )
+        ex = RecoveryActionExecutor(
+            node_id="node-recovery-1",
+            enable_circuit_breaker=False,
+            enable_rate_limiting=False,
+            max_retries=1,
+            retry_delay=0.0,
+            event_bus=bus,
+            enable_post_action_dataplane_probe=True,
+        )
+        ex._available_backends = {"systemctl": False, "docker": False, "kubectl": False}
+
+        assert ex.execute(
+            "Restart service",
+            {
+                "service_name": "secret-service",
+                "post_action_dataplane_probe_target": "203.0.113.20",
+            },
+        ) is True
+
+        assert calls
+        assert calls[0]["target"] == "203.0.113.20"
+        assert calls[0]["event_bus"] is bus
+
+        completed = [
+            event
+            for event in bus.get_event_history(
+                event_type=EventType.PIPELINE_STAGE_END,
+                source_agent="recovery-action-executor",
+                limit=10,
+            )
+            if event.data.get("action_type") == "restart_service"
+        ][-1]
+        data = completed.data
+        payload_text = str(data)
+        revalidation = data["post_action_dataplane_revalidation"]
+
+        assert data["dataplane_confirmed"] is True
+        assert data["restored_dataplane_claim_allowed"] is True
+        assert revalidation["probe_result"]["raw_target_redacted"] is True
+        assert revalidation["evidence"]["source_agents"] == ["real-network-adapter"]
+        assert revalidation["evidence"]["event_ids"] == ["event-probe-adapter-1"]
+        assert data["claim_gate"]["claim_allowed"]["restored_dataplane"] is True
+        assert data["claim_gate"]["claim_allowed"]["live_customer_traffic"] is False
+        assert "203.0.113.20" not in payload_text
+        assert "secret-service" not in payload_text
+
     def test_execute_policy_denied_blocks_before_action(self, tmp_path):
         bus = EventBus(project_root=str(tmp_path))
         policy = PolicyEngine(default_action=PolicyAction.DENY, enable_opa=False)

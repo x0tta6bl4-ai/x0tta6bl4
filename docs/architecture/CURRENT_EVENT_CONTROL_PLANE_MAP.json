@@ -1823,7 +1823,7 @@
     {
       "path": "src/mesh/recovery_dataplane_probe.py",
       "layer": "mesh_recovery_dataplane_probe_adapter",
-      "role": "RecoveryDataplanePingProbe adapts the shared real-network-adapter bounded ping probe into MeshRecoveryOrchestrator.dataplane_probe. It normalizes async/sync probe results into dataplane_confirmed plus redacted EventBus evidence references for recovery proof gates without copying raw probe targets or creating a new source_agent.",
+      "role": "RecoveryDataplanePingProbe adapts the shared real-network-adapter bounded ping probe into MeshRecoveryOrchestrator.dataplane_probe and RecoveryActionExecutor post-action revalidation. It normalizes async/sync probe results into dataplane_confirmed plus redacted EventBus evidence references for recovery proof gates without copying raw probe targets or creating a new source_agent.",
       "markers": [
         "event_bus"
       ],
@@ -3619,7 +3619,7 @@
     {
       "path": "src/self_healing/recovery/executor.py",
       "layer": "self_healing_to_control_plane",
-      "role": "Recovery action executor uses EventBus and service identity for action traces.",
+      "role": "Recovery action executor uses EventBus and service identity for action traces, and binds restart-service post-action dataplane revalidation to the shared recovery dataplane probe adapter when a redacted probe target is supplied.",
       "markers": [
         "event_bus",
         "service_identity"
@@ -3628,7 +3628,9 @@
         "src/self_healing/recovery/executor.py:17",
         "src/self_healing/recovery/executor.py:23",
         "src/self_healing/recovery/executor.py:67",
-        "src/self_healing/recovery/executor.py:409"
+        "src/self_healing/recovery/executor.py:409",
+        "src/self_healing/recovery/executor.py:810",
+        "tests/unit/self_healing/test_recovery_actions_unit.py:660"
       ]
     },
     {

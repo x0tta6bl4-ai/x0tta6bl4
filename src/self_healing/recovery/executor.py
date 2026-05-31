@@ -21,6 +21,10 @@ from .models import RecoveryActionType, RecoveryResult
 from .rate_limiter import RateLimiter
 
 from src.coordination.events import EventBus, EventType, get_event_bus
+from src.mesh.recovery_dataplane_probe import (
+    build_recovery_dataplane_ping_probe,
+    normalize_recovery_dataplane_probe_result,
+)
 from src.security.policy_decision_adapter import (
     policy_allowed as normalize_policy_allowed,
     policy_reason as normalize_policy_reason,
@@ -166,8 +170,11 @@ def _probe_result_summary(value: Any) -> Dict[str, Any]:
     packet_loss_percent = _safe_float(value.get("packet_loss_percent"))
     jitter_ms = _safe_float(value.get("jitter_ms"))
     dataplane_confirmed = bool(
-        value.get("status") == "ok"
-        and (latency_ms is not None or packet_loss_percent is not None)
+        value.get("dataplane_confirmed") is True
+        or (
+            value.get("status") == "ok"
+            and (latency_ms is not None or packet_loss_percent is not None)
+        )
     )
     return {
         "status": str(value.get("status") or "unknown"),
@@ -177,6 +184,7 @@ def _probe_result_summary(value: Any) -> Dict[str, Any]:
         "jitter_ms": jitter_ms,
         "evidence": _evidence_summary(value.get("evidence")),
         "claim_boundary": str(value.get("claim_boundary") or ""),
+        "raw_target_redacted": value.get("raw_target_redacted") is True,
         "redacted": True,
     }
 
@@ -810,15 +818,12 @@ class RecoveryActionExecutor:
                 if inspect.isawaitable(raw_result):
                     raw_result = _run_awaitable_sync(raw_result)
             else:
-                from src.mesh.real_network_adapter import probe_peer_dataplane_ping
-
-                raw_result = _run_awaitable_sync(
-                    probe_peer_dataplane_ping(
-                        target,
-                        event_bus=self.event_bus,
-                    )
+                raw_result = build_recovery_dataplane_ping_probe(
+                    target,
+                    event_bus=self.event_bus,
                 )
-            return raw_result if isinstance(raw_result, dict) else {"status": "error"}
+                raw_result = raw_result()
+            return normalize_recovery_dataplane_probe_result(raw_result)
         except Exception as exc:
             return {
                 "status": "error",

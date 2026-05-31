@@ -109,6 +109,9 @@ def normalize_recovery_dataplane_probe_result(
     return {
         "status": "ok" if dataplane_confirmed else "error",
         "dataplane_confirmed": dataplane_confirmed,
+        "latency_ms": raw.get("latency_ms"),
+        "packet_loss_percent": raw.get("packet_loss_percent"),
+        "jitter_ms": raw.get("jitter_ms"),
         "evidence": evidence,
         "claim_boundary": str(raw.get("claim_boundary") or claim_boundary),
         "raw_target_redacted": True,
