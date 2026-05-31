@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -359,6 +360,41 @@ async def test_query_soft_ranks_current_evidence_above_historical_claims(tmp_pat
     assert result.results[1]["metadata"]["claim_status"] == (
         "historical_claim_inventory"
     )
+
+
+@pytest.mark.asyncio
+async def test_query_normalizes_decimal_rag_metrics_for_json(tmp_path):
+    ledger = LedgerRAGSearch(
+        continuity_file=tmp_path / "CONTINUITY.md",
+        verification_root=tmp_path / "docs" / "verification",
+        enable_reranking=False,
+    )
+    ledger._indexed = True
+    rag = _RetrieveRAG(
+        [
+            _Chunk(
+                "current evidence",
+                {
+                    "title": "CURRENT_CROSS_PLANE_EVIDENCE_MAP",
+                    "claim_status": "current_evidence_map",
+                    "current_evidence": True,
+                },
+            ),
+        ],
+        [Decimal("0.875")],
+    )
+    rag._result.retrieval_time_ms = Decimal("12.5")
+    rag._result.rerank_time_ms = Decimal("1.25")
+    ledger.rag = rag
+
+    result = await ledger.query("current evidence")
+
+    assert result.results[0]["score"] == 0.875
+    assert isinstance(result.results[0]["score"], float)
+    assert result.metadata["retrieval_time_ms"] == 12.5
+    assert isinstance(result.metadata["retrieval_time_ms"], float)
+    assert result.metadata["rerank_time_ms"] == 1.25
+    assert isinstance(result.metadata["rerank_time_ms"], float)
 
 
 @pytest.mark.asyncio

@@ -1061,7 +1061,7 @@ class LedgerRAGSearch:
             results = []
             for i, chunk in enumerate(rag_result.retrieved_chunks):
                 # Получаем score из списка scores
-                score = rag_result.scores[i] if i < len(rag_result.scores) else 0.0
+                score = float(rag_result.scores[i]) if i < len(rag_result.scores) else 0.0
                 metadata = chunk.metadata if hasattr(chunk, "metadata") else {}
 
                 results.append(
@@ -1093,8 +1093,8 @@ class LedgerRAGSearch:
                 total_results=len(results),
                 search_time_ms=search_time_ms,
                 metadata={
-                    "retrieval_time_ms": rag_result.retrieval_time_ms,
-                    "rerank_time_ms": rag_result.rerank_time_ms,
+                    "retrieval_time_ms": float(rag_result.retrieval_time_ms),
+                    "rerank_time_ms": float(rag_result.rerank_time_ms),
                 },
             )
 
