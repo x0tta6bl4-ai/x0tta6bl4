@@ -205,6 +205,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         high_risk=True,
         required_all_flags=(
             "dataplane_confirmed",
+            "production_customer_traffic_confirmed",
             "production_readiness_claim_allowed",
         ),
         required_any_flag_groups=(
@@ -222,6 +223,7 @@ CLAIM_REQUIREMENTS: dict[str, ClaimRequirement] = {
         ),
         blocking_false_flags=(
             "dataplane_confirmed",
+            "production_customer_traffic_confirmed",
             "production_readiness_claim_allowed",
             "reward_production_readiness_claim_allowed",
             "settlement_finality_confirmed",
@@ -637,6 +639,7 @@ def customer_traffic_artifact_evidence(root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "claim_id": CUSTOMER_TRAFFIC_CLAIM_ID,
         "required_for_claim": "customer_traffic",
+        "required_for_claims": ["customer_traffic", "production_readiness"],
         "valid": False,
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
@@ -1671,6 +1674,11 @@ def evaluate_claim(
             supporting_artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_boundary
         if not dataplane_boundary or dataplane_boundary.get("valid") is not True:
             blockers.append("production_readiness_dataplane_artifact_not_verified")
+        customer_traffic = (artifact_evidence or {}).get(CUSTOMER_TRAFFIC_CLAIM_ID)
+        if customer_traffic is not None:
+            supporting_artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic
+        if not customer_traffic or customer_traffic.get("valid") is not True:
+            blockers.append("production_readiness_customer_traffic_artifact_not_verified")
         economy_boundary = (artifact_evidence or {}).get(ECONOMY_BOUNDARY_CLAIM_ID)
         if economy_boundary is not None:
             supporting_artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary
@@ -1742,7 +1750,7 @@ def build_report(
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
-    if "customer_traffic" in claims:
+    if any(claim in claims for claim in ("customer_traffic", "production_readiness")):
         artifact_evidence[CUSTOMER_TRAFFIC_CLAIM_ID] = customer_traffic_artifact_evidence(root)
     if any(claim in claims for claim in ("settlement_finality", "production_readiness")):
         artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary_artifact_evidence(root)
