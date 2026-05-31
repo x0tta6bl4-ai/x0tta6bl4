@@ -2,7 +2,9 @@
 import asyncio
 import hashlib
 import inspect
+import json
 import logging
+import math
 import time
 import warnings
 from dataclasses import dataclass
@@ -103,6 +105,12 @@ MAPEK_SAFE_MODE_CLAIM_BOUNDARY = (
     "claims until a trusted operator or recovery path clears the underlying "
     "planning, knowledge, or CID-layer fault."
 )
+MAPEK_RECOVERY_PLAN_CID_CLAIM_BOUNDARY = (
+    "Content-addressed MAPE-K recovery plan metadata only. The CID binds the "
+    "local redacted directive plan to a deterministic digest; it does not prove "
+    "that the plan was executed, restored dataplane behavior, live customer "
+    "traffic, external reachability, or production readiness."
+)
 
 
 def _identity_metadata() -> Dict[str, Any]:
@@ -133,6 +141,114 @@ def _sha256_text(value: str) -> str | None:
     if not value:
         return None
     return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _json_safe_plan_value(value: Any, *, depth: int = 0) -> Any:
+    if depth > 6:
+        return {"truncated": True, "type": type(value).__name__}
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else str(value)
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe_plan_value(nested, depth=depth + 1)
+            for key, nested in sorted(value.items(), key=lambda item: str(item[0]))
+            if str(key) != "recovery_plan_cid"
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [
+            _json_safe_plan_value(item, depth=depth + 1)
+            for item in list(value)[:100]
+        ]
+    redacted = repr(value)
+    return {
+        "type": type(value).__name__,
+        "sha256": _sha256_text(redacted),
+        "redacted": True,
+    }
+
+
+def _canonical_recovery_plan_bytes(directives: Dict[str, Any]) -> bytes:
+    envelope = {
+        "schema": "x0tta6bl4.core_mapek.recovery_plan_canonical.v1",
+        "plan": _json_safe_plan_value(directives),
+    }
+    return json.dumps(
+        envelope,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _content_addressed_recovery_plan_metadata(
+    directives: Dict[str, Any],
+) -> Dict[str, Any]:
+    canonical = _canonical_recovery_plan_bytes(directives)
+    plan_sha256 = hashlib.sha256(canonical).hexdigest()
+    base: Dict[str, Any] = {
+        "schema": "x0tta6bl4.core_mapek.recovery_plan_cid.v1",
+        "claim_boundary": MAPEK_RECOVERY_PLAN_CID_CLAIM_BOUNDARY,
+        "plan_sha256": plan_sha256,
+        "canonical_bytes": len(canonical),
+        "cid_version": 1,
+        "codec": "raw",
+        "multicodec": "raw",
+        "multihash": "sha2-256",
+        "plan_execution_claim_allowed": False,
+        "restored_dataplane_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "redacted": True,
+    }
+    try:
+        import cid
+        import multicodec
+        import multihash
+
+        if not multicodec.is_codec("raw"):
+            raise ValueError("raw_multicodec_unavailable")
+        digest = multihash.digest(canonical, "sha2-256").encode()
+        plan_cid = str(cid.make_cid(1, "raw", digest))
+        if not cid.is_cid(plan_cid):
+            raise ValueError("cid_roundtrip_failed")
+        return {
+            **base,
+            "status": "cid_attached",
+            "plan_cid": plan_cid,
+            "safe_mode_required": False,
+            "blockers": [],
+        }
+    except Exception as exc:
+        return {
+            **base,
+            "status": "cid_generation_failed",
+            "plan_cid": None,
+            "safe_mode_required": True,
+            "failure_reason_id": "recovery_plan_cid_generation_failed",
+            "error_type": type(exc).__name__,
+            "blockers": ["recovery_plan_cid_generation_failed"],
+        }
+
+
+def _safe_recovery_plan_cid(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {"status": "missing", "redacted": True}
+    return {
+        "schema": str(value.get("schema", "")),
+        "status": str(value.get("status", "unknown")),
+        "plan_cid": str(value.get("plan_cid") or ""),
+        "plan_sha256": str(value.get("plan_sha256") or ""),
+        "canonical_bytes": int(value.get("canonical_bytes") or 0),
+        "cid_version": int(value.get("cid_version") or 0),
+        "codec": str(value.get("codec", "")),
+        "multicodec": str(value.get("multicodec", "")),
+        "multihash": str(value.get("multihash", "")),
+        "safe_mode_required": bool(value.get("safe_mode_required")),
+        "claim_boundary": str(value.get("claim_boundary", "")),
+        "redacted": True,
+    }
 
 
 def _safe_numeric_summary(values: Dict[str, Any]) -> Dict[str, float]:
@@ -174,7 +290,7 @@ def _directive_summary(directives: Dict[str, Any]) -> Dict[str, Any]:
     mesh_policy = safe_mesh_metric_evidence_policy(
         directives.get(MESH_METRIC_POLICY_KEY)
     )
-    return {
+    summary = {
         "keys": sorted(str(key) for key in directives),
         "safe_mode": bool(directives.get("safe_mode", False)),
         "safe_mode_final_state": str(
@@ -200,10 +316,14 @@ def _directive_summary(directives: Dict[str, Any]) -> Dict[str, Any]:
         "mesh_high_risk_actions_blocked": bool(
             directives.get("mesh_high_risk_actions_blocked", False)
         ),
+        "recovery_plan_cid": _safe_recovery_plan_cid(
+            directives.get("recovery_plan_cid")
+        ),
         "dao_action_count": len(dao_actions),
         "dao_action_types": sorted(dao_action_types),
         "values_redacted": True,
     }
+    return summary
 
 
 def _safe_action_context(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -810,6 +930,13 @@ class MAPEKLoop:
         self.safe_mode_active = True
         self.safe_mode_reason_id = reason_id
         return directives
+
+    def _attach_recovery_plan_cid(self, directives: Dict[str, Any]) -> Dict[str, Any]:
+        enriched = dict(directives)
+        enriched["recovery_plan_cid"] = _content_addressed_recovery_plan_metadata(
+            enriched
+        )
+        return enriched
 
     def _publish_safe_mode_event(
         self,
@@ -1451,6 +1578,16 @@ class MAPEKLoop:
             logger.warning("⚠️  Degrading trend detected, preparing preemptive healing")
 
         directives = _apply_mesh_metric_evidence_policy(directives, raw)
+        directives = self._attach_recovery_plan_cid(directives)
+        plan_cid = directives.get("recovery_plan_cid")
+        if isinstance(plan_cid, dict) and plan_cid.get("safe_mode_required"):
+            return self._safe_mode_directives(
+                reason_id="recovery_plan_cid_failed",
+                dependency="recovery_plan_cid",
+                error_type=str(plan_cid.get("error_type", "")),
+                base_directives=directives,
+                raw_metrics=raw,
+            )
 
         return directives
 

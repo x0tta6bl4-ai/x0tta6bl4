@@ -1183,6 +1183,74 @@ def check_mapek_safe_mode_contract(root: Path) -> list[CheckResult]:
     ]
 
 
+def check_mapek_recovery_plan_cid_contract(root: Path) -> list[CheckResult]:
+    mape_k_loop = _read(root, "src/core/mape_k_loop.py")
+    required = {
+        "claim_boundary": (
+            "MAPEK_RECOVERY_PLAN_CID_CLAIM_BOUNDARY" in mape_k_loop
+            and "Content-addressed MAPE-K recovery plan metadata only" in mape_k_loop
+        ),
+        "canonical_plan_bytes": (
+            "def _canonical_recovery_plan_bytes(" in mape_k_loop
+            and "sort_keys=True" in mape_k_loop
+            and 'separators=(",", ":")' in mape_k_loop
+            and "allow_nan=False" in mape_k_loop
+        ),
+        "py_cid_multicodec_multihash": (
+            "import cid" in mape_k_loop
+            and "import multicodec" in mape_k_loop
+            and "import multihash" in mape_k_loop
+            and 'cid.make_cid(1, "raw"' in mape_k_loop
+            and 'multihash.digest(canonical, "sha2-256")' in mape_k_loop
+        ),
+        "metadata_claim_gate_blocks_overclaims": (
+            "def _content_addressed_recovery_plan_metadata(" in mape_k_loop
+            and '"schema": "x0tta6bl4.core_mapek.recovery_plan_cid.v1"'
+            in mape_k_loop
+            and '"plan_execution_claim_allowed": False' in mape_k_loop
+            and '"restored_dataplane_claim_allowed": False' in mape_k_loop
+            and '"production_readiness_claim_allowed": False' in mape_k_loop
+        ),
+        "plan_attached_to_directives": (
+            "def _attach_recovery_plan_cid(" in mape_k_loop
+            and '"recovery_plan_cid"] = _content_addressed_recovery_plan_metadata('
+            in mape_k_loop
+            and '"recovery_plan_cid": _safe_recovery_plan_cid(' in mape_k_loop
+        ),
+        "cid_failure_enters_safe_mode": (
+            'reason_id="recovery_plan_cid_failed"' in mape_k_loop
+            and 'dependency="recovery_plan_cid"' in mape_k_loop
+            and '"safe_mode_required": True' in mape_k_loop
+            and '"recovery_plan_cid_generation_failed"' in mape_k_loop
+        ),
+    }
+    missing = [name for name, ok in required.items() if not ok]
+    if missing:
+        return [
+            fail_check(
+                "mapek_recovery_plan_cid_contract",
+                (
+                    "MAPE-K recovery plans must be content-addressed with "
+                    "py-cid/py-multicodec-compatible CIDv1 raw sha2-256 "
+                    "metadata, block execution/dataplane/production overclaims, "
+                    "and enter safe-mode if CID generation fails: "
+                    + ", ".join(missing)
+                ),
+                "src/core/mape_k_loop.py",
+            )
+        ]
+    return [
+        pass_check(
+            "mapek_recovery_plan_cid_contract",
+            (
+                "MAPE-K recovery plans carry deterministic CIDv1 raw sha2-256 "
+                "metadata and fail closed into safe-mode on CID generation faults"
+            ),
+            "src/core/mape_k_loop.py",
+        )
+    ]
+
+
 def check_ebpf_telemetry_loss_fail_closed_contract(root: Path) -> list[CheckResult]:
     perf_reader = _read(root, "src/network/ebpf/telemetry/perf_reader.py")
     collector = _read(root, "src/network/ebpf/telemetry/collector.py")
@@ -5776,6 +5844,7 @@ def build_report(
         checks.extend(check_spire_local_socket_boundary_contract(root))
         checks.extend(check_spire_join_token_replay_guard_contract(root))
         checks.extend(check_mapek_safe_mode_contract(root))
+        checks.extend(check_mapek_recovery_plan_cid_contract(root))
         checks.extend(check_ebpf_telemetry_loss_fail_closed_contract(root))
         checks.extend(check_ebpf_map_freeze_guard_contract(root))
         checks.extend(check_graphsage_anomaly_claim_boundary_contract(root))

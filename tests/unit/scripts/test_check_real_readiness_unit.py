@@ -1214,6 +1214,47 @@ def _apply_mesh_metric_evidence_policy(directives, raw_metrics):
     return directives
 
 MAPEK_SAFE_MODE_CLAIM_BOUNDARY = "Safe-mode blocks route, healing, scaling, DAO dispatch"
+MAPEK_RECOVERY_PLAN_CID_CLAIM_BOUNDARY = "Content-addressed MAPE-K recovery plan metadata only"
+
+def _canonical_recovery_plan_bytes(directives):
+    return json.dumps(
+        directives,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+def _content_addressed_recovery_plan_metadata(directives):
+    import cid
+    import multicodec
+    import multihash
+    canonical = _canonical_recovery_plan_bytes(directives)
+    digest = multihash.digest(canonical, "sha2-256").encode()
+    plan_cid = cid.make_cid(1, "raw", digest)
+    return {
+        "schema": "x0tta6bl4.core_mapek.recovery_plan_cid.v1",
+        "plan_execution_claim_allowed": False,
+        "restored_dataplane_claim_allowed": False,
+        "production_readiness_claim_allowed": False,
+        "safe_mode_required": True,
+        "blockers": ["recovery_plan_cid_generation_failed"],
+    }
+
+def _safe_recovery_plan_cid(value):
+    return {"status": "cid_attached"}
+
+def _directive_summary(directives):
+    return {
+        "recovery_plan_cid": _safe_recovery_plan_cid(
+            directives.get("recovery_plan_cid")
+        )
+    }
+
+def _attach_recovery_plan_cid(directives):
+    directives["recovery_plan_cid"] = _content_addressed_recovery_plan_metadata(
+        directives
+    )
+    return directives
 
 def _safe_mode_directives(reason_id, dependency):
     self.safe_mode_active = True
@@ -1239,6 +1280,10 @@ def _execute(directives):
 def _execute_cycle():
     try:
         directives = self._plan(consciousness_metrics)
+        directives = self._safe_mode_directives(
+            reason_id="recovery_plan_cid_failed",
+            dependency="recovery_plan_cid",
+        )
     except Exception:
         directives = self._safe_mode_directives(
             reason_id="planning_failed",
@@ -7052,6 +7097,81 @@ def _execute_cycle():
     ]
     assert "planning" in blocker["details"]
     assert "CID-layer" in blocker["details"]
+    assert report["ready"] is False
+
+
+def test_mapek_recovery_plan_cid_contract_blocks_plain_unversioned_plans(
+    tmp_path: Path,
+) -> None:
+    _ready_root(tmp_path)
+    _write(
+        tmp_path,
+        "src/core/mape_k_loop.py",
+        """
+MAPEK_SAFE_MODE_CLAIM_BOUNDARY = "Safe-mode blocks route, healing, scaling, DAO dispatch"
+
+def _safe_mode_directives(reason_id, dependency):
+    self.safe_mode_active = True
+    return {
+        "safe_mode": True,
+        "safe_mode_final_state": "control_actions_blocked",
+        "production_readiness_claim_allowed": False,
+    }
+
+def _publish_safe_mode_event(directives):
+    self._publish_control_event(
+        operation="enter_safe_mode",
+        stage="safe_mode_entered",
+    )
+
+def _execute(directives):
+    if directives.get("safe_mode"):
+        reason_id = "planning_failed"
+        return [f"safe_mode={reason_id}"]
+
+def _execute_cycle():
+    try:
+        directives = self._plan(consciousness_metrics)
+    except Exception:
+        directives = self._safe_mode_directives(
+            reason_id="planning_failed",
+            dependency="planner",
+        )
+    try:
+        self._knowledge(consciousness_metrics, directives, actions_taken, raw_metrics)
+    except Exception:
+        self._safe_mode_directives(
+            reason_id="knowledge_phase_failed",
+            dependency="knowledge",
+        )
+
+def _log_to_dao(state):
+    try:
+        cid = dao_logger.log_consciousness_event(event_data)
+    except Exception:
+        safe_directives = self._safe_mode_directives(
+            reason_id="cid_log_failed",
+            dependency="cid_audit_log",
+        )
+        self._publish_safe_mode_event(directives=safe_directives)
+""",
+    )
+
+    report = build_report(
+        tmp_path,
+        include_command_checks=False,
+        include_git_check=False,
+    )
+
+    blocker_ids = {item["check_id"] for item in report["blockers"]}
+    assert "mapek_recovery_plan_cid_contract" in blocker_ids
+    [blocker] = [
+        item
+        for item in report["blockers"]
+        if item["check_id"] == "mapek_recovery_plan_cid_contract"
+    ]
+    assert "content-addressed" in blocker["details"]
+    assert "safe-mode" in blocker["details"]
     assert report["ready"] is False
 
 

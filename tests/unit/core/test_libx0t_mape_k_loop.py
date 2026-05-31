@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
+import libx0t.core.mape_k_loop as mapek_module
 from libx0t.core.mape_k_loop import MAPEKLoop
 from libx0t.core.consciousness import ConsciousnessMetrics, ConsciousnessState
 
@@ -74,6 +75,48 @@ class TestMAPEKLoop:
         
         assert directives["monitoring_interval_sec"] == 60
         assert directives["trend"] == {"trend": "stable"}
+        plan_cid = directives["recovery_plan_cid"]
+        assert plan_cid["schema"] == "x0tta6bl4.core_mapek.recovery_plan_cid.v1"
+        assert plan_cid["status"] == "cid_attached"
+        assert plan_cid["codec"] == "raw"
+        assert plan_cid["multicodec"] == "raw"
+        assert plan_cid["multihash"] == "sha2-256"
+        assert plan_cid["safe_mode_required"] is False
+        assert plan_cid["plan_execution_claim_allowed"] is False
+        assert plan_cid["production_readiness_claim_allowed"] is False
+
+    def test_plan_enters_safe_mode_when_cid_generation_fails(self, loop, monkeypatch):
+        metrics = ConsciousnessMetrics(
+            phi_ratio=1.618, state=ConsciousnessState.HARMONIC,
+            frequency_alignment=1.0, entropy=0.0, harmony_index=1.0, mesh_health=1.0, timestamp=0
+        )
+        loop.consciousness.get_operational_directive.return_value = {
+            "monitoring_interval_sec": 60,
+            "route_preference": "balanced"
+        }
+        loop.consciousness.get_trend_analysis.return_value = {"trend": "stable"}
+
+        def failed_cid(_directives):
+            return {
+                "schema": "x0tta6bl4.core_mapek.recovery_plan_cid.v1",
+                "status": "cid_generation_failed",
+                "safe_mode_required": True,
+                "error_type": "ValueError",
+                "blockers": ["recovery_plan_cid_generation_failed"],
+            }
+
+        monkeypatch.setattr(
+            mapek_module,
+            "_content_addressed_recovery_plan_metadata",
+            failed_cid,
+        )
+
+        directives = loop._plan(metrics)
+
+        assert directives["safe_mode"] is True
+        assert directives["safe_mode_reason_id"] == "recovery_plan_cid_failed"
+        assert directives["safe_mode_dependency"] == "recovery_plan_cid"
+        assert directives["mesh_high_risk_actions_blocked"] is True
 
     @pytest.mark.asyncio
     async def test_execute_route_preference(self, loop):
