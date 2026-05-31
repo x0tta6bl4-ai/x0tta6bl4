@@ -227,6 +227,21 @@ class TestCollectOnce:
                     "operation": "get_peers",
                     "observed_state": True,
                     "remote": "tls://10.0.0.1:9000",
+                    "claim_gate": {
+                        "schema": (
+                            "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1"
+                        ),
+                        "decision": "LOCAL_YGGDRASIL_OBSERVED_STATE_ONLY",
+                        "local_observed_state_claim_allowed": True,
+                        "real_yggdrasil_daemon_observed": True,
+                        "remote_peer_authenticity_claim_allowed": False,
+                        "live_packet_reachability_claim_allowed": False,
+                        "customer_traffic_claim_allowed": False,
+                        "production_readiness_claim_allowed": False,
+                        "blockers": [],
+                        "claim_boundary": YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY,
+                        "redacted": True,
+                    },
                 },
             )
             return {
@@ -292,6 +307,25 @@ class TestCollectOnce:
             YGGDRASIL_OBSERVED_STATE_CLAIM_BOUNDARY
         ]
         assert data["downstream_evidence"]["claim_boundaries_total"] == 1
+        assert data["downstream_claim_gates"]["present"] is True
+        assert data["downstream_claim_gates"]["claim_gates_total"] == 1
+        downstream_gate = data["downstream_claim_gates"]["claim_gates"][0]
+        assert downstream_gate["source_agent"] == "yggdrasil-client"
+        assert downstream_gate["schema"] == (
+            "x0tta6bl4.yggdrasil_observed_state.claim_gate.v1"
+        )
+        assert downstream_gate["flags"][
+            "local_observed_state_claim_allowed"
+        ] is True
+        assert downstream_gate["flags"][
+            "remote_peer_authenticity_claim_allowed"
+        ] is False
+        assert downstream_gate["flags"][
+            "live_packet_reachability_claim_allowed"
+        ] is False
+        assert downstream_gate["flags"][
+            "production_readiness_claim_allowed"
+        ] is False
         assert "10.0.0.1" not in event_text
 
         route_arg = optimizer.register_route.call_args.args[0]

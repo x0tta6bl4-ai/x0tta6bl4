@@ -32,6 +32,8 @@ _RESOURCE = "mesh:telemetry_collector:collect_once"
 _HASH_LIMIT = 20
 _CLAIM_BOUNDARY_LIMIT = 8
 _CLAIM_BOUNDARY_TEXT_LIMIT = 400
+_CLAIM_GATE_LIMIT = 8
+_CLAIM_GATE_BLOCKER_LIMIT = 10
 _DEFAULT_LATENCY_MS = 50.0
 _DEFAULT_PACKET_LOSS_PERCENT = 0.0
 _NUMERIC_RE = re.compile(r"-?\d+(?:\.\d+)?")
@@ -149,6 +151,79 @@ def _safe_evidence_claim_boundaries(value: Dict[str, Any]) -> List[str]:
             if boundary:
                 boundaries.append(boundary)
     return sorted(set(boundaries))[:_CLAIM_BOUNDARY_LIMIT]
+
+
+def _safe_downstream_claim_gate(
+    gate: Any,
+    *,
+    source_agent: str,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(gate, dict):
+        return None
+
+    flags = {
+        str(key): bool(value)
+        for key, value in gate.items()
+        if isinstance(value, bool)
+        and key.endswith(("_allowed", "_observed", "_confirmed", "_mode"))
+    }
+    all_blockers = [
+        str(blocker)
+        for blocker in gate.get("blockers", [])
+        if str(blocker).strip()
+    ]
+    return {
+        "source_agent": str(source_agent),
+        "schema": str(gate.get("schema", "")),
+        "decision": str(gate.get("decision", "")),
+        "flags": flags,
+        "blockers": all_blockers[:_CLAIM_GATE_BLOCKER_LIMIT],
+        "blockers_total": len(all_blockers),
+        "claim_boundary": _safe_claim_boundary(gate.get("claim_boundary")) or "",
+        "redacted": gate.get("redacted") is True,
+    }
+
+
+def _downstream_claim_gate_summary(
+    bus: Optional[EventBus],
+    *,
+    event_ids: List[str],
+    source_agents: List[str],
+) -> Dict[str, Any]:
+    wanted = {str(event_id) for event_id in event_ids if str(event_id)}
+    if bus is None or not wanted:
+        return {
+            "present": False,
+            "claim_gates": [],
+            "claim_gates_total": 0,
+            "claim_gates_truncated": False,
+            "redacted": True,
+        }
+
+    gates: List[Dict[str, Any]] = []
+    for source_agent in sorted(set(source_agents)):
+        events = bus.get_event_history(
+            EventType.PIPELINE_STAGE_END,
+            source_agent=source_agent,
+            limit=1000,
+        )
+        for event in events:
+            if event.event_id not in wanted or not isinstance(event.data, dict):
+                continue
+            gate = _safe_downstream_claim_gate(
+                event.data.get("claim_gate"),
+                source_agent=source_agent,
+            )
+            if gate is not None:
+                gates.append(gate)
+
+    return {
+        "present": bool(gates),
+        "claim_gates": gates[:_CLAIM_GATE_LIMIT],
+        "claim_gates_total": len(gates),
+        "claim_gates_truncated": len(gates) > _CLAIM_GATE_LIMIT,
+        "redacted": True,
+    }
 
 
 def _peer_hashes(peer_ids: List[str]) -> Dict[str, Any]:
@@ -481,6 +556,11 @@ def _publish_collector_event(
             > len(claim_boundaries),
             "redacted": True,
         },
+        "downstream_claim_gates": _downstream_claim_gate_summary(
+            bus,
+            event_ids=evidence_ids,
+            source_agents=source_agents,
+        ),
         "claim_boundary": MESH_TELEMETRY_COLLECTOR_CLAIM_BOUNDARY,
     }
     if error_type:
