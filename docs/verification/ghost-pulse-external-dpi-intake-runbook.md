@@ -60,8 +60,7 @@ python3 scripts/ops/verify_ghost_pulse_goal_state.py --write-report --json
 
 ## Claim Boundary
 
-Passing this runbook can only close `dpi_lab` when the validator and import
-preflight both report readiness. It does not close:
+Passing this runbook can only close `dpi_lab` when the validator and import preflight both report readiness. It does not close:
 
 - `whitelist_lab`
 - `production_readiness`

@@ -143,9 +143,13 @@ class DomainFrontingTransport(ObfuscationTransport):
         backend_domain: str,
         verify_mode: int = ssl.CERT_REQUIRED,
         ca_bundle: Optional[str] = None,
+        verify_certs: bool = True,
     ):
         self.front_domain = front_domain
         self.backend_domain = backend_domain
+
+        if not verify_certs:
+            raise ValueError("verify_certs=False is not allowed")
 
         if verify_mode == ssl.CERT_NONE:
             raise ValueError("ssl.CERT_NONE is not allowed for DomainFrontingTransport")

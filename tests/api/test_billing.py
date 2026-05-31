@@ -92,7 +92,7 @@ async def test_billing_config_configured(client: AsyncClient):
     assert payload["configured"] is True
     assert payload["publishable_key"] == "pk_test_123"
     assert payload["price_id"] == "price_123"
-    assert payload["claim_gate"]["settlement_finality_claim_allowed"] is False
+    assert payload["claim_gate"]["external_settlement_finality_claim_allowed"] is False
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_billing_config_not_configured(client: AsyncClient, setup_env_vars
     assert payload["configured"] is False
     assert payload["publishable_key"] == "pk_test_123"
     assert payload["price_id"] == "price_123"
-    assert payload["claim_gate"]["settlement_finality_claim_allowed"] is False
+    assert payload["claim_gate"]["external_settlement_finality_claim_allowed"] is False
 
 
 # --- Tests for POST /api/v1/billing/checkout-session ---

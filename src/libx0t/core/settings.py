@@ -8,7 +8,7 @@ All secrets must be provided via .env file or environment.
 import os
 from typing import Dict, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -100,6 +100,33 @@ class Settings(BaseSettings):
             raise ValueError("❌ OPERATOR_PRIVATE_KEY must be set in production")
         return v
 
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """Apply production checks after env files have populated all fields."""
+        if not self.is_production():
+            return self
+
+        missing_secrets = [
+            name
+            for name, value in (
+                ("FLASK_SECRET_KEY", self.flask_secret_key),
+                ("JWT_SECRET_KEY", self.jwt_secret_key),
+                ("CSRF_SECRET_KEY", self.csrf_secret_key),
+            )
+            if not value
+        ]
+        if missing_secrets:
+            raise ValueError("❌ Secret key must be set in production")
+
+        if not self.operator_private_key:
+            raise ValueError("❌ OPERATOR_PRIVATE_KEY must be set in production")
+
+        if "x0tta6bl4_password" in self.database_url:
+            raise ValueError(
+                "❌ Hardcoded database password detected! Use DATABASE_URL env var."
+            )
+        return self
+
     # ─────────────────────────────────────────
     # Node Configuration
     # ─────────────────────────────────────────
@@ -186,7 +213,12 @@ class Settings(BaseSettings):
         value = os.getenv(name)
         if value is None:
             return default
-        return value.strip().lower() in {"1", "true", "yes", "on"}
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
 
     def security_profile(self) -> Dict[str, bool]:
         """
