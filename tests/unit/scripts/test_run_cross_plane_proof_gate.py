@@ -884,6 +884,7 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
 ) -> None:
     _write_map(tmp_path, production_flags=True)
     _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_dataplane_delivery_event(tmp_path)
     _write_valid_trust_finality_event(tmp_path)
     _write_valid_economy_boundary_event(tmp_path)
 
@@ -898,12 +899,39 @@ def test_gate_allows_production_readiness_only_with_map_flags_and_verified_impor
     assert artifact["valid"] is True
     assert artifact["proof_gate_validation"]["status"] == "VERIFIED"
     assert "live customer traffic" in artifact["claim_boundary"]
+    dataplane = production["supporting_artifact_evidence"]["dataplane_delivery"]
+    assert dataplane["valid"] is True
+    assert dataplane["selected_event"]["event_id"] == "dataplane-event-1"
+    assert dataplane["selected_event"]["restored_dataplane_claim_allowed"] is True
     economy = production["supporting_artifact_evidence"]["economy_boundary"]
     assert economy["valid"] is True
     assert economy["selected_event"]["event_id"] == "economy-boundary-event-1"
     trust = production["supporting_artifact_evidence"]["trust_finality"]
     assert trust["valid"] is True
     assert trust["selected_event"]["event_id"] == "trust-finality-event-1"
+
+
+def test_gate_blocks_production_readiness_when_dataplane_artifact_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_map(tmp_path, production_flags=True)
+    _write_stub_production_readiness_proof(tmp_path, verified=True)
+    _write_valid_trust_finality_event(tmp_path)
+    _write_valid_economy_boundary_event(tmp_path)
+
+    report = build_report(tmp_path, claims=("production_readiness",))
+
+    assert report["decision"] == "CROSS_PLANE_CLAIMS_BLOCKED"
+    assert report["allowed"] is False
+    [production] = report["claim_results"]
+    assert production["allowed"] is False
+    assert "production_readiness_dataplane_artifact_not_verified" in production["blockers"]
+    dataplane = production["supporting_artifact_evidence"]["dataplane_delivery"]
+    assert dataplane["valid"] is False
+    assert "verified_dataplane_delivery_event_not_found" in dataplane["blockers"]
+    assert production["required_artifact_evidence"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["trust_finality"]["valid"] is True
+    assert production["supporting_artifact_evidence"]["economy_boundary"]["valid"] is True
 
 
 def test_gate_blocks_dataplane_delivery_when_map_flags_are_true_but_eventbus_artifact_is_missing(

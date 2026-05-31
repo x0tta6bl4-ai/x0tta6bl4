@@ -688,6 +688,11 @@ def dataplane_delivery_artifact_evidence(root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "claim_id": DATAPLANE_DELIVERY_CLAIM_ID,
         "required_for_claim": "dataplane_delivery",
+        "required_for_claims": [
+            "dataplane_delivery",
+            "traffic_delivery",
+            "production_readiness",
+        ],
         "valid": False,
         "event_log_path": EVENTBUS_LOG.as_posix(),
         "event_log_exists": path.is_file(),
@@ -1661,6 +1666,11 @@ def evaluate_claim(
         claim_artifact_evidence = (artifact_evidence or {}).get(PRODUCTION_READINESS_CLAIM_ID)
         if not claim_artifact_evidence or claim_artifact_evidence.get("valid") is not True:
             blockers.append("production_readiness_imported_artifact_not_verified")
+        dataplane_boundary = (artifact_evidence or {}).get(DATAPLANE_DELIVERY_CLAIM_ID)
+        if dataplane_boundary is not None:
+            supporting_artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_boundary
+        if not dataplane_boundary or dataplane_boundary.get("valid") is not True:
+            blockers.append("production_readiness_dataplane_artifact_not_verified")
         economy_boundary = (artifact_evidence or {}).get(ECONOMY_BOUNDARY_CLAIM_ID)
         if economy_boundary is not None:
             supporting_artifact_evidence[ECONOMY_BOUNDARY_CLAIM_ID] = economy_boundary
@@ -1728,7 +1738,7 @@ def build_report(
     context = map_context(root, resolved_map, resolved_audit, evidence_map)
     flag_index = collect_flag_index(evidence_map or {})
     artifact_evidence: dict[str, Mapping[str, Any]] = {}
-    if any(claim in claims for claim in ("dataplane_delivery", "traffic_delivery")):
+    if any(claim in claims for claim in ("dataplane_delivery", "traffic_delivery", "production_readiness")):
         artifact_evidence[DATAPLANE_DELIVERY_CLAIM_ID] = dataplane_delivery_artifact_evidence(root)
     if any(claim in claims for claim in ("trust_finality", "production_readiness")):
         artifact_evidence[TRUST_FINALITY_CLAIM_ID] = trust_finality_artifact_evidence(root)
